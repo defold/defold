@@ -7,6 +7,7 @@
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
+#include <dlib/trig_lookup.h>
 #include <graphics/graphics.h>
 #include <graphics/graphics_util.h>
 #include <render/render.h>
@@ -51,17 +52,6 @@ namespace dmGameSystem
         }
 
         gui_world->m_Components.SetCapacity(64);
-
-        // TODO: Everything below here should be move to the "universe" when available
-        // and hence shared among all the worlds
-        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(gui_context->m_RenderContext), GUI_VPC, GUI_VPC_SIZE);
-        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(gui_context->m_RenderContext), GUI_FPC, GUI_FPC_SIZE);
-
-        gui_world->m_Material = dmRender::NewMaterial(gui_context->m_RenderContext, gui_world->m_VertexProgram, gui_world->m_FragmentProgram);
-        SetMaterialProgramConstantType(gui_world->m_Material, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        SetMaterialProgramConstantType(gui_world->m_Material, dmHashString64("world"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD);
-
-        dmRender::AddMaterialTag(gui_world->m_Material, dmHashString32("gui"));
 
         dmGraphics::VertexElement ve[] =
         {
@@ -125,9 +115,6 @@ namespace dmGameSystem
                 delete gui_world->m_Components[i];
             }
         }
-        dmRender::DeleteMaterial(gui_context->m_RenderContext, gui_world->m_Material);
-        dmGraphics::DeleteVertexProgram(gui_world->m_VertexProgram);
-        dmGraphics::DeleteFragmentProgram(gui_world->m_FragmentProgram);
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
@@ -142,6 +129,8 @@ namespace dmGameSystem
         dmGui::SetSceneScript(scene, scene_resource->m_Script);
 
         bool result = true;
+
+        dmGui::SetMaterial(scene, scene_resource->m_Material);
 
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
@@ -233,6 +222,14 @@ namespace dmGameSystem
                 dmGui::SetNodeAdjustMode(scene, n, adjust_mode);
                 dmGui::SetNodeResetPoint(scene, n);
                 dmGui::SetNodeInheritAlpha(scene, n, node_desc->m_InheritAlpha);
+
+                dmGui::SetNodePerimeterVertices(scene, n, node_desc->m_Perimetervertices);
+                dmGui::SetNodeInnerRadius(scene, n, node_desc->m_Innerradius);
+                dmGui::SetNodeOuterBounds(scene, n, (dmGui::PieBounds) node_desc->m_Outerbounds);
+                dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
+                dmGui::SetNodeClippingMode(scene, n, (dmGui::ClippingMode) node_desc->m_ClippingMode);
+                dmGui::SetNodeClippingVisible(scene, n, node_desc->m_ClippingVisible);
+                dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
             }
             else
             {
@@ -271,8 +268,10 @@ namespace dmGameSystem
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_ComponentIndex = params.m_ComponentIndex;
         gui_component->m_Enabled = 1;
+        gui_component->m_AddedToUpdate = 0;
 
         dmGui::NewSceneParams scene_params;
+        // 512 is a hard cap since the render key has 9 bits for node index
         scene_params.m_MaxNodes = 512;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
@@ -340,9 +339,9 @@ namespace dmGameSystem
 
     struct RenderGuiContext
     {
-        dmRender::HRenderContext m_RenderContext;
-        GuiWorld*                m_GuiWorld;
-        uint32_t                 m_NextZ;
+        dmRender::HRenderContext    m_RenderContext;
+        GuiWorld*                   m_GuiWorld;
+        uint32_t                    m_NextZ;
     };
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
@@ -372,17 +371,51 @@ namespace dmGameSystem
         }
     }
 
+    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::StencilTestParams& stp) {
+        if (state != 0x0) {
+            stp.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
+            stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_OpDPFail = dmGraphics::STENCIL_OP_REPLACE;
+            stp.m_OpDPPass = dmGraphics::STENCIL_OP_REPLACE;
+            stp.m_Ref = state->m_RefVal;
+            stp.m_RefMask = state->m_TestMask;
+            stp.m_BufferMask = state->m_WriteMask;
+            stp.m_ColorBufferMask = state->m_ColorMask;
+        } else {
+            stp.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
+            stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Ref = 0;
+            stp.m_RefMask = 0xff;
+            stp.m_BufferMask = 0xff;
+            stp.m_ColorBufferMask = 0xf;
+        }
+    }
+
+    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::RenderObject& ro) {
+        ro.m_SetStencilTest = 1;
+        ApplyStencilClipping(state, ro.m_StencilTestParams);
+    }
+
+    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::DrawTextParams& params) {
+        params.m_StencilTestParamsSet = 1;
+        ApplyStencilClipping(state, params.m_StencilTestParams);
+    }
+
     void RenderTextNodes(dmGui::HScene scene,
-                         dmGui::HNode* nodes,
+                         const dmGui::RenderEntry* entries,
                          const Matrix4* node_transforms,
                          const Vector4* node_colors,
+                         const dmGui::StencilScope** stencil_scopes,
                          uint32_t node_count,
                          void* context)
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
+
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            dmGui::HNode node = nodes[i];
+            dmGui::HNode node = entries[i].m_Node;
 
             const Vector4& color = node_colors[i];
             const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
@@ -403,6 +436,7 @@ namespace dmGameSystem
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
+            ApplyStencilClipping(stencil_scopes[i], params);
             dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
             switch (pivot)
             {
@@ -448,16 +482,17 @@ namespace dmGameSystem
     }
 
     void RenderBoxNodes(dmGui::HScene scene,
-                        dmGui::HNode* nodes,
+                        const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
                         const Vector4* node_colors,
+                        const dmGui::StencilScope** stencil_scopes,
                         uint32_t node_count,
                         void* context)
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
-        dmGui::HNode first_node = nodes[0];
+        dmGui::HNode first_node = entries[0].m_Node;
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
         assert(node_type == dmGui::NODE_TYPE_BOX);
 
@@ -467,6 +502,8 @@ namespace dmGameSystem
         // NOTE: ro might be uninitialized and we don't want to create a stack allocated temporary
         // See case 2264
         ro.Init();
+
+        ApplyStencilClipping(stencil_scopes[0], ro);
 
         const int vertex_count = 6*9;
 
@@ -478,7 +515,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = vertex_count * node_count;
-        ro.m_Material = gui_world->m_Material;
+        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
         ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture
@@ -488,7 +525,6 @@ namespace dmGameSystem
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
-
         if (gui_world->m_ClientVertexBuffer.Remaining() < (vertex_count * node_count)) {
             gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count * node_count));
         }
@@ -497,10 +533,12 @@ namespace dmGameSystem
         // the possibly stretched texture.
         float org_width = (float)dmGraphics::GetOriginalTextureWidth(ro.m_Textures[0]);
         float org_height = (float)dmGraphics::GetOriginalTextureHeight(ro.m_Textures[0]);
+        assert(org_width > 0 && org_height > 0);
+
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const Vector4& color = node_colors[i];
-            const dmGui::HNode node = nodes[i];
+            const dmGui::HNode node = entries[i].m_Node;
 
             ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
             // Pre-multiplied alpha
@@ -513,10 +551,14 @@ namespace dmGameSystem
             Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
             Point3 size = dmGui::GetNodeSize(scene, node);
 
+            // disable slice9 computation below a certain dimension
+            // (avoid div by zero)
+            const float s9_min_dim = 0.001f;
+
             const float su = 1.0f / org_width;
             const float sv = 1.0f / org_height;
-            const float sx = 1.0f / size.getX();
-            const float sy = 1.0f / size.getY();
+            const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
+            const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
 
             float us[4], vs[4], xs[4], ys[4];
 
@@ -547,12 +589,13 @@ namespace dmGameSystem
             vs[1] = 1 - sv * slice9.getW();
             vs[2] = sv * slice9.getY();
 
+            const Matrix4* transform = &node_transforms[i];
             Vectormath::Aos::Vector4 pts[4][4];
             for (int y=0;y<4;y++)
             {
                 for (int x=0;x<4;x++)
                 {
-                    pts[y][x] = (node_transforms[i] * Vectormath::Aos::Point3(xs[x], ys[y], 0));
+                    pts[y][x] = (*transform * Vectormath::Aos::Point3(xs[x], ys[y], 0));
                 }
             }
 
@@ -584,10 +627,170 @@ namespace dmGameSystem
         dmRender::AddToRender(gui_context->m_RenderContext, &ro);
     }
 
+    void RenderPieNodes(dmGui::HScene scene,
+                        const dmGui::RenderEntry* entries,
+                        const Matrix4* node_transforms,
+                        const Vector4* node_colors,
+                        const dmGui::StencilScope** stencil_scopes,
+                        uint32_t node_count,
+                        void* context)
+    {
+        RenderGuiContext* gui_context = (RenderGuiContext*) context;
+        GuiWorld* gui_world = gui_context->m_GuiWorld;
+
+        dmGui::HNode first_node = entries[0].m_Node;
+        dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
+        assert(node_type == dmGui::NODE_TYPE_PIE);
+
+        uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
+        gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
+        dmRender::RenderObject& ro = gui_world->m_GuiRenderObjects[ro_count];
+
+        // NOTE: ro might be uninitialized and we don't want to create a stack allocated temporary
+        // See case 2264
+        ro.Init();
+
+        ApplyStencilClipping(stencil_scopes[0], ro);
+
+        dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
+        SetBlendMode(ro, blend_mode);
+        ro.m_SetBlendFactors = 1;
+        ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
+        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
+        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_VertexCount = 0;
+        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
+        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
+
+        // Set default texture
+        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        if (texture)
+            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+        else
+            ro.m_Textures[0] = gui_world->m_WhiteTexture;
+
+        uint32_t max_total_vertices = 0;
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            // Computation for required number of vertices:
+            // 1. four extra corner vertices per node (if rect bounds)
+            // 2. above times 2 for inner and outer vertices
+            // 3. one extra step for where we close the loop with exact overlapping start/stop
+            const uint32_t perimeterVertices = dmMath::Max<uint32_t>(4, dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node));
+            max_total_vertices += (perimeterVertices + 4) * 2 + 2;
+        }
+
+        if (gui_world->m_ClientVertexBuffer.Remaining() < max_total_vertices) {
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, max_total_vertices));
+        }
+
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            const Vector4& color = node_colors[i];
+            const dmGui::HNode node = entries[i].m_Node;
+            const Point3 size = dmGui::GetNodeSize(scene, node);
+
+            if (dmMath::Abs(size.getX()) < 0.001f)
+                continue;
+
+            ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
+
+            // Pre-multiplied alpha
+            Vector4 pm_color(color);
+            pm_color.setX(color.getX() * color.getW());
+            pm_color.setY(color.getY() * color.getW());
+            pm_color.setZ(color.getZ() * color.getW());
+            uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
+
+            const uint32_t perimeterVertices = dmMath::Max<uint32_t>(4, dmGui::GetNodePerimeterVertices(scene, node));
+            const float innerMultiplier = dmGui::GetNodeInnerRadius(scene, node) / size.getX();
+            const dmGui::PieBounds outerBounds = dmGui::GetNodeOuterBounds(scene, node);
+
+            const float PI = 3.1415926535f;
+            const float ad = PI * 2.0f / (float)perimeterVertices;
+
+            float stopAngle = dmGui::GetNodePieFillAngle(scene, node);
+            bool backwards = false;
+            if (stopAngle < 0)
+            {
+                stopAngle = -stopAngle;
+                backwards = true;
+            }
+
+            stopAngle = dmMath::Min(360.0f, stopAngle) * PI / 180.0f;
+            const uint32_t generate = ceilf(stopAngle / ad) + 1;
+
+            float lastAngle = 0;
+            float nextCorner = 0.25f * PI; // upper right rectangle corner at 45 deg
+            bool first = true;
+            for (int j=0;j!=generate;j++)
+            {
+                float a;
+                if (j == (generate-1))
+                    a = stopAngle;
+                else
+                    a = ad * j;
+
+                if (outerBounds == dmGui::PIEBOUNDS_RECTANGLE)
+                {
+                    // insert extra vertex (and ignore == case)
+                    if (lastAngle < nextCorner && a >= nextCorner)
+                    {
+                        a = nextCorner;
+                        nextCorner += 0.50f * PI;
+                        --j;
+                    }
+
+                    lastAngle = a;
+                }
+
+                const float s = dmTrigLookup::Sin(backwards ? -a : a);
+                const float c = dmTrigLookup::Cos(backwards ? -a : a);
+
+                // make inner vertex
+                float u = 0.5f + innerMultiplier * c;
+                float v = 0.5f + innerMultiplier * s;
+                BoxVertex vInner(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u, 1-v, bcolor);
+
+                // make outer vertex
+                float d;
+                if (outerBounds == dmGui::PIEBOUNDS_RECTANGLE)
+                    d = 0.5f / dmMath::Max(dmMath::Abs(s), dmMath::Abs(c));
+                else
+                    d = 0.5f;
+
+                u = 0.5f + d * c;
+                v = 0.5f + d * s;
+                BoxVertex vOuter(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u, 1-v, bcolor);
+
+                // both inner & outer are doubled at first / last entry to generate degenerate triangles
+                // for the triangle strip, allowing more than one pie to be chained together in the same
+                // drawcall.
+                if (first)
+                {
+                    gui_world->m_ClientVertexBuffer.Push(vInner);
+                    first = false;
+                }
+
+                gui_world->m_ClientVertexBuffer.Push(vInner);
+                gui_world->m_ClientVertexBuffer.Push(vOuter);
+
+                if (j == generate-1)
+                    gui_world->m_ClientVertexBuffer.Push(vOuter);
+            }
+        }
+
+        ro.m_VertexCount = gui_world->m_ClientVertexBuffer.Size() - ro.m_VertexStart;
+
+        dmRender::AddToRender(gui_context->m_RenderContext, &ro);
+    }
+
     void RenderNodes(dmGui::HScene scene,
-                    dmGui::HNode* nodes,
+                    const dmGui::RenderEntry* entries,
                     const Matrix4* node_transforms,
                     const Vector4* node_colors,
+                    const dmGui::StencilScope** stencil_scopes,
                     uint32_t node_count,
                     void* context)
     {
@@ -597,57 +800,74 @@ namespace dmGameSystem
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
-        dmGui::HNode first_node = nodes[0];
+        dmGui::HNode first_node = entries[0].m_Node;
 
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
         void* prev_texture = dmGui::GetNodeTexture(scene, first_node);
         void* prev_font = dmGui::GetNodeFont(scene, first_node);
+        const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
 
         uint32_t i = 0;
         uint32_t start = 0;
+
         while (i < node_count) {
-            dmGui::HNode node = nodes[i];
+            dmGui::HNode node = entries[i].m_Node;
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
             void* texture = dmGui::GetNodeTexture(scene, node);
             void* font = dmGui::GetNodeFont(scene, node);
+            const dmGui::StencilScope* stencil_scope = stencil_scopes[i];
 
-            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font);
+            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font || prev_stencil_scope != stencil_scope);
             bool flush = (i > 0 && batch_change);
 
             if (flush) {
                 uint32_t n = i - start;
-                if (prev_node_type == dmGui::NODE_TYPE_TEXT) {
-                    RenderTextNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
-                } else {
-                    RenderBoxNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
+
+                switch (prev_node_type)
+                {
+                    case dmGui::NODE_TYPE_TEXT:
+                        RenderTextNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                        break;
+                    case dmGui::NODE_TYPE_BOX:
+                        RenderBoxNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                        break;
+                    case dmGui::NODE_TYPE_PIE:
+                        RenderPieNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                        break;
+                    default:
+                        break;
                 }
 
                 start = i;
-
-                /*
-                 * Consecutive nodes of the same type will get the some
-                 * pseudo-z for batching. This is an approximation of the correct
-                 * layer-rendering.
-                 */
-                gui_context->m_NextZ++;
             }
-
             prev_node_type = node_type;
             prev_blend_mode = blend_mode;
             prev_texture = texture;
             prev_font = font;
+            prev_stencil_scope = stencil_scope;
+
+            gui_context->m_NextZ++;
 
             ++i;
         }
 
         uint32_t n = i - start;
         if (n > 0) {
-            if (prev_node_type == dmGui::NODE_TYPE_TEXT) {
-                RenderTextNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
-            } else {
-                RenderBoxNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
+            switch (prev_node_type)
+            {
+                case dmGui::NODE_TYPE_TEXT:
+                    RenderTextNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                    break;
+                case dmGui::NODE_TYPE_BOX:
+                    RenderBoxNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                    break;
+                case dmGui::NODE_TYPE_PIE:
+                    RenderPieNodes(scene, entries + start, node_transforms + start, node_colors + start, stencil_scopes + start, n, context);
+                    break;
+                default:
+                    break;
             }
         }
 
@@ -718,6 +938,12 @@ namespace dmGameSystem
         dmGraphics::SetTexture((dmGraphics::HTexture) texture, tparams);
     }
 
+    dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
+        gui_component->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
@@ -726,8 +952,10 @@ namespace dmGameSystem
         // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
-            if (gui_world->m_Components[i]->m_Enabled)
-                dmGui::UpdateScene(gui_world->m_Components[i]->m_Scene, params.m_UpdateContext->m_DT);
+            GuiComponent* gui_component = gui_world->m_Components[i];
+            if (gui_component->m_Enabled && gui_component->m_AddedToUpdate) {
+                dmGui::UpdateScene(gui_component->m_Scene, params.m_UpdateContext->m_DT);
+            }
         }
 
         RenderGuiContext render_gui_context;
@@ -735,30 +963,31 @@ namespace dmGameSystem
         render_gui_context.m_GuiWorld = gui_world;
         render_gui_context.m_NextZ = 0;
 
-
         uint32_t total_node_count = 0;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled)
+            if (c->m_Enabled && c->m_AddedToUpdate)
             {
                 total_node_count += dmGui::GetNodeCount(c->m_Scene);
             }
         }
 
-        if (gui_world->m_GuiRenderObjects.Capacity() < total_node_count)
+        uint32_t total_gui_render_objects_count = (total_node_count<<1) + (total_node_count>>3);
+        if (gui_world->m_GuiRenderObjects.Capacity() < total_gui_render_objects_count)
         {
             // NOTE: m_GuiRenderObjects *before* rendering as pointers
             // to render-objects are passed to the render-system
             // Given batching the capacity is perhaps a bit over the top
-            gui_world->m_GuiRenderObjects.SetCapacity(total_node_count);
+            // We also need to include one possible state per node + worst case batching every 8th
+            gui_world->m_GuiRenderObjects.SetCapacity(total_gui_render_objects_count);
         }
         gui_world->m_GuiRenderObjects.SetSize(0);
         gui_world->m_ClientVertexBuffer.SetSize(0);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled) {
+            if (c->m_Enabled && c->m_AddedToUpdate) {
                 dmGui::RenderSceneParams rp;
                 rp.m_RenderNodes = &RenderNodes;
                 rp.m_NewTexture = &NewTexture;

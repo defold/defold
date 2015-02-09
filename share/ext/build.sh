@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 function usage() {
     echo "build.sh PRODUCT PLATFORM"

@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 #include <dlib/dstrings.h>
 
+#include <ddf/ddf.h>
+#include <script/lua_source_ddf.h>
+
 #include "../gui.h"
 #include "../gui_script.h"
 
@@ -15,6 +18,16 @@ static const float EPSILON = 0.000001f;
 static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
+
+static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str)
+{
+    static dmLuaDDF::LuaSource src;
+    memset(&src, 0x00, sizeof(dmLuaDDF::LuaSource));
+    src.m_Script.m_Data = (uint8_t*) str;
+    src.m_Script.m_Count = strlen(str);
+    src.m_Filename = "gui-dummy";
+    return &src;
+}
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics);
 
@@ -64,7 +77,7 @@ TEST_F(dmGuiScriptTest, URLOutsideFunctions)
     params.m_UserData = this;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
@@ -89,10 +102,13 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
                       "    local s = vmath.vector3(20, 20, 0)\n"
                       "    local n1 = gui.new_box_node(p, s)\n"
                       "    local n2 = gui.new_text_node(p, \"text\")\n"
+                      "    local n3 = gui.new_pie_node(p, s)\n"
                       "    gui.set_size(n2, s)\n"
+                      "    gui.set_size(n3, s)\n"
                       "    assert(gui.get_screen_position(n1) == gui.get_screen_position(n2))\n"
+                      "    assert(gui.get_screen_position(n1) == gui.get_screen_position(n3))\n"
                       "end\n";
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
@@ -139,7 +155,7 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
             "    test_ref()\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     dmGui::InitScene(scene);
@@ -185,7 +201,7 @@ TEST_F(dmGuiScriptTest, TestGlobalNodeFail)
             "    assert(gui.get_position(n).x == 1)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -222,7 +238,7 @@ TEST_F(dmGuiScriptTest, TestParenting)
             "    assert(gui.get_parent(child) == nil)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -261,7 +277,7 @@ TEST_F(dmGuiScriptTest, TestGetIndex)
             "    assert(gui.get_index(child) == 1)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -307,7 +323,7 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
             "    assert(gui.get_text(t.n4) ~= gui.get_text(n4))\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -318,8 +334,44 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
     dmGui::DeleteScript(script);
 }
 
-void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
-        const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+TEST_F(dmGuiScriptTest, TestPieNodeScript)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local n = gui.new_pie_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_perimeter_vertices(n, 123)\n"
+            "    assert(gui.get_perimeter_vertices(n) == 123)\n"
+            "    gui.set_inner_radius(n, 456)\n"
+            "    assert(gui.get_inner_radius(n) == 456)\n"
+            "    gui.set_outer_bounds(n, gui.PIEBOUNDS_RECTANGLE)\n"
+            "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_RECTANGLE)\n"
+            "    gui.set_outer_bounds(n, gui.PIEBOUNDS_ELLIPSE)\n"
+            "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_ELLIPSE)\n"
+            "    gui.set_fill_angle(n, 90)\n"
+            "    assert(gui.get_fill_angle(n) == 90)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+        const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
     memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
@@ -344,7 +396,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
             "    gui.set_position(n1, vmath.vector3(2, 2, 2))\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -382,7 +434,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
             "    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -439,7 +491,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
                 "    end\n"
                 "end\n";
 
-        dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         result = dmGui::InitScene(scene);
@@ -505,7 +557,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
                 "    end\n"
                 "end\n";
 
-        dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         result = dmGui::InitScene(scene);

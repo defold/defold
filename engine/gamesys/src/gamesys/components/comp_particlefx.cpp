@@ -28,6 +28,8 @@ namespace dmGameSystem
         Vector3 m_Translation;
         Quat m_Rotation;
         dmParticle::HPrototype m_ParticlePrototype;
+        uint16_t m_AddedToUpdate : 1;
+        uint16_t m_Padding : 15;
     };
 
     struct ParticleFXComponent
@@ -37,6 +39,8 @@ namespace dmGameSystem
         dmParticle::HPrototype m_ParticlePrototype;
         ParticleFXWorld* m_World;
         uint32_t m_PrototypeIndex;
+        uint16_t m_AddedToUpdate : 1;
+        uint16_t m_Padding : 15;
     };
 
     struct ParticleFXWorld
@@ -113,6 +117,7 @@ namespace dmGameSystem
         prototype->m_Translation = Vector3(params.m_Position);
         prototype->m_Rotation = params.m_Rotation;
         prototype->m_ParticlePrototype = (dmParticle::HPrototype)params.m_Resource;
+        prototype->m_AddedToUpdate = false;
         *params.m_UserData = (uintptr_t)prototype;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -120,17 +125,17 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompParticleFXDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
+        ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
+        uint32_t index = prototype - w->m_Prototypes.Begin();
         for (uint32_t i = 0; i < w->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &w->m_Components[i];
-            if (c->m_Instance == params.m_Instance)
+            if (c->m_Instance == params.m_Instance && c->m_PrototypeIndex == index)
             {
                 c->m_Instance = 0;
                 dmParticle::RetireInstance(w->m_ParticleContext, c->m_ParticleInstance);
             }
         }
-        ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
-        uint32_t index = prototype - w->m_Prototypes.Begin();
         w->m_PrototypeIndices.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -138,6 +143,12 @@ namespace dmGameSystem
     void RenderInstanceCallback(void* render_context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
+
+    dmGameObject::CreateResult CompParticleFXAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
+        prototype->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
 
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
@@ -162,6 +173,10 @@ namespace dmGameSystem
                 dmParticle::SetRotation(particle_context, c.m_ParticleInstance, world_transform.GetRotation());
                 dmParticle::SetScale(particle_context, c.m_ParticleInstance, world_transform.GetUniformScale());
                 dmParticle::SetScaleAlongZ(particle_context, c.m_ParticleInstance, dmGameObject::ScaleAlongZ(c.m_Instance));
+                if (prototype->m_AddedToUpdate && !c.m_AddedToUpdate) {
+                    dmParticle::StartInstance(particle_context, c.m_ParticleInstance);
+                    c.m_AddedToUpdate = true;
+                }
             }
         }
 
@@ -194,7 +209,7 @@ namespace dmGameSystem
         while (i < count)
         {
             ParticleFXComponent& c = components[i];
-            if (dmParticle::IsSleeping(particle_context, c.m_ParticleInstance))
+            if ((c.m_AddedToUpdate || c.m_Instance == 0) && dmParticle::IsSleeping(particle_context, c.m_ParticleInstance))
             {
                 dmResource::Release(ctx->m_Factory, c.m_ParticlePrototype);
                 dmParticle::DestroyInstance(particle_context, c.m_ParticleInstance);
@@ -224,6 +239,7 @@ namespace dmGameSystem
             emitter->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype);
             emitter->m_ParticlePrototype = prototype->m_ParticlePrototype;
             emitter->m_World = world;
+            emitter->m_AddedToUpdate = prototype->m_AddedToUpdate;
             return emitter->m_ParticleInstance;
         }
         else
@@ -241,7 +257,9 @@ namespace dmGameSystem
             dmParticle::HContext context = world->m_ParticleContext;
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
             dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype);
-            dmParticle::StartInstance(context, instance);
+            if (prototype->m_AddedToUpdate) {
+                dmParticle::StartInstance(context, instance);
+            }
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
             world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
             dmParticle::SetPosition(context, instance, Point3(world_transform.GetTranslation()));

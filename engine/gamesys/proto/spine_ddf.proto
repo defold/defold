@@ -26,7 +26,7 @@ message SpineModelDesc
     required string default_animation   = 2;
     required string skin                = 3;
     optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
-    optional string material            = 5 [(resource)=true, default="/builtins/materials/sprite.material"];
+    optional string material            = 5 [(resource)=true, default="/builtins/materials/spine.material"];
 }
 
 message Bone
@@ -56,6 +56,18 @@ message AnimationTrack
     repeated float scale = 4;
 }
 
+message MeshAnimationTrack
+{
+    required uint32 mesh_index = 1;
+    required uint64 skin_id = 2;
+    // draw-index = draw-index + order_offset
+    repeated int32 order_offset = 3;
+    // visibility
+    repeated bool visible = 4;
+    // r0, g0, b0, a0, …
+    repeated float colors = 5;
+}
+
 message EventKey
 {
     required float t = 1;
@@ -77,6 +89,7 @@ message SpineAnimation
     required float sample_rate = 3;
     repeated AnimationTrack tracks = 4;
     repeated EventTrack event_tracks = 5;
+    repeated MeshAnimationTrack mesh_tracks = 6;
 }
 
 message AnimationSet
@@ -86,19 +99,27 @@ message AnimationSet
 
 message Mesh
 {
-    required uint64 id = 1;
-    repeated float positions = 2;
-    repeated float texcoord0 = 3;
+    repeated float positions = 1;
+    repeated float texcoord0 = 2;
+    repeated float color     = 3; // single color value for the entire mesh
     repeated uint32 indices  = 4;
     // w00, w01, w02, w03, w10, … (only specified for skinned meshes)
     repeated float weights = 5;
     // i00, i01, i02, i03, i10, … (only specified for skinned meshes)
     repeated uint32 bone_indices = 6;
+    optional bool visible = 7 [default = true];
+    optional uint32 draw_order = 8;
+}
+
+message MeshEntry
+{
+    required uint64 id = 1;
+    repeated Mesh meshes = 2;
 }
 
 message MeshSet
 {
-    repeated Mesh meshes = 1;
+    repeated MeshEntry mesh_entries = 1;
 }
 
 message SpineScene
@@ -131,8 +152,10 @@ message SpineCancelAnimation
 message SpineEvent
 {
     required uint64 event_id = 1;
-    required float t = 2;
-    optional int32 integer = 3 [default = 0];
-    optional float float = 4 [default = 0.0];
-    optional uint64 string = 5 [default = 0];
+    required uint64 animation_id = 2;
+    required float t = 3;
+    required float blend_weight = 4;
+    optional int32 integer = 5 [default = 0];
+    optional float float = 6 [default = 0.0];
+    optional uint64 string = 7 [default = 0];
 }

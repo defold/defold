@@ -140,7 +140,8 @@ void GamesysTest<T>::SetUp()
     m_SpineModelContext.m_Factory = m_Factory;
     m_SpineModelContext.m_MaxSpineModelCount = 32;
 
-    assert(dmResource::RESULT_OK == dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext));
+    dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
+    assert(dmResource::RESULT_OK == r);
 
     dmResource::Get(m_Factory, "/input/valid.gamepadsc", (void**)&m_GamepadMapsDDF);
     assert(m_GamepadMapsDDF);

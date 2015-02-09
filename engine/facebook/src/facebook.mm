@@ -265,7 +265,7 @@ static void InitSession()
 {
     if (g_Facebook.m_Session == 0) {
         // This is done lazily to not initialize the FB SDK until we actually need it
-        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"basic_info", nil];
+        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
         g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
         [permissions release];
     }
@@ -290,9 +290,9 @@ int Facebook_Login(lua_State* L)
     if (!g_Facebook.m_Session.isOpen) {
         [g_Facebook.m_Session release];
 
-        // We support only basic_info in login as facebook requires that you can't mix read and publish permissions
+        // We support only public_profile in login as facebook requires that you can't mix read and publish permissions
         // It's also better to check current permissions after successfull login and request additional if required.
-        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"basic_info", nil];
+        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
         g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
 //        g_Facebook.m_Session = [[FBSession alloc] init];
 
@@ -528,7 +528,7 @@ static int Facebook_ShowDialog(lua_State* L)
         ];
     } else {
         const char* msg = "No facebook session active";
-        dmLogWarning(msg);
+        dmLogWarning("%s", msg);
 
         NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
         [errorDetail setValue:@"Failed to do something wicked" forKey:NSLocalizedDescriptionKey];
@@ -565,7 +565,11 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
     // Better solution?
     const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
     [FBSettings setDefaultAppID: [NSString stringWithUTF8String: app_id]];
-    [FBSettings setShouldAutoPublishInstall: false];
+
+    // NOTE: Removed when upgraded to SDK 3.22 (removed)
+    // This is probably related to whether we should send tracking data to Facebook or not
+    // See FBAppEvents activateApp for related functionality
+    //[FBSettings setShouldAutoPublishInstall: false];
 
     // The session is created lazily, check InitSession
     g_Facebook.m_Session = 0;

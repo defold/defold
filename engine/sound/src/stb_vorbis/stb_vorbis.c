@@ -806,6 +806,8 @@ struct stb_vorbis
   // sample-access
    int channel_buffer_start;
    int channel_buffer_end;
+
+   int muted_decoding;
 };
 
 extern int my_prof(int slot);
@@ -3291,91 +3293,97 @@ static int vorbis_decode_packet_rest(vorb *f, int *len, Mode *m, int left_start,
    stb_prof(0);
    // at this point we've decoded all floors
 
-   if (f->alloc.alloc_buffer)
-      assert(f->alloc.alloc_buffer_length_in_bytes == f->temp_offset);
+   if (!f->muted_decoding)
+   {
+      if (f->alloc.alloc_buffer)
+         assert(f->alloc.alloc_buffer_length_in_bytes == f->temp_offset);
 
-   // re-enable coupled channels if necessary
-   memcpy(really_zero_channel, zero_channel, sizeof(really_zero_channel[0]) * f->channels);
-   for (i=0; i < map->coupling_steps; ++i)
-      if (!zero_channel[map->chan[i].magnitude] || !zero_channel[map->chan[i].angle]) {
-         zero_channel[map->chan[i].magnitude] = zero_channel[map->chan[i].angle] = FALSE;
+      // re-enable coupled channels if necessary
+      memcpy(really_zero_channel, zero_channel, sizeof(really_zero_channel[0]) * f->channels);
+      for (i=0; i < map->coupling_steps; ++i)
+         if (!zero_channel[map->chan[i].magnitude] || !zero_channel[map->chan[i].angle]) {
+            zero_channel[map->chan[i].magnitude] = zero_channel[map->chan[i].angle] = FALSE;
+         }
+
+   // RESIDUE DECODE
+      for (i=0; i < map->submaps; ++i) {
+         float *residue_buffers[STB_VORBIS_MAX_CHANNELS];
+         int r,t;
+         uint8 do_not_decode[256];
+         int ch = 0;
+         for (j=0; j < f->channels; ++j) {
+            if (map->chan[j].mux == i) {
+               if (zero_channel[j]) {
+                  do_not_decode[ch] = TRUE;
+                  residue_buffers[ch] = NULL;
+               } else {
+                  do_not_decode[ch] = FALSE;
+                  residue_buffers[ch] = f->channel_buffers[j];
+               }
+               ++ch;
+            }
+         }
+         r = map->submap_residue[i];
+         t = f->residue_types[r];
+         decode_residue(f, residue_buffers, ch, n2, r, do_not_decode);
       }
 
-// RESIDUE DECODE
-   for (i=0; i < map->submaps; ++i) {
-      float *residue_buffers[STB_VORBIS_MAX_CHANNELS];
-      int r,t;
-      uint8 do_not_decode[256];
-      int ch = 0;
-      for (j=0; j < f->channels; ++j) {
-         if (map->chan[j].mux == i) {
-            if (zero_channel[j]) {
-               do_not_decode[ch] = TRUE;
-               residue_buffers[ch] = NULL;
-            } else {
-               do_not_decode[ch] = FALSE;
-               residue_buffers[ch] = f->channel_buffers[j];
-            }
-            ++ch;
+      if (f->alloc.alloc_buffer)
+         assert(f->alloc.alloc_buffer_length_in_bytes == f->temp_offset);
+
+   // INVERSE COUPLING
+      stb_prof(14);
+      for (i = map->coupling_steps-1; i >= 0; --i) {
+         int n2 = n >> 1;
+         float *m = f->channel_buffers[map->chan[i].magnitude];
+         float *a = f->channel_buffers[map->chan[i].angle    ];
+         for (j=0; j < n2; ++j) {
+            float a2,m2;
+            if (m[j] > 0)
+               if (a[j] > 0)
+                  m2 = m[j], a2 = m[j] - a[j];
+               else
+                  a2 = m[j], m2 = m[j] + a[j];
+            else
+               if (a[j] > 0)
+                  m2 = m[j], a2 = m[j] + a[j];
+               else
+                  a2 = m[j], m2 = m[j] - a[j];
+            m[j] = m2;
+            a[j] = a2;
          }
       }
-      r = map->submap_residue[i];
-      t = f->residue_types[r];
-      decode_residue(f, residue_buffers, ch, n2, r, do_not_decode);
-   }
 
-   if (f->alloc.alloc_buffer)
-      assert(f->alloc.alloc_buffer_length_in_bytes == f->temp_offset);
-
-// INVERSE COUPLING
-   stb_prof(14);
-   for (i = map->coupling_steps-1; i >= 0; --i) {
-      int n2 = n >> 1;
-      float *m = f->channel_buffers[map->chan[i].magnitude];
-      float *a = f->channel_buffers[map->chan[i].angle    ];
-      for (j=0; j < n2; ++j) {
-         float a2,m2;
-         if (m[j] > 0)
-            if (a[j] > 0)
-               m2 = m[j], a2 = m[j] - a[j];
-            else
-               a2 = m[j], m2 = m[j] + a[j];
-         else
-            if (a[j] > 0)
-               m2 = m[j], a2 = m[j] + a[j];
-            else
-               a2 = m[j], m2 = m[j] - a[j];
-         m[j] = m2;
-         a[j] = a2;
-      }
-   }
-
-   // finish decoding the floors
+// finish decoding the floors
 #ifndef STB_VORBIS_NO_DEFER_FLOOR
-   stb_prof(15);
-   for (i=0; i < f->channels; ++i) {
-      if (really_zero_channel[i]) {
-         memset(f->channel_buffers[i], 0, sizeof(*f->channel_buffers[i]) * n2);
-      } else {
-         do_floor(f, map, i, n, f->channel_buffers[i], f->finalY[i], NULL);
+      stb_prof(15);
+      for (i=0; i < f->channels; ++i) {
+         if (really_zero_channel[i]) {
+            memset(f->channel_buffers[i], 0, sizeof(*f->channel_buffers[i]) * n2);
+         } else {
+            do_floor(f, map, i, n, f->channel_buffers[i], f->finalY[i], NULL);
+         }
       }
-   }
 #else
-   for (i=0; i < f->channels; ++i) {
-      if (really_zero_channel[i]) {
-         memset(f->channel_buffers[i], 0, sizeof(*f->channel_buffers[i]) * n2);
-      } else {
-         for (j=0; j < n2; ++j)
-            f->channel_buffers[i][j] *= f->floor_buffers[i][j];
+      for (i=0; i < f->channels; ++i) {
+         if (really_zero_channel[i]) {
+            memset(f->channel_buffers[i], 0, sizeof(*f->channel_buffers[i]) * n2);
+         } else {
+            for (j=0; j < n2; ++j)
+               f->channel_buffers[i][j] *= f->floor_buffers[i][j];
+         }
       }
-   }
 #endif
+   } // mute
 
-// INVERSE MDCT
-   stb_prof(16);
-   for (i=0; i < f->channels; ++i)
-      inverse_mdct(f->channel_buffers[i], n, f, m->blockflag);
-   stb_prof(0);
+   // INVERSE MDCT
+   if (!f->muted_decoding)
+   {
+      stb_prof(16);
+      for (i=0; i < f->channels; ++i)
+         inverse_mdct(f->channel_buffers[i], n, f, m->blockflag);
+      stb_prof(0);
+   }
 
    // this shouldn't be necessary, unless we exited on an error
    // and want to flush to get to the next packet
@@ -4165,6 +4173,7 @@ static void vorbis_init(stb_vorbis *p, stb_vorbis_alloc *z)
    p->stream = NULL;
    p->codebooks = NULL;
    p->page_crc_tests = -1;
+   p->muted_decoding = 0;
    #ifndef STB_VORBIS_NO_STDIO
    p->close_on_free = FALSE;
    p->f = NULL;
@@ -4996,6 +5005,7 @@ stb_vorbis * stb_vorbis_open_filename(char *filename, int *error, stb_vorbis_all
    if (error) *error = VORBIS_file_open_failure;
    return NULL;
 }
+
 #endif // STB_VORBIS_NO_STDIO
 
 stb_vorbis * stb_vorbis_open_memory(unsigned char *data, int len, int *error, stb_vorbis_alloc *alloc)
@@ -5203,6 +5213,7 @@ int stb_vorbis_get_frame_short_interleaved(stb_vorbis *f, int num_c, short *buff
    return len;
 }
 
+// supports silent decoding with buffer = null
 int stb_vorbis_get_samples_short_interleaved(stb_vorbis *f, int channels, short *buffer, int num_shorts)
 {
    float **outputs;
@@ -5213,14 +5224,19 @@ int stb_vorbis_get_samples_short_interleaved(stb_vorbis *f, int channels, short 
    while (n < len) {
       int k = f->channel_buffer_end - f->channel_buffer_start;
       if (n+k >= len) k = len - n;
-      if (k)
+      if (k && buffer)
+      {
          convert_channels_short_interleaved(channels, buffer, f->channels, f->channel_buffers, f->channel_buffer_start, k);
-      buffer += k*channels;
+         buffer += k*channels;
+      }
       n += k;
       f->channel_buffer_start += k;
       if (n == len) break;
+      // temporarily enable silent decoding when buffer is null
+      f->muted_decoding = !buffer;
       if (!stb_vorbis_get_frame_float(f, NULL, &outputs)) break;
    }
+   f->muted_decoding = 0;
    return n;
 }
 
@@ -5366,6 +5382,7 @@ int stb_vorbis_get_samples_float(stb_vorbis *f, int channels, float **buffer, in
    }
    return n;
 }
+
 #endif // STB_VORBIS_NO_PULLDATA_API
 
 #endif // STB_VORBIS_HEADER_ONLY

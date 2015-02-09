@@ -32,6 +32,9 @@ namespace dmRender
     , m_ShadowY(0.0f)
     , m_MaxAscent(0.0f)
     , m_MaxDescent(0.0f)
+    , m_SdfScale(1.0f)
+    , m_SdfOffset(0)
+    , m_SdfOutline(0)
     {
 
     }
@@ -66,6 +69,9 @@ namespace dmRender
         float                   m_ShadowY;
         float                   m_MaxAscent;
         float                   m_MaxDescent;
+        float                   m_SdfScale;
+        float                   m_SdfOffset;
+        float                   m_SdfOutline;
     };
 
     struct GlyphVertex
@@ -75,6 +81,7 @@ namespace dmRender
         uint32_t m_FaceColor;
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
+        float    m_SdfParams[4];
     };
 
     static float GetLineTextMetrics(HFontMap font_map, const char* text, int n);
@@ -97,6 +104,9 @@ namespace dmRender
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
+        font_map->m_SdfScale = params.m_SdfScale;
+        font_map->m_SdfOffset = params.m_SdfOffset;
+        font_map->m_SdfOutline = params.m_SdfOutline;
         dmGraphics::TextureCreationParams tex_create_params;
         dmGraphics::TextureParams tex_params;
 
@@ -139,6 +149,9 @@ namespace dmRender
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
+        font_map->m_SdfScale = params.m_SdfScale;
+        font_map->m_SdfOffset = params.m_SdfOffset;
+        font_map->m_SdfOutline = params.m_SdfOutline;
         dmGraphics::TextureParams tex_params;
         tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
         tex_params.m_Data = params.m_TextureData;
@@ -175,11 +188,12 @@ namespace dmRender
 
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 4, dmGraphics::TYPE_FLOAT, false },
+                {"position", 0, 4, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
                 {"face_color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
                 {"outline_color", 3, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
                 {"shadow_color", 4, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
@@ -228,7 +242,9 @@ namespace dmRender
     , m_LineBreak(false)
     , m_Align(TEXT_ALIGN_LEFT)
     , m_VAlign(TEXT_VALIGN_TOP)
+    , m_StencilTestParamsSet(0)
     {
+        m_StencilTestParams.Init();
     }
 
     struct LayoutMetrics
@@ -254,6 +270,9 @@ namespace dmRender
         dmHashUpdateBuffer64(&key_state, &font_map, sizeof(font_map));
         dmHashUpdateBuffer64(&key_state, &params.m_Depth, sizeof(params.m_Depth));
         dmHashUpdateBuffer64(&key_state, &params.m_RenderOrder, sizeof(params.m_RenderOrder));
+        if (params.m_StencilTestParamsSet) {
+            dmHashUpdateBuffer64(&key_state, &params.m_StencilTestParams, sizeof(params.m_StencilTestParams));
+        }
         uint64_t key = dmHashFinal64(&key_state);
 
         int32_t* head = text_context->m_Batches.Get(key);
@@ -301,6 +320,8 @@ namespace dmRender
         te.m_LineBreak = params.m_LineBreak;
         te.m_Align = params.m_Align;
         te.m_VAlign = params.m_VAlign;
+        te.m_StencilTestParams = params.m_StencilTestParams;
+        te.m_StencilTestParamsSet = params.m_StencilTestParamsSet;
 
         int32_t index = text_context->m_TextEntries.Size();
         if (head_entry) {
@@ -347,6 +368,18 @@ namespace dmRender
         }
     }
 
+    static const Glyph* GetGlyph(HFontMap font_map, uint16_t c) {
+        const Glyph* g = font_map->m_Glyphs.Get(c);
+        if (!g)
+            g = font_map->m_Glyphs.Get(126U); // Fallback to ~
+
+        if (!g) {
+            dmLogWarning("Character code %x not supported by font, nor is fallback '~'", c);
+        }
+
+        return g;
+    }
+
     void CreateFontVertexData(HRenderContext render_context, const uint64_t* key, int32_t* batch)
     {
         DM_PROFILE(Render, "CreateFontVertexData");
@@ -373,6 +406,8 @@ namespace dmRender
         ro->m_Material = font_map->m_Material;
         ro->m_Textures[0] = font_map->m_Texture;
         ro->m_VertexStart = text_context.m_VertexIndex;
+        ro->m_StencilTestParams = first_te.m_StencilTestParams;
+        ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
 
         Vector4 texture_size_recip(im_recip, ih_recip, 0, 0);
         EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, texture_size_recip);
@@ -399,6 +434,33 @@ namespace dmRender
             uint32_t outline_color = te.m_OutlineColor;
             uint32_t shadow_color = te.m_ShadowColor;
 
+            // No support for non-uniform scale with SDF so just peek at the first
+            // row to extracat scale factor. The purpose of this scaling is to have
+            // world space distances in the computation, for good 'antialiasing' no matter
+            // what scale is being rendered in. Scaling down does, however, not work well.
+            const Vectormath::Aos::Vector4 r0 = te.m_Transform.getRow(0);
+            float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
+            float sdf_smoothing = 1.0f;
+
+            // There will be no hope for an outline smaller than a quarter than a pixel
+            // so effectively disable it.
+            if ((font_map->m_SdfOutline > 0) && (font_map->m_SdfOutline * sdf_world_scale < 0.25f))
+            {
+                outline_color = face_color;
+            }
+
+            // Trade scale for smoothing when scaling down
+            if (sdf_world_scale < 1.0f)
+            {
+                sdf_world_scale = 1.0f;
+                sdf_smoothing = sdf_world_scale;
+            }
+
+            float sdf_offset  = sdf_world_scale * font_map->m_SdfOffset;
+            float sdf_scale   = sdf_world_scale * font_map->m_SdfScale;
+            float sdf_outline = sdf_world_scale * font_map->m_SdfOutline;
+
+
             for (int line = 0; line < line_count; ++line) {
                 TextLine& l = lines[line];
                 int16_t x = (int16_t)(x_offset - OffsetX(te.m_Align, l.m_Width) + 0.5f);
@@ -409,9 +471,10 @@ namespace dmRender
                 {
                     uint16_t c = (uint16_t) dmUtf8::NextChar(&cursor);
 
-                    const Glyph* g = font_map->m_Glyphs.Get(c);
-                    if (!g)
-                        g = font_map->m_Glyphs.Get(126U); // Fallback to ~
+                    const Glyph* g =  GetGlyph(font_map, c);
+                    if (!g) {
+                        continue;
+                    }
 
                     if (text_context.m_VertexIndex + 6 >= text_context.m_MaxVertexCount)
                     {
@@ -452,21 +515,21 @@ namespace dmRender
                         v6.m_UV[0] = (g->m_X + g->m_LeftBearing + g->m_Width) * im_recip;
                         v6.m_UV[1] = (g->m_Y - ascent) * ih_recip;
 
-                        v1.m_FaceColor = face_color;
-                        v1.m_OutlineColor = outline_color;
-                        v1.m_ShadowColor = shadow_color;
+                        #define SET_VERTEX_PARAMS(v) \
+                            v.m_FaceColor = face_color; \
+                            v.m_OutlineColor = outline_color; \
+                            v.m_ShadowColor = shadow_color; \
+                            v.m_SdfParams[0] = sdf_scale; \
+                            v.m_SdfParams[1] = sdf_offset; \
+                            v.m_SdfParams[2] = sdf_outline; \
+                            v.m_SdfParams[3] = sdf_smoothing; \
 
-                        v2.m_FaceColor = face_color;
-                        v2.m_OutlineColor = outline_color;
-                        v2.m_ShadowColor = shadow_color;
+                        SET_VERTEX_PARAMS(v1)
+                        SET_VERTEX_PARAMS(v2)
+                        SET_VERTEX_PARAMS(v3)
+                        SET_VERTEX_PARAMS(v6)
 
-                        v3.m_FaceColor = face_color;
-                        v3.m_OutlineColor = outline_color;
-                        v3.m_ShadowColor = shadow_color;
-
-                        v6.m_FaceColor = face_color;
-                        v6.m_OutlineColor = outline_color;
-                        v6.m_ShadowColor = shadow_color;
+                        #undef SET_VERTEX_PARAMS
 
                         v4 = v3;
                         v5 = v2;
@@ -507,16 +570,18 @@ namespace dmRender
         for (int i = 0; i < n; ++i)
         {
             uint32_t c = dmUtf8::NextChar(&cursor);
-            const Glyph* g = font_map->m_Glyphs.Get(c);
-            if (!g)
-                g = font_map->m_Glyphs.Get(126U); // Fallback to ~
+            const Glyph* g = GetGlyph(font_map, c);
+            if (!g) {
+                continue;
+            }
+
             if (i == 0)
                 first = g;
             last = g;
             // NOTE: We round advance here just as above in DrawText
             width += (int16_t) g->m_Advance;
         }
-        if (n > 0)
+        if (n > 0 && 0 != last)
         {
             float last_end_point = last->m_LeftBearing + last->m_Width;
             float last_right_bearing = last->m_Advance - last_end_point;

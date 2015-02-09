@@ -43,40 +43,13 @@
 
 </head>
 {% set navigation_bar = [
-    ('/blog', 'blog', 'Blog'),
+    ('http://doc.defold.com/release_notes', 'release_notes', 'Release notes'),
     ('/plans', 'plans', 'Plans'),
-    ('/doc', 'documentation', 'Documentation'),
+    ('http://doc.defold.com', 'documentation', 'Documentation'),
     ('/dashboard', 'dashboard', 'Dashboard'),
 ] -%}
 <body>
 
-    <script type='text/javascript'>
-        var _ues = {
-            host : 'defold.userecho.com',
-            forum : '11347',
-            lang : 'en',
-            tab_corner_radius : 8,
-            tab_font_size : 20,
-            tab_image_hash : 'RmVlZGJhY2s%3D',
-            tab_alignment : 'left',
-            tab_text_color : '#FFFFFF',
-            tab_bg_color : '#729FCF',
-            tab_hover_color : '#5D81A8'
-        };
-
-        if (screen.width >= 1024) {
-            (function() {
-                var _ue = document.createElement('script');
-                _ue.type = 'text/javascript';
-                _ue.async = true;
-                _ue.src = ('https:' == document.location.protocol ? 'https://s3.amazonaws.com/'
-                        : 'http://')
-                        + 'cdn.userecho.com/js/widget-1.4.gz.js';
-                var s = document.getElementsByTagName('script')[0];
-                s.parentNode.insertBefore(_ue, s);
-            })();
-        }
-    </script>
 
     {% block navbar %}
     <div class="navbar navbar-fixed-top">
@@ -133,8 +106,7 @@
                         <span class="slash slash-blue">//</span>About
                     </h3>
                     <ul class="unstyled">
-                        <li><a href="/blog">Blog</a></li>
-                        <li><a href="/plans">Plans</a></li>
+                        <li><a href="http://doc.defold.com/release_notes">Release notes</a></li>
                         <li><a href="/about/company">Company</a></li>
                         <li><a href="/about/story">Story</a></li>
                         <li><a href="/about/eula">Terms of Service</a></li>
@@ -155,14 +127,13 @@
                         <span class="slash slash-orange">//</span>Support
                     </h3>
                     <ul class="unstyled">
-                        <li><a href="/doc">Documentation</a></li>
-                        <li><a href="http://defold.userecho.com/" target="_blank">Forum</a></li>
+                        <li><a href="http://doc.defold.com">Documentation</a></li>
                     </ul>
                 </div>
             </div>
             <div class="copyright">
                 <hr>
-                &copy; Defold 2010-2012
+                &copy; Defold 2010-2014
             </div>
         </div>
     </footer>

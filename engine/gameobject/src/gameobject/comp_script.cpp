@@ -181,6 +181,13 @@ namespace dmGameObject
         }
     }
 
+    CreateResult CompScriptAddToUpdate(const ComponentAddToUpdateParams& params)
+    {
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
+        script_instance->m_Update = 1;
+        return CREATE_RESULT_OK;
+    }
+
     UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params)
     {
         lua_State* L = GetLuaState(params.m_Context);
@@ -194,10 +201,12 @@ namespace dmGameObject
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
-            ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
-            if (ret == SCRIPT_RESULT_FAILED)
-            {
-                result = UPDATE_RESULT_UNKNOWN_ERROR;
+            if (script_instance->m_Update) {
+                ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
+                if (ret == SCRIPT_RESULT_FAILED)
+                {
+                    result = UPDATE_RESULT_UNKNOWN_ERROR;
+                }
             }
         }
         assert(top == lua_gettop(L));
@@ -502,6 +511,10 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
+        dmScript::GetInstance(L);
+        void* user_data = lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
 
@@ -509,7 +522,11 @@ namespace dmGameObject
         PropertyResult result = PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
 
-        lua_pushnil(L);
+        if (user_data != 0x0) {
+            lua_pushlightuserdata(L, user_data);
+        } else {
+            lua_pushnil(L);
+        }
         dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));

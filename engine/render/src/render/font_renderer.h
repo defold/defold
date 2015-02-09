@@ -59,6 +59,12 @@ namespace dmRender
         float m_MaxAscent;
         /// Max descent of font, positive value
         float m_MaxDescent;
+        /// Value to scale SDF texture values with
+        float m_SdfScale;
+        /// Value to offset SDF texture values with
+        float m_SdfOffset;
+        /// Distance value where outline should end
+        float m_SdfOutline;
     };
 
     /**
@@ -150,6 +156,10 @@ namespace dmRender
         TextAlign m_Align;
         /// Vertical alignment
         TextVAlign m_VAlign;
+        /// Stencil parameters
+        StencilTestParams m_StencilTestParams;
+        /// Stencil parameters set or not
+        uint8_t m_StencilTestParamsSet : 1;
     };
 
     /**

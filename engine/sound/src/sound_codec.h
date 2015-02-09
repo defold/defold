@@ -113,6 +113,16 @@ namespace dmSoundCodec
     Result Decode(HCodecContext context, HDecoder decoder, char* buffer, uint32_t buffer_size, uint32_t* decoded);
 
     /**
+     * Skip in stream
+     * @param context context
+     * @param decoder decoder
+     * @param bytes bytes to skip
+     * @param skipped bytes skipped in stream, similar to decode
+     * @return RESULT_OK on success
+     */
+    Result Skip(HCodecContext context, HDecoder decoder, uint32_t bytes, uint32_t* skipped);
+
+    /**
      * Reset decoder
      * @param context context
      * @param decoder decoder
