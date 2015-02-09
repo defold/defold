@@ -98,7 +98,18 @@
         texture-packing (tex/pack-textures margin extrude-borders images)]
     (assoc texture-packing :animations animations)))
 
-(defn build-textureset-animation-frame
+(defn summarize-frame-data [key vbuf-factory-fn frame-data]
+  (let [counts (map #(count (get % key)) frame-data)
+        starts (reductions + 0 counts)
+        total  (last starts)
+        starts (butlast starts)
+        vbuf   (vbuf-factory-fn total)]
+    (doseq [frame frame-data
+            vtx (get frame key)]
+      (conj! vbuf vtx))
+    {:starts (map int starts) :counts (map int counts) :vbuf (persistent! vbuf)}))
+
+(defn animation-frame-data
   [^TexturePacking texture-packing image]
   (let [coords (filter #(= (:path image) (:path %)) (:coords texture-packing))
         ; TODO: may fail due to #87253110 "Atlas texture should not contain multiple instances of the same image"
@@ -119,27 +130,43 @@
                           [x1 y0 0 (g/to-short-uv u1) (g/to-short-uv v1)]
                           [x1 y1 0 (g/to-short-uv u1) (g/to-short-uv v0)]
                           [x0 y1 0 (g/to-short-uv v0) (g/to-short-uv v0)]]]
-    (t/map->TextureSetAnimationFrame
-     {:image            image ; TODO: is this necessary?
-      :outline-vertices outline-vertices
-      :vertices         (mapv outline-vertices [0 1 2 0 2 3])
-      :tex-coords       [[u0 v0] [u1 v1]]})))
+    {:image            image ; TODO: is this necessary?
+     :outline-vertices outline-vertices
+     :vertices         (mapv outline-vertices [0 1 2 0 2 3])
+     :tex-coords       [[u0 v0] [u1 v1]]}))
 
 (defn build-textureset-animation
-  [texture-packing animation]
+  [animation]
   (let [images (:images animation)
         width  (int (:width  (first images)))
-        height (int (:height (first images)))
-        frames (mapv (partial build-textureset-animation-frame texture-packing) images)]
+        height (int (:height (first images)))]
     (-> (select-keys animation [:id :fps :flip-horizontal :flip-vertical :playback])
-        (assoc :width width :height height :frames frames)
+        (assoc :width width :height height)
         t/map->TextureSetAnimation)))
 
 (defnk produce-textureset :- TextureSet
   [this texture-packing :- TexturePacking]
-  (let [animations (:animations texture-packing)
-        textureset-animations (mapv (partial build-textureset-animation texture-packing) animations)]
-    (t/map->TextureSet {:animations textureset-animations})))
+  (let [animations             (sort-by :id (:animations texture-packing))
+        animations             (remove #(empty? (:images %)) animations)
+        animations-images      (for [a animations i (:images a)] [a i])
+        images                 (mapcat :images animations)
+        frame-data             (map (partial animation-frame-data texture-packing) images)
+        vertex-summary         (summarize-frame-data :vertices         ->engine-format-texture frame-data)
+        outline-vertex-summary (summarize-frame-data :outline-vertices ->engine-format-texture frame-data)
+        tex-coord-summary      (summarize-frame-data :tex-coords       ->uv-only               frame-data)
+        frames                 (map t/->TextureSetAnimationFrame
+                                 images
+                                 (:starts vertex-summary)
+                                 (:counts vertex-summary)
+                                 (:starts outline-vertex-summary)
+                                 (:counts outline-vertex-summary))
+        animation-frames       (partition-by first (map (fn [[a i] f] [a f]) animations-images frames))
+        textureset-animations  (map build-textureset-animation animations)
+        textureset-animations  (map (fn [a aframes] (assoc a :frames (mapv second aframes))) textureset-animations animation-frames)]
+    (t/map->TextureSet {:animations       (reduce (fn [m a] (assoc m (:id a) a)) {} textureset-animations)
+                        :vertices         (:vbuf vertex-summary)
+                        :outline-vertices (:vbuf outline-vertex-summary)
+                        :tex-coords       (:vbuf tex-coord-summary)})))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
@@ -369,41 +396,27 @@
         animation-starts (butlast (reductions + start-idx frame-counts))]
     (map build-animation animations animation-starts)))
 
-(defn summarize-frames [key vbuf-factory-fn frames]
-  (let [counts (map #(count (get % key)) frames)
-        starts (reductions + 0 counts)
-        total  (last starts)
-        starts (butlast starts)
-        vbuf   (vbuf-factory-fn total)]
-    (doseq [frame frames
-            vtx (get frame key)]
-      (conj! vbuf vtx))
-    {:starts (map int starts) :counts (map int counts) :vbuf (persistent! vbuf)}))
-
 (defn ^TextureSetProto$TextureSet texturesetc-protocol-buffer
   [texture-name textureset]
   #_(s/validate TextureSet textureset)
-  (let [animations             (remove #(empty? (:frames %)) (:animations textureset))
-        frames                 (mapcat :frames animations)
-        vertex-summary         (summarize-frames :vertices         ->engine-format-texture frames)
-        outline-vertex-summary (summarize-frames :outline-vertices ->engine-format-texture frames)
-        tex-coord-summary      (summarize-frames :tex-coords       ->uv-only               frames)]
+  (let [animations (sort-by :id (vals (:animations textureset)))
+        frames     (mapcat :frames animations)]
     (.build (doto (TextureSetProto$TextureSet/newBuilder)
             (.setTexture               texture-name)
-            (.setTexCoords             (byte-pack (:vbuf tex-coord-summary)))
+            (.setTexCoords             (byte-pack (:tex-coords textureset)))
             (.addAllAnimations         (build-animations 0 animations))
 
-            (.addAllVertexStart        (:starts vertex-summary))
-            (.addAllVertexCount        (:counts vertex-summary))
-            (.setVertices              (byte-pack (:vbuf vertex-summary)))
+            (.addAllVertexStart        (map :vertex-start frames))
+            (.addAllVertexCount        (map :vertex-count frames))
+            (.setVertices              (byte-pack (:vertices textureset)))
 
-            (.addAllAtlasVertexStart   (:starts vertex-summary))
-            (.addAllAtlasVertexCount   (:counts vertex-summary))
-            (.setAtlasVertices         (byte-pack (:vbuf vertex-summary)))
+            (.addAllAtlasVertexStart   (map :vertex-start frames))
+            (.addAllAtlasVertexCount   (map :vertex-count frames))
+            (.setAtlasVertices         (byte-pack (:vertices textureset)))
 
-            (.addAllOutlineVertexStart (:starts outline-vertex-summary))
-            (.addAllOutlineVertexCount (:counts outline-vertex-summary))
-            (.setOutlineVertices       (byte-pack (:vbuf outline-vertex-summary)))
+            (.addAllOutlineVertexStart (map :outline-vertex-start frames))
+            (.addAllOutlineVertexCount (map :outline-vertex-count frames))
+            (.setOutlineVertices       (byte-pack (:outline-vertices textureset)))
 
             (.setTileCount             (int 0))))))
 
