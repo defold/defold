@@ -598,7 +598,7 @@
     (doto self
       (construct-ancillary-nodes (:filename self))
       (construct-compiler)
-      #_(ds/set-property :dirty false)))
+      (ds/set-property :dirty false)))
 
   (on :unload
     (doto self
