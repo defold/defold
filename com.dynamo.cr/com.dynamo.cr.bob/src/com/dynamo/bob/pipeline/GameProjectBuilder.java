@@ -165,6 +165,10 @@ public class GameProjectBuilder extends Builder<Void> {
 
             TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
             IResource texProfilesInput = project.getResource(textureProfilesPath);
+            if (!texProfilesInput.exists())
+            {
+                throw new CompileExceptionError(input, -1, "Could not find supplied texture_profiles file: " + textureProfilesPath);
+            }
             ProtoUtil.merge(texProfilesInput, texProfilesBuilder);
 
             // If Bob is building for a specific platform, we need to
