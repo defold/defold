@@ -11,10 +11,7 @@
   (apply ip/def-property-type-descriptor name value-type body-forms))
 
 (defproperty NonNegativeInt s/Int
-  (validation (comp not neg?)))
-
-(defproperty NonNegativeInt s/Int
-  (validation (fn [v] (not (neg? v)))))
+  (validate positive? (comp not neg?)))
 
 (defproperty Resource s/Str (tag ::resource))
 (defproperty ImageResource Resource (tag ::image))

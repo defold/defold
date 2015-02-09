@@ -493,3 +493,14 @@
     (is (:basic-output (t/auto-update-outputs (construct InheritsBasicNode))))
     (is (:another-cached-output (t/auto-update-outputs (construct InheritsBasicNode))))
     (is (not (:another-output (t/auto-update-outputs (construct InheritsBasicNode)))))))
+
+(defnode PropertyValidationNode
+  (property even-number s/Int
+    (default 0)
+    (validate must-be-even :message "only even numbers are allowed" even?)))
+
+(deftest validation-errors-delivered-in-properties-output
+  (with-clean-world
+    (let [[node]     (tx-nodes (n/construct PropertyValidationNode :even-number 1))
+          properties (n/get-node-value node :properties)]
+      (is (= ["only even numbers are allowed"] (some-> properties :even-number :validation-problems))))))

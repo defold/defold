@@ -216,7 +216,7 @@
 (defn schemaless-production-fn [this g] "schemaless fn produced string")
 (defn substitute-value-fn [& _] "substitute value")
 
-(dp/defproperty IntegerProperty s/Int (validation (comp not neg?)))
+(dp/defproperty IntegerProperty s/Int (validate positive? (comp not neg?)))
 
 (n/defnode MultipleOutputNode
   (input integer-input s/Int)
@@ -321,7 +321,7 @@
 (dp/defproperty DefaultProperty DerivedProperty
   (default 0))
 (dp/defproperty ValidatedProperty DefaultProperty
-  (validation not-neg?))
+  (validate must-be-positive not-neg?))
 
 (n/defnode NodeWithPropertyVariations
   (property typed-external TypedProperty)
@@ -334,7 +334,7 @@
   (property default-internal TypedProperty
     (default 0))
   (property validated-internal DefaultProperty
-    (validation (fn [value] true))))
+    (validate always-valid (fn [value] true))))
 
 (n/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))

@@ -534,9 +534,13 @@ and protocols that the node type requires."
 ; Intrinsics
 ; ---------------------------------------------------------------------------
 (defn- gather-property [this prop]
-  {:node-id (:_id this)
-   :value (get this prop)
-   :type  (-> this t/properties prop)})
+  (let [type     (-> this t/properties prop)
+        value    (get this prop)
+        problems (t/property-validate type value)]
+    {:node-id             (:_id this)
+     :value               value
+     :type                type
+     :validation-problems problems}))
 
 (defnk gather-properties :- t/Properties
   "Production function that delivers the definition and value

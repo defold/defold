@@ -18,7 +18,7 @@
   [property-type-descriptor]
   (->> property-type-descriptor
     :validation
-    vals))
+    (map second)))
 
 (defn- validation-problems
   [property-type-descriptor value]
@@ -30,7 +30,7 @@
           (conj errs
             (let [valid? (try (t/apply-if-fn (t/var-get-recursive fn) value) (catch Exception e false))]
               (when-not valid?
-                (t/apply-if-fn formatter value)))))
+                (t/apply-if-fn (t/var-get-recursive formatter) value)))))
         []
         (validations property-type-descriptor)))))
 
@@ -65,12 +65,12 @@
                                    :formatter (resolve-if-symbol formatter-fn)}}}
 
     [(['validate label validation-fn] :seq)]
-    {:validation {(keyword label) {:fn (resolve-if-symbol validation-fn)
-                                   :formatter "invalid value"}}}
+    {:validation [[(keyword label) {:fn (resolve-if-symbol validation-fn)
+                                   :formatter "invalid value"}]]}
 
     [(['validation validation-fn] :seq)]
-    {:validation {(keyword (gensym)) {:fn (resolve-if-symbol validation-fn)
-                                      :formatter "invalid value"}}}
+    {:validation [[(keyword (gensym)) {:fn (resolve-if-symbol validation-fn)
+                                    :formatter "invalid value"}]]}
 
     [(['visible visibility] :seq)]
     {:visible (resolve-if-symbol visibility)}
@@ -83,7 +83,7 @@
 
 (defn merge-props [props new-props]
   (-> (merge (dissoc props :validation) (dissoc new-props :validation))
-    (assoc :validation (merge (:validation props) (:validation new-props)))
+    (assoc :validation (concat (:validation props) (:validation new-props)))
     (assoc :tags (into (vec (:tags new-props)) (:tags props)))))
 
 (defn property-type-descriptor [name-sym value-type body-forms]

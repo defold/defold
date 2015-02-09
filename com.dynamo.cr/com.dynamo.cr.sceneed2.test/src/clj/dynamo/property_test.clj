@@ -104,7 +104,7 @@
   (is (false? (t/property-valid-value? PropWithValidationLiteralFalse 0)))
   (is (false? (t/property-valid-value? PropWithValidationLiteralFalse 1)))
   (is (false? (t/property-valid-value? PropWithMultipleValidations +1)))
-  (is (true?  (t/property-valid-value? PropWithMultipleValidations -1)))
+  (is (false? (t/property-valid-value? PropWithMultipleValidations -1)))
   (is (false? (t/property-valid-value? PropWithValidationVarAsSymbol 23)))
   (is (true?  (t/property-valid-value? PropWithValidationVarAsSymbol 42)))
   (is (false? (t/property-valid-value? PropWithValidationVarForm 23)))
@@ -126,15 +126,19 @@
   (validate must-be-even even?))
 
 (defproperty PropWithValidationFormatterFnInline s/Num
-  (validate must-be-even :message #(str % "is not even") even?))
+  (validate must-be-even :message #(str % " is not even") even?))
 
 (defproperty PropWithValidationFormatterFnValue s/Num
-  (validate must-be-even :message (make-formatter "is not even") even?))
+  (validate must-be-even :message (make-formatter " is not even") even?))
 
 (defproperty PropWithValidationFormatterLiteral s/Num
   (validate must-be-even :message "value must be even" even?))
 
-(defn ^:dynamic *formatter-fn* [x] (str x "is not even"))
+(defproperty PropWithMultipleValidationsAndFormatters s/Num
+  (validate must-be-even     :message "value must be even" even?)
+  (validate must-be-positive :message "value must be positive" pos?))
+
+(defn ^:dynamic *formatter-fn* [x] (str x " is not even"))
 
 (defproperty PropWithValidationFormatterVarAsSymbol s/Num
   (validate must-be-even :message *formatter-fn* even?))
@@ -143,18 +147,20 @@
   (validate must-be-even :message #'*formatter-fn* even?))
 
 (deftest property-type-validation-messages
-  (is (= []                (t/property-validate PropWithoutValidationFormatter 4)))
-  (is (= ["invalid value"] (t/property-validate PropWithoutValidationFormatter 5)))
-  (is (= ["invalid value"] (t/property-validate PropWithoutValidationFormatter "not a number")))
-
-;  (is (true?  (t/property-valid-value? PropWithoutValidation 0)))
-;  (is (true?  (t/property-valid-value? PropWithoutValidation 1)))
-;  (is (false? (t/property-valid-value? PropWithValidationFnInline 0)))
-;  (is (true?  (t/property-valid-value? PropWithValidationFnInline 1)))
-;  (is (false? (t/property-valid-value? PropWithValidationFnValue 0)))
-;  (is (false? (t/property-valid-value? PropWithValidationFnValue 1)))
-;  (is (true?  (t/property-valid-value? PropWithValidationFnValue 2)))
-  )
+  (is (= []                                              (t/property-validate PropWithoutValidationFormatter 4)))
+  (is (= ["invalid value"]                               (t/property-validate PropWithoutValidationFormatter 5)))
+  (is (= ["invalid value"]                               (t/property-validate PropWithoutValidationFormatter "not a number")))
+  (is (= ["5 is not even"]                               (t/property-validate PropWithValidationFormatterFnInline 5)))
+  (is (= ["5 is not even"]                               (t/property-validate PropWithValidationFormatterFnValue 5)))
+  (is (= ["value must be even"]                          (t/property-validate PropWithValidationFormatterLiteral 5)))
+  (is (= ["value must be even"]                          (t/property-validate PropWithMultipleValidationsAndFormatters 5)))
+  (is (= ["value must be positive"]                      (t/property-validate PropWithMultipleValidationsAndFormatters -4)))
+  (is (= ["value must be even" "value must be positive"] (t/property-validate PropWithMultipleValidationsAndFormatters -5)))
+  (is (= ["5 is not even"]                               (t/property-validate PropWithValidationFormatterVarAsSymbol 5)))
+  (is (= ["5 is not even"]                               (t/property-validate PropWithValidationFormatterVarForm 5)))
+  (binding [*formatter-fn* (fn [x] (str x " is odd"))]
+    (is (= ["5 is odd"]                                  (t/property-validate PropWithValidationFormatterVarAsSymbol 5)))
+    (is (= ["5 is odd"]                                  (t/property-validate PropWithValidationFormatterVarForm 5)))))
 
 (defproperty BaseProp s/Num)
 
@@ -194,7 +200,7 @@
   (is (true?  (t/property-valid-value? DerivedPropInheritDefaultOverrideValidation 0)))
   (is (false? (t/property-valid-value? DerivedPropInheritDefaultOverrideValidation 1)))
   (is (true?  (t/property-valid-value? DerivedPropInheritDefaultOverrideValidation 2)))
-  (is (true?  (t/property-valid-value? DerivedPropInheritBothOverrideBoth 0)))
+  (is (false? (t/property-valid-value? DerivedPropInheritBothOverrideBoth 0)))
   (is (false? (t/property-valid-value? DerivedPropInheritBothOverrideBoth 1)))
   (is (true?  (t/property-valid-value? DerivedPropInheritBothOverrideBoth 2))))
 
