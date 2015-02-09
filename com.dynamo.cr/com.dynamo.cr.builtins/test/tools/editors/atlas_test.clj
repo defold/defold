@@ -16,8 +16,7 @@
             [dynamo.system.test-support :refer [with-clean-world tempfile mock-iproject fixture]]
             [dynamo.types :as t]
             [schema.test]
-            [editors.atlas :as atlas]
-            [editors.image-node :as image-node])
+            [editors.atlas :as atlas])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [java.io StringReader]
            [dynamo.types Image]
@@ -62,40 +61,38 @@
   [atlas]
   (n/get-node-value atlas :text-format))
 
+(n/defnode WildcardImageResourceNode
+  (property filename (s/protocol t/PathManipulation) (visible false))
+  (output content Image :cached (fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))
+
 (defn test-project
-  []
+  [image-resource-node-type]
   (ds/transactional
     (let [eproj (mock-iproject {})
           project-node (ds/add (n/construct p/Project :eclipse-project eproj))]
       (ds/in project-node
         (p/register-editor "atlas" #'editors.atlas/on-edit)
         (p/register-node-type "atlas" editors.atlas/AtlasNode)
-        (p/register-node-type "png" editors.image-node/ImageResourceNode)
-        (p/register-node-type "jpg" editors.image-node/ImageResourceNode)
+        (p/register-node-type "png" image-resource-node-type)
+        (p/register-node-type "jpg" image-resource-node-type)
         project-node))))
 
 (defn round-trip
   [random-atlas]
   (with-clean-world
-    (let [project-node (test-project)
+    (let [project-node (test-project WildcardImageResourceNode)
           first-gen    (->text (<-text project-node random-atlas))
           second-gen   (->text (<-text project-node first-gen))]
       (= first-gen second-gen))))
 
-;; MTN - Removed on 2014-02-02
-;;
-;; This is failing due to the autowiring work. We now need to have legit image references.
-;;
-;; Sam has a test fixture on its way that we can use to resurrect this test.
-;;
-#_(defspec round-trip-preserves-fidelity
+(defspec round-trip-preserves-fidelity
   10
   (prop/for-all* [atlas] round-trip))
 
 (deftest compilation-to-binary
   (testing "Doesn't throw an exception"
     (with-clean-world
-      (let [project-node (test-project)
+      (let [project-node (test-project WildcardImageResourceNode)
             atlas        (<-text project-node (first (gen/sample (gen/resize 5 atlas) 1)))
             txname       "random-mcnally"
             texturesetc  (tempfile txname "texturesetc" true)
@@ -115,28 +112,21 @@
   (fixture "com.dynamo.cr.builtins" (str "/test/resources/" fixture-name)))
 
 (defnk image-from-fixture [this filename]
-  (if-let [img (ImageIO/read (io/input-stream (builtin-fixture filename)))]
-    (image/make-image filename img)))
+  (let [filename-str (t/local-path filename)]
+    (if-let [img (ImageIO/read (io/input-stream (builtin-fixture filename-str)))]
+      (image/make-image filename-str img))))
 
 (n/defnode FixtureImageResourceNode
   (property filename (s/protocol t/PathManipulation) (visible false))
-  (output   image Image :cached :substitute-value image/placeholder-image image-from-fixture))
-
-(defn fixture-resource-locator []
-  (let [cache (atom {})
-        ensure-resource-node (fn [cache-map name]
-                                (merge {name (ds/add (n/construct FixtureImageResourceNode :filename name))} cache-map))]
-    (reify t/NamingContext
-     (lookup [this name]
-       (get (swap! cache ensure-resource-node name) name)))))
+  (output content Image :cached :substitute-value image/placeholder-image image-from-fixture))
 
 (defn atlas-from-fixture
-  [atlas-text]
+  [project-node atlas-text]
   (ds/transactional
-    (let [locator (fixture-resource-locator)
-          atlas   (ds/add (n/construct atlas/AtlasNode))]
-      (atlas/construct-ancillary-nodes atlas locator (StringReader. atlas-text))
-      atlas)))
+    (ds/in project-node
+      (let [atlas (ds/add (n/construct atlas/AtlasNode))]
+        (atlas/construct-ancillary-nodes atlas (StringReader. atlas-text))
+        atlas))))
 
 (defn matches-fixture? [fixture-name output-file]
   (let [actual   (slurp output-file)
@@ -145,36 +135,37 @@
 
 (defn verify-atlas-artifacts [fixture-basename]
   (with-clean-world
-    (let [atlas-text  (slurp (builtin-fixture (str fixture-basename ".atlas")))
-          atlas       (atlas-from-fixture atlas-text)
-          texturesetc (tempfile fixture-basename ".texturesetc" true)
-          texturec    (tempfile fixture-basename ".texturec" true)
-          compiler    (ds/transactional
-                        (ds/add
-                          (n/construct atlas/TextureSave
-                            :texture-name        (format "atlases/%s.texturesetc" fixture-basename)
-                            :textureset-filename (file/native-path (.getPath texturesetc))
-                            :texture-filename    (file/native-path (.getPath texturec)))))]
+    (let [project-node (test-project FixtureImageResourceNode)
+          atlas-text   (slurp (builtin-fixture (str fixture-basename ".atlas")))
+          atlas        (atlas-from-fixture project-node atlas-text)
+          texturesetc  (tempfile fixture-basename ".texturesetc" true)
+          texturec     (tempfile fixture-basename ".texturec" true)
+          compiler     (ds/transactional
+                         (ds/add
+                           (n/construct atlas/TextureSave
+                             :texture-name        (str fixture-basename ".texturesetc")
+                             :textureset-filename (file/native-path (.getPath texturesetc))
+                             :texture-filename    (file/native-path (.getPath texturec)))))]
       (ds/transactional (ds/connect atlas :textureset   compiler :textureset))
       (ds/transactional (ds/connect atlas :packed-image compiler :packed-image))
       ; TODO: fails when placeholder image is used
       #_(is (= atlas-text (n/get-node-value atlas :text-format)))
       (is (= :ok (n/get-node-value compiler :texturec)))
       (is (= :ok (n/get-node-value compiler :texturesetc)))
-      (is (matches-fixture? (str fixture-basename ".texturesetc") texturesetc))
-      (is (matches-fixture? (str fixture-basename ".texturec")    texturec)))))
+      (is (matches-fixture? (str "build/default/" fixture-basename ".texturesetc") texturesetc))
+      (is (matches-fixture? (str "build/default/" fixture-basename ".texturec")    texturec)))))
 
-;; Disable failing test
-;;
-;; Must be updated to use new `mock-iproject` infrastructure.
-;;
-#_(deftest expected-atlas-artifacts
-   (verify-atlas-artifacts "empty")
-   (verify-atlas-artifacts "single-image")
-   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-   #_(verify-atlas-artifacts "single-animation")
-   (verify-atlas-artifacts "empty-animation")
-   (verify-atlas-artifacts "missing-image")
-   (verify-atlas-artifacts "missing-image-in-animation")
-   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-   #_(verify-atlas-artifacts "complex"))
+(deftest expected-atlas-artifacts
+  (verify-atlas-artifacts "atlases/empty")
+  (verify-atlas-artifacts "atlases/single-image")
+  ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
+  #_(verify-atlas-artifacts "atlases/single-animation")
+  (verify-atlas-artifacts "atlases/empty-animation")
+  (verify-atlas-artifacts "atlases/missing-image")
+  (verify-atlas-artifacts "atlases/missing-image-in-animation")
+  ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
+  #_(verify-atlas-artifacts "atlases/complex")
+  (verify-atlas-artifacts "atlases/single-image-multiple-references")
+  (verify-atlas-artifacts "atlases/single-image-multiple-references-in-animation")
+  (verify-atlas-artifacts "atlases/missing-image-multiple-references")
+  (verify-atlas-artifacts "atlases/missing-image-multiple-references-in-animation"))
