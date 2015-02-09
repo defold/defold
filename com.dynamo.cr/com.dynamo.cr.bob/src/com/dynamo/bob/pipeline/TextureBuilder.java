@@ -9,7 +9,9 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 @BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec")
 public class TextureBuilder extends Builder<Void> {
@@ -23,10 +25,12 @@ public class TextureBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
 
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath( this.project.getTextureProfiles(), task.output(0).getPath() );
+
         ByteArrayInputStream is = new ByteArrayInputStream(task.input(0).getContent());
         TextureImage texture;
         try {
-            texture = TextureGenerator.generate(is);
+            texture = TextureGenerator.generate(is, texProfile);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
