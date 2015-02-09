@@ -50,7 +50,6 @@ message TextureImage
         repeated uint32 mip_map_offset  = 6;
         repeated uint32 mip_map_size    = 7;
         required bytes data             = 8;
-        optional string target_platform = 9; // FIXME(sven): Is this really the best solution? We need some way to check in runtime.
     }
 
     repeated Image alternatives = 1;
@@ -75,7 +74,18 @@ message PathSettings
 
 message PlatformProfile
 {
-    required string platform                  = 1;
+    enum OSId
+    {
+        OS_ID_GENERIC = 0;
+        OS_ID_WINDOWS = 1;
+        OS_ID_OSX     = 2;
+        OS_ID_LINUX   = 3;
+        OS_ID_IOS     = 4;
+        OS_ID_ANDROID = 5;
+        OS_ID_JSWEB   = 6;
+    }
+
+    required OSId os                          = 1;
     repeated TextureFormatAlternative formats = 2;
     required bool mipmaps                     = 3;
     optional uint32 max_texture_size          = 4;

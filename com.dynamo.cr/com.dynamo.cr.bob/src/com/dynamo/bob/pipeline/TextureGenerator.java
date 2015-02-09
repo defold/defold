@@ -54,7 +54,7 @@ public class TextureGenerator {
         return image;
     }
 
-    private static TextureImage.Image.Builder generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, boolean generateMipMaps, int maxTextureSize) throws TextureGeneratorException, IOException {
+    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, boolean generateMipMaps, int maxTextureSize) throws TextureGeneratorException, IOException {
 
         int width = image.getWidth();
         int height = image.getHeight();
@@ -190,7 +190,7 @@ public class TextureGenerator {
             raw.setData(ByteString.copyFrom(buffer));
             raw.setFormat(textureFormat);
 
-            return raw;
+            return raw.build();
 
         } finally {
             TexcLibrary.TEXC_Destroy(texture);
@@ -224,17 +224,31 @@ public class TextureGenerator {
                 {
                     textureFormat = platformProfile.getFormats(i).getFormat();
 
-                    TextureImage.Image.Builder raw = generateFromColorAndFormat(image, colorModel, textureFormat, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );
-                    raw.setTargetPlatform(platformProfile.getPlatform());
+                    try
+                    {
+                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );
+                        textureBuilder.addAlternatives(raw);
+                        altCount += 1;
+                    } catch (TextureGeneratorException e) {
+                        throw e;
+                    }
 
-                    // TODO(sven): We should skip adding if generateFromColorAndFormat failed.
-                    textureBuilder.addAlternatives(raw.build());
-                    altCount += 1;
                 }
             }
-            textureBuilder.setCount(altCount);
 
-        } else {
+            if (altCount > 0)
+            {
+                textureBuilder.setCount(altCount);
+            } else {
+                // if no platform alternatives or texture formats was found,
+                // we need to fall back to default texture formats below.
+                texProfile = null;
+            }
+        }
+
+        // If no texture profile was supplied, or no matching format was found
+        if (texProfile == null)
+        {
 
             // Guess texture format based on number color components of input image
             int componentCount = colorModel.getNumComponents();
@@ -250,8 +264,8 @@ public class TextureGenerator {
                 break;
             }
 
-            TextureImage.Image.Builder raw = generateFromColorAndFormat(image, colorModel, textureFormat, true, 0);
-            textureBuilder.addAlternatives(raw.build());
+            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, true, 0);
+            textureBuilder.addAlternatives(raw);
             textureBuilder.setCount(1);
 
         }

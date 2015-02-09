@@ -120,6 +120,14 @@
             id="com.dynamo.cr.ddfeditor.cubemapeditor"
             name="Cubemap Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.TextureProfilesEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="texture_profiles"
+            id="com.dynamo.cr.ddfeditor.textureprofileseditor"
+            name="Texture Profiles Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -478,6 +486,13 @@
                   type-class="image">
             </reference-type-class>
          </references>
+      </resource-type>
+      <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.TextureProfilesEditSupport"
+            file-extension="texture_profiles"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.TextureProfiles"
+            name="Texture Profiles"
+            proto-message-class="com.dynamo.graphics.proto.Graphics$TextureProfiles">
       </resource-type>
     </extension>
    <extension

@@ -62,7 +62,7 @@ public class TileSetBuilder extends Builder<Void>  {
             // it has been read before building this tile set, add it as an input.
             String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
             if (textureProfilesPath != null) {
-                taskBuilder.addInput( this.project.getResource(textureProfilesPath).output() );
+                taskBuilder.addInput( this.project.getResource(textureProfilesPath) );
             }
 
             return taskBuilder.build();
@@ -83,11 +83,7 @@ public class TileSetBuilder extends Builder<Void>  {
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
 
-        TextureProfile texProfile = null;
-        String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null) {
-            texProfile = TextureUtil.getTextureProfileByPath( this.project.getTextureProfiles(), task.input(0).getPath().toString() );
-        }
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath( this.project.getTextureProfiles(), task.input(0).getPath() );
 
         TileSet.Builder builder = TileSet.newBuilder();
         ProtoUtil.merge(task.input(0), builder);
