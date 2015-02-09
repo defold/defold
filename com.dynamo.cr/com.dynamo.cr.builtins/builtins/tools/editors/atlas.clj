@@ -47,6 +47,12 @@
   "Minimum number of pixels the mouse must travel to initiate a click-and-drag."
   2)
 
+(def toggle-select-modifiers
+  "Bitmask of modifier keys which turn on toggle selection.
+  COMMAND or SHIFT on Mac OS X.
+  CTRL or SHIFT everywhere else."
+  (bit-or SWT/MOD1 SWT/SHIFT))
+
 (vtx/defvertex engine-format-texture
   (vec3.float position)
   (vec2.short texcoord0 true))
@@ -483,9 +489,7 @@
 
 (defn- not-camera-movement?
   "True if the event does not have keyboard modifier-keys for a
-  camera movement action (CTRL or ALT). Note that this won't
-  necessarily apply to mouse-up events because the modifier keys
-  can be released before the mouse button."
+  camera movement action (CTRL or ALT)."
   [event]
   (zero? (bit-and (:state-mask event) (bit-or SWT/CTRL SWT/ALT))))
 
@@ -505,12 +509,9 @@
     (ds/connect node :self selection-node :selected-nodes)))
 
 (defn- selection-mode
-  "Either :replace for normal selection mode or :toggle for multi-select.
-  On Mac: COMMAND or SHIFT.
-  On non-Mac: CTRL or SHIFT."
-  [event]
-  ;; SWT/MOD1 maps to COMMAND on Mac and CTRL elsewhere
-  (if (zero? (bit-and (:state-mask event) (bit-or SWT/MOD1 SWT/SHIFT)))
+  "Either :replace for normal selection mode or :toggle for multi-select."
+  [modifiers]
+  (if (zero? (bit-and modifiers toggle-select-modifiers))
     :replace
     :toggle))
 
@@ -537,32 +538,51 @@
 (defn pending-selection
   "Returns a set of node IDs for the selection being created by the
   current click or click-and-drag operation."
-  [ui-state event]
-  (let [{:keys [start-x start-y dragging previous-selection]} ui-state
+  [ui-state]
+  (let [{:keys [start-x start-y dragging previous-selection modifiers]} ui-state
         clicked (set (cond->> (find-nodes-in-selection ui-state)
                        (not dragging) (take 1)))]
-    (case (selection-mode event)
+    (case (selection-mode modifiers)
       :replace clicked
       :toggle (toggle previous-selection clicked))))
 
 (defn complete-selection
-  [self event]
+  [self]
   (let [ui-state @(:ui-state self)
         {:keys [world-ref]} self
         {:keys [default-selection selection-node]} ui-state
-        new-node-ids (pending-selection ui-state event)
+        new-node-ids (pending-selection ui-state)
         nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
                 [default-selection])]
     (deselect-all selection-node)
     (select-nodes selection-node nodes)))
 
-(defn update-drag-state [ui-state event]
+(defn update-drag-mouse
+  "Returns updated UI state after a mouse-move event during a
+  click-and-drag selection."
+  [ui-state event]
   (as-> ui-state state
     (assoc state
       :dragging true
       :current-x (:x event)
       :current-y (:y event))
     (assoc state :selection-region (selection-region state))))
+
+(defn update-select-keydown
+  "Returns updated UI state if the key-down event changed the state
+  of the selection modifier keys."
+  [ui-state event]
+  (if (zero? (bit-and toggle-select-modifiers (:key-code event)))
+    ui-state
+    (update-in ui-state [:modifiers] bit-or (:key-code event))))
+
+(defn update-select-keyup
+  "Returns updated UI state if the key-up event changed the state
+  of the selection modifier keys."
+  [ui-state event]
+  (if (zero? (bit-and toggle-select-modifiers (:key-code event)))
+    ui-state
+    (update-in ui-state [:modifiers] bit-and-not (:key-code event))))
 
 (n/defnode SelectionController
   (property ui-state s/Any (default (constantly (atom {}))))
@@ -583,38 +603,53 @@
               (n/get-node-inputs self :selection-node :default-selection :glcontext :renderables :view-camera)
             editor-node (ds/node-consuming self :renderable)
             previous-selection (disj (selected-node-ids selection-node)
-                                 (:_id default-selection))]
-        (reset! (:pending-selection self) #{})
-        (swap! (:ui-state self) assoc
-          :selecting true
-          :selection-node selection-node
-          :editor-node editor-node
-          :default-selection default-selection
-          :glcontext glcontext
-          :renderable-inputs renderables
-          :view-camera view-camera
-          :previous-selection previous-selection
-          :start-x (:x event)
-          :start-y (:y event)
-          :current-x (:x event)
-          :current-y (:y event)))))
+                                 (:_id default-selection))
+            new-ui-state (swap! (:ui-state self) assoc
+                           :selecting true
+                           :selection-node selection-node
+                           :modifiers (:state-mask event)
+                           :editor-node editor-node
+                           :default-selection default-selection
+                           :glcontext glcontext
+                           :renderable-inputs renderables
+                           :view-camera view-camera
+                           :previous-selection previous-selection
+                           :start-x (:x event)
+                           :start-y (:y event)
+                           :current-x (:x event)
+                           :current-y (:y event))]
+        (reset! (:pending-selection self) (pending-selection new-ui-state))
+        (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
 
   (on :mouse-move
     (let [{:keys [selecting dragging editor-node] :as ui-state} @(:ui-state self)]
       (when (and selecting (or dragging (drag-move? ui-state event)))
-        (let [new-ui-state (update-drag-state ui-state event)]
+        (let [new-ui-state (update-drag-mouse ui-state event)]
           ;; Don't want rendering inside swap!, and this is all on the
           ;; event-handling thread so reset! is safe.
           (reset! (:ui-state self) new-ui-state)
-          (reset! (:pending-selection self) (pending-selection new-ui-state event)))
+          (reset! (:pending-selection self) (pending-selection new-ui-state)))
         (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
 
   (on :mouse-up
-    (let [{:keys [selecting] :as ui-state} @(:ui-state self)]
+    (when (:selecting @(:ui-state self))
+      (complete-selection self)
+      (reset! (:ui-state self) {})
+      (reset! (:pending-selection self) nil)))
+
+  (on :key-down
+    (let [{:keys [selecting editor-node]} @(:ui-state self)]
       (when selecting
-        (complete-selection self event)
-        (reset! (:ui-state self) {})
-        (reset! (:pending-selection self) nil)))))
+        (let [new-ui-state (swap! (:ui-state self) update-select-keydown event)]
+          (reset! (:pending-selection self) (pending-selection new-ui-state))
+          (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node])))))
+
+  (on :key-up
+    (let [{:keys [selecting editor-node]} @(:ui-state self)]
+      (when selecting
+        (let [new-ui-state (swap! (:ui-state self) update-select-keyup event)]
+          (reset! (:pending-selection self) (pending-selection new-ui-state))
+          (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
