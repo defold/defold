@@ -164,4 +164,8 @@
   (verify-atlas-artifacts "atlases/missing-image")
   (verify-atlas-artifacts "atlases/missing-image-in-animation")
   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-  #_(verify-atlas-artifacts "atlases/complex"))
+  #_(verify-atlas-artifacts "atlases/complex")
+  (verify-atlas-artifacts "atlases/single-image-multiple-references")
+  (verify-atlas-artifacts "atlases/single-image-multiple-references-in-animation")
+  (verify-atlas-artifacts "atlases/missing-image-multiple-references")
+  (verify-atlas-artifacts "atlases/missing-image-multiple-references-in-animation"))
