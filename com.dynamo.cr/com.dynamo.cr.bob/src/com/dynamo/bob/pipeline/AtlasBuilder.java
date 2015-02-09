@@ -38,7 +38,7 @@ public class AtlasBuilder extends Builder<Void>  {
         // it has been read before building this tile set, add it as an input.
         String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
         if (textureProfilesPath != null) {
-            taskBuilder.addInput( this.project.getResource(textureProfilesPath).output() );
+            taskBuilder.addInput( this.project.getResource(textureProfilesPath) );
         }
 
         return taskBuilder.build();
@@ -52,11 +52,7 @@ public class AtlasBuilder extends Builder<Void>  {
         String texturePath = task.output(1).getPath().substring(buildDirLen);
         TextureSet textureSet = result.builder.setTexture(texturePath).build();
 
-        TextureProfile texProfile = null;
-        String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null) {
-            texProfile = TextureUtil.getTextureProfileByPath( this.project.getTextureProfiles(), task.input(0).getPath().toString() );
-        }
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath( this.project.getTextureProfiles(), task.input(0).getPath() );
 
         TextureImage texture;
         try {
