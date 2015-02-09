@@ -41,6 +41,8 @@
             [org.eclipse.swt SWT]
             [org.eclipse.ui IEditorSite]))
 
+(set! *warn-on-reflection* true)
+
 (def integers (iterate (comp int inc) (int 0)))
 
 (def min-drag-move
