@@ -30,14 +30,6 @@
           (.setAll children (list-children (.getValue this))))
         children)))))
 
-;(tree-item (io/file "/tmp/JOGL-FX"))
-;(.isLeaf (nth (.getChildren (tree-item (io/file "/tmp/JOGL-FX"))) 1))
-;(.getChildren (tree-item (io/file "/tmp/JOGL-FX")))
-
-#_(let [l (FXCollections/observableArrayList)]
-   (doto l
-     (.addAll [1 2 3])))
-
 (defn place-control [root id control]
   (let [parent (.lookup root id)]
     (AnchorPane/setTopAnchor control 0.0)
@@ -57,7 +49,5 @@
     (.setCellFactory (.lookup root "#assets") (UIUtil/newFileCellFactory))
     (.setRoot (.lookup root "#assets") (tree-item (io/file ".")))   
     (.appendText (.lookup root "#console") "Hello Console")))
-
-(time (count (file-seq (io/file "/tmp"))))
 
 (Platform/runLater load-scene)

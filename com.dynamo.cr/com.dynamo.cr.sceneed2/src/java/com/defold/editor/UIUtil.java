@@ -8,24 +8,24 @@ import javafx.util.Callback;
 
 public class UIUtil {
 
-	public static Callback<TreeView<File>, TreeCell<File>> newFileCellFactory() {
-		
-		return new Callback<TreeView<File>, TreeCell<File>>() {
-			@Override
-			public TreeCell<File> call(TreeView<File> v) {
-				return new TreeCell<File>() {
-					@Override
-					protected void updateItem(File item, boolean empty) {
-						super.updateItem(item, empty);
-						if (item != null) {
-							String name = item.getName();
-							if (name != null) {
-								setText(name);
-							}
-						}
-					}
-				};
-			}
-		};
-	}
+    public static Callback<TreeView<File>, TreeCell<File>> newFileCellFactory() {
+
+        return new Callback<TreeView<File>, TreeCell<File>>() {
+            @Override
+            public TreeCell<File> call(TreeView<File> v) {
+                return new TreeCell<File>() {
+                    @Override
+                    protected void updateItem(File item, boolean empty) {
+                        super.updateItem(item, empty);
+                        if (item != null) {
+                            String name = item.getName();
+                            if (name != null) {
+                                setText(name);
+                            }
+                        }
+                    }
+                };
+            }
+        };
+    }
 }
