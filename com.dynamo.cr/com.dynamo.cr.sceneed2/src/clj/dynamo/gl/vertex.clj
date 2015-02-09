@@ -148,7 +148,7 @@ the `do-gl` macro from `dynamo.gl`."
     `(fn [~'slices ~'idx [~@names]]
        (let ~(into [] (apply concat (vals multiplications)))
          ~@(map (fn [i nm setter refer]
-                 (list '. (list `nth 'slices i) setter refer nm))
+                 (list '. (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) setter refer nm))
                (range (count names)) names setters references)))))
 
 (defn- make-vertex-getter
@@ -160,7 +160,7 @@ the `do-gl` macro from `dynamo.gl`."
     `(fn [~'slices ~'idx]
        (let ~(into [] (apply concat (vals multiplications)))
          [~@(map (fn [i getter refer]
-                   (list '. (list `nth 'slices i) getter refer))
+                   (list '. (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) getter refer))
                  (range (count getters)) getters references)]))))
 
 (declare new-persistent-vertex-buffer)
