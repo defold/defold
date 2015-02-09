@@ -39,6 +39,8 @@ import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile.OSId;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
+import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.gui.proto.Gui;
@@ -187,7 +189,23 @@ public class GameProjectBuilder extends Builder<Void> {
                 // Take only the platforms that matches the target platform
                 for (PlatformProfile platformProfile : profile.getPlatformsList()) {
                     if ( matchPlatformAgainstOS( targetPlatform, platformProfile.getOs() ) ) {
-                        profileBuilder.addPlatforms(platformProfile);
+
+                        PlatformProfile.Builder newPlatformProfile = PlatformProfile.newBuilder();
+                        newPlatformProfile.mergeFrom(platformProfile);
+
+                        // If the user has turned off texture compression,
+                        // replace all texture formats in the profile with RGBA
+                        // TODO:
+                        if (this.project.option("enable-texture-compression", "false").equals("false"))
+                        {
+                            TextureFormatAlternative.Builder formatBuilder = TextureFormatAlternative.newBuilder();
+                            formatBuilder.setFormat( TextureFormat.TEXTURE_FORMAT_RGBA );
+                            newPlatformProfile.clearFormats();
+                            newPlatformProfile.addFormats(formatBuilder.build());
+                        }
+
+                        profileBuilder.addPlatforms(newPlatformProfile.build());
+
                     }
                 }
 
