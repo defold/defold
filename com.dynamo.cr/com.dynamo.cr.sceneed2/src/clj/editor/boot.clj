@@ -1,15 +1,23 @@
 (ns editor.boot
   (:require [clojure.java.io :as io]
-            [clojure.tools.nrepl.server :as nrepl])
-  (:import [com.defold.editor Start UIUtil]
-           [javafx.application Platform]
-           [javafx.fxml FXMLLoader]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.scene Scene Node Parent]
-           [javafx.stage Stage]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab]
-           [javafx.scene.layout AnchorPane StackPane HBox Priority]))
+            [schema.core :as s]
+            
+            [dynamo.node :as n]
+            [dynamo.system :as ds]
+            [internal.system :as is]
+            [internal.transaction :as it]
+            )
+  (:import  [com.defold.editor Start UIUtil]
+            [java.io File]
+            [javafx.application Platform]
+            [javafx.fxml FXMLLoader]
+            [javafx.collections FXCollections ObservableList]
+            [javafx.scene Scene Node Parent]
+            [javafx.stage Stage]
+            [javafx.scene.image Image ImageView]
+            [javafx.event ActionEvent EventHandler]
+            [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab]
+            [javafx.scene.layout AnchorPane StackPane HBox Priority]))
 
 (declare tree-item)
 
@@ -43,6 +51,60 @@
 (defn- setup-console [root]
   (.appendText (.lookup root "#console") "Hello Console"))
 
+(defonce cached-image-views (atom {}))
+;(ds/current-scope)
+
+(n/defnode GameProject
+  (inherits n/Scope)
+  
+  ;TODO: Resource type instead of string?
+  (property content-root File)
+  ;(property presenter-registry t/Registry)
+  ;(property node-types         {s/Str s/Symbol})
+  ;(property handlers           {s/Keyword {s/Str s/fn-schema}})
+
+  (on :destroy
+      (println "DESTORY!!!")
+      (ds/delete self)))
+
+(defn load-project
+  [^File game-project]
+  (prn "FOOO" game-project)
+  (ds/transactional
+    (ds/add
+      (n/construct GameProject
+        :content-root (.getParentFile game-project)))))
+
+#_(comment 
+(def the-system (atom (is/system)))
+(prn (keys @the-system))
+(prn (:state (:world @the-system)))
+(prn it/*transaction*)
+
+(defn- started?     [s] (-> s deref :world :started))
+
+(is/start the-system)
+(is/stop the-system)
+(started? the-system)
+)
+
+(def the-system (is/start))
+(load-project (io/file "/Applications/Defold/branches/1630/3/p/game.project"))
+
+(prn (:world the-system))
+
+
+(defn- load-image-view [name]
+  (if-let [url (io/resource (str "icons/" name))]
+    (ImageView. (Image. (str url)))
+    (ImageView.)))
+
+(defn- get-image-view [name]
+  (if-let [image-view (:name @cached-image-views)]
+    image-view
+    (let [image-view (load-image-view name)]
+      ((swap! cached-image-views assoc name image-view) name))))
+
 (defn- setup-assets-browser [root]
   (let [tree (.lookup root "#assets")
         tab-pane (.lookup root "#editor-tabs")
@@ -53,7 +115,8 @@
                             file (.getValue item)]
                         (when (.isFile file)
                           (let [tab (Tab. (str file))
-                            editor (TextArea.)]
+                                editor (TextArea.)]
+                            (.setGraphic tab (get-image-view "cog.png"))
                             (.appendText editor (slurp file))
                             (.setContent tab editor)
                             (.add (.getTabs tab-pane) tab)
@@ -67,6 +130,40 @@
     (instance? MenuBar menu) (doseq [m (.getMenus menu)] (bind-menus m handler))
     (instance? Menu menu) (doseq [m (.getItems menu)]
                             (.addEventHandler m ActionEvent/ACTION handler))))
+
+(s/defrecord ResourceType
+  [name :- s/Str
+   ext :- s/Str
+   proto-class :- s/Any
+   template-data :- s/Str
+   refactor-participant :- s/Any
+   icon :- s/Str])
+
+(s/validate ResourceType (ResourceType. "Lua" "lua" nil "" nil ""))
+
+(type (.getClass ""))
+
+#_ "
+node-type:
+  * id
+  * class
+  * presenter
+  * renderer
+  * resource-type
+  * loader
+
+resource-type:
+  * id
+  * name
+  * ext
+  * proto-class
+  * template-data
+  * embeddable
+  * edit-support-class (ddf)
+  (* type-class, .e.g. gameobject)
+  * refactor-partisipant
+  * icon
+"
 
 (def the-root (atom nil))
 

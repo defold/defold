@@ -24,6 +24,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
   (:import [java.io OutputStream PipedOutputStream PipedInputStream Reader]
            [com.google.protobuf TextFormat GeneratedMessage$Builder]
            [org.osgi.framework Bundle]
+           [org.eclipse.core.filesystem IFileStore]
            [org.eclipse.core.internal.resources File]
            [org.eclipse.core.resources IProject IResource IFile]
            [org.eclipse.core.runtime IPath Path]))
