@@ -168,7 +168,7 @@ the `do-gl` macro from `dynamo.gl`."
 
 (deftype PersistentVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicLong count set-fn get-fn]
   b/ByteStringCoding
-  (byte-pack [this] (ByteString/copyFrom buffer))
+  (byte-pack [this] (b/byte-pack buffer))
 
   IEditableCollection
   (asTransient [this])
@@ -219,7 +219,7 @@ the `do-gl` macro from `dynamo.gl`."
 
 (deftype TransientVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicBoolean editable ^AtomicLong position set-fn get-fn]
   b/ByteStringCoding
-  (byte-pack [this] (ByteString/copyFrom buffer))
+  (byte-pack [this] (b/byte-pack buffer))
 
   ITransientVector
   (assocN [this i val]
