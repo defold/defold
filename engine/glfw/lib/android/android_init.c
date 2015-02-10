@@ -49,6 +49,8 @@ extern int g_KeyboardActive;
 extern int g_autoCloseKeyboard;
 extern int g_SpecialKeyActive;
 
+static int g_appLaunchInterrupted = 0;
+
 static void initThreads( void )
 {
     // Initialize critical section handle
@@ -173,6 +175,15 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         _glfwWin.opened = 1;
         break;
     case APP_CMD_TERM_WINDOW:
+        if (!_glfwInitialized) {
+            // If TERM arrives before the GL context etc. have been created, (e.g.
+            // if the user opens search in a narrow time window during app launch),
+            // then we can be placed in an unrecoverable situation:
+            // TERM can arrive before _glPlatformInit is called, and so creation of the
+            // GL context will fail. Deferred creation is not effective either, as the
+            // application will attempt to open the GL window before it has regained focus.
+            g_appLaunchInterrupted = 1;
+        }
         destroy_gl_surface(&_glfwWin);
         break;
     case APP_CMD_GAINED_FOCUS:
@@ -374,6 +385,10 @@ static int LooperCallback(int fd, int events, void* data)
 int _glfwPlatformInit( void )
 {
     LOGV("_glfwPlatformInit");
+
+    if (g_appLaunchInterrupted) {
+        return GL_FALSE;
+    }
 
     _glfwWin.display = EGL_NO_DISPLAY;
     _glfwWin.context = EGL_NO_CONTEXT;
