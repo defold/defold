@@ -157,4 +157,21 @@
       [1 2]     (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip)
       [1 2]     (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip)
       [2]       (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
-      [2]       (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip .get))))
+      [2]       (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip .get)))
+  (testing "multiple calls to byte-pack return the same value"
+    (are [buffer] (let [buffer-val   buffer
+                        byte-string1 (b/byte-pack buffer-val)
+                        byte-string2 (b/byte-pack buffer-val)]
+                    (array= (.toByteArray byte-string1) (.toByteArray byte-string2)))
+      (buffer-with-contents [])
+      (buffer-with-contents [1 2 3 4])
+      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)))
+      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)))
+      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind)
+      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind)
+      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .rewind .get)
+      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip)
+      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip)
+      (doto (b/new-byte-buffer 2) (.put (byte 1)) (.put (byte 2)) .flip .get)
+      (doto (b/new-byte-buffer 4) (.put (byte 1)) (.put (byte 2)) .flip .get))))

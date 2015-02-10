@@ -56,5 +56,4 @@
 
 (extend-type ByteBuffer
   ByteStringCoding
-  (byte-pack [buffer] (ByteString/copyFrom buffer)))
-
+  (byte-pack [buffer] (ByteString/copyFrom (.asReadOnlyBuffer buffer))))

@@ -122,4 +122,15 @@
       [1 2 3 4] (reduce conj! (->two-d-position 2) [[1 2] [3 4]])
       [0 0 0 0] (persistent! (reduce conj! (->two-d-position 2) []))
       [1 2 0 0] (persistent! (reduce conj! (->two-d-position 2) [[1 2]]))
-      [1 2 3 4] (persistent! (reduce conj! (->two-d-position 2) [[1 2] [3 4]])))))
+      [1 2 3 4] (persistent! (reduce conj! (->two-d-position 2) [[1 2] [3 4]]))))
+  (testing "multiple calls to byte-pack return the same value"
+    (are [vertex-buffer] (let [vertex-buffer-val   vertex-buffer
+                               byte-string1 (b/byte-pack vertex-buffer-val)
+                               byte-string2 (b/byte-pack vertex-buffer-val)]
+                           (array= (.toByteArray byte-string1) (.toByteArray byte-string2)))
+      (reduce conj! (->two-d-position 2) [])
+      (reduce conj! (->two-d-position 2) [[1 2]])
+      (reduce conj! (->two-d-position 2) [[1 2] [3 4]])
+      (persistent! (reduce conj! (->two-d-position 2) []))
+      (persistent! (reduce conj! (->two-d-position 2) [[1 2]]))
+      (persistent! (reduce conj! (->two-d-position 2) [[1 2] [3 4]])))))
