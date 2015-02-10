@@ -36,6 +36,7 @@ namespace dmGameSystem
         uint32_t                        m_Initialized : 1;
         uint32_t                        m_Enabled : 1;
         uint32_t                        m_Unloaded : 1;
+        uint32_t                        m_AddedToUpdate : 1;
     };
 
     struct CollectionProxyWorld
@@ -115,6 +116,13 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    dmGameObject::CreateResult CompCollectionProxyAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+    {
+        CollectionProxyComponent* proxy = (CollectionProxyComponent*)*params.m_UserData;
+        proxy->m_AddedToUpdate = 1;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompCollectionProxyUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
@@ -122,6 +130,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
+            if (!proxy->m_AddedToUpdate) {
+                continue;
+            }
             if (proxy->m_Collection != 0)
             {
                 if (proxy->m_Enabled)

@@ -73,6 +73,7 @@ namespace dmGraphics
     enum State
     {
         STATE_DEPTH_TEST            = DMGRAPHICS_STATE_DEPTH_TEST,
+        STATE_SCISSOR_TEST          = DMGRAPHICS_STATE_SCISSOR_TEST,
         STATE_STENCIL_TEST          = DMGRAPHICS_STATE_STENCIL_TEST,
 #ifndef GL_ES_VERSION_2_0
         STATE_ALPHA_TEST            = DMGRAPHICS_STATE_ALPHA_TEST,
@@ -109,11 +110,12 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_DXT3            = 5,
         TEXTURE_FORMAT_RGBA_DXT5            = 6,
         TEXTURE_FORMAT_DEPTH                = 7,
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
-        TEXTURE_FORMAT_RGB_ETC1             = 12,
+        TEXTURE_FORMAT_STENCIL              = 8,
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 9,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 10,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 11,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 12,
+        TEXTURE_FORMAT_RGB_ETC1             = 13,
     };
 
     // Texture type
@@ -161,17 +163,17 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA   = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
     };
 
-    // Stencil func
-    enum StencilFunc
+    // Compare func
+    enum CompareFunc
     {
-        STENCIL_FUNC_NEVER      = DMGRAPHICS_STENCIL_FUNC_NEVER,
-        STENCIL_FUNC_LESS       = DMGRAPHICS_STENCIL_FUNC_LESS,
-        STENCIL_FUNC_LEQUAL     = DMGRAPHICS_STENCIL_FUNC_LEQUAL,
-        STENCIL_FUNC_GREATER    = DMGRAPHICS_STENCIL_FUNC_GREATER,
-        STENCIL_FUNC_GEQUAL     = DMGRAPHICS_STENCIL_FUNC_GEQUAL,
-        STENCIL_FUNC_EQUAL      = DMGRAPHICS_STENCIL_FUNC_EQUAL,
-        STENCIL_FUNC_NOTEQUAL   = DMGRAPHICS_STENCIL_FUNC_NOTEQUAL,
-        STENCIL_FUNC_ALWAYS     = DMGRAPHICS_STENCIL_FUNC_ALWAYS,
+        COMPARE_FUNC_NEVER      = DMGRAPHICS_COMPARE_FUNC_NEVER,
+        COMPARE_FUNC_LESS       = DMGRAPHICS_COMPARE_FUNC_LESS,
+        COMPARE_FUNC_LEQUAL     = DMGRAPHICS_COMPARE_FUNC_LEQUAL,
+        COMPARE_FUNC_GREATER    = DMGRAPHICS_COMPARE_FUNC_GREATER,
+        COMPARE_FUNC_GEQUAL     = DMGRAPHICS_COMPARE_FUNC_GEQUAL,
+        COMPARE_FUNC_EQUAL      = DMGRAPHICS_COMPARE_FUNC_EQUAL,
+        COMPARE_FUNC_NOTEQUAL   = DMGRAPHICS_COMPARE_FUNC_NOTEQUAL,
+        COMPARE_FUNC_ALWAYS     = DMGRAPHICS_COMPARE_FUNC_ALWAYS,
     };
 
     // Stencil operation
@@ -508,8 +510,10 @@ namespace dmGraphics
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
     void SetDepthMask(HContext context, bool mask);
+    void SetDepthFunc(HContext context, CompareFunc func);
+    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     void SetStencilMask(HContext context, uint32_t mask);
-    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask);
+    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask);
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
     void SetCullFace(HContext context, FaceType face_type);
     void SetPolygonOffset(HContext context, float factor, float units);

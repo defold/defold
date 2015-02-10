@@ -1,30 +1,390 @@
 :max-width: 45em
 
+GUI clipping (Release 1.2.48)
+-----------------------------
+_January 12, 2015_
+
+This release includes hierachial clipping stencils for GUI nodes (see http://doc.defold.com/doc/clipping[Clipping documentation]).
+Documentation for clipping and fonts has been added.
+
+=== Fixes
+
+* Auto-handling of gui node IDs in the editor.
+* Delta time information passed to scripts when setting “variable_dt” is now correct
+* Optimization of Sprite, Spine and Model components.
+* Zero size GUI box nodes caused triangulation error on some devices.
+* Android APK bundles only include referenced files.
+* Improved connectivity between dev app and editor.
+* Fix for tile source generation being extremely slow.
+
+Distance field fonts (Release 1.2.47)
+-------------------------------------
+_December 2, 2014_
+
+=== New features
+
+* Distance field fonts.
+* Optimized Atlas layout.
+* Inner padding in Atlases.
+* Bundling support with bob.jar (see Bob documentation).
+* Support for custom GUI material.
+* Dependent libraries are cached on the client (major increase of sync speed).
+
+=== Fixes 
+
+* Improved batching for sprites and spine models.
+* Fixed incorrect conversion of transforms when loading spine models.
+* GUI font rendering clipped outline.
+* Prevent null dereference when no glyph exists for the queried character and the fallback (~) in the font.
+* go.delete() now gives a warning if invoked with nil argument.
+* Sprite batching no longer breaks on differences in Z. Same goes for Spine model batching.
+
+=== Documentation updates 
+
+* New Spine animation documentation added.
+* New Bob building documentation added
+* Updated properties documentation.
+* GUI API documentation updates and fixes.
+* Sprite API documentation additions.
+* Collision Object API documentation additions.
+
+
+LuaJIT (Release 1.2.46)
+-----------------------
+_November 17, 2014_
+
+=== New features
+
+* Switch to LuaJIT (Lua 5.1). (see notes below)
+* 9-slice support in GUI (see http://doc.defold.com/doc/gui#anchor-slice9 how to use)
+* Pie nodes (advanced circular/elliptical shapes) support in GUI (see http://doc.defold.com/doc/gui#anchor-pie how to use)
+* Lua sound mixer API (see http://doc.defold.com/doc/sound how to use)
+* New Spine animation features: animation of slot color, visibility and draw order
+* Support for premultiplied alpha in image.load()
+
+LuaJIT (Lua Just in Time compilation) gives an average 100% performance gain in Lua scripts and improves garbage collection. There are some incompatibilities with the earlier Lua runtime which may cause you problems:
+
+* The varargs syntax has to follow Lua 5.1 syntax (see http://www.lua.org/manual/5.1/manual.html#2.5.9) or you will get a run-time error
+* Invalid string escape sequences in regexps and translado files yields a build-time error
+
+=== Fixes 
+
+* Extrude Borders on Atlas with palettized images bug fixed
+* iOS orientation problem in the dev app fixed
+* Android: Keyboard was not hidden when app was deactivated
+* Spine component was leaking memory until the collection was destroyed
+* Hardware mix-rate set on Android for minimal latency
+* Spine models were not rendered on windows
+* Problem when rotating GUI elements around X/Y axis fixed
+* Crash when doing go.get() on un-initialized collision object fixed
+* Spine animation crash fixed
+* Assertion on exiting application when destroying Spine components fixed
+* bob.jar now listed among the artifacts on d.defold.com
+
+=== Documentation updates
+
+* Slice 9 section added to GUI documentation
+* Pie nodes section added to GUI documentation
+* Cameras documentation
+* Sounds documentation
+* HTML5 documentation
+* Spine  API docs and autocompletion
+* Http API docs and autocompletion
+* Image API docs and autocompletion
+* Json API docs and autocompletion
+* Zlib API docs and autocompletion
+
+OS X Yosemite support (Release 1.2.45)
+--------------------------------------
+_October 28, 2014_
+
+=== New features
+
+* OS X Yosemite support.
+* Module support in render scripts.
+* Support for resources larger than 16 MB. (Resources larger than 1MB get dynamically allocated)
+* Lua backtraces in the event of an error.
+
+=== Fixes
+
+* Fixed standalone “bob” that was broken on all platforms except OS X.
+* Particle delay bug fixed. 
+* Android bundling on Windows fixed.
+* Filtering of spine weights when there is more than 4 weights per vertex in spine scenes.
+* Sound configuration parameters typo fixed.
+* Fixed error where gui.cancel_animation() did not handle composite properties.
+* Fixed too small buffer for facebook.show_dialog() (Android).
+* Delta time information passed to scripts fixed.
+
+The following new documents have been added:
+
+* Workflow
+* Libraries
+* Debugging
+* Models
+* Rendering
+* Materials
+
+Bug fix release (Release 1.2.44)
+--------------------------------
+_September 29, 2014_
+
+This is a minor release which only fixes a few critical bugs.
+
+=== Fixes
+
+* Crash when running on iOS 8 
+* Building projects with Windows editor 
+* Verify Android bundling on Windows
+
+Lua ZeroBrane debugging support (Release 1.2.43)
+------------------------------------------------
+_September 24, 2014_
+
+=== New features
+
+* Lua debugging is now supported, both locally and on device. See the scripting guide for details on how to use it.
+* Support for finding devices over Wi-Fi even if a wired connection is present. The time it takes to find a device is now much shorter as well.
+* Read only ‘size’ property is added to sprites.
+* Support for cubemaps is added. It is available as a new resource type which can be created in the editor, and then mapped as a texture to models.
+* Exposed more shader constant types: VIEW, PROJECTION, NORMAL and WORLDVIEW
+* Optimized asset bundling: unused assets are not included. This decreased the bundles by 70% on the tested games.
+* Libraries are automatically updated when synchronizing content.
+* Support for stencil buffer operations is added, see the reference for details.
+* Android binary produced with most recent tools (build 20.0.0, platform 23.0.2) and NDK (10b)
+* iOS SDK 8.0 supported.
+
+=== Bug fixes
+
+* Particle editor crash
+* Lua assertion bug when playing Particle FX
+* 32-bit size limit on integer keys when serializing Lua tables. The previous limit was 16-bit and the format is backwards compatible.
+* Logging from device is more fluently displayed in the editor.
+
+Shared Lua state (Release 1.2.42)
+---------------------------------
+_September 5, 2014_
+
+You can now opt to share a single global state between render, GUI and script contexts. Projects default to the current behaviour of not sharing Lua state. In order to turn on shared Lua state, open the "game.project" file and navigate to the ‘script’ section. Checking the ‘shared_state’ box enables the feature. New Defold projects defaults to enabling the shared state.
+
+=== Fixes
+
+* When the user open a collection, select a game object in it, and collapse the collection node in the Outline view, the editor sometimes crashed. This is now fixed.
+* Fixed infinite recursion when pprint()-ing a table containing circular references.
+* Editor crash fixed. The crash occurred when go.properties was used to add custom properties matching the name of an existing fundamental property (e.g. ‘id’). There is also a warning about such restriction added to the GUI.
+* It is now permitted to do simultaneous editing of properties of game objects, when multiple selections are made in the outline view.
+* Fixed incorrect assert when calling render.get_render_target_width(). 
+
+HTML5 target platform (Release 1.2.41)
+--------------------------------------
+_August 29, 2014_
+
+[IMPORTANT]
+====
+It seems like some users are still using 1.2.37. Please check your version in *Help > About Defold*, if you are using 1.2.37 you need to manually download the latest version. This is only necessary once, for future versions the automatic updating will work as regular.
+====
+
+In this release, we present a first offering of support for HTML5 as a target platform. See the html://doc.defold.com/doc/html5[HTML5 documentation] for details.
+
+Bundling accessible in the Project menu:
+
+* Click *Project > Bundle* to access the different options of bundling your game for a target platform.
+
+10 new documents have been published on the documentation page at defold.com. Among the new documents are:
+
+* 2D Graphics
+* GUI
+* Application lifecycle
+* Physics
+* an updated Introduction
+
+Library support (Release 1.2.40)
+--------------------------------
+_July 18, 2014_
+
+This release brings support for using projects as libraries. See the http://doc.defold.com/doc/libraries[Library documentation] on how it works. In addition, three new properties have been exposed for collision object:
+
+* Linear Damping
+* Angular Damping
+* Locked Rotation (disables the angular velocity of the object)
+
+When scripting, you can also access the following properties:
+
+* linear_damping (get/set)
+* angular_damping (get/set)
+* linear_velocity (get)
+* angular_velocity (get)
+* mass (get)
+
+Spine support (Release 1.2.39)
+------------------------------
+_July 15, 2014_
+
+This release brings in support for http://esotericsoftware.com[Spine] assets. See the http://doc.defold.com/doc/spine[Spine documentation] for details).
+
+=== Features
+
+* Support for regions (image attachments) and meshes (rigid and skinned)
+* Bone animations
+* Keys for translation/rotation/scale
+* All curve types supported
+* Same playback modes as go.animate() accepts
+* Keyed events with payloads
+* The Spine skin feature (changing the graphics while retaining the animations)
+* Blending when switching animations
+* Hot reload while running the game
+* Tinting through shader (like sprites)
+* Spine skeleton replicated in the scene graph for dynamic attachment, position queries, etc.
+
+Release channels (Release 1.2.38)
+---------------------------------
+_June 11, 2014_
+
+[IMPORTANT]
+====
+Automatic updates does NOT work for 1.2.38 and you must download 1.2.38 manually. This is due to a new Java version and a known bug in the Eclipse p2 distribution system (file-locking and Windows).
+====
+
+=== Features
+
+* Distribution and new download site, stable and beta channels
+* iOS SDK 7.1
+* facebook.login() is compatible with coroutines (as are the other extension functions dealing with call-back arguments)
+* The device detection system is more tolerant with poorly formatted responses from devices
+* Java is now bundled in the OS X version
+* Updated to Java 8
+
+=== Download site
+
+The download site has been rewritten from the ground up and is now located at http://d.defold.com. By default http://d.defold.com redirects to the stable channel http://d.defold.com/stable. The site contains links to defold but also related artifacts, e.g. dmengine, etc. Moreover, we've created packages for resources required for custom packaging previously extracted from plugins:
+
+* android.jar
+* android-resources.zip
+* classes.dex
+* builtins.zip
+
+Additionally we keep previous released versions such that a project can pin to a specific version. The URL syntax is /archive/SHA1/... where SHA1 is the release identifier. In order to always use latest version a meta-info files in json-format is available on the site: http://d.defold.com/stable/info.json
+
+    {"version": "1.2.38", "sha1": "d0fdb9c5fc1ac46debbbc39e8ac572b6fa7652f7"}
+
+=== Channels
+
+With release 1.2.38 we have support for release channels--stable and beta. The stable channel is default and the primary purpose for the beta channel is to simplify the QA-process and to pre-release features for testing to stakeholders. The beta product's splash is branded with a beta-ribbon and the launch icon is colored differently.
+
+Fixes (Release 1.2.37)
+----------------------
+_April 28, 2014_
+
+=== Fixes
+
+* Hierarchical GUI nodes were not rendered correctly when their parent had another pivot than "center". If you have countered for this bug when building your scenes (visually placing them "wrong" to have them appear "correct"), you need to now place them "correct" in the editor.
+* Support for the syntax: local my_lib = require("my_lib")
+* Support for progressive JPEG (dynamic textures)
+* Fixed issue when logging in through Facebook (iOS), and the game is killed by the OS when switching to the FB app
+* After rebooting the game while running on a device, there could be socket name collisions, causing the game to stop working. This was a special case when you load dynamic collections from dynamic collections (like in CCVS).
+* Crash on Android when loading models
+* Android devices are now listed as "<manufacturer>-<model> (<ip>)" instead of "localhost (<ip>)" in the targets menu
+** They also don't fight for the same slot, all are displayed in the target menu
+* Issue with HTTP cache index not being correctly updated
+* Potential mem leak in previous sound system
+* Various issues involved in detecting devices and running the game on them, e.g.:
+* Editor restart sometimes required for device discovery
+* Logging in editor from device stops working sometimes
+
+Fixes (Release 1.2.36
+---------------------
+_April 7, 2014_
+
+This release only contain some fixes for IAP verification and tracking on Android.
+
+Crash fix (Release 1.2.35)
+--------------------------
+_Mars 31, 2014_
+
+* IAP product listing (iap.list) problem with returned empty lists has been fixed.
+** Price info added on Android for tracking (price and currency_code)
+* Boot crash
+
+=== More about the crash
+
+The reason was that a C std lib function called mktime consumed an exceptional amount of stack on Android 4.3. mktime is called by the HTTP service, which runs on a separate thread and caused a stack overflow on that thread and subsequent crashes in random places, because of the small stack allocated to that thread. mktime is used for time conversion, which explains the differing frequencies of the crash, which basically were related to the time of day when the app was started (verified on device actually by setting the local time, much less frequent at night time for example). In other words, it consumed different amounts of stack depending on when in the day it was called.
+
+Fixes (Release 1.2.34)
+----------------------
+_Mars 25, 2014_
+
+* Dev app installation works for iOS 7.1
+* Android push init threading issue, causing push to fail on devices that wanted to show a dialog ("upgrade your google play service"). Possibly other issues as well.
+* Product list returned from IAP module has the same format on both iOS and Android (products keyed by their ids)
+* The headless engine (dmengine_headless) can handle animation and access to shader constants
+
+Android fixes (Release 1.2.33)
+------------------------------
+_Mars 18, 2014_
+
+We found out that there is a way to do auto-completion on local "words" (e.g. variables). Open Preferences, search for "Keys", then "Word Completion" in the filter (it's Alt+/ on Linux). Apparently we had the feature all along without knowing about it.
+
+== Android fixes
+
+* installLocation="auto" in AndroidManifest.xml
+* Orientation fix when launching app and device has "the other" orientation
+* Android FB SDK upgraded to 3.7
+* Disabled auto publish install in Android FB SDK
+* Various crashes on Android when launching app or terminating, then launching
+* Android installation referrer support (only available on android, adtruth.get_referrer(), which returns nil for no referrer)
+* sys.open_url supported on Android
+
+Sound system (Release 1.2.32)
+-----------------------------
+_Mars 4, 2014_
+
+=== Contents
+
+* New amazing sound system, featuring:
+** Improved performance and hitch-free: usually 0-1.2 ms per frame instead of several 100 ms before (hitches)
+** Better mixing and loop handling
+** No license problems
+** Unit tested
+* Fixed push crash
+* Android virtual keyboard bug fixes:
+** Freeze when back is pressed while virtual keyboard is shown (OS 4.1 and 4.2)
+** Proper handling of the special characters reached by holding a key for a long time, e.g. / and @
+** Special characters like å,ä,ö also handled
+
+Fixes (Release 1.2.31)
+----------------------
+_February 26, 2014_
+
+* Fixed Android crashes related to invite list in FB
+* Android app consumes less CPU when running in the background (WIP, more to do here related to sound)
+* IAP product listing provides "currency_code", which is only set for iOS (always set to "Unknown" on Android)
+* Ad identifiers on iOS in sys.get_sys_info() added.
+* Upgraded NDK to latest
+* Use of alut (sound util lib) has been removed due to licensing issues
+
 Minor fixes (Release 1.2.30)
 ----------------------------
 _February 13, 2014_
 
-Release 1.2.30 contains some smaller fixes.
-We have optimized how the engine behaves as a background process on various platform and consequently had to drop support for Windows XP, meaning that we now support Windows Vista and up.
+Release 1.2.30 contains some smaller fixes. We have optimized how the engine behaves as a background process on various platform and consequently had to drop support for Windows XP, meaning that we now support Windows Vista and up.
 
-Fixes:
+=== Fixes
 
 * Smoother sound buffering
 * Optimized shaders for tile maps, sprites and debug lines
 * Crash at engine termination
 * The engine respects the settings for going to sleep on iOS (would stay alive before)
 
-
 Hierarchical Gui (Release 1.2.29)
 ---------------------------------
 _February 11, 2014_
 
-We have finally added support for hierarchical Guis.
-We simultaneously ported the old Gui editor to the new Scene editor, which should make it much easier to use.
-We have also added a new layer feature, which allows you to structure your Gui nodes however you want, while still retaining control of the order in which they are rendered.
+We have finally added support for hierarchical GUIs.
+We simultaneously ported the old GUI editor to the new Scene editor, which should make it much easier to use.
+We have also added a new layer feature, which allows you to structure your GUI nodes however you want, while still retaining control of the order in which they are rendered.
 Documentation about this will come at a later time.
 
-Other fixes in this release:
+=== Other fixes in this release
 
 * Improved launch image handling on iOS (no black screen!)
 * Delays in go.animate were not properly handled for composite animations
@@ -50,7 +410,7 @@ _January 9, 2014_
 * Fixed a bug when trying to connect a device to the editor and the computer has multiple active network interfaces
 * If the device has a specific language setting (e.g. iOS), this is returned by link:/ref/sys#sys.get_sys_info[sys.get_sys_info] under the key +device_language+
 * Optimized default particle shader
-* Fix for batched rendering of gui scenes
+* Fix for batched rendering of GUI scenes
 
 More various fixes (Release 1.2.26)
 -----------------------------------
@@ -66,7 +426,7 @@ _November 26, 2013_
 * Device identifier (device_ident) returned from link:/ref/sys#sys.get_sys_info[sys.get_sys_info] for iOS and Android
 * link:/ref/sprite#animation_done[animation_done] contains the id of the animation
 * Increased max message buffer size (2 kb)
-* Improved logging when gui scene nodes are used with the wrong scene
+* Improved logging when GUI scene nodes are used with the wrong scene
 
 Various fixes (Release 1.2.25)
 ------------------------------
@@ -78,7 +438,7 @@ _November 12, 2013_
 * Update frequency (FPS) can be set at run-time through link:/ref/sys#set_update_frequency[scripts]
 * Lose images in an atlas files now appear in the animation drop-down menus in e.g. sprite components
 * link:/ref/sys#sys.get_sys_info[sys.get_sys_info] also returns the time zone
-* Text nodes in gui components could be rendered in the wrong order
+* Text nodes in GUI components could be rendered in the wrong order
 * Various fixes in the online documentation
 * Icons could not be selected in the scene view
 * go.property failed to be detected when terminated with a semi-colon
@@ -90,29 +450,26 @@ _September 25, 2013_
 We have added a property to atlas and tile source resources called _Extrude Borders_, which fixes the problem of tile bleeding.
 Read more about it in the bottom of the link:/doc/tiles[2D Graphics Guide].
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * math.random() (Lua) behaves the same on all target platforms
 * link:/ref/gui#gui.get_screen_position[gui.get_screen_position] did not work correctly for text nodes
-* Counters for gui nodes, animations and textures are included in the profiler
+* Counters for GUI nodes, animations and textures are included in the profiler
 
-iOS 7 & More Gui Improvements (Release 1.2.23)
+iOS 7 & More GUI Improvements (Release 1.2.23)
 ----------------------------------------------
 _September 18, 2013_
 
-Fixes
-~~~~~
+=== Fixes
 
 * Support for iOS 7
-* Text and box nodes can be interleaved in Gui scenes, without render order problems
-* The actual screen position of Gui nodes can be obtained through link:/ref/gui#gui.get_screen_position[gui.get_screen_position]
-* Gui animations can be created for individual properties by specifying "position.x" instead of gui.PROP_POSITION
-* Gui text nodes inherit their text alignment from the pivot, e.g. North West meaning halign LEFT and valign TOP
-* Fixes for picking text nodes in the Gui editor
+* Text and box nodes can be interleaved in GUI scenes, without render order problems
+* The actual screen position of GUI nodes can be obtained through link:/ref/gui#gui.get_screen_position[gui.get_screen_position]
+* GUI animations can be created for individual properties by specifying "position.x" instead of gui.PROP_POSITION
+* GUI text nodes inherit their text alignment from the pivot, e.g. North West meaning halign LEFT and valign TOP
+* Fixes for picking text nodes in the GUI editor
 
-Other fixes
-~~~~~~~~~~~
+=== Other fixes
 
 * Missing resources are properly logged
 * Fix for compiling sub-collections with embedded game objects
@@ -127,25 +484,24 @@ Other fixes
 * link:/ref/builtins#hash_to_hex[hash_to_hex] function, which returns the string representation of a hash value
 * link:/ref/sys#sys.get_sys_info[sys.get_sys_info] function, which returns information about the system, such as device and language settings
 
-Gui & Font Improvements (Release 1.2.22)
+GUI & Font Improvements (Release 1.2.22)
 ----------------------------------------
 _August 12, 2013_
 
-This release contains fixes regarding gui components and fonts, and some other goodies.
+This release contains fixes regarding GUI components and fonts, and some other goodies.
 
-Fixes
-~~~~~
+=== Fixes
 
 * Fonts now support utf8 encoding.
   Use the new _extra_characters_ field in a font resource to specify which additional characters you need.
-* Text nodes in gui components support automatic line breaks.
+* Text nodes in GUI components support automatic line breaks.
 * Font rendering has been optimized a lot.
   As a result, the default font shader does not render shadows (too expensive for mobile devices), but it's possible to enable in custom shaders.
-* Gui scenes are batch-rendered for higher performance.
+* GUI scenes are batch-rendered for higher performance.
 * The animation system has been extended with the same functions as the game object animation system, which are described link:/doc/properties[here].
-* Gui scripts support inclusion of lua modules through the lua "require" keyword.
+* GUI scripts support inclusion of lua modules through the lua "require" keyword.
   link:/doc/scripting_debugging[This guide] provides more details on how it works.
-* Gui scenes have increased limits for the amounts of fonts and textures added.
+* GUI scenes have increased limits for the amounts of fonts and textures added.
 * Slight optimization of rendering on iOS devices.
 * Fix for the automatic discovery of mobile devices in the editor.
 
@@ -157,8 +513,7 @@ All textures loaded in Defold now have the color-value link:http://en.wikipedia.
 If you have made custom shaders, you will need to update them accordingly.
 There is plenty of online resources which explains pre-multiplied alpha in greater detail, e.g. link:http://home.comcast.net/~tom_forsyth/blog.wiki.html#%5B%5BPremultiplied%20alpha%5D%5D[this] and link:http://blogs.msdn.com/b/shawnhar/archive/2009/11/06/premultiplied-alpha.aspx[this].
 
-Other fixes
-~~~~~~~~~~~
+=== Other fixes
 
 * Crash when deleting game objects with running animations
 * Crash when setting properties through go.set and specifying a value of the wrong type
@@ -170,34 +525,29 @@ _June 3, 2013_
 
 We are proud to release Defold 1.2.20, containing animations, getters/setters and more!
 
-Animation
-~~~~~~~~~
+=== Animation
 
 You can now animate gameobject-transforms, shader constants and script properties from scripts.
 We made link:http://www.youtube.com/watch?v=Mptu8h-qFL8&hd=1[a demo] to show what you can achieve with it.
 
-Getters/Setters
-~~~~~~~~~~~~~~~
+=== Getters/Setters
 
 This is something that has been on the wishlist for a long time and we have finally solved it in a robust way.
 See the guide for link:/doc/properties[more info].
 
-URLs
-~~~~
+=== URLs
 
 The features mentioned above makes use of our URL-like concept for addressing objects.
 To make it easier to understand how the URLs work, we have improved the link:/doc/message_passing[guide] about them.
 We have also introduced two short-hand notations: +"."+ means the game object containing the script and +"#"+ means the script itself.
 We hope this will make URLs easier to use.
 
-Reference docs
-~~~~~~~~~~~~~~
+=== Reference docs
 
 The reference documentation should be more clearly categorized now.
 Have a link:/ref/sys[look] and see what you think.
 
-Other fixes
-~~~~~~~~~~~
+=== Other fixes
 
 * The amount of projects are now 10 per user
 * Better syntax-highlighting in the lua-editor
@@ -212,25 +562,21 @@ _April 25, 2013_
 
 Release 1.2.19 brings multi-touch, 360 controllers on Windows and physics trigger handling.
 
-Multi-Touch
-~~~~~~~~~~~
+=== Multi-Touch
 
 We now support multi-touch on iOS. Please see the link:/ref/go#on_input[reference docs] for how to handle multi-touch.
 
-360 Controllers on Windows
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== 360 Controllers on Windows
 
 We have finally added the ability to use XBox 360 controllers on Windows.
 To properly connect your 360 controller to Windows, please see the link:/doc/input[input guide].
 
-Physics Triggers
-~~~~~~~~~~~~~~~~
+=== Physics Triggers
 
 We have added a new message to specifically handle entry and exit of physics triggers.
 The message is called +trigger_response+, please see the link:/ref/gamesys#trigger_response[reference documentation] how to act on it.
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * New functions for inverting matrices: link:/ref/script#vmath.inv[vmath.inv] and link:/ref/script#vmath.ortho_inv[vmath.ortho_inv]
 * Fixed lingering contacts after a tile map cell had been cleared at run-time
@@ -243,8 +589,7 @@ _April 2, 2013_
 
 Release 1.2.18 features ParticleFX fixes as well as some other minor fixes.
 
-ParticleFX
-~~~~~~~~~~
+=== ParticleFX
 
 * Particles are depth-sorted according to the transform of their emitters
 * Spawned particles have individually randomized properties
@@ -253,8 +598,7 @@ ParticleFX
 * When clicking multiple points, only one is selected
 * Fixed overflow issue on iOS for rotating particles
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * Script property declarations can have trailing comments again:
   +go.property("health", 100) -- a comment here is now ok+
@@ -278,8 +622,7 @@ _March 13, 2013_
 We have just released 1.2.16 which features in-place game objects, support for Windows 8 and other nice fixes.
 Let's start with the game objects.
 
-In-place Game Objects
-~~~~~~~~~~~~~~~~~~~~~
+=== In-place Game Objects
 
 We have added the feature to add game objects to collections in-place, meaning that a separate .go file is not necessary.
 This makes prototyping a lot smoother.
@@ -290,8 +633,7 @@ We have also exposed link:/doc/script_properties[script properties] in sub colle
 This is a very powerful feature, so make sure you check it out.
 To facilitate selection, you can now select different objects with the arrow-keys, similar to how Maya works.
 
-Other fixes
-~~~~~~~~~~~
+=== Other fixes
 
 * We now have initial beta support for Windows 8. You need to run the application in Windows 7 compatibility mode though.
 * Fix for the periodic lag happening on Windows, typically when booting the game or reloading resources
@@ -311,8 +653,7 @@ It can be animated over the lifetime of the emitter and also has support for spr
 The second property is _Life Rotation_, which can be animated over the lifetime of the particle.
 Use the latter to make your particles spin.
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * Images added to the root of an atlas represents a one-frame animation.
   Now they are also available in the _Animation_ drop-down menus in sprites and emitter nodes.
@@ -334,8 +675,7 @@ When synchronizing changes which conflicted with someone else's changes, the syn
 The result was a failure during the Push-stage with the message "Unable to publish files".
 This has now been fixed, in addition we have manually tested and verified an extensive amount of different situations which can occur when synchronizing.
 
-How did this happen?
-~~~~~~~~~~~~~~~~~~~~
+=== How did this happen?
 
 We were under pressure to get a lot done and cut corners during the deployment of yesterday's release.
 The introduced error served as a healthy reminder that we can never do this again.
@@ -358,11 +698,10 @@ We have just released 1.2.13, containing more useful fixes!
 Since this release was so close to 1.2.12 and the fact that the next release 1.2.14 is scheduled for this weekend, we chose to wait with the newsletter until that release.
 Below are the fixes, in no specific order.
 
-Fixes
-~~~~~
+=== Fixes
 
 * Tile source animations can be previewed on Windows/Linux without performance issues and random crashes.
-* New key bindings for bring-forward/send-backward in the Gui editor to avoid collisions with building the project.
+* New key bindings for bring-forward/send-backward in the GUI editor to avoid collisions with building the project.
   They are now Ctrl/Cmd+[ and Ctrl/Cmd+], like Photoshop and Illustrator.
 * The property view is properly resized and laid out when status messages appear in it.
 * If you attempt to delete game objects from the final-callbacks in scripts, the log will show fatal error messages since this is currently unsupported.
@@ -394,8 +733,7 @@ The drawback is that this has pushed our plans regarding the public release.
 We apologize for the delays and that they are announced so late.
 We hope that you can appreciate the long term benefits from this, which lead us closer to our goal of making Defold the best platform for 2D game development there is.
 
-Public Release
-~~~~~~~~~~~~~~
+=== Public Release
 
 Regarding the public release, we have yet to decide how to move forward.
 At the moment, we are planning something similar to how we handled the delayed beta stage - to keep releasing features (like packaging the game for release) without charging more than we currently do.
@@ -405,8 +743,7 @@ If you are eager to start using Defold at this stage, there are two ways to get 
 Either you post in our forums and request someone of our very friendly users to invite you, or you make a private post to us including a brief explanation of why you want to use Defold.
 Now, onwards with the new features.
 
-Transforms
-~~~~~~~~~~
+=== Transforms
 
 We have extended the transform functions (link:/ref/go#go.get_position[go.get_position], link:/ref/go#go.get_world_position[go.get_world_position], link:/ref/go#go.set_position[go.set_position], etc) to take an optional argument specifying which game object it should relate to.
 This means that you can now synchronously both read and write the transforms of other game objects. Here is an example:
@@ -417,43 +754,35 @@ This means that you can now synchronously both read and write the transforms of 
 local p = go.get_world_position("x")
 ----
 
-Script Properties
-~~~~~~~~~~~~~~~~~
+=== Script Properties
 
 We have extended script properties with two new features.
 URLs does not need to be global, which means that you can more freely specify target game objects or components to manipulate.
 There is also a browse button which lets you quickly select among the available URLs in your collection.
 
-((((
 image::images/blog/20130213/bool_and_url_property.png["Property Editing", align="center"]
-((((
 
 We have also added boolean as a type, which gives you neat check boxes in your game object and collection properties.
 
-Improved Visualization Control
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Improved Visualization Control
 
 You can now select if outlines around objects and the background grid should be shown in the editor.
 This applies to all views.
 Moreover, you can select whether to show models and particlefx.
 
-((((
 image::images/blog/20130213/scene_visualization.png["Scene Editor Visualization", align="center"]
-((((
 
-Physics Impulses
-~~~~~~~~~~~~~~~~
+=== Physics Impulses
 
 We have found a serious issue where we scaled both the applied impulses reported from contact points as well as the global impulse limit settings twice by the physics scaling.
 This means that if you use either of them in your game, you need to multiply your limits by your scale once.
 We apologize for this error in calculations and have added tests to make sure we don't make the same mistake again.
 
-Other fixes
-~~~~~~~~~~~
+=== Other fixes
 
-* Both atlas and gui files now support jpeg images
+* Both atlas and GUI files now support jpeg images
 * Fixed bug when synchronizing an added file that someone else already added
-* Gui nodes without a texture were not visible on Windows and Linux
+* GUI nodes without a texture were not visible on Windows and Linux
 * The default animation of a sprite was incorrectly visualized in the scene editor
 * Internal optimizations
 
@@ -469,8 +798,7 @@ Though there is still lots to be done, we seem to be on the right track.
 Gamedev newbies are releasing games on the App Store and the old-timers are amazed by the fast turnaround times and flexibility.
 If you haven't yet had access to the service, you could ask for an invite in our forum and one of our many friendly users will probably step in and offer one.
 
-Public Release
-~~~~~~~~~~~~~~
+=== Public Release
 
 Regarding the public release, it has been post-poned to January.
 We have also removed Android as a supported target device for this release, but will support it at a later time.
@@ -479,34 +807,30 @@ We want everything we release to have a very high quality and doing this for And
 Instead, we are going to focus harder on iOS and the workflow around it, as well as the general experience of using Defold.
 We hope you understand and appreciate this new direction.
 
-Atlas
-~~~~~
+=== Atlas
 
 A new feature in the engine is texture atlases.
 By using an atlas, you automatically get a composite texture of all the image files you add to it.
 This is very important for performance on devices and should be used as much as possible.
 Read more about them in the link:http://www.defold.com/doc/tiles[guide].
 
-Gui
-~~~
+=== GUI
 
-We have improved our Gui component a bit.
+We have improved our GUI component a bit.
 Now you can select adjust mode for every node, which is a great way of dealing with different resolutions (e.g. iPhone vs iPad).
 The settings are fit, zoom and stretch and works similarly to how you would adjust an image on your desktop background.
-The fastest way to see how your Gui perform for different resolutions is to start the game on your computer in windowed mode and start resizing the window.
-We have also extended the gui-scripts with getters to access the different properties of the nodes, as well as functions for reordering the nodes among themselves in runtime.
+The fastest way to see how your GUI perform for different resolutions is to start the game on your computer in windowed mode and start resizing the window.
+We have also extended the GUI-scripts with getters to access the different properties of the nodes, as well as functions for reordering the nodes among themselves in runtime.
 Please see the link:http://www.defold.com/ref/gui[reference] for the complete list of available functions.
 
-Other fixes
-~~~~~~~~~~~
+=== Other fixes
 
 * When copy-pasting items in the outline that has and id, the id will be automatically adjusted to avoid a collision.
 * Drag and drop in the outline is more consistent in terms of letting you know where things will end up.
 * Sprite animation playback has changed for the backwards play mode.
   If you have an animation playing forwards, the only thing you should change to make it go backwards is the playback mode, not the start and end tiles.
 
-Why the jump to 1.2.11?
-~~~~~~~~~~~~~~~~~~~~~~~
+=== Why the jump to 1.2.11?
 
 We found a crash bug in the iOS app after 1.2.10 went live, hence the quick release of 1.2.11 which fixes that crash.
 
@@ -521,8 +845,7 @@ This is extremely useful for fast prototyping and other things.
 This release also contains improved error reporting, optimizations when working with large collections and game objects as well as other fixes.
 Details follow below.
 
-Scaling
-~~~~~~~
+=== Scaling
 
 We have added support for uniform scaling throughout the scene graph, meaning game objects and sub-collections (which is basically a collection inside another collection).
 By restricting scaling to uniform only, we can automatically scale all physics primitives and the calculations becomes faster.
@@ -530,15 +853,12 @@ We will later add support for non-uniform scaling specifically for the component
 You can also scale the game objects from scripts by using the new function link:/ref/go#go.set_scale[go.set_scale].
 Please note that physics is not currently updated when using that function (we plan to add this later since it's less common).
 
-Improved Error Reporting and Optimized Editing
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Improved Error Reporting and Optimized Editing
 
 If you get any errors when building your project, these are now shown in the Project Explorer.
 The files and folders which contains them now get overlayed error icons.
 
-((((
 image::images/blog/20121205/project_explorer.png["Error Reporting", align="center"]
-((((
 
 Remember that you can still double click on the errors in the Problems View to jump straight to the files.
 
@@ -547,15 +867,13 @@ An example of this is the message saying that a file contains errors when you ad
 This feature was very expensive and lowered the responsiveness of the editor, especially when working with large collections or game objects.
 That feature should be covered by the new error reporting in the Project Explorer though.
 
-Frozen Auto-update
-~~~~~~~~~~~~~~~~~~
+=== Frozen Auto-update
 
 The progress bar when updating Defold to a new release was not correctly updated, on Windows this could result in the OS reporting Defold as having frozen.
 Please note that this fix is part of 1.2.9 so it takes effect first when you update to 1.2.10.
 If you experience this problem, please remove the Defold installation and download it again, just don't forget to Synchronize your files before you do.
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * When painting tiles in a tile map far down to the left (negative coordinates), the tile map would not load in the game.
 * Sound gain is now clamped to 0-1.
@@ -570,20 +888,17 @@ We have also reached the cap of registered users once again, so please be patien
 We will let you in in time.
 We have also heard that some mail providers filter these mails as spam, so please check your spam if you haven't received it.
 
-Custom Rendered Tile Maps
-~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Custom Rendered Tile Maps
 
 Tile maps can now be rendered with a custom material and blend mode, just like Sprites and ParticleFX.
 These settings are available in the tile map properties.
 You can also set shader constants in runtime through link:/ref/gamesys#tilemap.set_constant[tilemap.set_constant].
 
-Better Sound Control
-~~~~~~~~~~~~~~~~~~~~
+=== Better Sound Control
 
 We have now added the ability to set the gain of sounds from scripts, by sending link:/ref/gamesys#set_gain[set_gain] to the sound component in question.
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * Components referenced from files (like tile maps and ParticleFX) can now be moved and rotated inside game objects
 * The contents of visually edited files is automatically framed when such a file is opened
@@ -614,8 +929,7 @@ _November 6, 2012_
 This release is the largest release we have made so far, it even outweighs the alpha (1.0).
 Below are the changes listed in order of importance.
 
-Particle Editor
-~~~~~~~~~~~~~~~
+=== Particle Editor
 
 We have completely revamped our particle system and made a new editor to go with it.
 We are really happy with how it came out and want to thank all the great VFX designers who provided feedback during the development.
@@ -623,16 +937,14 @@ Check out the video below and see the new link:/doc/particlefx[guide] for more i
 
 link:/youtube_embed/qzyB1lXNDKQ["Defold Particle FX"]
 
-Mipmaps and Image Sizes
-~~~~~~~~~~~~~~~~~~~~~~~
+=== Mipmaps and Image Sizes
 
 We have enabled link:http://en.wikipedia.org/wiki/Mipmap[mipmaps] for prettier graphics.
 iOS devices require the width and height of mipmapped textures to be link:http://en.wikipedia.org/wiki/Power_of_two[Power-Of-Two], so all images are currently automatically scaled to the closest POT.
 If your images appear blurry after this release, you can make them crisp again by padding your images to the closest POT above the current width and height.
 Reasonable POTs are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 and 2048.
 
-iOS Improvements
-~~~~~~~~~~~~~~~~
+=== iOS Improvements
 
 We have added support for iOS 6 (we now support 4.3 and up).
 The orientation of the game (portrait or landscape) is automatically selected based on the specified resolution (see the link:/doc/game_project[reference]).
@@ -640,30 +952,25 @@ The editor now locates devices faster and in a more stable manner.
 When starting the game on your device, the load times have been heavily reduced by using a cache (which means that the first time might be slower since nothing is cached).
 We now also support the retina display and have improved life-cycle support.
 
-Sound Component
-~~~~~~~~~~~~~~~
+=== Sound Component
 
 There is now a proper sound component, which you can add to your game objects to play sounds and specify if they should loop or not.
 We have also added support for OGG files on top of the WAV support.
 
-Camera Navigation
-~~~~~~~~~~~~~~~~~
+=== Camera Navigation
 
 We have unified the camera navigation to work the same in the Scene, Tile Source, Tile Map, Particle and Curve editors.
 The navigation is still Maya-style with the addition of using the scroll-wheel to zoom.
 
-Customizable FPS
-~~~~~~~~~~~~~~~~
+=== Customizable FPS
 
 Games in Defold runs at 60 FPS by default, this can now be configured in the game.project file (see the link:/doc/game_project[reference] for more info).
 
-Open browser from inside the game
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Open browser from inside the game
 
 There is a now a function called link:/ref/script#sys.open_url[sys.open_url(url)] which lets you open a URL in a browser (according to end-user settings) from inside your game.
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * Scene editor is more responsive while box-selecting
 * Full support for OSX Mountain Lion (issue with signing apps)
@@ -685,28 +992,24 @@ The engine would terminate immediately when launching the game.
 The reason was that we retrieve the hostname at startup for connecting other devices to the editor, in some cases that code would fail and terminate the engine silently.
 We have now added fallbacks and logging to enable the engine to start even when this fails.
 
-Optimized Tile Map Rendering
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Optimized Tile Map Rendering
 
 Tile maps are now faster to render by the use of batches and pre-calculated UV sets.
 If you had plenty of tile maps and your game ran slow, you should hopefully see a much better performance now.
 
-Selection as an Operation
-~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Selection as an Operation
 
 Selecting objects in the Scene Editor is now handled as a proper operation, which means it can be undone and redone.
 This has been a long requested feature and should make the workflow a bit more convenient, especially when accidentally deselecting things.
 
-Fixes
-~~~~~
+=== Fixes
 
 * The move and rotate manipulators used incorrect transforms when manipulating children of rotated parents.
 * Different bugs regarding interacting with manipulators, the camera and selections.
   We have now cleaned up the handling of these things and it should be more stable now.
 * Collision filters were not updated when posting set_tile to tile maps
 
-In Progress: Geometry Wars!
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== In Progress: Geometry Wars!
 
 We are currently working on the new particle system, which will be released in 1.2.7 (approx. 2 more weeks).
 We are also working on a graphics demo to showcase the visual capabilities of Defold.
@@ -722,16 +1025,14 @@ _September 21, 2012_
 
 This release features improved sprite rendering, preparations for the brand new particle system and a few minor fixes.
 
-Sprite Rendering
-~~~~~~~~~~~~~~~~
+=== Sprite Rendering
 
 Sprites have now been extended with blend mode and custom shading.
 Blend mode lets you choose how the graphics of a sprite should be blended with the graphics behind the sprite.
 Custom shading is achieved by specifying a custom material + shaders in the sprite properties.
 We have extended the link:/doc/tiles[Tiles guide] with information about this in the Sprite-section.
 
-Particle System
-~~~~~~~~~~~~~~~
+=== Particle System
 
 We have had a particle system in place for a long time (2 years) in Defold, accessible through Emitter components.
 This system had many drawbacks and was poorly designed, which is why we are completely redesigning it now.
@@ -743,15 +1044,13 @@ We would in fact be very impressed if anyone has get the Emitters to work, due t
 The new component type is called _ParticleFX_, we will provide better documentation when it's ready for release.
 We are very excited about the new system, we are getting great feedback and advice from very talented effects artists and designers in the games and CGI industry.
 
-Fixes
-~~~~~
+=== Fixes
 
 * Added support for textures with 16-bit color depth
 * The outlines of the icons used for visual-less components were offset incorrectly
 * When browsing for files in the game.project editor, the necessary 'c' was not appended to the filenames
 
-Known Issues
-~~~~~~~~~~~~
+=== Known Issues
 
 * Engine crashes (OpenGL error) when shaders (both fragment and vertex) are hot reloaded
 * Reloading a material with modified shader paths does not update the shaders
@@ -765,15 +1064,13 @@ _September 7, 2012_
 This release features an article about platformer physics and a more open registration process.
 We also made some minor but sweet fixes.
 
-Platformer Article
-~~~~~~~~~~~~~~~~~~
+=== Platformer Article
 
 The article can be found link:/doc/platformer[here].
 We explain how you can make a classic 2D platformer using a physics engine for collision detection.
 Please share it to anyone interested.
 
-Registration
-~~~~~~~~~~~~
+=== Registration
 
 We have opened up the registration process a bit more by allowing anyone to register.
 What actually happens is that there is now a cap on the total amount of registered users.
@@ -782,8 +1079,7 @@ Anyone with an invitation is guaranteed a spot.
 When the cap has been reached, anyone registering will be put into the Beta queue as usual.
 You can register link:/signup[here].
 
-Fixes
-~~~~~
+=== Fixes
 
 * When moving objects in the scene editor, you can make the manipulator snap to the grid by holding down *Shift*
 * The +game.project+ file now has a proper editor so you don't need to fiddle with the text format anymore
@@ -799,8 +1095,7 @@ _August 30, 2012_
 
 This release contains billing, sprite-flipping in runtime, enabling/disabling GUI nodes, recursive module loading and optimized sprite rendering.
 
-Billing
-~~~~~~~
+=== Billing
 
 We are now officially charging for Defold if you work in a team.
 If you work alone, you can still use it for free.
@@ -808,29 +1103,26 @@ See the link:/plans[plans]-page for details on how we are charging.
 We welcome all feedback regarding our pricing strategy in the link:http://defold.userecho.com[forums].
 
 [IMPORTANT]
-If you joined us during the Alpha stage, you will receive a coupon code for 2 months of free access to the Small plan.
-Info about this will arrive in a separate email, so keep your eyes open for that.
+====
+If you joined us during the Alpha stage, you will receive a coupon code for 2 months of free access to the Small plan. Info about this will arrive in a separate email, so keep your eyes open for that.
+====
 
-Sprite-flipping
-~~~~~~~~~~~~~~~
+=== Sprite-flipping
 
 Sprites can now be flipped in runtime with the functions link:/ref/gamesys#sprite.set_hflip[+sprite.set_hflip+] and link:/ref/gamesys#sprite.set_vflip[+sprite.set_vflip+].
 
-Enabling/disabling GUI nodes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Enabling/disabling GUI nodes
 
 Individual GUI nodes can now be enabled/disabled through link:/ref/gui#gui.set_enabled[+gui.set_enabled+].
 Disabled GUI nodes are neither rendered nor animated.
 To hide a node, disabling it is a much better option performance-wise than setting its alpha to zero or moving it off-screen.
 
-Recursive module loading
-~~~~~~~~~~~~~~~~~~~~~~~~
+=== Recursive module loading
 
 In 1.2.2, we introduced the ability to include link:/doc/scripting_debugging[lua modules] in scripts using +require+.
 Now you can include lua modules in other lua modules, which makes this feature even more powerful.
 
-Optimized sprite rendering
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Optimized sprite rendering
 
 We have optimized the rendering of sprites, which appeared to be a bottleneck on the iOS platform.
 The rendering is now batched for fewer draw-calls, but this should not have any impact in the appearance of your games.
@@ -844,29 +1136,25 @@ _August 17, 2012_
 This release features the ability to reuse scripts in other scripts, increased sound control and using hashes as keys in Lua tables.
 It also contains many smaller fixes.
 
-Re-using Scripts
-~~~~~~~~~~~~~~~~
+=== Re-using Scripts
 
 You can now make Lua Modules (.lua-files) which can be included into logic scripts (.script-files).
 By putting functions into the Lua Modules, you can call them from other scripts.
 This is a very basic feature in most programming languages and we are happy to finally add it to our scripts.
 Read more in the link:/doc/scripting_debugging[Scripting & Debugging Guide] about how to use this feature.
 
-Sound Control
-~~~~~~~~~~~~~
+=== Sound Control
 
 When playing sounds with the link:/ref/gamesys#play_sound[play_sound-message], you can now control the gain (volume) of the sounds.
 There is also a new message called link:/ref/gamesys#stop_sound[stop_sound] that stops all the sound voices currently playing in a sound component.
 
-Hashes as Keys
-~~~~~~~~~~~~~~
+=== Hashes as Keys
 
 This has been a long requested feature from the more advanced scripters.
 By using hashes as keys in lua tables, you can make link:http://en.wikipedia.org/wiki/Dispatch_table[dispatch tables] that makes the code a bit easier to read and faster to run than hashing at run-time.
 Examples of this will come at a later time, until then you can always request support in the forums.
 
-Fixes
-~~~~~
+=== Fixes
 
 * It is not possible to launch the game on iOS when the App is from a previous version (you need to sign and re-install the App again)
 * GUI scenes can have a custom background color for easier previewing (found in the properties of the scene)
@@ -892,8 +1180,7 @@ _August 3, 2012_
 
 This release contains more documentation, crash-fixes and a few other fixes.
 
-Documentation
-~~~~~~~~~~~~~
+=== Documentation
 
 We know our documentation is lacking.
 We are now trying to improve it by looking at what people ask about in the forums.
@@ -903,14 +1190,12 @@ How to install the Defold App on your iOS device has also been clarified a bit i
 
 There are still missing pieces in the documentation, please help us by link:http://defold.userecho.com[reporting] what you can't find.
 
-Crashes
-~~~~~~~
+=== Crashes
 
 * The app crashed when sending particular kinds of messages
 * The game would crash on Windows when closing it with the close button
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * *New Folder* was not accessible in the project root or in the *File > New* menu (same with Gui, Gui Script and Script wizards)
 * Multiple collision spheres in a collision object were not rendered correctly in the Collection Editor
@@ -926,55 +1211,47 @@ After many days and nights of hard work, we have finally reached our Beta stage.
 If you have been here before, we hope you like our new visual style!
 There's also a new presentation video about our service on the link:/[front page] for those of you who are new here.
 
-iOS Support
-~~~~~~~~~~~
+=== iOS Support
 
 You can now run your games on your iOS devices through the editor.
 Currently, one person in your team must run OS X in order to sign the app for the others.
 The idea is to provide this as a part of the service in the future, so that anyone can do the signing from any OS.
 We put together a new link:/doc/ios[guide] about this, which also contains a video describing how it works.
 
-Documentation
-~~~~~~~~~~~~~
+=== Documentation
 
 Apart from the new iOS guide, we also wrote a guide about how the link:/doc/scene_editing[scene editing] works.
 There's also a new search field in the upper right of the site, so hopefully you will find what you're looking for much faster.
 
 As a part of this documentation effort, we have introduced tips in the editor.
 
-((((
 image::images/blog/20120730/tips.png["Editor Tips", align="center"]
-((((
 
 They appear as a top bar when you open a file and contains some basic tips how to edit the file.
 We hope they will speed up the learning curve for newcomers.
 If you know what you are doing already, you can manually close a tip to make sure it never appears again.
 
-Comments on the Site
-~~~~~~~~~~~~~~~~~~~~
+=== Comments on the Site
 
 We have integrated link:http://disqus.com/[Disqus] to enable comments on parts of the site, like these blog entries.
 So please share your thoughts below.
 Other parts you can comment on are the user guides, tutorials and samples.
 
-Still Free Service
-~~~~~~~~~~~~~~~~~~
+=== Still Free Service
 
 Accepting credit card payments online turned out to be a bigger hassle here in Sweden than we thought.
 We are still trying to get all involved parties to work nicely together.
 The new link:/plans[plans page] describes how we will charge in the future, after the Beta.
 We hope no one will be disappointed about not having to pay yet. :-)
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * Crash when sounds are playing while rebooting the engine
 * Crash when re-parenting multiple child game objects and then deleting them
 * The editor leaked resources which eventually made it crash, especially on Windows
 * The automatic update of the editor timed out during the install on unstable internet connections, we increased the timeout limits to make it more robust
 
-Known Issue: Creating new branches of "larger" projects
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Known Issue: Creating new branches of "larger" projects
 
 We have seen some failures when creating new branches of some projects.
 We have not yet completely found out why and when these problems occur.
@@ -982,8 +1259,7 @@ What happens is that a connection is lost while the repository is being cloned o
 We are still testing different approaches to fix this.
 Please let us know in the link:http://defold.userecho.com[forums] if you experience this.
 
-Known Issue: Windows 8 not supported
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Known Issue: Windows 8 not supported
 
 We learned that our editor does not work well with Windows 8.
 The editor starts but lacks most of the functionality.
@@ -1005,8 +1281,7 @@ We are still working hard on the three big changes for the Beta, which are the i
 This is also the reason why the releases are more scarce now.
 Things are starting to look really good though!
 
-Crashes fixed
-~~~~~~~~~~~~~
+=== Crashes fixed
 
 * Having a second tile map layer that had a larger extent than the first layer.
 * Supplying +nil+ as properties to +factory.create+.
@@ -1028,23 +1303,20 @@ Release 1.1.10 features tile flipping for animations, improved performance in th
 We would like to thank everyone reporting issues in the link:http://defold.userecho.com[forums], we really appreciate it!
 Nearly all of the fixes in this release come from your posts. :)
 
-Tile Flipping for Animations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Tile Flipping for Animations
 
 For animations in tile sources, we have added two check-boxes called _Flip Horizontally_ and _Flip Vertically_.
 This solves the problem of re-using tiles for different animations.
 E.g. if you have a walk cycle where the character faces left, you can now instantly create one where the character faces right by using _Flip Horizontally_.
 
-Improved Editor Performance
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Improved Editor Performance
 
 We noticed severe performance issues when loading and rendering larger collections.
 The biggest reason for this is that we do not yet have a resource management system in place, which re-use the loaded resources from disk.
 We have partially fixed this now for images and textures, which were the biggest culprits.
 We are very concerned about the performance, so please report in the link:http://defold.userecho.com[forums] whenever something feels unresponsive or taking too long.
 
-Fixes
-~~~~~
+=== Fixes
 
 * The tile brush now has a visual border, which makes it easier to see how big the tile brush is
 * The zoom range in the Tile Map Editor has been increased to make it easier to work with larger maps
@@ -1053,8 +1325,7 @@ Fixes
 ** [resource] max_resources, which controls how many resources can be loaded in the engine at the same time
 ** [collection_proxy] max_count, which controls how many collection proxies can be loaded at the same time
 
-Fixed Bugs
-^^^^^^^^^^
+=== Fixed Bugs
 
 * Engine crashed when loading more resources than the max limit (it's now explained in the log)
 * Engine crashed when creating URLs outside the callback-functions in gui-scripts
@@ -1073,8 +1344,7 @@ _May 30, 2012_
 Release 1.1.9 features a few important bug fixes.
 Regarding the Beta launch, we expect to reach it in a few more weeks.
 
-Fixes
-~~~~~
+=== Fixes
 
 * Engine crashed on Windows when starting up due to missing gl-functions (e.g. glGenRenderbuffers) on some GFX-drivers.
   We have made the graphics code more flexible to account for more variations of OpenGL-support in the GFX-drivers.
@@ -1091,8 +1361,7 @@ _May 18, 2012_
 
 Release 1.1.8 features a better reset functionality for Script Properties and picking in tile maps.
 
-Script Properties Reset
-~~~~~~~~~~~~~~~~~~~~~~~
+=== Script Properties Reset
 
 When you have defined a property in a script, that property can be overridden when the script is used in game objects and collections.
 To reset a property back to a default value in either a game object or collection, you would previously have to clear the field and hit enter.
@@ -1108,27 +1377,21 @@ go.property("health", 100)
 
 In a game object, the property is exposed:
 
-((((
 image::images/blog/20120518/properties.png["Script Properties", align="center"]
-((((
 
 We realize using a hyper-link is not a very intuitive solution, but it was simple to implement so we hope it will be good enough for now.
 Script Properties are further explained in the link:/doc/script_properties[user guide].
 
-Picking Tiles
-~~~~~~~~~~~~~
+=== Picking Tiles
 
 When painting tiles in a tile map, you very often have to bring up the tile source to select new tile to paint with.
 We have now added the ability to select tiles directly from the tile map to use when painting.
 This is done by right-clicking (shift-clicking if you are using the one-button mouse setup).
 You can hold and drag while right-clicking to select an entire area from the tile map to paint with.
 
-((((
 image::images/blog/20120518/brush_select.png["Tile Picking", align="center"]
-((((
 
-New Project
-~~~~~~~~~~~
+=== New Project
 
 There has been some confusion about how to create a new project in Defold.
 Note that this is still only available from the dashboard in the web site.
@@ -1136,11 +1399,7 @@ To make matters worse, we had a remaining menu option in the editor at *New > Pr
 We have now removed that option entirely, which we hope will cause less confusion.
 It will of course be possible to create a new project straight from the editor in the future.
 
-More Info
-~~~~~~~~~
-
-Build/Deploy Changes
-^^^^^^^^^^^^^^^^^^^^
+==== Build/Deploy Changes
 
 We have talked before about improving our build and deploy setup.
 Now we have merged parts of our code base into a single repository, which simplifies branching a lot.
@@ -1151,15 +1410,13 @@ By implementing such a feature on a separate branch, we can still support the se
 We have also improved our deploy scripts to make it easier to deploy to different servers in the future.
 The new setup also shortens the release cycle which is important since time is a very important factor for us at the moment.
 
-iOS
-^^^
+=== iOS
 
 We have also completed more parts of what's left to make the iOS work-flow a reality.
 It will definitely be a very cool thing indeed to work immediately on an iPhone or iPad.
 But more about that later.
 
-Visual Redesign
-^^^^^^^^^^^^^^^
+=== Visual Redesign
 
 We have been working with a graphics designer to update our visuals for the Beta-launch.
 So far we have got a new logo that we are happy with and a new layout for the web site.
@@ -1174,27 +1431,25 @@ Release 1.1.6 features Script Properties, improved auto-completion when scriptin
 We apologize that this release took longer than expected.
 Remember to voice your opinions in the link:http://defold.userecho.com[Forums], all feedback is more than welcome.
 
-Script Properties
-~~~~~~~~~~~~~~~~~
+=== Script Properties
 
 We have now implemented a first version of the Script Properties.
 You can now declare properties inside your scripts and have them automatically appear in the Properties View when they are used in game objects and collections.
 More info on how to use them is available in the new link:/doc/script_properties[Script Properties] user guide.
 
 [IMPORTANT]
-If you currently create game objects through a factory and pass custom properties to the created game object, you have to declare those properties in the script for it to work.
-See the link:/doc/script_properties[user guide] for more info on this.
+====
+If you currently create game objects through a factory and pass custom properties to the created game object, you have to declare those properties in the script for it to work. See the link:/doc/script_properties[user guide] for more info on this.
+====
 
-Improved Auto-Completion
-~~~~~~~~~~~~~~~~~~~~~~~~
+=== Improved Auto-Completion
 
 Auto-completion for scripts brings up a list inside the script of the available functions and messages.
 You trigger it with Ctrl+Space (Cmd+Space for Mac users).
 This is a really handy way to see what's available, as it also contains documentation and examples.
 The standard Lua functions are not yet included.
 
-Auto-Update on Windows
-~~~~~~~~~~~~~~~~~~~~~~
+=== Auto-Update on Windows
 
 This is only relevant for Windows users who currently have the Defold Editor installed.
 
@@ -1208,14 +1463,12 @@ Follow these steps:
 . Remove the editor from your computer
 . Download a new one from the link:/dashboard[Dashboard]
 
-Yahoo
-~~~~~
+=== Yahoo
 
 We have added the ability to login with Yahoo-accounts.
 If you want us to add more providers, let us know in the link:http://defold.userecho.com[Forums].
 
-Other Fixes
-~~~~~~~~~~~
+=== Other Fixes
 
 * The function msg.url() with no arguments now creates an empty URL which can't be used for message passing
 * Fonts were not properly rebuilt when TTF-files were updated
@@ -1225,16 +1478,11 @@ Other Fixes
 * The rendering supports camera components
 * Ray-casting against tile maps could cause the engine to crash
 
-Known Bugs
-~~~~~~~~~~
+=== Known Bugs
 
 * The editor is slow when editing collections with much content
 
-More Info
-~~~~~~~~~
-
-Script Properties
-^^^^^^^^^^^^^^^^^
+=== Script Properties
 
 The Script Properties feature proved to be much harder to implement the way we wanted it to work.
 The current implementation is crude and limited in functionality, but we still hope it will simplify your work.
@@ -1242,20 +1490,17 @@ This feature was the biggest reason for the delayed release.
 Even though we had planned it thoroughly, there were many unknowns that popped up in the implementation stage.
 We have been discussing different approaches to counter these things in the future.
 
-Prototyping
-+++++++++++
+==== Prototyping
 
 Start by implementing a prototype for the sole purpose of understanding the problem better.
 This would be followed by design, planning and implementation.
 
-Branching
-+++++++++
+==== Branching
 
 We currently only use one branch for each repository in our code base.
 By branching features like these, we can still provide a frequent update cycle when a feature takes more time than expected.
 
-Windows Auto-Update Problem
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+=== Windows Auto-Update Problem
 
 The Defold Editor is based on the Eclipse RCP framework.
 The provisioning platform, which handles updating of the application, is called p2.
@@ -1267,8 +1512,7 @@ To solve it we have instead manually attached the JRE to the zip, so p2 leaves i
 The drawback is that we then lose the ability to update the JRE automatically.
 As that's something we plan to do very rarely, it's a drawback we can accept.
 
-Slow Editor
-^^^^^^^^^^^
+=== Slow Editor
 
 We currently haven't implemented a resource management system for the editor yet.
 Such a system makes sure that resources, like textures, are reused instead of being loaded over and over and duplicated in the memory.
@@ -1290,8 +1534,7 @@ _April 16, 2012_
 This release contains more important bug fixes, it feels like we now have gotten the worst ones out of the way.
 This means that we can pay more attention to the reported issues and the design of the bigger features for the beta release.
 
-Synchronization Problems for Mac OSX 10.6
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Synchronization Problems for Mac OSX 10.6
 
 We had bundled git (which we use for syncing and sharing projects) from a build which was incompatible with OSX 10.6.
 This has now been fixed.
@@ -1299,16 +1542,14 @@ We have not yet had time to make proper hardware/OS requirements for the service
 This of course makes problems like these more likely to happen, but we hope you can accept this for the time being as we are currently running on minimal funding.
 Once we reach further, we can also provide a better test bed.
 
-Mouse Setups for Scene Navigation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Mouse Setups for Scene Navigation
 
 This is actually a new feature, which should be interesting if you run Defold on a laptop with Windows or Linux.
 To navigate in the Scene Editor (for visual placement), we used two separate styles similar to Maya based on if you run Mac or not.
 The non-Mac setup assumes you have a three-button mouse and relies on the middle-button for panning.
 This is now changed to be a preference (*File > Preferences > Defold > Scene Editor > Mouse Type*), which you can set if you want to use the one-button style.
 
-More Fixes
-~~~~~~~~~~
+=== More Fixes
 
 * There were different problems with deleted files not being marked correctly
 * Some remaining problems with using index-colored images in tile sources (actually when they were used in tile maps)
@@ -1351,29 +1592,25 @@ This time we want to try involving you in the initial design, to collect feedbac
 How this will happen exactly is not yet clear, but probably something like a publicly accessible Google doc where you can add comments.
 Let's see how it turns out! :)
 
-Script Properties
-~~~~~~~~~~~~~~~~~
+=== Script Properties
 
 For game objects that use the same logic script, it is common that you want their behaviors to differ slightly from each other.
 This feature is the ability to tweak scripts with different initial values to basically reuse the logic for different configurations.
 A practical example would be an enemy that has twice the health of another, but the same general behavior.
 
-iOS
-~~~
+=== iOS
 
 We are working on a smooth work-flow of testing the game on an iOS device.
 This would have the same features as when running it on your local machine, like hot-reloading and profiling.
 It obviously includes full touch support in the input system.
 
-Auto-Completion and Tags
-~~~~~~~~~~~~~~~~~~~~~~~~
+=== Auto-Completion and Tags
 
 Some properties rely on the user to specify the exact same IDs in different places.
 This is error-prone and we are looking at different ways to support auto-completion and tags, commonly found in web interfaces.
 A related feature is improved auto-completion when scripting.
 
-Improved Tile Map Editing
-~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Improved Tile Map Editing
 
 The current painting of tiles is very rudimentary and would benefit from more features, like copy-paste and the ability to move painted tiles.
 
@@ -1390,8 +1627,7 @@ Thanks to all you wonderful game devs who give us feedback in the link:http://de
 We really hope you feel it pays off to do this, as we try to attend to everything as quickly as possible.
 Don't forget to use your votes if you think we are fixing the wrong things!
 
-Automatic Update Failing on Windows
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Automatic Update Failing on Windows
 
 There is an issue with the automatic update of the Defold Editor on Windows.
 The symptom is that a new release is discovered and installed, but the application is not restarted.
@@ -1401,8 +1637,7 @@ A workaround to this is to simply remove the installation and download the edito
 Just don't forget to *sync your files* before you do this as your changes would otherwise be deleted.
 Sorry for the inconvenience, we are working on finding the cause.
 
-Fixed Bugs
-~~~~~~~~~~
+=== Fixed Bugs
 
 * Cycles in the scene graph were not detected
 * Some component types (e.g. sound) could not be added to game objects as files
@@ -1421,8 +1656,7 @@ Release 1.1.3
 -------------
 _April 4, 2012_
 
-Failing Invitations & Safari
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Failing Invitations & Safari
 
 If you have received an invitation mail and you use Safari, the provided link will probably have taken you to the front page of the site.
 You can still register by going to the Dashboard in the upper right.
@@ -1431,8 +1665,7 @@ The key is the part of the invitation link after +login:+, e.g. +abcd+ if the li
 We have added instructions about this in the invitation mails.
 This is a temporary work-around until we have fixed the colon-problem in the links.
 
-Issues
-~~~~~~
+=== Issues
 
 We are really happy to see *Fredrik Z* igniting the link:http://defold.userecho.com/[feedback-section] with life!
 We really hope the rest of you will start to report your issues there too.
@@ -1482,8 +1715,7 @@ A few new bugs was also found when testing:
 As we are working out how to best communicate the status of our service, please follow us on twitter: link:http://twitter.com/DefoldEngine[@DefoldEngine].
 For the time being, we will post everything there as it happens.
 
-More info about the issues
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== More info about the issues
 
 The first preference bug would make the editor start the game against our server instead of your local machine.
 We previously had a service where you would keep your files on our server, but work with them and test them like they were on your local machine.
@@ -1521,15 +1753,13 @@ We unfortunately shipped a serious bug with the alpha-release.
 It occurred for Mac-users when trying to save files in the editor (obscure error dialog).
 There is now a new version (1.1.1) available and it will be automatically installed the next time you start the editor.
 
-How could this happen?
-~~~~~~~~~~~~~~~~~~~~~~
+=== How could this happen?
 
 We use a version control system called _git_ for sharing the projects and hastily stripped and bundled this during the week for the alpha release.
 The problem was that we packaged it on a dev machine which had a non-standard setup of components.
 This caused missing dependencies for users with standard machines.
 
-How will this not happen again?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== How will this not happen again?
 
 We have a vanilla mac which we will make as vanilla as possible and will test all further versions on there before releasing.
 We are still learning when it comes to deploying multi-platform and this was something we had missed.
@@ -1547,8 +1777,7 @@ Although there is plenty more to add and fix, Defold is now functional to use fo
 
 Big thanks to everyone who helped us get here!
 
-Alpha and Beta Access
-~~~~~~~~~~~~~~~~~~~~~
+=== Alpha and Beta Access
 
 You, our beloved pre-alpha Defolders, have been given five invitations each.
 You can use them in the dashboard to invite your friends.
@@ -1579,22 +1808,19 @@ We are still working on the details of our licensing model, it will be thoroughl
 
 Since we have so much to do, this update post will be rather brief, at least relatively how much it contains.
 
-Invitations & Beta Registration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Invitations & Beta Registration
 
 Starting next weekend, anyone can register for Beta access on the link:/[front page].
 In addition to this we, as well as you, can invite a limited amount of interested people for Alpha access.
 We can't open the gates completely yet, as we can't handle too much support at the same time.
 That might make us sacrifice the quality of the support, and we want every user to have the best possible experience.
 
-Local Branches for Windows
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Local Branches for Windows
 
 We fixed the issues involving using local branches on Windows.
 We have also bundled both Java and OpenAL (which we use for sound) with the application so no need to install separate software.
 
-New Names
-~~~~~~~~~
+=== New Names
 
 We have not been entirely happy with the naming of some concepts in the Defold service and decided to fix the worst ones.
 This is what has changed:
@@ -1606,8 +1832,7 @@ This is what has changed:
 
 We hope you agree that the new names are easier to understand.
 
-Other Features
-~~~~~~~~~~~~~~
+=== Other Features
 
 * Browsing for resources is filtered by extension
 * Optimized performance in the Scene Editor
@@ -1629,8 +1854,7 @@ Other Features
 ** Support links
 ** Social links
 
-Fixed Bugs
-~~~~~~~~~~
+=== Fixed Bugs
 
 * Rebuild did not rebuild all content
 * Renaming empty directories did not work
@@ -1654,8 +1878,7 @@ Fixed Bugs
 * Tile maps with multiple layers did not get correct collision shapes
 * Triggers did not collide correctly with tile maps
 
-Known Bugs
-~~~~~~~~~~
+=== Known Bugs
 
 * Kinematic and dynamic collision objects completely within the collision of a tile map won't generate collision responses
 * Box selecting many objects on Windows has poor performance (hitches)
@@ -1702,14 +1925,12 @@ We have just made another smaller release, to fix a few lingering issues from th
 Copy/cut/paste has been slightly changed, drag and drop in the outline view has been implemented.
 The Tile Set Editor failed to open from the last release, this has also been fixed.
 
-Copy/cut/paste
-~~~~~~~~~~~~~~
+=== Copy/cut/paste
 
 When you select an item in the outline, the parent of that item will be used as target for the paste operation.
 So if you select an item and hit copy-paste, that item will essentially be duplicated as another item under the same parent.
 
-Drag And Drop
-~~~~~~~~~~~~~
+=== Drag And Drop
 
 You can now drag around items in the outline.
 The only really useful thing at the moment is to use it for rearranging the game object hierarchies, like making a game object the child of another game object.
@@ -1724,45 +1945,36 @@ Update: Collection Editing & Local Branches
 -------------------------------------------
 _February 28, 2012_
 
-Collection Editing
-~~~~~~~~~~~~~~~~~~
+=== Collection Editing
 
 We have now finally ported the functionality of the old Collection Editor to the Scene Editor.
 This imposes a few changes, but all for the better we hope.
 Our ultimate goal is to have all the visual editing done in the Scene Editor so everything behaves the same way, whatever resource you are editing.
 
-Condensed Outline
-^^^^^^^^^^^^^^^^^
+=== Condensed Outline
 
 In an effort to simplify the hierarchical content in the outline, we have tried to remove as many redundant items as possible.
 An example of this would be when you added a component to a game object, which resulted in one item containing the component id and a sub-item with all the specific component properties.
 Such items have now been merged into one, with all of the properties available in the same place.
 This should hopefully make it quicker to find the data you are looking for.
 
-((((
 image::images/blog/20120228/one_item_per_level.png["Merged properties", align="center"]
-((((
 
-Copy-Paste
-^^^^^^^^^^
+=== Copy-Paste
 
 We have now implemented copy-paste (and cut of course) in the Scene Editor.
 This will hopefully make it easier to build things faster.
 We have also enabled multi-selection in the Outline View and box-selection in the Scene View.
 Drag-and-drop, which is related to this has yet to be implemented at a later time.
 
-Filtered Visualization
-^^^^^^^^^^^^^^^^^^^^^^
+=== Filtered Visualization
 
 You can now select which types of objects to be shown in the Scene View through *Scene > Show*.
 We added the most common ones, but let us know if there are any we have missed.
 
-((((
 image::images/blog/20120228/filtering.png["Visualization filtering", align="center"]
-((((
 
-Parenting Game Object Instances
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+=== Parenting Game Object Instances
 
 To make a game object become the parent of another game object inside a collection, you would previously select both game objects in a specified order and use the Parent-command.
 Our goal is for this to be done by simply clicking the child game object and dragging it onto the parent.
@@ -1772,33 +1984,25 @@ This also means that if you select a game object instance and hit copy-paste, th
 This can currently be considered a design bug.
 As soon as drag-and-drop has been implemented, this will of course be fixed and work much better.
 
-((((
 image::images/blog/20120228/hierarchy.png["Game Object Hierarchy", align="center"]
-((((
 
-Colored Axis
-^^^^^^^^^^^^
+=== Colored Axis
 
 We have realized that it's been a bit hard to navigate around in bigger collections, since there is no reference point of where the center (origo) is.
 We have colored the base axis to give you a point of reference where the different coordinates are zero.
 The colors are red, green and blue and correspond to x, y and z respectively.
 This comes from the common acronym RGB and is a standard in most 3D software.
 
-((((
 image::images/blog/20120228/axis_color.png["Colored Axis", align="center"]
-((((
 
-Local Branches
-~~~~~~~~~~~~~~
+=== Local Branches
 
 *NOTE!* This feature is currently only available to non-Windows users.
 We have an issue on the Windows platform that we haven't resolved yet, sorry for the inconvenience!
 
 There is a new setting in the preferences (*File > Preferences > Defold > Use local branches*) which controls whether the branches you create are stored on your own machine or on our server.
 
-((((
 image::images/blog/20120228/local_branch.png["Local Branch", align="center"]
-((((
 
 This is in other words optional, but we think the benefits of working on a local branch are better than when working against the server.
 Connecting to the project, opening files, building and running the game are all faster for a local branch.
@@ -1813,27 +2017,23 @@ Then you check the box *Use local branches* in the preferences, as described abo
 Reconnect to your project (*File > Open Project*) and create a new branch.
 Note that creating a local branch might take a while as all files are downloaded to your local machine at once.
 
-Bundled Engine
-~~~~~~~~~~~~~~
+=== Bundled Engine
 
 We have finally bundled the engine (the application used to run your games) with the editor.
 This means that you don't have to synchronize your branch anymore to receive the latest engine, it will be updated when you update the editor.
 
-Fixed Bugs
-~~~~~~~~~~
+=== Fixed Bugs
 
 * When adding game objects to collections, they were always placed at the center of the world instead of the center of the camera.
 * A game object could not spawn another game object if it was deleted in the same frame.
 * Better documentation of the go.delete-function.
 * Missing support for *Select All* in the Scene Editor.
 
-Known Bugs
-~~~~~~~~~~
+=== Known Bugs
 * When creating a local branch, it might take a while and there is no progress bar visible.
 * There are errors in the editor console starting with "ERROR:DDF: Name clash.". These can be safely disregarded and will be fixed at a later time.
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 We are currently working on the drag and drop feature for the outline view and hope to release it at the end of this week.
 The iOS support is also well under way, but there is still more work needed to be done to get the right workflow we are looking for.
@@ -1851,16 +2051,14 @@ _January 31, 2012_
 
 The last two weeks we have been busy improving the documentation and implementing a few longed for features.
 
-Introduction
-~~~~~~~~~~~~
+=== Introduction
 
 We have worked hard at writing more documentation and are finally ready to show the new link:/doc/introduction[introduction].
 It comes with a new link:/doc/side_scroller[tutorial], which demonstrates tweaking and the construction of game objects.
 We hope that you can gain some more insight into our design from the introduction.
 Hopefully, most of it should be old news by now but helpful for new users.
 
-Spawning
-~~~~~~~~
+=== Spawning
 
 Due to popular request, we have improved the creation of game objects while running the game.
 We have introduced a new function called +factory.create+.
@@ -1912,8 +2110,7 @@ If you leave out the id, it deletes the game object containing the script, as us
 go.delete(some_id)
 ----
 
-Bugs
-~~~~
+=== Bugs
 
 We also managed to fix some more bugs:
 
@@ -1922,8 +2119,7 @@ We also managed to fix some more bugs:
 . Positions for components (sprites and collision objects) were specified in 4d instead of 3d, which was confusing.
 . The platform template project had some issues resulting from earlier updates.
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 The link:https://docs.google.com/document/d/1I-0Y2zfUjsG-E44gRSxabLXaN19jB6p7EfvwICCcCXk/edit?hl=en_US[roadmap] has been updated and you are most welcome to contribute by commenting on what is important to fix.
 Our goal is to involve you in the process of prioritizing what needs to be done.
@@ -1941,8 +2137,7 @@ So this week we have taken a break from writing the User Guide and instead focus
 We have started to add you who report the issues as correspondents on the bugs, to give you a notification when they are fixed.
 Please let us know what you think about that, do you like it or does it get too spammy?
 
-Enable/Disable for Collision Objects
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== Enable/Disable for Collision Objects
 
 Collision Object components can now be enabled and disabled through message-passing (see link:/ref/go#enable[enable] and link:/ref/go#disable[disable]).
 Disabled collision objects are temporarily removed from the physics simulation, which means they don't collide with other objects.
@@ -1951,23 +2146,17 @@ Dynamic collision objects also cease to move the game objects they belong to whe
 It is possible to move dynamic collision objects through the script while they are disabled.
 Once they are enabled, they will start being simulated again at their new position.
 
-Movable Sprites
-~~~~~~~~~~~~~~~
+=== Movable Sprites
 
 Sprites can now be moved in the Scene Editor (only applies to the new Sprite2 component).
 This means that you can put two Sprite2 components in the same game object and move them in relation to eachother.
 This should make it easier to build more visually complex game objects.
 
-((((
 image::images/blog/20120115/sprite_placement.png["Sprite Placement", align="center"]
-((((
 
-((((
 image::images/blog/20120115/search.png["Search Lights", align="center"]
-((((
 
-Linear Texture Filtering
-~~~~~~~~~~~~~~~~~~~~~~~~
+=== Linear Texture Filtering
 
 To avoid visual artifacts and ensure pixel perfect images, we have previously disabled texture filtering.
 Texture filtering typically makes a scaled image blur, instead of becoming pixelated.
@@ -1993,8 +2182,7 @@ A related bug to this was that sprites and tile grids appeared to move different
 The impression was that the sprites would float or hover a bit back and forth in relation to the tile grids.
 This should not be an issue anymore.
 
-Bugs
-~~~~
+=== Bugs
 
 Below is a list of the bugs we fixed in this release.
 
@@ -2016,8 +2204,7 @@ Below is a list of the bugs we fixed in this release.
 - Specifying a spawn point component to spawn the same game object it resides in made the engine crash when loading the game (results in error now)
 - When creating embedded collision boxes, the width/height/depth was expected to be half the values (they are actually the full width/height/depth now)
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 We will continue work on the User Guide next.
 Don't forget to comment and vote for things in the Roadmap document.
@@ -2029,8 +2216,7 @@ Update - Web Site Face Lift & Script Samples
 --------------------------------------------
 _January 8, 2012_
 
-Web Site Face Lift
-~~~~~~~~~~~~~~~~~~
+=== Web Site Face Lift
 
 As you have probably noticed by now, our web site has had a major face lift.
 We have also restructured the information a bit, but everything should hopefully be easier to find now.
@@ -2047,12 +2233,9 @@ When you create a project from a template, the activity from that template is cu
 So don't be alarmed if you see unfamiliar activity from us in the Defold-team or Mr. Builder, our former game-dev robot.
 We will fix this at some point in the future.
 
-((((
 image::images/blog/20120108/project_activity.png["Activity with Gravatars", align="center"]
-((((
 
-Script Samples
-~~~~~~~~~~~~~~
+=== Script Samples
 
 We have added a few script samples on the link:/doc[documentation] page.
 We hope they will both inspire and provide aid in understanding how to make animations and effects using scripting.
@@ -2067,8 +2250,7 @@ Ask us for details in the user group if you are curious about how to do this you
 
 We have not yet added the script samples as template projects, but we will do that as soon as possible.
 
-Bugs
-~~~~
+=== Bugs
 
 We also had the time to fix a few more bugs that crept up.
 
@@ -2076,8 +2258,7 @@ We also had the time to fix a few more bugs that crept up.
 - vmath.lerp did not accept numbers in addition to vectors and quaternions
 - Animations could not be deleted from tile sets
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 Apart from including the script samples as template projects, we will continue with the User Guide next week.
 Please, check out the Defold Roadmap we posted in the group for more details.
@@ -2089,8 +2270,7 @@ Update - Video Capture, Fonts, Colors, Tweaks & Bugs
 ----------------------------------------------------
 _January 5, 2012_
 
-Video Capture
-~~~~~~~~~~~~~
+=== Video Capture
 
 We are proud to announce that you now can capture videos of your running game from within your scripts!
 Certain members of the Defold-team failed to relax during Christmas and instead implemented this excellent feature.
@@ -2120,23 +2300,17 @@ There seems to be a bug when playing these files through VLC, it stops playback 
 We haven't yet had the time to include audio in the captured videos, but we hope that this feature can be of value anyway.
 This will of course be fixed in time.
 
-Fonts
-~~~~~
+=== Fonts
 
 We have fixed the font rendering, which has been rather ugly for a while.
 We also added the ability to set color and alpha of outlines and shadows from within the GUI editor.
 We have not yet had the time to render them properly in the editor preview, but the effects should be visible when running the game.
 
-((((
 image::images/blog/20120105/fonts2.png["Fonts in the GUI Editor", align="center"]
-((((
 
-((((
 image::images/blog/20120105/fonts.png["Fonts in the running game", align="center"]
-((((
 
-Background Color
-~~~~~~~~~~~~~~~~
+=== Background Color
 
 It is now possible to set the background color of a game in the game.project file.
 This is a work-around until we have fixed this properly, so it will be easier to specify.
@@ -2158,8 +2332,7 @@ You can also change the background color on the fly in a script by doing:
 msg.post("@render:", "clear_color", { color = vmath.vector4(1, 0, 0, 0) } )
 ----
 
-game.project to scripts
-~~~~~~~~~~~~~~~~~~~~~~~
+=== game.project to scripts
 
 You can now read data from game.project inside your scripts.
 This is mostly useful for testing purposes, but can also be used for reading global configuration data.
@@ -2182,8 +2355,7 @@ local my_value = tonumber(sys.get_config("my_category.my_value"))
 This is detailed in the documentation under link:/#documentation:[Script].
 Also note that you can read any value from the game.project-file, e.g. "display.width".
 
-Bugs
-~~~~
+=== Bugs
 
 We also fixed some annoying bugs.
 Here is a list of what we fixed so far:
@@ -2203,8 +2375,7 @@ Here is a list of what we fixed so far:
 
 Please let us know if there are more bugs in need of urgent remedy.
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 Don't forget to comment on the roadmap we posted in the user-group.
 As of now, we are working hard on documentation and an update of the web site, but we are anxious to hear about what you want to be fixed.
@@ -2222,8 +2393,7 @@ This time, however, there was simply too much that needed to be done.
 To make up for this, we made this release extra fat and juicy, as appropriate for the holidays to come.
 A month-long crunch is over and the Defold-team is about to kick back for four entire days!
 
-Sprites, 2nd Edition
-~~~~~~~~~~~~~~~~~~~~
+=== Sprites, 2nd Edition
 
 We have implemented the basics of the redesigned sprite system.
 Since this breaks backwards compatibility, the new component is called 'Sprite2' and the old component is considered deprecated.
@@ -2231,9 +2401,7 @@ Since this breaks backwards compatibility, the new component is called 'Sprite2'
 What we implemented so far is that sprites now uses the tile set files, similar to how tile grids use them.
 The animations are defined in the tile set, which simplifies trigging them in the scripts.
 
-((((
 image::images/blog/20111222_sprite_anim_collision_editing/sprite_editing.png["Sprite Editing", align="center"]
-((((
 
 Let us show by an example. To trigger an animation the old way, you would have a script that did:
 
@@ -2253,9 +2421,7 @@ This also means that there is only one place to update if you want to change the
 
 The animations added to the tile set can also be previewed in-place in the editor.
 
-((((
 image::images/blog/20111222_sprite_anim_collision_editing/animation_editing.png["Animation Editing", align="center"]
-((((
 
 Simply select an animation and then *Tile Set > Play/Stop Animation*.
 This makes it much more easy to make sure you have specified the animation correctly.
@@ -2274,8 +2440,7 @@ This is a great way to trigger effects for example.
 We also post-poned the flip-tile feature, which will let you reuse tiles for different animations.
 An example of this would be to have walk animations going both left and right based on the same set of tiles, but flipped for one of the directions.
 
-Backwards Compatibility
-~~~~~~~~~~~~~~~~~~~~~~~
+=== Backwards Compatibility
 
 We are very concerned about always staying backwards compatible, but there will always be improvements that force us to move forward.
 The new sprite system is an example of this.
@@ -2294,8 +2459,7 @@ There will be weeks of time between each stage, so you should have plenty of tim
 It is also an experiment and we love to hear about any other ideas on how to do this as painless as possible.
 Our main goal is to never break content with a new release.
 
-Collision Objects
-~~~~~~~~~~~~~~~~~
+=== Collision Objects
 
 We have implemented many longed-for features regarding collision objects too.
 It's been a nuicance to create separate convex shape files to specify the geometry for collision objects.
@@ -2312,12 +2476,9 @@ The shapes can also be moved and rotated in relation to the collision object the
 The translation and rotation can still be specified in the property view too.
 The rotation is now specified by euler-coordinates (degrees around each axis), which are much easier to use than quaternions.
 
-((((
 image::images/blog/20111222_sprite_anim_collision_editing/shape_editing.png["Shape Editing", align="center"]
-((((
 
-Scene Editor
-~~~~~~~~~~~~
+=== Scene Editor
 
 The manipulators described above are examples of how we have further improved the Scene Editor.
 When needed, we will implement the same kind of functionality for other components.
@@ -2329,17 +2490,13 @@ The framing functionality from the Collection Editor has also been re-implemente
 It can be accessed through *Scene > Frame Objects*.
 It frames whatever is selected, or all objects if nothing is.
 
-Update Editor
-~~~~~~~~~~~~~
+=== Update Editor
 
 Go to *Help > Check For Update* to update the editor to the latest version.
 
-((((
 image::images/blog/20111222_sprite_anim_collision_editing/update_editor.png["Update Editor", align="center"]
-((((
 
-Google Groups
-~~~~~~~~~~~~~
+=== Google Groups
 
 As you all hopefully have noticed, we have started a Google Group for Defold users.
 We hope that it will soon spur with activity and be sufficient as our community forum.
@@ -2350,8 +2507,7 @@ We will add a post on how to use it in the group, to avoid spammers.
 We are also proud to announce that two new projects have joined the Defold community!
 So oldies, please be kind to the newbies in the group. :)
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 We are going to have a big planning day on December 27.
 After that, we will post a list of the different areas we think needs improvement in the user group.
@@ -2369,8 +2525,7 @@ Update - Scene Editor
 ---------------------
 _November 21, 2011_
 
-Scene Editor
-~~~~~~~~~~~~
+=== Scene Editor
 
 We have made lots of changes in the Scene Editor during the week.
 First we did some major restructuring of the code, to make the foundation as stable and clean as possible.
@@ -2384,9 +2539,7 @@ Select Defold > Scene Editor in the dialog.
 The outline view now displays icons for the items, along with markers if there are any issues in the data.
 If you hover with the mouse over such a marker, a tooltip is displayed.
 
-((((
 image::images/blog/20111121/sceneed_markers.png["Outline markers", width=880, align="center"]
-((((
 
 You can also open referenced files in the outline view by double-clicking the items (or hitting enter while they are selected).
 
@@ -2395,17 +2548,14 @@ An example of this is when you have a collision object with its type set to anyt
 Its mass is then irrelevant, since it should always be zero.
 This is now taken care of by the editor and pipeline.
 
-((((
 image::images/blog/20111121/sceneed_icons.png["Outline markers", width=880, align="center"]
-((((
 
 We have also made the values in drop-down lists more readable.
 
 We have updated the icons for some of the file types and items.
 We hope they not only look better, but also more clearly reflects their type now.
 
-Lua Editor
-~~~~~~~~~~
+=== Lua Editor
 
 The Lua Editor was not very good at handling comments before.
 This has now been fixed and it colors both multi-line comments and single line comments correctly now.
@@ -2423,8 +2573,7 @@ Please let us know about any other fixes or suggestions through the cases-mail.
 
 In the coming week we will work on sprite editing and collision object editing in parallel.
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 . Scene Editor - Sprite and collision object editing
 . Documentation - User Manual, Tutorials, etc
@@ -2435,8 +2584,7 @@ Update - Scene Editor
 ---------------------
 _November 17, 2011_
 
-Scene Editor
-~~~~~~~~~~~~
+=== Scene Editor
 
 Progress on the new Scene Editor has been a bit slower than we hoped, but now it has finally been released for you to try out!
 Update the editor to 1.0.44 and it should be activated whenever you open a game object.
@@ -2447,12 +2595,9 @@ Because of this, we have moved the outline view to be right above the properties
 It also felt natural to have the views related to file resources to the left (Project Explorer and Changed Files) and content related views to the right.
 Please comment if you have any other ideas on how the views should be restructured.
 
-((((
 image::images/blog/scene_ed_go.png["Scene Editor", width=880, align="center"]
-((((
 
-Sprites
-~~~~~~~
+=== Sprites
 
 As soon as the game object editing and the basic functionality of the Scene Editor has been completed, we will implement the new sprite editing in it.
 We made several passes on the design and it feels promising now.
@@ -2460,23 +2605,20 @@ A feature worth mentioning are predefined animations and cues.
 When a cue is hit during an animation, the sprite component will broadcast a message to the other components.
 This makes it easy to trigger sounds and other effects, register hits during attack animations in action games and lots of other possibilities.
 
-Tiles
-~~~~~
+=== Tiles
 
 We have fixed a few more tile-related issues last weeks and how now deemed that system stable.
 There are probably a few more bugs lurking around, but hopefully not too many.
 Don't forget to report any issues to the case-mail.
 
-Content Pipeline
-~~~~~~~~~~~~~~~~
+=== Content Pipeline
 
 The new content pipeline has been installed on the server.
 We have been given the permission from one of the projects to use it as a test bed.
 Then we can verify stability in a real production environment.
 We really appreciate that, thanks a lot!
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 . Scene Editor - Limited release supporting game objects, sprites and "simple types"
 . Sprite Editing - Improved
@@ -2490,8 +2632,7 @@ Update - Scene Editor & Content Pipeline
 ----------------------------------------
 _November 6, 2011_
 
-Scene Editor
-~~~~~~~~~~~~
+=== Scene Editor
 
 A new editor has spawned as a result from the design work on game object editing, it is called the _Scene Editor_.
 It will ultimately replace all the other editors, with the exception of text (scripts and shaders) and 2D (tile sets and guis) editors.
@@ -2505,15 +2646,12 @@ It was tricky to design because of its complexity, so we made a prototype to get
 The prototype has been completed and we really feel we are onto something interesting now.
 Below is a screen-shot of the prototype, please note that presentation was not a priority. :-)
 
-((((
 image::images/blog/scene_ed_prot.png["Scene editor prototype", width=880, align="center"]
-((((
 
 There are a bit more design-knots to untie, but we hope to be able to release a working version in a week, hopefully replacing the current game object editor altogether.
 That release will still be limited feature-wise relative the ultimate goal of course, but would cover the features currently available.
 
-Content Pipeline
-~~~~~~~~~~~~~~~~
+=== Content Pipeline
 
 The content pipeline now satisfies all the requirements we currently have on building content.
 The next step is to install it on the server and let it run there silently for an extended period of time.
@@ -2523,8 +2661,7 @@ Such bugs can be hard to track down too.
 Once we feel it's stable enough, using real content as test data, we will continue working on the local build feature.
 There are a few more things needed to actually make it work, regarding security and so on.
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 . Tile Usability - Any known and new issues, workflow improvements, etc
 . Scene Editor - Limited release supporting game objects, sprites and "simple types"
@@ -2538,8 +2675,7 @@ Update - Sprite Design, Tile Fixes & Content Pipeline
 -----------------------------------------------------
 _October 31, 2011_
 
-Sprites
-~~~~~~~
+=== Sprites
 
 We have completed the first iteration of how sprites should be integrated with the tile sets.
 Here is a list of the features included in the first version:
@@ -2573,8 +2709,7 @@ Right now we have come to the _Pause_ stage.
 The idea is to let the design settle and be able to come back to it later with a fresh mind.
 In the mean-time, we will continue to work on the design for the new Game Object editor.
 
-Tiles
-~~~~~
+=== Tiles
 
 We had some collision issues with the new tile system.
 It turned out that when aligning blocks to form ground and other continuous shapes that span over several cells, objects could fall through between the cells.
@@ -2584,16 +2719,12 @@ Another related problem is that not all of such cells are properly stitched toge
 This causes little "bumps" to remain in the collision geometry, sometimes causing objects that slide across the surface to get stuck.
 (The images are by courtesy of Mikael Säker.)
 
-((((
 image::images/blog/platform_tutorial/character_stuck.png["Character getting stuck against the edge of new collision geometry", align="center"]
-((((
 
 We are still working on a solution for this, but we did improve the in-game physics debugging.
 It is much easier to see what's going on, physics-wise, in the games now.
 
-((((
 image::images/blog/platform_tutorial/character_stuck_debug.png["Improved physics debug rendering", align="center"]
-((((
 
 To enable and control the debugging, the following options are now available in the game.project-files:
 
@@ -2610,8 +2741,7 @@ debug_alpha = 0.8
 debug_scale = 30
 ----
 
-Content Pipeline
-~~~~~~~~~~~~~~~~
+=== Content Pipeline
 
 A long term goal we have is to enable users to build content locally on their own machines, in addition to the Defold-servers.
 The biggest advantage of this is that build times would be lower, since we wouldn't have to send data back and forth over the internet.
@@ -2620,8 +2750,7 @@ It also means that we can integrate the pipeline into the editor, which in turn 
 
 The work has come a long way already and we are implementing a prototype at the moment to run tests on.
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 Currently, our roadmap looks like this:
 
@@ -2642,8 +2771,7 @@ _October 23, 2011_
 Welcome to the first update-post from Defold!
 This is a way for us to tell you a bit about what has happened lately and what lies ahead.
 
-Tiles
-~~~~~
+=== Tiles
 
 We are very excited to have completed the first iteration of our tile-system.
 Tiles are typically used whenever you want to place a lot of images in a grid based fashion,
@@ -2653,9 +2781,7 @@ To start putting tiles into your game, you first need to create a 'tile set' (.t
 In the tile set, you specify the image containing the tiles, as well as metrics on how you have ordered your tiles inside the image.
 If you also specify an image for collision, collision hulls will be automatically generated for the tiles.
 
-((((
 image::images/blog/tile_1.0/tileset_editor.png["Tile set editor", width=880, align="center"]
-((((
 
 Please see the new menu *Tile Set* in the top menu bar for more of the features available when you are working with tile sets.
 
@@ -2666,32 +2792,25 @@ To start painting tiles into your grid, select a layer in the outline view.
 If you look at the top menu bar, there is now a new menu called *Tile Grid* available.
 Select *Tile Grid > Show Palette* to bring up the tile set you specified.
 
-((((
 image::images/blog/tile_1.0/tilegrid_edior_brush.png["Tile set brush selection", width=880, align="center"]
-((((
 
 Click on a tile you want to use, which will turn the cursor into a brush with that tile selected.
 Paint your tiles, rinse and repeat.
 To erase painted tiles, open the palette again.
 Click on the selected tile, which will turn the cursor into an eraser.
 
-((((
 image::images/blog/tile_1.0/tilegrid_editor.png["Tile set editor", width=880, align="center"]
-((((
 
 To finally bring your newly painted tiles into the game, add the tile grid as a component to a game object present in the game.
 If you also want to have collision on the tiles, add a collision object component to the same game object and specify
 the tile grid as its collision shape.
 
-((((
 image::images/blog/tile_1.0/collection_editor.png["Collection editor", width=880, align="center"]
-((((
 
 Another cool thing is that you can change the tiles in-game from your logic scripts.
 Check out the new 'set_tile' message in the documentation ('GameSys').
 
-Properties
-~~~~~~~~~~
+=== Properties
 
 We have also completely revamped the property system used by the editor.
 The most noticable thing is that the layout has changed from grid-based to form-based.
@@ -2699,9 +2818,7 @@ We have also started to employ a new usage-philosophy, which is that all user in
 The input is still validated, but any errors or other message is now displayed in a non-intrusive way next to the related input fields.
 No more annoying popup dialogs! :-)
 
-((((
 image::images/blog/tile_1.0/property_messages.png["Property editor", width=880, align="center"]
-((((
 
 All of this new editor functionality is of course up to Defold-standards, which means complete support for:
 
@@ -2715,8 +2832,7 @@ What we haven't fixed yet however (among others) are:
 * Reload of tile grids in-game
 * Sprites are still created/animated as usual
 
-Roadmap
-~~~~~~~
+=== Roadmap
 
 This is our roadmap, as it looks at this very moment, ordered from sooner to later.
 
@@ -2731,9 +2847,7 @@ As always, we would love to hear any feedback, change requests, complaints or ot
 Direct them to the usual cases-mail.
 Now go ahead and make a more original game than we did! ;-)
 
-((((
 image::images/blog/tile_1.0/the_game.png["Tiles in-game", width=880, align="center"]
-((((
 
 [source-code, lua]
 ----

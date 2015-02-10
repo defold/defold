@@ -83,7 +83,7 @@ namespace dmSSDP
             memset(this, 0, sizeof(*this));
             m_DeviceDesc = device_desc;
             // NOTE: We set expires to such that announce messages
-            // will be sent in first update (if enabled)
+            // will be sent in one second (if enabled)
             m_Expires = dmTime::GetTime();
         }
     };
@@ -478,6 +478,7 @@ bail:
 
     static void SendAnnounce(HSSDP ssdp, Device* device)
     {
+        dmLogDebug("SSDP Announcing '%s'", device->m_DeviceDesc->m_Id);
         Replacer replacer1(0, device, ReplaceDeviceVar);
         Replacer replacer2(&replacer1, ssdp, ReplaceSSDPVar);
         dmTemplate::Result tr = dmTemplate::Format(&replacer2, (char*) ssdp->m_Buffer, sizeof(ssdp->m_Buffer), SSDP_ALIVE_TMPL, Replacer::Replace);
@@ -529,6 +530,7 @@ bail:
 
         Device* device = new Device(device_desc);
         ssdp->m_RegistredEntries.Put(id_hash, device);
+        dmLogDebug("SSDP device '%s' registered", id);
         return RESULT_OK;
     }
 
@@ -544,6 +546,7 @@ bail:
         SendUnannounce(ssdp, *d);
         delete *d;
         ssdp->m_RegistredEntries.Erase(id_hash);
+        dmLogDebug("SSDP device '%s' deregistered", id);
         return RESULT_OK;
     }
 
@@ -739,10 +742,12 @@ bail:
             // When returning from sleep mode on iOS socket is in state ECONNABORTED
             if (sr == dmSocket::RESULT_CONNABORTED || sr == dmSocket::RESULT_NOTCONN)
             {
+                dmLogDebug("SSDP permanent dispatch error");
                 return false;
             }
             else
             {
+                dmLogDebug("SSDP transient dispatch error");
                 return true;
             }
         }
@@ -880,6 +885,7 @@ bail:
         uint64_t current_time = dmTime::GetTime();
         if (current_time > ssdp->m_AddressExpires)
         {
+            dmLogDebug("Update SSDP address");
             // Update address. It might have change. 3G -> wifi etc
             if (dmSocket::GetLocalAddress(&address) == dmSocket::RESULT_OK)
             {
@@ -941,6 +947,7 @@ bail:
                              dmSocket::AddressFromIPString(SSDP_MCAST_ADDR),
                              SSDP_MCAST_PORT);
 
+            dmLogDebug("SSDP M-SEARCH");
             if (sr != dmSocket::RESULT_OK)
             {
                 dmLogWarning("Failed to send SSDP search package (%d)", sr);

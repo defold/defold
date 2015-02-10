@@ -72,6 +72,10 @@ public class TileSetNode extends TextureSetNode {
     @GreaterEqualThanZero
     private int extrudeBorders;
 
+    @Property
+    @GreaterEqualThanZero
+    private int innerPadding;
+
     @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     @Resource
     private String collision = "";
@@ -205,6 +209,17 @@ public class TileSetNode extends TextureSetNode {
         }
     }
 
+    public int getInnerPadding() {
+        return this.innerPadding;
+    }
+
+    public void setInnerPadding(int innerPadding) {
+        if (this.innerPadding != innerPadding) {
+            this.innerPadding = innerPadding;
+            updateData();
+        }
+    }
+
     public String getCollision() {
         return this.collision;
     }
@@ -312,7 +327,7 @@ public class TileSetNode extends TextureSetNode {
         TileSetLoader loader = new TileSetLoader();
         try {
             TileSet tileSet = (TileSet) loader.buildMessage(null, this, new NullProgressMonitor());
-            TextureSetResult result = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true);
+            TextureSetResult result = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true, true);
             if (result != null) {
                 Builder textureSetBuilder = result.builder;
                 TextureSet textureSet = textureSetBuilder.setTexture("").build();

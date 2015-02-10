@@ -319,14 +319,12 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url)
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** world)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
         {
-            if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            if (sender.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
                 return; // Actually never reached
@@ -334,7 +332,7 @@ namespace dmGameObject
 
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, index, &receiver, &sender);
-            instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, index));
@@ -347,6 +345,10 @@ namespace dmGameObject
             {
                 luaL_error(L, "The component could not be found");
                 return; // Actually never reached
+            }
+
+            if (world != 0) {
+                *world = GetWorld(instance->m_Collection, component_type_index);
             }
 
             if (component_ext != 0x0)
@@ -835,8 +837,7 @@ namespace dmGameObject
 
             dmScript::PushURL(L, url);
             dmScript::PushHash(L, property_id);
-
-            int ret = dmScript::PCall(L, 3, 0);
+            dmScript::PCall(L, 3, 0);
 
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -1086,6 +1087,9 @@ namespace dmGameObject
      */
     int Script_Delete(lua_State* L)
     {
+        if (lua_gettop(L) >= 1 && lua_type(L, 1) == LUA_TNIL) {
+            dmLogWarning("go.delete() invoked with nil and self will be deleted");
+        }
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance);
@@ -1297,28 +1301,7 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    struct LuaData
-    {
-        const char* m_Buffer;
-        uint32_t m_Size;
-    };
-
-    static const char* ReadScript(lua_State *L, void *data, size_t *size)
-    {
-        LuaData* lua_data = (LuaData*)data;
-        if (lua_data->m_Size == 0)
-        {
-            return 0x0;
-        }
-        else
-        {
-            *size = lua_data->m_Size;
-            lua_data->m_Size = 0;
-            return lua_data->m_Buffer;
-        }
-    }
-
-    static bool LoadScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename, Script* script)
+    static bool LoadScript(lua_State* L, dmLuaDDF::LuaSource *source, Script* script)
     {
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
@@ -1327,10 +1310,7 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void) top;
 
-        LuaData data;
-        data.m_Buffer = (const char*)buffer;
-        data.m_Size = buffer_size;
-        int ret = lua_load(L, &ReadScript, &data, filename);
+        int ret = dmScript::LuaLoad(L, source);
         if (ret == 0)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
@@ -1350,7 +1330,7 @@ namespace dmGameObject
                         }
                         else
                         {
-                            dmLogError("The global name '%s' in '%s' must be a function.", SCRIPT_FUNCTION_NAMES[i], filename);
+                            dmLogError("The global name '%s' in '%s' must be a function.", SCRIPT_FUNCTION_NAMES[i], source->m_Filename);
                             lua_pop(L, 1);
                             goto bail;
                         }
@@ -1389,7 +1369,7 @@ bail:
         script->m_InstanceReference = LUA_NOREF;
     }
 
-    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module, const char* filename)
+    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module)
     {
         Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
         ResetScript(script);
@@ -1403,7 +1383,8 @@ bail:
         script->m_LuaModule = lua_module;
         luaL_getmetatable(L, SCRIPT);
         lua_setmetatable(L, -2);
-        if (!LoadScript(L, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
+
+        if (!LoadScript(L, &lua_module->m_Source, script))
         {
             DeleteScript(script);
             return 0;
@@ -1412,13 +1393,10 @@ bail:
         return script;
     }
 
-    bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename)
+    bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module)
     {
-        bool result = true;
         script->m_LuaModule = lua_module;
-        if (!LoadScript(script->m_LuaState, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
-            result = false;
-        return result;
+        return LoadScript(script->m_LuaState, &lua_module->m_Source, script);
     }
 
     void DeleteScript(HScript script)
@@ -1582,6 +1560,9 @@ bail:
 
     void DeleteScriptInstance(HScriptInstance script_instance)
     {
+        HCollection collection = script_instance->m_Instance->m_Collection;
+        CancelAnimationCallbacks(collection, script_instance);
+
         lua_State* L = GetLuaState(script_instance);
 
         int top = lua_gettop(L);

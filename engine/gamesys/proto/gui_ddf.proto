@@ -13,6 +13,7 @@ message NodeDesc
     {
         TYPE_BOX  = 0 [(displayName) = "Box"];
         TYPE_TEXT = 1 [(displayName) = "Text"];
+        TYPE_PIE  = 2 [(displayName) = "Pie"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -22,6 +23,13 @@ message NodeDesc
         BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
         BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha (Deprecated)"];
         BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
+    }
+
+    // NOTE: Enum values must correspond to the enum values in dmGui
+    enum ClippingMode
+    {
+        CLIPPING_MODE_NONE    = 0 [(displayName) = "None"];
+        CLIPPING_MODE_STENCIL = 2 [(displayName) = "Stencil"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -60,6 +68,12 @@ message NodeDesc
         ADJUST_MODE_STRETCH = 2 [(displayName) = "Stretch"];
     };
 
+    enum PieBounds
+    {
+        PIEBOUNDS_RECTANGLE = 0 [(displayName) = "Rectangle"];
+        PIEBOUNDS_ELLIPSE   = 1 [(displayName) = "Ellipse"];
+    };
+
     required dmMath.Vector4 position = 1;
     required dmMath.Vector4 rotation = 2;
     required dmMath.Vector4 scale    = 3;
@@ -82,6 +96,16 @@ message NodeDesc
     optional string     layer        = 20;
     optional bool       inherit_alpha = 21 [default = false];
     optional dmMath.Vector4 slice9   = 22;
+
+    // These are pie specific options
+    optional PieBounds outerBounds   = 23 [default = PIEBOUNDS_ELLIPSE];
+    optional float     innerRadius   = 24 [default = 0];
+    optional int32     perimeterVertices = 25 [default = 32];
+    optional float     pieFillAngle  = 26 [default = 360];
+
+    optional ClippingMode clipping_mode  = 27 [default = CLIPPING_MODE_NONE];
+    optional bool       clipping_visible = 28 [default = true];
+    optional bool       clipping_inverted = 29 [default = false];
 }
 
 message SceneDesc
@@ -108,4 +132,6 @@ message SceneDesc
 
     repeated NodeDesc    nodes                   = 6;
     repeated LayerDesc   layers                  = 7;
+
+    optional string      material                = 8 [(resource)=true, default="/builtins/materials/gui.material"];
 }

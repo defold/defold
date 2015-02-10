@@ -3,7 +3,7 @@
             [schema.core :as s]
             [dynamo.types :as dt :refer [min-p max-p]])
   (:import [dynamo.types Rect AABB]
-           [com.dynamo.bob.textureset TextureSetGenerator]
+           [internal.ui JavaMath]
            [javax.vecmath Point3d Point4d Vector4d Vector3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
@@ -150,8 +150,8 @@
 ;      0xffff)))
 
 (defn to-short-uv
-  [^Float fuv]
-  (TextureSetGenerator/toShortUV fuv))
+ [^Float fuv]
+ (JavaMath/toShortUV fuv))
 
 ; -------------------------------------
 ; Transformations

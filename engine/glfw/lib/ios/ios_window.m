@@ -50,6 +50,7 @@ enum StartupPhase g_StartupPhase = INITIAL;
 void* g_ReservedStack = 0;
 int g_SwapCount = 0;
 
+static int g_IsReboot = 0;
 /*
 Notes about the crazy startup
 In order to have a classic event-loop we must "bail" the built-in event dispatch loop
@@ -579,6 +580,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 {
     if (viewFramebuffer)
     {
+        glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
+        CHECK_GL_ERROR
         [context renderbufferStorage:GL_RENDERBUFFER fromDrawable: nil];
         CHECK_GL_ERROR
 
@@ -622,13 +625,20 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 // View controller
 
-@interface ViewController : UIViewController<UIAccelerometerDelegate>
+@interface ViewController : UIViewController<UIContentContainer, UIAccelerometerDelegate>
 {
     EAGLView *glView;
+    CGSize cachedViewSize;
 }
 
 - (EAGLContext *)initialiseGlContext;
 - (void)createGlView;
+
+// iOS 8.0.0 - 8.0.2
+- (CGSize)getIntendedViewSize;
+- (CGPoint)getIntendedFrameOrigin:(CGSize)size;
+- (BOOL)shouldUpdateViewFrame;
+- (void)updateViewFramesWorkaround;
 
 @property (nonatomic, retain) IBOutlet EAGLView *glView;
 
@@ -649,9 +659,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     [super viewDidLoad];
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view.autoresizesSubviews = YES;
-    
+
     [self createGlView];
-    
+
     [[UIAccelerometer sharedAccelerometer] setUpdateInterval:1.0/60.0];
     [[UIAccelerometer sharedAccelerometer] setDelegate:self];
 
@@ -675,30 +685,154 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         glContext = glView.context;
         [glView removeFromSuperview];
     }
-    
+
     if (!glContext) {
         glContext = [self initialiseGlContext];
     }
-    
+
     CGRect bounds = self.view.bounds;
-    
+    float version = [[UIDevice currentDevice].systemVersion floatValue];
+    if (8.0 <= version && 8.1 > version) {
+        CGSize size = [self getIntendedViewSize];
+        CGRect parent_bounds = self.view.bounds;
+        parent_bounds.size = size;
+
+        if ([self shouldUpdateViewFrame]) {
+            CGPoint origin = [self getIntendedFrameOrigin: size];
+
+            CGRect parent_frame = self.view.frame;
+            parent_frame.origin = origin;
+            parent_frame.size = size;
+
+            self.view.frame = parent_frame;
+        }
+        bounds = parent_bounds;
+    }
+    cachedViewSize = bounds.size;
+
     CGFloat scaleFactor = [[UIScreen mainScreen] scale];
     glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
     glView.context = glContext;
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
+
+    [glView createFramebuffer];
+}
+
+- (void)updateViewFramesWorkaround
+{
+    float version = [[UIDevice currentDevice].systemVersion floatValue];
+    if (8.0 <= version && 8.1 > version) {
+        CGRect parent_frame = self.view.frame;
+        CGRect parent_bounds = self.view.bounds;
+
+        CGSize size = [self getIntendedViewSize];
+
+        parent_bounds.size = size;
+
+        if ([self shouldUpdateViewFrame]) {
+            CGPoint origin = [self getIntendedFrameOrigin: size];
+            parent_frame.origin = origin;
+            parent_frame.size = size;
+
+            self.view.frame = parent_frame;
+        }
+        glView.frame = parent_bounds;
+    }
+}
+
+- (BOOL)shouldUpdateViewFrame
+{
+    UIDevice *device = [UIDevice currentDevice];
+    UIDeviceOrientation orientation = device.orientation;
+    bool update_parent_frame = false;
+    switch (orientation) {
+        case UIDeviceOrientationLandscapeLeft:
+            update_parent_frame = true;
+            break;
+        case UIDeviceOrientationLandscapeRight:
+            update_parent_frame = true;
+            break;
+        case UIDeviceOrientationPortrait:
+            update_parent_frame = true;
+            break;
+        case UIDeviceOrientationPortraitUpsideDown:
+            update_parent_frame = true;
+            break;
+        default:
+            break;
+    }
+    return update_parent_frame;
+}
+
+- (CGSize)getIntendedViewSize
+{
+    CGSize result;
+    CGRect parent_bounds = self.view.bounds;
+
+    if (0 != g_IsReboot) {
+        parent_bounds.size = cachedViewSize;
+    }
+    bool flipBounds = false;
+    if (_glfwWin.portrait) {
+        flipBounds = parent_bounds.size.width > parent_bounds.size.height;
+    } else {
+        flipBounds = parent_bounds.size.width < parent_bounds.size.height;
+    }
+    if (flipBounds) {
+        result.width = parent_bounds.size.height;
+        result.height = parent_bounds.size.width;
+    } else {
+        result = parent_bounds.size;
+    }
+    return result;
+}
+
+- (CGPoint)getIntendedFrameOrigin:(CGSize)size
+{
+    UIDevice *device = [UIDevice currentDevice];
+    UIDeviceOrientation orientation = device.orientation;
+    CGPoint origin;
+    origin.x = 0.0f;
+    origin.y = 0.0f;
+    switch (orientation) {
+        case UIDeviceOrientationLandscapeLeft:
+            break;
+        case UIDeviceOrientationLandscapeRight:
+            origin.x = -(size.width - size.height);
+            origin.y = size.width - size.height;
+
+            if (g_IsReboot && cachedViewSize.width != size.width) {
+                origin.x = 0.0f;
+                origin.y = 0.0f;
+            }
+            break;
+        case UIDeviceOrientationPortrait:
+            if (g_IsReboot && cachedViewSize.width != size.width) {
+                origin.x = -(size.width - size.height);
+            }
+            break;
+        case UIDeviceOrientationPortraitUpsideDown:
+            if (g_IsReboot && cachedViewSize.width != size.width) {
+                origin.y = (size.width - size.height);
+            }
+            break;
+        default:
+            break;
+    }
+    return origin;
 }
 
 - (EAGLContext *)initialiseGlContext
 {
     EAGLContext *context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-    
+
     if (!context || ![EAGLContext setCurrentContext:context])
     {
         return nil;
     }
-    
+
     return context;
 }
 
@@ -738,6 +872,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
 {
+
 }
 
 -(BOOL)shouldAutorotate{
@@ -757,6 +892,15 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
 }
 
+#pragma mark UIContentContainer
+
+// Introduced in iOS8.0
+- (void)viewWillTransitionToSize:(CGSize)size
+       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
+{
+    [self updateViewFramesWorkaround];
+}
+
 - (void)accelerometer:(UIAccelerometer *)accelerometer didAccelerate:(UIAcceleration *)acceleration
 {
     _glfwInput.AccX = acceleration.x;
@@ -772,6 +916,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     UIWindow *window;
 }
 
+- (void)forceDeviceOrientation;
 - (void)reinit:(UIApplication *)application;
 
 @property (nonatomic, retain) IBOutlet UIWindow *window;
@@ -784,11 +929,27 @@ _GLFWwin g_Savewin;
 
 @synthesize window;
 
+- (void)forceDeviceOrientation;
+{
+    // Running iOS8, if we don't force a change in the device orientation then
+    // the framebuffer will not be created with the correct orientation.
+    UIDevice *device = [UIDevice currentDevice];
+    UIDeviceOrientation desired = UIDeviceOrientationLandscapeRight;
+    if (_glfwWin.portrait) {
+        desired = UIDeviceOrientationPortrait;
+    } else if (UIDeviceOrientationLandscapeLeft == device.orientation) {
+        desired = UIDeviceOrientationLandscapeLeft;
+    }
+    [device setValue: [NSNumber numberWithInteger: desired] forKey:@"orientation"];
+}
+
 - (void)reinit:(UIApplication *)application
 {
+    g_IsReboot = 1;
+
     // Restore window data
     _glfwWin = g_Savewin;
-    
+
     // To avoid a race, since _glfwPlatformOpenWindow does not block,
     // update the glfw's cached screen dimensions ahead of time.
     BOOL flipScreen = NO;
@@ -802,17 +963,14 @@ _GLFWwin g_Savewin;
         _glfwWin.width = _glfwWin.height;
         _glfwWin.height = tmp;
     }
-    
-    // Running iOS8, if we don't force a change in the device orientation then
-    // the framebuffer will not be created with the correct orientation.
-    UIDevice *device = [UIDevice currentDevice];
-    UIDeviceOrientation desired = UIDeviceOrientationLandscapeRight;
-    if (_glfwWin.portrait) {
-        desired = UIDeviceOrientationPortrait;
-    } else if (UIDeviceOrientationLandscapeLeft == device.orientation) {
-       desired = UIDeviceOrientationLandscapeLeft;
+
+    [self forceDeviceOrientation];
+
+    float version = [[UIDevice currentDevice].systemVersion floatValue];
+    if (8.0 <= version && 8.1 > version) {
+        // These suspect versions of iOS will crash if we proceed to recreate the GL view.
+        return;
     }
-    [device setValue: [NSNumber numberWithInteger: desired] forKey:@"orientation"];
 
     // We then rebuild the GL view back within the application's event loop.
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -823,6 +981,8 @@ _GLFWwin g_Savewin;
 
 - (void)applicationDidFinishLaunching:(UIApplication *)application
 {
+    [self forceDeviceOrientation];
+
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
     // Points vs pixels (and scale factors). I'm not sure that this correct though
     // and that we really get the correct and highest physical resolution in pixels.

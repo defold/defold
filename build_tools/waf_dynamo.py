@@ -814,10 +814,14 @@ unsigned char %s[] =
     cpp_out_file.write('{\n    ')
 
     data = in_file.read()
+
+    tmp = ''
     for i,x in enumerate(data):
-        cpp_out_file.write('0x%X, ' % ord(x))
+        tmp += hex(ord(x)) + ', '
         if i > 0 and i % 4 == 0:
-            cpp_out_file.write('\n    ')
+            tmp += '\n    '
+    cpp_out_file.write(tmp)
+
     cpp_out_file.write('\n};\n')
     cpp_out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
 
@@ -912,7 +916,7 @@ def run_gtests(valgrind = False):
                 filename = '%s %s' % (Build.bld.env['NODEJS'], filename)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
-                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, filename)
+                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, filename)
             proc = subprocess.Popen(filename, shell = True)
             ret = proc.wait()
             if ret != 0:
@@ -924,7 +928,7 @@ def run_gtests(valgrind = False):
 def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'linux':
-        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
+        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
 @feature('swf')
 @after('apply_link')
@@ -1133,6 +1137,13 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
+    if getattr(Options.options, 'use_vanilla_lua', False) == False and 'web' != build_util.get_target_os():
+        conf.env['STATICLIB_LUA'] = 'luajit-5.1'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
+    else:
+        conf.env['STATICLIB_LUA'] = 'lua'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'no'
+
 def configure(conf):
     detect(conf)
 
@@ -1157,4 +1168,4 @@ def set_options(opt):
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
-
+    opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')

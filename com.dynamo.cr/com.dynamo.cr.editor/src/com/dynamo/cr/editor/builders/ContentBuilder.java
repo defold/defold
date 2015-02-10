@@ -3,6 +3,7 @@ package com.dynamo.cr.editor.builders;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -118,14 +119,22 @@ public class ContentBuilder extends IncrementalProjectBuilder {
 
         Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
 
-        String[] commands;
+        List<String> commandList = new ArrayList<String>();
         if (kind == IncrementalProjectBuilder.FULL_BUILD) {
-            commands = new String[] { "distclean", "build" };
+            commandList.add("distclean");
+            commandList.add("build");
         } else if (kind == IncrementalProjectBuilder.CLEAN_BUILD) {
-            commands = new String[] { "distclean" };
+            commandList.add("distclean");
         } else {
-            commands = new String[] { "build" };
+            commandList.add("build");
         }
+
+        ArrayList<String> extraCommands = BobUtil.getBobCommands(args);
+        if (extraCommands != null) {
+            commandList.addAll(extraCommands);
+        }
+
+        String[] commands = commandList.toArray(new String[commandList.size()]);
 
         boolean ret = true;
         try {
@@ -174,7 +183,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 marker.setAttribute(IMarker.LINE_NUMBER, e.getLineNumber());
                 marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
             } else {
-                throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e));
+                throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed: " + e.getMessage(), e));
             }
         } finally {
             project.dispose();

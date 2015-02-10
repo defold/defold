@@ -85,7 +85,7 @@ public class TileSetGenerator {
     }
 
     public static TextureSetResult generate(TileSet tileSet, BufferedImage image,
-            BufferedImage collisionImage, boolean genOutlines) {
+            BufferedImage collisionImage, boolean genOutlines, boolean genAtlasVertices) {
         TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(image, tileSet.getTileWidth(),
                 tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionImage, 1.0f, 0.0f);
 
@@ -98,7 +98,8 @@ public class TileSetGenerator {
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
 
         TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0,
-                tileSet.getExtrudeBorders(), genOutlines);
+                tileSet.getInnerPadding(),
+                tileSet.getExtrudeBorders(), genOutlines, genAtlasVertices, false, true);
 
         TextureSet.Builder builder = result.builder;
 

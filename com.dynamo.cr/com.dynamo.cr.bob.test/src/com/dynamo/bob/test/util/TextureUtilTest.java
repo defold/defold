@@ -2,7 +2,13 @@ package com.dynamo.bob.test.util;
 
 import static org.junit.Assert.assertEquals;
 
+import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+
+import javax.imageio.ImageIO;
 
 import org.junit.Test;
 
@@ -41,6 +47,81 @@ public class TextureUtilTest {
                 int sx = Math.min(Math.max(x - 1, 0), 1);
                 int sy = Math.min(Math.max(y - 1, 0), 1);
                 assertEquals(src.getRGB(sx, sy), tgt.getRGB(x, y));
+            }
+        }
+    }
+
+    @Test
+    public void testDepalettiseImage() throws FileNotFoundException, IOException {
+        final String palettisedFile = "test/def_854_with_palette.png";
+        BufferedImage palettisedImage = ImageIO.read(new FileInputStream(palettisedFile));
+
+        assert(BufferedImage.TYPE_BYTE_INDEXED == palettisedImage.getType());
+
+        int width = palettisedImage.getWidth();
+        int height = palettisedImage.getHeight();
+
+        BufferedImage depalettisedImage = TextureUtil.depalettiseImage(palettisedImage);
+
+        int[] palettisedPixels = new int[width * height];
+        int[] depalettisedPixels = new int[width * height];
+
+        palettisedImage.getRGB(0, 0, width, height, palettisedPixels, 0, width);
+        depalettisedImage.getRGB(0, 0, width, height, depalettisedPixels, 0, width);
+
+        for (int i=0; i<palettisedPixels.length; ++i) {
+            assertEquals(palettisedPixels[i], depalettisedPixels[i]);
+        }
+    }
+
+    @Test
+    public void testCreatePaddedImage() throws FileNotFoundException, IOException {
+        final String sourceFile = "test/apply_inner_padding.png";
+        final int paddingAmount = 2;
+        final Color paddingColour = new Color(0, 0, 0, 0);
+        BufferedImage image = ImageIO.read(new FileInputStream(sourceFile));
+
+        int srcWidth = image.getWidth();
+        int srcHeight = image.getHeight();
+
+        BufferedImage paddedImage = TextureUtil.createPaddedImage(image, paddingAmount, paddingColour);
+
+        int width = paddedImage.getWidth();
+        int height = paddedImage.getHeight();
+
+        assertEquals(width, srcWidth + 2 * paddingAmount);
+        assertEquals(height, srcHeight + 2 * paddingAmount);
+
+        int paddingRGBA = paddingColour.getRGB();
+        for (int y=0; y<height; ++y) {
+            for (int x=0; x<width; ++x) {
+                boolean isPadding = false;
+                int outputColour = paddedImage.getRGB(x, y);
+
+                int sx = x;
+                int sy = y;
+                if (x < paddingAmount || (x >= srcWidth + paddingAmount)) {
+                    isPadding = true;
+                } else {
+                    sx = x - paddingAmount;
+                }
+                if (y < paddingAmount || (y >= srcHeight + paddingAmount)) {
+                    isPadding = true;
+                } else {
+                    sy = y - paddingAmount;
+                }
+
+                if (isPadding) {
+                    assertEquals(paddingRGBA, outputColour);
+                } else {
+                    int comparisonColour = image.getRGB(sx, sy);
+                    boolean comparisonTransparent = 0 == ((comparisonColour>>24)&0xff);
+                    if (comparisonTransparent) {
+                        assertEquals(outputColour, paddingRGBA);
+                    } else {
+                        assertEquals(outputColour, comparisonColour);
+                    }
+                }
             }
         }
     }

@@ -7,6 +7,9 @@ import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.guied.core.BoxNode;
+import com.dynamo.cr.guied.core.ClippingNode;
+import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
+import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -26,8 +29,23 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
     @Override
     public void setup(RenderContext renderContext, BoxNode node) {
         if (passes.contains(renderContext.getPass())) {
-            RenderData<BoxNode> data = renderContext.add(this, node, new Point3d(), null);
-            data.setIndex(node.getRenderKey());
+            if((renderContext.getPass() == Pass.OUTLINE) && (node.isClipping()) && (!Clipping.getShowClippingNodes())) {
+                return;
+            }
+            ClippingState clippingState = node.getClippingState();
+            if (clippingState != null) {
+                RenderData<BoxNode> data = renderContext.add(this, node, new Point3d(), clippingState);
+                data.setIndex(node.getClippingKey());
+            }
+            if (!node.isClipping() || node.getClippingVisible()) {
+                ClippingState childState = null;
+                ClippingNode clipper = node.getClosestParentClippingNode();
+                if (clipper != null) {
+                    childState = clipper.getChildClippingState();
+                }
+                RenderData<BoxNode> data = renderContext.add(this, node, new Point3d(), childState);
+                data.setIndex(node.getRenderKey());
+            }
         }
     }
 
@@ -88,6 +106,13 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
             texture = node.getTextureHandle().getTexture(gl);
         }
 
+        boolean clipping = renderData.getUserData() != null;
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.beginClipping(gl);
+            ClippingState state = (ClippingState)renderData.getUserData();
+            Clipping.setupClipping(gl, state);
+        }
+
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
             if (texture != null) {
@@ -111,6 +136,17 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
                 gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
                 break;
             }
+        }
+
+        if (renderContext.getPass() == Pass.OUTLINE && node.isClipping()) {
+            if (renderContext.isSelected(node)) {
+                gl.glColor4fv(Clipping.OUTLINE_SELECTED_COLOR, 0);
+            } else {
+                gl.glColor4fv(Clipping.OUTLINE_COLOR, 0);
+            }
+        } else {
+            float[] color = node.calcNormRGBA();
+            gl.glColor4fv(renderContext.selectColor(node, color), 0);
         }
 
         double us[] = new double[4];
@@ -152,8 +188,6 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
         vs[2] = sV * node.getSlice9().y;
         vs[3] = 0.0f;
 
-        float[] color = node.calcNormRGBA();
-        gl.glColor4fv(renderContext.selectColor(node, color), 0);
         gl.glBegin(GL2.GL_QUADS);
 
         for (int i=0;i<3;i++)
@@ -186,6 +220,10 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
                 texture.disable(gl);
             }
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+        }
+
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.endClipping(gl);
         }
     }
 

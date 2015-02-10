@@ -5,6 +5,7 @@
 #include <dlib/math.h>
 #include <dlib/message.h>
 #include <script/script.h>
+#include <script/lua_source_ddf.h>
 #include "../gui.h"
 #include "../gui_private.h"
 #include "test_gui_ddf.h"
@@ -56,6 +57,16 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
+static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
+{
+    static dmLuaDDF::LuaSource src;
+    memset(&src, 0x00, sizeof(dmLuaDDF::LuaSource));
+    src.m_Script.m_Data = (uint8_t*) str;
+    src.m_Script.m_Count = (length != -1) ? length : strlen(str);
+    src.m_Filename = "dummy";
+    return &src;
+}
+
 class dmGuiTest : public ::testing::Test
 {
 public:
@@ -93,7 +104,8 @@ public:
         dmGui::SetSceneScript(m_Scene, m_Script);
     }
 
-    static void RenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+    static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+            const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
     {
         dmGuiTest* self = (dmGuiTest*) context;
         // The node is defined to completely cover the local space (0,1),(0,1)
@@ -103,7 +115,7 @@ public:
         {
             Vector4 o = node_transforms[i] * origin;
             Vector4 u = node_transforms[i] * unit;
-            const char* text = dmGui::GetNodeText(scene, nodes[i]);
+            const char* text = dmGui::GetNodeText(scene, nodes[i].m_Node);
             if (text) {
                 self->m_NodeTextToRenderedPosition[text] = Point3(o.getXYZ());
                 self->m_NodeTextToRenderedSize[text] = Vector3((u - o).getXYZ());
@@ -148,7 +160,7 @@ void GetTextMetricsCallback(const void* font, const char* text, float width, boo
 static bool SetScript(dmGui::HScript script, const char* source)
 {
     dmGui::Result r;
-    r = dmGui::SetScript(script, source, strlen(source), "dummy_source");
+    r = dmGui::SetScript(script, LuaSourceFromStr(source));
     return dmGui::RESULT_OK == r;
 }
 
@@ -298,11 +310,12 @@ static void DynamicSetTextureData(dmGui::HScene scene, void* texture, uint32_t w
 {
 }
 
-static void DynamicRenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+static void DynamicRenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+        const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*) context;
     for (uint32_t i = 0; i < node_count; ++i) {
-        dmGui::HNode node = nodes[i];
+        dmGui::HNode node = nodes[i].m_Node;
         dmhash_t id = dmGui::GetNodeTextureId(scene, node);
         if ((id == dmHashString64("t1") || id == dmHashString64("t2")) && dmGui::GetNodeTexture(scene, node)) {
             *count = *count + 1;
@@ -815,7 +828,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -860,7 +873,7 @@ TEST_F(dmGuiTest, ScriptPlayback)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -897,7 +910,7 @@ TEST_F(dmGuiTest, ScriptAnimatePreserveAlpha)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -928,7 +941,7 @@ TEST_F(dmGuiTest, ScriptAnimateComponent)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -961,7 +974,7 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1003,7 +1016,7 @@ TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1042,7 +1055,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel1)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1083,7 +1096,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel2)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1116,7 +1129,7 @@ TEST_F(dmGuiTest, ScriptOutOfNodes)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
@@ -1129,7 +1142,7 @@ TEST_F(dmGuiTest, ScriptGetNode)
     const char* s = "function update(self) local n = gui.get_node(\"n\")\n print(n)\n end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1144,7 +1157,7 @@ TEST_F(dmGuiTest, ScriptGetMissingNode)
     const char* s = "function update(self) local n = gui.get_node(\"x\")\n print(n)\n end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
@@ -1160,7 +1173,7 @@ TEST_F(dmGuiTest, ScriptGetDeletedNode)
     dmGui::DeleteNode(m_Scene, node);
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
@@ -1185,7 +1198,7 @@ TEST_F(dmGuiTest, ScriptEqNode)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1204,7 +1217,7 @@ TEST_F(dmGuiTest, ScriptNewNode)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1222,7 +1235,7 @@ TEST_F(dmGuiTest, ScriptNewNodeVec4)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1253,7 +1266,7 @@ TEST_F(dmGuiTest, ScriptGetSet)
                    "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1273,7 +1286,7 @@ TEST_F(dmGuiTest, ScriptInput)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
@@ -1299,7 +1312,7 @@ TEST_F(dmGuiTest, ScriptInputConsume)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
@@ -1322,7 +1335,7 @@ TEST_F(dmGuiTest, ScriptInputMouseMovement)
                     "   assert(action.dy == nil)\n"
                     "end\n";
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
@@ -1350,7 +1363,7 @@ TEST_F(dmGuiTest, ScriptInputMouseMovement)
     input_action.m_DX = 3.0f;
     input_action.m_DY = 4.0f;
 
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::DispatchInput(m_Scene, &input_action, 1, &consumed);
@@ -1377,7 +1390,7 @@ TEST_F(dmGuiTest, PostMessage1)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1399,7 +1412,7 @@ TEST_F(dmGuiTest, MissingSetSceneInDispatchInputBug)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::InputAction input_action;
@@ -1427,7 +1440,7 @@ TEST_F(dmGuiTest, PostMessage2)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1467,7 +1480,7 @@ TEST_F(dmGuiTest, PostMessage3)
                      "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s1, strlen(s1), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s1));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     dmGui::NewSceneParams params;
@@ -1477,7 +1490,7 @@ TEST_F(dmGuiTest, PostMessage3)
     dmGui::HScript script2 = dmGui::NewScript(m_Context);
     r = dmGui::SetSceneScript(scene2, script2);
     ASSERT_EQ(dmGui::RESULT_OK, r);
-    r = dmGui::SetScript(script2, s2, strlen(s2), "file");
+    r = dmGui::SetScript(script2, LuaSourceFromStr(s2));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1503,7 +1516,7 @@ TEST_F(dmGuiTest, PostMessageMissingField)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1522,7 +1535,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char buf[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
@@ -1553,7 +1566,7 @@ TEST_F(dmGuiTest, PostMessageToGuiEmptyLuaTable)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char buffer[256 + sizeof(dmMessage::Message)];
@@ -1584,7 +1597,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char buffer[256 + sizeof(dmMessage::Message)];
@@ -1624,7 +1637,7 @@ TEST_F(dmGuiTest, SaveNode)
                     "end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1640,7 +1653,7 @@ TEST_F(dmGuiTest, UseDeletedNode)
     const char* s = "function init(self) self.n = gui.get_node(\"n\")\n end function update(self) print(self.n)\n end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1671,7 +1684,7 @@ TEST_F(dmGuiTest, NodeProperties)
                     "    assert(gui.get_text(self.n) == \"flipper\")\n"
                     "end";
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1712,7 +1725,7 @@ TEST_F(dmGuiTest, SyntaxError)
     const char* s = "function_ foo(self)";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_SYNTAX_ERROR, r);
 }
 
@@ -1721,7 +1734,7 @@ TEST_F(dmGuiTest, MissingUpdate)
     const char* s = "function init(self) end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -1730,7 +1743,7 @@ TEST_F(dmGuiTest, MissingInit)
     const char* s = "function update(self) end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -1746,7 +1759,7 @@ TEST_F(dmGuiTest, Self)
     const char* s = "function init(self) self.x = 1122 end\n function update(self) assert(self.x==1122) end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1772,7 +1785,7 @@ TEST_F(dmGuiTest, Reload)
                      "end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s1, strlen(s1), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s1));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -1786,7 +1799,7 @@ TEST_F(dmGuiTest, Reload)
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 
     // Reload
-    r = dmGui::SetScript(m_Script, s2, strlen(s2), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s2));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     // Should fail since on_reload has not been called
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
@@ -1809,10 +1822,10 @@ TEST_F(dmGuiTest, ScriptNamespace)
     dmGui::HScene scene2 = dmGui::NewScene(m_Context, &params);
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s1, strlen(s1), "file1");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s1));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::SetScript(m_Script, s2, strlen(s2), "file2");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s2));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
@@ -1830,7 +1843,7 @@ TEST_F(dmGuiTest, DeltaTime)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(m_Scene, 1122);
@@ -1845,13 +1858,13 @@ TEST_F(dmGuiTest, Bug352)
     dmGui::AddTexture(m_Scene, "right_hud", 0);
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, (const char*) BUG352_LUA, BUG352_LUA_SIZE, "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::SetScript(m_Script, (const char*) BUG352_LUA, BUG352_LUA_SIZE, "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     char buffer[256 + sizeof(dmMessage::Message)];
@@ -1972,7 +1985,7 @@ TEST_F(dmGuiTest, ScriptAnchoring)
                     "end\n";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -2095,7 +2108,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
                     "end";
 
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::InitScene(m_Scene);
     ASSERT_NE(dmGui::RESULT_OK, r);
@@ -2183,7 +2196,7 @@ TEST_F(dmGuiTest, ScriptPicking)
 
     sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT, EPSILON);
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, buffer, strlen(buffer), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
@@ -2191,7 +2204,8 @@ TEST_F(dmGuiTest, ScriptPicking)
 }
 
 // This render function simply flags a provided boolean when called
-static void RenderEnabledNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+static void RenderEnabledNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+        const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     if (node_count > 0)
     {
@@ -2250,7 +2264,7 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
                     "end\n";
     sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;
-    r = dmGui::SetScript(m_Script, buffer, strlen(buffer), "file");
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     // Run init function
@@ -2263,13 +2277,14 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     ASSERT_FALSE(node->m_Node.m_Enabled);
 }
 
-static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+static void RenderNodesOrder(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+        const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     std::map<dmGui::HNode, uint16_t>* order = (std::map<dmGui::HNode, uint16_t>*)context;
     order->clear();
     for (uint32_t i = 0; i < node_count; ++i)
     {
-        (*order)[nodes[i]] = (uint16_t)i;
+        (*order)[nodes[i].m_Node] = (uint16_t)i;
     }
 }
 
@@ -2421,7 +2436,8 @@ TEST_F(dmGuiTest, MoveNodesScript)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
-static void RenderNodesCount(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+static void RenderNodesCount(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+        const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*)context;
     *count = node_count;
@@ -2632,8 +2648,8 @@ TEST_F(dmGuiTest, Parenting)
     ASSERT_EQ(1u, order[n3]);
 }
 
-void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
-        const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms,  const Vectormath::Aos::Vector4* node_colors,
+        const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
     memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
@@ -2733,8 +2749,8 @@ struct TransformColorData
     Vectormath::Aos::Vector4 m_Color;
 };
 
-void RenderNodesStoreColorAndTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
-        const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+void RenderNodesStoreColorAndTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+        const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     TransformColorData* out_data = (TransformColorData*) context;
     for(uint32_t i = 0; i < node_count; i++)
@@ -2927,6 +2943,33 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 }
 
 #undef ASSERT_COLOR_EQ
+
+TEST_F(dmGuiTest, ScriptClippingFunctions)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, "clipping_node");
+    dmGui::HNode get_node = dmGui::GetNodeById(m_Scene, "clipping_node");
+    ASSERT_EQ(node, get_node);
+
+    const char* s = "function init(self)\n"
+                    "    local n = gui.get_node(\"clipping_node\")\n"
+                    "    local mode = gui.get_clipping_mode(n)\n"
+                    "    assert(mode == gui.CLIPPING_MODE_NONE)\n"
+                    "    gui.set_clipping_mode(n, gui.CLIPPING_MODE_STENCIL)\n"
+                    "    mode = gui.get_clipping_mode(n)\n"
+                    "    assert(mode == gui.CLIPPING_MODE_STENCIL)\n"
+                    "    assert(gui.get_clipping_visible(n) == true)\n"
+                    "    gui.set_clipping_visible(n, false)\n"
+                    "    assert(gui.get_clipping_visible(n) == false)\n"
+                    "    assert(gui.get_clipping_inverted(n) == false)\n"
+                    "    gui.set_clipping_inverted(n, true)\n"
+                    "    assert(gui.get_clipping_inverted(n) == true)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+}
 
 /**
  * Verify layer rendering order.
