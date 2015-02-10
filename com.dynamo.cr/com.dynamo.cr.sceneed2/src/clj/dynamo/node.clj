@@ -201,7 +201,7 @@ This function should not be called directly."
   [transaction graph self label kind inputs-affected]
   (when (inputs-affected :nodes)
     (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
-          nodes-added              (map #(dg/node graph %) (:nodes-added transaction))
+          nodes-added              (filter #((:nodes-added transaction) (:_id %)) existing-nodes)
           out-from-new-connections (in/injection-candidates existing-nodes nodes-added)
           in-to-new-connections    (in/injection-candidates nodes-added existing-nodes)
           candidates               (set/union out-from-new-connections in-to-new-connections)

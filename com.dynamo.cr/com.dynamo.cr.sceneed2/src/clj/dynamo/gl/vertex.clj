@@ -292,7 +292,7 @@ the `do-gl` macro from `dynamo.gl`."
                                  (.get-fn persistent-vertex-buffer))))
   ([capacity layout vx-size set-fn get-fn]
     (let [buffer-starts (buffer-starts capacity layout)
-          storage       (b/new-byte-buffer capacity vx-size)
+          storage       (b/little-endian (b/new-byte-buffer capacity vx-size))
           slices        (b/slice storage buffer-starts)]
       (TransientVertexBuffer. layout
                               capacity
