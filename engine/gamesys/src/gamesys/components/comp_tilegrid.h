@@ -48,6 +48,8 @@ namespace dmGameSystem
         uint16_t                    m_RegionsX;
         uint16_t                    m_RegionsY;
         dmArray<TileGridRegion>     m_Regions;
+        uint16_t                    m_AddedToUpdate : 1;
+        uint16_t                    m_Padding : 15;
     };
 
     struct TileGridWorld
@@ -72,6 +74,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompTileGridCreate(const dmGameObject::ComponentCreateParams& params);
 
     dmGameObject::CreateResult CompTileGridDestroy(const dmGameObject::ComponentDestroyParams& params);
+
+    dmGameObject::CreateResult CompTileGridAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
     dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params);
 

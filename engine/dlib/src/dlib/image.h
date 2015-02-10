@@ -45,10 +45,11 @@ namespace dmImage
      *
      * @param buffer image buffer
      * @param buffer_size image buffer size
+     * @param premult premultiply alpha or not
      * @param image output
      * @return RESULT_OK on success
      */
-    Result Load(const void* buffer, uint32_t buffer_size, Image* image);
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, Image* image);
 
     /**
      * Free loaded image

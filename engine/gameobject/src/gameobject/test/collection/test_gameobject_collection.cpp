@@ -28,6 +28,26 @@ protected:
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+
+        dmResource::Result e;
+        e = dmResource::RegisterType(m_Factory, "a", this, ACreate, ADestroy, 0);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+
+        uint32_t resource_type;
+        dmGameObject::Result result;
+
+        // A has component_user_data
+        e = dmResource::GetTypeFromExtension(m_Factory, "a", &resource_type);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        dmGameObject::ComponentType a_type;
+        a_type.m_Name = "a";
+        a_type.m_ResourceType = resource_type;
+        a_type.m_Context = this;
+        a_type.m_CreateFunction = AComponentCreate;
+        a_type.m_DestroyFunction = AComponentDestroy;
+        result = dmGameObject::RegisterComponentType(m_Register, a_type);
+        dmGameObject::SetUpdateOrderPrio(m_Register, resource_type, 2);
+        ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
     virtual void TearDown()
@@ -40,6 +60,11 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
+    static dmResource::FResourceCreate    ACreate;
+    static dmResource::FResourceDestroy   ADestroy;
+    static dmGameObject::ComponentCreate  AComponentCreate;
+    static dmGameObject::ComponentDestroy AComponentDestroy;
+
 public:
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
@@ -48,6 +73,43 @@ public:
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
 };
+
+static dmResource::Result NullResourceCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+{
+    resource->m_Resource = (void*)1; // asserted for != 0 in dmResource
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result NullResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+{
+    return dmResource::RESULT_OK;
+}
+
+static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::ComponentCreateParams& params)
+{
+    // Hard coded for the specific case "CreateCallback" below
+    dmGameObject::HInstance instance = params.m_Instance;
+    if (dmGameObject::GetIdentifier(instance) != dmHashString64("/go2")) {
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+    if (dmGameObject::GetWorldPosition(instance).getX() != 2.0f) {
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+    if (dmGameObject::GetIdentifier(dmGameObject::GetParent(instance)) != dmHashString64("/go1")) {
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+static dmGameObject::CreateResult TestComponentDestroy(const dmGameObject::ComponentDestroyParams& params)
+{
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+dmResource::FResourceCreate CollectionTest::ACreate              = NullResourceCreate;
+dmResource::FResourceDestroy CollectionTest::ADestroy            = NullResourceDestroy;
+dmGameObject::ComponentCreate CollectionTest::AComponentCreate   = TestComponentCreate;
+dmGameObject::ComponentDestroy CollectionTest::AComponentDestroy = TestComponentDestroy;
 
 TEST_F(CollectionTest, Collection)
 {
@@ -213,6 +275,18 @@ TEST_F(CollectionTest, DefaultValues)
         ASSERT_EQ(0.0f, r.getZ());
         ASSERT_EQ(1.0f, r.getW());
     }
+    dmResource::Release(m_Factory, (void*) coll);
+
+    dmGameObject::PostUpdate(m_Register);
+}
+
+TEST_F(CollectionTest, CreateCallback)
+{
+    dmGameObject::HCollection coll;
+    dmResource::Result r = dmResource::Get(m_Factory, "/test_create.collectionc", (void**) &coll);
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_NE((void*) 0, coll);
+
     dmResource::Release(m_Factory, (void*) coll);
 
     dmGameObject::PostUpdate(m_Register);

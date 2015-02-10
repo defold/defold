@@ -4,7 +4,7 @@ Bundle-Name: Bob
 Bundle-SymbolicName: com.dynamo.cr.bob
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
-Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-RequiredExecutionEnvironment: JavaSE-1.7
 Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
  org.eclipse.core.runtime;bundle-version="3.7.0",
  javax.media.opengl;bundle-version="1.1.1",
@@ -12,11 +12,14 @@ Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
 Bundle-ClassPath: lib/javolution-5.5.1.jar,
  .,
  lib/openmali.jar,
- lib/commons-cli-1.2.jar
+ lib/commons-cli-1.2.jar,
+ lib/jdom-2.0.1.jar,
+ lib/jmustache-1.8.jar
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
 Export-Package: com.dynamo.bob,
  com.dynamo.bob.archive,
+ com.dynamo.bob.bundle,
  com.dynamo.bob.font,
  com.dynamo.bob.fs,
  com.dynamo.bob.pipeline,

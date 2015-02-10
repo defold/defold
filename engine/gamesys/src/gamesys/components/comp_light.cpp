@@ -58,6 +58,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    dmGameObject::CreateResult CompLightAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        Light* light = (Light*) *params.m_UserData;
+        light->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         LightWorld* light_world = (LightWorld*) params.m_World;
@@ -77,6 +83,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < light_world->m_Lights.Size(); ++i)
         {
             Light* light = light_world->m_Lights[i];
+            if (!light->m_AddedToUpdate) {
+                continue;
+            }
             Point3 position = dmGameObject::GetPosition(light->m_Instance);
             Quat rotation = dmGameObject::GetRotation(light->m_Instance);
 

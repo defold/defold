@@ -20,6 +20,7 @@
                 <arg value="--java_out=generated"/>
                 <arg value="-I@{dir}"/>
                 <arg value="-I${env.DYNAMO_HOME}/ext/include"/>
+                <arg value="-I../../engine/script/src" />
                 <arg value="-I../../engine/ddf/src"/>
                 <arg value="@{dir}/@{file}"/>
             </exec>
@@ -43,7 +44,7 @@
             <proto dir="../../engine/engine/proto" file="engine_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="properties_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject_ddf.proto"/>
-            <proto dir="../../engine/gameobject/proto" file="lua_ddf.proto"/>
+            <proto dir="../../engine/gameobject/proto/" file="lua_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="atlas_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="camera_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gamesys_ddf.proto"/>
@@ -63,9 +64,45 @@
             <proto dir="../../engine/render/proto/render" file="material_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="render_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource_ddf.proto"/>
-            <proto dir="../../engine/script/proto" file="script_doc_ddf.proto"/>
+            <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>
+            <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
+
+        <copy todir="libexec" overwrite="true">
+            <chainedmapper>
+                <cutdirsmapper dirs="1"/>
+                <compositemapper>
+                    <!-- Symlinks do not seem to make it through this process, so we map from versioned name
+                         to the final name. Only files that are matched by either glob below are included in
+                         the copy -->
+                    <globmapper from="*/luajit-2.0.3" to="*/luajit"/>
+                    <globmapper from="*/luajit.exe" to="*/luajit.exe"/>
+
+                    <!-- NOTE:
+                         The follow are required to map unqualied paths to qualified
+                         See related comment when copying libtexc_shared -->
+                    <globmapper from="darwin/*" to="x86-darwin/*"/>
+                    <globmapper from="linux/*" to="x86-linux/*"/>
+                    <globmapper from="win32/*" to="x86-win32/*"/>
+                </compositemapper>
+            </chainedmapper>
+            <tarfileset includes="bin/linux/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-linux.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/win32/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-win32.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/darwin/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-darwin.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+        </copy>
 
         <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
              specifically vecmath.jar on OSX -->
@@ -81,7 +118,8 @@
 
         <javac destdir="${classes.dir}"
                extdirs="foo"
-               includeantruntime="false">
+               includeantruntime="false"
+               debug="true">
             <src path="src"/>
             <include name="com/**"/>
             <exclude name="com/dynamo/bob/*Osgi*"/>
@@ -92,14 +130,43 @@
             <compilerarg value="-g"/>
         </javac>
 
-        <copy todir="${classes.dir}">
-            <fileset dir="src" includes="**/*.properties" />
-        </copy>
-        <copy todir="lib">
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="**/*texc_shared*"/>
+        <copy todir="${classes.dir}" overwrite="true">
+            <fileset dir="src" includes="**">
+                <exclude name="**/*.java"/>
             </fileset>
         </copy>
+
+        <!-- NOTE: Given that we don't (yet) use qualifed platforms
+             for "installed" libraries we can't do a general glob-copy here,
+             e.g. **/*texc_shared* -->
+        <copy todir="lib/x86_64-darwin" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="x86_64-darwin/*texc_shared*"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86-linux" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="linux/*texc_shared*"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="win32/*texc_shared*"/>
+            </fileset>
+        </copy>
+
+        <jar destfile="lib/luajit-share.zip">
+             <fileset dir="${env.DYNAMO_HOME}/ext/share">
+                 <include name="luajit/**"/>
+             </fileset>
+         </jar>
+
+        <jar destfile="lib/android-res.zip">
+             <fileset dir="${env.DYNAMO_HOME}/ext/share/java">
+                 <include name="res/**"/>
+             </fileset>
+         </jar>
+
     </target>
 
     <target name="dist" depends="compile">
@@ -124,14 +191,18 @@
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
             </fileset>
+            <fileset dir=".">
+                <include name="libexec/**/*"/>
+            </fileset>
             <zipfileset src="tmp/external-libs.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-
+            <fileset dir=".">
+                <include name="lib/*.zip"/>
+            </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
             </manifest>
-
         </jar>
     </target>
 
@@ -146,7 +217,8 @@
               <include name="vecmath.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
-              <include name="*.jar"/>
+                <include name="*.jar"/>
+                <exclude name="android.jar"/>
             </zipgroupfileset>
          </jar>
 
@@ -155,15 +227,21 @@
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
             </fileset>
+            <fileset dir=".">
+                <include name="libexec/**/*"/>
+            </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-
+            <fileset dir=".">
+                <include name="lib/android.jar"/>
+                <include name="lib/classes.dex"/>
+                <include name="lib/*.zip"/>
+            </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
             </manifest>
-
         </jar>
     </target>
 

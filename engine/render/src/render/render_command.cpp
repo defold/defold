@@ -132,7 +132,7 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_SET_STENCIL_FUNC:
                 {
-                    dmGraphics::SetStencilFunc(context, (dmGraphics::StencilFunc)c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
+                    dmGraphics::SetStencilFunc(context, (dmGraphics::CompareFunc)c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
                     break;
                 }
                 case COMMAND_TYPE_SET_STENCIL_OP:

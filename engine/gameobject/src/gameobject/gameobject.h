@@ -292,6 +292,7 @@ namespace dmGameObject
 
     /**
      * Component create function. Should allocate all necessary resources for the component.
+     * The game object instance is guaranteed to have its id, scene hierarchy and transform data updated when this is called.
      * @param params Input parameters
      * @return CREATE_RESULT_OK on success
      */
@@ -368,6 +369,30 @@ namespace dmGameObject
      * @return CREATE_RESULT_OK on success
      */
     typedef CreateResult (*ComponentFinal)(const ComponentFinalParams& params);
+
+    /**
+     * Parameters to ComponentAddToUpdate callback.
+     */
+    struct ComponentAddToUpdateParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Game object instance
+        HInstance m_Instance;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
+
+    /**
+     * Component add to update function. Only components called with this function should be included in the update passes.
+     * @param params Input parameters
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef CreateResult (*ComponentAddToUpdate)(const ComponentAddToUpdateParams& params);
 
     /**
      * Parameters to ComponentsUpdate callback.
@@ -505,6 +530,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
+        /// Component world
+        void* m_World;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
@@ -525,6 +552,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
+        /// Component world
+        void* m_World;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
@@ -556,6 +585,7 @@ namespace dmGameObject
         ComponentDestroy        m_DestroyFunction;
         ComponentInit           m_InitFunction;
         ComponentFinal          m_FinalFunction;
+        ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
@@ -731,15 +761,17 @@ namespace dmGameObject
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
     /**
-     * Get gameobject instance from lua-argument. This function is typically used from lua-bindings
+     * Get component user data from lua-argument. This function is typically used from lua-bindings
      * and can only be used from protected lua-calls as luaL_error might be invoked
      * @param L lua-state
      * @param index index to argument
+     * @param collection in which to search
      * @param component_ext when specified, the call will fail if the found component does not have the specified extension
      * @param user_data will be overwritten component user-data output if available
      * @param url will be overwritten with a URL to the component when specified
+     * @param world world associated when specified
      */
-    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url);
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
 
     /**
      * Get current game object instance from the lua state, if any.
@@ -799,6 +831,13 @@ namespace dmGameObject
      * @return Number of instances found
      */
     uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count);
+
+    /**
+     * Recursively delete all instances flagged as bones under the given parent instance.
+     * The order of deletion is depth-first, so that the children are deleted before the parents.
+     * @param parent Parent instance of the hierarchy to set
+     */
+    void DeleteBones(HInstance parent);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -1053,6 +1092,12 @@ namespace dmGameObject
      * @param instance Instance for which to cancel all animations
      */
     void CancelAnimations(HCollection collection, HInstance instance);
+
+    /**
+     * Cancel animation callbacks installed during callbacks to Animate
+     * @param userdata1 corresponds to the userdata1 parameter passed to Animate.
+     */
+    void CancelAnimationCallbacks(HCollection collection, void* userdata1);
 
     struct ModuleContext
     {

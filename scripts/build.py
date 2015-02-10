@@ -15,12 +15,12 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3".split()
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 android-support-v4 android-4.2.2 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
@@ -543,7 +543,7 @@ class Configuration(object):
             # Only partial support for 64-bit
             libs="dlib ddf particle".split()
         else:
-            libs="dlib ddf particle glfw  graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
+            libs="dlib ddf particle glfw  graphics lua hid input physics resource extension script render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
@@ -599,9 +599,9 @@ class Configuration(object):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        self.exec_env_command("./scripts/copy_builtins_archive.sh",
-                          cwd = cwd,
-                          shell = True)
+
+        for s in ["copy.sh"]:
+            self.exec_env_command("./scripts/%s" % s, cwd = cwd, shell = True)
 
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                           cwd = cwd,

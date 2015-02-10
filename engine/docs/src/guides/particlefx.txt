@@ -18,7 +18,7 @@ Concepts
 * *ParticleFX* - link:introduction#_components[component] that represents a particle effect.
 * *Emitter* - A positioned shape that emits particles uniformly distributed over the shape.
 * *Modifier* - Affects the velocity of spawned particles (field in Maya). Acceleration, drag, radial and vortex.
-* *Tile source* - Used for adding textures and flip-book animations, see docs here: http://www.defold.com/doc/tiles
+* *Tile source* - Used for adding textures and flip-book animations, see docs here: http://doc.defold.com/doc/2dgraphics
 
 When you have created and opened a ParticleFX file, you can add emitters and modifiers from the context menu in the Outline-view.
 

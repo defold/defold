@@ -44,7 +44,19 @@ namespace dmGameObject
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
-            dmGameObject::HInstance instance = dmGameObject::New(collection, instance_desc.m_Prototype);
+            Prototype* proto = 0x0;
+            dmResource::HFactory factory = collection->m_Factory;
+            dmGameObject::HInstance instance = 0x0;
+            if (instance_desc.m_Prototype != 0x0)
+            {
+                dmResource::Result error = dmResource::Get(factory, instance_desc.m_Prototype, (void**)&proto);
+                if (error == dmResource::RESULT_OK) {
+                    instance = dmGameObject::NewInstance(collection, proto, instance_desc.m_Prototype);
+                    if (instance == 0) {
+                        dmResource::Release(factory, proto);
+                    }
+                }
+            }
             if (instance != 0x0)
             {
                 instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
@@ -65,7 +77,52 @@ namespace dmGameObject
                 {
                     dmLogError("Unable to set identifier %s. Name clash?", instance_desc.m_Id);
                 }
+            }
+            else
+            {
+                dmLogError("Could not instantiate game object from prototype %s.", instance_desc.m_Prototype);
+                res = dmResource::RESULT_FORMAT_ERROR; // TODO: Could be out-of-resources as well..
+                goto bail;
+            }
+        }
 
+        // Setup hierarchy
+        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        {
+            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+
+            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(instance_desc.m_Id));
+            assert(parent);
+
+            for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
+            {
+                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j])));
+                if (child)
+                {
+                    dmGameObject::Result r = dmGameObject::SetParent(child, parent);
+                    if (r != dmGameObject::RESULT_OK)
+                    {
+                        dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
+                    }
+                }
+                else
+                {
+                    dmLogError("Child not found: %s", instance_desc.m_Children[j]);
+                }
+            }
+        }
+
+        dmGameObject::UpdateTransforms(collection);
+
+        // Create components and set properties
+        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        {
+            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(instance_desc.m_Id));
+
+            bool result = dmGameObject::CreateComponents(collection, instance);
+            if (result) {
                 // Set properties
                 uint32_t component_instance_data_index = 0;
                 dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
@@ -112,38 +169,9 @@ namespace dmGameObject
                     if (component.m_Type->m_InstanceHasUserData)
                         ++component_instance_data_index;
                 }
-            }
-            else
-            {
-                dmLogError("Could not instantiate game object from prototype %s.", instance_desc.m_Prototype);
-                res = dmResource::RESULT_FORMAT_ERROR; // TODO: Could be out-of-resources as well..
-                goto bail;
-            }
-        }
-
-        // Setup hierarchy
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
-        {
-            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
-
-            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(instance_desc.m_Id));
-            assert(parent);
-
-            for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
-            {
-                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j])));
-                if (child)
-                {
-                    dmGameObject::Result r = dmGameObject::SetParent(child, parent);
-                    if (r != dmGameObject::RESULT_OK)
-                    {
-                        dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
-                    }
-                }
-                else
-                {
-                    dmLogError("Child not found: %s", instance_desc.m_Children[j]);
-                }
+            } else {
+                dmGameObject::UndoNewInstance(collection, instance);
+                res = dmResource::RESULT_FORMAT_ERROR;
             }
         }
 

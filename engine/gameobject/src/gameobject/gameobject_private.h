@@ -86,7 +86,10 @@ namespace dmGameObject
             m_LevelIndex = INVALID_INSTANCE_INDEX;
             m_SiblingIndex = INVALID_INSTANCE_INDEX;
             m_FirstChildIndex = INVALID_INSTANCE_INDEX;
+            m_NextToDelete = INVALID_INSTANCE_INDEX;
+            m_NextToAdd = INVALID_INSTANCE_INDEX;
             m_ToBeDeleted = 0;
+            m_ToBeAdded = 0;
         }
 
         ~Instance()
@@ -135,7 +138,6 @@ namespace dmGameObject
         uint16_t        m_LevelIndex : 15;
         uint16_t        m_Pad2 : 1;
 
-
 #ifdef __EMSCRIPTEN__
         // TODO: FIX!! Workaround for LLVM/Clang bug when compiling with any optimization level > 0.
         //             Without this hack we get:
@@ -149,9 +151,15 @@ namespace dmGameObject
         float m_llvm_pad;
 #endif
 
+        // Index to next instance to delete or INVALID_INSTANCE_INDEX
+        uint16_t        m_NextToDelete : 16;
+
+        // Index to next instance to add-to-update or INVALID_INSTANCE_INDEX
+        uint16_t        m_NextToAdd;
+
         // Next sibling index. Index to Collection::m_Instances
         uint16_t        m_SiblingIndex : 15;
-        uint16_t        m_Pad3 : 1;
+        uint16_t        m_ToBeAdded : 1;
 
         // First child index. Index to Collection::m_Instances
         uint16_t        m_FirstChildIndex : 15;
@@ -195,7 +203,6 @@ namespace dmGameObject
             m_InstanceIndices.SetCapacity(max_instances);
             m_WorldTransforms.SetCapacity(max_instances);
             m_WorldTransforms.SetSize(max_instances);
-            m_InstancesToDelete.SetCapacity(max_instances);
             m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
             // TODO: Un-hard-code
             m_InputFocusStack.SetCapacity(16);
@@ -206,6 +213,12 @@ namespace dmGameObject
             m_InUpdate = 0;
             m_ToBeDeleted = 0;
             m_ScaleAlongZ = 0;
+
+            m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
+            m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
+
+            m_InstancesToAddHead = INVALID_INSTANCE_INDEX;
+            m_InstancesToAddTail = INVALID_INSTANCE_INDEX;
 
             memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
             memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::Transform) * max_instances);
@@ -245,11 +258,6 @@ namespace dmGameObject
         // Array of world transforms. Calculated using m_LevelIndices above
         dmArray<dmTransform::Transform> m_WorldTransforms;
 
-        // NOTE: Be *very* careful about m_InstancesToDelete
-        // m_InstancesToDelete is an array of instances flagged for delete during Update(.)
-        // Related code is Delete(.) and Update(.)
-        dmArray<uint16_t>        m_InstancesToDelete;
-
         // Identifier to Instance mapping
         dmHashTable64<Instance*> m_IDToInstance;
 
@@ -269,6 +277,16 @@ namespace dmGameObject
         // Counter for generating instance ids, protected by m_Mutex
         uint32_t                 m_GenInstanceCounter;
 
+        // Head of linked list of instances scheduled for deferred deletion
+        uint16_t                 m_InstancesToDeleteHead;
+        // Tail of the same list, for O(1) appending
+        uint16_t                 m_InstancesToDeleteTail;
+
+        // Head of linked list of instances scheduled to be added to update
+        uint16_t                 m_InstancesToAddHead;
+        // Tail of the same list, for O(1) appending
+        uint16_t                 m_InstancesToAddTail;
+
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;
         // Used for deferred deletion
@@ -278,6 +296,11 @@ namespace dmGameObject
     };
 
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
+
+    HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name);
+    void UndoNewInstance(HCollection collection, HInstance instance);
+    bool CreateComponents(HCollection collection, HInstance instance);
+    void UpdateTransforms(HCollection collection);
 }
 
 #endif // GAMEOBJECT_COMMON_H

@@ -397,6 +397,10 @@
             (.addAllVertexCount        (:counts vertex-summary))
             (.setVertices              (byte-pack (:vbuf vertex-summary)))
 
+            (.addAllAtlasVertexStart   (:starts vertex-summary))
+            (.addAllAtlasVertexCount   (:counts vertex-summary))
+            (.setAtlasVertices         (byte-pack (:vbuf vertex-summary)))
+
             (.addAllOutlineVertexStart (:starts outline-vertex-summary))
             (.addAllOutlineVertexCount (:counts outline-vertex-summary))
             (.setOutlineVertices       (byte-pack (:vbuf outline-vertex-summary)))

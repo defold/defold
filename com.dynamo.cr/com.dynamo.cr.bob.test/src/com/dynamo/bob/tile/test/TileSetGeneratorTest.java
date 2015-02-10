@@ -39,7 +39,7 @@ public class TileSetGeneratorTest {
         tileSet.addAnimations(newAnim("a1", 0, 0));
         tileSet.addAnimations(newAnim("a2", 1, 1));
 
-        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
 
         int vertexSize = TextureSetProto.Constants.VERTEX_SIZE.getNumber();
@@ -92,7 +92,7 @@ public class TileSetGeneratorTest {
 
         assertThat(outlineVertices.size(), is(0));
         assertThat(outlineVerticesCount.size(), is(0));
-        assertThat(textureSet.getTexCoords().size(), is(4 * 4 * quadCount));
+        assertThat(textureSet.getTexCoords().size(), is(8 * 4 * quadCount));
     }
 
     @Test
@@ -103,23 +103,23 @@ public class TileSetGeneratorTest {
         int tileCount = 9;
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
 
-        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage texture = result.image;
 
-        assertEquals(512, texture.getWidth());
-        assertEquals(512, texture.getHeight());
+        assertEquals(1024, texture.getWidth());
+        assertEquals(256, texture.getHeight());
 
         ByteString vertices = textureSet.getVertices();
         ByteBuffer v = ByteBuffer.wrap(vertices.toByteArray());
         // Vertex buffers is in little endian (java big)
         v.order(ByteOrder.LITTLE_ENDIAN);
-        float[] us = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
-        float[] vs = { 0.0f, 0.25f, 0.5f, 0.75f };
+        float[] us = { 0.0f, 0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.725f, 1f};
+        float[] vs = { 0.0f, 0.5f, 1f };
         // Verify vertices
         for (int i = 0; i < tileCount; ++i) {
-            int x = i % 4;
-            int y = i / 4;
+            int x = i / 2;
+            int y = i % 2;
             assertQuad(v, tileWidth, tileHeight, us[x], us[x + 1], vs[y], vs[y + 1]);
         }
 
@@ -127,11 +127,11 @@ public class TileSetGeneratorTest {
         // Vertex buffers is in little endian (java big)
         uv.order(ByteOrder.LITTLE_ENDIAN);
         // Verify tex coords
-        assertThat(textureSet.getTexCoords().size(), is(4 * 4 * tileCount));
+        assertThat(textureSet.getTexCoords().size(), is(8 * 4 * tileCount));
         for (int i = 0; i < tileCount; ++i) {
-            int x = i % 4;
-            int y = i / 4;
-            assertQuadTexCoords(uv, us[x], us[x + 1], vs[y], vs[y + 1]);
+            int x = i / 2;
+            int y = i % 2;
+            assertQuadTexCoords(uv, us[x], us[x + 1], vs[y], vs[y + 1], false);
         }
     }
 
@@ -142,7 +142,7 @@ public class TileSetGeneratorTest {
         int tileHeight = 16;
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
 
-        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage texture = result.image;
 
@@ -152,7 +152,7 @@ public class TileSetGeneratorTest {
         ByteBuffer uv = ByteBuffer.wrap(textureSet.getTexCoords().toByteArray());
         // Vertex buffers is in little endian (java big)
         uv.order(ByteOrder.LITTLE_ENDIAN);
-        assertQuadTexCoords(uv, 0.0f, 1.0f, 0.0f, 1.0f);
+        assertQuadTexCoords(uv, 0.0f, 1.0f, 0.0f, 1.0f, false);
     }
 
     @Test
@@ -164,7 +164,7 @@ public class TileSetGeneratorTest {
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
         tileSet.setExtrudeBorders(1);
 
-        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage texture = result.image;
 
@@ -174,7 +174,7 @@ public class TileSetGeneratorTest {
         ByteBuffer uv = ByteBuffer.wrap(textureSet.getTexCoords().toByteArray());
         // Vertex buffers is in little endian (java big)
         uv.order(ByteOrder.LITTLE_ENDIAN);
-        assertQuadTexCoords(uv, 1.0f / 4, 2.0f / 4, 1.0f / 32, 0.5f + 1.0f / 32);
+        assertQuadTexCoords(uv, 1.0f / 4, 2.0f / 4, 1.0f / 32, 0.5f + 1.0f / 32, false);
     }
 
     @Test
@@ -208,20 +208,42 @@ public class TileSetGeneratorTest {
             float maxU, float minV, float maxV) {
         float halfWidth = width * 0.5f;
         float halfHeight = height * 0.5f;
-        assertVertex(b, -halfWidth, -halfHeight, 0, minU, maxV);
-        assertVertex(b, halfWidth, -halfHeight, 0, maxU, maxV);
-        assertVertex(b, halfWidth, halfHeight, 0, maxU, minV);
 
         assertVertex(b, -halfWidth, -halfHeight, 0, minU, maxV);
-        assertVertex(b, halfWidth, halfHeight, 0, maxU, minV);
         assertVertex(b, -halfWidth, halfHeight, 0, minU, minV);
+        assertVertex(b, halfWidth, halfHeight, 0, maxU, minV);
+
+        assertVertex(b, halfWidth, halfHeight, 0, maxU, minV);
+        assertVertex(b, halfWidth, -halfHeight, 0, maxU, maxV);
+        assertVertex(b, -halfWidth, -halfHeight, 0, minU, maxV);
     }
 
-    private static void assertQuadTexCoords(ByteBuffer b, float minU, float maxU, float minV, float maxV) {
-        assertThat(b.getFloat(), is(minU));
-        assertThat(b.getFloat(), is(minV));
-        assertThat(b.getFloat(), is(maxU));
-        assertThat(b.getFloat(), is(maxV));
+    private static void assertQuadTexCoords(ByteBuffer b, float minU, float maxU, float minV, float maxV, boolean rotated) {
+        if (rotated) {
+            assertThat(b.getFloat(), is(minU));
+            assertThat(b.getFloat(), is(minV));
+
+            assertThat(b.getFloat(), is(maxU));
+            assertThat(b.getFloat(), is(minV));
+
+            assertThat(b.getFloat(), is(maxU));
+            assertThat(b.getFloat(), is(maxV));
+
+            assertThat(b.getFloat(), is(minU));
+            assertThat(b.getFloat(), is(maxV));
+        } else {
+            assertThat(b.getFloat(), is(minU));
+            assertThat(b.getFloat(), is(maxV));
+
+            assertThat(b.getFloat(), is(minU));
+            assertThat(b.getFloat(), is(minV));
+
+            assertThat(b.getFloat(), is(maxU));
+            assertThat(b.getFloat(), is(minV));
+
+            assertThat(b.getFloat(), is(maxU));
+            assertThat(b.getFloat(), is(maxV));
+        }
     }
 
     private static void assertVertex(ByteBuffer b, float x, float y, float z, float u, float v) {

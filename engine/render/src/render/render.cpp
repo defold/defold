@@ -19,6 +19,22 @@ namespace dmRender
 
     const char* RENDER_SOCKET_NAME = "@render";
 
+    StencilTestParams::StencilTestParams() {
+        Init();
+    }
+
+    void StencilTestParams::Init() {
+        m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
+        m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+        m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
+        m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
+        m_Ref = 0;
+        m_RefMask = 0xff;
+        m_BufferMask = 0xff;
+        m_ColorBufferMask = 0xf;
+        m_Padding = 0;
+    }
+
     RenderObject::RenderObject()
     {
         Init();
@@ -227,6 +243,16 @@ namespace dmRender
         return a->m_RenderKey.m_Key < b->m_RenderKey.m_Key;
     }
 
+    static void ApplyStencilTest(HRenderContext render_context, const RenderObject* ro)
+    {
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        const StencilTestParams& stp = ro->m_StencilTestParams;
+        dmGraphics::SetColorMask(graphics_context, stp.m_ColorBufferMask & (1<<3), stp.m_ColorBufferMask & (1<<2), stp.m_ColorBufferMask & (1<<1), stp.m_ColorBufferMask & (1<<0));
+        dmGraphics::SetStencilMask(graphics_context, stp.m_BufferMask);
+        dmGraphics::SetStencilFunc(graphics_context, stp.m_Func, stp.m_Ref, stp.m_RefMask);
+        dmGraphics::SetStencilOp(graphics_context, stp.m_OpSFail, stp.m_OpDPFail, stp.m_OpDPPass);
+    }
+
     static void ApplyRenderObjectConstants(HRenderContext render_context, const RenderObject* ro)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
@@ -283,6 +309,9 @@ namespace dmRender
 
                 if (ro->m_SetBlendFactors)
                     dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
+
+                if (ro->m_SetStencilTest)
+                    ApplyStencilTest(render_context, ro);
 
                 for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
                 {

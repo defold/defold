@@ -298,8 +298,8 @@ def compile_lua(task):
         script = in_f.read()
         modules, props = scan_lua(script)
         lua_module = lua_ddf_pb2.LuaModule()
-        lua_module.script = script
-        lua_module.type = lua_ddf_pb2.LuaModule.TYPE_TEXT
+        lua_module.source.script = script
+        lua_module.source.filename = task.inputs[0].srcpath(task.env)
         for m in modules:
             module_file = "/%s.lua" % m.replace(".", "/")
             lua_module.modules.append(m)
@@ -342,10 +342,12 @@ def build(bld):
         test_task_gen.install_path = None
 
     new_test('anim')
-    new_test('collection', exts = ['.cpp', '.go_pb', '.script', '.collection'])
+    new_test('bones', exts = ['.cpp', '.a_pb', '.go_pb', '.script'])
+    new_test('collection', exts = ['.cpp', '.go_pb', '.script', '.collection', '.a_pb'])
+    new_test('spawn_delete', exts = ['.cpp', '.proto', '.go_pb', '.script', '.a_pb'])
     new_test('component', exts = ['.cpp', '.proto', '.go_pb', '.script', '.a_pb', '.b_pb', '.c_pb'])
     new_test('delete')
-    new_test('factory')
+    new_test('factory', exts = ['.cpp', '.a_pb', '.go_pb', '.script'])
     new_test('hierarchy')
     new_test('id')
     new_test('input', exts = ['.go_pb', '.script', '.cpp', '.proto', '.it_pb'])

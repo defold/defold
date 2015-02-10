@@ -16,6 +16,7 @@ namespace dmGameObject
         script_component.m_DestroyFunction = &CompScriptDestroy;
         script_component.m_InitFunction = &CompScriptInit;
         script_component.m_FinalFunction = &CompScriptFinal;
+        script_component.m_AddToUpdateFunction = &CompScriptAddToUpdate;
         script_component.m_UpdateFunction = &CompScriptUpdate;
         script_component.m_OnMessageFunction = &CompScriptOnMessage;
         script_component.m_OnInputFunction = &CompScriptOnInput;
@@ -34,6 +35,7 @@ namespace dmGameObject
         anim_component.m_Context = 0x0;
         anim_component.m_NewWorldFunction = &CompAnimNewWorld;
         anim_component.m_DeleteWorldFunction = &CompAnimDeleteWorld;
+        anim_component.m_AddToUpdateFunction = &CompAnimAddToUpdate;
         anim_component.m_UpdateFunction = &CompAnimUpdate;
         anim_component.m_UpdateOrderPrio = 250;
         return RegisterComponentType(regist, anim_component);
