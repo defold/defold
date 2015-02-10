@@ -130,7 +130,7 @@
   GlEnable
   (enable [this gl]
     (when-let [unit (texture-loaded? gl this)]
-      (.glActiveTexture gl (texture-unit-id unit))
+      (gl/gl-active-texture ^GL gl (texture-unit-id unit))
       (when-let [texture ^Texture (context-local-data gl this)]
         (.bind texture gl)
         (.enable texture gl))))
@@ -139,7 +139,7 @@
     (when (texture-loaded? gl this)
       (when-let [texture ^Texture (context-local-data gl this)]
         (.disable texture gl))
-      (.glActiveTexture gl GL/GL_TEXTURE0)))
+      (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0)))
 
   IDisposable
   (dispose [this]
@@ -181,16 +181,16 @@
   GlEnable
   (enable [this gl]
     (when-let [unit (texture-loaded? gl this)]
-      (.glActiveTexture gl (texture-unit-id unit))
+      (gl/gl-active-texture ^GL gl (texture-unit-id unit))
       (when-let [texture ^Texture (context-local-data gl this)]
         (.bind texture gl)
         (.enable texture gl))))
 
   (disable [this gl]
     (when (texture-loaded? gl this)
-      (.glActiveTexture gl GL/GL_TEXTURE0)
       (when-let [texture ^Texture (context-local-data gl this)]
-        (.disable texture gl))))
+        (.disable texture gl))
+      (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0)))
 
   IDisposable
   (dispose [this]
