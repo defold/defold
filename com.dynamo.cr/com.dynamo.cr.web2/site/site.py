@@ -23,7 +23,7 @@ for d, title in [('collection_proxy', 'Collection Proxy Component'),
     ref(docs, title, 'ref/%s.html' % d[0],
         active_page = 'documentation')
 
-blog('doc/blog.html', 'blog')
+# blog('doc/blog.html', 'blog')
 
 render('unsubscribe.html')
 
