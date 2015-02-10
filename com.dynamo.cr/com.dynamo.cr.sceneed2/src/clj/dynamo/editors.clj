@@ -68,7 +68,7 @@ Outputs
   (property text-renderer TextRenderer)
   (property first-resize s/Bool (default true) (visible false))
 
-  (output render-data t/RenderData :cached iuse/produce-render-data)
+  (output render-data t/RenderData iuse/produce-render-data)
   (output aabb AABB (fnk [aabb] aabb))
   (output glcontext GLContext (fnk [context] context))
 
