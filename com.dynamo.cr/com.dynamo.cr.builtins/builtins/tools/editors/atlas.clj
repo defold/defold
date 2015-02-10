@@ -41,6 +41,8 @@
             [org.eclipse.swt SWT]
             [org.eclipse.ui IEditorSite]))
 
+(set! *warn-on-reflection* true)
+
 (def integers (iterate (comp int inc) (int 0)))
 
 (def min-drag-move
@@ -97,13 +99,14 @@
     (assoc texture-packing :animations animations)))
 
 (defn build-textureset-animation-frame
-  [texture-packing image]
+  [^TexturePacking texture-packing image]
   (let [coords (filter #(= (:path image) (:path %)) (:coords texture-packing))
         ; TODO: may fail due to #87253110 "Atlas texture should not contain multiple instances of the same image"
         ;_ (assert (= 1 (count coords)))
-        coord (first coords)
-        x-scale (/ 1.0 (.getWidth  (.packed-image texture-packing)))
-        y-scale (/ 1.0 (.getHeight (.packed-image texture-packing)))
+        ^Rect coord (first coords)
+        packed-image ^BufferedImage (.packed-image texture-packing)
+        x-scale (/ 1.0 (.getWidth  packed-image))
+        y-scale (/ 1.0 (.getHeight packed-image))
         u0 (* x-scale (+ (.x coord)))
         v0 (* y-scale (+ (.y coord)))
         u1 (* x-scale (+ (.x coord) (.width  coord)))
@@ -166,12 +169,12 @@
 
 (defnk save-atlas-file
   [this filename]
-  (let [text (n/get-node-value this :text-format)]
+  (let [^String text (n/get-node-value this :text-format)]
     (file/write-file filename (.getBytes text))
     :ok))
 
 (defn render-overlay
-  [ctx ^GL2 gl ^TextRenderer text-renderer texture-packing]
+  [ctx ^GL2 gl ^TextRenderer text-renderer ^TexturePacking texture-packing]
   (let [image ^BufferedImage (.packed-image texture-packing)]
     (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
@@ -284,11 +287,11 @@
                       (render-selection-box ctx gl glu selection-region))))}]})
 
 (defnk produce-renderable-vertex-buffer
-  [[:texture-packing aabb coords]]
+  [[:texture-packing ^Rect aabb coords]]
   (let [vbuf       (->texture-vtx (* 6 (count coords)))
         x-scale    (/ 1.0 (.width aabb))
         y-scale    (/ 1.0 (.height aabb))]
-    (doseq [coord coords]
+    (doseq [^Rect coord coords]
       (let [w  (.width coord)
             h  (.height coord)
             x0 (.x coord)
@@ -310,11 +313,11 @@
     (persistent! vbuf)))
 
 (defnk produce-outline-vertex-buffer
-  [[:texture-packing aabb coords]]
+  [[:texture-packing ^Rect aabb coords]]
   (let [vbuf       (->texture-vtx (* 6 (count coords)))
         x-scale    (/ 1.0 (.width aabb))
         y-scale    (/ 1.0 (.height aabb))]
-    (doseq [coord coords]
+    (doseq [^Rect coord coords]
       (let [w  (.width coord)
             h  (.height coord)
             x0 (.x coord)
@@ -377,7 +380,7 @@
       (conj! vbuf vtx))
     {:starts (map int starts) :counts (map int counts) :vbuf (persistent! vbuf)}))
 
-(defn texturesetc-protocol-buffer
+(defn ^TextureSetProto$TextureSet texturesetc-protocol-buffer
   [texture-name textureset]
   #_(s/validate TextureSet textureset)
   (let [animations             (remove #(empty? (:frames %)) (:animations textureset))
@@ -410,8 +413,8 @@
     (.toByteArray (texturesetc-protocol-buffer (:texture-name this) textureset)))
   :ok)
 
-(defn- texturec-protocol-buffer
-  [engine-format]
+(defn- ^Graphics$TextureImage texturec-protocol-buffer
+  [^EngineFormatTexture engine-format]
   (s/validate EngineFormatTexture engine-format)
   (.build (doto (Graphics$TextureImage/newBuilder)
             (.addAlternatives
@@ -536,8 +539,8 @@
   [self event]
   (let [{:keys [start-x start-y]} self
         {:keys [x y]} event]
-    (or (< min-drag-move (Math/abs (- x start-x)))
-        (< min-drag-move (Math/abs (- y start-y))))))
+    (or (< min-drag-move (Math/abs (long (- x start-x))))
+        (< min-drag-move (Math/abs (long (- y start-y)))))))
 
 (defn pending-selection
   "Returns a set of node IDs for the selection being created by the
