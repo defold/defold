@@ -494,15 +494,13 @@
                     (rect-in-viewport viewport))]
     (ius/selection-renderer glcontext renderables view-camera pick-rect)))
 
-(defn- not-camera-movement?
-  "True if the event does not have keyboard modifier-keys for a
-  camera movement action (CTRL or ALT)."
-  [event]
-  (zero? (bit-and (:state-mask event) (bit-or SWT/CTRL SWT/ALT))))
-
 (defn- selection-event?
+  "True if the event is the beginning of a mouse-selection. That means:
+  1. No other mouse button is already held down;
+  2. Neither CTRL nor ALT is held down (camera movement);
+  3. The mouse button clicked was button 1."
   [event]
-  (and (not-camera-movement? event)
+  (and (zero? (bit-and (:state-mask event) (bit-or SWT/BUTTON_MASK SWT/CTRL SWT/ALT)))
        (= 1 (:button event))))
 
 (defn- deselect-all
