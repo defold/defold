@@ -106,6 +106,14 @@
       :value-not-cached)
     :output-not-cacheable))
 
+(defn who-has-cache-key
+  [k]
+  (first
+    (for [[n m] (:cache-keys (the-world-state))
+          [l ck] m
+          :when (= ck k)]
+     [n l])))
+
 (defn decache
   [id label]
   (if-let [cache-key (some-> (the-world-state) :cache-keys (get-in [id label]))]
