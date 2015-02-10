@@ -78,7 +78,7 @@
                    [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19]))
   (is (laid-out-as two-d-position-short (range 20)
                    [0 0 1 0 2 0 3 0 4 0 5 0 6 0 7 0 8 0 9 0 10 0 11 0 12 0 13 0 14 0 15 0 16 0 17 0 18 0 19 0]))
-  (is (laid-out-as short-byte-byte (interleave (range 0x10 0x18) (range 0x20 0x28) (range 0x100 0x108) (range 0x200 0x208) (range 0x80 0x88))
+  (is (laid-out-as short-byte-byte (interleave (range 0x10 0x18) (range 0x20 0x28) (range 0x100 0x108) (range 0x200 0x208) (map unchecked-byte (range 0x80 0x88)))
                    [;byte  byte   short       short       byte
                     0x10   0x20   0x00 0x01   0x00 0x02   0x80
                     0x11   0x21   0x01 0x01   0x01 0x02   0x81
@@ -89,13 +89,13 @@
                     0x16   0x26   0x06 0x01   0x06 0x02   0x86
                     0x17   0x27   0x07 0x01   0x07 0x02   0x87]))
 
-  (is (laid-out-as short-short (interleave (range 0x188 0x190) (range 0x9000 0x9002))
+  (is (laid-out-as short-short (interleave (range 0x188 0x190) (map unchecked-short (range 0x9000 0x9002)))
                    [;short        ;short
                     0x88 0x01     0x00 0x90   ;; u0 v0
                     0x89 0x01     0x01 0x90   ;; u1 v1
                     ]))
 
-  (is (laid-out-as short-short-chunky (interleave (range 0x188 0x190) (range 0x9000 0x9002))
+  (is (laid-out-as short-short-chunky (interleave (range 0x188 0x190) (map unchecked-short (range 0x9000 0x9002)))
                    [0x88 0x01 0x89 0x01   ;; u0 u1
                     0x00 0x90 0x01 0x90   ;; v0 v1
                     ])))
