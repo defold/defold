@@ -41,7 +41,7 @@
         height    (.getHeight img)
         data-size (* 4 width height)
         raster    (image-pixels img)
-        buffer    (new-byte-buffer data-size)]
+        buffer    (little-endian (new-byte-buffer data-size))]
     (doseq [b raster]
       (.put buffer (byte (bit-and b 0xff))))
     (.flip buffer)
@@ -99,7 +99,7 @@
         (gen-mipmaps texture)                              "could not generate mip-maps"
         (transcode texture pixel-format SRGB)              "could not transcode")
       (let [buffer-size  (* width-pot height-pot color-count 2)
-            buffer       (new-byte-buffer buffer-size)
+            buffer       (little-endian (new-byte-buffer buffer-size))
             data-size    (TexcLibrary/TEXC_GetData texture buffer buffer-size)
             mipmap-sizes (mipmap-sizes width-pot height-pot color-count)]
         (map->EngineFormatTexture

@@ -447,6 +447,8 @@
   (output   texturec    s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
+(defn make-pick-buffer [] (as-int-buffer (native-order (new-byte-buffer 4 4096))))
+
 (defnk selection-region
   "Returns the Region currently being selected by a mouse drag."
   [start-x start-y current-x current-y]
@@ -484,7 +486,7 @@
     :height (max min-selection-size (:height rect))))
 
 (defn find-nodes-in-selection [ui-state]
-  (let [{:keys [glcontext renderable-inputs view-camera]} ui-state
+  (let [{:keys [glcontext renderable-inputs view-camera pick-buffer]} ui-state
         renderables (apply merge-with concat renderable-inputs)
         {:keys [viewport]} view-camera
         pick-rect (-> ui-state
@@ -492,7 +494,7 @@
                     pick-rect
                     min-selection-rect
                     (rect-in-viewport viewport))]
-    (ius/selection-renderer glcontext renderables view-camera pick-rect)))
+    (ius/selection-renderer glcontext pick-buffer renderables view-camera pick-rect)))
 
 (defn- selection-event?
   "True if the event is the beginning of a mouse-selection. That means:
@@ -544,9 +546,11 @@
   "Returns a set of node IDs for the selection being created by the
   current click or click-and-drag operation."
   [ui-state]
+  (prn :pending-selection (select-keys ui-state [:start-x  :start-y :current-x :current-y :dragging :previous-selection :modifiers]) (-> ui-state :view-camera :viewport))
   (let [{:keys [start-x start-y dragging previous-selection modifiers]} ui-state
         clicked (set (cond->> (find-nodes-in-selection ui-state)
                        (not dragging) (take 1)))]
+    (prn :pending-selection :clicked clicked)
     (case (selection-mode modifiers)
       :replace clicked
       :toggle (toggle previous-selection clicked))))
@@ -590,8 +594,9 @@
     (update-in ui-state [:modifiers] bit-and-not (:key-code event))))
 
 (n/defnode SelectionController
-  (property ui-state s/Any (default (constantly (atom {}))))
-  (property pending-selection s/Any (default (constantly (atom nil))))
+  (property pick-buffer bytes)
+  (property ui-state s/Any)
+  (property pending-selection s/Any)
 
   (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
@@ -610,6 +615,7 @@
             previous-selection (disj (selected-node-ids selection-node)
                                  (:_id default-selection))
             new-ui-state (swap! (:ui-state self) assoc
+                           :pick-buffer (.clear (:pick-buffer self))
                            :selecting true
                            :selection-node selection-node
                            :modifiers (:state-mask event)
@@ -623,7 +629,9 @@
                            :start-y (:y event)
                            :current-x (:x event)
                            :current-y (:y event))]
-        (reset! (:pending-selection self) (pending-selection new-ui-state))
+        (let [sel (pending-selection new-ui-state)]
+          (prn :mouse-down :pending-selection sel)
+          (reset! (:pending-selection self) sel))
         (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
 
   (on :mouse-move
@@ -683,7 +691,7 @@
               grid         (ds/add (n/construct grid/Grid))
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
               controller   (ds/add (n/construct BroadcastController))
-              selector     (ds/add (n/construct SelectionController))]
+              selector     (ds/add (n/construct SelectionController :pick-buffer (make-pick-buffer) :pending-selection (atom nil) :ui-state (atom {})))]
           (ds/update-property camera :movements-enabled disj :tumble)
           (ds/connect atlas-node   :texture-packing atlas-render :texture-packing)
           (ds/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)

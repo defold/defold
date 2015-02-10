@@ -1,7 +1,7 @@
 (ns dynamo.buffers
   (:require [schema.core :as s]
             [schema.macros :as sm])
-  (:import [java.nio ByteBuffer ByteOrder]
+  (:import [java.nio Buffer ByteBuffer ByteOrder IntBuffer]
            [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
@@ -26,9 +26,16 @@
 (defprotocol ByteStringCoding
   (byte-pack [source] "Return a Protocol Buffer compatible byte string from the given source."))
 
-(defn new-buffer [s] (.order (ByteBuffer/allocateDirect s) ByteOrder/LITTLE_ENDIAN))
+(defn- new-buffer [s] (ByteBuffer/allocateDirect s))
 
 (defn new-byte-buffer ^ByteBuffer [& dims] (new-buffer (reduce * 1 dims)))
+
+(defn byte-order ^ByteBuffer [order ^ByteBuffer b] (.order b order))
+(def little-endian (partial byte-order ByteOrder/LITTLE_ENDIAN))
+(def big-endian    (partial byte-order ByteOrder/BIG_ENDIAN))
+(def native-order  (partial byte-order (ByteOrder/nativeOrder)))
+
+(defn as-int-buffer ^IntBuffer [^ByteBuffer b] (.asIntBuffer b))
 
 (defn copy-buffer
   [^ByteBuffer b]
