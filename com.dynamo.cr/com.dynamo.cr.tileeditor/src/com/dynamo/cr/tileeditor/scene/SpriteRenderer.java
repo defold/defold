@@ -1,6 +1,7 @@
 package com.dynamo.cr.tileeditor.scene;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
@@ -88,13 +89,6 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
         RuntimeTextureSet runtimeTextureSet = textureSet.getRuntimeTextureSet();
         TextureSetAnimation animation = runtimeTextureSet.getAnimation(animationId);
 
-        VertexBufferObject vertexBuffer;
-        if (renderData.getPass() == Pass.OUTLINE) {
-            vertexBuffer = runtimeTextureSet.getOutlineVertexBuffer();
-        } else {
-            vertexBuffer = runtimeTextureSet.getVertexBuffer();
-        }
-
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
             texture.bind(gl);
@@ -118,30 +112,79 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
             }
         }
 
-        Shader shader = null;
+        // We need a special rendering path for SELECTION passes:
+        // This is due to a bug with some graphics cards/drivers behaves unpredictable
+        // when using glRenderMode( GL_SELECT ) and rendering subsets of vertex buffers
+        // using the _first_ and _count_ parameters to glDrawArrays.
+        // Instead we build and render a temporary vertex buffer.
+        if (renderData.getPass() == Pass.SELECTION)
+        {
+            gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
 
-        if (transparent) {
-            shader = spriteShader;
-        } else {
-            shader = lineShader;
-        }
+            int vertexEntrySize = (3*4 + 2*2); // vertcoords*sizeof(float) + uvcoords*sizeof(short)
+            int vertStart, vertCount;
+            vertStart = runtimeTextureSet.getVertexStart(animation, 0);
+            vertCount = runtimeTextureSet.getVertexCount(animation, 0);
 
-        shader.enable(gl);
-        vertexBuffer.enable(gl);
-        shader.setUniforms(gl, "color", renderContext.selectColor(node, COLOR));
-        this.vertexFormat.enable(gl, shader);
-        if ( renderData.getPass() == Pass.OUTLINE) {
-            gl.glDrawArrays(GL.GL_LINE_LOOP, runtimeTextureSet.getOutlineVertexStart(animation, 0), runtimeTextureSet.getOutlineVertexCount(animation, 0));
-        } else {
+            // Get raw vertex data from the texture set
+            // We only need to allocate space for the vertices
+            // (i.e. skipping the uv since we don't need them in select mode)
+            ByteBuffer inBuffer = runtimeTextureSet.getTextureSet().getVertices().asReadOnlyByteBuffer();
+            inBuffer.rewind();
+            inBuffer.position(vertStart*vertexEntrySize);
+            inBuffer.limit( (vertStart + vertCount) * vertexEntrySize );
+
+            ByteBuffer outBuffer = ByteBuffer.allocateDirect( vertCount * vertexEntrySize);
+            outBuffer.put( inBuffer );
+            outBuffer.flip();
+
+            // Upload vert data and render the quad using old forward rendering,
+            gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
+            gl.glVertexPointer( 3, GL2.GL_FLOAT, 3*4+2*2, outBuffer );
+
             float scaleX = animation.getFlipHorizontal() != 0 ? -1 : 1;
             float scaleY = animation.getFlipVertical() != 0 ? -1 : 1;
             gl.glScalef(scaleX, scaleY, 1);
-            gl.glDrawArrays(GL.GL_TRIANGLES, runtimeTextureSet.getVertexStart(animation, 0), runtimeTextureSet.getVertexCount(animation, 0));
+            gl.glDrawArrays(GL.GL_TRIANGLES, 0, vertCount );
             gl.glScalef(scaleX, scaleY, 1);
+
+            gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
+
+        } else {
+
+            VertexBufferObject vertexBuffer;
+            if (renderData.getPass() == Pass.OUTLINE) {
+                vertexBuffer = runtimeTextureSet.getOutlineVertexBuffer();
+            } else {
+                vertexBuffer = runtimeTextureSet.getVertexBuffer();
+            }
+
+            Shader shader = null;
+
+            if (transparent) {
+                shader = spriteShader;
+            } else {
+                shader = lineShader;
+            }
+
+            shader.enable(gl);
+            vertexBuffer.enable(gl);
+            shader.setUniforms(gl, "color", renderContext.selectColor(node, COLOR));
+            this.vertexFormat.enable(gl, shader);
+            if ( renderData.getPass() == Pass.OUTLINE) {
+                gl.glDrawArrays(GL.GL_LINE_LOOP, runtimeTextureSet.getOutlineVertexStart(animation, 0), runtimeTextureSet.getOutlineVertexCount(animation, 0));
+            } else {
+                float scaleX = animation.getFlipHorizontal() != 0 ? -1 : 1;
+                float scaleY = animation.getFlipVertical() != 0 ? -1 : 1;
+                gl.glScalef(scaleX, scaleY, 1);
+                gl.glDrawArrays(GL.GL_TRIANGLES, runtimeTextureSet.getVertexStart(animation, 0), runtimeTextureSet.getVertexCount(animation, 0));
+                gl.glScalef(scaleX, scaleY, 1);
+            }
+            this.vertexFormat.disable(gl, shader);
+            vertexBuffer.disable(gl);
+            shader.disable(gl);
+
         }
-        this.vertexFormat.disable(gl, shader);
-        vertexBuffer.disable(gl);
-        shader.disable(gl);
 
         if (transparent) {
             texture.disable(gl);
