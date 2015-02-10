@@ -17,11 +17,16 @@ public class UIUtil {
                     @Override
                     protected void updateItem(File item, boolean empty) {
                         super.updateItem(item, empty);
-                        if (item != null) {
-                            String name = item.getName();
-                            if (name != null) {
-                                setText(name);
-                            }
+                        if (!empty) {
+                            if (item != null) {
+                                String name = item.getName();
+                                if (name != null) {
+                                    setText(name);
+                                }
+                            }                        	
+                        } else {
+                        	setGraphic(null);
+                        	setText(null);
                         }
                     }
                 };
