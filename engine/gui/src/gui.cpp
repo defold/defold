@@ -1217,11 +1217,13 @@ namespace dmGui
                         if (ret_count == 1 && lua_isboolean(L, -1))
                         {
                             input_args->m_Consumed = (bool) lua_toboolean(L, -1);
+                            lua_pop(L, 1);
                         }
                         else if (ret_count != 0)
                         {
                             dmLogError("The function %s must either return true/false, or no value at all.", SCRIPT_FUNCTION_NAMES[script_function]);
                             result = RESULT_SCRIPT_ERROR;
+                            lua_settop(L, top);
                         }
                     }
                     break;
@@ -1230,12 +1232,14 @@ namespace dmGui
                     {
                         dmLogError("The function %s must have exactly %d return values.", SCRIPT_FUNCTION_NAMES[script_function], ret_count);
                         result = RESULT_SCRIPT_ERROR;
+                        lua_settop(L, top);
                     }
                     break;
                 }
             }
             lua_pushnil(L);
             dmScript::SetInstance(L);
+            assert(top == lua_gettop(L));
             return result;
         }
         assert(top == lua_gettop(L));
