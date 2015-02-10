@@ -1,6 +1,8 @@
 (ns dynamo.gl.vertex-test
   (:require [clojure.test :refer :all]
-            [dynamo.gl.vertex :refer :all]))
+            [dynamo.system.test-support :refer [array=]]
+            [dynamo.gl.vertex :refer :all]
+            [dynamo.buffers :as b]))
 
 (defn- contents-of
   [vb]
@@ -16,12 +18,6 @@
         rows (partition cols (seq (contents-of b)))]
     (doseq [r rows]
       (println (apply format fmt r)))))
-
-(defn- array= [a b]
-  (and
-    (= (class a) (class b))
-    (= (count a) (count b))
-    (every? true? (map = a b))))
 
 (defvertex one-d-position-only
   (vec1.byte location))
@@ -117,3 +113,13 @@
     (is (= 2 (count vertex-buffer)))
     (is (= vertex-1 (get vertex-buffer 0)))
     (is (= vertex-2 (get vertex-buffer 1)))))
+
+(deftest byte-pack
+  (testing "returns a ByteString containing contents before current position"
+    (are [expected vertex-buffer] (array= (byte-array expected) (.toByteArray (b/byte-pack vertex-buffer)))
+      [0 0 0 0] (reduce conj! (->two-d-position 2) [])
+      [1 2 0 0] (reduce conj! (->two-d-position 2) [[1 2]])
+      [1 2 3 4] (reduce conj! (->two-d-position 2) [[1 2] [3 4]])
+      [0 0 0 0] (persistent! (reduce conj! (->two-d-position 2) []))
+      [1 2 0 0] (persistent! (reduce conj! (->two-d-position 2) [[1 2]]))
+      [1 2 3 4] (persistent! (reduce conj! (->two-d-position 2) [[1 2] [3 4]])))))

@@ -68,3 +68,9 @@
 
 (defn fixture [bundle-name fixture-path]
   (resource-from-bundle (o/get-bundle bundle-name) fixture-path))
+
+(defn array= [a b]
+  (and
+    (= (class a) (class b))
+    (= (count a) (count b))
+    (every? true? (map = a b))))
