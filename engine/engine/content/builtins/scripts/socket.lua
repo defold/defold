@@ -8,7 +8,6 @@
 -----------------------------------------------------------------------------
 local base = _G
 
-local socket = require('socket.core')
 local _M = socket
 
 
