@@ -84,8 +84,8 @@
   (input  camera        Camera)
 
   (output vertex-binding s/Any     :cached (fnk [] (vtx/use-with unit-sphere cubemap-shader)))
-  (output renderable    RenderData  produce-renderable)
-  (output aabb          AABB               (fnk [] g/unit-bounding-box)))
+  (output renderable    RenderData :cached produce-renderable)
+  (output aabb          AABB       :cached (fnk [] g/unit-bounding-box)))
 
 (defnk produce-gpu-texture
   [right left top bottom front back]
