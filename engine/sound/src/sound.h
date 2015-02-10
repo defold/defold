@@ -37,6 +37,8 @@ namespace dmSound
         RESULT_OUT_OF_MEMORY      = -9,    //!< RESULT_OUT_OF_MEMORY
         RESULT_UNSUPPORTED        = -10,   //!< RESULT_UNSUPPORTED
         RESULT_DEVICE_NOT_FOUND   = -11,   //!< RESULT_DEVICE_NOT_FOUND
+        RESULT_OUT_OF_GROUPS      = -12,   //!< RESULT_OUT_OF_GROUPS
+        RESULT_NO_SUCH_GROUP      = -13,   //!< RESULT_NO_SUCH_GROUP
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -79,6 +81,18 @@ namespace dmSound
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);
     Result DeleteSoundInstance(HSoundInstance sound_instance);
+
+    Result SetInstanceGroup(HSoundInstance instance, const char* group);
+    Result SetInstanceGroup(HSoundInstance instance, dmhash_t group_hash);
+
+    Result AddGroup(const char* group);
+    Result SetGroupGain(dmhash_t group_hash, float gain);
+    Result GetGroupGain(dmhash_t group_hash, float* gain);
+    uint32_t GetGroupCount();
+    Result GetGroupHash(uint32_t index, dmhash_t* hash);
+
+    Result GetGroupRMS(dmhash_t group_hash, float window, float* rms_left, float* rms_right);
+    Result GetGroupPeak(dmhash_t group_hash, float window, float* peak_left, float* peak_right);
 
     Result Update();
 

@@ -2,6 +2,7 @@
 #define DM_GAMESYS_COMP_SPINE_MODEL_H
 
 #include <stdint.h>
+#include <dlib/object_pool.h>
 #include <gameobject/gameobject.h>
 
 #include "../resources/res_spine_model.h"
@@ -16,8 +17,8 @@ namespace dmGameSystem
         struct
         {
             uint64_t m_Index : 16;  // Index is used to ensure stable sort
-            uint64_t m_Z : 16; // Quantified relative z
             uint64_t m_MixedHash : 32;
+            uint64_t m_Z : 16; // Quantified relative z
         };
         uint64_t     m_Key;
     };
@@ -37,6 +38,12 @@ namespace dmGameSystem
         uint16_t                             m_Backwards : 1;
     };
 
+    struct MeshProperties {
+        float m_Color[4];
+        uint32_t m_Order;
+        bool m_Visible;
+    };
+
     struct SpineModelComponent
     {
         SpinePlayer                 m_Players[2];
@@ -54,9 +61,11 @@ namespace dmGameSystem
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
         /// Nodes corresponding to the bones
-        dmArray<dmGameObject::HInstance> m_NodeInstances;
+        dmArray<dmhash_t> m_NodeIds;
+        /// Animated mesh properties
+        dmArray<MeshProperties>     m_MeshProperties;
         /// Currently used mesh
-        dmGameSystemDDF::Mesh*      m_Mesh;
+        dmGameSystemDDF::MeshEntry* m_MeshEntry;
         dmhash_t                    m_Skin;
         float                       m_BlendDuration;
         float                       m_BlendTimer;
@@ -67,6 +76,37 @@ namespace dmGameSystem
         uint8_t                     m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not
         uint8_t                     m_Blending : 1;
+        /// Added to update or not
+        uint8_t                     m_AddedToUpdate : 1;
+    };
+
+    struct SpineModelVertex
+    {
+        float x;
+        float y;
+        float z;
+        uint16_t u;
+        uint16_t v;
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+        uint8_t a;
+    };
+
+    struct SpineModelWorld
+    {
+        dmObjectPool<SpineModelComponent*>  m_Components;
+        dmArray<dmRender::RenderObject>     m_RenderObjects;
+        dmGraphics::HVertexDeclaration      m_VertexDeclaration;
+        dmGraphics::HVertexBuffer           m_VertexBuffer;
+        dmArray<SpineModelVertex>           m_VertexBufferData;
+
+        dmArray<uint32_t>                   m_RenderSortBuffer;
+        dmArray<uint32_t>                   m_DrawOrderToMesh;
+        // Temporary scratch array for instances, only used during the creation phase of components
+        dmArray<dmGameObject::HInstance>    m_ScratchInstances;
+        float                               m_MinZ;
+        float                               m_MaxZ;
     };
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);
@@ -76,6 +116,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpineModelCreate(const dmGameObject::ComponentCreateParams& params);
 
     dmGameObject::CreateResult CompSpineModelDestroy(const dmGameObject::ComponentDestroyParams& params);
+
+    dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
     dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params);
 

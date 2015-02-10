@@ -11,6 +11,8 @@ namespace dmGameObject
 
     CreateResult CompAnimDeleteWorld(const ComponentDeleteWorldParams& params);
 
+    CreateResult CompAnimAddToUpdate(const ComponentAddToUpdateParams& params);
+
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params);
 }
 

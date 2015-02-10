@@ -6,6 +6,7 @@ import java.util.List;
 import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
+import javax.vecmath.Vector2f;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.Node;
@@ -85,7 +86,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
             gl.glPopMatrix();
         } else if (renderData.getPass() == Pass.TRANSPARENT) {
 
-            VertexBufferObject vertexBuffer = node.getRuntimeTextureSet().getVertexBuffer();
+            VertexBufferObject vertexBuffer = node.getRuntimeTextureSet().getAtlasVertexBuffer();
             vertexBuffer.enable(gl);
 
             shader.enable(gl);
@@ -161,15 +162,17 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
 
         shader.setUniforms(gl, "color", new float[] { 1, 1, 1, alpha });
         for (int tile = 0; tile < tileCount; ++tile) {
-            renderTile(gl, runtimeTextureSet, tile, texture.getWidth() * runtimeTextureSet.getCenterX(tile),
-                    texture.getHeight() * (1.0f - runtimeTextureSet.getCenterY(tile)), 1, 1);
+            Vector2f c = runtimeTextureSet.getCenter(tile);
+            renderTile(gl, runtimeTextureSet, tile, texture.getWidth() * c.x,
+                    texture.getHeight() * (1.0f - c.y), 1, 1);
         }
         texture.disable(gl);
 
         shader.setUniforms(gl, "color", new float[] { 1, 1, 1, 0.1f * alpha });
         for (int tile = 0; tile < tileCount; ++tile) {
-            renderTile(gl, runtimeTextureSet, tile, texture.getWidth() * runtimeTextureSet.getCenterX(tile),
-                    texture.getHeight() * (1.0f - runtimeTextureSet.getCenterY(tile)), 1, 1);
+            Vector2f c = runtimeTextureSet.getCenter(tile);
+            renderTile(gl, runtimeTextureSet, tile, texture.getWidth() * c.x,
+                    texture.getHeight() * (1.0f - c.y), 1, 1);
         }
     }
 

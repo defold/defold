@@ -1,5 +1,5 @@
 name: "test_factory"
 instances {
-  id: "factory_go"
-  prototype: "/factory/factory.go"
+  id: "pre_spawner"
+  prototype: "/factory/pre_spawner.go"
 }

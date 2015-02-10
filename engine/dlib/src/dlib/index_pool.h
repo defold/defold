@@ -88,16 +88,21 @@ public:
     }
 
     /**
-     * Set index pool capacity. Only valid to run once initially.
+     * Set index pool capacity.
+     * @note New capacity must be larger or equal to current capacity
      * @param capacity Capacity.
      */
     void SetCapacity(T capacity)
     {
-        assert(m_Pool == 0);
+        assert(capacity >= m_Capacity);
+        T* old_pool = m_Pool;
+        uint32_t oldcapacity = m_Capacity;
         m_Pool = (T*) malloc(sizeof(T)*capacity);
+        memcpy(m_Pool, old_pool, oldcapacity * sizeof(T));
         m_Capacity = capacity;
-        for (T i=0; i < capacity; i++)
+        for (T i = oldcapacity; i < capacity; i++)
             m_Pool[i] = i;
+        free(old_pool);
     }
 
     /**

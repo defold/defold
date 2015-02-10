@@ -54,6 +54,7 @@
 
 // Render states
 #define DMGRAPHICS_STATE_DEPTH_TEST                         (GL_DEPTH_TEST)
+#define DMGRAPHICS_STATE_SCISSOR_TEST                       (GL_SCISSOR_TEST)
 #define DMGRAPHICS_STATE_STENCIL_TEST                       (GL_STENCIL_TEST)
 #define DMGRAPHICS_STATE_ALPHA_TEST                         (GL_ALPHA_TEST)
 #define DMGRAPHICS_STATE_BLEND                              (GL_BLEND)
@@ -74,6 +75,28 @@
 #define DMGRAPHICS_TYPE_FLOAT_MAT4                          (GL_FLOAT_MAT4)
 #define DMGRAPHICS_TYPE_SAMPLER_2D                          (GL_SAMPLER_2D)
 #define DMGRAPHICS_TYPE_SAMPLER_CUBE                        (GL_SAMPLER_CUBE)
+
+// Render buffer storage formats
+#ifdef GL_DEPTH_STENCIL_OES
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL       (GL_DEPTH24_STENCIL8_OES)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL       (GL_DEPTH_STENCIL)
+#endif
+#ifdef GL_DEPTH_COMPONENT24_OES
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24             (GL_DEPTH_COMPONENT24_OES)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24             (GL_DEPTH_COMPONENT)
+#endif
+#ifdef GL_DEPTH_COMPONENT16_OES
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16             (GL_DEPTH_COMPONENT16_OES)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16             (GL_DEPTH_COMPONENT16)
+#endif
+#ifdef GL_STENCIL_INDEX8_OES
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8_OES)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8)
+#endif
 
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
@@ -162,15 +185,15 @@
 #define DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_DST_ALPHA         (GL_ONE_MINUS_DST_ALPHA)
 #define DMGRAPHICS_BLEND_FACTOR_SRC_ALPHA_SATURATE          (GL_SRC_ALPHA_SATURATE)
 
-// Stencil func
-#define DMGRAPHICS_STENCIL_FUNC_NEVER                       (GL_NEVER)
-#define DMGRAPHICS_STENCIL_FUNC_LESS                        (GL_LESS)
-#define DMGRAPHICS_STENCIL_FUNC_LEQUAL                      (GL_LEQUAL)
-#define DMGRAPHICS_STENCIL_FUNC_GREATER                     (GL_GREATER)
-#define DMGRAPHICS_STENCIL_FUNC_GEQUAL                      (GL_GEQUAL)
-#define DMGRAPHICS_STENCIL_FUNC_EQUAL                       (GL_EQUAL)
-#define DMGRAPHICS_STENCIL_FUNC_NOTEQUAL                    (GL_NOTEQUAL)
-#define DMGRAPHICS_STENCIL_FUNC_ALWAYS                      (GL_ALWAYS)
+// Compare functions
+#define DMGRAPHICS_COMPARE_FUNC_NEVER                       (GL_NEVER)
+#define DMGRAPHICS_COMPARE_FUNC_LESS                        (GL_LESS)
+#define DMGRAPHICS_COMPARE_FUNC_LEQUAL                      (GL_LEQUAL)
+#define DMGRAPHICS_COMPARE_FUNC_GREATER                     (GL_GREATER)
+#define DMGRAPHICS_COMPARE_FUNC_GEQUAL                      (GL_GEQUAL)
+#define DMGRAPHICS_COMPARE_FUNC_EQUAL                       (GL_EQUAL)
+#define DMGRAPHICS_COMPARE_FUNC_NOTEQUAL                    (GL_NOTEQUAL)
+#define DMGRAPHICS_COMPARE_FUNC_ALWAYS                      (GL_ALWAYS)
 
 // Stencil operation
 #define DMGRAPHICS_STENCIL_OP_KEEP                          (GL_KEEP)

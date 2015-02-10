@@ -9,6 +9,7 @@
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/template.h>
+#include <dlib/profile.h>
 #include <ddf/ddf.h>
 #include "engine_service.h"
 #include "engine_version.h"
@@ -221,7 +222,6 @@ namespace dmEngineService
         {
             dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
 
-
             dmSys::SystemInfo info;
             dmSys::GetSystemInfo(&info);
             /*
@@ -280,6 +280,7 @@ namespace dmEngineService
             m_DeviceDesc.m_DeviceDescription = m_DeviceDescXml;
 
             dmSSDP::NewParams ssdp_params;
+            ssdp_params.m_MaxAge = 3;
             dmSSDP::HSSDP ssdp;
             dmSSDP::Result sr = dmSSDP::New(&ssdp_params, &ssdp);
             if (sr != dmSSDP::RESULT_OK)
@@ -362,6 +363,7 @@ namespace dmEngineService
 
     void Update(HEngineService engine_service)
     {
+        DM_PROFILE(Engine, "Service");
         dmWebServer::Update(engine_service->m_WebServer);
         dmSSDP::Update(engine_service->m_SSDP, false);
     }

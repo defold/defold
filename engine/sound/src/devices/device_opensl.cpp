@@ -10,7 +10,11 @@
 #include "sound.h"
 #include "sound2.h"
 
+#include <android_native_app_glue.h>
+
 #include <SLES/OpenSLES.h>
+
+extern struct android_app* __attribute__((weak)) g_AndroidApp;
 
 /**
  * OpenSL ES audio device
@@ -171,11 +175,38 @@ namespace dmDeviceOpenSL
         }
     }
 
+    static jclass LoadClass(JNIEnv* env, const char* class_name)
+    {
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID get_class_loader = env->GetMethodID(activity_class,"getClassLoader", "()Ljava/lang/ClassLoader;");
+        jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
+        jclass class_loader = env->FindClass("java/lang/ClassLoader");
+        jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+        jstring str_class_name = env->NewStringUTF(class_name);
+        jclass klass = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
+        assert(klass);
+        env->DeleteLocalRef(str_class_name);
+        return klass;
+    }
+
+    static int GetSampleRate()
+    {
+        JNIEnv* env;
+        g_AndroidApp->activity->vm->AttachCurrentThread(&env, NULL);
+
+        jclass sound_class = LoadClass(env, "com.defold.sound.Sound2");
+
+        jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;)I");
+        assert(get_sample_rate);
+        jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, g_AndroidApp->activity->clazz);
+        g_AndroidApp->activity->vm->DetachCurrentThread();
+
+        return sample_rate;
+    }
+
     dmSound::Result DeviceOpenSLOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
     {
-        // TODO: Should probably match hardware mix-rate in
-        // order to reduce latency according to various "rumors"
-        const int rate = 44100;
+        const int rate = GetSampleRate();
 
         SLObjectItf sl = 0;
         SLEngineItf engine = 0;

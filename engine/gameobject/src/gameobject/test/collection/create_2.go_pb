@@ -1,0 +1,5 @@
+components
+{
+    id: "a"
+    component: "/a.a"
+}

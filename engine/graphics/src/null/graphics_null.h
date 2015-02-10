@@ -57,7 +57,7 @@ namespace dmGraphics
     struct RenderTarget
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_BufferTextures[MAX_BUFFER_TYPE_COUNT];
+        HTexture        m_ColorBufferTexture;
         FrameBuffer     m_FrameBuffer;
     };
 
@@ -77,7 +77,8 @@ namespace dmGraphics
         void*                       m_WindowCloseCallbackUserData;
         TextureFilter               m_DefaultTextureMinFilter;
         TextureFilter               m_DefaultTextureMagFilter;
-        StencilFunc                 m_StencilFunc;
+        CompareFunc                 m_DepthFunc;
+        CompareFunc                 m_StencilFunc;
         StencilOp                   m_StencilOpSFail;
         StencilOp                   m_StencilOpDPFail;
         StencilOp                   m_StencilOpDPPass;
@@ -85,6 +86,7 @@ namespace dmGraphics
         uint32_t                    m_Height;
         uint32_t                    m_WindowWidth;
         uint32_t                    m_WindowHeight;
+        int32_t                     m_ScissorRect[4];
         uint32_t                    m_StencilMask;
         uint32_t                    m_StencilFuncRef;
         uint32_t                    m_StencilFuncMask;

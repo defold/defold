@@ -289,6 +289,12 @@ namespace dmGameSystem
             float u;
             float v;
         };
+        static int tex_coord_order[] = {
+            0,1,2,2,3,0,
+            3,2,1,1,0,3,	//h
+            1,0,3,3,2,1,	//v
+            2,3,0,0,1,2		//hv
+        };
 
         const uint32_t VERTCIES_PER_TILE = 6;
 
@@ -308,7 +314,6 @@ namespace dmGameSystem
 
         Vertex* v = &((Vertex*)region->m_ClientBuffer)[0];
         float p[4];
-        float t[4];
 
         uint32_t vertex_count = 0;
         const float* tex_coords = (const float*) resource->m_TextureSet->m_TextureSet->m_TexCoords.m_Data;
@@ -327,31 +332,49 @@ namespace dmGameSystem
                         if (tile != 0xffff)
                         {
                             CalculateCellBounds(x, y, texture_set_ddf->m_TileWidth, texture_set_ddf->m_TileHeight, p);
-                            const float* puv = &tex_coords[tile * 4];
-                            uint32_t t0 = 0, t1 = 1, t2 = 2, t3 = 3;
+                            const float* puv = &tex_coords[tile * 8];
+                            uint32_t flip_flag = 0;
 
                             TileGridComponent::Flags flags = component->m_CellFlags[cell];
                             if (flags.m_FlipHorizontal)
                             {
-                                t0 = 2;
-                                t2 = 0;
+                                flip_flag = 1;
                             }
                             if (flags.m_FlipVertical)
                             {
-                                t1 = 3;
-                                t3 = 1;
+                                flip_flag |= 2;
                             }
-                            t[0] = puv[t0];
-                            t[1] = puv[t1];
-                            t[2] = puv[t2];
-                            t[3] = puv[t3];
+                            const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
-                            v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;
-                            v->x = p[0]; v->y = p[3]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;
-                            v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[1]; ++v;
-                            v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;
-                            v->x = p[2]; v->y = p[3]; v->z = z; v->u = t[2]; v->v = t[1]; ++v;
-                            v->x = p[2]; v->y = p[1]; v->z = z; v->u = t[2]; v->v = t[3]; ++v;
+                            v->x = p[0]; v->y = p[1]; v->z = z;
+                            v->u = puv[tex_lookup[0] * 2];
+                            v->v = puv[tex_lookup[0] * 2 + 1];
+                            ++v;
+
+                            v->x = p[0]; v->y = p[3]; v->z = z;
+                            v->u = puv[tex_lookup[1] * 2];
+                            v->v = puv[tex_lookup[1] * 2 + 1];
+                            ++v;
+
+                            v->x = p[2]; v->y = p[3]; v->z = z;
+                            v->u = puv[tex_lookup[2] * 2];
+                            v->v = puv[tex_lookup[2] * 2 + 1];
+                            ++v;
+
+                            v->x = p[2]; v->y = p[3]; v->z = z;
+                            v->u = puv[tex_lookup[3] * 2];
+                            v->v = puv[tex_lookup[3] * 2 + 1];
+                            ++v;
+
+                            v->x = p[2]; v->y = p[1]; v->z = z;
+                            v->u = puv[tex_lookup[4] * 2];
+                            v->v = puv[tex_lookup[4] * 2 + 1];
+                            ++v;
+
+                            v->x = p[0]; v->y = p[1]; v->z = z;
+                            v->u = puv[tex_lookup[5] * 2];
+                            v->v = puv[tex_lookup[5] * 2 + 1];
+                            ++v;
                             vertex_count += VERTCIES_PER_TILE;
                         }
                     }
@@ -373,6 +396,12 @@ namespace dmGameSystem
         dmGraphics::SetVertexBufferData(ro->m_VertexBuffer, vertex_count * sizeof(Vertex), region->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
+    dmGameObject::CreateResult CompTileGridAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        TileGridComponent* component = (TileGridComponent*) *params.m_UserData;
+        component->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
@@ -384,6 +413,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             TileGridComponent* tile_grid = tile_grids[i];
+            if (!tile_grid->m_AddedToUpdate) {
+                continue;
+            }
             TileGridResource* resource = tile_grid->m_TileGridResource;
             dmGraphics::HTexture texture = resource->m_TextureSet->m_Texture;
             dmTransform::Transform world = dmGameObject::GetWorldTransform(tile_grid->m_Instance);
