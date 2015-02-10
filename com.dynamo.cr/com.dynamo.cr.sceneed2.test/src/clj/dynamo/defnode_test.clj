@@ -400,5 +400,5 @@
 
   (testing "disallows unknown trigger kinds"
     (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
-          (eval '(n/defnode NoSuchTriggerNode
+          (eval '(dynamo.node/defnode NoSuchTriggerNode
                    (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))))
