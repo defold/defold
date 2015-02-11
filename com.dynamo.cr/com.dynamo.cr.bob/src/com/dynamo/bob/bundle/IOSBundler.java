@@ -48,7 +48,7 @@ public class IOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getExe(Platform.Armv7Darwin, "dmengine_release");
+        String exe = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("release"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());

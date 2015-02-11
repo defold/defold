@@ -21,7 +21,7 @@ public class Win32Bundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getExe(Platform.X86Win32, "dmengine_release");
+        String exe = Bob.getDmengineExe(Platform.X86Win32, project.hasOption("release"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
