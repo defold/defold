@@ -65,20 +65,27 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(resDir, "drawable-mdpi"));
         FileUtils.forceMkdir(new File(resDir, "drawable-hdpi"));
         FileUtils.forceMkdir(new File(resDir, "drawable-xhdpi"));
+        FileUtils.forceMkdir(new File(resDir, "drawable-xxhdpi"));
+        FileUtils.forceMkdir(new File(resDir, "drawable-xxxhdpi"));
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
 
         // Copy icons
-        //copyIcon("app_icon_36x36", "drawable-ldpi/icon.png");
         int iconCount = 0;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_32x32", "drawable-ldpi/icon.png"))
+        // copy old 32x32 icon first, the correct size is actually 36x36
+        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_32x32", "drawable-ldpi/icon.png")
+    		|| copyIcon(projectProperties, projectRoot, resDir, "app_icon_36x36", "drawable-ldpi/icon.png"))
             iconCount++;
         if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_48x48", "drawable-mdpi/icon.png"))
             iconCount++;
         if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_72x72", "drawable-hdpi/icon.png"))
             iconCount++;
         if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_96x96", "drawable-xhdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
             iconCount++;
 
         File manifestFile = new File(appDir, "AndroidManifest.xml");
