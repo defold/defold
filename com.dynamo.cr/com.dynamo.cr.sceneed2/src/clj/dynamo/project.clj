@@ -21,8 +21,6 @@ ordinary paths."
            [org.eclipse.ui PlatformUI IEditorSite]
            [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
 
-(set! *warn-on-reflection* true)
-
 (defn register-filetype
   [extension default?]
   (ui/swt-safe

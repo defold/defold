@@ -2,8 +2,6 @@
   (:import [org.junit.runner.notification RunNotifier Failure])
   (:use clojure.test))
 
-(set! *warn-on-reflection* true)
-
 ;; intended for binding to capture failures
 (def ^:dynamic *reports* nil)
 

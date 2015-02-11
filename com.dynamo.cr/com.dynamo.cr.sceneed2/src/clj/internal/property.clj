@@ -4,8 +4,6 @@
             [clojure.core.match :refer [match]]
             [dynamo.types :as t]))
 
-(set! *warn-on-reflection* true)
-
 (defn- get-default-value [property-type-descriptor]
   (some-> property-type-descriptor
           :default
