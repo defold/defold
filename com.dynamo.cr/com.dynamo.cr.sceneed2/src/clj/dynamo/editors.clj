@@ -9,6 +9,7 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.node :as in]
+            [internal.repaint :as repaint]
             [internal.ui.editors :as ie]
             [internal.ui.handlers :refer [active-editor]]
             [internal.ui.scene-editor :as iuse])
@@ -104,7 +105,10 @@ Outputs
           camera      (n/get-node-value camera-node :camera)
           aabb        (n/get-node-value self :aabb)]
       (when aabb ;; there exists an aabb to center on
-        (ds/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
+        (ds/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb)))))
+
+  (on :paint
+    (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [self])))
 
 (n/defnode SceneEditor
   "SceneEditor is the basis for all 2D orthographic and 3D perspective editors.
@@ -150,6 +154,7 @@ Messages:
       (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
       (.release context)
       (iuse/pipe-events-to-node canvas :resize self)
+      (iuse/pipe-events-to-node canvas :paint self)
       (iuse/start-event-pump canvas self)
       (texture/initialize gl)
       (ds/set-property self
