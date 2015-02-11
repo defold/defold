@@ -159,7 +159,9 @@
                                  (:starts vertex-summary)
                                  (:counts vertex-summary)
                                  (:starts outline-vertex-summary)
-                                 (:counts outline-vertex-summary))
+                                 (:counts outline-vertex-summary)
+                                 (:starts tex-coord-summary)
+                                 (:counts tex-coord-summary))
         animation-frames       (partition-by first (map (fn [[a i] f] [a f]) animations-images frames))
         textureset-animations  (map build-textureset-animation animations)
         textureset-animations  (map (fn [a aframes] (assoc a :frames (mapv second aframes))) textureset-animations animation-frames)]
