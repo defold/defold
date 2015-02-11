@@ -340,31 +340,42 @@
   (inherits NodeWithPropertyVariations))
 
 (def original-node-definition
-  '(n/defnode MutagenicNode
-     (property a-property s/Str  (default "a-string"))
-     (property b-property s/Bool (default true))))
+  '(dynamo.node/defnode MutagenicNode
+     (property a-property schema.core/Str  (default "a-string"))
+     (property b-property schema.core/Bool (default true))))
 
 (def replacement-node-definition
-  '(n/defnode MutagenicNode
-     (property a-property s/Str  (default "Genosha"))
-     (property b-property s/Bool (default false))
-     (property c-property s/Int  (default 42))
-     MarkerInterface))
+  '(do
+     (definterface DynamicMarkerInterface)
 
-#_(deftest redefining-nodes-updates-existing-world-instances
-   (ts/with-clean-world
-     (eval original-node-definition)
+     (dynamo.node/defnode MutagenicNode
+      (property a-property schema.core/Str  (default "Genosha"))
+      (property b-property schema.core/Bool (default false))
+      (property c-property schema.core/Int  (default 42))
+      DynamicMarkerInterface)))
 
-     (let [node-before-mutation (ds/transactional (ds/add (n/construct (resolve 'MutagenicNode))))
-           original-node-id     (:_id node-before-mutation)]
-       (eval replacement-node-definition)
+(deftest redefining-nodes-updates-existing-world-instances
+ (ts/with-clean-world
+   (eval original-node-definition)
 
-       (let [node-after-mutation (ds/refresh node-before-mutation)]
-         (is (not (instance? MarkerInterface node-before-mutation)))
-         (is (= "a-string" (:a-property node-after-mutation)))
-         (is (= true       (:b-property node-after-mutation)))
-         (is (= 42         (:c-property node-after-mutation)))
-         (is (instance? MarkerInterface node-after-mutation))))))
+   (is (not (nil? (resolve 'MutagenicNode))))
+   (is (not (nil? (var-get (resolve 'MutagenicNode)))))
+   (is (not (nil? (:dynamo.node/ctor (var-get (resolve 'MutagenicNode))))))
+
+   (println (resolve 'MutagenicNode))
+   (println (resolve 'DynamicMarkerInterface))
+
+   (let [node-before-mutation (ds/transactional (ds/add (n/construct (var-get (resolve 'MutagenicNode)))))
+         original-node-id     (:_id node-before-mutation)]
+     (eval replacement-node-definition)
+
+     (let [iface (resolve 'DynamicMarkerInterface)
+           node-after-mutation (ds/refresh node-before-mutation)]
+       (is (not (instance? iface node-before-mutation)))
+       (is (= "a-string" (:a-property node-after-mutation)))
+       (is (= true       (:b-property node-after-mutation)))
+       (is (= 42         (:c-property node-after-mutation)))
+       (is (instance? iface node-after-mutation))))))
 
 (n/defnode BaseTriggerNode
   (trigger added-trigger        :added             (fn [& _] :ok))
