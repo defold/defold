@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="jars/criterium-0.4.3.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/clojure-ini-0.0.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/jackson-annotations-2.1.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/jackson-core-2.1.1.jar"/>
