@@ -37,7 +37,7 @@ public class OSXBundler implements IBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         File macosDir = new File(contentsDir, "MacOS");
 
-        String exe = Bob.getExe(Platform.X86Darwin, "dmengine_release");
+        String exe = Bob.getDmengineExe(Platform.X86Darwin, project.hasOption("release"));
 
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
