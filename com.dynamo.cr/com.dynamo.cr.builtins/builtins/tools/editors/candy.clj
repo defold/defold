@@ -216,11 +216,12 @@
   (input gpu-texture s/Any)
   (input textureset s/Any)
   (input active-brush s/Str)
-  (output palette-layout s/Any (fnk [] (layout-palette palette)))
-  (output level-layout s/Any (fnk [level] (layout-level level)))
-  (output palette-vertex-binding s/Any        (fnk [textureset palette-layout active-brush] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half active-brush) shader)))
-  (output level-vertex-binding s/Any        (fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
-  (output renderable t/RenderData produce-renderable))
+
+  (output palette-layout         s/Any :cached (fnk [] (layout-palette palette)))
+  (output level-layout           s/Any :cached (fnk [level] (layout-level level)))
+  (output palette-vertex-binding s/Any :cached (fnk [textureset palette-layout active-brush] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half active-brush) shader)))
+  (output level-vertex-binding   s/Any :cached (fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
+  (output renderable             t/RenderData  produce-renderable))
 
 (defn- hit? [cell pos cell-size-half]
   (let [xc (:x cell)
