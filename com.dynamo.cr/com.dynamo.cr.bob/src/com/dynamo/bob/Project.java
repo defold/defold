@@ -709,6 +709,15 @@ run:
         else
             return defaultValue;
     }
+    
+    /**
+     * Check if an option exists
+     * @param key option key to check if it exists 
+     * @return true if the option exists
+     */
+    public boolean hasOption(String key) {
+    	return options.containsKey(key);
+    }
 
     class Walker extends FileSystemWalker {
 

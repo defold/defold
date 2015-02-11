@@ -580,6 +580,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 {
     if (viewFramebuffer)
     {
+        glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
+        CHECK_GL_ERROR
         [context renderbufferStorage:GL_RENDERBUFFER fromDrawable: nil];
         CHECK_GL_ERROR
 
@@ -657,9 +659,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     [super viewDidLoad];
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view.autoresizesSubviews = YES;
-    
+
     [self createGlView];
-    
+
     [[UIAccelerometer sharedAccelerometer] setUpdateInterval:1.0/60.0];
     [[UIAccelerometer sharedAccelerometer] setDelegate:self];
 
@@ -683,38 +685,38 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         glContext = glView.context;
         [glView removeFromSuperview];
     }
-    
+
     if (!glContext) {
         glContext = [self initialiseGlContext];
     }
-    
+
     CGRect bounds = self.view.bounds;
     float version = [[UIDevice currentDevice].systemVersion floatValue];
     if (8.0 <= version && 8.1 > version) {
         CGSize size = [self getIntendedViewSize];
         CGRect parent_bounds = self.view.bounds;
         parent_bounds.size = size;
-        
+
         if ([self shouldUpdateViewFrame]) {
             CGPoint origin = [self getIntendedFrameOrigin: size];
-            
+
             CGRect parent_frame = self.view.frame;
             parent_frame.origin = origin;
             parent_frame.size = size;
-            
+
             self.view.frame = parent_frame;
         }
         bounds = parent_bounds;
     }
     cachedViewSize = bounds.size;
-    
+
     CGFloat scaleFactor = [[UIScreen mainScreen] scale];
     glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
     glView.context = glContext;
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
-    
+
     [glView createFramebuffer];
 }
 
@@ -724,16 +726,16 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     if (8.0 <= version && 8.1 > version) {
         CGRect parent_frame = self.view.frame;
         CGRect parent_bounds = self.view.bounds;
-        
+
         CGSize size = [self getIntendedViewSize];
-        
+
         parent_bounds.size = size;
-        
+
         if ([self shouldUpdateViewFrame]) {
             CGPoint origin = [self getIntendedFrameOrigin: size];
             parent_frame.origin = origin;
             parent_frame.size = size;
-            
+
             self.view.frame = parent_frame;
         }
         glView.frame = parent_bounds;
@@ -768,7 +770,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 {
     CGSize result;
     CGRect parent_bounds = self.view.bounds;
-    
+
     if (0 != g_IsReboot) {
         parent_bounds.size = cachedViewSize;
     }
@@ -800,7 +802,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         case UIDeviceOrientationLandscapeRight:
             origin.x = -(size.width - size.height);
             origin.y = size.width - size.height;
-            
+
             if (g_IsReboot && cachedViewSize.width != size.width) {
                 origin.x = 0.0f;
                 origin.y = 0.0f;
@@ -825,12 +827,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (EAGLContext *)initialiseGlContext
 {
     EAGLContext *context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-    
+
     if (!context || ![EAGLContext setCurrentContext:context])
     {
         return nil;
     }
-    
+
     return context;
 }
 
@@ -944,10 +946,10 @@ _GLFWwin g_Savewin;
 - (void)reinit:(UIApplication *)application
 {
     g_IsReboot = 1;
-    
+
     // Restore window data
     _glfwWin = g_Savewin;
-    
+
     // To avoid a race, since _glfwPlatformOpenWindow does not block,
     // update the glfw's cached screen dimensions ahead of time.
     BOOL flipScreen = NO;
@@ -961,9 +963,9 @@ _GLFWwin g_Savewin;
         _glfwWin.width = _glfwWin.height;
         _glfwWin.height = tmp;
     }
-    
+
     [self forceDeviceOrientation];
-    
+
     float version = [[UIDevice currentDevice].systemVersion floatValue];
     if (8.0 <= version && 8.1 > version) {
         // These suspect versions of iOS will crash if we proceed to recreate the GL view.
@@ -980,7 +982,7 @@ _GLFWwin g_Savewin;
 - (void)applicationDidFinishLaunching:(UIApplication *)application
 {
     [self forceDeviceOrientation];
-    
+
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
     // Points vs pixels (and scale factors). I'm not sure that this correct though
     // and that we really get the correct and highest physical resolution in pixels.
