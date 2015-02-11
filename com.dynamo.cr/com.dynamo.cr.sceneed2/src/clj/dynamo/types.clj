@@ -221,7 +221,9 @@
    vertex-start         :- s/Num
    vertex-count         :- s/Num
    outline-vertex-start :- s/Num
-   outline-vertex-count :- s/Num])
+   outline-vertex-count :- s/Num
+   tex-coords-start     :- s/Num
+   tex-coords-count     :- s/Num])
 
 (sm/defrecord TextureSetAnimation
   [id              :- s/Str

@@ -147,12 +147,11 @@
 ; Vertex generation
 
 (defn anim-uvs [textureset id]
-  (let [anim (first (filter (fn [anim] (= id (:id anim))) (:animations textureset)))
+  (let [anim (get (:animations textureset) id)
         frame (first (:frames anim))]
-    (if frame
-      (:tex-coords frame)
-      [[0 0] [0 0]])
-    ))
+    (if-let [{start :tex-coords-start count :tex-coords-count} frame]
+      (mapv #(nth (:tex-coords textureset) %) (range start (+ start count)))
+      [[0 0] [0 0]])))
 
 (defn flip [v0 v1]
   [v1 v0])
@@ -203,7 +202,7 @@
 ; Node defs
 
 (defnk produce-renderable
-  [this level gpu-texture texture-packing palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
+  [this level gpu-texture palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
   {pass/overlay [{:world-transform g/Identity4d 
                   :render-fn (fn [ctx gl glu text-renderer]
                                (render-palette ctx gl text-renderer gpu-texture palette-vertex-binding palette-layout))}]
@@ -214,7 +213,6 @@
 (n/defnode CandyRender
   (input level s/Any)
   (input gpu-texture s/Any)
-  (input texture-packing s/Any)
   (input textureset s/Any)
   (input active-brush s/Str)
   (output palette-layout s/Any (fnk [] (layout-palette palette)))
@@ -330,7 +328,6 @@
         (ds/connect candy-node     :active-brush candy-render   :active-brush)
         (ds/connect candy-node     :aabb editor   :aabb)
         (ds/connect atlas-node     :gpu-texture  candy-render   :gpu-texture)
-        (ds/connect atlas-node     :texture-packing  candy-render   :texture-packing)
         (ds/connect atlas-node     :textureset  candy-render   :textureset))
       editor)))
 
