@@ -11,8 +11,6 @@
            [org.eclipse.swt.opengl GLData GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
 
-(set! *warn-on-reflection* true)
-
 (defn gl-version-info [^GL2 gl]
   {:vendor                   (.glGetString gl GL2/GL_VENDOR)
    :renderer                 (.glGetString gl GL2/GL_RENDERER)

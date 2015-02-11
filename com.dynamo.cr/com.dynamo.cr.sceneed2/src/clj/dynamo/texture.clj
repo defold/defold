@@ -13,8 +13,6 @@
   (:import [java.awt.image BufferedImage]
            [dynamo.types Rect Image TexturePacking EngineFormatTexture]))
 
-(set! *warn-on-reflection* true)
-
 (defn- basename [path]
   (-> path
       (str/split #"/")

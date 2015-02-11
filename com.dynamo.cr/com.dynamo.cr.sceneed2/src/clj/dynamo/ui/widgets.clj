@@ -12,8 +12,6 @@
            [com.dynamo.cr.properties StatusLabel]
            [internal.ui ColorSelector ResourceSelector]))
 
-(set! *warn-on-reflection* true)
-
 (defn- rgb [r g b] (Color. (ui/display) r g b))
 
 (defn bring-to-front!

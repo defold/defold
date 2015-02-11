@@ -9,8 +9,6 @@
   (:import [java.io Reader]
            [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]))
 
-(set! *warn-on-reflection* true)
-
 (defmacro set-if-present
   "Use this macro to set an optional field on a protocol buffer message.
 props must be a maplike data structure, and k is a key into it. k will also

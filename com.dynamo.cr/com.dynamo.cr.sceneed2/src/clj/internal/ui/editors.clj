@@ -12,8 +12,6 @@
            [org.eclipse.ui PlatformUI]
            [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
 
-(set! *warn-on-reflection* true)
-
 (defn- eclipse-project-name
   [project-node]
   (.getName (.getDescription ^IProject (:eclipse-project project-node))))

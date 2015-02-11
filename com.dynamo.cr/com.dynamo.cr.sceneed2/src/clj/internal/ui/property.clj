@@ -21,8 +21,6 @@
            [org.eclipse.ui.forms.widgets FormToolkit]
            [com.dynamo.cr.properties Messages]))
 
-(set! *warn-on-reflection* true)
-
 (defrecord ValidationPresenter []
   dp/Presenter
   (control-for-property [this]
