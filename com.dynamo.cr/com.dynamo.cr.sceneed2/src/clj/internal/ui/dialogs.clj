@@ -15,8 +15,6 @@
            [com.dynamo.cr.sceneed Activator]
            [internal.ui ShimItemsSelectionDialog]))
 
-(set! *warn-on-reflection* true)
-
 (def ^:private resource-selection-dialog-settings "com.dynamo.cr.dialogs.ResourcesSelectionDialog")
 
 (defn- dialog-settings

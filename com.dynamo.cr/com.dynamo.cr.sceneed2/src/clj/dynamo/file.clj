@@ -28,8 +28,6 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
            [org.eclipse.core.resources IProject IResource IFile]
            [org.eclipse.core.runtime IPath Path]))
 
-(set! *warn-on-reflection* true)
-
 (defn- eproj ^IProject [p] (:eclipse-project p))
 
 (defprotocol ProjectRelative

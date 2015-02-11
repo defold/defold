@@ -8,8 +8,6 @@
            [com.dynamo.tile.proto Tile$Playback]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
-(set! *warn-on-reflection* true)
-
 ; ----------------------------------------
 ; Protocols here help avoid circular dependencies
 ; ----------------------------------------

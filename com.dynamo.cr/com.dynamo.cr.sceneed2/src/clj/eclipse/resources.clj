@@ -6,8 +6,6 @@
             [eclipse.markers :as markers])
   (:import [org.eclipse.core.resources IContainer IFolder IResource IResourceChangeEvent IResourceChangeListener IResourceDelta IResourceDeltaVisitor IWorkspace ResourcesPlugin WorkspaceJob]))
 
-(set! *warn-on-reflection* true)
-
 (defn resource-seq
   "Returns a lazy sequence of all the members in this container,
    recursively and depth-first."

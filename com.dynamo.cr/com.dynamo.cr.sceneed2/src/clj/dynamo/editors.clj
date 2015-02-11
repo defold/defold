@@ -21,8 +21,6 @@
             [org.eclipse.swt.opengl GLCanvas]
             [org.eclipse.core.commands ExecutionEvent]))
 
-(set! *warn-on-reflection* true)
-
 (defn event->active-editor
   "Returns the Clojure implementation of the active editor from the event's application context."
   [^ExecutionEvent evt]
