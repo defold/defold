@@ -381,35 +381,41 @@ the `do-gl` macro from `dynamo.gl`."
        (defn ~ctor [capacity#]
          (new-transient-vertex-buffer capacity# ~nm ~vx-size setter-fn# getter-fn#)))))
 
-(defn- vertex-enable-attrib
+(defn- vertex-locate-attribs
+  [^GL2 gl shader attribs]
+  (map
+    #(shader/get-attrib-location shader gl (name (first %)))
+     attribs))
+
+(defn- vertex-attrib-pointer
   [^GL2 gl shader attrib stride offset]
   (let [[nm sz tp & more] attrib
         loc               (shader/get-attrib-location shader gl (name nm))
         norm              (if (not (nil? (first more))) (first more) false)]
     (when (not= -1 loc)
-      (gl/gl-vertex-attrib-pointer gl ^int loc ^int sz ^int (gl-types tp) ^boolean norm ^int stride ^long offset)
-      (gl/gl-enable-vertex-attrib-array gl loc)
-      loc)))
+      (gl/gl-vertex-attrib-pointer gl ^int loc ^int sz ^int (gl-types tp) ^boolean norm ^int stride ^long offset))))
 
-(defn- vertex-enable-attribs
+(defn- vertex-attrib-pointers
   [^GL2 gl shader attribs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         stride  (vertex-size attribs)]
     (doall
       (map
         (fn [offset attrib]
-          (vertex-enable-attrib gl shader attrib stride offset))
+          (vertex-attrib-pointer gl shader attrib stride offset))
         offsets attribs))))
 
-(defn- vertex-disable-attrib
-  [^GL2 gl loc]
-  (when (and loc (not= -1 loc))
-    (gl/gl-disable-vertex-attrib-array gl loc)))
+(defn- vertex-enable-attribs
+  [^GL2 gl locs]
+  (doseq [l locs
+          :when (not= l -1)]
+    (gl/gl-enable-vertex-attrib-array gl l)))
 
 (defn- vertex-disable-attribs
   [^GL2 gl locs]
-  (doseq [l locs]
-    (vertex-disable-attrib gl l)))
+  (doseq [l locs
+          :when (not= l -1)]
+    (gl/gl-disable-vertex-attrib-array gl l)))
 
 (defrecord VertexBufferShaderLink [^PersistentVertexBuffer vertex-buffer shader context-local-data]
   GlBind
@@ -418,25 +424,29 @@ the `do-gl` macro from `dynamo.gl`."
       (let [buffer-name (first (gl/gl-gen-buffers gl 1))]
         (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)
         (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit ^ByteBuffer (.buffer vertex-buffer)) (.buffer vertex-buffer) GL2/GL_STATIC_DRAW)
+        (let [attributes  (:attributes (.layout vertex-buffer))
+              attrib-locs (vertex-locate-attribs gl shader attributes)]
+          (vertex-attrib-pointers gl shader attributes)
         (swap! context-local-data assoc gl {:buffer-name buffer-name
-                                            :attrib-locs (vertex-enable-attribs gl shader (:attributes (.layout vertex-buffer)))}))))
+                                            :attrib-locs attrib-locs})))))
 
   (unbind [this gl]
     (when-let [{:keys [buffer-name attrib-locs]} (get @context-local-data gl)]
-      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)
-      (vertex-disable-attribs gl attrib-locs)
       (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)
-      (when (not= 0 @buffer-name)
+      (when (not= 0 buffer-name)
         (gl/gl-delete-buffers ^GL2 gl buffer-name))
       (swap! context-local-data dissoc gl)))
 
   GlEnable
   (enable [this gl]
-    (when-let [{:keys [buffer-name]} (get @context-local-data gl)]
-      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)))
+    (when-let [{:keys [buffer-name attrib-locs]} (get @context-local-data gl)]
+      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)
+      (vertex-attrib-pointers gl shader (:attributes (.layout vertex-buffer)))
+      (vertex-enable-attribs gl attrib-locs))
+    )
 
   (disable [this gl]
-    (when (get @context-local-data gl)
+    (when-let [{:keys [buffer-name attrib-locs]} (get @context-local-data gl)]
       (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
 
   IDisposable
