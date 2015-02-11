@@ -331,6 +331,7 @@ class Configuration(object):
                               ["clj-aws-s3", "clj-aws-s3", "0.3.10"],
                               ["codox", "codox.core", "0.8.10"],
                               ["org.apache.httpcomponents", "httpcore", "4.2"],
+                              ["criterium", "criterium", "0.4.3"],
                               ["clojure-ini",  "clojure-ini", "0.0.2"]]
 
         common_artifacts = [["org.apache.httpcomponents", "httpcore", "4.2"],
