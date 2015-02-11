@@ -254,4 +254,5 @@ Bundle-ClassPath: .,
  jars/jackson-annotations-2.1.1.jar,
  jars/jackson-core-2.1.1.jar,
  jars/jackson-databind-2.1.1.jar,
- jars/clojure-ini-0.0.2.jar
+ jars/clojure-ini-0.0.2.jar,
+ jars/criterium-0.4.3.jar
