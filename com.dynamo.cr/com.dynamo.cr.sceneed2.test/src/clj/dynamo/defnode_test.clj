@@ -352,6 +352,9 @@
       (property a-property schema.core/Str  (default "Genosha"))
       (property b-property schema.core/Bool (default false))
       (property c-property schema.core/Int  (default 42))
+
+      (output new-output schema.core/Str :cached (plumbing.core/fnk [a-property] a-property))
+
       DynamicMarkerInterface)))
 
 (deftest redefining-nodes-updates-existing-world-instances
@@ -361,9 +364,6 @@
    (is (not (nil? (resolve 'MutagenicNode))))
    (is (not (nil? (var-get (resolve 'MutagenicNode)))))
    (is (not (nil? (:dynamo.node/ctor (var-get (resolve 'MutagenicNode))))))
-
-   (println (resolve 'MutagenicNode))
-   (println (resolve 'DynamicMarkerInterface))
 
    (let [node-before-mutation (ds/transactional (ds/add (n/construct (var-get (resolve 'MutagenicNode)))))
          original-node-id     (:_id node-before-mutation)]
@@ -375,6 +375,7 @@
        (is (= "a-string" (:a-property node-after-mutation)))
        (is (= true       (:b-property node-after-mutation)))
        (is (= 42         (:c-property node-after-mutation)))
+       (is (contains? (t/cached-outputs node-after-mutation) :new-output))
        (is (instance? iface node-after-mutation))))))
 
 (n/defnode BaseTriggerNode
