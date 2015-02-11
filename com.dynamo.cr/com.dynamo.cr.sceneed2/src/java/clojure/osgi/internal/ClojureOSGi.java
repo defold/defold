@@ -12,6 +12,7 @@ import clojure.lang.Symbol;
 import clojure.lang.Var;
 
 public class ClojureOSGi {
+  static final private Var INTERN = RT.var("clojure.core", "intern");
   static final private Var REQUIRE = RT.var("clojure.core", "require");
   static final private Var WITH_BUNDLE = RT.var("clojure.osgi.core", "with-bundle*");
   static final private Var BUNDLE = RT.var("clojure.osgi.core", "*bundle*").setDynamic();
@@ -30,6 +31,8 @@ public class ClojureOSGi {
           try {
         	    System.out.println("Loading clojure.core");
             REQUIRE.invoke(Symbol.intern("clojure.core"));
+
+            INTERN.invoke(Symbol.intern("clojure.core"), Symbol.intern("*warn-on-reflection*"), Boolean.TRUE);
 
             Var.pushThreadBindings(RT.map(BUNDLE, aContext.getBundle()));
             pushed = true;
