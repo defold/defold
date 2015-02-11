@@ -31,7 +31,8 @@
             [dynamo.types Animation Camera Image TextureSet Rect AABB]
             [javax.media.opengl GL GL2]
             [javax.media.opengl.glu GLU]
-            [javax.vecmath Point3d]))
+            [javax.vecmath Point3d]
+            [org.eclipse.swt SWT]))
 
 (set! *warn-on-reflection* true)
 
@@ -231,6 +232,15 @@
                (<= (- yc d) (:y pos) (+ yc d)))
       cell)))
 
+(defn- selection-event?
+  "True if the event is the beginning of a mouse-selection. That means:
+  1. No other mouse button is already held down;
+  2. Neither CTRL nor ALT is held down (camera movement);
+  3. The mouse button clicked was button 1."
+  [event]
+  (and (zero? (bit-and (:state-mask event) (bit-or SWT/BUTTON_MASK SWT/CTRL SWT/ALT)))
+       (= 1 (:button event))))
+
 (n/defnode CandyNode
   (inherits n/OutlineNode)
   (input camera s/Any)
@@ -261,6 +271,7 @@
         (reset! active-cell level-hit)
         (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [(ds/node-consuming self :aabb)])))
   (on :mouse-down
+    (when (selection-event? event)
       (let [camera (first (n/get-node-inputs self :camera))
             pos {:x (:x event) :y (:y event)}
             world-pos-v4 (camera-unproject camera (:x event) (:y event) 0)
@@ -275,7 +286,7 @@
           (ds/set-property self :active-brush (:image palette-hit)))
         (when level-hit
           (ds/tx-label "Paint Cell")
-          (ds/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self))))))
+          (ds/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))))))
   (on :load
       (let [project (:project event)
             level (edn/read-string (slurp (:filename self)))]
