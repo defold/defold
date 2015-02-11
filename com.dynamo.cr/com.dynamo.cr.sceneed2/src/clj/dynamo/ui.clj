@@ -86,7 +86,7 @@
 (def event-map (swt-events Dispose Resize Paint MouseDown MouseUp MouseDoubleClick
                            MouseEnter MouseExit MouseHover MouseMove MouseWheel DragDetect
                            FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse
-                           Selection DefaultSelection))
+                           Selection DefaultSelection Paint))
 
 (def event-type-map (clojure.set/map-invert event-map))
 
