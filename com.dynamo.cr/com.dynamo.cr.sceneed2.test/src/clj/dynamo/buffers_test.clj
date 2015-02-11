@@ -118,7 +118,6 @@
       (let [input-buffer input
             copy1        (b/copy-buffer input-buffer)
             copy2        (b/copy-buffer copy1)]
-        (prn expected (buffer-properties input-buffer) (buffer-properties copy1) (buffer-properties copy2))
         (= expected (buffer-properties input-buffer) (buffer-properties copy1) (buffer-properties copy2)))
       [0 0 0] (buffer-with-contents [])
       [0 4 4] (buffer-with-contents [1 2 3 4])
