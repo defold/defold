@@ -44,8 +44,9 @@ public class AndroidBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exeName = "dmengine_release";
-        String exe = Bob.getExe(Platform.Armv7Android, exeName);
+        final boolean release = project.hasOption("release");
+        String exeName = release ? "dmengine_release" : "dmengine";
+        String exe = Bob.getDmengineExe(Platform.Armv7Android, release);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         String certificate = project.option("certificate", "");
