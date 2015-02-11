@@ -97,13 +97,6 @@
   ([transaction graph self label kind afflicted]
     (swap! (:tracking self) update-in [kind] (fnil conj []) afflicted)))
 
-#_(defn track-trigger-transaction-state
-   ([transaction graph self label kind]
-     (swap! (get self label)
-       (fn [m]
-         (-> m
-           (update-in [todo] (fnil conj []) todo))))))
-
 (n/defnode StringSource
   (property label s/Str (default "a-string")))
 
@@ -372,7 +365,7 @@
 
 (defn cache-locate-key
   [world-ref node-id output]
-  (some-> world-ref deref :cache-keys (get-in [node-id :cached-output])))
+  (some-> world-ref deref :cache-keys (get-in [node-id output])))
 
 (deftest deleted-nodes-values-removed-from-cache
   (with-clean-world
@@ -385,3 +378,50 @@
         (ds/transactional (ds/delete node))
         (is (nil? (cache-peek world-ref cache-key)))
         (is (nil? (cache-locate-key world-ref node-id :cached-output)))))))
+
+(n/defnode OriginalNode
+  (output original-output s/Str :cached (fnk [] "original-output-value")))
+
+(n/defnode ReplacementNode
+  (output original-output s/Str (fnk [] "original-value-replaced"))
+  (output additional-output s/Str :cached (fnk [] "new-output-added")))
+
+(deftest become-interacts-with-caching
+  (testing "vanished keys are removed"
+    (with-clean-world
+      (let [node (ds/transactional (ds/add (n/construct OriginalNode)))]
+        (is (not (nil? (cache-locate-key world-ref (:_id node) :original-output))))
+
+        (let [node (ds/transactional (ds/become node (n/construct ReplacementNode)))]
+          (is (nil? (cache-locate-key world-ref (:_id node) :original-output)))))))
+
+  (testing "new keys are added"
+    (with-clean-world
+      (let [node (ds/transactional (ds/add (n/construct OriginalNode)))]
+        (is (nil? (cache-locate-key world-ref (:_id node) :additional-output)))
+
+        (let [node (ds/transactional (ds/become node (n/construct ReplacementNode)))]
+          (def cache-keys* (-> world-ref deref :cache-keys))
+          (is (not (nil? (cache-locate-key world-ref (:_id node) :additional-output))))))))
+
+  (testing "new uncacheable values are disposed"
+    (with-clean-world
+      (let [node         (ds/transactional (ds/add (n/construct OriginalNode)))
+            cache-key    (cache-locate-key world-ref (:_id node) :original-output)
+            cached-value (n/get-node-value node :original-output)]
+        (is (= cached-value (e/result (cache-peek world-ref cache-key))))
+        (is (not (nil? (cache-peek world-ref cache-key))))
+
+        (let [node (ds/transactional (ds/become node (n/construct ReplacementNode)))]
+          (is (nil? (cache-peek world-ref cache-key)))
+          (is (nil? (cache-locate-key world-ref (:_id node) :original-output)))))))
+
+  (testing "new cacheable values are indeed cached"
+    (with-clean-world
+      (let [node         (ds/transactional (ds/add (n/construct OriginalNode)))
+            node         (ds/transactional (ds/become node (n/construct ReplacementNode)))
+            cache-key    (cache-locate-key world-ref (:_id node) :additional-output)
+            cached-value (n/get-node-value node :additional-output)]
+        (is (not (nil? cache-key)))
+        (is (= cached-value (e/result (cache-peek world-ref cache-key))))
+        (is (not (nil? (cache-peek world-ref cache-key))))))))
