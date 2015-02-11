@@ -1124,7 +1124,7 @@ def detect(conf):
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
-    if re.match('.*?linux', "linux"):
+    if re.match('.*?linux', platform):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_DL'] = 'dl'
         conf.env['LIB_UUID'] = 'uuid'
@@ -1145,6 +1145,10 @@ def detect(conf):
         use_vanilla = True
     if build_util.get_target_platform() == 'x86_64-linux':
         # TODO: LuaJIT is currently broken on x86_64-linux
+        use_vanilla = True
+    if build_util.get_target_platform() == 'arm64-darwin':
+        # TODO: LuaJIT is currently not supported on arm64
+        # Note: There is some support in the head branch for LuaJit 2.1
         use_vanilla = True
 
     if use_vanilla:
