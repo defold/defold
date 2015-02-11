@@ -12,8 +12,7 @@
 	                </a> <a class="brand" href="/">Defold</a>
 	                <div class="nav-collapse">
 	                    <ul class="nav">
-	                        <li><a href="/blog">Blog</a></li>
-                            <li><a href="/plans">Plans</a></li>
+                            <li><a href="http://doc.defold.com/release_notes">Release notes</a></li>
 	                        <li><a href="http://doc.defold.com">Documentation</a></li>
 	                        <li><a href="/dashboard">Dashboard</a></li>
 	                    </ul>

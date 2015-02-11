@@ -122,6 +122,15 @@ public class Bob {
 
         return f.getAbsolutePath();
     }
+    
+    public static String getDmengineExe(Platform platform, boolean release) throws IOException {
+    	if(release) {
+    		return getExe(platform, "dmengine_release");
+    	}
+    	else {
+    		return getExe(platform, "dmengine");
+    	}
+    }
 
     public static String getLib(String name) throws IOException {
         init();
