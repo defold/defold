@@ -468,7 +468,10 @@ static Result DoLoadResource(HFactory factory, const char* path, const char* ori
         factory->m_HttpFactoryResult = RESULT_OK;
         factory->m_HttpStatus = -1;
 
-        dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, path);
+        char uri[RESOURCE_PATH_MAX*2];
+        dmURI::Encode(path, uri, sizeof(uri));
+
+        dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, uri);
         if (http_result != dmHttpClient::RESULT_OK)
         {
             if (factory->m_HttpStatus == 404)

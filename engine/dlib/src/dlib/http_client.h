@@ -243,23 +243,6 @@ namespace dmHttpClient
      * @param client Client handle
      */
     void Delete(HClient client);
-
-    /**
-     * Escape an URL string. Non unreserved characters are replaced with %XX where XX is the hexadecimal representation of the character.
-     * See http://en.wikipedia.org/wiki/Percent-encoding for list of unreserved characters
-     * @param src Source string
-     * @param dst Destination string. May *not* overlap with src
-     * @param dst_len Destination string length. Total buffer size
-     * @return RESULT_OK on success and RESULT_INVAL if destination buffer is too small.
-     */
-    Result Escape(const char* src, char* dst, uint32_t dst_len);
-
-    /**
-     * Unescape an url string
-     * @param src Source string
-     * @param dst Destination string (might be the same as src)
-     */
-    void Unescape(const char* src, char* dst);
 }
 
 #endif // DM_HTTP_CLIENT_H
