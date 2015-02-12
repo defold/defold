@@ -34,3 +34,9 @@
                    (e/or-else (fn [_] (assert false "baz")))
                    (e/or-else (fn [_] :quux))
                    (e/result)))))
+
+(deftest existance
+  (testing "right exists"
+    (is (e/exists? (e/bind :foo))))
+  (testing "left doesn't"
+    (is (not (e/exists? (e/bind (throw (ex-info "" {}))))))))
