@@ -161,7 +161,7 @@
     (.transform tfm p)
     p))
 
-(def Identity4d (doto (Matrix4d.) (.setIdentity)))
+(def ^Matrix4d Identity4d (doto (Matrix4d.) (.setIdentity)))
 
 ; -------------------------------------
 ; Matrix sloshing
