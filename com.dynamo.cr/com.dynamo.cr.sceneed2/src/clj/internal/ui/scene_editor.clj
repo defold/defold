@@ -23,8 +23,6 @@
            [dynamo.types Camera Region ]
            [internal.ui IDirtyable]))
 
-(set! *warn-on-reflection* true)
-
 (def CONTEXT_ID "com.dynamo.cr.clojure.contexts.scene-editor")
 
 (def PASS_SHIFT        32)

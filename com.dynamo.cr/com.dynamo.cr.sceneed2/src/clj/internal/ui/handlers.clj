@@ -12,8 +12,6 @@
            [org.eclipse.ui ISources PlatformUI]
            [internal.java Field]))
 
-(set! *warn-on-reflection* true)
-
 (defn context-accessor-sexp
   [fld]
   (let [fld-name (name (first fld))

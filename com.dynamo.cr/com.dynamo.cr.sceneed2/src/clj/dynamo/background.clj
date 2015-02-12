@@ -7,8 +7,6 @@
             [internal.render.pass :as p])
   (:import [javax.media.opengl GL2]))
 
-(set! *warn-on-reflection* true)
-
 (def grad-top-color (color 123 143 167))
 (def grad-bottom-color (color 28 29 31))
 

@@ -2,8 +2,6 @@
   (:require [internal.ui.handlers :as handlers])
   (:import [org.eclipse.core.commands ExecutionEvent]))
 
-(set! *warn-on-reflection* true)
-
 (def SCENE-MENU "com.dynamo.cr.menus.scene")
 (def EDIT-MENU  "com.dynamo.cr.menus.edit")
 

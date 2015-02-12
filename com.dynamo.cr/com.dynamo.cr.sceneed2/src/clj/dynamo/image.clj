@@ -12,8 +12,6 @@
            [java.awt.image BufferedImage]
            [dynamo.types Rect Image]))
 
-(set! *warn-on-reflection* true)
-
 (defmacro with-graphics
   [binding & body]
   (let [rsym (gensym)]

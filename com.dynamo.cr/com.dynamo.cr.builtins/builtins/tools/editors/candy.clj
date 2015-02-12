@@ -34,8 +34,6 @@
             [javax.vecmath Point3d]
             [org.eclipse.swt SWT]))
 
-(set! *warn-on-reflection* true)
-
 ; Config
 
 (def palette-columns 2)
