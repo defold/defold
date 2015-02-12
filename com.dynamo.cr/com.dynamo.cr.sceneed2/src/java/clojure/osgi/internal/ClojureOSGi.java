@@ -32,6 +32,7 @@ public class ClojureOSGi {
         	    System.out.println("Loading clojure.core");
             REQUIRE.invoke(Symbol.intern("clojure.core"));
 
+            // This system property exists in Clojure, but only when launched via clojure.lang.Compile
             INTERN.invoke(Symbol.intern("clojure.core"), Symbol.intern("*warn-on-reflection*"),
             		System.getProperty("clojure.compile.warn-on-reflection", "false").equals("true"));
 
