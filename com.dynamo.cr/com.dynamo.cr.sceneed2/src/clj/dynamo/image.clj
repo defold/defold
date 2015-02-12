@@ -87,7 +87,8 @@
     original
     (let [new (blank-image (.getWidth original) (.getHeight original) new-type)]
       (with-graphics [g2d (.createGraphics new)]
-        (.drawImage g2d original 0 0 nil)))))
+        (.drawImage g2d original 0 0 nil))
+      new)))
 
 (sm/defn image-bounds :- Rect
   [source :- Image]
