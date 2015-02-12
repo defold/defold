@@ -262,13 +262,6 @@
                         (for [p paths]
                           (p/load-resource game-project p)))])))
 
-#_(defn load-project-and-tools
-   [project-node content-root ^ProgressBar progress-bar]
-   (let [resources       (get-project-paths project-node content-root)]
-     (prn (count resources))
-     (apply post-load "Loading" (load-resource-nodes project-node resources progress-bar))
-     project-node))
-
 (defn get-project-paths [game-project content-root]
   (->> (file-seq content-root)
     (filter #(.isFile %))
