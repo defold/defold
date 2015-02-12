@@ -32,7 +32,8 @@ public class ClojureOSGi {
         	    System.out.println("Loading clojure.core");
             REQUIRE.invoke(Symbol.intern("clojure.core"));
 
-            INTERN.invoke(Symbol.intern("clojure.core"), Symbol.intern("*warn-on-reflection*"), Boolean.TRUE);
+            INTERN.invoke(Symbol.intern("clojure.core"), Symbol.intern("*warn-on-reflection*"),
+            		System.getProperty("clojure.compile.warn-on-reflection", "false").equals("true"));
 
             Var.pushThreadBindings(RT.map(BUNDLE, aContext.getBundle()));
             pushed = true;
