@@ -81,11 +81,7 @@
                                                 <content>
                                                   <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
                                                          <children>
-                                                            <TextArea id="console" layoutX="91.0" layoutY="52.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                                               <font>
-                                                                  <Font name="Monospaced Regular" size="13.0" />
-                                                               </font>
-                                                            </TextArea>
+                                                            <TextArea id="console" layoutX="91.0" layoutY="52.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                                          </children></AnchorPane>
                                                 </content>
                                               </Tab>
@@ -134,5 +130,11 @@
             </AnchorPane>
         </items>
       </SplitPane>
+      <HBox prefWidth="200.0" VBox.vgrow="SOMETIMES">
+         <children>
+            <Region prefWidth="200.0" HBox.hgrow="ALWAYS" />
+            <ProgressBar id="progress-bar" prefWidth="200.0" progress="0.0" />
+         </children>
+      </HBox>
    </children>
 </VBox>

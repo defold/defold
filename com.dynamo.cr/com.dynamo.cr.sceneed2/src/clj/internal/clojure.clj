@@ -26,13 +26,14 @@
   [node project path]
   (let [ns-decl     (read-file-ns-decl path)
         source-file (file/project-file path)]
-    (markers/remove-markers source-file)
+    #_(markers/remove-markers source-file)
     (try
       (ds/in project
         (Compiler/load (io/reader path) (t/local-path path) (.getName source-file))
         (ds/set-property node :namespace (UnloadableNamespace. ns-decl)))
       (catch clojure.lang.Compiler$CompilerException compile-error
-        (markers/compile-error source-file compile-error)))))
+        (println compile-error)
+        #_(markers/compile-error source-file compile-error)))))
 
 (n/defnode ClojureSourceNode
   (inherits n/ResourceNode)
