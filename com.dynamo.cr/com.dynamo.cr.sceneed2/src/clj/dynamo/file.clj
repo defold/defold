@@ -31,7 +31,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
 (defn- eproj ^IProject [p] (:eclipse-project p))
 
 (defprotocol ProjectRelative
-  (project-file [this] "Returns the file (as Eclipse's IFile) relative to a project container."))
+  (project-file ^IFile [this] "Returns the file (as Eclipse's IFile) relative to a project container."))
 
 (defprotocol FileWriter
   (write-file [this ^bytes contents] "Given a path and contents, writes the contents to file. This will overwrite any existing contents."))
