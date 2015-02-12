@@ -60,10 +60,10 @@ it creates. Likewise, it is responsible for making connections as desired."
   (symbol (->camelCase (str "get-" (name fld)))))
 
 (defn message-mapper
-  [cls props]
+  [class props]
   `(fn [~'protobuf]
      (hash-map
-       ~@(mapcat (fn [k getter] [k (list '. 'protobuf (symbol getter))])
+       ~@(mapcat (fn [k getter] [k (list '. (with-meta 'protobuf {:tag class}) (symbol getter))])
            props (map getter props)))))
 
 (defn connection
@@ -71,13 +71,13 @@ it creates. Likewise, it is responsible for making connections as desired."
   (list `ds/connect 'node source-label 'this target-label))
 
 (defn subordinate-mapper
-  [[from-property connections]]
-  `(doseq [~'node (map message->node (. ~'protobuf ~(getter from-property)))]
+  [class [from-property connections]]
+  `(doseq [~'node (map message->node (. ~(with-meta 'protobuf {:tag class}) ~(getter from-property)))]
      ~@(map connection (partition-all 3 connections))))
 
 (defn callback-field-mapper
-  [[from-property callback]]
-  `(doseq [~'msg (. ~'protobuf ~(getter from-property))]
+  [class [from-property callback]]
+  `(doseq [~'msg (. ~(with-meta 'protobuf {:tag class}) ~(getter from-property))]
       (~callback ~'this ~'msg)))
 
 (defmacro protocol-buffer-converter
@@ -88,8 +88,8 @@ it creates. Likewise, it is responsible for making connections as desired."
            ~'basic-props    (~'message-mapper ~'protobuf)
            ~'this           (apply n/construct ~(:node-type spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
        (ds/add ~'this)
-       ~@(map subordinate-mapper (:node-properties spec))
-       ~@(map callback-field-mapper (:field-mappers spec))
+       ~@(map (partial subordinate-mapper class) (:node-properties spec))
+       ~@(map (partial class callback-field-mapper) (:field-mappers spec))
        ~'this)))
 
 (defmacro protocol-buffer-converters

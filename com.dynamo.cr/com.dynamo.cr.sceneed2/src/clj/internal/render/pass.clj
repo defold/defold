@@ -33,7 +33,7 @@
 (defmulti prepare-gl (fn [pass gl glu] pass))
 
 (defmethod prepare-gl background
-  [_ gl glu]
+  [_ ^GL2 gl ^GLU glu]
   (.glMatrixMode gl GL2/GL_PROJECTION)
   (.glLoadIdentity gl)
   (.gluOrtho2D glu -1.0 1.0 -1.0 1.0)
@@ -50,7 +50,7 @@
   (.glDisable gl GL2/GL_LINE_STIPPLE))
 
 (defmethod prepare-gl opaque
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glDisable GL/GL_BLEND)
@@ -63,7 +63,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl outline
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
     (.glDisable GL/GL_BLEND)
@@ -76,7 +76,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl transparent
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -90,7 +90,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl selection
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -104,7 +104,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl manipulator
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glDisable GL/GL_BLEND)
@@ -117,7 +117,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl overlay
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -131,7 +131,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl icon
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -145,7 +145,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl icon-selection
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -159,7 +159,7 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl icon-outline
-  [_ gl glu]
+  [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
     (.glDisable GL/GL_BLEND)

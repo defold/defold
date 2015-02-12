@@ -1,21 +1,21 @@
 (ns clojure.osgi.services
   (:use (clojure.osgi core))
-
   (:import
     (clojure.osgi IClojureOSGi)
     (clojure.osgi BundleClassLoader)
+    (java.util Properties)
 		(org.osgi.util.tracker ServiceTracker ServiceTrackerCustomizer)
     (org.osgi.framework Filter FrameworkUtil)))
 
 ;name of java interface that corresponds to given protocol
 (defn protocol-interface-name [protocol]
   {:pre [(map? protocol)]}
-  (.getName (:on-interface protocol)))
+  (.getName ^Class (:on-interface protocol)))
 
-(defn- map-to-properties [m]
+(defn- ^Properties map-to-properties [m]
 	{:pre [(map? m)]}
 
-	(let [result (java.util.Properties.)]
+	(let [result (Properties.)]
 		(doseq [[k v] m]
 			(.put result k v))
 
@@ -26,7 +26,7 @@
 
 ; service filter
 (defprotocol FilterProtocol
-	(get-filter [this]))
+	(get-filter ^Filter [this]))
 
 (extend-protocol FilterProtocol
 	Filter
@@ -52,7 +52,7 @@
 	(removed [callback reference service])
 	(modified [clallback reference service]))
 
-(defn track-service [filter customizer]
+(defn track-service [filter ^ServiceTrackerCustomizer customizer]
   (let
     [context (.getBundleContext *bundle*)
      tracker (ServiceTracker. context (get-filter filter) customizer)]
@@ -60,19 +60,15 @@
    	 tracker))
 
 (defn register-service* [protocol options service]
-  (let [context (.getBundleContext *bundle*)]
-    (.registerService context
-		  (cond
-		     (class? protocol)
-		       (.getName protocol)
-
-		     (map? protocol)
-           (protocol-interface-name protocol)
-
-		     :default
-		       (throw (IllegalStateException.)))
-
-      service (map-to-properties options))))
+  (let [context (.getBundleContext *bundle*)
+        ^String klass (cond
+                        (class? protocol)
+                          (.getName ^Class protocol)
+                        (map? protocol)
+                          (protocol-interface-name protocol)
+                        :default
+                          (throw (IllegalStateException.)))]
+    (.registerService context klass service (map-to-properties options))))
 
 (defmacro register-service [protocol & methods]
 	(let [options (if (map? (first methods)) (first methods) {})
@@ -93,7 +89,7 @@
            (require (symbol name))))
 
       (withBundle [_ bundle r]
-        (with-bundle* bundle false #(.run r)))
+        (with-bundle* bundle false #(.call r)))
 
       (loadAOTClass [_ bundle name]
         (with-bundle bundle
