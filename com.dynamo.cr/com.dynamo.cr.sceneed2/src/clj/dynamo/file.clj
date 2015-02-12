@@ -130,8 +130,8 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
     (let [ep    (eproj project-scope)
           file  (cond
                   (instance? IFile resource) resource
-                  (instance? IPath resource) (.getFile ep (.append (Path. "content") resource))
-                  :else                      (.getFile ep (str "content/" resource)))
+                  (instance? IPath resource) (.getFile ep (.append (Path. "content") ^IPath resource))
+                  :else                      (.getFile ep ^String (str "content/" resource)))
           pr    (.removeFirstSegments (.getFullPath ^IFile file) 2)
           ext   (.getFileExtension pr)
           p     (str "/" (.toString pr))
