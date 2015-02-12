@@ -10,75 +10,21 @@
            [com.jogamp.opengl.util.texture Texture TextureIO]
            [com.jogamp.opengl.util.texture.awt AWTTextureIO]))
 
-;;; This is where we keep our idea of the GPU's state
-;;;
-;;; The structure is a map from gl-context -> [ TextureUnit TextureLifecycle ]
+(set! *warn-on-reflection* true)
+
 (defonce gl-texture-state (atom {}))
-
-(defn texture-unit-id
-  "Equivalent to (+ GL_TEXTURE0 texture-unit-index)"
-  [index]
-  (when index
-    (int (+ GL/GL_TEXTURE0 index))))
-
-(defn texture-unit-assign
-  [gl unit tex]
-  (swap! gl-texture-state assoc-in [gl unit] tex))
-
-(defn texture-unit-unassign
-  [gl unit tex]
-  (swap! gl-texture-state dissoc gl unit))
-
-(defn texture-unit-forget
-  [gl]
-  (swap! gl-texture-state dissoc gl))
-
-(defn texture-unit-assignments
-  [gl]
-  (get @gl-texture-state gl))
-
-(defn texture-unit-assignment
-  [gl unit]
-  (first (filter #(= unit (key %)) (texture-unit-assignments gl))))
-
-(defn texture-loaded?
-  [gl tex]
-  (ffirst (filter #(= tex (val %)) (texture-unit-assignments gl))))
-
-(def available? (comp nil? second))
-
-(defn first-available-texture-unit
-  [gl]
-  (ffirst (filter available? (texture-unit-assignments gl))))
-
-(defn unload-texture-from-unit
-  [gl [unit tex]]
-  (when tex
-    (unbind tex gl)
-    (texture-unit-unassign gl unit tex)))
-
-(defn load-texture-in-unit
-  [gl unit tex]
-  (if (not (available? (texture-unit-assignment gl unit)))
-    (unload-texture-from-unit (texture-unit-assignment gl unit)))
-  (.glActiveTexture ^GL2 gl (texture-unit-id unit))
-  (texture-unit-assign gl unit tex))
-
-(defn texture-unit-index
-  [gl tex]
-  (texture-loaded? gl tex))
 
 (defn context-local-data
   [gl key]
-  (get-in @gl-texture-state [:local gl key]))
+  (get-in @gl-texture-state [gl key]))
 
 (defn set-context-local-data
   [gl key data]
-  (swap! gl-texture-state assoc-in [:local gl key] data))
+  (swap! gl-texture-state assoc-in [gl key] data))
 
 (defn context-local-data-forget
-  [gl]
-  (swap! gl-texture-state update-in [:local] dissoc gl))
+  [gl key]
+  (swap! gl-texture-state dissoc [gl key]))
 
 (defn texture-occurrences
   [tex]
@@ -88,110 +34,102 @@
     [gl asgn]))
 
 (defn unload-texture
-  [tex]
-  (doall (map unload-texture-from-unit (texture-occurrences tex))))
+  [this]
+  (swap! gl-texture-state
+    #(reduce-kv
+       (fn [state gl-context tex]
+         (if (identical? tex this)
+           (dissoc state gl-context)
+           state))
+       % %)))
 
 (defn unload-all
   [gl]
-  (doseq [a (texture-unit-assignments gl)]
-    (unload-texture-from-unit gl a))
-  (texture-unit-forget gl)
-  (context-local-data-forget gl))
+  (swap! gl-texture-state dissoc gl))
 
-(defn initialize
-  [gl]
-  (let [units (zipmap (map int (range (gl/gl-max-texture-units gl))) (repeat nil))]
-    (println "max texture units: " (count units))
-    (swap! gl-texture-state assoc gl units)))
-
-(defrecord TextureLifecycle [^BufferedImage img]
+(defrecord TextureLifecycle [unit ^BufferedImage img]
   GlBind
   (bind [this gl]
-    (when-not (texture-loaded? gl this)
-      (let [texture-unit (first-available-texture-unit gl)]
-        (load-texture-in-unit gl texture-unit this)
-        (let [texture ^Texture (AWTTextureIO/newTexture (GLProfile/getGL2GL3) img true)]
-          (.setTexParameteri texture gl GL/GL_TEXTURE_MIN_FILTER GL/GL_LINEAR_MIPMAP_LINEAR)
-          (.setTexParameteri texture gl GL/GL_TEXTURE_MAG_FILTER GL/GL_LINEAR)
-          (.setTexParameteri texture gl GL/GL_TEXTURE_WRAP_S GL2/GL_CLAMP)
-          (.setTexParameteri texture gl GL/GL_TEXTURE_WRAP_T GL2/GL_CLAMP)
-          (.enable texture gl)
-          (.bind texture gl)
-          (set-context-local-data gl this texture)))))
+    (when-not (context-local-data gl this)
+      (.glActiveTexture ^GL2 gl unit)
+      (let [texture ^Texture (AWTTextureIO/newTexture (GLProfile/getGL2GL3) img true)]
+        (.setTexParameteri texture gl GL/GL_TEXTURE_MIN_FILTER GL/GL_LINEAR_MIPMAP_LINEAR)
+        (.setTexParameteri texture gl GL/GL_TEXTURE_MAG_FILTER GL/GL_LINEAR)
+        (.setTexParameteri texture gl GL/GL_TEXTURE_WRAP_S GL2/GL_CLAMP)
+        (.setTexParameteri texture gl GL/GL_TEXTURE_WRAP_T GL2/GL_CLAMP)
+        (.enable texture gl)
+        (.bind texture gl)
+        (set-context-local-data gl this texture))))
 
   (unbind [this gl]
-    (when (texture-loaded? gl this)
-      (when-let [texture ^Texture (context-local-data gl this)]
-        (.destroy texture gl)
-        (set-context-local-data gl this nil))))
+    (when-let [texture ^Texture (context-local-data gl this)]
+      (.destroy texture gl)
+      (context-local-data-forget gl this)))
 
   GlEnable
   (enable [this gl]
-    (when-let [unit (texture-loaded? gl this)]
-      (gl/gl-active-texture ^GL gl (texture-unit-id unit))
-      (when-let [texture ^Texture (context-local-data gl this)]
-        (.bind texture gl)
-        (.enable texture gl))))
+    (when-let [texture ^Texture (context-local-data gl this)]
+      (gl/gl-active-texture ^GL gl unit)
+      (.bind texture gl)
+      (.enable texture gl)))
 
   (disable [this gl]
-    (when (texture-loaded? gl this)
-      (when-let [texture ^Texture (context-local-data gl this)]
-        (.disable texture gl))
-      (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0)))
+    (when-let [texture ^Texture (context-local-data gl this)]
+      (.disable texture gl))
+    (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0))
 
   IDisposable
   (dispose [this]
+    (println "TextureLifecycle.dispose " img)
     (unload-texture this)))
 
 (defn image-texture
-  [^BufferedImage img]
-  (->TextureLifecycle (or img (:contents placeholder-image))))
+  ([img]
+    (image-texture GL/GL_TEXTURE0 img))
+  ([unit ^BufferedImage img]
+    (->TextureLifecycle unit (or img (:contents placeholder-image)))))
 
-(defrecord CubemapTexture [^BufferedImage right ^BufferedImage left ^BufferedImage top ^BufferedImage bottom ^BufferedImage front ^BufferedImage back]
+(defrecord CubemapTexture [unit ^BufferedImage right ^BufferedImage left ^BufferedImage top ^BufferedImage bottom ^BufferedImage front ^BufferedImage back]
   GlBind
   (bind [this gl]
-    (when-not (texture-loaded? gl this)
-      (let [texture-unit (first-available-texture-unit gl)]
-        (load-texture-in-unit gl texture-unit this)
-        (let [texture ^Texture (TextureIO/newTexture GL/GL_TEXTURE_CUBE_MAP)]
-          (doseq [[img target]
-                  [[right  GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X]
-                   [left   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_X]
-                   [top    GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Y]
-                   [bottom GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Y]
-                   [front  GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Z]
-                   [back   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Z]]]
-            (.updateImage texture gl ^TextureData (AWTTextureIO/newTextureData (GLProfile/getGL2GL3) img false) target))
-          (.setTexParameteri texture gl GL/GL_TEXTURE_MIN_FILTER GL/GL_LINEAR)
-          (.setTexParameteri texture gl GL/GL_TEXTURE_MAG_FILTER GL/GL_LINEAR)
-          (.setTexParameteri texture gl GL/GL_TEXTURE_WRAP_S GL2/GL_CLAMP)
-          (.setTexParameteri texture gl GL/GL_TEXTURE_WRAP_T GL2/GL_CLAMP)
-          (.enable texture gl)
-          (.bind texture gl)
-          (set-context-local-data gl this texture)))))
+    (when-not (context-local-data gl this)
+      (let [texture ^Texture (TextureIO/newTexture GL/GL_TEXTURE_CUBE_MAP)]
+        (doseq [[img target]
+                [[right  GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X]
+                 [left   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_X]
+                 [top    GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Y]
+                 [bottom GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Y]
+                 [front  GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Z]
+                 [back   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Z]]]
+          (.updateImage texture gl ^TextureData (AWTTextureIO/newTextureData (GLProfile/getGL2GL3) img false) target))
+        (.setTexParameteri texture gl GL/GL_TEXTURE_MIN_FILTER GL/GL_LINEAR)
+        (.setTexParameteri texture gl GL/GL_TEXTURE_MAG_FILTER GL/GL_LINEAR)
+        (.setTexParameteri texture gl GL/GL_TEXTURE_WRAP_S GL2/GL_CLAMP)
+        (.setTexParameteri texture gl GL/GL_TEXTURE_WRAP_T GL2/GL_CLAMP)
+        (.enable texture gl)
+        (.bind texture gl)
+        (set-context-local-data gl this texture))))
 
   (unbind [this gl]
-    (when (texture-loaded? gl this)
-      (when-let [texture ^Texture (context-local-data gl this)]
-        (.destroy texture gl)
-        (set-context-local-data gl this nil))))
+    (when-let [texture ^Texture (context-local-data gl this)]
+      (.destroy texture gl)
+      (context-local-data-forget gl this)))
 
   GlEnable
   (enable [this gl]
-    (when-let [unit (texture-loaded? gl this)]
-      (gl/gl-active-texture ^GL gl (texture-unit-id unit))
-      (when-let [texture ^Texture (context-local-data gl this)]
-        (.bind texture gl)
-        (.enable texture gl))))
+    (when-let [texture ^Texture (context-local-data gl this)]
+      (gl/gl-active-texture ^GL gl unit)
+      (.bind texture gl)
+      (.enable texture gl)))
 
   (disable [this gl]
-    (when (texture-loaded? gl this)
-      (when-let [texture ^Texture (context-local-data gl this)]
-        (.disable texture gl))
-      (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0)))
+    (when-let [texture ^Texture (context-local-data gl this)]
+      (.disable texture gl))
+    (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0))
 
   IDisposable
   (dispose [this]
+    (println "CubemapTexture.dispose")
     (unload-texture this)))
 
 (def cubemap-placeholder
@@ -208,5 +146,7 @@
       x)))
 
 (defn image-cubemap-texture
-  [right left top bottom front back]
-  (apply ->CubemapTexture (map #(safe-texture %) [right left top bottom front back])))
+  ([right left top bottom front back]
+    (image-cubemap-texture GL/GL_TEXTURE0 right left top bottom front back))
+  ([unit right left top bottom front back]
+    (apply ->CubemapTexture unit (map #(safe-texture %) [right left top bottom front back]))))

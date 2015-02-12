@@ -134,13 +134,13 @@
     (render-text ctx gl text-renderer (:name group) (- (:x group) palette-cell-size-half) (+ (* 0.25 group-spacing) (- palette-cell-size-half (:y group))) 0 1))
   (let [cell-count (reduce (fn [v0 v1] (+ v0 (count (:cells v1)))) 0 layout)]
    (gl/with-enabled gl [gpu-texture shader vertex-binding]
-    (shader/set-uniform shader gl "texture" (texture/texture-unit-index gl gpu-texture))
+    (shader/set-uniform shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 cell-count)))))
 
 (defn render-level [^GL2 gl level gpu-texture vertex-binding layout]
   (let [cell-count (count layout)]
    (gl/with-enabled gl [gpu-texture shader vertex-binding]
-    (shader/set-uniform shader gl "texture" (texture/texture-unit-index gl gpu-texture))
+    (shader/set-uniform shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 cell-count)))))
 
 ; Vertex generation
