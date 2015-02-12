@@ -10,8 +10,6 @@
            [com.jogamp.opengl.util.texture Texture TextureIO]
            [com.jogamp.opengl.util.texture.awt AWTTextureIO]))
 
-(set! *warn-on-reflection* true)
-
 ;;; This is where we keep our idea of the GPU's state
 ;;;
 ;;; The structure is a map from gl-context -> [ TextureUnit TextureLifecycle ]

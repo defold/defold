@@ -5,8 +5,6 @@
            [com.jogamp.opengl.util Animator]
            [java.nio FloatBuffer]))
 
-(set! *warn-on-reflection* true)
-
 ;; This is not a good example of state handling in a Clojure program
 ;; it is purely intended to mimic the original Java code for this example.
 (def vertex-shader       (atom 0))

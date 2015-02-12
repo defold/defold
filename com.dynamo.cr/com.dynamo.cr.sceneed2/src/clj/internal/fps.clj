@@ -6,8 +6,6 @@
             [dynamo.gl :as gl]
             [internal.render.pass :as pass]))
 
-(set! *warn-on-reflection* true)
-
 (deftype FpsTracker [sum ^longs ringbuf len idx lasttick]
   clojure.lang.IDeref
   (deref [this] (* 1000000000.0 (/ len @sum)))

@@ -12,8 +12,6 @@
            [javax.media.opengl GL GL2]
            [dynamo.types AABB Camera]))
 
-(set! *warn-on-reflection* true)
-
 (def min-align (/ (Math/sqrt 2.0) 2.0))
 (def grid-color [0.44705 0.44314 0.5098])
 (def x-axis-color (color 200   0   0))

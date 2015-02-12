@@ -2,8 +2,6 @@
   (:require [dynamo.types :refer :all]
             [plumbing.core :refer [defnk]]))
 
-(set! *warn-on-reflection* true)
-
 ;; Transform produces value
 (defnk outline-tree-producer :- OutlineItem
   [this g children :- [OutlineItem]]

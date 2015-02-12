@@ -21,8 +21,6 @@
             [inflections.core :refer [plural]]
             [camel-snake-kebab :refer [->kebab-case]]))
 
-(set! *warn-on-reflection* true)
-
 (defn- resource?
   ([property-type]
     (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))

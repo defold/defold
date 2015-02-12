@@ -6,8 +6,6 @@
            [internal.ui JavaMath]
            [javax.vecmath Point3d Point4d Vector4d Vector3d Matrix4d]))
 
-(set! *warn-on-reflection* true)
-
 (defn clamper [low high] (fn [x] (min (max x low) high)))
 
 (defn lift-f1 [op] (fn [c xs] (into (empty xs) (for [x xs] (op c x)))))
