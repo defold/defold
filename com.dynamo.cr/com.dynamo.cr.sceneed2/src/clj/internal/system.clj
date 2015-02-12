@@ -167,8 +167,9 @@
    (component/map->SystemMap
     {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 1)
      :world     (world tx-report-chan repaint-needed)
-     :repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])})))
+     })))
 
+;:repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])
 (def the-system (atom (system)))
 
 (defn world-ref [] (-> @the-system :world :state))
@@ -178,6 +179,7 @@
                state (-> system-map :world :state)
                graph (-> state deref :graph)
                root (dg/node graph 1)]
+           (prn "STATE!!!" state)
            (it/set-world-ref! state)
            (alter-var-root #'it/*scope* (constantly root))
            system-map))
@@ -204,6 +206,6 @@
    (.addContext undo-context)))
 
 (defn record-history-operation [undo-context label]
-  (let [operation (history-operation undo-context label)
-        history (.. PlatformUI getWorkbench getOperationSupport getOperationHistory)]
-    (.add history operation)))
+  (comment (let [operation (history-operation undo-context label)
+                history (.. PlatformUI getWorkbench getOperationSupport getOperationHistory)]
+            (.add history operation))))

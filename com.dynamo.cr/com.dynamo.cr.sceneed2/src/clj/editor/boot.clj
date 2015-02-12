@@ -2,6 +2,8 @@
   (:require [clojure.java.io :as io]
             [schema.core :as s]
             
+            [internal.clojure :as clojure]
+            
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
@@ -96,12 +98,8 @@
   (inherits n/Scope)
   (inherits n/ResourceNode)
 
-  (on :load
-      (prn "LOAD!!" self)
-    #_(let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap (:filename self)))]
-       (doseq [[side input] cubemap-message]
-         (ds/set-property self side input))))
-
+  (input text s/Str)
+  
   (on :create
       (let [textarea (TextArea.)]
         (AnchorPane/setTopAnchor textarea 0.0)
@@ -114,6 +112,22 @@
   (dispose [this]
            (println "Dispose TextEditor")))
 
+(n/defnode TextNode
+  (inherits n/Scope)
+  (inherits n/ResourceNode)
+  
+  (property text s/Str)
+
+  (on :load
+      (ds/set-property self :text (slurp (:filename self)))))
+
+(defn on-edit-text
+  [project-node editor-site text-node]
+  (let [editor (n/construct TextEditor)]
+    (ds/in (ds/add editor)
+           (ds/connect text-node :text editor :text)
+           editor)))
+
 (defrecord ProjectPath [project-ref ^String path ^String ext]
   t/PathManipulation
   (extension         [this]         ext)
@@ -122,7 +136,7 @@
   (local-name        [this]         (str (last (clojure.string/split path (java.util.regex.Pattern/compile java.io.File/separator))) "." ext))
 
   f/ProjectRelative
-  (project-file          [this]      (io/file (str (:content-root @project-ref) "/" (t/local-path this))))
+  (project-file          [this]      (io/file (str (:content-root project-ref) "/" (t/local-path this))))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (f/project-file this) opts))
@@ -159,11 +173,15 @@
       (println "Destory GameProject")
       (ds/delete self)))
 
+
 (defn- create-editor [game-project file root node-type]
   (let [tab-pane (.lookup root "#editor-tabs")
         parent (AnchorPane.)
         path (relative-path (:content-root game-project) file)
-        node (t/lookup game-project path)
+        resource-node (t/lookup game-project path)
+        node (ds/transactional 
+               (ds/in game-project
+                      (on-edit-text game-project nil resource-node))) 
         close-handler (event-handler event
                         (ds/transactional 
                           (ds/delete node)))]
@@ -274,7 +292,7 @@
         game-project (ds/transactional
                        (ds/add
                          (n/construct GameProject
-                                      :node-types {"script" TextEditor}
+                                      :node-types {"script" TextNode "clj" clojure/ClojureSourceNode}
                                       :content-root content-root)))
         resources       (get-project-paths game-project content-root)
         _ (apply post-load "Loading" (load-resource-nodes game-project resources progress-bar))
