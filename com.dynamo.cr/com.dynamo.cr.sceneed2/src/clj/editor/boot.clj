@@ -16,11 +16,14 @@
             [javafx.collections FXCollections ObservableList]
             [javafx.scene Scene Node Parent]
             [javafx.stage Stage FileChooser]
-            [javafx.scene.image Image ImageView]
+            [javafx.scene.image Image ImageView WritableImage PixelWriter]
             [javafx.scene.input MouseEvent]
             [javafx.event ActionEvent EventHandler]
             [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab]
-            [javafx.scene.layout AnchorPane StackPane HBox Priority]))
+            [javafx.scene.layout AnchorPane StackPane HBox Priority]
+            [javafx.embed.swing SwingFXUtils]
+            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
+            [com.jogamp.opengl.util.awt Screenshot]))
 
 ; ImageView cache
 (defonce cached-image-views (atom {}))
@@ -77,6 +80,43 @@
   t/IDisposable
   (dispose [this]))
 
+(n/defnode SceneEditor
+  (inherits n/Scope)
+  (on :create
+      (let [image-view (ImageView.)
+            image (WritableImage. 400 400)
+            parent (:parent event)]
+        (.setImage image-view image)
+        (AnchorPane/setTopAnchor image-view 0.0)
+        (AnchorPane/setBottomAnchor image-view 0.0)
+        (AnchorPane/setLeftAnchor image-view 0.0)
+        (AnchorPane/setRightAnchor image-view 0.0)
+        (.add (.getChildren parent) image-view)
+        (let [profile (GLProfile/getGL2ES2)
+              factory (GLDrawableFactory/getFactory profile)
+              caps (GLCapabilities. profile)]
+          (.setOnscreen caps false)
+          (.setPBuffer caps true)
+          (.setDoubleBuffered caps false)
+          (let [drawable (.createOffscreenAutoDrawable factory nil caps nil 400 400 nil)
+                context (.getContext drawable)]
+            (.makeCurrent context)
+            (let [gl (.getGL context)]
+              (.glClear gl GL/GL_COLOR_BUFFER_BIT)
+              (.glColor4f gl 1.0 1.0 1.0 1.0)
+              (.glBegin gl GL/GL_TRIANGLES)
+              (.glVertex2f gl 0.0 0.0)
+              (.glVertex2f gl 1.0 0.0)
+              (.glVertex2f gl 0.0 1.0)
+              (.glEnd gl)
+              (.glFlush gl)
+              (let [buf-image (Screenshot/readToBufferedImage 400 400 true)]
+                (.flush buf-image)
+                (SwingFXUtils/toFXImage buf-image image)))))))
+  t/IDisposable
+  (dispose [this]
+           (println "Dispose SceneEditor")))
+
 (n/defnode TextEditor
   (inherits n/Scope)
   (on :create
@@ -105,13 +145,21 @@
       (println "Destory GameProject")
       (ds/delete self)))
 
+(def editors {:atlas SceneEditor})
+
+(defn- find-editor [file]
+  (let [ext (last (.split file "\\."))
+        editor (if ext ((keyword ext) editors) nil)]
+    (or editor TextEditor)))
+
 (defn- create-editor [game-project file root node-type]
-  (let [tab (Tab. (.getName file))
+  (let [editor (find-editor (.getName file))
+        tab (Tab. (.getName file))
         tab-pane (.lookup root "#editor-tabs")
         parent (AnchorPane.)
         node (ds/transactional (ds/in game-project
                                       (ds/add
-                                        (n/construct node-type))))
+                                        (n/construct editor))))
         close-handler (event-handler event
                         (ds/transactional 
                           (ds/delete node)))]
