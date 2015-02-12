@@ -37,6 +37,7 @@
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
             [javax.media.opengl.glu GLU]
+            [java.nio IntBuffer]
             [javax.vecmath Matrix4d]
             [org.eclipse.swt SWT]
             [org.eclipse.ui IEditorSite]))
@@ -628,7 +629,7 @@
             previous-selection (disj (selected-node-ids selection-node)
                                  (:_id default-selection))
             new-ui-state (swap! (:ui-state self) assoc
-                           :pick-buffer (.clear (:pick-buffer self))
+                           :pick-buffer (.clear ^IntBuffer (:pick-buffer self))
                            :selecting true
                            :selection-node selection-node
                            :modifiers (:state-mask event)
