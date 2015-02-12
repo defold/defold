@@ -29,9 +29,8 @@
     (markers/remove-markers source-file)
     (try
       (ds/in project
-        ;;(binding [*warn-on-reflection* true]
-          (Compiler/load (io/reader path) (t/local-path path) (.getName source-file))
-          ;;)
+        (binding [*warn-on-reflection* true]
+          (Compiler/load (io/reader path) (t/local-path path) (.getName source-file)))
         (ds/set-property node :namespace (UnloadableNamespace. ns-decl)))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (markers/compile-error source-file compile-error)))))
