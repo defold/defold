@@ -29,9 +29,9 @@
 (defn new-byte-buffer ^ByteBuffer [& dims] (new-buffer (reduce * 1 dims)))
 
 (defn byte-order ^ByteBuffer [order ^ByteBuffer b] (.order b order))
-(def little-endian (partial byte-order ByteOrder/LITTLE_ENDIAN))
-(def big-endian    (partial byte-order ByteOrder/BIG_ENDIAN))
-(def native-order  (partial byte-order (ByteOrder/nativeOrder)))
+(def ^ByteBuffer little-endian (partial byte-order ByteOrder/LITTLE_ENDIAN))
+(def ^ByteBuffer big-endian    (partial byte-order ByteOrder/BIG_ENDIAN))
+(def ^ByteBuffer native-order  (partial byte-order (ByteOrder/nativeOrder)))
 
 (defn as-int-buffer ^IntBuffer [^ByteBuffer b] (.asIntBuffer b))
 
