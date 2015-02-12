@@ -85,7 +85,8 @@
     original
     (let [new (blank-image (.getWidth original) (.getHeight original) new-type)]
       (with-graphics [g2d (.createGraphics new)]
-        (.drawImage g2d original 0 0 nil)))))
+        (.drawImage g2d original 0 0 nil))
+      new)))
 
 (sm/defn image-bounds :- Rect
   [source :- Image]
@@ -116,6 +117,7 @@ region will be identical to the nearest pixel of the source image."
   (if-not (< 0 extrusion)
     src
     (let [src-img        (t/contents src)
+          src-img        (image-convert-type src-img BufferedImage/TYPE_4BYTE_ABGR)
           orig-width     (.width src)
           orig-height    (.height src)
           new-width      (+ orig-width (* 2 extrusion))
