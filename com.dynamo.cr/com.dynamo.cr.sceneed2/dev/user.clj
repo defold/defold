@@ -21,6 +21,7 @@
             [clojure.pprint :refer [pprint]]
             [schema.core :as s])
   (:import [java.awt Dimension]
+           [java.awt.image BufferedImage]
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]
            [javax.swing JFrame JPanel]
            [org.eclipse.ui PlatformUI]
@@ -280,6 +281,15 @@
                   (println e))))))
         (.pack shell)
         (.open shell)))))
+
+(defn summarize-images []
+  (->> (nodes-of-type "ImageResourceNode")
+       (map (fn [n]
+              (let [image    (n/get-node-value n :content)
+                    contents (t/contents image)]
+                (assert (= (.width  image) (.getWidth contents)))
+                (assert (= (.height image) (.getHeight contents)))
+                [(:_id n) (t/local-path (:filename n)) (.width image) (.height image) (.getType contents)])))))
 
 (comment
   (use 'criterium-core)
