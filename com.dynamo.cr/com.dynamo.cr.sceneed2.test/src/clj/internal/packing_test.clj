@@ -1,4 +1,4 @@
-(ns dynamo.texture-test
+(ns internal.packing-test
   (:require [dynamo.texture :refer :all]
             [dynamo.geom :refer :all]
             [dynamo.image :refer :all]

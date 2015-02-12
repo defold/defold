@@ -65,7 +65,7 @@
   (gl/with-enabled gl [gpu-texture cubemap-shader vertex-binding]
     (shader/set-uniform cubemap-shader gl "world" world)
     (shader/set-uniform cubemap-shader gl "cameraPosition" (t/position camera))
-    (shader/set-uniform cubemap-shader gl "envMap" (texture/texture-unit-index gl gpu-texture))
+    (shader/set-uniform cubemap-shader gl "envMap" 0)
     (gl/gl-enable gl GL/GL_CULL_FACE)
     (gl/gl-cull-face gl GL/GL_BACK)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))

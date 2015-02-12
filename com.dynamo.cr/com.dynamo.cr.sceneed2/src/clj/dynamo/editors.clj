@@ -154,7 +154,6 @@ Messages:
       (iuse/pipe-events-to-node canvas :resize self)
       (iuse/pipe-events-to-node canvas :paint self)
       (iuse/start-event-pump canvas self)
-      (texture/initialize gl)
       (ds/set-property self
         :context context
         :canvas canvas

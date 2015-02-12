@@ -13,6 +13,7 @@
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
+            [internal.disposal :as disposal]
             [internal.either :as e]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
@@ -378,6 +379,24 @@
         (ds/transactional (ds/delete node))
         (is (nil? (cache-peek world-ref cache-key)))
         (is (nil? (cache-locate-key world-ref node-id :cached-output)))))))
+
+(defrecord DisposableValue [disposed?]
+  t/IDisposable
+  (dispose [this]
+    (deliver disposed? true)))
+
+(n/defnode DisposableCachedValueNode
+  (property a-property s/Str)
+
+  (output cached-output t/IDisposable :cached (fnk [a-property] (->DisposableValue (promise)))))
+
+(deftest cached-values-are-disposed-when-invalidated
+  (with-clean-world
+    (let [node (ds/transactional (ds/add (n/construct DisposableCachedValueNode)))
+          value1 (n/get-node-value node :cached-output)]
+      (ds/transactional (ds/set-property node :a-property "this should trigger disposal"))
+      (disposal/dispose-pending world-ref)
+      (is (= true (deref (:disposed? value1) 100 :timeout))))))
 
 (n/defnode OriginalNode
   (output original-output s/Str :cached (fnk [] "original-output-value")))

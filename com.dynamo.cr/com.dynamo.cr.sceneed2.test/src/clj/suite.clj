@@ -9,6 +9,7 @@
                       'internal.injection-test
                       'internal.math-test
                       'internal.node-test
+                      'internal.packing-test
                       'internal.refresh-test
                       'internal.scope-test
                       'internal.system-test
@@ -23,7 +24,6 @@
                       'dynamo.project-test
                       'dynamo.property-test
                       'dynamo.protobuf-test
-                      'dynamo.texture-test
                       'dynamo.transaction-test
                       'dynamo.ui.property-test
                       'dynamo.util-test

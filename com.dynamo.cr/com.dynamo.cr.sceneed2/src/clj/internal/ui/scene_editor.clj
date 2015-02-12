@@ -79,7 +79,7 @@
       (catch Exception e
         (log/error :exception e
                    :pass pass
-                   :renderable renderable
+                   :render-fn (:render-fn renderable)
                    :message "skipping renderable")))))
 
 (defn paint-renderer

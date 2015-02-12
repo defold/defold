@@ -297,17 +297,3 @@
   (defhandler handle-speak-command speak-command (fn [^ExecutionEvent ev & args] (prn "Arf Arf! - " args)) "w/args")
 )
 
-(comment
-
-  (require 'internal.texture.pack)
-  (require 'dynamo.texture-test)
-
-  (defn viz-trects
-    []
-    (let [res (internal.texture.pack/max-rects-packing dynamo.texture-test/test-rectangles-for-packing)]
-      (user/pack-viz @internal.texture.pack-max-rects/trace)
-      res))
-
-  (viz-trects)
-
-  )

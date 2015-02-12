@@ -339,7 +339,7 @@
 (defn- dispose-obsoletes
   [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
   (let [candidates (concat
-                     (filter #(and (instance? internal.either.Right %) (t/disposable? (e/result %))) (map #(get cache %) obsolete-cache-keys))
+                     (keep #(when (and % (e/exists? %)) (e/result %)) (map #(get cache %) obsolete-cache-keys))
                      (filter t/disposable? (vals nodes-deleted)))]
     (assoc ctx :values-to-dispose (keep identity candidates))))
 
