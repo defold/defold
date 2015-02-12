@@ -6,3 +6,8 @@
 .menu-bar .menu .label {
     -fx-text-fill: #2d3e4c;
 }
+
+.text-area {
+    -fx-font-size: 11pt;
+    -fx-font-family: "Consolas";
+}
