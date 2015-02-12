@@ -1,15 +1,17 @@
 (ns clojure.osgi.core
-  (:import [org.osgi.framework Bundle])
-  (:import [java.util.concurrent Callable])
-  (:import [clojure.osgi BundleClassLoader IClojureOSGi])
-  (:import [clojure.lang Namespace]))
+  (:import
+    [org.osgi.framework Bundle]
+    [java.net URL]
+    [java.util.concurrent Callable]
+    [clojure.osgi BundleClassLoader IClojureOSGi]
+    [clojure.lang Namespace]))
 
 (def ^{:private true} osgi-debug false)
 
-(def ^:dynamic *bundle* nil)
-(def ^:dynamic *clojure-osgi-bundle*)
+(def ^:dynamic ^Bundle *bundle* nil)
+(def ^:dynamic ^Bundle *clojure-osgi-bundle*)
 
-(defn bundle-for-ns [ns]
+(defn ^Bundle bundle-for-ns [ns]
   (let [ns-meta (meta ns)]
     (and ns-meta (::bundle ns-meta))))
 
@@ -89,7 +91,7 @@
 
 ; copy from clojure.core - END
 
-(defn- full-path [path]
+(defn- full-path [^String path]
     (if (.startsWith path "/")
       path
       (str (root-directory (ns-name *ns*)) \/ path))
@@ -104,13 +106,13 @@
 (defn bundle-class-loader [bundle]
   (BundleClassLoader. bundle))
 
-(let [bundle *bundle*]
+(let [^Bundle bundle *bundle*]
   (defn bundle-name []
     (when bundle (.getSymbolicName bundle)))
 
   (defn get-bundle [^String bsn]
     (when bundle
-      (first (filter #(= bsn (.getSymbolicName %))
+      (first (filter #(= bsn (.getSymbolicName ^Bundle %))
                      (.. bundle (getBundleContext) (getBundles)))))))
 
 (defn- libspecs [args]
@@ -141,7 +143,7 @@
 (declare with-bundle*)
 (defmulti bundle-for-resource system-vendor)
 
-(defn- host-part-header-bundle-id [url]
+(defn- ^Long host-part-header-bundle-id [^URL url]
   "Extracts bundle ID from resource URLs in when the bundle ID is at
   the beginning of the host part of a resource URL.
   This is known to be true for both Eclipse/Equinox and current Apache Felix."
@@ -150,10 +152,10 @@
       (if (and (>= dot 0) (< dot (- (count host) 1)))
         (.substring host 0 dot) host))))
 
-(defn- host-part-header-bundle-for-resource [bundle resource]
+(defn- host-part-header-bundle-for-resource [^Bundle bundle resource]
   "Finds the bundle to use given a resource URL, for use with OSGi
   implementations which put the bundle ID at the beginning of resource
-  URIs."
+  URIs."2
   (let [url (.getResource bundle resource)]
     (when osgi-debug
       (println "url for " resource " = " url))
@@ -171,7 +173,7 @@
 (defn- available [lib]
   "Return the bundle from which the given resource is available"
   (let [forced-bundle (bundle-for-resource *bundle* (str (root-resource lib) "/.bundle"))
-        bundle (or forced-bundle *bundle*)]
+        ^Bundle bundle (or forced-bundle *bundle*)]
     (when (and osgi-debug forced-bundle)
       (println (str "marker for " lib " specifies non-default bundle " bundle)))
     (when (or
@@ -243,15 +245,15 @@
         (do
           (when osgi-debug
             (println (str "load " path " from " (.getSymbolicName *bundle*))))
-          (let [path (full-path path)]
+          (let [^String path (full-path path)]
             (if-not (*pending-paths* path)
               (binding [*pending-paths* (conj *pending-paths* path)
                         *currently-loading* path]
                 (let [load (fn [] (clojure.lang.RT/load (.substring path 1)))]
                   (let [forced-bundle (bundle-for-resource *bundle* (str path "/.bundle"))
-                        bundle (or forced-bundle
-                                   (bundle-for-resource *bundle* (str path ".clj"))
-                                   (bundle-for-resource *bundle* (str path "__init.class")))]
+                        ^Bundle bundle (or forced-bundle
+                                           (bundle-for-resource *bundle* (str path ".clj"))
+                                           (bundle-for-resource *bundle* (str path "__init.class")))]
                     (if bundle
                       (do
                         (when osgi-debug
@@ -287,7 +289,7 @@
           (do
             (when osgi-debug
               (println (str "looking for resource " n " from " (.getSymbolicName *bundle*))))
-            (if-let [bundle (bundle-for-resource *bundle* n)]
+            (if-let [^Bundle bundle (bundle-for-resource *bundle* n)]
               (do
                 (when osgi-debug
                   (println "loading resource " n " with bundle " (.getSymbolicName bundle)))

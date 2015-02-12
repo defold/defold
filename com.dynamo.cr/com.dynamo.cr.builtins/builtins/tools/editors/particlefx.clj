@@ -253,7 +253,7 @@ Particle$Modifier$Property
  :enum-maps        {:key (automatic-protobuf-enum Particle$ModifierKey "MODIFIER_KEY_")}})
 
 (defmethod protobuf/message->node Particle$SplinePoint
-  [msg]
+  [^Particle$SplinePoint msg]
   {:x (.getX msg)
    :y (.getY msg)
    :t-x (.getTX msg)

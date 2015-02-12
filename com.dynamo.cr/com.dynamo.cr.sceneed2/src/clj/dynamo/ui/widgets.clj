@@ -158,7 +158,7 @@
         children (vec (.getChildren parent))
         columns (:columns (get-widget-data parent ::layout))
         ; assume no colspan/rowspan
-        child-index (.indexOf children control)
+        child-index (.indexOf ^java.util.List children control)
         column-index (mod child-index (count columns))
         column-layout (nth columns column-index)
         spec (merge column-layout spec)
