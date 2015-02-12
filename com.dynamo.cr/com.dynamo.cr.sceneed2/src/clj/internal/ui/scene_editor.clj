@@ -105,7 +105,7 @@
   "Renders the renderables, each of which should be a map containing
   :select-name (an integer) and :render-fn. Returns a collection of
   names (integers) found within the pick-rect (map of :x :y :width :height)."
-  [^GLContext context select-buffer renderables ^Camera view-camera pick-rect]
+  [^GLContext context ^ByteBuffer select-buffer renderables ^Camera view-camera pick-rect]
   (assert select-buffer)
   (gl/with-context context [gl glu]
     (.glSelectBuffer gl (.capacity select-buffer) select-buffer)
