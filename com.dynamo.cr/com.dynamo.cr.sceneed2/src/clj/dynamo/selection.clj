@@ -13,8 +13,6 @@
            [dynamo.ui EventBroadcaster]
            [org.eclipse.core.commands ExecutionEvent]))
 
-(set! *warn-on-reflection* true)
-
 (defnk produce-selection [this selected-nodes]
   (let [node-ids (mapv :_id selected-nodes)]
     (reify

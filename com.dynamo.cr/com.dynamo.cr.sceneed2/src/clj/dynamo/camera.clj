@@ -12,8 +12,6 @@
            [org.eclipse.swt SWT]
            [dynamo.types Camera Region AABB]))
 
-(set! *warn-on-reflection* true)
-
 (sm/defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
   (let [pos (Vector3d. (t/position camera))

@@ -10,8 +10,6 @@
   (:import [org.eclipse.core.resources IProject IFile]
            [org.eclipse.core.runtime Path]))
 
-(set! *warn-on-reflection* true)
-
 (defn clean-world
   []
   (let [report-ch (a/chan (a/dropping-buffer 1))

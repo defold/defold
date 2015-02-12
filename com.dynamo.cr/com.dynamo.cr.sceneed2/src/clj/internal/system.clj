@@ -19,8 +19,6 @@
            [org.eclipse.core.commands.operations UndoContext]
            [internal.ui GenericOperation]))
 
-(set! *warn-on-reflection* true)
-
 (defn graph [world-ref]
   (-> world-ref deref :graph))
 

@@ -18,8 +18,6 @@ Second, this namespace defines some of the basic node types and mixins."
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]))
 
-(set! *warn-on-reflection* true)
-
 (defn get-node-value
   "Pull a value from a node's output, identified by `label`.
 The value may be cached or it may be computed on demand. This

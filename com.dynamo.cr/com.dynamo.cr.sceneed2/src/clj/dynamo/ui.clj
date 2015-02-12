@@ -13,8 +13,6 @@
            [org.eclipse.swt.layout FillLayout]
            [org.eclipse.swt SWT]))
 
-(set! *warn-on-reflection* true)
-
 (defn mouse-type
   []
   (if (= SceneUtil$MouseType/ONE_BUTTON (SceneUtil/getMouseType))

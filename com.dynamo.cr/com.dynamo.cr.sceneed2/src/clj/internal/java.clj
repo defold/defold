@@ -2,8 +2,6 @@
   (:require [camel-snake-kebab :refer :all])
   (:import [java.lang.reflect Modifier]))
 
-(set! *warn-on-reflection* true)
-
 (defn invoke-no-arg-class-method
   [^Class class method]
   (-> class (.getDeclaredMethod method (into-array Class []))

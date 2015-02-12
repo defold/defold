@@ -34,8 +34,6 @@ the `do-gl` macro from `dynamo.gl`."
            [com.google.protobuf ByteString]
            [javax.media.opengl GL GL2]))
 
-(set! *warn-on-reflection* true)
-
 (def type-sizes
   {'byte   Buffers/SIZEOF_BYTE
    'short  Buffers/SIZEOF_SHORT
