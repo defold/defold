@@ -76,8 +76,6 @@ public enum Platform {
     public static Platform getHostPlatform() {
         String os_name = System.getProperty("os.name").toLowerCase();
         String arch = System.getProperty("os.arch").toLowerCase();
-	System.out.println("!!!!!!!!!!!!!!!!!!!!!!");
-	System.out.println("arch: " + arch);
 
         if (os_name.indexOf("win") != -1) {
             return Platform.X86Win32;
