@@ -14,7 +14,7 @@
 #include "../graphics.h"
 #include "graphics_opengl.h"
 
-#if defined(__MACH__) && !defined(__arm__)
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
 #include <Carbon/Carbon.h>
 #endif
@@ -441,7 +441,7 @@ static void LogFrameBufferError(GLenum status)
             dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
 
-#if defined(__MACH__) && !defined(__arm__)
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
         ProcessSerialNumber psn;
         OSErr err;
 
