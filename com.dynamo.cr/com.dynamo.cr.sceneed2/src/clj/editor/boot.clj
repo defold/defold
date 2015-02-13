@@ -1,9 +1,7 @@
 (ns editor.boot
   (:require [clojure.java.io :as io]
             [schema.core :as s]
-            
             [internal.clojure :as clojure]
-            
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
@@ -12,6 +10,7 @@
             [internal.system :as is]
             [internal.transaction :as it]
             [internal.disposal :as disp]
+            [camel-snake-kebab :as camel]
             [service.log :as log]
             [editor.scene-editor :as es]
             )
@@ -22,12 +21,13 @@
             [javafx.fxml FXMLLoader]
             [javafx.collections FXCollections ObservableList]
             [javafx.scene Scene Node Parent]
+            [javafx.geometry Insets]
             [javafx.stage Stage FileChooser]
             [javafx.scene.image Image ImageView WritableImage PixelWriter]
             [javafx.scene.input MouseEvent]
             [javafx.event ActionEvent EventHandler]
-            [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-            [javafx.scene.layout AnchorPane StackPane HBox Priority]
+            [javafx.scene.control Button Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
             [javafx.embed.swing SwingFXUtils]
             [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
             [com.jogamp.opengl.util.awt Screenshot]))
@@ -42,6 +42,12 @@
 
 (defn- relative-path [f1 f2]
   (.toString (.relativize (.toPath f1) (.toPath f2))))
+
+(defn- fill-control [control]
+  (AnchorPane/setTopAnchor control 0.0)
+  (AnchorPane/setBottomAnchor control 0.0)
+  (AnchorPane/setLeftAnchor control 0.0)
+  (AnchorPane/setRightAnchor control 0.0))
 
 ; ImageView cache
 (defonce cached-image-views (atom {}))
@@ -87,6 +93,60 @@
 (defn- setup-console [root]
   (.appendText (.lookup root "#console") "Hello Console"))
 
+(defmulti create-property-control! (fn [t] t))
+
+(defmethod create-property-control! String [_]
+  (let [text (TextField.)
+        setter #(.setText text (str %))]
+    [text setter]))
+
+(defmethod create-property-control! t/Vec3 [_]
+  (let [x (TextField.)
+        y (TextField.)
+        z (TextField.)
+        box (HBox.)
+        setter (fn [vec]
+                 (.setText x (str (nth vec 0)))
+                 (.setText y (str (nth vec 1)))
+                 (.setText z (str (nth vec 2))))]
+    (doseq [t [x y z]]
+      (HBox/setHgrow t Priority/SOMETIMES)
+      (.setPrefWidth t 60)
+      (.add (.getChildren box) t))
+    [box setter]))
+
+(defmethod create-property-control! :default [_]
+  (create-property-control! String))
+
+(defn- niceify-label
+  [k]
+  (-> k
+    name
+    camel/->Camel_Snake_Case_String
+    (clojure.string/replace "_" " ")))
+
+(defn- create-properties-row [grid node key property row]
+  (let [label (Label. (niceify-label key))
+        [control setter] (create-property-control! (:value-type property))]
+    (setter (get node key))
+    (GridPane/setConstraints label 1 row)
+    (GridPane/setConstraints control 2 row)
+    (.add (.getChildren grid) label)
+    (.add (.getChildren grid) control)))
+
+(defn- setup-properties [root node]
+  (let [properties (t/properties node)
+        parent (.lookup root "#properties")
+        grid (GridPane.)]
+    (.clear (.getChildren parent))
+    (.setPadding grid (Insets. 10 10 10 10))
+    (.setHgap grid 4)
+    (doseq [[key p] properties]
+      (let [row (/ (.size (.getChildren grid)) 2)]
+        (create-properties-row grid node key p row)))    
+    
+    (.add (.getChildren parent) grid)))
+
 ; Editors
 (n/defnode CurveEditor
   (inherits n/Scope)
@@ -102,14 +162,11 @@
   (inherits n/Scope)
   (inherits n/ResourceNode)
 
-  (input text s/Str)
+  (input text s/Str )
   
   (on :create
       (let [textarea (TextArea.)]
-        (AnchorPane/setTopAnchor textarea 0.0)
-        (AnchorPane/setBottomAnchor textarea 0.0)
-        (AnchorPane/setLeftAnchor textarea 0.0)
-        (AnchorPane/setRightAnchor textarea 0.0)
+        (fill-control textarea)
         (.appendText textarea (slurp (:file event)))
         (.add (.getChildren (:parent event)) textarea)))
   t/IDisposable
@@ -121,7 +178,8 @@
   (inherits n/ResourceNode)
   
   (property text s/Str)
-
+  (property a-vector t/Vec3 (default [1 2 3]))
+  
   (on :load
       (ds/set-property self :text (slurp (:filename self)))))
 
@@ -197,8 +255,11 @@
                         (ds/transactional 
                           (ds/delete node)))]
 
+    
     (if (satisfies? t/MessageTarget node)
       (let [tab (Tab. (.getName file))]
+        (setup-properties root resource-node)
+        
         (.setOnClosed tab close-handler)
         (.setGraphic tab (get-image-view "cog.png"))
         (n/dispatch-message node :create :parent parent :file file)
@@ -229,6 +290,8 @@
 
 
 
+(def system nil)
+;(is/stop)
 (def the-system (is/start))
 (def the-root (atom nil))
 
