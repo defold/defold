@@ -1,6 +1,5 @@
 (ns user
-  (:require [clojure.osgi.core :refer [*bundle*]]
-            [dynamo.camera :as c]
+  (:require [dynamo.camera :as c]
             [dynamo.geom :as g]
             [dynamo.project :as p]
             [dynamo.file :as f]
@@ -146,13 +145,6 @@
 (defn imshow [img]
   (let [panel (image-panel img)]
     (doto (JFrame.) (.add panel) .pack .show)))
-
-(defn application-model
-  []
-  (let [bc   (.getBundleContext *bundle*)
-        refs (.getServiceReferences bc IWorkbench nil)
-        so   (.getServiceObjects bc (first refs))]
-    (.getApplication (.getService so))))
 
 (defn protobuf-fields
   [protobuf-msg-cls]

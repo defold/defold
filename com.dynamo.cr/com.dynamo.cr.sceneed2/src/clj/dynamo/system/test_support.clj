@@ -1,7 +1,6 @@
 (ns dynamo.system.test-support
   (:require [clojure.core.async :as a]
             [clojure.java.io :as io]
-            [clojure.osgi.core :as o]
             [com.stuartsierra.component :as component]
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [in]]
@@ -66,5 +65,5 @@
   (o/with-bundle b
     (io/resource f)))
 
-(defn fixture [bundle-name fixture-path]
-  (resource-from-bundle (o/get-bundle bundle-name) fixture-path))
+#_(defn fixture [bundle-name fixture-path]
+    (resource-from-bundle (o/get-bundle bundle-name) fixture-path))

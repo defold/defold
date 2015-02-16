@@ -17,13 +17,11 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
   (:refer-clojure :exclude [load])
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
-            [clojure.osgi.core :refer [get-bundle]]
             [dynamo.types :as t]
             [internal.java :as j]
             [service.log :as log])
   (:import [java.io OutputStream PipedOutputStream PipedInputStream Reader]
            [com.google.protobuf TextFormat GeneratedMessage$Builder]
-           [org.osgi.framework Bundle]
            [org.eclipse.core.filesystem IFileStore]
            [org.eclipse.core.internal.resources File]
            [org.eclipse.core.resources IProject IResource IFile]
