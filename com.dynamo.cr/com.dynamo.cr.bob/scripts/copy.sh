@@ -12,6 +12,7 @@ mkdir -p libexec/x86_64-linux
 mkdir -p libexec/x86-darwin
 mkdir -p libexec/x86-win32
 mkdir -p libexec/armv7-darwin
+mkdir -p libexec/arm64-darwin
 mkdir -p libexec/armv7-android
 mkdir -p libexec/js-web
 
@@ -60,6 +61,8 @@ copy win32/dmengine.exe x86-win32/dmengine.exe
 copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
 copy armv7-darwin/dmengine armv7-darwin/dmengine
 copy armv7-darwin/dmengine_release armv7-darwin/dmengine_release
+copy arm64-darwin/dmengine arm64-darwin/dmengine
+copy arm64-darwin/dmengine_release arm64-darwin/dmengine_release
 copy armv7-android/libdmengine.so armv7-android/libdmengine.so
 copy armv7-android/libdmengine_release.so armv7-android/libdmengine_release.so
 copy js-web/dmengine.js js-web/dmengine.js

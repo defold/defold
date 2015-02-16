@@ -7,6 +7,7 @@ public enum Platform {
     X86Linux("x86", "linux", "", "", "lib", ".so"),
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so"),
     Armv7Darwin("armv7", "darwin", "", "", "lib", ".so"),
+    Arm64Darwin("arm64", "darwin", "", "", "lib", ".so"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so"),
     JsWeb("js", "web", ".js", "", "lib", "");
 

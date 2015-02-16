@@ -48,7 +48,8 @@ public class IOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("release"));
+        String exeArmv7 = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("release"));
+        String exeArm64 = Bob.getDmengineExe(Platform.Arm64Darwin, project.hasOption("release"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -110,6 +111,32 @@ public class IOSBundler implements IBundler {
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+
+        // Create fat/universal binary
+        File tmpFile = File.createTempFile("dmengine", "");
+        tmpFile.deleteOnExit();
+        String exe = tmpFile.getPath();
+
+        // Run lipo to add exeArmv7 + exeArm64 together into universal bin
+        ProcessBuilder lipoProcessBuilder = new ProcessBuilder( Bob.getExe(Platform.getHostPlatform(), "lipo"),
+                    "-create", exeArmv7, exeArm64,
+                    "-output", exe);
+        Process lipoProcess = lipoProcessBuilder.start();
+        try {
+            InputStream errorIn = lipoProcess.getErrorStream();
+            ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
+            IOUtils.copy(errorIn, errorOut);
+            errorIn.close();
+            String errorMessage = new String(errorOut.toByteArray());
+
+            int ret = lipoProcess.waitFor();
+            if (ret != 0) {
+                logger.log(Level.SEVERE, errorMessage);
+                throw new IOException(errorMessage);
+            }
+        } catch (InterruptedException e1) {
+            throw new RuntimeException(e1);
+        }
 
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, title));
