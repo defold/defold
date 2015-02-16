@@ -374,7 +374,7 @@ must be part of a protocol or interface attached to the description."
   (let [{:keys [ns name]} (meta (resolve s))]
     (symbol (str ns) (str name))))
 
-(def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections :modified})
+(def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections})
 
 (defn- node-type-form
   "Translate the sugared `defnode` forms into function calls that
