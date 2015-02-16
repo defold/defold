@@ -18,13 +18,12 @@
     (fn []
       (disp/dispose-pending world-ref)
       (dosync
-        (let [g (:graph @world-ref)]
-          (doseq [w @waiters]
-            (try
-              (t/frame (ds/node world-ref w))
-              (catch Throwable t
-                (log/error :exception t :message "Error sending frame message to " w))))
-          (alter waiters empty))))))
+        (doseq [w @waiters]
+          (try
+            (t/frame (ds/node world-ref w))
+            (catch Throwable t
+              (log/error :exception t :message "Error sending frame message to " w))))
+        (alter waiters empty)))))
 
 (defrecord Repaint [waiters delay paint-loop]
   component/Lifecycle
