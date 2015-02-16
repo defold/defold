@@ -84,9 +84,16 @@
 
   (property id s/Str))
 
+(defn- distinct-by [f coll]
+  (->> coll
+    (reduce (fn [m v] (assoc m (f v) v)) {})
+    vals))
+
 (defn- consolidate
   [animations]
-  (seq (into #{} (mapcat :images animations))))
+  (->> animations
+    (mapcat :images)
+    (distinct-by :path)))
 
 (defnk produce-texture-packing :- TexturePacking
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
