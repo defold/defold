@@ -58,7 +58,6 @@
 (n/defnode ImageSource
   (inherits n/ResourceNode)
 
-  (output image   Image :cached :substitute-value placeholder-image (fnk [filename] (load-image filename (t/local-path filename))))
   (output content Image :cached :substitute-value placeholder-image (fnk [filename] (load-image filename (t/local-path filename)))))
 
 (sm/defn image-color-components :- long
