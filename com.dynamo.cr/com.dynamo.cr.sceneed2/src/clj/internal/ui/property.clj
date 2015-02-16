@@ -161,13 +161,6 @@
     (widgets/bring-to-front! (widgets/widget page [:page-content]))
     (widgets/scroll-to-top!  (widgets/widget properties-form [:form]))))
 
-(defn- refresh-after-a-while
-  [transaction graph this label kind]
-  (when (and (ds/is-modified? transaction this :content)
-             (not (ds/is-deleted? transaction this))
-             (:debouncer this))
-    (t/signal (:debouncer this))))
-
 (def gui
   [:form {:type   :form
           :text   "Properties"
@@ -182,8 +175,6 @@
 
   (input  presenter-registry t/Registry :inject)
   (output presenter-registry t/Registry passthrough-presenter-registry)
-
-  (trigger delayed-refresh :modified refresh-after-a-while)
 
   (on :create
     (let [toolkit           (FormToolkit. (.getDisplay ^Composite (:parent event)))
