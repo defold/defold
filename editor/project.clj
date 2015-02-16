@@ -1,8 +1,10 @@
 (defproject editor "2.0.0-SNAPSHOT"
-  :description  "Defold game editor"
-  :url          "http://doc.defold.com"
+  :description      "Defold game editor"
+  :url              "http://doc.defold.com"
 
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
+
+  :plugins          [[lein-protobuf-minimal "0.4.1"]]
 
   :dependencies     [[org.clojure/clojure                         "1.6.0"]
                      [org.clojure/core.cache                      "0.6.3"]
@@ -242,14 +244,17 @@
 
   :resource-paths    ["../com.dynamo.cr/com.dynamo.cr.builtins/builtins"]
 
-  :test-paths        ["../com.dynamo.cr/com.dynamo.cr.sceneed2.test/src/clj"]
+  :protobuf-includes ["../engine/gamesys/proto"
+                      "../engine/ddf/src"
+                      "../tmp/dynamo_home/ext/include"]
 
   :profiles          {:uberjar {:aot :all}
                       :dev     {:dependencies [[org.clojure/test.check "0.5.8"]
                                                [org.mockito/mockito-core "1.8.5"]]
                                 :source-paths ["dev"]
                                 :repl-options {:init-ns user
-                                               :port    4001}}
+                                               :port    4001}
+                                :proto-path   "test/proto"}
 
                       :doc     {:dependencies [[clj-aws-s3/clj-aws-s3 "0.3.10"]
                                                [codox/codox.core "0.8.10"]

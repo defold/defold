@@ -60,7 +60,7 @@
   (reify IProject
     (^IFile getFile [this ^String path] (->MockIFile (str "IProject/" path) (get canned-files path)))))
 
-(defn resource-from-bundle
+#_(defn resource-from-bundle
   [b f]
   (o/with-bundle b
     (io/resource f)))

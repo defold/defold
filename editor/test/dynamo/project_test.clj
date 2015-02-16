@@ -23,7 +23,7 @@
   io/IOFactory
   (make-reader [this opts] (StringReader. "")))
 
-(defn- build-dummy-project
+#_(defn- build-dummy-project
   []
   (let [project-node (n/construct FakeProject)]
     (ds/transactional
@@ -32,7 +32,7 @@
         (p/register-editor "dummy" (constantly :not-a-node))
         project-node))))
 
-(deftest make-editor
+#_(deftest make-editor
   (testing "throws if return value is not a node"
     (with-clean-world
       (let [project-node (build-dummy-project)]
