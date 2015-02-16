@@ -247,7 +247,9 @@
   :profiles          {:uberjar {:aot :all}
                       :dev     {:dependencies [[org.clojure/test.check "0.5.8"]
                                                [org.mockito/mockito-core "1.8.5"]]
-                                }
+                                :source-paths ["dev"]
+                                :repl-options {:init-ns user
+                                               :port    4001}}
 
                       :doc     {:dependencies [[clj-aws-s3/clj-aws-s3 "0.3.10"]
                                                [codox/codox.core "0.8.10"]
