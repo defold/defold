@@ -14,10 +14,7 @@
             [internal.repaint :as repaint]
             [internal.transaction :as it]
             [schema.core :as s]
-            [service.log :as log :refer [logging-exceptions]])
-  (:import [org.eclipse.ui PlatformUI]
-           [org.eclipse.core.commands.operations UndoContext]
-           [internal.ui GenericOperation]))
+            [service.log :as log :refer [logging-exceptions]]))
 
 (set! *warn-on-reflection* true)
 
@@ -87,7 +84,7 @@
 (def history-size-max 60)
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
 
-(declare record-history-operation)
+#_(declare record-history-operation)
 
 (defn- history-label [world]
   (or (get-in world [:last-tx :label]) (str "World Time: " (:world-time world))))
@@ -98,7 +95,7 @@
       (assert (= (:state @history-ref) world-ref))
       (alter history-ref update-in [:undo-stack] conj-undo-stack old-world)
       (alter history-ref assoc-in  [:redo-stack] []))
-    (record-history-operation undo-context (history-label new-world))))
+    #_(record-history-operation undo-context (history-label new-world))))
 
 (defn- repaint-all [graph repaint-needed]
   (let [nodes (dg/node-values graph)
@@ -131,7 +128,7 @@
   [report-ch repaint-needed]
   (let [world-ref    (ref nil)
         history-ref  (ref nil)
-        undo-context (UndoContext.)]
+        undo-context {} #_(UndoContext.)]
     (add-watch world-ref :send-tx-reports   (partial send-tx-reports report-ch))
     (add-watch world-ref :schedule-repaints (partial schedule-repaints repaint-needed))
     (add-watch world-ref :push-history      (partial push-history history-ref undo-context))
@@ -201,11 +198,11 @@
   ([]    (undo-context the-system))
   ([sys] (-> @sys :world :undo-context)))
 
-(defn history-operation [undo-context label]
+#_(defn history-operation [undo-context label]
   (doto (GenericOperation. label undo redo)
    (.addContext undo-context)))
 
-(defn record-history-operation [undo-context label]
+#_(defn record-history-operation [undo-context label]
   (comment (let [operation (history-operation undo-context label)
                 history (.. PlatformUI getWorkbench getOperationSupport getOperationHistory)]
             (.add history operation))))

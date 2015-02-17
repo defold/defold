@@ -299,20 +299,21 @@
     :another-ok))
 
 (deftest nodes-can-handle-events
-  (testing "nodes with event handlers implement MessageTarget"
-    (let [node (n/construct OneEventNode)]
-      (is (:an-event (t/event-handlers' OneEventNode)))
-      (is (satisfies? t/MessageTarget node))
-      (is (= :ok (n/dispatch-message node :an-event)))))
-  (testing "nodes without event handlers do not implement MessageTarget"
-    (let [node (n/construct EventlessNode)]
-      (is (not (satisfies? t/MessageTarget node)))))
-  (testing "nodes can inherit handlers from their supertypes"
-    (let [node (n/construct InheritedEventNode)]
-      (is ((every-pred :an-event :mixin-event :another-event) (t/event-handlers' InheritedEventNode)))
-      (is (= :ok         (n/dispatch-message node :an-event)))
-      (is (= :mixin-ok   (n/dispatch-message node :mixin-event)))
-      (is (= :another-ok (n/dispatch-message node :another-event))))))
+  (ts/with-clean-world
+    (testing "nodes with event handlers implement MessageTarget"
+      (let [node (n/construct OneEventNode)]
+        (is (:an-event (t/event-handlers' OneEventNode)))
+        (is (satisfies? t/MessageTarget node))
+        (is (= :ok (n/dispatch-message node :an-event)))))
+    (testing "nodes without event handlers do not implement MessageTarget"
+      (let [node (n/construct EventlessNode)]
+        (is (not (satisfies? t/MessageTarget node)))))
+    (testing "nodes can inherit handlers from their supertypes"
+      (let [node (n/construct InheritedEventNode)]
+        (is ((every-pred :an-event :mixin-event :another-event) (t/event-handlers' InheritedEventNode)))
+        (is (= :ok         (n/dispatch-message node :an-event)))
+        (is (= :mixin-ok   (n/dispatch-message node :mixin-event)))
+        (is (= :another-ok (n/dispatch-message node :another-event)))))))
 
 (defn- not-neg? [x] (not (neg? x)))
 
@@ -340,31 +341,35 @@
   (inherits NodeWithPropertyVariations))
 
 (def original-node-definition
-  '(n/defnode MutagenicNode
-     (property a-property s/Str  (default "a-string"))
-     (property b-property s/Bool (default true))))
+  '(dynamo.node/defnode MutagenicNode
+     (property a-property schema.core/Str  (default "a-string"))
+     (property b-property schema.core/Bool (default true))))
 
 (def replacement-node-definition
-  '(n/defnode MutagenicNode
-     (property a-property s/Str  (default "Genosha"))
-     (property b-property s/Bool (default false))
-     (property c-property s/Int  (default 42))
-     MarkerInterface))
+  '(dynamo.node/defnode MutagenicNode
+     (property a-property schema.core/Str  (default "Genosha"))
+     (property b-property schema.core/Bool (default false))
+     (property c-property schema.core/Int  (default 42))
+     dynamo.defnode_test.MarkerInterface))
 
-#_(deftest redefining-nodes-updates-existing-world-instances
-   (ts/with-clean-world
-     (eval original-node-definition)
+(deftest redefining-nodes-updates-existing-world-instances
+  (ts/with-clean-world
+    (binding [*ns* (find-ns 'dynamo.defnode-test)]
+      (eval original-node-definition))
 
-     (let [node-before-mutation (ds/transactional (ds/add (n/construct (resolve 'MutagenicNode))))
-           original-node-id     (:_id node-before-mutation)]
-       (eval replacement-node-definition)
+    (let [node-type-var        (resolve 'dynamo.defnode-test/MutagenicNode)
+          node-type            (var-get node-type-var)
+          node-before-mutation (ds/transactional (ds/add (n/construct node-type)))
+          original-node-id     (:_id node-before-mutation)]
+      (binding [*ns* (find-ns 'dynamo.defnode-test)]
+        (eval replacement-node-definition))
 
-       (let [node-after-mutation (ds/refresh node-before-mutation)]
-         (is (not (instance? MarkerInterface node-before-mutation)))
-         (is (= "a-string" (:a-property node-after-mutation)))
-         (is (= true       (:b-property node-after-mutation)))
-         (is (= 42         (:c-property node-after-mutation)))
-         (is (instance? MarkerInterface node-after-mutation))))))
+      (let [node-after-mutation (ds/refresh node-before-mutation)]
+        (is (not (instance? MarkerInterface node-before-mutation)))
+        (is (= "a-string" (:a-property node-after-mutation)))
+        (is (= true       (:b-property node-after-mutation)))
+        (is (= 42         (:c-property node-after-mutation)))
+        (is (instance? MarkerInterface node-after-mutation))))))
 
 (n/defnode BaseTriggerNode
   (trigger added-trigger        :added             (fn [& _] :ok))
@@ -400,5 +405,5 @@
 
   (testing "disallows unknown trigger kinds"
     (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
-          (eval '(n/defnode NoSuchTriggerNode
+          (eval '(dynamo.node/defnode NoSuchTriggerNode
                    (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))))

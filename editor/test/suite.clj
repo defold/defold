@@ -1,9 +1,7 @@
 (ns suite
  (:require [clojure.java.io :as io]
-           [clojure.osgi.core :as o]
            [clojure.test :as test])
- (:import [clojure.lang Compiler]
-          [java.io StringReader]))
+ (:import [clojure.lang Compiler]))
 
 (def test-namespaces ['internal.either-test
                       'internal.injection-test
@@ -16,6 +14,7 @@
                       'internal.value-test
                       'internal.graph.graph-test
                       'dynamo.camera-test
+                      'dynamo.defnode-test
                       'dynamo.geom-test
                       'dynamo.image-test
                       'dynamo.project-test
@@ -26,56 +25,26 @@
                       'dynamo.ui.property-test
                       'dynamo.util-test
                       'dynamo.gl.translate-test
-                      'dynamo.gl.vertex-test
-                      'docs])
+                      'dynamo.gl.vertex-test])
 
-;; TODO - Once we support dependencies among tool code better, put this in alpha order.
-;; For now, editors.image-node must be loaded before editors.atlas (ick)
-(def builtins-files ["/builtins/tools/editors/image_node.clj"
-                     "/builtins/tools/editors/atlas.clj"
-                     "/builtins/tools/editors/cubemap.clj"
-                     "/builtins/tools/editors/particlefx.clj"
-                     "/builtins/tools/editors/presenters.clj"])
+(def builtin-basedir (io/file "../com.dynamo.cr/com.dynamo.cr.builtins"))
 
-(def builtins-tests [["/test/tools/editors/atlas_test.clj" 'editors.atlas-test]])
+(defn file?      [f]   (.isFile f))
+(defn extension? [f e] (.endsWith (.getName f) e))
+(defn source?    [f]   (and (file? f) (extension? f ".clj")))
 
+(defn clojure-sources [dir]
+  (filter source? (file-seq dir)))
 
-;; We do a dance and a wiggle here to compile the builtins within this
-;; plugin, despite the fact they aren't on an OSGi classpath. This
-;; models the runtime situation better, because these will ultimately
-;; be loaded as project code and not as part of an OSGi plugin.
-(defn builtin-bundle []
-  (o/get-bundle "com.dynamo.cr.builtins"))
-
-(defn resource-from-bundle
-  [b f]
-  (o/with-bundle b
-    (io/resource f)))
-
-(defn builtin [f]
-  (slurp
-    (resource-from-bundle (builtin-bundle) f)))
-
-(defn load-builtin [f]
-  (Compiler/load (StringReader. (builtin f)) f f))
-
-(defn compile-builtins []
-  (let [all-builtins (concat builtins-files (map first builtins-tests))]
-    (doseq [f all-builtins]
-      (println "Compiling" f)
-      (load-builtin f))))
-
-(def test-namespaces-for-junit
-  (into-array String (concat
-                       (map name test-namespaces)
-                       (map (comp str second) builtins-tests))))
+(defn compile-files [fs]
+  (doseq [f fs]
+    (println "Compiling" (str f))
+    (Compiler/loadFile (str f))))
 
 (defn suite []
   (doseq [test-ns test-namespaces]
-    (require test-ns)
-    (test/run-tests test-ns))
+    (require test-ns))
 
-  (compile-builtins)
+  #_(compile-files (clojure-sources builtin-basedir))
 
-  (doseq [[_ n] builtins-tests]
-    (test/run-tests n)))
+  (test/run-all-tests))
