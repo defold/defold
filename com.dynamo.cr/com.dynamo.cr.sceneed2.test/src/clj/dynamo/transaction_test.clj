@@ -502,9 +502,8 @@
         (is (= 6 (n/get-node-value adder-after  :sum))))))
   (testing "computation with inconsistent world"
     (with-clean-world
-      ; Fails non-deterministically; increase tree-levels or iterations to increase odds of failure
-      (let [tree-levels            2
-            iterations             1
+      (let [tree-levels            5
+            iterations             100
             [adder number-sources] (ds/transactional (build-adder-tree tree-levels))]
         (is (= 0 (n/get-node-value adder :sum)))
         (dotimes [i iterations]
