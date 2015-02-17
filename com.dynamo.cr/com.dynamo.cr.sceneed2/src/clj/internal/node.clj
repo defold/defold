@@ -130,12 +130,12 @@ All other keys are passed along to get-inputs for resolution."
   (binding [*perform-depth* (dec *perform-depth*)]
     (perform* transform node g)))
 
-(defn- hit-cache [world-state cache-key value]
-  (dosync (alter world-state update-in [:cache] cache/hit cache-key))
+(defn- hit-cache [world-ref cache-key value]
+  (dosync (alter world-ref update-in [:cache] cache/hit cache-key))
   value)
 
-(defn- miss-cache [world-state cache-key value]
-  (dosync (alter world-state update-in [:cache] cache/miss cache-key value))
+(defn- miss-cache [world-ref cache-key value]
+  (dosync (alter world-ref update-in [:cache] cache/miss cache-key value))
   value)
 
 (defn- produce-value
@@ -150,13 +150,13 @@ If the given label does not exist on the node, this will throw an AssertionError
 
 (defn- get-node-value-internal
   [node label]
-  (let [world-state (:world-ref node)]
-    (if-let [cache-key (get-in @world-state [:cache-keys (:_id node) label])]
-      (let [cache (:cache @world-state)]
+  (let [world-ref (:world-ref node)]
+    (if-let [cache-key (get-in @world-ref [:cache-keys (:_id node) label])]
+      (let [cache (:cache @world-ref)]
         (if (cache/has? cache cache-key)
-            (hit-cache  world-state cache-key (get cache cache-key))
-            (miss-cache world-state cache-key (produce-value node (:graph @world-state) label))))
-      (produce-value node (:graph @world-state) label))))
+            (hit-cache  world-ref cache-key (get cache cache-key))
+            (miss-cache world-ref cache-key (produce-value node (:graph @world-ref) label))))
+      (produce-value node (:graph @world-ref) label))))
 
 (defn get-node-value
   "Get a value, possibly cached, from a node. This is the entry point to the \"plumbing\".
