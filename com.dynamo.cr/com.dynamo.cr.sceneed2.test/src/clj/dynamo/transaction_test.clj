@@ -529,7 +529,7 @@
         (is (= (n/get-node-value adder :sum) (n/get-node-value adder :cached-sum))))))
   (testing "recursively computed values are cached"
     (with-clean-world
-      (let [tree-levels            2
+      (let [tree-levels            5
             [adder number-sources] (ds/transactional (build-adder-tree :cached-sum tree-levels))
             adder-cache-key        (cache-locate-key world-ref (:_id adder) :cached-sum)
             source-cache-key       (cache-locate-key world-ref (:_id (first number-sources)) :cached-sum)]
