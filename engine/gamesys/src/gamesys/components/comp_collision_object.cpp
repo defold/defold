@@ -57,6 +57,10 @@ namespace dmGameSystem
         // to PhysicsContext in the SetWorldTransform callback. This
         // could perhaps be improved.
         uint8_t m_3D : 1;
+
+        // Tracking initial state.
+        uint8_t m_AddedToUpdate : 1;
+        uint8_t m_StartAsEnabled : 1;
     };
 
     void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
@@ -295,6 +299,8 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Object2D = 0;
         component->m_ComponentIndex = params.m_ComponentIndex;
+        component->m_AddedToUpdate = false;
+        component->m_StartAsEnabled = true;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
@@ -601,12 +607,14 @@ namespace dmGameSystem
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (world != 0x0) {
             CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+            assert(!component->m_AddedToUpdate);
             if (component->m_3D) {
-                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, true);
+                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, component->m_StartAsEnabled);
             } else {
-                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, true);
+                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, component->m_StartAsEnabled);
                 SetupTileGrid(world, component);
             }
+            component->m_AddedToUpdate = true;
         }
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -714,13 +722,23 @@ namespace dmGameSystem
                 enable = true;
             }
             CollisionWorld* world = (CollisionWorld*)params.m_World;
-           if (physics_context->m_3D)
+
+            if (component->m_AddedToUpdate)
             {
-                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, enable);
+                if (physics_context->m_3D)
+                {
+                    dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, enable);
+                }
+                else
+                {
+                    dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, enable);
+                }
             }
             else
             {
-                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, enable);
+                // Deferred controlling the enabled state. Objects are force disabled until
+                // they are added to update.
+                component->m_StartAsEnabled = enable;
             }
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_NameHash)
