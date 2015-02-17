@@ -21,11 +21,13 @@ namespace dmGameObject
 
         dmScript::HContext script_context = (dmScript::HContext)context;
         lua_State* L = dmScript::GetLuaState(script_context);
+
         if (!RegisterSubModules(factory, script_context, lua_module))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
+
         HScript script = NewScript(L, lua_module);
         if (script)
         {

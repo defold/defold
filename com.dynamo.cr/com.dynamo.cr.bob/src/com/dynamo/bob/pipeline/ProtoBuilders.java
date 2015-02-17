@@ -20,6 +20,7 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.camera.proto.Camera.CameraDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
+import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc;
@@ -214,6 +215,17 @@ public class ProtoBuilders {
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "prototype", messageBuilder.getPrototype());
             return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".go", ".goc"));
+        }
+    }
+
+    @ProtoParams(messageClass = CollectionFactoryDesc.class)
+    @BuilderParams(name="CollectionFactory", inExts=".collectionfactory", outExt=".collectionfactoryc")
+    public static class CollectionFactoryBuilder extends ProtoBuilder<CollectionFactoryDesc.Builder> {
+        @Override
+        protected CollectionFactoryDesc.Builder transform(Task<Void> task, IResource resource, CollectionFactoryDesc.Builder messageBuilder) throws IOException,
+                CompileExceptionError {
+            BuilderUtil.checkResource(this.project, resource, "prototype", messageBuilder.getPrototype());
+            return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".collection", ".collectionc"));
         }
     }
 

@@ -25,6 +25,8 @@ namespace dmGameSystem
     extern const char* COLLECTION_PROXY_MAX_COUNT_KEY;
     /// Config key to use for tweaking maximum number of factories
     extern const char* FACTORY_MAX_COUNT_KEY;
+    /// Config key to use for tweaking maximum number of collection factories
+    extern const char* COLLECTION_FACTORY_MAX_COUNT_KEY;
 
     struct PhysicsContext
     {
@@ -120,6 +122,15 @@ namespace dmGameSystem
         uint32_t m_MaxFactoryCount;
     };
 
+    struct CollectionFactoryContext
+    {
+        CollectionFactoryContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        uint32_t m_MaxCollectionFactoryCount;
+    };
+
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);
 
@@ -138,6 +149,7 @@ namespace dmGameSystem
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
+                                                  CollectionFactoryContext *collectionfactory_context,
                                                   SpineModelContext* spine_model_context);
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);

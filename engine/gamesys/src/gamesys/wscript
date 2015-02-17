@@ -18,6 +18,7 @@ def build(bld):
     for d, source in [('camera', ('../../proto/camera_ddf.proto')),
                       ('collection_proxy', ('components/comp_collection_proxy.cpp')),
                       ('factory', ('scripts/script_factory.cpp')),
+                      ('collection_factory', ('scripts/script_collection_factory.cpp')),
                       ('particlefx', ('scripts/script_particlefx.cpp')),
                       ('collision_object', ('../../proto/physics_ddf.proto', 'scripts/script_physics.cpp')),
                       ('sound', ('components/comp_sound.cpp', 'scripts/script_sound.cpp')),

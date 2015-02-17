@@ -539,6 +539,31 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_SpawnDelete)
     m_Collection = old_collection;
 }
 
+TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti)
+{
+    dmGameObject::HInstance go = New("/spawndelete_multi.goc");
+
+    Init();
+
+    ASSERT_INIT(0u);
+    ASSERT_ADD_TO_UPDATE(0u);
+    ASSERT_UPDATE(0u);
+    ASSERT_FINAL(0u);
+
+    Update();
+    PostUpdate();
+
+    ASSERT_INIT(2u);
+    ASSERT_ADD_TO_UPDATE(0u);
+    ASSERT_UPDATE(0u);
+    ASSERT_FINAL(2u);
+
+    // Extra update to ensure consistency
+    // The instances will be flagged to add-to-update, but should now have been removed from the linked list
+    Update();
+    Delete(go);
+}
+
 #undef ASSERT_INIT
 #undef ASSERT_ADD_TO_UPDATE
 #undef ASSERT_UPDATE
