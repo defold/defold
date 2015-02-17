@@ -189,7 +189,7 @@ This function should mainly be used to create 'plumbing'."
    values, in the same order."
   [node & labels]
   ;; TODO: Pass graph or world value into this function to avoid interactions with concurrent transactions..
-  (map (in/collect-inputs node (-> node :world-ref deref) (zipmap labels (repeat :ok))) labels))
+  (map (in/collect-inputs (-> node :world-ref deref) node (zipmap labels (repeat :ok))) labels))
 
 ; ---------------------------------------------------------------------------
 ; Bootstrapping the core node types
@@ -200,7 +200,7 @@ This function should not be called directly."
   [transaction graph self label kind inputs-affected]
   (when (inputs-affected :nodes)
     (let [world                    {:graph graph} ; TODO: We're cheating here... we need a real "world" value.
-          existing-nodes           (cons self (in/get-inputs self world :nodes))
+          existing-nodes           (cons self (in/get-inputs world self :nodes))
           nodes-added              (filter #((:nodes-added transaction) (:_id %)) existing-nodes)
           out-from-new-connections (in/injection-candidates existing-nodes nodes-added)
           in-to-new-connections    (in/injection-candidates nodes-added existing-nodes)
@@ -219,7 +219,7 @@ This should not be called directly."
   [transaction graph self label kind]
   (when (ds/is-deleted? transaction self)
     (let [world-before-deletion (-> transaction :world-ref deref) ; TODO: We should use a world value explicitly passed to us (instead of deref-ing current value).
-          nodes-to-delete       (:nodes (in/collect-inputs self world-before-deletion {:nodes :ok}))]
+          nodes-to-delete       (:nodes (in/collect-inputs world-before-deletion self {:nodes :ok}))]
       (doseq [n nodes-to-delete]
         (ds/delete n)))))
 
