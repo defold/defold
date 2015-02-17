@@ -47,8 +47,8 @@
         cred {:access-key (get-in cfg [:default :access_key])
               :secret-key (get-in cfg [:default :secret_key])}
         files (->> (file-seq (File. "doc"))
-                (filter #(.isFile %)))]
-    (doseq [f files]
+                (filter #(.isFile ^File %)))]
+    (doseq [^File f files]
       (println "uploading" (.getPath f))
       (s3/put-object cred "defold-clojuredocs" (.getPath f) f))))
 

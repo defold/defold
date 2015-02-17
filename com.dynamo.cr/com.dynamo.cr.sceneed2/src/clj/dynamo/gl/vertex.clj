@@ -158,7 +158,7 @@ the `do-gl` macro from `dynamo.gl`."
     `(fn [~'slices ~'idx]
        (let ~(into [] (apply concat (vals multiplications)))
          [~@(map (fn [i getter refer]
-                   (list '. (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) getter refer))
+                   (list '. (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) getter (list `int refer)))
                  (range (count getters)) getters references)]))))
 
 (declare new-persistent-vertex-buffer)

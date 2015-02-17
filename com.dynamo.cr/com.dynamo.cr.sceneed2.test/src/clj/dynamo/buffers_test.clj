@@ -2,14 +2,15 @@
   (:require [clojure.test :refer :all]
             [dynamo.system.test-support :refer [array=]]
             [dynamo.buffers :as b])
-  (:import [java.nio ByteBuffer]))
+  (:import [java.nio ByteBuffer]
+           [com.google.protobuf ByteString]))
 
-(defn- buffer-with-contents [byte-values]
+(defn- buffer-with-contents ^ByteBuffer [byte-values]
   (doto (b/new-byte-buffer (count byte-values))
     (.put (byte-array byte-values))
     .rewind))
 
-(defn- buffer-properties [buffer]
+(defn- buffer-properties [^ByteBuffer buffer]
   [(.position buffer)
    (.limit    buffer)
    (.capacity buffer)])
@@ -82,7 +83,7 @@
         (is (= [1 12 12] (buffer-properties b)))))))
 
 (defn- contents-of
-  [buffer]
+  [^ByteBuffer buffer]
   (let [arr (byte-array (.limit buffer))]
     (doto (.asReadOnlyBuffer buffer)
       .rewind
