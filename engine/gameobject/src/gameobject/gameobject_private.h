@@ -210,6 +210,7 @@ namespace dmGameObject
             m_ComponentSocket = 0;
             m_FrameSocket = 0;
             m_GenInstanceCounter = 0;
+            m_GenCollectionInstanceCounter = 0;
             m_InUpdate = 0;
             m_ToBeDeleted = 0;
             m_ScaleAlongZ = 0;
@@ -276,6 +277,7 @@ namespace dmGameObject
 
         // Counter for generating instance ids, protected by m_Mutex
         uint32_t                 m_GenInstanceCounter;
+        uint32_t                 m_GenCollectionInstanceCounter;
 
         // Head of linked list of instances scheduled for deferred deletion
         uint16_t                 m_InstancesToDeleteHead;

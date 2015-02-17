@@ -11,6 +11,11 @@ message FactoryDesc
     required string prototype = 1 [(resource)=true];
 }
 
+message CollectionFactoryDesc
+{
+    required string prototype = 1 [(resource)=true];
+}
+
 message Create
 {
     required dmMath.Point3  position = 1;
