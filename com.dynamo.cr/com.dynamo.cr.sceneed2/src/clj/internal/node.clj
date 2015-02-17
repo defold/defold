@@ -51,7 +51,7 @@
    :node-type (class n)
    :label     l})
 
-(declare get-node-value)
+(declare get-node-value-internal)
 
 (defn get-inputs
   "Gets an input (maybe with multiple values) needed to invoke a production function for a node.
@@ -60,25 +60,26 @@ The input to the production function may be one of three things:
 1. An input of the node. In this case, the nodes connected to this input are asked to supply their values.
 2. A property of the node. In this case, the property is retrieved directly from the node.
 3. An output of this node or another node. The source node is asked to supply a value for this output. (This recurses back into get-node-value.)"
-  [target-node g target-label]
-  (let [input-schema     (some-> target-node t/input-types target-label)
+  [target-node world target-label]
+  (let [graph            (:graph world)
+        input-schema     (some-> target-node t/input-types target-label)
         output-transform (some-> target-node t/transforms target-label)]
     (cond
       (vector? input-schema)
       (mapv (fn [[source-node source-label]]
-              (get-node-value (dg/node g source-node) source-label))
-           (lg/sources g (:_id target-node) target-label))
+              (e/result (get-node-value-internal world (dg/node graph source-node) source-label)))
+           (lg/sources graph (:_id target-node) target-label))
 
       (not (nil? input-schema))
-      (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
+      (let [[first-source-node first-source-label] (first (lg/sources graph (:_id target-node) target-label))]
         (when first-source-node
-          (get-node-value (dg/node g first-source-node) first-source-label)))
+          (e/result (get-node-value-internal world (dg/node graph first-source-node) first-source-label))))
 
       (contains? target-node target-label)
       (get target-node target-label)
 
       (not (nil? output-transform))
-      (get-node-value target-node target-label)
+      (e/result (get-node-value-internal world target-node target-label))
 
       :else
       (let [missing (missing-input target-node target-label)]
@@ -95,40 +96,40 @@ come from a production-function. Some keys on the schema are handled specially:
 :project - Look up through enclosing scopes to find a Project node, and attach it to the map
 
 All other keys are passed along to get-inputs for resolution."
-  [node g input-schema]
+  [node world input-schema]
   (reduce-kv
     (fn [m k v]
       (condp = k
-        :g         (assoc m k g)
+        :g         (assoc m k (:graph world))
         :this      (assoc m k node)
         :world     (assoc m k (:world-ref node))
         :project   (assoc m k (find-enclosing-scope :project node))
         s/Keyword  m
-        (assoc m k (get-inputs node g k))))
+        (assoc m k (get-inputs node world k))))
     {} input-schema))
 
 (defn- pfnk? [f] (contains? (meta f) :schema))
 
-(defn- perform-with-inputs [production-fn node g]
+(defn- perform-with-inputs [production-fn node world]
   (if (pfnk? production-fn)
-    (production-fn (collect-inputs node g (pf/input-schema production-fn)))
-    (t/apply-if-fn production-fn node g)))
+    (production-fn (collect-inputs node world (pf/input-schema production-fn)))
+    (t/apply-if-fn production-fn node (:graph world))))
 
 (defn- default-substitute-value-fn [v]
   (throw (:exception v)))
 
-(defn perform* [transform node g]
+(defn- perform* [transform node world]
   (let [production-fn       (-> transform :production-fn t/var-get-recursive)
         substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)]
-    (-> (e/bind (perform-with-inputs production-fn node g))
+    (-> (e/bind (perform-with-inputs production-fn node world))
         (e/or-else (fn [e] (t/apply-if-fn substitute-value-fn {:exception e :node node}))))))
 
 (def ^:dynamic *perform-depth* 200)
 
-(defn perform [transform node g]
+(defn- perform [transform node world]
   {:pre [(pos? *perform-depth*)]}
   (binding [*perform-depth* (dec *perform-depth*)]
-    (perform* transform node g)))
+    (perform* transform node world)))
 
 (defn- hit-cache [world-ref cache-key value]
   (dosync (alter world-ref update-in [:cache] cache/hit cache-key))
@@ -141,22 +142,22 @@ All other keys are passed along to get-inputs for resolution."
 (defn- produce-value
   "Pull a value from a node. This is called when there is no cached value.
 If the given label does not exist on the node, this will throw an AssertionError."
-  [node g label]
+  [node world label]
   (assert (contains? (t/outputs node) label) (str "There is no transform " label " on node " (:_id node)))
   (let [transform (some-> node t/transforms label)]
     (assert (not= ::abstract transform) )
     (metrics/node-value node label)
-    (perform transform node g)))
+    (perform transform node world)))
 
 (defn- get-node-value-internal
-  [node label]
+  [world node label]
   (let [world-ref (:world-ref node)]
     (if-let [cache-key (get-in @world-ref [:cache-keys (:_id node) label])]
       (let [cache (:cache @world-ref)]
         (if (cache/has? cache cache-key)
             (hit-cache  world-ref cache-key (get cache cache-key))
-            (miss-cache world-ref cache-key (produce-value node (:graph @world-ref) label))))
-      (produce-value node (:graph @world-ref) label))))
+            (miss-cache world-ref cache-key (produce-value node world label))))
+      (produce-value node world label))))
 
 (defn get-node-value
   "Get a value, possibly cached, from a node. This is the entry point to the \"plumbing\".
@@ -164,7 +165,9 @@ If the value is cacheable and exists in the cache, then return that value. Other
 produce the value by gathering inputs to call a production function, invoke the function,
 maybe cache the value that was produced, and return it."
   [node label]
-  (e/result (get-node-value-internal node label)))
+  (let [world-ref (:world-ref node)
+        world     @world-ref]
+    (e/result (get-node-value-internal world node label))))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
