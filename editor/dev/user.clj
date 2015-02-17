@@ -264,34 +264,3 @@
                   (println e))))))
         (.pack shell)
         (.open shell)))))
-
-(comment
-  (use 'criterium-core)
-  (require '[dynamo.geom :refer [aabb-union]])
-  (require '[clojure.test.check.generators :as gen])
-  (bench (reduce aabb-union (gen/sample dynamo.geom-test/gen-aabb 10000)))
-)
-
-(comment
-  ;; menu demo code
-  (require '[dynamo.ui :refer [defcommand defhandler]])
-  (import '[org.eclipse.ui.commands ICommandService])
-  (import '[org.eclipse.core.commands ExecutionEvent])
-  (defcommand speak-command "com.dynamo.cr.menu-items.EDIT" "com.dynamo.cr.clojure-eclipse.commands.speak" "Speak!")
-  (defhandler handle-speak-command speak-command (fn [^ExecutionEvent ev & args] (prn "Arf Arf! - " args)) "w/args")
-)
-
-(comment
-
-  (require 'internal.texture.pack)
-  (require 'dynamo.texture-test)
-
-  (defn viz-trects
-    []
-    (let [res (internal.texture.pack/max-rects-packing dynamo.texture-test/test-rectangles-for-packing)]
-      (user/pack-viz @internal.texture.pack-max-rects/trace)
-      res))
-
-  (viz-trects)
-
-  )
