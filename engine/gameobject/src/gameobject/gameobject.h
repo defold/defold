@@ -18,11 +18,6 @@
 
 #include <resource/resource.h>
 
-namespace dmGameObjectDDF
-{
-    struct CollectionDesc;
-}
-
 namespace dmGameObject
 {
     using namespace Vectormath::Aos;

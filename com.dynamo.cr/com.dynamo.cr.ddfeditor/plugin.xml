@@ -333,7 +333,7 @@
             embeddable="true"
             file-extension="collectionfactory"
             id="com.dynamo.cr.ddfeditor.resourcetypes.CollectionFactory"
-            name="CollectionFactory"
+            name="Collection Factory"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$CollectionFactoryDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollectionFactoryRefactorParticipant"
             template-data="prototype: &apos;&apos;"
