@@ -446,8 +446,9 @@
         (is (not (nil? (cache-peek world-ref cache-key))))))))
 
 (n/defnode NumberSource
-  (property x   s/Num (default 0))
-  (output   sum s/Num (fnk [x] x)))
+  (property x          s/Num         (default 0))
+  (output   sum        s/Num         (fnk [x] x))
+  (output   cached-sum s/Num :cached (fnk [x] x)))
 
 (n/defnode InputAndPropertyAdder
   (input    x          s/Num)
@@ -462,13 +463,13 @@
 
 (defn build-adder-tree
   "Builds a binary tree of connected adder nodes; returns a 2-tuple of root node and leaf nodes."
-  [tree-levels]
+  [output-name tree-levels]
   (if (pos? tree-levels)
-    (let [[n1 l1] (build-adder-tree (dec tree-levels))
-          [n2 l2] (build-adder-tree (dec tree-levels))
+    (let [[n1 l1] (build-adder-tree output-name (dec tree-levels))
+          [n2 l2] (build-adder-tree output-name (dec tree-levels))
           n (ds/add (n/construct InputAdder))]
-      (ds/connect n1 :sum n :xs)
-      (ds/connect n2 :sum n :xs)
+      (ds/connect n1 output-name n :xs)
+      (ds/connect n2 output-name n :xs)
       [n (vec (concat l1 l2))])
     (let [n (ds/add (n/construct NumberSource :x 0))]
       [n [n]])))
@@ -504,7 +505,7 @@
     (with-clean-world
       (let [tree-levels            5
             iterations             100
-            [adder number-sources] (ds/transactional (build-adder-tree tree-levels))]
+            [adder number-sources] (ds/transactional (build-adder-tree :sum tree-levels))]
         (is (= 0 (n/get-node-value adder :sum)))
         (dotimes [i iterations]
           (let [f1 (future (n/get-node-value adder :sum))
@@ -514,16 +515,27 @@
         (is (= (* iterations (count number-sources)) (n/get-node-value adder :sum))))))
   (testing "caching result of computation with inconsistent world"
     (with-clean-world
-      ; Fails non-deterministically; increase tree-levels or iterations to increase odds of failure
-      (let [tree-levels            2
-            iterations             3
-            [adder number-sources] (ds/transactional (build-adder-tree tree-levels))]
+      (let [tree-levels            5
+            iterations             100
+            [adder number-sources] (ds/transactional (build-adder-tree :sum tree-levels))]
         (is (= 0 (n/get-node-value adder :cached-sum)))
         (loop [i iterations]
           (when (pos? i)
             (let [f1 (future (n/get-node-value adder :cached-sum))
                   f2 (future (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
               @f2
-              (when (zero? (mod @f1 (count number-sources)))
-                (recur (dec i))))))
-        (is (= (n/get-node-value adder :sum) (n/get-node-value adder :cached-sum)))))))
+              @f1
+              (recur (dec i)))))
+        (is (= (n/get-node-value adder :sum) (n/get-node-value adder :cached-sum))))))
+  (testing "recursively computed values are cached"
+    (with-clean-world
+      (let [tree-levels            2
+            [adder number-sources] (ds/transactional (build-adder-tree :cached-sum tree-levels))
+            adder-cache-key        (cache-locate-key world-ref (:_id adder) :cached-sum)
+            source-cache-key       (cache-locate-key world-ref (:_id (first number-sources)) :cached-sum)]
+        (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc)))
+        (is (nil? (cache-peek world-ref adder-cache-key)))
+        (is (nil? (cache-peek world-ref source-cache-key)))
+        (n/get-node-value adder :cached-sum)
+        (is (= (count number-sources) (some-> (cache-peek world-ref adder-cache-key)  e/result)))
+        (is (= 1                      (some-> (cache-peek world-ref source-cache-key) e/result)))))))

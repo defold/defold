@@ -67,19 +67,19 @@ The input to the production function may be one of three things:
     (cond
       (vector? input-schema)
       (mapv (fn [[source-node source-label]]
-              (e/result (get-node-value-internal world (dg/node graph source-node) source-label)))
+              (e/result (second (get-node-value-internal world (dg/node graph source-node) source-label))))
            (lg/sources graph (:_id target-node) target-label))
 
       (not (nil? input-schema))
       (let [[first-source-node first-source-label] (first (lg/sources graph (:_id target-node) target-label))]
         (when first-source-node
-          (e/result (get-node-value-internal world (dg/node graph first-source-node) first-source-label))))
+          (e/result (second (get-node-value-internal world (dg/node graph first-source-node) first-source-label)))))
 
       (contains? target-node target-label)
       (get target-node target-label)
 
       (not (nil? output-transform))
-      (e/result (get-node-value-internal world target-node target-label))
+      (e/result (second (get-node-value-internal world target-node target-label)))
 
       :else
       (let [missing (missing-input target-node target-label)]
@@ -131,13 +131,11 @@ All other keys are passed along to get-inputs for resolution."
   (binding [*perform-depth* (dec *perform-depth*)]
     (perform* world node transform)))
 
-(defn- hit-cache [world-ref cache-key value]
-  (dosync (alter world-ref update-in [:cache] cache/hit cache-key))
-  value)
+(defn- hit-cache [cache-key [world value]]
+  [(update-in world [:cache] cache/hit cache-key) value])
 
-(defn- miss-cache [world-ref cache-key value]
-  (dosync (alter world-ref update-in [:cache] cache/miss cache-key value))
-  value)
+(defn- miss-cache [cache-key [world value]]
+  [(update-in world [:cache] cache/miss cache-key value) value])
 
 (defn- produce-value
   "Pull a value from a node. This is called when there is no cached value.
@@ -147,17 +145,16 @@ If the given label does not exist on the node, this will throw an AssertionError
   (let [transform (some-> node t/transforms label)]
     (assert (not= ::abstract transform) )
     (metrics/node-value node label)
-    (perform world node transform)))
+    [world (perform world node transform)]))
 
 (defn- get-node-value-internal
   [world node label]
-  (let [world-ref (:world-ref node)]
-    (if-let [cache-key (get-in @world-ref [:cache-keys (:_id node) label])]
-      (let [cache (:cache @world-ref)]
-        (if (cache/has? cache cache-key)
-            (hit-cache  world-ref cache-key (get cache cache-key))
-            (miss-cache world-ref cache-key (produce-value world node label))))
-      (produce-value world node label))))
+  (if-let [cache-key (get-in world [:cache-keys (:_id node) label])]
+    (let [cache (:cache world)]
+      (if (cache/has? cache cache-key)
+        (hit-cache  cache-key [world (get cache cache-key)])
+        (miss-cache cache-key (produce-value world node label))))
+    (produce-value world node label)))
 
 (defn get-node-value
   "Get a value, possibly cached, from a node. This is the entry point to the \"plumbing\".
@@ -165,9 +162,13 @@ If the value is cacheable and exists in the cache, then return that value. Other
 produce the value by gathering inputs to call a production function, invoke the function,
 maybe cache the value that was produced, and return it."
   [node label]
-  (let [world-ref (:world-ref node)
-        world     @world-ref]
-    (e/result (get-node-value-internal world node label))))
+  (let [world-ref           (:world-ref node)
+        world-before        @world-ref
+        [world-after value] (get-node-value-internal world-before node label)]
+    (dosync
+      (when (= (:world-time world-before) (:world-time @world-ref))
+        (alter world-ref assoc-in [:cache] (:cache world-after))))
+    (e/result value)))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
