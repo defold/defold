@@ -10,7 +10,6 @@
            [com.jogamp.opengl.util.texture Texture TextureIO]
            [com.jogamp.opengl.util.texture.awt AWTTextureIO]))
 
-(set! *warn-on-reflection* true)
 
 (defonce gl-texture-state (atom {}))
 
