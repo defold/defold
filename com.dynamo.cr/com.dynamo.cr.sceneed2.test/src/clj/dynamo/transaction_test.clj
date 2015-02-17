@@ -444,3 +444,87 @@
         (is (not (nil? cache-key)))
         (is (= cached-value (e/result (cache-peek world-ref cache-key))))
         (is (not (nil? (cache-peek world-ref cache-key))))))))
+
+(n/defnode NumberSource
+  (property x   s/Num (default 0))
+  (output   sum s/Num (fnk [x] x)))
+
+(n/defnode InputAndPropertyAdder
+  (input    x          s/Num)
+  (property y          s/Num (default 0))
+  (output   sum        s/Num         (fnk [x y] (+ x y)))
+  (output   cached-sum s/Num :cached (fnk [x y] (+ x y))))
+
+(n/defnode InputAdder
+  (input xs [s/Num])
+  (output sum        s/Num         (fnk [xs] (reduce + 0 xs)))
+  (output cached-sum s/Num :cached (fnk [xs] (reduce + 0 xs))))
+
+(defn build-adder-tree
+  "Builds a binary tree of connected adder nodes; returns a 2-tuple of root node and leaf nodes."
+  [tree-levels]
+  (if (pos? tree-levels)
+    (let [[n1 l1] (build-adder-tree (dec tree-levels))
+          [n2 l2] (build-adder-tree (dec tree-levels))
+          n (ds/add (n/construct InputAdder))]
+      (ds/connect n1 :sum n :xs)
+      (ds/connect n2 :sum n :xs)
+      [n (vec (concat l1 l2))])
+    (let [n (ds/add (n/construct NumberSource :x 0))]
+      [n [n]])))
+
+(deftest output-computation-inconsistencies
+  (testing "computing output with stale property value"
+    (with-clean-world
+      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (ds/transactional (ds/connect number-source :x adder-before :x))
+            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+        (is (= 6 (n/get-node-value adder-after  :sum)))
+        (is (= 5 (n/get-node-value adder-before :sum)))))
+    (with-clean-world
+      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (ds/transactional (ds/connect number-source :x adder-before :x))
+            _             (ds/transactional (ds/set-property number-source :x 22))
+            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+        (is (= 26 (n/get-node-value adder-after  :sum)))
+        (is (= 25 (n/get-node-value adder-before :sum))))))
+  (testing "caching stale output value"
+    (with-clean-world
+      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (ds/transactional (ds/connect number-source :x adder-before :x))
+            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+        (is (= 5 (n/get-node-value adder-before :cached-sum)))
+        (is (= 5 (n/get-node-value adder-before :sum)))
+        (is (= 5 (n/get-node-value adder-after  :cached-sum)))
+        (is (= 6 (n/get-node-value adder-after  :sum))))))
+  (testing "computation with inconsistent world"
+    (with-clean-world
+      ; Fails non-deterministically; increase tree-levels or iterations to increase odds of failure
+      (let [tree-levels            2
+            iterations             1
+            [adder number-sources] (ds/transactional (build-adder-tree tree-levels))]
+        (is (= 0 (n/get-node-value adder :sum)))
+        (dotimes [i iterations]
+          (let [f1 (future (n/get-node-value adder :sum))
+                f2 (future (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
+            (is (zero? (mod @f1 (count number-sources))))
+            @f2))
+        (is (= (* iterations (count number-sources)) (n/get-node-value adder :sum))))))
+  (testing "caching result of computation with inconsistent world"
+    (with-clean-world
+      ; Fails non-deterministically; increase tree-levels or iterations to increase odds of failure
+      (let [tree-levels            2
+            iterations             3
+            [adder number-sources] (ds/transactional (build-adder-tree tree-levels))]
+        (is (= 0 (n/get-node-value adder :cached-sum)))
+        (loop [i iterations]
+          (when (pos? i)
+            (let [f1 (future (n/get-node-value adder :cached-sum))
+                  f2 (future (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
+              @f2
+              (when (zero? (mod @f1 (count number-sources)))
+                (recur (dec i))))))
+        (is (= (n/get-node-value adder :sum) (n/get-node-value adder :cached-sum)))))))
