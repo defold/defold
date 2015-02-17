@@ -42,7 +42,7 @@
     (first (a/alts!! [valch timer]))))
 
 (defn tempfile
-  [prefix suffix auto-delete?]
+  ^java.io.File [prefix suffix auto-delete?]
   (let [f (java.io.File/createTempFile prefix suffix)]
     (when auto-delete?
       (.deleteOnExit f))

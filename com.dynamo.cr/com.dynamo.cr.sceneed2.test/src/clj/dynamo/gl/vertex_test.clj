@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [dynamo.system.test-support :refer [array=]]
             [dynamo.gl.vertex :refer :all]
-            [dynamo.buffers :as b]))
+            [dynamo.buffers :as b])
+  (:import [com.google.protobuf ByteString]))
 
 (defn- contents-of
   [vb]
