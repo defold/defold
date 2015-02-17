@@ -36,16 +36,10 @@ public class LuaScannerTest {
         assertEquals("a", modules.get(1));
         assertEquals("a/b", modules.get(2));
         assertEquals("a/b", modules.get(3));
-        assertEquals("a", modules.get(4));
-        assertEquals("a", modules.get(5));
-        assertEquals("a/b", modules.get(6));
-        assertEquals("a/b", modules.get(7));
-        assertEquals("a/b/c", modules.get(8));
-        assertEquals("a/b/c", modules.get(9));
-        assertEquals("foo", modules.get(10));
-        assertEquals("foo", modules.get(11));
-        assertEquals("foo", modules.get(12));
-        assertEquals("foo", modules.get(13));
+        assertEquals("a/b/c", modules.get(4));
+        assertEquals("a/b/c", modules.get(5));
+        assertEquals("foo", modules.get(6));
+        assertEquals("foo", modules.get(7));
     }
 
     private Property findProperty(List<Property> properties, String name) {
