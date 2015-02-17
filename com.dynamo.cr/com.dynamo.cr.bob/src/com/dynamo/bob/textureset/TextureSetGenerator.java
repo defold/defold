@@ -18,6 +18,7 @@ import org.apache.commons.lang3.Pair;
 
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
+import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.textureset.proto.TextureSetProto;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
@@ -135,7 +136,7 @@ public class TextureSetGenerator {
      * @return {@link AtlasMap}
      */
     public static TextureSetResult generate(List<BufferedImage> images, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate, boolean useTileGrid, Rect gridSize) {
+            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate, boolean useTileGrid, Grid gridSize) {
 
         images = createInnerPadding(images, innerPadding);
         images = extrudeBorders(images, extrudeBorders);
@@ -143,9 +144,9 @@ public class TextureSetGenerator {
         Layout layout;
         if (useTileGrid)
         {
-            layout = gridLayout(margin, images, gridSize);
+            layout = TextureSetLayout.gridLayout(margin, rectanglesFromImages(images), gridSize);
         } else {
-            layout = packedLayout(margin, images, rotate);
+            layout = packedImageLayout(margin, images, rotate);
         }
 
         rotateImages(layout, images);
@@ -211,8 +212,8 @@ public class TextureSetGenerator {
         return images;
     }
 
-    private static Layout packedLayout(int margin, List<BufferedImage> images, boolean rotate ) {
-        Layout layout = TextureSetLayout.layout(margin, rectanglesFromImages(images), rotate);
+    private static Layout packedImageLayout(int margin, List<BufferedImage> images, boolean rotate ) {
+        Layout layout = TextureSetLayout.packedLayout(margin, rectanglesFromImages(images), rotate);
         Collections.sort(layout.getRectangles(), new Comparator<Rect>() {
             @Override
             public int compare(Rect r1, Rect r2) {
@@ -221,42 +222,6 @@ public class TextureSetGenerator {
                 return i1 - i2;
             }
         });
-        return layout;
-    }
-
-    private static Layout gridLayout( int margin, List<BufferedImage> images, Rect gridSize ) {
-
-        // We assume here that all images have the same size,
-        // since they will be "packed" into a uniformly sized grid.
-        int cellWidth  = images.get(0).getWidth();
-        int cellHeight = images.get(0).getHeight();
-
-        int x = margin;
-        int y = margin;
-        int w = margin*2 +  gridSize.width * cellWidth;
-        int h = margin*2 + gridSize.height * cellHeight;
-
-        // Loop through all images and put them right after eachother
-        Layout layout = new Layout( w, h, rectanglesFromImages(images) );
-        for ( Rect r : layout.getRectangles() ) {
-
-            if (y + cellHeight > h) {
-                throw new RuntimeException("Image height too small when generating a grid based layout: " + w + "x" + h
-                    + " offending cell position: " + x + "," + y + " (of size: " + cellWidth + "x" + cellHeight + ")");
-            }
-
-            r.x = x;
-            r.y = y;
-
-            if (x + cellWidth >= w) {
-                x = margin;
-                y += cellHeight;
-            } else {
-                x += cellWidth;
-            }
-
-        }
-
         return layout;
     }
 
