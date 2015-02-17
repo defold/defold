@@ -9,6 +9,7 @@
   (eval
    '(do
       (require 'editor.debug)
+      (editor.debug/start-server)
       (require 'editor.boot))))
 
 (defn -main [& args]

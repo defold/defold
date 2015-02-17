@@ -4,7 +4,8 @@
 
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
-  :plugins          [[lein-protobuf-minimal "0.4.1"]]
+  :plugins          [[lein-protobuf-minimal "0.4.2"]
+                     [codox "0.8.10"]]
 
   :dependencies     [[org.clojure/clojure                         "1.7.0-alpha5"]
                      [org.clojure/core.cache                      "0.6.3"]
@@ -238,6 +239,8 @@
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
 
+  :target-path       "target/%s"
+
   :java-source-paths ["src/java"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/java"]
 
@@ -249,14 +252,17 @@
 
   :aliases           {"ci" ["do" "test," "uberjar"]}
 
+  :codox             {:sources                   ["src/clj"
+                                                  "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
+                      :output-dir                "target/doc/api"
+                      :exclude                   [internal]
+                      :src-dir-uri               "http://github.com/relevance/defold/blob/clojure-sceneed"
+                      :src-linenum-anchor-prefix "L"
+                      :doc/format                :markdown}
+
   :profiles          {:uberjar {:main editor.Main
                                 :aot [editor]}
                       :dev     {:dependencies [[org.clojure/test.check "0.5.8"]
                                                [org.mockito/mockito-core "1.8.5"]]
-                                :repl-options {:port    4001}
-                                :proto-path   "test/proto"}
-
-                      :doc     {:dependencies [[clj-aws-s3/clj-aws-s3 "0.3.10"]
-                                               [codox/codox.core "0.8.10"]
-                                               [org.apache.httpcomponents/httpcore "4.2"]
-                                               [clojure-ini/clojure-ini "0.0.2"]]}})
+                                :repl-options {:port 4001}
+                                :proto-path   "test/proto"}})

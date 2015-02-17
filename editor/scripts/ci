@@ -1,2 +1,2 @@
 #!/bin/bash
-lein ci
+lein ci && lein doc
