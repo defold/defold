@@ -22,7 +22,7 @@
 (defn bbuf->string [^ByteBuffer bb] (String. ^bytes (alias-buf-bytes bb) "UTF-8"))
 
 (defprotocol ByteStringCoding
-  (byte-pack [source] "Return a Protocol Buffer compatible byte string from the given source."))
+  (byte-pack ^ByteString [source] "Return a Protocol Buffer compatible byte string from the given source."))
 
 (defn- new-buffer [s] (ByteBuffer/allocateDirect s))
 
@@ -35,7 +35,7 @@
 
 (defn as-int-buffer ^IntBuffer [^ByteBuffer b] (.asIntBuffer b))
 
-(defn copy-buffer
+(defn ^ByteBuffer copy-buffer
   [^ByteBuffer b]
   (let [sz      (.capacity b)
         clone   (if (.isDirect b) (ByteBuffer/allocateDirect sz) (ByteBuffer/allocate sz))
