@@ -92,10 +92,6 @@ The input to the production function may be one of three things:
         (service.log/warn :missing-input missing)
         [world (e/bind missing)]))))
 
-(defn get-inputs [world target-node target-label]
-  (let [[_ inputs] (get-inputs-internal world target-node target-label)]
-    (e/result inputs)))
-
 (defn- collect-inputs-internal
   "Return a map of all inputs needed for the input-schema. The schema will usually
 come from a production-function. Some keys on the schema are handled specially:
@@ -118,10 +114,6 @@ All other keys are passed along to get-inputs for resolution."
         (let [[world-after v] (get-inputs-internal world node k)]
           [world-after (assoc m k v)])))
     [world {}] input-schema))
-
-(defn collect-inputs [world node input-schema]
-  (let [[_ inputs] (collect-inputs-internal world node input-schema)]
-    (map-vals e/result inputs)))
 
 (defn- pfnk? [f] (contains? (meta f) :schema))
 
@@ -172,6 +164,23 @@ If the given label does not exist on the node, this will throw an AssertionError
         (miss-cache cache-key (produce-value world node label))))
     (produce-value world node label)))
 
+(defn- update-cache [world-ref world-before world-after]
+  (dosync
+    (when (= (:world-time world-before) (:world-time @world-ref))
+      (alter world-ref assoc-in [:cache] (:cache world-after)))))
+
+(defn get-inputs [world target-node target-label]
+  (let [[world-after inputs] (get-inputs-internal world target-node target-label)]
+    ;; TODO: assumes `target-node` value is consistent with `world`
+    (update-cache (:world-ref target-node) world world-after)
+    (e/result inputs)))
+
+(defn collect-inputs [world node input-schema]
+  (let [[world-after inputs] (collect-inputs-internal world node input-schema)]
+    ;; TODO: assumes `node` value is consistent with `world`
+    (update-cache (:world-ref node) world world-after)
+    (map-vals e/result inputs)))
+
 (defn get-node-value
   "Get a value, possibly cached, from a node. This is the entry point to the \"plumbing\".
 If the value is cacheable and exists in the cache, then return that value. Otherwise,
@@ -181,9 +190,8 @@ maybe cache the value that was produced, and return it."
   (let [world-ref           (:world-ref node)
         world-before        @world-ref
         [world-after value] (get-node-value-internal world-before node label)]
-    (dosync
-      (when (= (:world-time world-before) (:world-time @world-ref))
-        (alter world-ref assoc-in [:cache] (:cache world-after))))
+    ;; TODO: assumes `node` value is consistent with `world-before`
+    (update-cache world-ref world-before world-after)
     (e/result value)))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger

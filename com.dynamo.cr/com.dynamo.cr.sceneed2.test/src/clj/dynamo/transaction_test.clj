@@ -17,6 +17,7 @@
             [internal.either :as e]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
+            [internal.node :as in]
             [internal.transaction :as it]))
 
 (defn dummy-output [& _] :ok)
@@ -538,4 +539,20 @@
         (is (nil? (cache-peek world-ref source-cache-key)))
         (n/get-node-value adder :cached-sum)
         (is (= (count number-sources) (some-> (cache-peek world-ref adder-cache-key)  e/result)))
-        (is (= 1                      (some-> (cache-peek world-ref source-cache-key) e/result)))))))
+        (is (= 1                      (some-> (cache-peek world-ref source-cache-key) e/result))))))
+  (testing "get-inputs stores results in cache"
+    (with-clean-world
+      (let [node         (ds/transactional (ds/add (n/construct NumberSource :x 13)))
+            cache-key    (cache-locate-key world-ref (:_id node) :cached-sum)
+            world-before @world-ref]
+        (is (nil? (cache-peek world-ref cache-key)))
+        (is (= 13 (in/get-inputs world-before node :cached-sum)))
+        (is (= 13 (some-> (cache-peek world-ref cache-key) e/result))))))
+  (testing "collect-inputs stores results in cache"
+    (with-clean-world
+      (let [node         (ds/transactional (ds/add (n/construct NumberSource :x 42)))
+            cache-key    (cache-locate-key world-ref (:_id node) :cached-sum)
+            world-before @world-ref]
+        (is (nil? (cache-peek world-ref cache-key)))
+        (is (= {:x 42 :sum 42 :cached-sum 42} (in/collect-inputs world-before node {:x ::unused :sum ::unused :cached-sum ::unused})))
+        (is (= 42 (some-> (cache-peek world-ref cache-key) e/result)))))))
