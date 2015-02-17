@@ -1,0 +1,3 @@
+function update(self, dt)
+	msg.post("/spawner#script", "spawned")
+end

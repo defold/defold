@@ -77,6 +77,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "builtins",
                 "camera",
                 "collection_proxy",
+                "collection_factory",
                 "collision_object",
                 "engine",
                 "factory",

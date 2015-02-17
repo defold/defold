@@ -1,0 +1,9 @@
+function update(self, dt)
+    if not self.done then
+        local ids = {}
+	ids[1] = spawn("/a.goc")
+	ids[2] = spawn("/a.goc")
+        go.delete_all(ids)
+        self.done = true
+    end
+end

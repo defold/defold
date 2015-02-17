@@ -1096,6 +1096,64 @@ namespace dmGameObject
         return 0;
     }
 
+    /*# deletes a set of game object instance
+     * <div>Use this function to delete many game objects at the same time</div>
+     *
+     * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
+     *
+     * @name go.delete_all
+     * @param [ids] A table where the values are ids (hashes) to be deleted
+     * @examples
+     * <p>
+     * This example demonstrates how to delete game objects spawned by a collectionfactory
+     * </p>
+     * <pre>
+     * local ids = collectionfactory.create("#cf")
+     * ...
+     * go.delete_all(ids)
+     * </pre>
+     */
+    int Script_DeleteAll(lua_State* L)
+    {
+        const int top = lua_gettop(L);
+        if (lua_gettop(L) != 1 || !lua_istable(L, 1)) {
+            dmLogWarning("go.delete_all() needs a table as its first argument");
+            return 0;
+        }
+
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+
+        // read table
+        lua_pushnil(L);
+        while (lua_next(L, 1)) {
+
+            // value should be hashes
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, -1, &receiver, 0x0);
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            {
+                luaL_error(L, "function called can only access instances within the same collection.");
+            }
+
+            Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            if (todelete)
+            {
+                dmGameObject::HCollection collection = todelete->m_Collection;
+                dmGameObject::Delete(collection, todelete);
+            }
+            else
+            {
+                dmLogWarning("go.delete_all(): instance could not be resolved");
+            }
+
+            lua_pop(L, 1);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     /*# constructs a ray in world space from a position in screen space
      *
      * NOTE! Don't use this function, WIP!
@@ -1216,6 +1274,7 @@ namespace dmGameObject
         {"animate",             Script_Animate},
         {"cancel_animations",   Script_CancelAnimations},
         {"delete",              Script_Delete},
+        {"delete_all",          Script_DeleteAll},
         {"screen_ray",          Script_ScreenRay},
         {"property",            Script_Property},
         {0, 0}
@@ -1390,6 +1449,7 @@ bail:
             return 0;
         }
 
+        lua_pop(L, 1);
         return script;
     }
 

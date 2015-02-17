@@ -43,6 +43,15 @@
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
+            extensions="collectionfactory"
+            icon="icons/factory.png"
+            id="com.dynamo.cr.ddfeditor.collectionfactoryEditor"
+            name="Scene Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="false"
             extensions="collisionobject"
             icon="icons/weight.png"
             id="com.dynamo.cr.ddfeditor.collisionObjectEditor"
@@ -153,6 +162,13 @@
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard"
+            icon="icons/factory.png"
+            id="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard"
+            name="Collection Factory File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard"
             icon="icons/weight.png"
             id="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard"
@@ -221,6 +237,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard">
          <enablement></enablement>
       </commonWizard>
       <commonWizard
@@ -300,6 +321,21 @@
             name="Factory"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$FactoryDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.FactoryRefactorParticipant"
+            template-data="prototype: &apos;&apos;"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="gameobject">
+            </reference-type-class>
+         </references>
+      </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="collectionfactory"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.CollectionFactory"
+            name="Collection Factory"
+            proto-message-class="com.dynamo.gamesystem.proto.GameSystem$CollectionFactoryDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollectionFactoryRefactorParticipant"
             template-data="prototype: &apos;&apos;"
             type-class="component">
          <references>
@@ -497,6 +533,9 @@
                id="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
@@ -530,6 +569,13 @@
             node="com.dynamo.cr.ddfeditor.scene.FactoryNode"
             renderer="com.dynamo.cr.ddfeditor.scene.FactoryRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Factory">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.collectionFactoryNode"
+            loader="com.dynamo.cr.ddfeditor.scene.CollectionFactoryLoader"
+            node="com.dynamo.cr.ddfeditor.scene.CollectionFactoryNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.CollectionFactoryRenderer"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollectionFactory">
       </node-type>
       <node-type
             display-group="Physics"

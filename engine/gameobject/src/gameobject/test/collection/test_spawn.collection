@@ -1,0 +1,31 @@
+name: "tospawn"
+instances {
+  id: "spawned1"
+  prototype: "/go1.goc"
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "spawned2"
+  prototype: "/go2.goc"
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
