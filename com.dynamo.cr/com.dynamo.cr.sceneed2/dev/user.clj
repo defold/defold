@@ -20,19 +20,20 @@
             [clojure.repl :refer :all]
             [clojure.pprint :refer [pprint]]
             [schema.core :as s])
-  (:import [java.awt Dimension]
+  (:import [java.awt Dimension Graphics]
            [java.awt.image BufferedImage]
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]
            [javax.swing JFrame JPanel]
            [org.eclipse.ui PlatformUI]
            [org.eclipse.e4.ui.workbench IWorkbench]
            [org.eclipse.swt SWT]
-           [org.eclipse.swt.graphics Color RGB]
+           [org.eclipse.swt.graphics Color GC RGB]
            [org.eclipse.swt.layout GridLayout GridData]
-           [org.eclipse.swt.widgets Canvas Display Listener Shell Slider]
-           [org.eclipse.ui.forms.widgets FormToolkit]))
+           [org.eclipse.swt.widgets Canvas Display Event Listener Shell Slider]
+           [org.eclipse.ui.forms.widgets FormToolkit]
+           [com.google.protobuf Descriptors$Descriptor Descriptors$FieldDescriptor]))
 
-(defn method->function [m]
+(defn method->function [^java.lang.reflect.Method m]
   (list (symbol (.getName m)) (into ['this] (.getParameterTypes m))))
 
 (defn all-types [cls]
@@ -41,7 +42,7 @@
 (defn skeletor [iface]
   (->> iface
     all-types
-    (mapcat #(.getDeclaredMethods %))
+    (mapcat #(.getDeclaredMethods ^Class %))
     (map method->function)))
 
 (defmacro tap [x] `(do (prn ~(str "**** " &form " ") ~x) ~x))
@@ -127,11 +128,11 @@
 
 (defn projects-in-memory
   []
-  (keep #(when (.endsWith (.getName (second %)) "Project__") (node (first %))) (nodes-and-classes)))
+  (keep #(when (.endsWith (.getName ^Class (second %)) "Project__") (node (first %))) (nodes-and-classes)))
 
 (defn images-from-dir
   [d]
-  (map load-image (filter #(.endsWith (.getName %) ".png") (file-seq (file d)))))
+  (map load-image (filter #(.endsWith (.getName ^java.io.File %) ".png") (file-seq (file d)))))
 
 (defn test-resource-dir
   [& [who]]
@@ -144,9 +145,9 @@
 
 (images-from-dir (test-resource-dir))
 
-(defn image-panel [img]
+(defn image-panel ^JPanel [^BufferedImage img]
   (doto (proxy [JPanel] []
-          (paint [g]
+          (paint [^Graphics g]
             (.drawImage g img 0 0 nil)))
     (.setPreferredSize (new Dimension
                             (.getWidth img)
@@ -165,7 +166,7 @@
 
 (defn protobuf-fields
   [protobuf-msg-cls]
-  (for [fld (.getFields (internal.java/invoke-no-arg-class-method protobuf-msg-cls "getDescriptor"))]
+  (for [^Descriptors$FieldDescriptor fld (.getFields ^Descriptors$Descriptor (internal.java/invoke-no-arg-class-method protobuf-msg-cls "getDescriptor"))]
     {:name (.getName fld)
      :type (let [t (.getJavaType fld)]
              (if (not= com.google.protobuf.Descriptors$FieldDescriptor$JavaType/MESSAGE t)
@@ -194,28 +195,28 @@
         extensions)))
     p))
 
-(defn shell
-  [display & styles]
-  (Shell. display (reduce bit-and styles)))
+(defn ^Shell shell
+  [^Display display & styles]
+  (Shell. display (int (reduce bit-and styles))))
 
-(defn darker
-  [c]
+(defn ^Color darker
+  [^Color c]
   (let [[h s b] (.. c getRGB getHSB)
         b       (* b 0.8)
         rgb     (RGB. (float h) (float s) (float b))]
     (Color. (.getDevice c) rgb)))
 
 (defn outlined-rect
-  [gc scale {:keys [x y width height]}]
+  [^GC gc scale {:keys [x y width height]}]
   (.setAlpha gc 255)
   (.drawRectangle gc (* scale x) (* scale y) (* scale width) (* scale height))
   (.setAlpha gc 192)
   (.fillRectangle gc (* scale x) (* scale y) (* scale width) (* scale height)))
 
 (defn pack-viz-draw
-  [gc evt trace t]
+  [^GC gc ^Canvas canvas ^Event evt trace t]
   (let [trace-time (nth trace t)
-        client-area (.. evt widget getClientArea)
+        client-area (.getClientArea canvas)
         text-c      (Color. (.. evt display) 251 250 217)
         gray1-c     (Color. (.. evt display)  64  64  64)
         gray2-c     (Color. (.. evt display) 128 128 145)
@@ -276,7 +277,7 @@
             (handleEvent [this evt]
               (try
                 (let [gc (.gc evt)]
-                  (pack-viz-draw gc evt trace @t))
+                  (pack-viz-draw gc canvas evt trace @t))
                 (catch Exception e
                   (println e))))))
         (.pack shell)
@@ -285,8 +286,8 @@
 (defn summarize-images []
   (->> (nodes-of-type "ImageResourceNode")
        (map (fn [n]
-              (let [image    (n/get-node-value n :content)
-                    contents (t/contents image)]
+              (let [image    ^dynamo.types.Image (n/get-node-value n :content)
+                    contents ^BufferedImage (t/contents image)]
                 (assert (= (.width  image) (.getWidth contents)))
                 (assert (= (.height image) (.getHeight contents)))
                 [(:_id n) (t/local-path (:filename n)) (.width image) (.height image) (.getType contents)])))))
