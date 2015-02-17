@@ -179,7 +179,6 @@
                state (-> system-map :world :state)
                graph (-> state deref :graph)
                root (dg/node graph 1)]
-           (prn "STATE!!!" state)
            (it/set-world-ref! state)
            (alter-var-root #'it/*scope* (constantly root))
            system-map))
