@@ -128,7 +128,7 @@
 
 (defn make-event-broadcaster [] (EventBroadcaster. (atom {})))
 
-(defn shell [] (doto (Shell.) (.setLayout (FillLayout.))))
+(defn shell ^Shell [] (doto (Shell.) (.setLayout (FillLayout.))))
 
 (defn now [] (System/currentTimeMillis))
 
