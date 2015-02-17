@@ -1,4 +1,4 @@
-(defproject editor "2.0.0-SNAPSHOT"
+(defproject defold-editor "2.0.0-SNAPSHOT"
   :description      "Defold game editor"
   :url              "http://doc.defold.com"
 
@@ -233,8 +233,7 @@
                      [com.google.guava/guava                      "r09"]
                      [com.google.inject/guice                     "3.0"]]
 
-  :main              editor
-  :aot               [editor]
+  :main              ^:skip-aot editor
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
@@ -248,7 +247,10 @@
                       "../engine/ddf/src"
                       "../tmp/dynamo_home/ext/include"]
 
-  :profiles          {:uberjar {:aot :all}
+  :aliases           {"ci" ["do" "test," "uberjar"]}
+
+  :profiles          {:uberjar {:main editor.Main
+                                :aot [editor]}
                       :dev     {:dependencies [[org.clojure/test.check "0.5.8"]
                                                [org.mockito/mockito-core "1.8.5"]]
                                 :repl-options {:port    4001}
