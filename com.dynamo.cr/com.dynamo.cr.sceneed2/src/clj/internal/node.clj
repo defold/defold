@@ -53,7 +53,7 @@
 
 (declare get-node-value-internal)
 
-(defn get-inputs
+(defn- get-inputs-internal
   "Gets an input (maybe with multiple values) needed to invoke a production function for a node.
 The input to the production function may be one of three things:
 
@@ -66,27 +66,37 @@ The input to the production function may be one of three things:
         output-transform (some-> target-node t/transforms target-label)]
     (cond
       (vector? input-schema)
-      (mapv (fn [[source-node source-label]]
-              (e/result (second (get-node-value-internal world (dg/node graph source-node) source-label))))
-           (lg/sources graph (:_id target-node) target-label))
+      (vec
+        (reduce
+          (fn [[world inputs] [source-node source-label]]
+            (let [[world-after input] (get-node-value-internal world (dg/node graph source-node) source-label)]
+              [world-after (e/bind (conj (e/result inputs) (e/result input)))]))
+          [world (e/bind [])] (lg/sources graph (:_id target-node) target-label)))
 
       (not (nil? input-schema))
       (let [[first-source-node first-source-label] (first (lg/sources graph (:_id target-node) target-label))]
-        (when first-source-node
-          (e/result (second (get-node-value-internal world (dg/node graph first-source-node) first-source-label)))))
+        (if first-source-node
+          (let [[world-after value] (get-node-value-internal world (dg/node graph first-source-node) first-source-label)]
+            [world-after value])
+          [world (e/bind nil)]))
 
       (contains? target-node target-label)
-      (get target-node target-label)
+      [world (e/bind (get target-node target-label))]
 
       (not (nil? output-transform))
-      (e/result (second (get-node-value-internal world target-node target-label)))
+      (let [[world-after value] (get-node-value-internal world target-node target-label)]
+        [world-after value])
 
       :else
       (let [missing (missing-input target-node target-label)]
         (service.log/warn :missing-input missing)
-        missing))))
+        [world (e/bind missing)]))))
 
-(defn collect-inputs
+(defn get-inputs [world target-node target-label]
+  (let [[_ inputs] (get-inputs-internal world target-node target-label)]
+    (e/result inputs)))
+
+(defn- collect-inputs-internal
   "Return a map of all inputs needed for the input-schema. The schema will usually
 come from a production-function. Some keys on the schema are handled specially:
 
@@ -97,32 +107,38 @@ come from a production-function. Some keys on the schema are handled specially:
 
 All other keys are passed along to get-inputs for resolution."
   [world node input-schema]
-  (reduce-kv
-    (fn [m k v]
+  (reduce
+    (fn [[world m] [k v]]
       (condp = k
-        :g         (assoc m k (:graph world))
-        :this      (assoc m k node)
-        :world     (assoc m k (:world-ref node))
-        :project   (assoc m k (find-enclosing-scope :project node))
-        s/Keyword  m
-        (assoc m k (get-inputs world node k))))
-    {} input-schema))
+        :g         [world (assoc m k (e/bind (:graph world)))]
+        :this      [world (assoc m k (e/bind node))]
+        :world     [world (assoc m k (e/bind (:world-ref node)))]
+        :project   [world (assoc m k (e/bind (find-enclosing-scope :project node)))]
+        s/Keyword  [world m]
+        (let [[world-after v] (get-inputs-internal world node k)]
+          [world-after (assoc m k v)])))
+    [world {}] input-schema))
+
+(defn collect-inputs [world node input-schema]
+  (let [[_ inputs] (collect-inputs-internal world node input-schema)]
+    (map-vals e/result inputs)))
 
 (defn- pfnk? [f] (contains? (meta f) :schema))
 
 (defn- perform-with-inputs [world node production-fn]
   (if (pfnk? production-fn)
-    (production-fn (collect-inputs world node (pf/input-schema production-fn)))
-    (t/apply-if-fn production-fn node (:graph world))))
+    (let [[world-after inputs] (collect-inputs-internal world node (pf/input-schema production-fn))]
+      [world-after (e/bind (production-fn (map-vals e/result inputs)))])
+    [world (e/bind (t/apply-if-fn production-fn node (:graph world)))]))
 
 (defn- default-substitute-value-fn [v]
   (throw (:exception v)))
 
 (defn- perform* [world node transform]
   (let [production-fn       (-> transform :production-fn t/var-get-recursive)
-        substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)]
-    (-> (e/bind (perform-with-inputs world node production-fn))
-        (e/or-else (fn [e] (t/apply-if-fn substitute-value-fn {:exception e :node node}))))))
+        substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)
+        [world-after value] (perform-with-inputs world node production-fn)]
+    [world-after (e/or-else value (fn [e] (t/apply-if-fn substitute-value-fn {:exception e :node node})))]))
 
 (def ^:dynamic *perform-depth* 200)
 
@@ -145,7 +161,7 @@ If the given label does not exist on the node, this will throw an AssertionError
   (let [transform (some-> node t/transforms label)]
     (assert (not= ::abstract transform) )
     (metrics/node-value node label)
-    [world (perform world node transform)]))
+    (perform world node transform)))
 
 (defn- get-node-value-internal
   [world node label]
