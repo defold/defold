@@ -1,6 +1,3 @@
 function update(self, dt)
-	msg.post("main:/main#script", "done")
-end
-
-function on_message(self, message_id, message, sender)
+	msg.post("/spawner#script", "spawned")
 end
