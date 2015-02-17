@@ -6,7 +6,7 @@
 
   :plugins          [[lein-protobuf-minimal "0.4.1"]]
 
-  :dependencies     [[org.clojure/clojure                         "1.6.0"]
+  :dependencies     [[org.clojure/clojure                         "1.7.0-alpha5"]
                      [org.clojure/core.cache                      "0.6.3"]
                      [org.clojure/tools.nrepl                     "0.2.3"]
                      [org.clojure/core.async                      "0.1.346.0-17112a-alpha"]
