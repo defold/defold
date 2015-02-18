@@ -192,7 +192,6 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     const float scale = 1.0f;
 
     // Spawn until failure
-    uint32_t created = 0;
     bool filled = false;
     for (int i=0;i<50;i++)
     {
