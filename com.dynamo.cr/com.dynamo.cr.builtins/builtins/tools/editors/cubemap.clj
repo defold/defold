@@ -94,6 +94,7 @@
 (n/defnode CubemapNode
   (inherits n/AutowireResources)
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "Cubemap"))
 
   (property right  dp/ImageResource)
   (property left   dp/ImageResource)
