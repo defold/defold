@@ -1,4 +1,6 @@
 (ns dynamo.gl
+  "Expose some GL functions and constants with Clojure-ish flavor"
+  (:refer-clojure :exclude [repeat])
   (:require [dynamo.gl.protocols :as p])
   (:import [java.awt Font]
            [java.util WeakHashMap]
@@ -195,6 +197,34 @@
 
 (defmacro glu-ortho [glu region]
   `(.gluOrtho2D ~glu (double (.left ~region)) (double (.right ~region)) (double (.bottom ~region)) (double (.top ~region))))
+
+(def red                    GL2/GL_RED)
+(def green                  GL2/GL_GREEN)
+(def blue                   GL2/GL_BLUE)
+(def alpha                  GL2/GL_ALPHA)
+(def zero                   GL2/GL_ZERO)
+(def one                    GL2/GL_ONE)
+(def lequal                 GL2/GL_LEQUAL)
+(def gequal                 GL2/GL_GEQUAL)
+(def less                   GL2/GL_LESS)
+(def greater                GL2/GL_GREATER)
+(def equal                  GL2/GL_EQUAL)
+(def notequal               GL2/GL_NOTEQUAL)
+(def always                 GL2/GL_ALWAYS)
+(def never                  GL2/GL_NEVER)
+(def clamp_to_edge          GL2/GL_CLAMP_TO_EDGE)
+(def clamp_to_border        GL2/GL_CLAMP_TO_BORDER)
+(def mirrored_repeat        GL2/GL_MIRRORED_REPEAT)
+(def repeat                 GL2/GL_REPEAT)
+(def clamp                  GL2/GL_CLAMP)
+(def compare-ref-to-texture GL2/GL_COMPARE_REF_TO_TEXTURE)
+(def none                   GL2/GL_NONE)
+(def nearest                GL2/GL_NEAREST)
+(def linear                 GL2/GL_LINEAR)
+(def nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST)
+(def linear-mipmap-nearest  GL2/GL_LINEAR_MIPMAP_NEAREST)
+(def nearest-mipmap-linear  GL2/GL_NEAREST_MIPMAP_LINEAR)
+(def linear-mipmap-linear   GL2/GL_LINEAR_MIPMAP_LINEAR)
 
 (defn ^"[I" viewport-array [viewport]
   (int-array [(:left viewport)
