@@ -62,6 +62,8 @@
   (n/get-node-value atlas :text-format))
 
 (n/defnode WildcardImageResourceNode
+  (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [filename] (t/local-name filename)))
   (property filename (s/protocol t/PathManipulation) (visible false))
   (output content Image :cached (fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))
 
@@ -117,6 +119,8 @@
       (image/make-image filename-str img))))
 
 (n/defnode FixtureImageResourceNode
+  (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [filename] (t/local-name filename)))
   (property filename (s/protocol t/PathManipulation) (visible false))
   (output content Image :cached :substitute-value image/placeholder-image image-from-fixture))
 
@@ -170,3 +174,105 @@
   (verify-atlas-artifacts "atlases/single-image-multiple-references-in-animation")
   (verify-atlas-artifacts "atlases/missing-image-multiple-references")
   (verify-atlas-artifacts "atlases/missing-image-multiple-references-in-animation"))
+
+(defn simple-outline [outline-tree]
+  [(:label outline-tree) (map simple-outline (:children outline-tree))])
+
+(deftest outline
+  (with-clean-world
+    (let [project-node (test-project FixtureImageResourceNode)
+          atlas-text   (slurp (builtin-fixture "atlases/complex.atlas"))
+          atlas        (atlas-from-fixture project-node atlas-text)]
+      (is (= ["Atlas" [["anim1" [["frame-01.png" []]]]
+                       ["anim2" [["frame-02.png" []]]]
+                       ["anim3" [["frame-03.png" []]]]
+                       ["anim4" [["frame-01.png" []]
+                                 ["frame-02.png" []]
+                                 ["frame-03.png" []]]]
+                       ["frame-01.png" []]
+                       ["frame-02.png" []]
+                       ["small.png" []]
+                       ["large.png" []]]]
+            (simple-outline (n/get-node-value atlas :outline-tree))))))
+  (with-clean-world
+    (let [project-node (test-project FixtureImageResourceNode)
+          atlas-text   (slurp (builtin-fixture "atlases/single-animation.atlas"))
+          atlas        (atlas-from-fixture project-node atlas-text)
+          anim1        (ffirst (ds/sources-of (:graph @world-ref) atlas :animations))
+          img-frame-01 (t/lookup project-node "/images/frame-01.png")
+          img-frame-02 (t/lookup project-node "/images/frame-02.png")
+
+          ; initial load
+          outline1     (n/get-node-value atlas :outline-tree)
+
+          ; disconnect image from anim
+          atlas        (ds/transactional (ds/disconnect img-frame-02 :content anim1 :images) atlas)
+          outline2     (n/get-node-value atlas :outline-tree)
+
+          ; disconnect anim
+          atlas        (ds/transactional (ds/disconnect anim1 :animation atlas :animations) atlas)
+          outline3     (n/get-node-value atlas :outline-tree)
+
+          ; connect existing image
+          atlas        (ds/transactional (ds/connect img-frame-01 :content atlas :images) atlas)
+          outline4     (n/get-node-value atlas :outline-tree)
+
+          ; disconnect image
+          atlas        (ds/transactional (ds/disconnect img-frame-01 :content atlas :images) atlas)
+          outline5     (n/get-node-value atlas :outline-tree)
+
+          ; add anim
+          anim2        (ds/transactional (ds/add (n/construct atlas/AnimationGroupNode :id "anim2")))
+          atlas        (ds/transactional (ds/connect anim2 :animation atlas :animations) atlas)
+          outline6     (n/get-node-value atlas :outline-tree)
+
+          ; connect image to anim
+          img-small    (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/small.png")))))
+          atlas        (ds/transactional (ds/connect img-small    :content anim2 :images) atlas)
+          atlas        (ds/transactional (ds/connect img-frame-01 :content anim2 :images) atlas)
+          outline7     (n/get-node-value atlas :outline-tree)
+
+          ; connect missing (placeholder) image
+          img-missing  (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/missing.png")))))
+          atlas        (ds/transactional (ds/connect img-missing :content anim2 :images) atlas)
+          outline8     (n/get-node-value atlas :outline-tree)
+
+          ; connect another missing (placeholder) image
+          img-missing2 (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/missing2.png")))))
+          atlas        (ds/transactional (ds/connect img-missing2 :content anim2 :images) atlas)
+          outline9     (n/get-node-value atlas :outline-tree)
+
+          ; disconnect placeholder
+          atlas        (ds/transactional (ds/disconnect img-missing :content anim2 :images) atlas)
+          outline10    (n/get-node-value atlas :outline-tree)
+
+          ; TODO: connect duplicate existing image
+          atlas        (ds/transactional (ds/connect img-frame-01 :content anim2 :images) atlas)
+          outline11    (n/get-node-value atlas :outline-tree)
+
+          ; TODO: disconnect duplicate existing image
+          atlas        (ds/transactional (ds/disconnect img-frame-01 :content anim2 :images) atlas)
+          outline12    (n/get-node-value atlas :outline-tree)
+
+          ; TODO: connect duplicate missing (placeholder) image
+          atlas        (ds/transactional (ds/connect img-missing2 :content anim2 :images) atlas)
+          outline13    (n/get-node-value atlas :outline-tree)
+
+          ; TODO: disconnect duplicate missing (placeholder) image
+          atlas        (ds/transactional (ds/disconnect img-missing2 :content anim2 :images) atlas)
+          outline14    (n/get-node-value atlas :outline-tree)]
+      (are [outline-tree expected] (= expected (simple-outline outline-tree))
+        outline1  ["Atlas" [["anim1" [["frame-01.png" []] ["frame-02.png" []] ["frame-03.png" []]]]]]
+        outline2  ["Atlas" [["anim1" [["frame-01.png" []] ["frame-03.png" []]]]]]
+        outline3  ["Atlas" []]
+        outline4  ["Atlas" [["frame-01.png" []]]]
+        outline5  ["Atlas" []]
+        outline6  ["Atlas" [["anim2" []]]]
+        outline7  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []]]]]]
+        outline8  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing.png" []]]]]]
+        outline9  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing.png" []] ["missing2.png" []]]]]]
+        outline10 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]
+        outline11 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] #_["frame-01.png" []]]]]]
+        outline12 ["Atlas" [["anim2" [["small.png" []] #_["frame-01.png" []] ["missing2.png" []]]]]]
+        outline13 ["Atlas" [["anim2" [["small.png" []] #_["frame-01.png" []] ["missing2.png" []] #_["missing2.png" []]]]]]
+        outline14 ["Atlas" [["anim2" [["small.png" []] #_["frame-01.png" []] #_["missing2.png" []]]]]]))))
