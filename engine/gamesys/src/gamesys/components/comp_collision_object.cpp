@@ -311,6 +311,14 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
+    {
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        component->m_AddedToUpdate = false;
+        component->m_StartAsEnabled = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
@@ -608,6 +616,7 @@ namespace dmGameSystem
         if (world != 0x0) {
             CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
             assert(!component->m_AddedToUpdate);
+
             if (component->m_3D) {
                 dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, component->m_StartAsEnabled);
             } else {
@@ -817,6 +826,8 @@ namespace dmGameSystem
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
+        component->m_AddedToUpdate = false;
+        component->m_StartAsEnabled = true;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, true))
         {
             dmLogError("%s", "Could not recreate collision object component, not reloaded.");
