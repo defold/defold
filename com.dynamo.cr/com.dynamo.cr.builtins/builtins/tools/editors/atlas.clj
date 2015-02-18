@@ -67,11 +67,33 @@
 
 (declare tex-outline-vertices)
 
+(defn- input-connections
+  [graph node input-label]
+  (mapv (fn [[source-node output-label]] [(:_id source-node) output-label])
+    (ds/sources-of graph node input-label)))
+
+(defn connect-outline-children
+  [input-labels transaction graph self label kind inputs-touched]
+  (when (some (set input-labels) inputs-touched)
+    (let [children-before (input-connections (ds/in-transaction-graph transaction) self :outline-children)
+          children-after  (->> input-labels
+                               (mapcat #(input-connections graph self %))
+                               (map (fn [[n _]] [n :outline-tree])))]
+      ;; TODO: beware multiple instances of same image or animation
+      ;; TODO: how do we get the order correct?
+      (doseq [[n l] (remove (set children-after) children-before)]
+        (ds/disconnect {:_id n} l self :outline-children))
+      (doseq [[n l] (remove (set children-before) children-after)]
+        (ds/connect {:_id n} l self :outline-children)))))
+
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [id] id))
+
   (inherits n/AutowireResources)
 
   (property images dp/ImageResourceList)
+  (trigger connect-outline-children :input-connections (partial connect-outline-children [:images]))
 
   (property fps             dp/NonNegativeInt (default 30))
   (property flip-horizontal s/Bool)
@@ -738,8 +760,7 @@
     (doseq [anim (:animations atlas)
             :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))]]
       (ds/set-property anim-node :images (mapv :image (:images anim)))
-      (ds/connect anim-node :animation self :animations)
-      (ds/connect anim-node :tree      self :children))
+      (ds/connect anim-node :animation self :animations))
     (ds/set-property self :images (mapv :image (:images atlas)))
     self))
 
@@ -787,6 +808,7 @@
    packed-image `BufferedImage` - BufferedImage instance with the actual pixels.
    textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "Atlas"))
   (inherits n/AutowireResources)
   (inherits n/ResourceNode)
   (inherits n/Saveable)
@@ -794,6 +816,8 @@
   (input animations [Animation])
 
   (property images dp/ImageResourceList (visible false))
+
+  (trigger connect-outline-children :input-connections (partial connect-outline-children [:images :animations]))
 
   (property margin          dp/NonNegativeInt (default 0))
   (property extrude-borders dp/NonNegativeInt (default 0))
@@ -825,8 +849,7 @@
           images-to-add (p/select-resources project-node ["png" "jpg"] "Add Image(s)" true)]
       (ds/transactional
         (doseq [img images-to-add]
-          (ds/connect img :image target :images)
-          (ds/connect img :tree  target :children))))))
+          (ds/connect img :content target :images))))))
 
 (defcommand add-image-command
   "com.dynamo.cr.menu-items.scene"

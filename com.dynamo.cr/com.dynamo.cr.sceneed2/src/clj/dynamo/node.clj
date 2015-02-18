@@ -278,5 +278,6 @@ Inputs:
 
 Outputs:
 - tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (input  children [OutlineItem])
-  (output tree     OutlineItem outline/outline-tree-producer))
+  (input  outline-children [OutlineItem])
+  (output outline-label    s/Str :abstract)
+  (output outline-tree     OutlineItem outline/outline-tree-producer))
