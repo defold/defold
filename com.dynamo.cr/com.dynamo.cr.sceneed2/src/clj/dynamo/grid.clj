@@ -69,9 +69,8 @@
                     (nth (:aabbs grids) grid-index))))))
 
 (defn render-scaled-grids
-  [context ^GL2 gl this camera]
-  (let [grids       (n/get-node-value this :grids)
-        view-matrix (c/camera-view-matrix camera)
+  [context ^GL2 gl this camera grids]
+  (let [view-matrix (c/camera-view-matrix camera)
         dir         (double-array 4)
         _           (.getRow view-matrix 2 dir)]
     (gl-lines gl
@@ -79,10 +78,10 @@
       (render-primary-axes (apply g/aabb-union (:aabbs grids))))))
 
 (defnk grid-renderable :- t/RenderData
-  [this camera]
+  [this camera grids]
   {pass/transparent
    [{:world-transform g/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-scaled-grids ctx gl this camera))}]})
+     :render-fn       (fn [ctx gl glu text-renderer] (render-scaled-grids ctx gl this camera grids))}]})
 
 (def axis-vectors
   [(Vector4d. 1.0 0.0 0.0 0.0)
