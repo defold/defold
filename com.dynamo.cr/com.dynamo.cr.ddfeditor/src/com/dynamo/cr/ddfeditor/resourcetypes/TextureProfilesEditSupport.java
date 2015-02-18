@@ -17,7 +17,7 @@ public class TextureProfilesEditSupport implements IResourceTypeEditSupport {
     @Override
     public Message getTemplateMessageFor(Descriptor descriptor) {
 		if (descriptor.getFullName().equals(TextureProfile.getDescriptor().getFullName())) {
-			return TextureProfile.newBuilder().setName("unnamed").build(); //.setAction("unnamed").setInput(Gamepad.GAMEPAD_RPAD_DOWN).build();
+			return TextureProfile.newBuilder().setName("unnamed").build();
 		}
 		else if (descriptor.getFullName().equals(PlatformProfile.getDescriptor().getFullName())) {
 			TextureFormatAlternative tmpFormat = TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();

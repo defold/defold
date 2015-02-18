@@ -8,9 +8,13 @@ import java.io.IOException;
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OSId;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 public class TextureGeneratorTest {
 
@@ -155,6 +159,107 @@ public class TextureGeneratorTest {
         assertEquals((byte) 0, image.getData().byteAt(1));
         assertEquals((byte) 0, image.getData().byteAt(2));
         assertEquals((byte) 0, image.getData().byteAt(3));
+    }
+
+    @Test
+    public void testTextureProfilesFormat() throws TextureGeneratorException, IOException {
+
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+        
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+        
+        platformProfile.setOs(PlatformProfile.OSId.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+        
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build());
+
+        assertEquals(1, texture.getAlternativesCount());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+
+    }
+
+    @Test
+    public void testTextureProfilesMaxSize() throws TextureGeneratorException, IOException {
+
+        // Create a texture profile with a max texture size
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+        
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        
+        platformProfile.setOs(PlatformProfile.OSId.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(16);
+        
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build());
+
+        assertEquals(16, texture.getAlternatives(0).getWidth());
+        assertEquals(16, texture.getAlternatives(0).getHeight());
+
+    }
+    
+
+
+    @Test
+    public void testTextureProfilesMultiplePlatforms() throws TextureGeneratorException, IOException {
+
+        // Create a texture profile with multiple platforms and formats
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile1 = PlatformProfile.newBuilder();
+        PlatformProfile.Builder platformProfile2 = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt2 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt3 = TextureFormatAlternative.newBuilder();
+        
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+        textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+        textureFormatAlt3.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        
+        platformProfile1.setOs(PlatformProfile.OSId.OS_ID_IOS);
+        platformProfile1.addFormats(textureFormatAlt1.build());
+        platformProfile1.addFormats(textureFormatAlt2.build());
+        platformProfile1.setMipmaps(false);
+        platformProfile1.setMaxTextureSize(16);
+        
+        platformProfile2.setOs(PlatformProfile.OSId.OS_ID_GENERIC);
+        platformProfile2.addFormats(textureFormatAlt3.build());
+        platformProfile2.setMipmaps(false);
+        platformProfile2.setMaxTextureSize(0);
+        
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile1.build());
+        textureProfile.addPlatforms(platformProfile2.build());
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build());
+
+        assertEquals(3, texture.getAlternativesCount());
+        
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+        assertEquals(16, texture.getAlternatives(0).getWidth());
+        assertEquals(16, texture.getAlternatives(0).getHeight());
+
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, texture.getAlternatives(1).getFormat());
+        assertEquals(16, texture.getAlternatives(1).getWidth());
+        assertEquals(16, texture.getAlternatives(1).getHeight());
+        
+
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(2).getFormat());
+        assertEquals(128, texture.getAlternatives(2).getWidth());
+        assertEquals(64, texture.getAlternatives(2).getHeight());
+
     }
 
 }
