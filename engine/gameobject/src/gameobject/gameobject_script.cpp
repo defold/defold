@@ -1070,7 +1070,7 @@ namespace dmGameObject
     }
 
     /*# deletes a game object instance
-     * <div>Use this function to delete a game object identified by its id.</div>
+     * <div>Delete a game object identified by its id.</div>
      *
      * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
      *
@@ -1097,19 +1097,30 @@ namespace dmGameObject
     }
 
     /*# deletes a set of game object instance
-     * <div>Use this function to delete many game objects at the same time</div>
+     * <div>Delete all game objects simultaneously as listed in table.
+     * The table values (not keys) should be game object ids (hashes).</div>
      *
      * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
      *
      * @name go.delete_all
-     * @param [ids] A table where the values are ids (hashes) to be deleted
+     * @param [ids] table with values of instance ids (hashes) to be deleted
      * @examples
      * <p>
-     * This example demonstrates how to delete game objects spawned by a collectionfactory
+     * An example how to delete game objects listed in a table
      * </p>
      * <pre>
-     * local ids = collectionfactory.create("#cf")
+     * -- List the objects to be deleted 
+     * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
+     * go.delete_all(ids)
+     * </pre>
+     * <p>
+     * An example how to delete game objects spawned via a collectionfactory
+     * </p>
+     * <pre>
+     * -- Spawn a collection of game objects.
+     * local ids = collectionfactory.create("#collectionfactory")
      * ...
+     * -- Delete all objects listed in the table 'ids'.
      * go.delete_all(ids)
      * </pre>
      */
