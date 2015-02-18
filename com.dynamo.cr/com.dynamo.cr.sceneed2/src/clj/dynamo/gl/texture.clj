@@ -1,5 +1,5 @@
 (ns dynamo.gl.texture
-  (:refer-clojure :exclude [repeat])
+  "Functions for creating and using textures"
   (:require [dynamo.image :as img :refer [placeholder-image]]
             [dynamo.gl.protocols :refer :all]
             [dynamo.gl :as gl]
@@ -11,7 +11,10 @@
            [com.jogamp.opengl.util.texture Texture TextureIO]
            [com.jogamp.opengl.util.texture.awt AWTTextureIO]))
 
-(def texture-params
+(def
+  ^{:doc "This map translates Clojure keywords into OpenGL constants.
+          You can use the keywords in texture parameter maps."}
+  texture-params
   {:base-level   GL2/GL_TEXTURE_BASE_LEVEL
    :border-color GL2/GL_TEXTURE_BORDER_COLOR
    :compare-func GL2/GL_TEXTURE_COMPARE_FUNC
@@ -29,34 +32,6 @@
    :wrap-s       GL2/GL_TEXTURE_WRAP_S
    :wrap-t       GL2/GL_TEXTURE_WRAP_T
    :wrap-r       GL2/GL_TEXTURE_WRAP_R})
-
-(def red                    GL2/GL_RED)
-(def green                  GL2/GL_GREEN)
-(def blue                   GL2/GL_BLUE)
-(def alpha                  GL2/GL_ALPHA)
-(def zero                   GL2/GL_ZERO)
-(def one                    GL2/GL_ONE)
-(def lequal                 GL2/GL_LEQUAL)
-(def gequal                 GL2/GL_GEQUAL)
-(def less                   GL2/GL_LESS)
-(def greater                GL2/GL_GREATER)
-(def equal                  GL2/GL_EQUAL)
-(def notequal               GL2/GL_NOTEQUAL)
-(def always                 GL2/GL_ALWAYS)
-(def never                  GL2/GL_NEVER)
-(def clamp_to_edge          GL2/GL_CLAMP_TO_EDGE)
-(def clamp_to_border        GL2/GL_CLAMP_TO_BORDER)
-(def mirrored_repeat        GL2/GL_MIRRORED_REPEAT)
-(def repeat                 GL2/GL_REPEAT)
-(def clamp                  GL2/GL_CLAMP)
-(def compare-ref-to-texture GL2/GL_COMPARE_REF_TO_TEXTURE)
-(def none                   GL2/GL_NONE)
-(def nearest                GL2/GL_NEAREST)
-(def linear                 GL2/GL_LINEAR)
-(def nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST)
-(def linear-mipmap-nearest  GL2/GL_LINEAR_MIPMAP_NEAREST)
-(def nearest-mipmap-linear  GL2/GL_NEAREST_MIPMAP_LINEAR)
-(def linear-mipmap-linear   GL2/GL_LINEAR_MIPMAP_LINEAR)
 
 (defonce gl-texture-state (atom {}))
 
@@ -97,8 +72,10 @@
   [gl ^Texture texture params]
   (doseq [[p v] params]
     (if-let [pname (texture-params p)]
-      (.setTexParameteri texture gl (texture-params p) v)
-      (println "WARNING: ignoring unknown texture parameter " p))))
+      (.setTexParameteri texture gl pname v)
+      (if (integer? p)
+        (.setTexParameteri texture gl p v)
+        (println "WARNING: ignoring unknown texture parameter " p)))))
 
 (defrecord TextureLifecycle [unit params ^BufferedImage img]
   GlBind
@@ -133,13 +110,26 @@
     (println "TextureLifecycle.dispose " img)
     (unload-texture this)))
 
-(def default-image-texture-params
-  {:min-filter linear-mipmap-linear
-   :mag-filter linear
-   :wrap-s     clamp
-   :wrap-t     clamp})
+(def
+  ^{:doc "If you do not supply parameters to `image-texture`, these will be used as defaults."}
+  default-image-texture-params
+  {:min-filter gl/linear-mipmap-linear
+   :mag-filter gl/linear
+   :wrap-s     gl/clamp
+   :wrap-t     gl/clamp})
 
 (defn image-texture
+  "Create an image texture from a BufferedImage. The returned value
+supports GlBind, GlEnable, and IDisposable. You can use it in do-gl and with-enabled.
+
+If supplied, the params argument must be a map of parameter name to value. Parameter names
+can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents from
+`texture-params` (e.g., :wrap-s).
+
+If you supply parameters, then those parameters are used. If you do not supply parameters,
+then defaults in `default-image-texture-params` are used.
+
+If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEXTURE0."
   ([img]
    (image-texture GL/GL_TEXTURE0 default-image-texture-params img))
   ([img params]
@@ -188,10 +178,11 @@
     (unload-texture this)))
 
 (def default-cubemap-texture-params
-  {:min-filter linear
-   :mag-filter linear
-   :wrap-s     clamp
-   :wrap-t     clamp})
+  ^{:doc "If you do not supply parameters to `image-cubemap-texture`, these will be used as defaults."}
+  {:min-filter gl/linear
+   :mag-filter gl/linear
+   :wrap-s     gl/clamp
+   :wrap-t     gl/clamp})
 
 (def cubemap-placeholder
   (memoize
@@ -207,6 +198,17 @@
       x)))
 
 (defn image-cubemap-texture
+  "Create an cubemap texture from six BufferedImages. The returned value
+supports GlBind, GlEnable, and IDisposable. You can use it in do-gl and with-enabled.
+
+If supplied, the params argument must be a map of parameter name to value. Parameter names
+can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents from
+`texture-params` (e.g., :wrap-s).
+
+If you supply parameters, then those parameters are used. If you do not supply parameters,
+then defaults in `default-cubemap-texture-params` are used.
+
+If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEXTURE0"
   ([right left top bottom front back]
    (image-cubemap-texture GL/GL_TEXTURE0 default-cubemap-texture-params right left top bottom front back))
   ([params right left top bottom front back]
