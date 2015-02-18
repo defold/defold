@@ -824,25 +824,9 @@ namespace dmGameObject
         return instance;
     }
 
-    // Returns a new root on success
-    HInstance CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping)
+    // Returns if successful or not
+    bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
     {
-        // New object onto which all parent-less objects will be attached
-        HInstance new_root = NewInstance(collection, &EMPTY_PROTOTYPE, 0);
-        if (!new_root)
-        {
-            return 0;
-        }
-
-        dmhash_t root_id_hash = GenerateUniqueInstanceId(collection);
-        if (dmGameObject::SetIdentifier(collection, new_root, root_id_hash) != dmGameObject::RESULT_OK)
-        {
-            dmLogError("Failed to set identifier on new collection root");
-            ReleaseIdentifier(collection, new_root);
-            UndoNewInstance(collection, new_root);
-            return 0;
-        }
-
         // Path prefix for collection objects
         char root_path[32];
         HashState64 prefixHashState;
@@ -850,9 +834,8 @@ namespace dmGameObject
         dmHashInit64(&prefixHashState, true);
         dmHashUpdateBuffer64(&prefixHashState, root_path, strlen(root_path));
 
-        // Initialize & supply with the root object
-        id_mapping->SetCapacity(32, collection_desc->m_Instances.m_Count + 1);
-        id_mapping->Put(dmHashBuffer64(ID_SEPARATOR, strlen(ID_SEPARATOR)), root_id_hash);
+        // table for output ids
+        id_mapping->SetCapacity(32, collection_desc->m_Instances.m_Count);
 
         dmArray<HInstance> new_instances;
         new_instances.SetCapacity(collection_desc->m_Instances.m_Count);
@@ -956,16 +939,12 @@ namespace dmGameObject
 
         if (success)
         {
-            // Reparent all the parent-less instances so they have the root as parent.
+            // Update the transform for all parent-less objects
             for (uint32_t i=0;i!=new_instances.Size();i++)
             {
                 if (!GetParent(new_instances[i]))
                 {
-                    if (SetParent(new_instances[i], new_root) != dmGameObject::RESULT_OK)
-                    {
-                        dmLogError("Could not set spawn root as parent.");
-                        success = false;
-                    }
+                    new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
                 }
             }
         }
@@ -980,7 +959,7 @@ namespace dmGameObject
                 UndoNewInstance(collection, new_instances[i]);
             }
             id_mapping->Clear();
-            return 0;
+            return false;
         }
 
         // Create components and set properties
@@ -1080,7 +1059,7 @@ namespace dmGameObject
             for (uint32_t i=0;i!=created.Size();i++)
                 dmGameObject::Delete(collection, created[i]);
             id_mapping->Clear();
-            return 0;
+            return false;
         }
 
         for (uint32_t i=0;i!=created.Size();i++)
@@ -1088,7 +1067,7 @@ namespace dmGameObject
             AddToUpdate(collection, created[i]);
         }
 
-        return new_root;
+        return true;
     }
 
     bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
@@ -1112,19 +1091,17 @@ namespace dmGameObject
             return false;
         }
 
-        HInstance new_root = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances);
+        dmTransform::Transform transform;
+        transform.SetTranslation(Vector3(position));
+        transform.SetRotation(rotation);
+        transform.SetScale(Vector3(scale, scale, scale));
+
+        bool success = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances, transform);
 
         dmDDF::FreeMessage(collection_desc);
         free(msg);
 
-        if (new_root)
-        {
-            SetPosition(new_root, position);
-            SetRotation(new_root, rotation);
-            SetScale(new_root, scale);
-        }
-
-        return new_root != 0;
+        return success;
     }
 
     HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
