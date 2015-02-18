@@ -70,9 +70,8 @@
   (* 0.5 v))
 
 (defn render-emitter-outlines
-  [ctx ^GL2 gl this]
-  (let [properties (n/get-node-value this :properties)
-        size-x    (:size-x properties)
+  [ctx ^GL2 gl this properties]
+  (let [size-x    (:size-x properties)
         size-y    (:size-y properties)
         size-z    (:size-z properties)]
     (print "hej")
@@ -89,9 +88,8 @@
       (.glEnd gl))))
 
 (defn render-modifier-outlines
-  [ctx ^GL2 gl this]
-  (let [properties (n/get-node-value this :properties)
-        scale    (:magnitude properties)]
+  [ctx ^GL2 gl this properties]
+  (let [scale    (:magnitude properties)]
     (print "PROPS!!!")
     (print this)
     (print properties)
@@ -170,11 +168,11 @@
   (property start-delay s/Num))
 
 (defnk produce-emitter-renderable :- RenderData
-  [this project renderables]
+  [this project renderables properties]
   (let [world (Matrix4d. g/Identity4d)
         renderable {pass/outline
                     [{:world-transform world
-                      :render-fn       (fn [ctx gl glu text-renderer] (render-emitter-outlines ctx gl this))}]}]
+                      :render-fn       (fn [ctx gl glu text-renderer] (render-emitter-outlines ctx gl this properties))}]}]
     (apply merge-with concat renderable renderables)
     ))
 
@@ -194,11 +192,11 @@
   (property use-direction int))
 
 (defnk produce-modifier-renderable :- RenderData
-  [this project]
+  [this project properties]
   (let [world (Matrix4d. g/Identity4d)]
     {pass/outline
      [{:world-transform world
-       :render-fn       (fn [ctx gl glu text-renderer] (render-modifier-outlines ctx gl this))}]}))
+       :render-fn       (fn [ctx gl glu text-renderer] (render-modifier-outlines ctx gl this properties))}]}))
 
 (n/defnode ModifierRender
     (output renderable    RenderData :cached produce-modifier-renderable))
