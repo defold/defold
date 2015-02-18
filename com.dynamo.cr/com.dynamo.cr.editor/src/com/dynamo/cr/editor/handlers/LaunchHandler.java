@@ -105,10 +105,10 @@ public class LaunchHandler extends AbstractHandler {
                     args.put("location", "remote");
 
                 HashMap<String, String> bobArgs = new HashMap<String, String>();
-                boolean enableTextureCompression = store.getBoolean(PreferenceConstants.P_TEXTURE_COMPRESSION);
-                if (enableTextureCompression)
-                    bobArgs.put("enable-texture-compression", "true");
-                
+                boolean enableTextureProfiles = store.getBoolean(PreferenceConstants.P_TEXTURE_PROFILES);
+                if (enableTextureProfiles)
+                    bobArgs.put("texture-profiles", "true");
+
                 BobUtil.putBobArgs(bobArgs, args);
 
                 try {
