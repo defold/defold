@@ -51,13 +51,11 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
         private void buildProject(IProject project, int kind, IProgressMonitor monitor) throws CoreException {
 
         	final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        	
+
             HashMap<String, String> bobArgs = new HashMap<String, String>();
             bobArgs.put("archive", "true");
             bobArgs.put("bundle-output", outputDirectory);
-            if (store.getBoolean(PreferenceConstants.P_TEXTURE_COMPRESSION))
-                bobArgs.put("enable-texture-compression", "true");
-            
+            bobArgs.put("texture-profiles", "true"); // Always use texture profiles when bundling
             setProjectOptions(bobArgs);
 
             Map<String, String> args = new HashMap<String, String>();
@@ -67,8 +65,8 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
             commands.add("bundle");
             BobUtil.putBobCommands(commands, args);
             project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
-            
-            
+
+
         }
 
         @Override
