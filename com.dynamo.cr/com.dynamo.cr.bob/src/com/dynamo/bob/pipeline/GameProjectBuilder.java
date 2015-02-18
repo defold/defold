@@ -161,14 +161,13 @@ public class GameProjectBuilder extends Builder<Void> {
         project.buildResource(input, CopyCustomResourcesBuilder.class);
 
 
-        // Load texture profile message if supplied
+        // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null) {
+        if (textureProfilesPath != null && project.option("texture-profiles", "false").equals("true")) {
 
             TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
             IResource texProfilesInput = project.getResource(textureProfilesPath);
-            if (!texProfilesInput.exists())
-            {
+            if (!texProfilesInput.exists()) {
                 throw new CompileExceptionError(input, -1, "Could not find supplied texture_profiles file: " + textureProfilesPath);
             }
             ProtoUtil.merge(texProfilesInput, texProfilesBuilder);
@@ -189,23 +188,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 // Take only the platforms that matches the target platform
                 for (PlatformProfile platformProfile : profile.getPlatformsList()) {
                     if ( matchPlatformAgainstOS( targetPlatform, platformProfile.getOs() ) ) {
-
-                        PlatformProfile.Builder newPlatformProfile = PlatformProfile.newBuilder();
-                        newPlatformProfile.mergeFrom(platformProfile);
-
-                        // If the user has turned off texture compression,
-                        // replace all texture formats in the profile with RGBA
-                        // TODO:
-                        if (this.project.option("enable-texture-compression", "false").equals("false"))
-                        {
-                            TextureFormatAlternative.Builder formatBuilder = TextureFormatAlternative.newBuilder();
-                            formatBuilder.setFormat( TextureFormat.TEXTURE_FORMAT_RGBA );
-                            newPlatformProfile.clearFormats();
-                            newPlatformProfile.addFormats(formatBuilder.build());
-                        }
-
-                        profileBuilder.addPlatforms(newPlatformProfile.build());
-
+                        profileBuilder.addPlatforms(platformProfile);
                     }
                 }
 

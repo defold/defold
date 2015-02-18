@@ -1,0 +1,1232 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"genera",
+				"generateMipMaps"
+			],
+			[
+				"dmLog",
+				"dmLogError"
+			],
+			[
+				"dmL",
+				"dmLogInfo"
+			],
+			[
+				"create",
+				"createMaxRectsLayout"
+			],
+			[
+				"precalc",
+				"precalc_size"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "/Users/svenandersson/Documents/sven.todo",
+			"settings":
+			{
+				"buffer_size": 655,
+				"line_ending": "Unix",
+				"name": "sven.todo"
+			}
+		},
+		{
+			"file": "engine/graphics/proto/graphics_ddf.proto",
+			"settings":
+			{
+				"buffer_size": 2960,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TextureProfilesBuilder.java",
+			"settings":
+			{
+				"buffer_size": 5039,
+				"line_ending": "Unix",
+				"name": "TextureProfilesBuilder.java"
+			}
+		},
+		{
+			"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TextureGenerator.java",
+			"settings":
+			{
+				"buffer_size": 10312,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "engine/gamesys/src/gamesys/gamesys.cpp",
+			"settings":
+			{
+				"buffer_size": 13596,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "engine/gamesys/src/gamesys/resources/res_texture.cpp",
+			"settings":
+			{
+				"buffer_size": 6873,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "engine/gamesys/src/gamesys/resources/res_texture_profiles.h",
+			"settings":
+			{
+				"buffer_size": 1207,
+				"line_ending": "Unix",
+				"name": "res_texture_profiles.h"
+			}
+		},
+		{
+			"file": "engine/gamesys/src/gamesys/resources/res_texture_profiles.cpp",
+			"settings":
+			{
+				"buffer_size": 3189,
+				"line_ending": "Unix",
+				"name": "res_texture_profile.cpp"
+			}
+		},
+		{
+			"file": "/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/defold.sublime-build",
+			"settings":
+			{
+				"buffer_size": 108,
+				"line_ending": "Unix",
+				"name": "untitled.sublime-build"
+			}
+		},
+		{
+			"file": "/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/defold.sublime-project",
+			"settings":
+			{
+				"buffer_size": 121,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "engine/dlib/src/wscript",
+			"settings":
+			{
+				"buffer_size": 8070,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "engine/engine/src/engine.cpp",
+			"settings":
+			{
+				"buffer_size": 50514,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "engine/graphics/src/opengl/graphics_opengl.cpp",
+			"settings":
+			{
+				"buffer_size": 61042,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/GameProjectBuilder.java",
+			"settings":
+			{
+				"buffer_size": 11367,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TileSetBuilder.java",
+			"settings":
+			{
+				"buffer_size": 6890,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/AtlasBuilder.java",
+			"settings":
+			{
+				"buffer_size": 2978,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/TextureUtil.java",
+			"settings":
+			{
+				"buffer_size": 6928,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/Project.java",
+			"settings":
+			{
+				"buffer_size": 30157,
+				"line_ending": "Unix"
+			}
+		}
+	],
+	"build_system": "Packages/User/defold.sublime-build",
+	"command_palette":
+	{
+		"height": 27.0,
+		"selected_items":
+		[
+			[
+				"past ",
+				"Text Pastry: Range"
+			],
+			[
+				"text past",
+				"Text Pastry: Range"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"preview",
+				"Markdown Preview: Preview in Browser"
+			],
+			[
+				"preew",
+				"Markdown Preview: Preview in Browser"
+			],
+			[
+				"prewview",
+				"Markdown Preview: Preview in Browser"
+			]
+		],
+		"width": 593.0
+	},
+	"console":
+	{
+		"height": 126.0,
+		"history":
+		[
+			"import urllib.request,os,hashlib; h = '2deb499853c4371624f5a07e27c334aa' + 'bf8c4e67d14fb0525ba4f89698a6d7e1'; pf = 'Package Control.sublime-package'; ipp = sublime.installed_packages_path(); urllib.request.install_opener( urllib.request.build_opener( urllib.request.ProxyHandler()) ); by = urllib.request.urlopen( 'http://packagecontrol.io/' + pf.replace(' ', '%20')).read(); dh = hashlib.sha256(by).hexdigest(); print('Error validating download (got %s instead of %s), please try manual install' % (dh, h)) if dh != h else open(os.path.join( ipp, pf), 'wb' ).write(by)"
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/Users/svenandersson/Documents/development/defold",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor/builders",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor/handlers",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.core",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.core/src",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.core/src/com",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.core/src/com/dynamo",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.core/src/com/dynamo/cr",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.core/src/com/dynamo/cr/editor",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.core/src/com/dynamo/cr/editor/core",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.ui/src",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.ui/src/com",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.ui/src/com/dynamo",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.ui/src/com/dynamo/cr",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.ui/src/com/dynamo/cr/editor",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.ui/src/com/dynamo/cr/editor/ui",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.tileeditor/src",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.tileeditor/src/com",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.tileeditor/src/com/dynamo",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.tileeditor/src/com/dynamo/cr",
+		"/Users/svenandersson/Documents/development/defold/engine",
+		"/Users/svenandersson/Documents/development/defold/engine/ddf",
+		"/Users/svenandersson/Documents/development/defold/engine/ddf/src",
+		"/Users/svenandersson/Documents/development/defold/engine/ddf/src/ddf",
+		"/Users/svenandersson/Documents/development/defold/engine/gameobject/proto",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys/resources",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics/proto",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics/src",
+		"/Users/svenandersson/Documents/development/defold/engine/render/src",
+		"/Users/svenandersson/Documents/development/defold/engine/texc/src",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/ext/bin",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/ext/include",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/ext/lib",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/include",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/include/graphics",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/share"
+	],
+	"file_history":
+	[
+		"/Users/svenandersson/Documents/development/defold/engine/dlib/src/dlib/platform.h",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics/src/opengl/graphics_opengl_defines.h",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/include/graphics/graphics_ddf.h",
+		"/Users/svenandersson/Documents/development/defold/engine/texc/src/texc.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics/src/opengl/graphics_opengl.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys/resources/res_texture.cpp",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor/builders/ContentBuilder.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor.core/src/com/dynamo/cr/editor/core/EditorUtil.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/plugin.xml",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/Platform.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor/handlers/AbstractBundleHandler.java",
+		"/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/quicktodo.sublime-snippet",
+		"/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/quicktodo",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/textureset/test/TextureSetGeneratorTest.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor/handlers/BundleWin32Handler.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/BundleHelper.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/TextureUtil.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/textureset/TextureSetGenerator.java",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys/resources/res_textureset.h",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/ProtoBuilders.java",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/lib/python/waf_gamesys.py",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/TexcLibrary.java",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/ext/include/PVRTTexture.h",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys/resources/res_textureset.cpp",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TextureGenerator.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/GameProjectBuilder.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/AtlasBuilder.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.tileeditor/src/com/dynamo/cr/tileeditor/scene/AtlasNode.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/BobProjectProperties.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/Project.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/Bob.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/ProtoBuilder.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.projed/src/com/dynamo/cr/projed/ProjectEditorPresenter.java",
+		"/Users/svenandersson/Documents/development/defold/engine/texc/src/texc.h",
+		"/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/Default (OSX).sublime-keymap",
+		"/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/Alignment/Default (OSX).sublime-keymap",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.luaeditor/doc/collision_object_doc.sdoc",
+		"/Users/svenandersson/Documents/development/defold/profile/connect.pxm",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/ext/include/PVRTError.h",
+		"/Users/svenandersson/Documents/development/defold/engine/texc/wscript",
+		"/Users/svenandersson/Documents/development/defold/engine/texc/src/wscript",
+		"/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/Default/Default (OSX).sublime-keymap",
+		"/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/Preferences.sublime-settings",
+		"/Users/svenandersson/Documents/development/defold/engine/ddf/TODO",
+		"/Users/svenandersson/Documents/development/defold/engine/dlib/src/test/test_objectpool.cpp",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/include/texc/texc.h",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics/proto/texture_profiles_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.common/build.xml",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/Builder.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TextureGeneratorException.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/GameObjectBuilder.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.tileeditor/src/com/dynamo/cr/tileeditor/scene/SpriteRenderer.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/tile/TileSetGenerator.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/tile/TileSetUtil.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/build.xml",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/textureset/TextureSetLayout.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/AtlasUtil.java",
+		"/Users/svenandersson/Documents/development/defold/engine/engine/proto/engine_ddf.proto",
+		"/Users/svenandersson/Downloads/test.texture_profiles",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/content/wscript",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/proto/texture_set_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics/src/texc.py",
+		"/Users/svenandersson/Documents/development/defold/engine/engine/build/config.log",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/textureset/MaxRectsLayoutStrategy.java",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/proto/atlas_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/proto/tile_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics/proto/graphics_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor-product/template/cr.product",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/AndroidBundler.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/Task.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TextureBuilder.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/tile/TileSetc.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.tileeditor/src/com/dynamo/cr/tileeditor/scene/TileSetNode.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/tile/test/TileSetGeneratorTest.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TileSetBuilder.java",
+		"/Users/svenandersson/Documents/development/defold/README.md",
+		"/Users/svenandersson/Documents/development/defold/engine/glfw/lib/cocoa/cocoa_init.m",
+		"/Users/svenandersson/Documents/development/defold/engine/script/src/script_sys.cpp",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/CubemapBuilder.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/fs/IResource.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/BuilderParams.java",
+		"/Users/svenandersson/Documents/development/defold/engine/engine/src/engine.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/engine/src/main.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/glfw/lib/cocoa/cocoa_window.m",
+		"/Users/svenandersson/Documents/development/defold/engine/gui/src/test/guidemo.cpp",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.editor/src/com/dynamo/cr/editor/handlers/DisabledNewEditorHandler.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.guied/src/com/dynamo/cr/guied/ui/TextNodeRenderer.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.server/src/com/dynamo/cr/server/EntityManagerFactoryProvider.java",
+		"/Users/svenandersson/Documents/development/defold/engine/gameobject/build/default/src/gameobject/test/reload/test_gameobject_reload_ddf.bproto",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.common/generated/com/dynamo/render/proto/Render.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/generated/com/dynamo/render/proto/Render.java",
+		"/Users/svenandersson/Documents/development/defold/engine/gameobject/src/gameobject/test/reload/test_gameobject_reload_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.properties/src/com/dynamo/cr/properties/GreaterThanZeroValidator.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.properties/src/com/dynamo/cr/properties/GreaterThanZero.java",
+		"/Users/svenandersson/Documents/development/defold/engine/gameobject/src/gameobject/test/collection/create_2.go_pb",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/ext/go/src/lib9/create.c",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.server.test/test_data/crepo_test.config",
+		"/Users/svenandersson/Documents/development/defold/go/src/defold/apkc/sign/test/CERT.RSA",
+		"/Users/svenandersson/Documents/development/defold/tmp/dynamo_home/ext/lib/python/launch_instance",
+		"/Users/svenandersson/Documents/development/defold/engine/script/lib/js/library_script.js",
+		"/Users/svenandersson/Documents/development/defold/engine/glfw/examples/listmodes.c",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/libexec/darwin/luajit",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/fs/DefaultFileSystem.java",
+		"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/BuilderUtil.java",
+		"/Users/svenandersson/Documents/development/defold/engine/engine/src/engine_service.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys/scripts/script_tilemap.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys/scripts/script_sprite.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys/gamesys.h",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/src/gamesys/gamesys.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/engine/src/engine_service.h",
+		"/Users/svenandersson/Documents/development/defold/engine/render/proto/render/material_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/proto/model_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/proto/mesh_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/render/proto/render/render_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/gameobject/proto/properties_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/gamesys/proto/gamesys_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/gameobject/proto/gameobject_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/resource/proto/resource_ddf.proto",
+		"/Users/svenandersson/Documents/development/defold/engine/graphics/src/opengl/graphics_opengl.h",
+		"/Users/svenandersson/Documents/development/defold/engine/gameobject/src/gameobject/gameobject.cpp",
+		"/Users/svenandersson/Documents/development/defold/engine/engine/src/engine.h",
+		"/Users/svenandersson/Documents/development/defold/engine/gameobject/src/gameobject/gameobject.h",
+		"/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/Default/Preferences.sublime-settings",
+		"/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/sven.todo"
+	],
+	"find":
+	{
+		"height": 37.0
+	},
+	"find_in_files":
+	{
+		"height": 93.0,
+		"where_history":
+		[
+			"/Users/svenandersson/Documents/development/defold/engine",
+			"/Users/svenandersson/Documents/development/defold",
+			"/Users/svenandersson/Documents/development/defold/engine",
+			"/Users/svenandersson/Documents/development/defold",
+			"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob",
+			"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline",
+			"/Users/svenandersson/Documents/development/defold/",
+			"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline",
+			"/Users/svenandersson/Documents/development/defold",
+			"/Users/svenandersson/Documents/development/defold/engine/glfw",
+			"/Users/svenandersson/Documents/development/defold/engine",
+			"/Users/svenandersson/Documents/development/defold/",
+			"/Users/svenandersson/Documents/development/defold/engine/engine",
+			"/Users/svenandersson/Documents/development/defold/engine",
+			"/Users/svenandersson/Documents/development/defold/engine/engine/src",
+			"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob",
+			"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline",
+			"/Users/svenandersson/Documents/development/defold/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob",
+			"/Users/svenandersson/Documents/development/defold/engine",
+			"/Users/svenandersson/Documents/development/defold/engine/docs/src",
+			"/Users/svenandersson/Documents/development/defold/engine"
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"res_texture.cpp",
+			"LoadMessage",
+			"HTexture",
+			"texture",
+			"AcquireResources",
+			"TextureImage",
+			"ResTexture",
+			"SpineModel",
+			"Texture",
+			"TEXTURE",
+			"RegisterComponentTypes",
+			"RegisterResourceTypes",
+			"platform",
+			"ConvertMinTextureFilter",
+			"maxTextureSize",
+			"TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST",
+			"ConvertMinTextureFilter",
+			"m_DefaultTextureMinFilter",
+			"filter",
+			"mipmap",
+			"m_DefaultTextureMinFilter",
+			"GetDefaultTextureFilters",
+			"newWidth",
+			"heightPOT",
+			"widthPOT",
+			"-",
+			"tmpProfile",
+			"textureProfilesResource",
+			"TextureImage.Image",
+			"generateFromColorAndFormat",
+			"texProfile.getPlatforms(0)",
+			"getTextureProfileByPath",
+			"targetPlatform",
+			"build",
+			"setProjectOptions",
+			"Project",
+			"bundleWin32",
+			"Windows application...",
+			"bundle",
+			"targetPlatform",
+			"TargetPlatform",
+			"targetPlatform",
+			"textureProfiles",
+			"bundle",
+			"Bundle",
+			"bundle",
+			"Bundle",
+			"bundle",
+			"platform",
+			"Platform",
+			"platform",
+			"target",
+			"Build",
+			"platform",
+			"image",
+			"texture",
+			"task.input(0).getPath().toString()",
+			"texProfileList",
+			".texture_profiles",
+			".texture_profilesc",
+			"textureProfiles",
+			"TextureProfiles",
+			"texture_pr",
+			"generateTextureImage",
+			"ColorModel",
+			"colorModel",
+			"ColorModel",
+			"colorModel",
+			"alter",
+			"alternatives",
+			"texture_profilesc",
+			".input_binding",
+			".texture",
+			"proto_compile_task",
+			"input_bindingc",
+			"game_binding",
+			"printf",
+			"DO (",
+			"TODO (sven",
+			"TODO(sven",
+			"TODO(",
+			"texturecompress",
+			"case ",
+			" break;\n",
+			"\n",
+			"assert",
+			"TEXTURE_FORMAT",
+			"TEXTURE_FORMAT_",
+			"case",
+			"ePVRTPF_RGBA_",
+			"PVRTERROR_OUTPUT_DEBUG",
+			"PVRTError.h",
+			"Transcode",
+			"DXT3",
+			"transcode",
+			"No matching texture format found",
+			"no match",
+			"PixelType",
+			"Transcode",
+			"PixelType",
+			"ConvertPixelFormat",
+			"dmLogError",
+			"ePVRTPF_PVRTCI_4bpp_RGBA",
+			"PixelType",
+			"PVRTexture.h",
+			"ConvertPixelFormat",
+			"Transcode",
+			"ConvertPixelFormat",
+			"Supported(\"GL",
+			"IsExtensionSupported",
+			"m_TextureFormatSupport",
+			"IsTextureFormatSupported",
+			"texture",
+			"SetTexture",
+			"TEXTURE_FORMAT_RGB",
+			"glCompress",
+			"tp",
+			"format",
+			"quotedPattern",
+			"ctrl",
+			"select",
+			";",
+			"quote",
+			"setOption",
+			"options",
+			"option",
+			"doCreateTask",
+			"createTasks"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "/Users/svenandersson/Documents/sven.todo",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 655,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								370,
+								370
+							]
+						],
+						"settings":
+						{
+							"auto_name": "sven.todo",
+							"syntax": "Packages/Text/Plain text.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 9,
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 8,
+			"sheets":
+			[
+				{
+					"buffer": 1,
+					"file": "engine/graphics/proto/graphics_ddf.proto",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2960,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1581,
+								1589
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Protocol Buffer Syntax/Proto (Raw).tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 254.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 14,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TextureProfilesBuilder.java",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 5039,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4619,
+								4619
+							]
+						],
+						"settings":
+						{
+							"auto_name": "TextureProfilesBuilder.java",
+							"syntax": "Packages/Java/Java.tmLanguage",
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 636.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 15,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TextureGenerator.java",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 10312,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								6070,
+								6070
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Java/Java.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 2826.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 6,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "engine/gamesys/src/gamesys/gamesys.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 13596,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1255,
+								1255
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 44.0,
+						"translation.y": 1.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "engine/gamesys/src/gamesys/resources/res_texture.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 6873,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								5787,
+								5787
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1131.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "engine/gamesys/src/gamesys/resources/res_texture_profiles.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1207,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1196,
+								163
+							]
+						],
+						"settings":
+						{
+							"auto_name": "res_texture_profiles.h",
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "engine/gamesys/src/gamesys/resources/res_texture_profiles.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3189,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1791,
+								1791
+							]
+						],
+						"settings":
+						{
+							"auto_name": "res_texture_profile.cpp",
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"file": "/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/defold.sublime-build",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 108,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								108,
+								108
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JSON.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 9,
+					"file": "/Users/svenandersson/Library/Application Support/Sublime Text 3/Packages/User/defold.sublime-project",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 121,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JSON.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 10,
+					"file": "engine/dlib/src/wscript",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 8070,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								5890,
+								5898
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1139.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 8,
+					"type": "text"
+				},
+				{
+					"buffer": 11,
+					"file": "engine/engine/src/engine.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 50514,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								8376,
+								8399
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 3123.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 10,
+					"type": "text"
+				},
+				{
+					"buffer": 12,
+					"file": "engine/graphics/src/opengl/graphics_opengl.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 61042,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								9161,
+								9186
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 3109.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 11,
+					"type": "text"
+				},
+				{
+					"buffer": 13,
+					"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/GameProjectBuilder.java",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 11367,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4653,
+								4653
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Java/Java.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 736.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
+					"type": "text"
+				},
+				{
+					"buffer": 14,
+					"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/TileSetBuilder.java",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 6890,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								3836,
+								3846
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Java/Java.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 951.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 12,
+					"type": "text"
+				},
+				{
+					"buffer": 15,
+					"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/AtlasBuilder.java",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2978,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2387,
+								2387
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Java/Java.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 13,
+					"type": "text"
+				},
+				{
+					"buffer": 16,
+					"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/TextureUtil.java",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 6928,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								5475,
+								5475
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Java/Java.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1376.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 16,
+					"type": "text"
+				},
+				{
+					"buffer": 17,
+					"file": "com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/Project.java",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 30157,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								30153,
+								30153
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Java/Java.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 10761.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 17,
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 23.0
+	},
+	"input":
+	{
+		"height": 33.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			],
+			[
+				1,
+				0,
+				2,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			0.236316793251,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 377.0
+	},
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"project": "defold.sublime-project",
+	"replace":
+	{
+		"height": 66.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_symbol":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"selected_group": 1,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 269.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}
