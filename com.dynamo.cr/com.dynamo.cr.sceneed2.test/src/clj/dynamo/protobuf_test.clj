@@ -20,39 +20,27 @@
   (property margin          s/Int)
 
   (input images     [s/Str])
-  (input animations [s/Str])
-
-  (inherits n/OutlineNode)
-  (output outline-label s/Str (fnk [this] (str "AtlasNode: " (:_id this)))))
+  (input animations [s/Str]))
 
 (n/defnode AtlasAnimationNode
   (property id s/Str)
   (input  images    [s/Str])
-  (output animation s/Str (fnk [id] (str "Animation " id)))
-
-  (inherits n/OutlineNode)
-  (output outline-label s/Str (fnk [id] (str "AtlasAnimationNode: " id))))
+  (output animation s/Str (fnk [id] (str "Animation " id))))
 
 (n/defnode AtlasImageNode
-  (property image s/Str)
-
-  (inherits n/OutlineNode)
-  (output outline-label s/Str (fnk [image] (str "AtlasImageNode: " image))))
+  (property image s/Str))
 
 (protocol-buffer-converters
  TestAtlasProto$Atlas
  {:node-type        AtlasNode
   :basic-properties [:extrude-borders :margin]
-  :node-properties  {:images-list [:outline-tree -> :outline-children,
-                                   :image -> :images]
-                     :animations-list [:outline-tree -> :outline-children,
-                                       :animation -> :animations]}}
+  :node-properties  {:images-list [:image -> :images]
+                     :animations-list [:animation -> :animations]}}
 
  TestAtlasProto$AtlasAnimation
  {:node-type        AtlasAnimationNode
   :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
-  :node-properties  {:images-list [:outline-tree -> :outline-children,
-                                   :image -> :images]}}
+  :node-properties  {:images-list [:image -> :images]}}
 
  TestAtlasProto$AtlasImage
  {:node-type        AtlasImageNode
