@@ -146,8 +146,8 @@ public class HTML5Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
-        String js = Bob.getDmengineExe(Platform.JsWeb, project.hasOption("release"));
-        
+        String js = Bob.getDmengineExe(Platform.JsWeb, project.hasOption("debug"));
+
         String jsMemInit = js + ".mem";
 
         File projectRoot = new File(project.getRootDirectory());
