@@ -280,5 +280,5 @@ Outputs:
 - tree `OutlineItem` - A single value that contains the display info for this node and all its children."
   (output outline-children [OutlineItem] (fnk [] []))
   (output outline-label    s/Str :abstract)
-  (output outline-commands [s/Any] (fnk [] []))
+  (output outline-commands [OutlineCommand] (fnk [] []))
   (output outline-tree     OutlineItem outline/outline-tree-producer))
