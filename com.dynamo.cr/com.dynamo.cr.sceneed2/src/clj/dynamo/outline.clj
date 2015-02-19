@@ -1,12 +1,13 @@
 (ns dynamo.outline
   (:require [clojure.zip :as zip]
+            [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.ui.widgets :as widgets]
             [internal.java :refer [bean-mapper]])
   (:import [org.eclipse.jface.viewers ITreeContentProvider ColumnLabelProvider]
            [org.eclipse.swt SWT]
            [org.eclipse.swt.widgets Control Menu MenuItem Shell Tree]
-           [org.eclipse.swt.events MenuEvent MenuListener]
+           [org.eclipse.swt.events MenuEvent MenuListener SelectionEvent SelectionListener]
            [org.eclipse.ui.forms.widgets FormToolkit]))
 
 (defn outline-tree-zipper [outline-tree]
@@ -25,14 +26,25 @@
   (proxy [ColumnLabelProvider] []
     (getText [element] (->> element zip/node :label str))))
 
+(def outline-tree-selection-listener
+  (reify SelectionListener
+    (widgetSelected [_ event]
+      (when-let [command (.getData (.-widget event))]
+        (t/apply-if-fn (:command-fn command) (:context command))))
+    (widgetDefaultSelected [_ event] nil)))
+
 (defn outline-tree-menu-listener [^Tree tree ^Menu menu]
   (let [listener (reify MenuListener
                    (menuShown  [_ event]
                      ;; based on http://stackoverflow.com/a/18403738
                      (doseq [i (.getItems menu)] (.dispose i))
                      (when-let [selection (some->> tree .getSelection first .getData zip/node)]
-                       (doseq [label (:commands selection)]
-                         (let [menu-item (MenuItem. menu SWT/NONE)] (.setText menu-item label)))))
+                       (doseq [command (:commands selection)]
+                         (doto (MenuItem. menu SWT/NONE)
+                           (.setText (:label command))
+                           (.setEnabled (:enabled command true))
+                           (.setData command)
+                           (.addSelectionListener outline-tree-selection-listener)))))
                    (menuHidden [_ event] nil))]
     (.addMenuListener menu listener)
     listener))

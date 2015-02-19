@@ -82,22 +82,57 @@
       (doseq [[n _] children-after]
         (ds/connect {:_id n} :outline-tree self input-name)))))
 
-(defn attach-commands-to-outline-children
-  [commands outline-children]
-  (map (fn [outline-item] (update-in outline-item [:commands] concat commands))
-    outline-children))
+(defn add-images-command
+  [{:keys [node-ref input-label] :as context}]
+  (when-let [target @node-ref]
+    (let [project-node  (p/project-enclosing target)
+          images-to-add (p/select-resources project-node ["png" "jpg"] "Add Image(s)" true)]
+      (ds/transactional
+        (ds/tx-label "Add Images")
+        (doseq [img images-to-add]
+          (ds/connect img :content target input-label))))))
+
+(defn attach-commands-to-outline-item
+  [commands outline-item]
+  (update-in outline-item [:commands] concat commands))
+
+(defn disconnect-to-delete-command
+  [{:keys [source-node-ref source-label target-node-ref target-label] :as context}]
+  (ds/transactional (ds/disconnect @source-node-ref source-label @target-node-ref target-label)))
+
+(defn clipboard-commands [child-node-ref child-output-label parent-node-ref parent-input-label]
+  [{:label "Copy"   :enabled false :command-fn nil :context nil}
+   {:label "Cut"    :enabled false :command-fn nil :context nil}
+   {:label "Paste"  :enabled false :command-fn nil :context nil}
+   {:label "Delete"
+    :enabled true
+    :command-fn disconnect-to-delete-command
+    :context {:source-node-ref child-node-ref
+              :source-label    child-output-label
+              :target-node-ref parent-node-ref
+              :target-label    parent-input-label}}])
+
+(defnk animation-group-outline-commands [this]
+  [{:label "Add Images" :enabled true :command-fn add-images-command :context {:node-ref (node-ref this) :input-label :images}}])
+
+(defnk animation-group-outline-children [this images-outline-children]
+  (map (fn [outline-item]
+         (attach-commands-to-outline-item
+           (clipboard-commands (:node-ref outline-item) :content (t/node-ref this) :images)
+           outline-item))
+    images-outline-children))
 
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
   (output outline-label s/Str (fnk [id] id))
-  (output outline-commands [s/Any] (fnk [] ["Add Images"]))
+  (output outline-commands [t/OutlineCommand] animation-group-outline-commands)
 
   (inherits n/AutowireResources)
 
   (property images dp/ImageResourceList)
   (input images-outline-children [OutlineItem])
   (trigger connect-images-outline-children :input-connections (partial connect-outline-children [:images] :images-outline-children))
-  (output outline-children [OutlineItem] (fnk [images-outline-children] (attach-commands-to-outline-children ["Copy" "Cut" "Paste" "Delete"] images-outline-children)))
+  (output outline-children [OutlineItem] animation-group-outline-children)
 
   (property fps             dp/NonNegativeInt (default 30))
   (property flip-horizontal s/Bool)
@@ -792,10 +827,54 @@
       (ds/delete compiler))))
 
 (defnk build-atlas-outline-children
-  [images-outline-children animations-outline-children]
-  (attach-commands-to-outline-children
-    ["Copy" "Cut" "Paste" "Delete"]
-    (concat images-outline-children animations-outline-children)))
+  [this images-outline-children animations-outline-children]
+  (concat
+    (map (fn [outline-item]
+           (attach-commands-to-outline-item
+             (clipboard-commands (:node-ref outline-item) :content (t/node-ref this) :images)
+             outline-item))
+      images-outline-children)
+    (map (fn [outline-item]
+           (attach-commands-to-outline-item
+             (clipboard-commands (:node-ref outline-item) :animation (t/node-ref this) :animations)
+             outline-item))
+      animations-outline-children)))
+
+(defn unique-name [base-name existing-names]
+  (->> (cons nil (rest (range)))
+    (map (partial str base-name))
+    (remove (set existing-names))
+    first))
+
+(defn add-child-node-command
+  [{:keys [node-ref input-label node-type name-property base-name output-label] :as context}]
+  (when-let [target @node-ref]
+    (let [name (->> (ds/sources-of target input-label)
+                    (filter #(= output-label (second %)))
+                    (map (comp name-property first))
+                    (unique-name base-name))
+          project-node (p/project-enclosing target)]
+      (ds/transactional
+        (ds/in project-node
+          (let [child-node (ds/add (n/construct node-type name-property name))]
+            (ds/connect child-node output-label target input-label)))))))
+
+(defnk atlas-outline-commands [this]
+  (concat
+    [{:label "Add Images"
+      :enabled true
+      :command-fn add-images-command
+      :context {:node-ref (node-ref this)
+                :input-label :images}}
+     {:label "Add Animation Group"
+      :enabled true
+      :command-fn add-child-node-command
+      :context {:node-ref (node-ref this)
+                :input-label :animations
+                :node-type AnimationGroupNode
+                :name-property :id
+                :base-name "anim"
+                :output-label :animation}}]))
 
 (n/defnode AtlasNode
   "This node represents an actual Atlas. It accepts a collection
@@ -820,7 +899,7 @@
    textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
   (inherits n/OutlineNode)
   (output outline-label s/Str (fnk [] "Atlas"))
-  (output outline-commands [s/Any] (fnk [] ["Add Images" "Add Animation Group" "Copy" "Cut" "Paste" "Delete"]))
+  (output outline-commands [t/OutlineCommand] atlas-outline-commands)
   (inherits n/AutowireResources)
   (inherits n/ResourceNode)
   (inherits n/Saveable)
@@ -864,6 +943,7 @@
     (let [project-node  (p/project-enclosing target)
           images-to-add (p/select-resources project-node ["png" "jpg"] "Add Image(s)" true)]
       (ds/transactional
+        (ds/tx-label "Add Images")
         (doseq [img images-to-add]
           (ds/connect img :content target :images))))))
 
