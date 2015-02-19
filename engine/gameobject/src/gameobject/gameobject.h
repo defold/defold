@@ -758,7 +758,7 @@ namespace dmGameObject
      * return true on success
      */
     bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
-                             const Point3& position, const Quat& rotation, float scale,
+                             const Point3& position, const Quat& rotation, const Vector3& scale,
                              InstanceIdMap *instances);
 
     /**

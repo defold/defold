@@ -770,7 +770,7 @@ namespace dmGameObject
     }
 
     // Supplied 'proto' will be released after this function is done.
-    HInstance SpawnInternal(HCollection collection, Prototype *proto, const char *prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
+    HInstance SpawnInternal(HCollection collection, Prototype *proto, const char *prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
         if (collection->m_ToBeDeleted) {
             dmLogWarning("Spawning is not allowed when the collection is being deleted.");
@@ -787,7 +787,7 @@ namespace dmGameObject
         SetPosition(instance, position);
         SetRotation(instance, rotation);
         SetScale(instance, scale);
-        collection->m_WorldTransforms[instance->m_Index] = instance->m_Transform;
+        collection->m_WorldTransforms[instance->m_Index] = dmTransform::ToMatrix4(instance->m_Transform);
 
         dmHashInit64(&instance->m_CollectionPathHashState, true);
         dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));
@@ -875,7 +875,13 @@ namespace dmGameObject
                 continue;
 
             instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
-            instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, instance_desc.m_Scale);
+
+            // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
+            Vector3 scale = instance_desc.m_Scale3;
+            if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0)
+                    scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+
+            instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
             instance->m_CollectionPathHashState = prefixHashState;
 
             const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);
@@ -1083,7 +1089,7 @@ namespace dmGameObject
     }
 
     bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
-                             const Point3& position, const Quat& rotation, float scale,
+                             const Point3& position, const Quat& rotation, const Vector3& scale,
                              InstanceIdMap *instances)
     {
         // Bypassing the resource system a little bit in order to do this.
@@ -1106,7 +1112,7 @@ namespace dmGameObject
         dmTransform::Transform transform;
         transform.SetTranslation(Vector3(position));
         transform.SetRotation(rotation);
-        transform.SetScale(Vector3(scale, scale, scale));
+        transform.SetScale(scale);
 
         bool success = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances, transform);
 
@@ -1116,7 +1122,7 @@ namespace dmGameObject
         return success;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
         if (prototype_name == 0x0) {
             dmLogError("No prototype to spawn from.");
