@@ -273,6 +273,6 @@
         outline9  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing.png" []] ["missing2.png" []]]]]]
         outline10 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]
         outline11 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] #_["frame-01.png" []]]]]]
-        outline12 ["Atlas" [["anim2" [["small.png" []] #_["frame-01.png" []] ["missing2.png" []]]]]]
-        outline13 ["Atlas" [["anim2" [["small.png" []] #_["frame-01.png" []] ["missing2.png" []] #_["missing2.png" []]]]]]
-        outline14 ["Atlas" [["anim2" [["small.png" []] #_["frame-01.png" []] #_["missing2.png" []]]]]]))))
+        outline12 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]
+        outline13 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] #_["missing2.png" []]]]]]
+        outline14 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]))))
