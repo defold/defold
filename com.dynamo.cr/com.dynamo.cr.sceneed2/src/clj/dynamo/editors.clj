@@ -6,6 +6,7 @@
             [dynamo.gl :as gl]
             [dynamo.gl.texture :as texture]
             [dynamo.node :as n]
+            [dynamo.outline :as outline]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.node :as in]
@@ -142,6 +143,12 @@ Messages:
 
   (trigger view-scope :input-connections iuse/send-view-scope-message)
 
+  (input outline-tree t/OutlineItem)
+  (property outline-widget-tree s/Any)
+  (output update-outline-view s/Any :on-update (fnk [outline-widget-tree outline-tree]
+                                                 (when (and outline-widget-tree outline-tree)
+                                                   (outline/set-outline-tree-gui-data outline-widget-tree outline-tree))))
+
   (on :create
     (let [canvas        (gl/glcanvas (:parent event))
           factory       (gl/glfactory)
@@ -155,11 +162,14 @@ Messages:
       (iuse/pipe-events-to-node canvas :paint self)
       (iuse/start-event-pump canvas self)
       (ds/set-property self
+        :outline-widget-tree (outline/outline-tree-gui)
         :context context
         :canvas canvas
         :text-renderer (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
 
   (on :destroy
+    (when-let [widget-tree (:outline-widget-tree self)]
+      (outline/close-outline-tree-gui-data widget-tree))
     (when (:context self)
       (texture/unload-all (.. ^GLContext (:context self) getGL)))
 

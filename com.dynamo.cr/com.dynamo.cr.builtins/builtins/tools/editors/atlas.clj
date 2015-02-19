@@ -749,7 +749,8 @@
           (ds/connect atlas-render :renderable      editor       :renderables)
           (ds/connect grid         :renderable      editor       :renderables)
           (ds/connect selector     :renderable      editor       :renderables)
-          (ds/connect atlas-node   :aabb            editor       :aabb))
+          (ds/connect atlas-node   :aabb            editor       :aabb)
+          (ds/connect atlas-node   :outline-tree    editor       :outline-tree))
         editor)))
 
 (defn construct-ancillary-nodes
