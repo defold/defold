@@ -100,6 +100,65 @@ TEST(dmTransform, MultiplyNoScaleZ)
     ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 2.0f), res.GetTranslation());
 }
 
+TEST(dmTransform, MultiplyNoScaleZMatrix)
+{
+    Transform ts10(Vector3(0.0f, 0.0f, 1.0f),
+            Quat::identity(),
+            Vector3(2.0f, 2.0f, 2.0f));
+
+    Matrix4 ts10mtx = ToMatrix4(ts10);
+    Matrix4 ress1 = ts10mtx * ts10mtx;
+    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 3.0f), ress1.getCol(3));
+    ress1 = MulNoScaleZ(ts10mtx, ts10mtx);
+    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 2.0f), ress1.getCol(3));
+
+    Transform t0(Vector3(0.0f, 0.0f, 1.0f),
+            Quat::identity(),
+            Vector3(2.0f, 2.0f, 2.0f));
+
+    Matrix4 t0mtx = ToMatrix4(t0);
+    Matrix4 res = t0mtx * t0mtx;
+    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 3.0f), res.getCol(3));
+    res = MulNoScaleZ(t0mtx, t0mtx);
+    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 2.0f), res.getCol(3));
+}
+
+TEST(dmTransform, Conversion)
+{
+    const int count = 4;
+    Vector3 vecs[count] = {
+        Vector3(-1, -2, -3),
+        Vector3(5, 0.3f, 3),
+        Vector3(0.09f, -3, 1),
+        Vector3(1, 2, 0.5f)
+    };
+
+    // try all the combinations of above vectors as pos, rot and scale
+    // and make sure transformation transform->matrix->transform generates
+    // the same transfrom
+    for (int i=0;i<count;i++) // pos
+    {
+        for (int j=0;j<count;j++) // rotaxis
+        {
+            for (int k=0;k<count;k++) // scale
+            {
+                Vector3 axis = vecs[j] * (1.0f / length(vecs[j]));
+                Vector3 scale(dmMath::Abs(vecs[k].getX()), dmMath::Abs(vecs[k].getY()), dmMath::Abs(vecs[k].getZ()));
+                Transform t0(vecs[i], normalize(Quat(axis, 1.0f)), scale);
+
+                Matrix4 mtx = ToMatrix4(t0);
+                Transform t1 = ToTransform(mtx);
+
+                Vector3 test(-10,20,-30);
+                Vector4 res = mtx * test;
+                Vector3 res3(res.getX(), res.getY(), res.getZ());
+                ASSERT_V3_NEAR(Apply(t0, test), res3);
+                ASSERT_V3_NEAR(Apply(t0, test), Apply(t1, test));
+            }
+        }
+    }
+}
+
 TEST(dmTransform, Inverse)
 {
     TransformS1 is1;

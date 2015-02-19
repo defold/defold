@@ -379,7 +379,7 @@ namespace dmTransform
     }
 
     /**
-     * Extract the scale component from a matrix
+     * Extract the absolute values of the scale component from a matrix.
      * @param mtx Source matrix
      * @return Vector3 with scale values for x,y,z
      */
@@ -392,28 +392,33 @@ namespace dmTransform
     }
 
     /**
+     * Eliminate the scaling components in a matrix
+     * @param mtx Matrix to operate on
+     */
+    inline Vector3 ResetScale(Matrix4 *mtx)
+    {
+        const float limit = 0.000001f;
+        Vector3 scale = ExtractScale(*mtx);
+        assert(scale.getX() * scale.getX() > limit);
+        assert(scale.getY() * scale.getY() > limit);
+        assert(scale.getZ() * scale.getZ() > limit);
+        mtx->setCol(0, mtx->getCol(0) * (1.0f / scale.getX()));
+        mtx->setCol(1, mtx->getCol(1) * (1.0f / scale.getY()));
+        mtx->setCol(2, mtx->getCol(2) * (1.0f / scale.getZ()));
+        return scale;
+    }
+
+    /**
      * Convert a matrix into a transform
      * @param mtx Matrix4 to convert
      * @return Transform representing the same transform
      */
     inline Transform ToTransform(const Matrix4& mtx)
     {
-        Vector3 scale = ExtractScale(mtx);
+        Matrix4 tmp(mtx);
         Vector4 col3(mtx.getCol(3));
-        return dmTransform::Transform(Vector3(col3.getX(), col3.getY(), col3.getZ()), Quat(mtx.getUpper3x3()), scale);
-    }
-
-    /**
-     * Eliminate the scaling components in a matrix
-     * @param mtx Matrix to operate on
-     */
-    inline Vector3 ResetScale(Matrix4 *mtx)
-    {
-        Vector3 scale = ExtractScale(*mtx);
-        mtx->setCol(0, mtx->getCol(0) * (1.0f / scale.getX()));
-        mtx->setCol(1, mtx->getCol(1) * (1.0f / scale.getX()));
-        mtx->setCol(2, mtx->getCol(2) * (1.0f / scale.getX()));
-        return scale;
+        Vector3 scale = ResetScale(&tmp);
+        return dmTransform::Transform(Vector3(col3.getX(), col3.getY(), col3.getZ()), Quat(tmp.getUpper3x3()), scale);
     }
 
     /**
