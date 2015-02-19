@@ -718,7 +718,12 @@ namespace dmGameObject
         // Supports both vector and number
         if (dmScript::IsVector3(L, 1))
         {
-            dmGameObject::SetScale(instance, *dmScript::CheckVector3(L, 1));
+            Vector3 scale = *dmScript::CheckVector3(L, 1);
+            if (scale.getX() <= 0.0f || scale.getY() <= 0.0f || scale.getZ() <= 0.0f)
+            {
+                return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
+            }
+            dmGameObject::SetScale(instance, scale);
             return 0;
         }
 
