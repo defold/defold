@@ -240,6 +240,7 @@
 
 (n/defnode CandyNode
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "Level"))
   (input camera s/Any)
   (property level s/Any (visible false))
   (property width s/Int)

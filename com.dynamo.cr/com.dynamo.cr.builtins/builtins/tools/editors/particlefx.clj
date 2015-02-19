@@ -143,6 +143,7 @@
 
 (n/defnode ParticlefxNode
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "Particle FX"))
   (inherits ParticlefxProperties)
   (input    renderables s/Any)
   (output   renderables s/Any :cached passthrough-renderables)
@@ -183,6 +184,7 @@
 (n/defnode EmitterNode
   (inherits TransformNode)
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "emitter"))
   (inherits EmitterProperties)
   (inherits EmitterRender))
 
@@ -204,6 +206,7 @@
 (n/defnode ModifierNode
   (inherits TransformNode)
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [type] (str type)))
   (inherits ModifierProperties)
   (inherits ModifierRender))
 
