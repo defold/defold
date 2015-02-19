@@ -7,6 +7,7 @@
            [org.eclipse.swt.graphics Color RGB]
            [org.eclipse.swt.layout GridData GridLayout]
            [org.eclipse.swt.widgets Button Control Composite Label Text Widget]
+           [org.eclipse.jface.viewers TreeViewer AbstractTreeViewer]
            [org.eclipse.ui.forms.events HyperlinkAdapter]
            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
            [com.dynamo.cr.properties StatusLabel]
@@ -46,25 +47,27 @@
 (defmulti make-control     (fn [_ _ [_ {type :type}]] type))
 
 (defmacro ^:private gen-state-changes [desiderata control props]
-  (let [m {:background   `(when-let [v# (:background ~props)]       (.setBackground ~control (apply rgb v#)))
-           :echo-char    `(when-let [v# (:echo-char ~props)]        (.setEchoChar ~control v#))
-           :editable     `(when-let [v# (:editable ~props)]         (.setEditable ~control v#))
-           :foreground   `(when-let [v# (:foreground ~props)]       (.setForeground ~control (apply rgb v#)))
-           :on-click     `(when-let [v# (:on-click ~props)]         (.addHyperlinkListener ~control (proxy [HyperlinkAdapter] [] (linkActivated [e#] (v# e#)))))
-           :layout       `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
-           :layout-data  `(let [v# (:layout-data ~props)]
-                            (when-let [parent-type# (-> (.getParent ~control) (get-widget-data ::layout) :type)]
-                              (.setLayoutData ~control (make-layout-data ~control (assoc v# :type parent-type#)))
-                              (.layout (.getParent ~control))))
-           :listen       `(doseq [[e# t#] (:listen ~props)]         (.addListener ~control (ui/event-map e#) t#))
-           :status       `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
-           :text         `(when-let [v# (:text ~props)]             (.setText ~control v#))
-           :text-limit   `(when-let [v# (:text-limit ~props)]       (.setTextLimit ~control v#))
-           :top-index    `(when-let [v# (:top-index ~props)]        (.setTopIndex ~control v#))
-           :tooltip-text `(when-let [v# (:tooltip-text ~props)]     (.setToolTipText ~control v#))
-           :underlined   `(when-let [v# (:underlined ~props)]       (.setUnderlined ~control v#))
-           :user-data    `(when-let [v# (:user-data ~props)]        (set-user-data ~control v#))
-           :visible      `(when-not (nil? (:visible ~props))        (.setVisible ~control (:visible ~props)))}]
+  (let [m {:background       `(when-let [v# (:background ~props)]       (.setBackground ~control (apply rgb v#)))
+           :content-provider `(when-let [v# (:content-provider ~props)] (.setContentProvider ~control v#))
+           :echo-char        `(when-let [v# (:echo-char ~props)]        (.setEchoChar ~control v#))
+           :editable         `(when-let [v# (:editable ~props)]         (.setEditable ~control v#))
+           :foreground       `(when-let [v# (:foreground ~props)]       (.setForeground ~control (apply rgb v#)))
+           :label-provider   `(when-let [v# (:label-provider ~props)]   (.setLabelProvider ~control v#))
+           :layout           `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
+           :layout-data      `(let [v# (:layout-data ~props)]
+                                (when-let [parent-type# (-> (.getParent ~control) (get-widget-data ::layout) :type)]
+                                  (.setLayoutData ~control (make-layout-data ~control (assoc v# :type parent-type#)))
+                                  (.layout (.getParent ~control))))
+           :listen           `(doseq [[e# t#] (:listen ~props)]         (.addListener ~control (ui/event-map e#) t#))
+           :on-click         `(when-let [v# (:on-click ~props)]         (.addHyperlinkListener ~control (proxy [HyperlinkAdapter] [] (linkActivated [e#] (v# e#)))))
+           :status           `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
+           :text             `(when-let [v# (:text ~props)]             (.setText ~control v#))
+           :text-limit       `(when-let [v# (:text-limit ~props)]       (.setTextLimit ~control v#))
+           :tooltip-text     `(when-let [v# (:tooltip-text ~props)]     (.setToolTipText ~control v#))
+           :top-index        `(when-let [v# (:top-index ~props)]        (.setTopIndex ~control v#))
+           :underlined       `(when-let [v# (:underlined ~props)]       (.setUnderlined ~control v#))
+           :user-data        `(when-let [v# (:user-data ~props)]        (set-user-data ~control v#))
+           :visible          `(when-not (nil? (:visible ~props))        (.setVisible ~control (:visible ~props)))}]
     `(do ~@(vals (select-keys m desiderata)))))
 
 (defprotocol Mutable
@@ -118,6 +121,17 @@
   (apply-properties [this props]
     (gen-state-changes #{:layout-data :listen :user-data :visible} this props)
     (gen-state-changes #{:foreground :tooltip-text :text} (.getButton this) props)
+    this)
+
+  TreeViewer
+  (apply-properties [this props]
+    (when-let [control (.getControl this)]
+      (gen-state-changes #{:layout-data :listen :user-data :foreground :background :tooltip-text :visible} control props))
+    (gen-state-changes #{:content-provider :label-provider} this props)
+    (when-let [input (:input props)]
+      (.setInput this input))
+    (when-let [expand-levels (:expand-levels props)]
+      (.expandToLevel this ({:all AbstractTreeViewer/ALL_LEVELS} expand-levels expand-levels)))
     this))
 
 (def swt-style
@@ -239,6 +253,13 @@
         control            (ResourceSelector. toolkit parent (swt-style (:style props :none)) selection-callback)]
     (apply-properties control props)
     {name {::widget control}}))
+
+(defmethod make-control :tree-viewer
+  [^FormToolkit toolkit parent [name props :as spec]]
+  (let [viewer (TreeViewer. parent (swt-style (:style props :none)))]
+    (.adapt toolkit (.getControl viewer))
+    (apply-properties viewer props)
+    {name {::widget viewer}}))
 
 (defn widget
   [widget-tree path]
