@@ -801,7 +801,20 @@ namespace dmGameSystem
             uint32_t column = ddf->m_Column;
             uint32_t row = ddf->m_Row;
             uint32_t hull = ddf->m_Hull;
+
             TileGridResource* tile_grid_resource = component->m_Resource->m_TileGridResource;
+
+            if (row >= tile_grid_resource->m_RowCount || column >= tile_grid_resource->m_ColumnCount)
+            {
+                dmLogError("SetGridShapeHull: <row,column> out of bounds");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+            if (hull != ~0u && hull >= tile_grid_resource->m_TextureSet->m_HullCollisionGroups.Size())
+            {
+                dmLogError("SetGridShapHull: specified hull index is out of bounds.");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+
             dmPhysics::HullFlags flags;
             flags.m_FlipHorizontal = ddf->m_FlipHorizontal;
             flags.m_FlipVertical = ddf->m_FlipVertical;
