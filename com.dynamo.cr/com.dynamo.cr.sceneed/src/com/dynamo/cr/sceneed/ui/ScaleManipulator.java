@@ -32,38 +32,60 @@ public class ScaleManipulator extends TransformManipulator<Vector3d> {
 
     private ScaleAxisManipulator xManipulator;
     private ScaleAxisManipulator yManipulator;
+    private ScaleAxisManipulator zManipulator;
 
     private ScaleTransformer transformer = new ScaleTransformer();
 
     public ScaleManipulator() {
         xManipulator = new ScaleAxisManipulator(this,  new float[] {1, 0, 0, 1});
         yManipulator = new ScaleAxisManipulator(this,  new float[] {0, 1, 0, 1});
+        zManipulator = new ScaleAxisManipulator(this,  new float[] {0, 0, 1, 1});
         addChild(xManipulator);
         addChild(yManipulator);
+        addChild(zManipulator);
+    }
+
+    private Quat4d quatFromAxises(Vector3d src, Vector3d target)
+    {
+        double lenprod = src.length() * target.length();
+        if (lenprod < 0.000000001)
+            return new Quat4d();
+
+        Vector3d axis = new Vector3d();
+        axis.cross(src, target);
+        double cos = src.dot(target) / lenprod;
+        if (cos > 9.99)
+            return new Quat4d();
+        else
+        {
+            double angle = Math.acos(cos);
+            axis.scale(Math.sin(angle / 2) / axis.length());
+            return new Quat4d(axis.x, axis.y, axis.z, Math.cos(angle / 2));
+        }
+
     }
 
     @Override
     protected void selectionChanged() {
         super.selectionChanged();
-
-        // align with selected objects
+        // compute rotation for selected object to give the axises
+        // the correct direction.
         List<Node> sel = getSelection();
         Quat4d rotation = new Quat4d();
-        if (sel.size() > 0)
-        {
-            rotation = sel.get(0).getRotation();
-            if (sel.size() > 1)
-            {
-                // blend in the rest
-                double interp = 1.0f / (sel.size());
-                for (int i=1;i<sel.size();i++)
-                    rotation.interpolate(sel.get(i).getRotation(), interp);
-            }
-            xManipulator.setRotation(rotation);
-            Quat4d yrot = new Quat4d(0, 0, 0.707, 0.707);
-            yrot.mul(rotation);
-            yManipulator.setRotation(yrot);
-        }
+
+        // rotation quat from matrix
+        Vector4d xAxis = new Vector4d();
+        Vector4d yAxis = new Vector4d();
+        Vector4d zAxis = new Vector4d();
+        Matrix4d transform = new Matrix4d();
+        sel.get(0).getWorldTransform(transform);
+        transform.getColumn(0, xAxis);
+        transform.getColumn(1, yAxis);
+        transform.getColumn(2, zAxis);
+
+        xManipulator.setRotation(quatFromAxises(new Vector3d(1,0,0), new Vector3d(xAxis.x, xAxis.y, xAxis.z)));
+        yManipulator.setRotation(quatFromAxises(new Vector3d(1,0,0), new Vector3d(yAxis.x, yAxis.y, yAxis.z)));
+        zManipulator.setRotation(quatFromAxises(new Vector3d(1,0,0), new Vector3d(zAxis.x, zAxis.y, zAxis.z)));
     }
 
     @Override
@@ -90,6 +112,7 @@ public class ScaleManipulator extends TransformManipulator<Vector3d> {
     protected void applyTransform(List<Node> selection, List<Vector3d> originalLocalTransforms) {
         double distX = this.xManipulator.getDistance();
         double distY = this.yManipulator.getDistance();
+        double distZ = this.zManipulator.getDistance();
         double factor = 0.025;
         int n = selection.size();
         for (int i = 0; i < n; ++i) {
@@ -98,7 +121,7 @@ public class ScaleManipulator extends TransformManipulator<Vector3d> {
             Vector3d newScale = new Vector3d(
                     Math.abs(scale.x + factor * distX),
                     Math.abs(scale.y + factor * distY),
-                    scale.z
+                    Math.abs(scale.z + factor * distZ)
             );
             instance.setScale(newScale);
        }
