@@ -184,7 +184,7 @@
       (ds/set-property self :text (slurp (:filename self)))))
 
 (defn on-edit-text
-  [project-node editor-site text-node]
+  [project-node text-node]
   (let [editor (n/construct TextEditor)]
     (ds/in (ds/add editor)
            (ds/connect text-node :text editor :text)
@@ -242,7 +242,7 @@
         editor-fn (if ext ((keyword ext) editor-fns) nil)]
     (or editor-fn on-edit-text)))
 
-(defn- create-editor [game-project file root node-type]
+(defn- create-editor [game-project file root]
   (let [tab-pane (.lookup root "#editor-tabs")
         parent (AnchorPane.)
         path (relative-path (:content-root game-project) file)
@@ -250,21 +250,20 @@
         node (ds/transactional 
                (ds/in game-project
                       (let [editor-fn (find-editor-fn (.getName file))]
-                        (editor-fn game-project nil resource-node))))
+                        (editor-fn game-project resource-node))))
         close-handler (event-handler event
                         (ds/transactional 
                           (ds/delete node)))]
 
-    
     (if (satisfies? t/MessageTarget node)
       (let [tab (Tab. (.getName file))]
         (setup-properties root resource-node)
         
         (.setOnClosed tab close-handler)
         (.setGraphic tab (get-image-view "cog.png"))
-        (n/dispatch-message node :create :parent parent :file file)
-        (.setContent tab parent)
         (.add (.getTabs tab-pane) tab)
+        (.setContent tab parent)
+        (n/dispatch-message node :create :parent parent :file file)
         (.select (.getSelectionModel tab-pane) tab))
       (println "No editor for " node))))
 
@@ -277,7 +276,7 @@
                       (let [item (-> tree (.getSelectionModel) (.getSelectedItem))
                             file (.getValue item)]
                         (when (.isFile file)
-                          (create-editor game-project file root TextEditor))))))]
+                          (create-editor game-project file root))))))]
     (.setOnMouseClicked tree handler)
     (.setCellFactory tree (UIUtil/newFileCellFactory))
     (.setRoot tree (tree-item (:content-root game-project)))))
