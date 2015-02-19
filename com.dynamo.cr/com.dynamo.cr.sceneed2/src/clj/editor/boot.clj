@@ -93,30 +93,56 @@
 (defn- setup-console [root]
   (.appendText (.lookup root "#console") "Hello Console"))
 
-(defmulti create-property-control! (fn [t] t))
+; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj
+(defmacro doseq-indexed 
+  "loops over a set of values, binding index-sym to the 0-based index of each value"
+  ([[val-sym values index-sym] & code]
+  `(loop [vals# (seq ~values) 
+          ~index-sym (long 0)]
+     (if vals#
+       (let [~val-sym (first vals#)]
+             ~@code
+             (recur (next vals#) (inc ~index-sym)))
+       nil))))
 
-(defmethod create-property-control! String [_]
+(def create-property-control! nil)
+
+(defmulti create-property-control! (fn [t _] t))
+
+(defmethod create-property-control! String [_ on-new-value]
   (let [text (TextField.)
         setter #(.setText text (str %))]
+    (.setOnAction text (event-handler event (on-new-value (.getText text))))
     [text setter]))
 
-(defmethod create-property-control! t/Vec3 [_]
+(defn- to-double [s]
+  (try
+    (Double/parseDouble s)
+    (catch Throwable _
+      nil)))
+
+(defmethod create-property-control! t/Vec3 [_ on-new-value]
   (let [x (TextField.)
         y (TextField.)
         z (TextField.)
         box (HBox.)
         setter (fn [vec]
-                 (.setText x (str (nth vec 0)))
-                 (.setText y (str (nth vec 1)))
-                 (.setText z (str (nth vec 2))))]
+                 (doseq-indexed [t [x y z] i]
+                   (.setText t (str (nth vec i)))))
+        handler (event-handler event (on-new-value (mapv #(to-double (.getText %)) [x y z])))]
+
     (doseq [t [x y z]]
+      (.setOnAction t handler)
       (HBox/setHgrow t Priority/SOMETIMES)
       (.setPrefWidth t 60)
       (.add (.getChildren box) t))
     [box setter]))
 
-(defmethod create-property-control! :default [_]
-  (create-property-control! String))
+(defmethod create-property-control! :default [_ on-new-value]
+  (let [text (TextField.)
+        setter #(.setText text (str %))]
+    (.setDisable text true)
+    [text setter]))
 
 (defn- niceify-label
   [k]
@@ -127,7 +153,19 @@
 
 (defn- create-properties-row [grid node key property row]
   (let [label (Label. (niceify-label key))
-        [control setter] (create-property-control! (:value-type property))]
+        ; TODO: Possible to solve mutual references without an atom here?
+        setter-atom (atom nil)
+        on-new-value (fn [new-val]
+                       (let [old-val (key (ds/refresh node))]
+                         (when-not (= new-val old-val)
+                           (try (t/valid-property-value? property new-val)
+                             (ds/transactional
+                               (ds/set-property node key new-val)
+                               (@setter-atom new-val))
+                             (catch Exception e
+                               (@setter-atom old-val))))))
+        [control setter] (create-property-control! (t/property-value-type property) on-new-value)]
+    (reset! setter-atom setter)
     (setter (get node key))
     (GridPane/setConstraints label 1 row)
     (GridPane/setConstraints control 2 row)
@@ -367,5 +405,5 @@
 
 (Platform/runLater 
   (fn [] 
-    (load-project (io/file "/Users/ragnarsvensson/eclipse44/branches/1645/1144/test/game.project"))))
+    (load-project (io/file "/Applications/Defold/branches/414/3/ggame.project"))))
 
