@@ -275,6 +275,7 @@
   {:label    s/Str
    :icon     Icon
    :node-ref NodeRef
+   :commands [s/Any]
    :children [(s/recursive #'OutlineItem)]})
 
 ; ----------------------------------------

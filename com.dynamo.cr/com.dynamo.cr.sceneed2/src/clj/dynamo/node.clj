@@ -6,7 +6,7 @@ Second, this namespace defines some of the basic node types and mixins."
   (:require [clojure.set :as set]
             [clojure.core.match :refer [match]]
             [clojure.tools.macro :refer [name-with-attributes]]
-            [plumbing.core :refer [defnk]]
+            [plumbing.core :refer [defnk fnk]]
             [schema.core :as s]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
@@ -278,6 +278,7 @@ Inputs:
 
 Outputs:
 - tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (input  outline-children [OutlineItem])
+  (output outline-children [OutlineItem] (fnk [] []))
   (output outline-label    s/Str :abstract)
+  (output outline-commands [s/Any] (fnk [] []))
   (output outline-tree     OutlineItem outline/outline-tree-producer))
