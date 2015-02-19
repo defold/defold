@@ -6,7 +6,7 @@
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.types :as t :refer [min-p max-p]]
-            [dynamo.gl :refer :all]
+            [dynamo.gl :as gl]
             [internal.render.pass :as pass])
   (:import [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]
            [javax.media.opengl GL GL2]
@@ -14,18 +14,18 @@
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
 (def grid-color [0.44705 0.44314 0.5098])
-(def x-axis-color (color 200   0   0))
-(def y-axis-color (color   0 200   0))
-(def z-axis-color (color   0   0 200))
+(def x-axis-color (gl/color 200   0   0))
+(def y-axis-color (gl/color   0 200   0))
+(def z-axis-color (gl/color   0   0 200))
 
 (defn render-grid-axis
   [^GL2 gl ^doubles vx uidx start stop size vidx min max]
   (doseq [u (range start stop size)]
       (aset vx uidx ^double u)
       (aset vx vidx ^double min)
-      (gl-vertex-3dv gl vx 0)
+      (gl/gl-vertex-3dv gl vx 0)
       (aset vx vidx ^double max)
-      (gl-vertex-3dv gl vx 0)))
+      (gl/gl-vertex-3dv gl vx 0)))
 
 (defn render-grid
   [gl fixed-axis size aabb]
@@ -45,15 +45,15 @@
 
 (defn render-primary-axes
   [^GL2 gl ^AABB aabb]
-  (gl-color-3fv gl x-axis-color 0)
-  (gl-vertex-3d gl (-> aabb min-p .x) 0.0 0.0)
-  (gl-vertex-3d gl (-> aabb max-p .x) 0.0 0.0)
-  (gl-color-3fv gl y-axis-color 0)
-  (gl-vertex-3d gl 0.0 (-> aabb min-p .y) 0.0)
-  (gl-vertex-3d gl 0.0 (-> aabb max-p .y) 0.0)
-  (gl-color-3fv gl z-axis-color 0)
-  (gl-vertex-3d gl 0.0 0.0 (-> aabb min-p .z))
-  (gl-vertex-3d gl 0.0 0.0 (-> aabb max-p .z)))
+  (gl/gl-color-3fv gl x-axis-color 0)
+  (gl/gl-vertex-3d gl (-> aabb min-p .x) 0.0 0.0)
+  (gl/gl-vertex-3d gl (-> aabb max-p .x) 0.0 0.0)
+  (gl/gl-color-3fv gl y-axis-color 0)
+  (gl/gl-vertex-3d gl 0.0 (-> aabb min-p .y) 0.0)
+  (gl/gl-vertex-3d gl 0.0 (-> aabb max-p .y) 0.0)
+  (gl/gl-color-3fv gl z-axis-color 0)
+  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb min-p .z))
+  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb max-p .z)))
 
 (defn render-grid-sizes
   [^GL2 gl ^doubles dir grids]
@@ -63,7 +63,7 @@
           :let       [ratio (nth (:ratios grids) grid-index)
                       alpha (Math/abs (* (aget dir axis) ratio))]]
      (do
-       (gl-color-3dv+a gl grid-color alpha)
+       (gl/gl-color-3dv+a gl grid-color alpha)
        (render-grid gl axis
                     (nth (:sizes grids) grid-index)
                     (nth (:aabbs grids) grid-index))))))
@@ -73,7 +73,7 @@
   (let [view-matrix (c/camera-view-matrix camera)
         dir         (double-array 4)
         _           (.getRow view-matrix 2 dir)]
-    (gl-lines gl
+    (gl/gl-lines gl
       (render-grid-sizes dir grids)
       (render-primary-axes (apply g/aabb-union (:aabbs grids))))))
 
