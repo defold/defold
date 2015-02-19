@@ -76,15 +76,11 @@
   [input-labels transaction graph self label kind inputs-touched]
   (when (some (set input-labels) inputs-touched)
     (let [children-before (input-connections (ds/in-transaction-graph transaction) self :outline-children)
-          children-after  (->> input-labels
-                               (mapcat #(input-connections graph self %))
-                               (map (fn [[n _]] [n :outline-tree])))]
-      ;; TODO: beware multiple instances of same image or animation
-      ;; TODO: how do we get the order correct?
-      (doseq [[n l] (remove (set children-after) children-before)]
+          children-after  (mapcat #(input-connections graph self %) input-labels)]
+      (doseq [[n l] children-before]
         (ds/disconnect {:_id n} l self :outline-children))
-      (doseq [[n l] (remove (set children-before) children-after)]
-        (ds/connect {:_id n} l self :outline-children)))))
+      (doseq [[n _] children-after]
+        (ds/connect {:_id n} :outline-tree self :outline-children)))))
 
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
