@@ -3,7 +3,7 @@
             [dynamo.ui :as ui]
             [dynamo.ui.widgets :as widgets])
   (:import [org.eclipse.jface.viewers ITreeContentProvider ColumnLabelProvider]
-           [org.eclipse.swt.widgets Shell]
+           [org.eclipse.swt.widgets Control Shell]
            [org.eclipse.ui.forms.widgets FormToolkit]))
 
 (defn outline-tree-zipper [outline-tree]
@@ -41,10 +41,10 @@
   (ui/swt-safe
     (widgets/update-ui! (:form widget-tree)
       {:children [[:tree {:input outline-tree :expand-levels :all}]]})
-    (.pack (.getShell (widgets/widget widget-tree [:form])))))
+    (.pack (.getShell ^Control (widgets/widget widget-tree [:form])))))
 
 (defn close-outline-tree-gui-data [widget-tree]
   (ui/swt-safe
-    (let [widget (widgets/widget widget-tree [:form])]
+    (let [widget ^Control (widgets/widget widget-tree [:form])]
       (when-not (.isDisposed widget)
         (.close (.getShell widget))))))
