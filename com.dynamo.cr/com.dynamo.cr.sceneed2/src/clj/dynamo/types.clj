@@ -271,10 +271,17 @@
   Viewport
   (viewport [this] viewport))
 
+(def OutlineCommand
+  {:label      s/Str
+   :enabled    s/Bool
+   :command-fn s/Any
+   :context    s/Any})
+
 (def OutlineItem
   {:label    s/Str
    :icon     Icon
    :node-ref NodeRef
+   :commands [OutlineCommand]
    :children [(s/recursive #'OutlineItem)]})
 
 ; ----------------------------------------
