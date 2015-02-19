@@ -183,16 +183,16 @@
     (let [project-node (test-project FixtureImageResourceNode)
           atlas-text   (slurp (builtin-fixture "atlases/complex.atlas"))
           atlas        (atlas-from-fixture project-node atlas-text)]
-      (is (= ["Atlas" [["anim1" [["frame-01.png" []]]]
+      (is (= ["Atlas" [["frame-01.png" []]
+                       ["frame-02.png" []]
+                       ["small.png" []]
+                       ["large.png" []]
+                       ["anim1" [["frame-01.png" []]]]
                        ["anim2" [["frame-02.png" []]]]
                        ["anim3" [["frame-03.png" []]]]
                        ["anim4" [["frame-01.png" []]
                                  ["frame-02.png" []]
-                                 ["frame-03.png" []]]]
-                       ["frame-01.png" []]
-                       ["frame-02.png" []]
-                       ["small.png" []]
-                       ["large.png" []]]]
+                                 ["frame-03.png" []]]]]]
             (simple-outline (n/get-node-value atlas :outline-tree))))))
   (with-clean-world
     (let [project-node (test-project FixtureImageResourceNode)
@@ -246,19 +246,19 @@
           atlas        (ds/transactional (ds/disconnect img-missing :content anim2 :images) atlas)
           outline10    (n/get-node-value atlas :outline-tree)
 
-          ; TODO: connect duplicate existing image
+          ; connect duplicate existing image
           atlas        (ds/transactional (ds/connect img-frame-01 :content anim2 :images) atlas)
           outline11    (n/get-node-value atlas :outline-tree)
 
-          ; TODO: disconnect duplicate existing image
+          ; disconnect duplicate existing image
           atlas        (ds/transactional (ds/disconnect img-frame-01 :content anim2 :images) atlas)
           outline12    (n/get-node-value atlas :outline-tree)
 
-          ; TODO: connect duplicate missing (placeholder) image
+          ; connect duplicate missing (placeholder) image
           atlas        (ds/transactional (ds/connect img-missing2 :content anim2 :images) atlas)
           outline13    (n/get-node-value atlas :outline-tree)
 
-          ; TODO: disconnect duplicate missing (placeholder) image
+          ; disconnect duplicate missing (placeholder) image
           atlas        (ds/transactional (ds/disconnect img-missing2 :content anim2 :images) atlas)
           outline14    (n/get-node-value atlas :outline-tree)]
       (are [outline-tree expected] (= expected (simple-outline outline-tree))
@@ -272,7 +272,7 @@
         outline8  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing.png" []]]]]]
         outline9  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing.png" []] ["missing2.png" []]]]]]
         outline10 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]
-        outline11 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] #_["frame-01.png" []]]]]]
+        outline11 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] ["frame-01.png" []]]]]]
         outline12 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]
-        outline13 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] #_["missing2.png" []]]]]]
+        outline13 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] ["missing2.png" []]]]]]
         outline14 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]))))
