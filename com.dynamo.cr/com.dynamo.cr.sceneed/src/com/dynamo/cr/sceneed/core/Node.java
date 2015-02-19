@@ -263,7 +263,12 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public void setScale(Vector3d scale) {
-        this.scale = scale;
+        if (scale.x > 0)
+            this.scale.x = scale.x;
+        if (scale.y > 0)
+            this.scale.y = scale.y;
+        if (scale.z >= 0)
+            this.scale.z = scale.z;
         setAABBDirty();
         transformChanged();
     }
