@@ -27,8 +27,10 @@
             [java.awt Font]
             [java.awt.image BufferedImage]
             [javafx.application Platform]
+            [javafx.beans.value ChangeListener]
             [javafx.fxml FXMLLoader]
             [javafx.collections FXCollections ObservableList]
+            [javafx.geometry BoundingBox]
             [javafx.scene Scene Node Parent]
             [javafx.stage Stage FileChooser]
             [javafx.scene.image Image ImageView WritableImage PixelWriter]
@@ -50,10 +52,13 @@
 (def INDEX_SHIFT       (+ PASS_SHIFT 4))
 (def MANIPULATOR_SHIFT 62)
 
-(defmacro defer [& body]
-  `(Platform/runLater (reify Runnable
-                      (run [this]
-                        ~@body))))
+(defmacro on-app-thread [& body]
+  `(if (Platform/isFxApplicationThread)
+     (do
+       ~@body)
+     (Platform/runLater (reify Runnable
+                                     (run [this]
+                                       ~@body)))))
 
 (defn z-distance [camera obj]
   (let [p (->> (Point3d.)
@@ -157,6 +162,37 @@
       )
     camera))
 
+(defnk produce-frame [self ^ImageView image-view ^Region viewport drawable camera text-renderer]
+  (when (and viewport (.getContext drawable))
+    (let [w (- (.right viewport) (.left viewport))
+          h (- (.bottom viewport) (.top viewport))]
+      (when (and (> w 0) (> h 0))
+        (let [image (.getImage image-view)
+            needs-resize (or (not= w (.getWidth image)) (not= h (.getHeight image)))
+            drawable ^GLAutoDrawable (resize-drawable self needs-resize drawable w h)
+            camera (resize-camera self needs-resize (first (n/get-node-inputs self :camera)) w h)
+            context (.getContext drawable)]
+        (.makeCurrent context)
+        (let [gl ^GL2 (.getGL context)
+              glu ^GLU (GLU.)]
+          (try
+            (.glClearColor gl 0.0 0.0 0.0 1.0)
+            (gl/gl-clear gl 0.0 0.0 0.0 1)
+            (.glColor4f gl 1.0 1.0 1.0 1.0)
+            (gl-viewport gl camera)
+            (when-let [renderables (n/get-node-value self :render-data)]
+              (doseq [pass pass/render-passes]
+                (setup-pass context gl glu pass camera)
+                (doseq [node (get renderables pass)]
+                  (render-node context gl glu text-renderer pass node))))
+            (finally
+              (let [buf-image (Screenshot/readToBufferedImage w h true)]
+                (.release context)
+                 (on-app-thread
+                   (let [image (resize-image self needs-resize image w h)]
+                     (SwingFXUtils/toFXImage buf-image image)))
+                buf-image)))))))))
+
 (defn render-to-image [self-ref]
   (let [self @self-ref
         image-view ^ImageView (:image-view self)
@@ -165,8 +201,8 @@
         w (.getWidth parent)
         h (.getHeight parent)
         needs-resize (or (not= w (.getWidth image)) (not= h (.getHeight image)))
-        image (resize-image self needs-resize image w h)
         drawable ^GLAutoDrawable (resize-drawable self needs-resize (:drawable self) w h)
+        image (resize-image self needs-resize image w h)
         camera (resize-camera self needs-resize (first (n/get-node-inputs self :camera)) w h)
         text-renderer (:text-renderer self)
         context (.getContext drawable)]
@@ -186,11 +222,8 @@
         (finally
           (let [buf-image (Screenshot/readToBufferedImage w h true)]
             (.release context)
-             (SwingFXUtils/toFXImage buf-image image)
+            (SwingFXUtils/toFXImage buf-image image)
             ))))))
-
-(defn handle-input [self e]
-  )
 
 (defnk produce-render-data :- t/RenderData
   [self renderables :- [t/RenderData] camera :- Camera]
@@ -200,19 +233,22 @@
 (n/defnode SceneEditor
   (inherits n/Scope)
 
-  (property image-view ImageView)
   (property drawable GLAutoDrawable)
   (property text-renderer TextRenderer)
   (property first-resize s/Bool (default true) (visible false))
+  (property image-view ImageView)
+  (property viewport (atom Region))
 
   (input view-camera Camera)
   (input renderables [t/RenderData])
   (input aabb        AABB)
 
   (output aabb AABB (fnk [aabb] aabb))
+  (output viewport Region (fnk [viewport] viewport))
   (output glcontext GLContext (fnk [context] context))
   (output render-data t/RenderData produce-render-data)
   (output camera Camera (fnk [view-camera] view-camera))
+  (output frame BufferedImage :on-update produce-frame)
 
   t/Frame
   (frame [self]
@@ -238,21 +274,26 @@
         (let [text-renderer (gl/text-renderer Font/SANS_SERIF Font/BOLD 12)
               drawable (create-drawable w h)
               self-ref (t/node-ref self)
-              handler (reify EventHandler (handle [this e]
-                                            (let [self @self-ref
-                                                  camera-node (ds/node-feeding-into self :view-camera)]
-                                              (n/dispatch-message camera-node :input :action (i/action-from-jfx e))
-                                              (n/dispatch-message self :repaint))
-                                            ))]
+              event-handler (reify EventHandler (handle [this e]
+                                                  (let [self @self-ref
+                                                        camera-node (ds/node-feeding-into self :view-camera)]
+                                                    (n/dispatch-message camera-node :input :action (i/action-from-jfx e)))))
+              change-listener (reify ChangeListener (changed [this observable old-val new-val]
+                                                      (let [self @self-ref
+                                                            bb ^BoundingBox new-val
+                                                            w (- (.getMaxX bb) (.getMinX bb))
+                                                            h (- (.getMaxY bb) (.getMinY bb))] 
+                                                        (ds/transactional (ds/set-property self :viewport (t/->Region 0 w 0 h))))))]
           (ds/set-property self :drawable drawable)
           (ds/set-property self :text-renderer text-renderer)
           (ds/set-property self :image-view image-view)
-          (.setOnMousePressed parent handler)
-          (.setOnMouseReleased parent handler)
-          (.setOnMouseClicked parent handler)
-          (.setOnMouseMoved parent handler)
-          (.setOnMouseDragged parent handler)
-          (.setOnScroll parent handler)
+          (.setOnMousePressed parent event-handler)
+          (.setOnMouseReleased parent event-handler)
+          (.setOnMouseClicked parent event-handler)
+          (.setOnMouseMoved parent event-handler)
+          (.setOnMouseDragged parent event-handler)
+          (.setOnScroll parent event-handler)
+          (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
           (n/dispatch-message self :repaint)
           )))
 
@@ -263,7 +304,7 @@
 
   (on :repaint
       ; TODO hack to deal with resizing
-      (defer (render-to-image (t/node-ref self)))
+      #_(defer (render-to-image (t/node-ref self)))
       )
   )
 
