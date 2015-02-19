@@ -1,9 +1,12 @@
 (ns dynamo.outline
   (:require [clojure.zip :as zip]
             [dynamo.ui :as ui]
-            [dynamo.ui.widgets :as widgets])
+            [dynamo.ui.widgets :as widgets]
+            [internal.java :refer [bean-mapper]])
   (:import [org.eclipse.jface.viewers ITreeContentProvider ColumnLabelProvider]
-           [org.eclipse.swt.widgets Control Shell]
+           [org.eclipse.swt SWT]
+           [org.eclipse.swt.widgets Control Menu MenuItem Shell Tree]
+           [org.eclipse.swt.events MenuEvent MenuListener]
            [org.eclipse.ui.forms.widgets FormToolkit]))
 
 (defn outline-tree-zipper [outline-tree]
@@ -22,6 +25,24 @@
   (proxy [ColumnLabelProvider] []
     (getText [element] (->> element zip/node :label str))))
 
+(defn outline-tree-menu-listener [^Tree tree ^Menu menu]
+  (let [listener (reify MenuListener
+                   (menuShown  [_ event]
+                     ;; based on http://stackoverflow.com/a/18403738
+                     (doseq [i (.getItems menu)] (.dispose i))
+                     (when-let [selection (some->> tree .getSelection first .getData zip/node)]
+                       (doseq [label (:commands selection)]
+                         (let [menu-item (MenuItem. menu SWT/NONE)] (.setText menu-item label)))))
+                   (menuHidden [_ event] nil))]
+    (.addMenuListener menu listener)
+    listener))
+
+(defn outline-tree-menu ^Menu [^Tree parent]
+  (let [menu (Menu. parent)
+        menu-listener (outline-tree-menu-listener parent menu)]
+    (.setMenu parent menu)
+    menu))
+
 (defn outline-tree-gui []
   (ui/swt-await
     (let [shell       (ui/shell)
@@ -32,7 +53,8 @@
                               :children [[:tree {:type :tree-viewer
                                                  :content-provider (outline-tree-content-provider)
                                                  :label-provider (outline-tree-label-provider)}]]}]
-          widget-tree (widgets/make-control toolkit shell widget-def)]
+          widget-tree (widgets/make-control toolkit shell widget-def)
+          menu        (outline-tree-menu (.getControl (widgets/widget widget-tree [:form :tree])))]
       (.pack shell)
       (.open shell)
       widget-tree)))
