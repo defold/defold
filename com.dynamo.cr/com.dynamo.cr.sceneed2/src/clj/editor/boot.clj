@@ -13,10 +13,12 @@
             [camel-snake-kebab :as camel]
             [service.log :as log]
             [editor.scene-editor :as es]
+            [editor.jfx :as jfx]
             )
   (:import  [com.defold.editor Start UIUtil]
             [java.io File]
             [java.nio.file Paths]
+            [java.util.prefs Preferences]
             [javafx.application Platform]
             [javafx.fxml FXMLLoader]
             [javafx.collections FXCollections ObservableList]
@@ -403,7 +405,19 @@
         root (load-stage game-project)
         curve (create-view game-project root "#curve-editor-container" CurveEditor)]))
 
+(defn get-preference [key]
+  (let [prefs (.node (Preferences/userRoot) "defold")]
+    (.get prefs key nil)))
+
+(defn set-preference [key value]
+  (let [prefs (.node (Preferences/userRoot) "defold")]
+    (.put prefs key value)))
+
 (Platform/runLater 
-  (fn [] 
-    (load-project (io/file "/Applications/Defold/branches/414/3/ggame.project"))))
+  (fn []
+    (let [pref-key "default-project-file"
+          project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
+      (when project-file
+        (set-preference pref-key project-file)
+        (load-project (io/file project-file))))))
 
