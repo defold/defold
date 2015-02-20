@@ -19,6 +19,7 @@
             [internal.render.pass :as pass]
             [service.log :as log]
             [plumbing.core :refer [fnk defnk]]
+            [dynamo.types :refer [IDisposable dispose]]
             )
   (:import  [com.defold.editor Start UIUtil]
             [java.io File]
@@ -26,6 +27,7 @@
             [java.nio.file Paths]
             [java.awt Font]
             [java.awt.image BufferedImage]
+            [javafx.animation AnimationTimer]
             [javafx.application Platform]
             [javafx.beans.value ChangeListener]
             [javafx.fxml FXMLLoader]
@@ -52,13 +54,14 @@
 (def INDEX_SHIFT       (+ PASS_SHIFT 4))
 (def MANIPULATOR_SHIFT 62)
 
-(defmacro on-app-thread [& body]
-  `(if (Platform/isFxApplicationThread)
-     (do
-       ~@body)
-     (Platform/runLater (reify Runnable
-                                     (run [this]
-                                       ~@body)))))
+(defn vp-dims [^Region viewport]
+  (let [w (- (.right viewport) (.left viewport))
+        h (- (.bottom viewport) (.top viewport))]
+    [w h]))
+
+(defn vp-not-empty? [^Region viewport]
+  (let [[w h] (vp-dims viewport)]
+    (and (> w 0) (> h 0))))
 
 (defn z-distance [camera obj]
   (let [p (->> (Point3d.)
@@ -71,19 +74,14 @@
      (bit-shift-left (or (:index obj) 0)        INDEX_SHIFT)
      (bit-shift-left (or (:manipulator? obj) 0) MANIPULATOR_SHIFT)))
 
-(defn gl-viewport [^GL2 gl camera]
-  (let [viewport ^Region (:viewport camera)]
-    (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport)))))
-
-(defn make-drawable [w h]
-  )
+(defn gl-viewport [^GL2 gl viewport]
+  (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
 
 (defn setup-pass
-  ([context gl glu pass camera]
-    (setup-pass context gl glu pass camera nil))
-  ([context ^GL2 gl ^GLU glu pass camera pick-rect]
-    (let [viewport ^Region (:viewport camera)]
-      (.glMatrixMode gl GL2/GL_PROJECTION)
+  ([context gl glu pass camera ^Region viewport]
+    (setup-pass context gl glu pass camera viewport nil))
+  ([context ^GL2 gl ^GLU glu pass camera ^Region viewport pick-rect]
+    (.glMatrixMode gl GL2/GL_PROJECTION)
       (.glLoadIdentity gl)
       (when pick-rect
         (gl/glu-pick-matrix glu pick-rect viewport))
@@ -94,10 +92,10 @@
       (.glLoadIdentity gl)
       (when (t/model-transform? pass)
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
-      (pass/prepare-gl pass gl glu))))
+      (pass/prepare-gl pass gl glu)))
 
 (defn render-node
-  [context gl glu text-renderer pass renderable]
+  [^GLContext context ^GL2 gl ^GLU glu ^TextRenderer text-renderer pass renderable]
   (gl/gl-push-matrix
     gl
     (when (t/model-transform? pass)
@@ -111,182 +109,111 @@
                    :renderable renderable
                    :message "skipping renderable")))))
 
-(defn create-drawable [w h]
-  (let [profile (GLProfile/getGL2ES2)
-        factory (GLDrawableFactory/getFactory profile)
-        caps (GLCapabilities. profile)]
-    (.setOnscreen caps false)
-    (.setPBuffer caps true)
-    (.setDoubleBuffered caps false)
-    (.createOffscreenAutoDrawable factory nil caps nil w h nil)
-    )
+(defrecord DrawableRef [^GLAutoDrawable drawable]
+  clojure.lang.IDeref
+  (deref [this] drawable)
+  IDisposable
+  (dispose [this]
+    (prn "disposing drawable")
+    (.destroy drawable)))
+
+(defmethod print-method DrawableRef
+  [^DrawableRef v ^java.io.Writer w]
+  (.write w (str "<DrawableRef@" (:drawable v) ">")))
+
+(defrecord TextRendererRef [^TextRenderer text-renderer]
+  clojure.lang.IDeref
+  (deref [this] text-renderer)
+  IDisposable
+  (dispose [this]
+    (prn "disposing text-renderer")
+    (.dispose text-renderer)))
+
+(defmethod print-method TextRendererRef
+  [^TextRendererRef v ^java.io.Writer w]
+  (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
+
+(defnk produce-frame [^Region viewport ^DrawableRef drawable camera ^TextRendererRef text-renderer renderables]
+  (when (vp-not-empty? viewport)
+    (let [^GLContext context (.getContext ^GLAutoDrawable @drawable)]
+      (.makeCurrent context)
+      (let [gl ^GL2 (.getGL context)
+            glu ^GLU (GLU.)]
+        (try
+          (.glClearColor gl 0.0 0.0 0.0 1.0)
+          (gl/gl-clear gl 0.0 0.0 0.0 1)
+          (.glColor4f gl 1.0 1.0 1.0 1.0)
+          (gl-viewport gl viewport)
+          (when-let [renderables (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera %) (concat a b)))) renderables)]
+            (doseq [pass pass/render-passes]
+              (setup-pass context gl glu pass camera viewport)
+              (doseq [node (get renderables pass)]
+                (render-node context gl glu @text-renderer pass node))))
+          (let [[w h] (vp-dims viewport)
+                  buf-image (Screenshot/readToBufferedImage w h)]
+              (.release context)
+              buf-image))))))
+
+(defnk produce-drawable [^Region viewport]
+  (when (vp-not-empty? viewport)
+    (let [[w h] (vp-dims viewport)
+          profile (GLProfile/getGL2ES2)
+          factory (GLDrawableFactory/getFactory profile)
+          caps (GLCapabilities. profile)]
+      (.setOnscreen caps false)
+      (.setPBuffer caps true)
+      (.setDoubleBuffered caps false)
+      (->DrawableRef (.createOffscreenAutoDrawable factory nil caps nil w h nil))
+      )))
+
+(n/defnode SceneRenderer
+  (input viewport Region)
+  (input camera Camera)
+  (input renderables [t/RenderData])
+
+  (output drawable DrawableRef :cached produce-drawable)
+  (output text-renderer TextRendererRef :cached (fnk [] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
+  (output frame BufferedImage produce-frame) ; TODO cache when the cache bug is fixed
   )
-
-(defn resize-image [self resize image w h]
-  (if resize
-    (let [image-view ^ImageView (:image-view self)
-          new-image (WritableImage. w h)]
-      (.setImage image-view new-image)
-      new-image)
-    image)
-  )
-
-(do
-  (let [a 1])
-  (let [b 2]
-    b))
-
-(defn resize-drawable [self resize ^GLAutoDrawable drawable w h]
-  (if resize
-    (let [old-w (.getWidth drawable)
-          old-h (.getHeight drawable)]
-     (let [context (.getContext drawable)]
-       (when (and context (.isCurrent context)) (.release context))
-       (.destroy drawable))
-     (let [new-drawable (create-drawable w h)]
-       (ds/transactional (ds/set-property self :drawable new-drawable))
-       new-drawable))
-    drawable))
-
-(defn resize-camera [self resize camera w h]
-  (if resize
-    (let [viewport (t/->Region 0 w 0 h)
-          aspect (/ (double w) h)
-          camera-node (ds/node-feeding-into self :view-camera)
-          [camera] (n/get-node-inputs self :camera)
-          new-camera (-> camera
-                       (c/set-orthographic (:fov camera) aspect -100000 100000)
-                       (assoc :viewport viewport))]
-      (ds/transactional (ds/set-property camera-node :camera new-camera))
-      new-camera
-      )
-    camera))
-
-(defnk produce-frame [self ^ImageView image-view ^Region viewport drawable camera text-renderer]
-  (when (and viewport (.getContext drawable))
-    (let [w (- (.right viewport) (.left viewport))
-          h (- (.bottom viewport) (.top viewport))]
-      (when (and (> w 0) (> h 0))
-        (let [image (.getImage image-view)
-            needs-resize (or (not= w (.getWidth image)) (not= h (.getHeight image)))
-            drawable ^GLAutoDrawable (resize-drawable self needs-resize drawable w h)
-            camera (resize-camera self needs-resize (first (n/get-node-inputs self :camera)) w h)
-            context (.getContext drawable)]
-        (.makeCurrent context)
-        (let [gl ^GL2 (.getGL context)
-              glu ^GLU (GLU.)]
-          (try
-            (.glClearColor gl 0.0 0.0 0.0 1.0)
-            (gl/gl-clear gl 0.0 0.0 0.0 1)
-            (.glColor4f gl 1.0 1.0 1.0 1.0)
-            (gl-viewport gl camera)
-            (when-let [renderables (n/get-node-value self :render-data)]
-              (doseq [pass pass/render-passes]
-                (setup-pass context gl glu pass camera)
-                (doseq [node (get renderables pass)]
-                  (render-node context gl glu text-renderer pass node))))
-            (finally
-              (let [buf-image (Screenshot/readToBufferedImage w h true)]
-                (.release context)
-                 (on-app-thread
-                   (let [image (resize-image self needs-resize image w h)]
-                     (SwingFXUtils/toFXImage buf-image image)))
-                buf-image)))))))))
-
-(defn render-to-image [self-ref]
-  (let [self @self-ref
-        image-view ^ImageView (:image-view self)
-        image (.getImage image-view)
-        parent ^javafx.scene.layout.Region (.getParent (.getParent (.getParent image-view)))
-        w (.getWidth parent)
-        h (.getHeight parent)
-        needs-resize (or (not= w (.getWidth image)) (not= h (.getHeight image)))
-        drawable ^GLAutoDrawable (resize-drawable self needs-resize (:drawable self) w h)
-        image (resize-image self needs-resize image w h)
-        camera (resize-camera self needs-resize (first (n/get-node-inputs self :camera)) w h)
-        text-renderer (:text-renderer self)
-        context (.getContext drawable)]
-    (.makeCurrent context)
-    (let [gl ^GL2 (.getGL context)
-          glu ^GLU (GLU.)]
-      (try
-        (.glClearColor gl 0.0 0.0 0.0 1.0)
-        (gl/gl-clear gl 0.0 0.0 0.0 1)
-        (.glColor4f gl 1.0 1.0 1.0 1.0)
-        (gl-viewport gl camera)
-        (when-let [renderables (n/get-node-value self :render-data)]
-          (doseq [pass pass/render-passes]
-            (setup-pass context gl glu pass camera)
-            (doseq [node (get renderables pass)]
-              (render-node context gl glu text-renderer pass node))))
-        (finally
-          (let [buf-image (Screenshot/readToBufferedImage w h true)]
-            (.release context)
-            (SwingFXUtils/toFXImage buf-image image)
-            ))))))
-
-(defnk produce-render-data :- t/RenderData
-  [self renderables :- [t/RenderData] camera :- Camera]
-  (assert camera (str "No camera is available as an input to Scene Renderer (node:" (:_id self) "."))
-    (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera %) (concat a b)))) renderables))
 
 (n/defnode SceneEditor
   (inherits n/Scope)
 
-  (property drawable GLAutoDrawable)
-  (property text-renderer TextRenderer)
-  (property first-resize s/Bool (default true) (visible false))
   (property image-view ImageView)
-  (property viewport (atom Region))
+  (property viewport Region (default (t/->Region 0 0 0 0)))
+  (property repainter AnimationTimer)
+  (property visible s/Bool (default true))
 
-  (input view-camera Camera)
-  (input renderables [t/RenderData])
-  (input aabb        AABB)
+  (input frame BufferedImage)
+  (input controller `t/Node)
 
-  (output aabb AABB (fnk [aabb] aabb))
   (output viewport Region (fnk [viewport] viewport))
-  (output glcontext GLContext (fnk [context] context))
-  (output render-data t/RenderData produce-render-data)
-  (output camera Camera (fnk [view-camera] view-camera))
-  (output frame BufferedImage :on-update produce-frame)
+  (output frame BufferedImage :cached (fnk [visible frame] (when visible frame)))
 
-  t/Frame
-  (frame [self]
-    #_(let [[camera] (n/get-node-inputs self :view-camera)]
-       (render-to-image self
-                       (:drawable self)
-                       camera
-                       (:text-renderer self)
-                       (.getImage (:image-view self)))))
+  (trigger stop-animation :deleted (fn [tx graph self label trigger]
+                                     (.stop ^AnimationTimer (:repainter self))))
 
   (on :create
       (let [image-view (ImageView.)
             parent ^Parent (:parent event)
-            w (max 1 (.getWidth parent))
-            h (max 1 (.getHeight parent))
-            image (WritableImage. w h)]
-        (.setImage image-view image)
+            tab ^Tab (:tab event)]
         (AnchorPane/setTopAnchor image-view 0.0)
         (AnchorPane/setBottomAnchor image-view 0.0)
         (AnchorPane/setLeftAnchor image-view 0.0)
         (AnchorPane/setRightAnchor image-view 0.0)
         (.add (.getChildren parent) image-view)
-        (let [text-renderer (gl/text-renderer Font/SANS_SERIF Font/BOLD 12)
-              drawable (create-drawable w h)
-              self-ref (t/node-ref self)
+        (ds/set-property self :image-view image-view)
+        (let [self-ref (t/node-ref self)
               event-handler (reify EventHandler (handle [this e]
                                                   (let [self @self-ref
-                                                        camera-node (ds/node-feeding-into self :view-camera)]
-                                                    (n/dispatch-message camera-node :input :action (i/action-from-jfx e)))))
+                                                        controller (ds/node-feeding-into self :controller)]
+                                                    (n/dispatch-message controller :input :action (i/action-from-jfx e)))))
               change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                       (let [self @self-ref
                                                             bb ^BoundingBox new-val
                                                             w (- (.getMaxX bb) (.getMinX bb))
-                                                            h (- (.getMaxY bb) (.getMinY bb))] 
+                                                            h (- (.getMaxY bb) (.getMinY bb))]
                                                         (ds/transactional (ds/set-property self :viewport (t/->Region 0 w 0 h))))))]
-          (ds/set-property self :drawable drawable)
-          (ds/set-property self :text-renderer text-renderer)
-          (ds/set-property self :image-view image-view)
           (.setOnMousePressed parent event-handler)
           (.setOnMouseReleased parent event-handler)
           (.setOnMouseClicked parent event-handler)
@@ -294,30 +221,42 @@
           (.setOnMouseDragged parent event-handler)
           (.setOnScroll parent event-handler)
           (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
-          (n/dispatch-message self :repaint)
+          (let [repainter (proxy [AnimationTimer] []
+                            (handle [now]
+                              (let [self @self-ref
+                                    image-view ^ImageView (:image-view self)
+                                    frame (n/get-node-value self :frame)
+                                    visible (:visible self)]
+                                (when frame
+                                  (.setImage image-view (SwingFXUtils/toFXImage frame (.getImage image-view)))))))]
+            (ds/transactional (ds/set-property self :repainter repainter))
+            (.start repainter))
+          (.addListener (.selectedProperty tab) (reify ChangeListener (changed [this observable old-val new-val]
+                                                                        (let [self @self-ref]
+                                                                          (ds/transactional (ds/set-property self :visible new-val))))))
           )))
 
   t/IDisposable
   (dispose [self]
-           (.dispose (:text-renderer self))
-           (.destroy (:drawable self)))
-
-  (on :repaint
-      ; TODO hack to deal with resizing
-      #_(defer (render-to-image (t/node-ref self)))
-      )
+           (prn "Disposing SceneEditor")
+           )
   )
 
 (defn construct-scene-editor
   [project-node node]
   (let [editor (n/construct SceneEditor)]
     (ds/in (ds/add editor)
-           (let [background   (ds/add (n/construct background/Gradient))
+           (let [renderer     (ds/add (n/construct SceneRenderer))
+                 background   (ds/add (n/construct background/Gradient))
                  grid         (ds/add (n/construct grid/Grid))
                  camera       (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
-             (ds/connect background   :renderable      editor       :renderables)
+             (ds/connect background   :renderable      renderer     :renderables)
+             (ds/connect grid         :renderable      renderer     :renderables)
              (ds/connect camera       :camera          grid         :camera)
-             (ds/connect camera       :camera          editor       :view-camera)
-             (ds/connect grid         :renderable      editor       :renderables)
+             (ds/connect camera       :camera          renderer     :camera)
+             (ds/connect camera       :self            editor       :controller)
+             (ds/connect editor       :viewport        camera       :viewport)
+             (ds/connect editor       :viewport        renderer     :viewport)
+             (ds/connect renderer     :frame           editor       :frame)
              )
            editor)))

@@ -250,14 +250,11 @@
    z-far          :- s/Num
    aspect         :- s/Num
    fov            :- s/Num
-   focus-point    :- Vector4d
-   viewport       :- Region]
+   focus-point    :- Vector4d]
   Position
   (position [this] position)
   Rotation
-  (rotation [this] rotation)
-  Viewport
-  (viewport [this] viewport))
+  (rotation [this] rotation))
 
 (def OutlineItem
   {:label    s/Str

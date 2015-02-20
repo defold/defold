@@ -303,7 +303,7 @@
         (.setGraphic tab (get-image-view "cog.png"))
         (.add (.getTabs tab-pane) tab)
         (.setContent tab parent)
-        (n/dispatch-message node :create :parent parent :file file)
+        (n/dispatch-message node :create :parent parent :file file :tab tab)
         (.select (.getSelectionModel tab-pane) tab))
       (println "No editor for " node))))
 
@@ -326,8 +326,6 @@
     (instance? MenuBar menu) (doseq [m (.getMenus menu)] (bind-menus m handler))
     (instance? Menu menu) (doseq [m (.getItems menu)]
                             (.addEventHandler m ActionEvent/ACTION handler))))
-
-
 
 (def system nil)
 ;(is/stop)

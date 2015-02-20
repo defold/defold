@@ -1,7 +1,7 @@
 (ns editor.camera
   (:require [schema.macros :as sm]
             [schema.core :as s]
-            [plumbing.core :refer [defnk]]
+            [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t]
             [dynamo.node :as n]
             [dynamo.ui :as ui]
@@ -111,7 +111,7 @@
     (let [distance 10000.0
           position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
-      (t/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0) (t/->Region 0 0 0 0)))))
+      (t/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0)))))
 
 (sm/defn set-orthographic :- Camera
   [camera :- Camera fov :- s/Num aspect :- s/Num z-near :- s/Num z-far :- s/Num]
@@ -145,7 +145,7 @@
 (sm/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
    that the given point projects onto. The input point should be in world space."
-  [camera :- Camera region :- Region point :- Point3d]
+  [camera :- Camera viewport :- Region point :- Point3d]
   (let [proj  (camera-projection-matrix camera)
         model (camera-view-matrix camera)
         in    (Vector4d. (.x point) (.y point) (.z point) 1.0)
@@ -159,11 +159,11 @@
           y (/ (.y in) w)
           z (/ (.z in) w)
 
-          rx (+ (.left region) (/ (* (+ 1 x) (.right  region)) 2))
-          ry (+ (.top  region) (/ (* (+ 1 y) (.bottom region)) 2))
+          rx (+ (.left viewport) (/ (* (+ 1 x) (.right  viewport)) 2))
+          ry (+ (.top  viewport) (/ (* (+ 1 y) (.bottom viewport)) 2))
           rz (/ (+ 1 z) 2)
 
-          device-y (- (.bottom region) (.top region) ry 1)]
+          device-y (- (.bottom viewport) (.top viewport) ry 1)]
       (Point3d. rx device-y rz))))
 
 (defmacro scale-to-doubleunit [x x-min x-max]
@@ -178,9 +178,8 @@
                 1.0)))
 
 (sm/defn camera-unproject :- Vector4d
-  [camera :- Camera win-x :- s/Num win-y :- s/Num win-z :- s/Num]
-  (let [viewport (t/viewport camera)
-        win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
+  [camera :- Camera viewport :- Region win-x :- s/Num win-y :- s/Num win-z :- s/Num]
+  (let [win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
         in       (Vector4d. (scale-to-doubleunit win-x (.left viewport) (.right viewport))
                             (scale-to-doubleunit win-y (.top viewport)  (.bottom viewport))
                             (- (* 2 win-z) 1.0)
@@ -192,7 +191,6 @@
     (.mul a proj model)
     (.invert a)
     (.transform a in out)
-
     (normalize-vector out)))
 
 (sm/defn viewproj-frustum-planes :- [Vector4d]
@@ -217,11 +215,11 @@
                (max 0.01 (+ (or fov 0) (* (or fov 1) delta))))))
 
 (defn track
-  [camera last-x last-y evt-x evt-y]
+  [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
   (let [focus ^Vector4d (:focus-point camera)
-        point (camera-project camera (:viewport camera) (Point3d. (.x focus) (.y focus) (.z focus)))
-        world (camera-unproject camera evt-x evt-y (.z point))
-        delta (camera-unproject camera last-x last-y (.z point))]
+        point (camera-project camera viewport (Point3d. (.x focus) (.y focus) (.z focus)))
+        world (camera-unproject camera viewport evt-x evt-y (.z point))
+        delta (camera-unproject camera viewport last-x last-y (.z point))]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
@@ -285,11 +283,10 @@
 
 
 (sm/defn camera-fov-from-aabb :- s/Num
-  [camera :- Camera ^AABB aabb :- AABB]
+  [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
-  (let [^Region viewport (:viewport camera)
-        min-proj    (camera-project camera viewport (.. aabb min))
+  (let [min-proj    (camera-project camera viewport (.. aabb min))
         max-proj    (camera-project camera viewport (.. aabb max))
         proj-width  (Math/abs (- (.x max-proj) (.x min-proj)))
         proj-height (Math/abs (- (.y max-proj) (.y min-proj)))
@@ -308,43 +305,27 @@
     (set-orthographic (camera-fov-from-aabb camera aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
+(defnk produce-camera [self camera viewport]
+  (let [w (- (:right viewport) (:left viewport))
+       h (- (:bottom viewport) (:top viewport))]
+   (if (and (> w 0) (> h 0))
+     (let [aspect (/ (double w) h)]
+       (set-orthographic camera (:fov camera) aspect -100000 100000))
+     camera)))
+
 (n/defnode CameraController
   (property camera Camera)
 
   (property ui-state s/Any (default (constantly (atom {:movement :idle}))))
   (property movements-enabled s/Any (default #{:dolly :track :tumble}))
 
-  (on :mouse-down
-    (swap! (:ui-state self) assoc
-      :last-x (:x event)
-      :last-y (:y event)
-      :movement (get (:movements-enabled self) (camera-movement event) :idle)))
-
-  (on :mouse-move
-    (let [{:keys [movement last-x last-y]} @(:ui-state self)
-          {:keys [x y]} event]
-      (when (not (= :idle movement))
-        (case movement
-          :dolly  (ds/update-property self :camera dolly  (* -0.002 (- y last-y)))
-          :track  (ds/update-property self :camera track  last-x last-y x y)
-          :tumble (ds/update-property self :camera tumble last-x last-y x y)
-          nil)
-        (swap! (:ui-state self) assoc
-          :last-x x
-          :last-y y))))
-
-  (on :mouse-up
-    (swap! (:ui-state self) assoc
-      :last-x nil
-      :last-y nil
-      :movement :idle))
-
-  (on :mouse-wheel
-    (when (contains? (:movements-enabled self) :dolly)
-      (ds/update-property self :camera dolly (* -0.02 (:count event)))))
+  (input viewport Region)
+  (output viewport Region (fnk [viewport] viewport))
+  (output camera Region produce-camera)
 
   (on :input
-      (let [action (:action event)]
+      (let [action (:action event)
+            viewport (n/get-node-value self :viewport)]
         (case (:type action)
          :scroll (when (contains? (:movements-enabled self) :dolly)
                    (let [dy (:delta-y action)]
@@ -362,8 +343,8 @@
                             {:keys [x y]} action]
                         (when (not (= :idle movement))
                           (case movement
-                            :dolly  (ds/update-property self :camera dolly  (* -0.002 (- y last-y)))
-                            :track  (ds/update-property self :camera track  last-x last-y x y)
+                            :dolly  (ds/update-property self :camera dolly (* -0.002 (- y last-y)))
+                            :track  (ds/update-property self :camera track viewport last-x last-y x y)
                             :tumble (ds/update-property self :camera tumble last-x last-y x y)
                             nil)
                           (swap! (:ui-state self) assoc
