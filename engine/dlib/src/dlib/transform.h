@@ -397,11 +397,10 @@ namespace dmTransform
      */
     inline Vector3 ResetScale(Matrix4 *mtx)
     {
-        const float limit = 0.000001f;
         Vector3 scale = ExtractScale(*mtx);
-        assert(scale.getX() * scale.getX() > limit);
-        assert(scale.getY() * scale.getY() > limit);
-        assert(scale.getZ() * scale.getZ() > limit);
+        if (scale.getX() == 0 || scale.getY() == 0 || scale.getZ() == 0)
+            return Vector3(1, 1, 1);
+
         mtx->setCol(0, mtx->getCol(0) * (1.0f / scale.getX()));
         mtx->setCol(1, mtx->getCol(1) * (1.0f / scale.getY()));
         mtx->setCol(2, mtx->getCol(2) * (1.0f / scale.getZ()));
