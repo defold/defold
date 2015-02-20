@@ -11,3 +11,8 @@
     -fx-font-size: 11pt;
     -fx-font-family: "Consolas";
 }
+
+.tab-pane {
+    -fx-open-tab-animation: NONE;
+    -fx-close-tab-animation: NONE;
+}
