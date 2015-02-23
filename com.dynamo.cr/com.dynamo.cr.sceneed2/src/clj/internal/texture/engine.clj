@@ -6,7 +6,7 @@
   (:import [java.awt.image BufferedImage ColorModel]
            [java.nio ByteBuffer]
            [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
-           [com.dynamo.bob TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]
+           [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]
            [com.sun.jna Pointer]))
 
 (set! *warn-on-reflection* true)

@@ -76,7 +76,6 @@ to distinguish it from a function call."
   [world-ref clauses]
   (map #(node world-ref %) (q/query (:graph @world-ref) clauses)))
 
-
 ; ---------------------------------------------------------------------------
 ; Transactional state
 ; ---------------------------------------------------------------------------

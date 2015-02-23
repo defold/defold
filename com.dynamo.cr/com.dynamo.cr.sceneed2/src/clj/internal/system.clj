@@ -164,9 +164,10 @@
    (component/map->SystemMap
     {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 1)
      :world     (world tx-report-chan repaint-needed)
+     :repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])
      })))
 
-;:repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])
+
 (def the-system (atom (system)))
 
 (defn world-ref [] (-> @the-system :world :state))

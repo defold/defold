@@ -5,9 +5,7 @@
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [in]]
             [internal.system :as is]
-            [internal.transaction :as it])
-  (:import [org.eclipse.core.resources IProject IFile]
-           [org.eclipse.core.runtime Path]))
+            [internal.transaction :as it]))
 
 (set! *warn-on-reflection* true)
 
@@ -48,22 +46,3 @@
     (when auto-delete?
       (.deleteOnExit f))
     f))
-
-;; These stubs have just enough to make the current test suite pass.
-;; You will almost certainly need to enhance them for your own tests.
-(defrecord MockIFile [path canned-contents]
-  IFile
-  (getFullPath [this] (Path. path)))
-
-(defn mock-iproject
-  [canned-files]
-  (reify IProject
-    (^IFile getFile [this ^String path] (->MockIFile (str "IProject/" path) (get canned-files path)))))
-
-#_(defn resource-from-bundle
-  [b f]
-  (o/with-bundle b
-    (io/resource f)))
-
-#_(defn fixture [bundle-name fixture-path]
-    (resource-from-bundle (o/get-bundle bundle-name) fixture-path))

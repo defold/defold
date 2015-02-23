@@ -1,24 +1,28 @@
 (ns dynamo.ui.widgets
-  (:require [dynamo.project :as p]
+  (:require [clojure.tools.macro :refer [name-with-attributes]]
+            [dynamo.project :as p]
             [dynamo.ui :as ui]
-            [internal.java :refer [map-beaner]])
-  (:import [org.eclipse.swt SWT]
-           [org.eclipse.swt.custom StackLayout]
-           [org.eclipse.swt.graphics Color RGB]
-           [org.eclipse.swt.layout GridData GridLayout]
-           [org.eclipse.swt.widgets Button Control Composite Label Text Widget]
-           [org.eclipse.ui.forms.events HyperlinkAdapter]
-           [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
-           [com.dynamo.cr.properties StatusLabel]
-           [internal.ui ColorSelector ResourceSelector]))
+            [javafx-wrapper :refer [apply-properties]]
+            [javafx.scene.control :refer [button color-picker hyperlink label scroll-pane]]
+            [javafx.scene.layout :refer [stack-pane grid-pane]]
+            [javafx.scene.text :refer [text]]
+            [internal.java :refer [map-beaner]]
+            [camel-snake-kebab :refer :all])
+  (:import [javafx.scene Node]
+           [javafx.scene.control Control ColorPicker]
+           [javafx.scene.paint Color]
+           [javafx.scene.text Text]))
 
-(set! *warn-on-reflection* true)
+(defmulti make-control (fn [_ [_ {type :type}]] type))
 
-(defn- rgb [r g b] (Color. (ui/display) r g b))
+(defn- rgb
+  ([s]       (Color/valueOf (if (keyword? s) (name s) (str s))))
+  ([r g b]   (Color/rgb r g b))
+  ([r g b a] (Color/rgb r g b a)))
 
 (defn bring-to-front!
   [^Control control]
-  (let [composite ^Composite   (.getParent control)
+  #_(let [composite ^Composite   (.getParent control)
         layout    ^StackLayout (.getLayout composite)]
     (assert (instance? StackLayout layout) "bring-to-front only works on Composites with StackLayout as their layout")
     (when (not= (. layout topControl) control)
@@ -26,134 +30,58 @@
       (.layout composite))))
 
 (defn scroll-to-top!
-  [^ScrolledForm form]
-  (.setOrigin form 0 0)
-  (.reflow form true))
+  [form]
+  #_(.setOrigin form 0 0)
+  #_(.reflow form true))
 
+(defn- set-widget-data [^Node control key value]
+  (.setUserData control (assoc (.getUserData control) key value)))
 
-(defn- set-widget-data [^Widget control key value]
-  (.setData control (assoc (.getData control) key value)))
+(defn- get-widget-data [^Node control key]
+  (get (.getUserData control) key))
 
-(defn- get-widget-data [^Widget control key]
-  (get (.getData control) key))
-
-(defn set-user-data [^Widget control value]
+(defn set-user-data [^Node control value]
   (set-widget-data control ::user-data value))
 
-(defn get-user-data [^Widget control]
+(defn get-user-data [^Node control]
   (get-widget-data control ::user-data))
 
 (defmulti make-layout      (fn [_ {type :type}] type))
 (defmulti make-layout-data (fn [_ {type :type}] type))
-(defmulti make-control     (fn [_ _ [_ {type :type}]] type))
 
-(defmacro ^:private gen-state-changes [desiderata control props]
-  (let [m {:background   `(when-let [v# (:background ~props)]       (.setBackground ~control (apply rgb v#)))
-           :echo-char    `(when-let [v# (:echo-char ~props)]        (.setEchoChar ~control v#))
-           :editable     `(when-let [v# (:editable ~props)]         (.setEditable ~control v#))
-           :foreground   `(when-let [v# (:foreground ~props)]       (.setForeground ~control (apply rgb v#)))
-           :on-click     `(when-let [v# (:on-click ~props)]         (.addHyperlinkListener ~control (proxy [HyperlinkAdapter] [] (linkActivated [e#] (v# e#)))))
-           :layout       `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
-           :layout-data  `(let [v# (:layout-data ~props)]
-                            (when-let [parent-type# (-> (.getParent ~control) (get-widget-data ::layout) :type)]
-                              (.setLayoutData ~control (make-layout-data ~control (assoc v# :type parent-type#)))))
-           :listen       `(doseq [[e# t#] (:listen ~props)]         (.addListener ~control (ui/event-map e#) t#))
-           :status       `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
-           :text         `(when-let [v# (:text ~props)]             (.setText ~control v#))
-           :text-limit   `(when-let [v# (:text-limit ~props)]       (.setTextLimit ~control v#))
-           :top-index    `(when-let [v# (:top-index ~props)]        (.setTopIndex ~control v#))
-           :tooltip-text `(when-let [v# (:tooltip-text ~props)]     (.setToolTipText ~control v#))
-           :underlined   `(when-let [v# (:underlined ~props)]       (.setUnderlined ~control v#))
-           :user-data    `(when-let [v# (:user-data ~props)]        (set-user-data ~control v#))}]
-    `(do ~@(vals (select-keys m desiderata)))))
+(defn ^:private property-setters [desiderata control props]
+  (for [prop desiderata
+        :let [accessor-fn (symbol (name prop))]]
+    `(when-let [v# (get ~props ~prop)]
+       (~accessor-fn ~control v#))))
 
-(defprotocol Mutable
-  (apply-properties [this props]))
-
-(extend-protocol Mutable
-  ScrolledForm
-  (apply-properties [this props]
-    (gen-state-changes #{:text :foreground :background :tooltip-text :layout-data :listen :user-data} this props)
-    (gen-state-changes #{:layout} (.getBody this) props)
-    this)
-
-  Composite
-  (apply-properties [this props]
-    (gen-state-changes #{:foreground :background :layout :layout-data :tooltip-text :listen :user-data} this props)
-    this)
-
-  ColorSelector
-  (apply-properties [this props]
-    (gen-state-changes #{:layout-data :listen :user-data} this props)
-    (gen-state-changes #{:foreground :tooltip-text :text} (.getButton this) props)
-    (when-let [[^int r ^int g ^int b] (:color props)] (.setColorValue this (RGB. r g b)))
-    this)
-
-  Hyperlink
-  (apply-properties [this props]
-    (gen-state-changes #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text :listen :user-data} this props)
-    this)
-
-  Label
-  (apply-properties [this props]
-    (gen-state-changes #{:text :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
-    this)
-
-  Text
-  (apply-properties [this props]
-    (gen-state-changes #{:text :foreground :background :layout-data :tooltip-text :echo-char :text-limit :top-index :editable :listen :user-data} this props)
-    this)
-
-  StatusLabel
-  (apply-properties [this props]
-    (gen-state-changes #{:status :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
-    this)
-
-  Button
-  (apply-properties [this props]
-    (gen-state-changes #{:text :layout-data :tooltip-text :listen :user-data} this props)
-    this)
-
-  ResourceSelector
-  (apply-properties [this props]
-    (gen-state-changes #{:layout-data :listen :user-data} this props)
-    (gen-state-changes #{:foreground :tooltip-text :text} (.getButton this) props)
-    this))
-
-(def swt-style
+#_(def swt-style
   {:none   SWT/NONE
    :border SWT/BORDER})
 
-(def swt-horizontal-alignment
+#_(def swt-horizontal-alignment
   {:left   SWT/BEGINNING
    :center SWT/CENTER
    :right  SWT/END
    :fill   SWT/FILL})
 
-(def swt-vertical-alignment
+#_(def swt-vertical-alignment
   {:top    SWT/BEGINNING
    :center SWT/CENTER
    :bottom SWT/END
    :fill   SWT/FILL})
 
-(def swt-grid-layout (map-beaner GridLayout))
-(def swt-grid-data   (map-beaner GridData))
+#_(def swt-grid-layout (map-beaner GridLayout))
+#_(def swt-grid-data   (map-beaner GridData))
 
-(defmethod make-layout :stack
-  [^Composite control _]
-  (let [stack (StackLayout.)]
-    (set! (. stack topControl) (first (.getChildren control)))
-    stack))
-
-(defmethod make-layout-data :stack [^Control control _]
-  nil)
-
-(defmethod make-layout :grid [^Composite control spec]
+(defmethod make-layout :grid
+  [control spec]
   (let [columns (:columns spec)
         spec (assoc spec :num-columns (count columns))]
-    (swt-grid-layout spec)))
+    nil))
 
-(defmethod make-layout-data :grid [^Control control spec]
+#_(defmethod make-layout-data :grid
+  [control spec]
   (let [parent (.getParent control)
         children (vec (.getChildren parent))
         columns (:columns (get-widget-data parent ::layout))
@@ -175,68 +103,73 @@
                   [k v])))]
     (swt-grid-data spec)))
 
-(defmethod make-control :form
-  [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control ^ScrolledForm (.createScrolledForm toolkit parent)
-        body (.getBody control)
-        _ (set-widget-data body ::layout (:layout props))
-        child-controls (reduce merge {} (map #(make-control toolkit body %) (:children props)))]
-    (apply-properties control props)
-    {name (merge child-controls {::widget control})}))
 
-(defmethod make-control :composite
-  [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createComposite toolkit parent (swt-style (:style props :none)))
-        _ (set-widget-data control ::layout (:layout props))
-        child-controls (reduce merge {} (map #(make-control toolkit control %) (:children props)))]
-    (apply-properties control props)
-    {name (merge child-controls {::widget control})}))
+(defmethod make-control :form
+  [_ [name props :as spec]]
+  (let [scroll-pane    (scroll-pane)
+        body           (grid-pane)
+        _              (set-widget-data body ::layout (:layout props))
+        child-controls (reduce merge {} (map #(make-control nil body %) (:children props)))]
+    (apply-properties scroll-pane (assoc props :content body))
+    {name (merge child-controls {::widget scroll-pane})}))
+
+(defmethod make-control :stack
+  [_ [name props :as spec]]
+  (let [child-controls (reduce merge {} (map #(make-control nil nil %) (:children props)))
+        stack          (stack-pane child-controls)]
+    (apply-properties stack props)
+    {name (merge child-controls {::widget stack})}))
+
+(defmethod make-control :grid
+  [_ [name props :as spec]]
+  (let [child-controls (reduce merge {} (map #(make-control nil nil %) (:children props)))
+        grid           (grid-pane)]
+    ;; TODO - handle adding child controls and setting grid constraints based on their layout info
+    (apply-properties grid props)
+    {name (merge child-controls {::widget grid})}))
 
 (defmethod make-control :label
-  [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createLabel toolkit parent nil (swt-style (:style props :none)))]
+  [_ [name props :as spec]]
+  (let [control (label)]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :hyperlink
-  [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createHyperlink toolkit parent nil (swt-style (:style props :none)))]
+  [_ [name props :as spec]]
+  (let [control (hyperlink)]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :text
-  [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createText toolkit parent nil (swt-style (:style props :none)))]
+  [_ [name props :as spec]]
+  (let [control (text)]
     (apply-properties control props)
     {name {::widget control}}))
 
-(defmethod make-control :status-label
+#_(defmethod make-control :status-label
   [_ parent [name props :as spec]]
   (let [control (StatusLabel. parent (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :color-selector
-  [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (ColorSelector. toolkit parent (swt-style (:style props :none)))]
+  [_ [name props :as spec]]
+  (let [control (color-picker)]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :button
-  [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createButton toolkit parent nil (swt-style (:style props :none)))]
+  [_ [name props :as spec]]
+  (let [control (button)]
     (apply-properties control props)
     {name {::widget control}}))
 
-(defmethod make-control :resource-selector
-  [^FormToolkit toolkit parent [name props :as spec]]
-  #_"ResourceSelect widget is rendered as a browse button.
-  Click this button to reveal a modal resource selection dialog; select a resource and click \"OK\".
-  This will fire a `:selection` event; the selection (seq of ResourceNode) is accessible in the event map under the `:data` key.
-  No events are fired when the user clicks \"Cancel\", presses Esc, or otherwise dismisses the dialog without making a selection."
+;; TODO - resurrect resource picker
+#_(defmethod make-control :resource-selector
+  [_ [name props :as spec]]
   (let [project-node       (get-in props [:user-data :project-node])
         selection-callback (fn [] (p/select-resources project-node (:extensions props) (:title props)))
-        control            (ResourceSelector. toolkit parent (swt-style (:style props :none)) selection-callback)]
+        control            (ResourceSelector.)]
     (apply-properties control props)
     {name {::widget control}}))
 
@@ -253,6 +186,6 @@
 (defn get-text [^Text widget]
   (.getText widget))
 
-(defn get-color [^ColorSelector widget]
-  (let [c (.getColorValue widget)]
+(defn get-color [^ColorPicker widget]
+  (let [c (.getValue widget)]
     [(.-red c) (.-green c) (.-blue c)]))

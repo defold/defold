@@ -6,7 +6,7 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
             [schema.test])
-  (:import [com.dynamo.bob.textureset TextureSetGenerator]
+  (:import [com.defold.util Geometry]
            [javax.vecmath Point3d]))
 
 (use-fixtures :once schema.test/validate-schemas)
@@ -17,7 +17,7 @@
 
 (defspec to-short-uv-works
   (prop/for-all [fuv gen-float]
-                (= (TextureSetGenerator/toShortUV fuv) (to-short-uv fuv))))
+                (= (Geometry/toShortUV fuv) (to-short-uv fuv))))
 
 (def gen-point (gen/fmap (fn [[x y z]] (Point3d. x y z))
                          (gen/tuple gen/int gen/int gen/int)))

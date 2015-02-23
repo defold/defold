@@ -14,26 +14,10 @@ ordinary paths."
             [dynamo.util :refer :all]
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
-            [eclipse.resources :as resources]
             [service.log :as log])
-  (:import [org.eclipse.core.resources IContainer IFile IProject IResource IResourceChangeListener]
-           [org.eclipse.core.runtime IProgressMonitor]
-           [org.eclipse.ui PlatformUI IEditorSite]
-           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
+  (:import [java.io File]))
 
 (set! *warn-on-reflection* true)
-
-(defn register-filetype
-  [extension default?]
-  (ui/swt-safe
-    (let [reg ^EditorRegistry (.getEditorRegistry (PlatformUI/getWorkbench))
-          desc (.findEditor reg "com.dynamo.cr.sceneed2.scene-editor")
-          mapping (doto
-                    (FileEditorMapping. extension)
-                    (.addEditor desc))
-          all-mappings (.getFileEditorMappings reg)]
-      (when default? (.setDefaultEditor mapping desc))
-      (.setFileEditorMappings reg (into-array (concat (seq all-mappings) [mapping]))))))
 
 (defn register-node-type
   [filetype node-type]
@@ -41,8 +25,7 @@ ordinary paths."
 
 (defn register-editor
   [filetype editor-builder]
-  (ds/update-property (ds/current-scope) :handlers assoc-in [:editor filetype] editor-builder)
-  (register-filetype filetype true))
+  (ds/update-property (ds/current-scope) :handlers assoc-in [:editor filetype] editor-builder))
 
 (defn register-presenter
   [property presenter]
@@ -86,9 +69,9 @@ behavior."
   (property background   dp/Color (default [0x4d 0xc0 0xca])))
 
 (defn- build-editor-node
-  [project-node site path content-node]
+  [project-node path content-node]
   (let [editor-factory (editor-for project-node (t/extension path))]
-    (node?! (editor-factory project-node site content-node) "Editor")))
+    (node?! (editor-factory project-node content-node) "Editor")))
 
 (defn- build-selection-node
   [editor-node selected-nodes]
@@ -100,21 +83,19 @@ behavior."
       selection-node)))
 
 (defn make-editor
-  [project-node path ^IEditorSite site]
-  (let [[editor-node selection-node] (ds/transactional
-                                       (ds/in project-node
-                                         (let [content-node   (t/lookup project-node path)
-                                               editor-node    (build-editor-node project-node site path content-node)
-                                               selection-node (build-selection-node editor-node [content-node])]
-                                           (when ((t/inputs editor-node) :presenter-registry)
-                                             (ds/connect project-node :presenter-registry editor-node :presenter-registry))
-                                           (when (and ((t/inputs editor-node) :saveable) ((t/outputs content-node) :save))
-                                             (ds/connect content-node :save editor-node :saveable))
-                                           (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
-                                             (ds/connect content-node :dirty editor-node :dirty))
-                                           [editor-node selection-node])))]
-    (.setSelectionProvider site selection-node)
-    editor-node))
+  [project-node path]
+  (ds/transactional
+   (ds/in project-node
+          (let [content-node   (t/lookup project-node path)
+                editor-node    (build-editor-node project-node path content-node)
+                selection-node (build-selection-node editor-node [content-node])]
+            (when ((t/inputs editor-node) :presenter-registry)
+              (ds/connect project-node :presenter-registry editor-node :presenter-registry))
+            (when (and ((t/inputs editor-node) :saveable) ((t/outputs content-node) :save))
+              (ds/connect content-node :save editor-node :saveable))
+            (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
+              (ds/connect content-node :dirty editor-node :dirty))
+            editor-node))))
 
 (defn- send-project-scope-message
   [txn graph self label kind inputs-affected]
@@ -169,8 +150,7 @@ There is no guaranteed ordering of the sequence."
   (trigger notify-content-nodes :input-connections send-project-scope-message)
 
   (property tag                s/Keyword (default :project))
-  (property eclipse-project    IProject)
-  (property content-root       IContainer)
+  (property content-root       File)
   (property branch             s/Str)
   (property presenter-registry t/Registry)
   (property node-types         {s/Str s/Symbol})
@@ -198,43 +178,43 @@ There is no guaranteed ordering of the sequence."
       (recur (scope-enclosing node)))))
 
 (defn load-resource-nodes
-  [project-node resources ^IProgressMonitor monitor]
+  [project-node resources]
   (ds/transactional
-    (let [eclipse-project ^IProject (:eclipse-project project-node)]
-      (ds/in project-node
-        [project-node (doall
-                        (for [resource resources
-                              :let [p (file/make-project-path project-node resource)]]
-                          (monitored-work monitor (str "Scanning " (t/local-name p))
-                            (load-resource project-node p))))]))))
+   (ds/in project-node
+          [project-node
+           (doall
+            (for [resource resources
+                  :let [p (file/make-project-path project-node resource)]]
+              (load-resource project-node p)))])))
 
 (defn load-project
-  [^IProject eclipse-project branch ^IProgressMonitor monitor]
+  [root branch]
   (ds/transactional
-    (ds/add
-      (n/construct Project
-        :eclipse-project eclipse-project
-        :content-root (.getFolder eclipse-project "content")
-        :branch branch
-        :node-types {"clj" clojure/ClojureSourceNode}))))
+   (ds/add
+    (n/construct Project
+                 :content-root root
+                 :branch branch
+                 :node-types {"clj" clojure/ClojureSourceNode}))))
 
 (defn- post-load
   [message project-node resource-nodes]
   (doseq [resource-node resource-nodes]
-    (log/logging-exceptions (str message (:filename resource-node))
-      (when (satisfies? t/MessageTarget resource-node)
-        (ds/in project-node
-          (t/process-one-event resource-node {:type :load :project project-node}))))))
+    (log/logging-exceptions
+     (str message (:filename resource-node))
+     (when (satisfies? t/MessageTarget resource-node)
+       (ds/in project-node
+              (t/process-one-event resource-node {:type :load :project project-node}))))))
 
 (defn load-project-and-tools
-  [^IProject eclipse-project branch ^IProgressMonitor monitor]
-  (let [project-node    (load-project eclipse-project branch monitor)
-        resources       (group-by clojure/clojure-source? (filter #(instance? IFile %) (resources/resource-seq eclipse-project)))
+  [root branch]
+  (let [project-node    (load-project root branch)
+        resources       (group-by clojure/clojure-source? (remove #(.isDirectory ^File %) (file-seq root)))
         clojure-sources (get resources true)
         non-sources     (get resources false)]
-    (monitored-task monitor "Scanning project" (inc (count resources))
-      (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) clojure-sources monitor))
-      (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     monitor)))
+    (apply post-load "Compiling"
+           (load-resource-nodes (ds/refresh project-node) clojure-sources))
+    (apply post-load "Loading asset from"
+           (load-resource-nodes (ds/refresh project-node) non-sources))
     project-node))
 
 (defn- unload-nodes
@@ -294,7 +274,8 @@ There is no guaranteed ordering of the sequence."
 ; ---------------------------------------------------------------------------
 (defn open-project
   "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function directly."
-  [eclipse-project branch ^IProgressMonitor monitor]
-  (let [project-node (load-project-and-tools eclipse-project branch monitor)
-        listener     (resources/listen-for-change #(update-resources project-node %))]
-    (resources/listen-for-close project-node listener)))
+  [root branch]
+  (let [project-node (load-project-and-tools root branch)
+        ;listener     (resources/listen-for-change #(update-resources project-node %))
+        ]
+    #_(resources/listen-for-close project-node listener)))

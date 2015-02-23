@@ -1,6 +1,7 @@
 (ns suite
- (:require [clojure.java.io :as io]
-           [clojure.test :as test])
+  (:require [clojure.java.io :as io]
+            [clojure.test :as test]
+            [dynamo.messages :as m])
  (:import [clojure.lang Compiler]))
 
 (def test-namespaces ['internal.either-test
@@ -47,4 +48,4 @@
 
   #_(compile-files (clojure-sources builtin-basedir))
 
-  (test/run-all-tests))
+  (apply test/run-tests test-namespaces))

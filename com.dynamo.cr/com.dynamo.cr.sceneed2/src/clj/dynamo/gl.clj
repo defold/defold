@@ -6,9 +6,7 @@
            [javax.media.opengl GL GL2 GLDrawableFactory GLProfile]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d]
-           [org.eclipse.swt SWT]
-           [org.eclipse.swt.layout GridData]
-           [org.eclipse.swt.opengl GLData GLCanvas]
+           [javax.media.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
 
 (set! *warn-on-reflection* true)
@@ -20,22 +18,9 @@
    :shading-language-version (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION)
    :glcontext-class          (class gl)})
 
-(defn- griddata []
-  (let [gd (GridData. SWT/FILL SWT/FILL true true)]
-    (set! (. gd widthHint) SWT/DEFAULT)
-    (set! (. gd heightHint) SWT/DEFAULT)
-    gd))
-
-(defn gldata []
-  (let [d (GLData.)]
-    (set! (. d doubleBuffer) true)
-    (set! (. d depthSize) 24)
-    d))
-
 (defn glcanvas ^GLCanvas
   [parent]
-  (doto (GLCanvas. parent (bit-or SWT/NO_REDRAW_RESIZE SWT/NO_BACKGROUND) (gldata))
-    (.setLayoutData (griddata))))
+  (GLCanvas.))
 
 (defn glfactory ^GLDrawableFactory
   []

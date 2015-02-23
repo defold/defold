@@ -3,7 +3,7 @@
             [schema.core :as s]
             [dynamo.types :as dt :refer [min-p max-p]])
   (:import [dynamo.types Rect AABB]
-           [com.dynamo.bob.textureset TextureSetGenerator]
+           [com.defold.util Geometry]
            [javax.vecmath Point3d Point4d Vector4d Vector3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
@@ -151,7 +151,7 @@
 
 (defn to-short-uv
   [^Float fuv]
-  (TextureSetGenerator/toShortUV fuv))
+  (Geometry/toShortUV fuv))
 
 ; -------------------------------------
 ; Transformations
@@ -302,6 +302,3 @@
                         long-idx [long-i (inc long-i)]]
                     (make-vertex (lat-angle (/ lat-idx lats)) (long-angle (/ long-idx longs))))]
                 (map #(nth vertices %) [0 1 2 1 3 2]))))
-
-
-

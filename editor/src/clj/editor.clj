@@ -10,6 +10,7 @@
    '(do
       (require 'editor.debug)
       (editor.debug/start-server)
+      (require 'dynamo.messages)
       (require 'editor.boot))))
 
 (defn -main [& args]

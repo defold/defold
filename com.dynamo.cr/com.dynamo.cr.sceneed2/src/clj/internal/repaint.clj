@@ -5,48 +5,40 @@
             [dynamo.ui :as ui]
             [internal.disposal :as disp]
             [internal.graph.dgraph :as dg]
-            [service.log :as log])
-  (:import [org.eclipse.swt.widgets Display]))
+            [service.log :as log]))
 
 (def expected-frame-rate 60)
 (def default-frame-interval (int (/ 1000 expected-frame-rate)))
 
-(defn schedule-display-tick
-  [world-ref waiters delay]
-  (ui/tick
-    delay
-    (fn []
-      (disp/dispose-pending world-ref)
-      (dosync
-        (let [g (:graph @world-ref)]
-          (doseq [w @waiters]
-            (try
-              (t/frame (ds/node world-ref w))
-              (catch Throwable t
-                (log/error :exception t :message "Error sending frame message to " w))))
-          (alter waiters empty))))))
+(defn repaint-waiting
+  [_ world-ref waiters]
+  (dosync
+   (doseq [w @waiters]
+     (try
+       (t/frame (ds/node world-ref w))
+       (catch Throwable t
+         (log/error :exception t :message "Error sending frame message to " w))))
+   (ref-set waiters #{})))
 
-(defrecord Repaint [waiters delay paint-loop]
+(defrecord Repaint [waiters]
   component/Lifecycle
   (start [this]
     (when-not (-> this :world :state)
       (log/error :message "World-ref is not set in repaint loop. Repaint errors are likely."))
-    (if (:paint-loop this)
+    (if (:timer this)
       this
-      (assoc this :paint-loop (schedule-display-tick (-> this :world :state) waiters delay))))
+      (assoc this :timer (.start (ui/make-animation-timer repaint-waiting (-> this :world :state) waiters)))))
 
   (stop [this]
-    (if (:paint-loop this)
+    (if (:timer this)
       (do
-        (ui/untick paint-loop)
-        (assoc this :paint-loop nil))
+        (.stop (:timer this))
+        (assoc this :timer this))
       this)))
 
 (defn repaint-subsystem
-  ([repaint-needed]
-    (repaint-subsystem repaint-needed default-frame-interval))
-  ([repaint-needed delay]
-    (Repaint. repaint-needed delay nil)))
+  [repaint-needed]
+  (Repaint. repaint-needed))
 
 (defn schedule-repaint
   [repaint-needed node-or-nodes]

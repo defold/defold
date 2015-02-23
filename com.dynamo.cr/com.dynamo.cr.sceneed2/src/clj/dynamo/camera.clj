@@ -9,7 +9,6 @@
             [dynamo.system :as ds]
             [dynamo.geom :as g])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]
-           [org.eclipse.swt SWT]
            [dynamo.types Camera Region AABB]))
 
 (set! *warn-on-reflection* true)
@@ -267,18 +266,18 @@
            :rotation r)))
 
 (def ^:private button-interpretation
-  {[:one-button 1 SWT/ALT]                   :tumble
-   [:one-button 1 (bit-or SWT/ALT SWT/CTRL)] :track
-   [:one-button 1 SWT/CTRL]                  :dolly
-   [:three-button 1 SWT/ALT]                 :tumble
-   [:three-button 2 SWT/ALT]                 :track
-   [:three-button 3 SWT/ALT]                 :dolly})
+  {[:one-button 1 false true false]          :tumble
+   [:one-button 1 true  true false]          :track
+   [:one-button 1 true false false]          :dolly
+   [:three-button 1 false true false]        :tumble
+   [:three-button 2 false true false]        :track
+   [:three-button 3 false true false]        :dolly})
 
 (defn camera-movement
   ([event]
-    (camera-movement (ui/mouse-type) (:button event) (:state-mask event)))
-  ([mouse-type button mods]
-    (button-interpretation [mouse-type button mods] :idle)))
+    (camera-movement (ui/mouse-type) (:button event) (:ctrl-down event) (:alt-down event) (:shift-down event)))
+  ([mouse-type button control alt shift]
+    (button-interpretation [mouse-type button control alt shift] :idle)))
 
 
 (sm/defn camera-fov-from-aabb :- s/Num

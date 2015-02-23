@@ -3,6 +3,7 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [service.log :as log]
+            [dynamo.messages :as msg]
             [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.property :as dp]
@@ -13,12 +14,7 @@
             [dynamo.util :refer :all]
             [internal.node :as in]
             [internal.system :as is]
-            [camel-snake-kebab :refer :all])
-  (:import [org.eclipse.core.runtime IStatus Status]
-           [org.eclipse.swt.widgets Composite]
-           [org.eclipse.ui ISelectionListener]
-           [org.eclipse.ui.forms.widgets FormToolkit]
-           [com.dynamo.cr.properties Messages]))
+            [camel-snake-kebab :refer :all]))
 
 (set! *warn-on-reflection* true)
 
@@ -68,35 +64,35 @@
 (defn- property-control-strip
   [node [prop-name {:keys [presenter]}]]
   (let [label-text (niceify-label prop-name)]
-    [[:label-composite {:type :composite
-                        :layout {:type :stack}
-                        :children [[:label      {:type :label :text label-text}]
-                                   [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text Messages/FormPropertySheetViewer_RESET_VALUE}]]}]
+    [[:label-stack {:type :stack
+                    :children [[:label      {:type :label :text label-text}]
+                               [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text msg/FormPropertySheetViewer_RESET_VALUE}]]}]
      [prop-name (control-spec node prop-name presenter)]
      [:dummy           {:type :label :layout-data {:exclude true}}]
-     [:status-label    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:min-width 50 :exclude true}}]]))
+;;     [:status-label    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:min-width 50 :exclude true}}]
+     ]))
 
 (defn- property-page
   [control-strips]
   [:page-content
-   {:type :composite
-    :layout {:type :grid :margin-width 0 :columns [{:horizontal-alignment :left} {:horizontal-alignment :fill}]}
+   {:type :grid
+    ;; :layout {:type :grid :margin-width 0 :columns [{:horizontal-alignment :left} {:horizontal-alignment :fill}]}
     :children control-strips}])
 
 (defn- make-property-page
-  [toolkit node properties-form properties]
-  (widgets/make-control toolkit (widgets/widget properties-form [:form :composite])
+  [node properties-form properties]
+  (widgets/make-control (widgets/widget properties-form [:form :composite])
     (property-page (mapcat #(property-control-strip node %) properties))))
 
 (def empty-property-page
   [:page-content
-   {:type :composite
+   {:type :grid
     :layout {:type :grid :columns [{:horizontal-alignment :left}]}
-    :children [[:no-selection-label {:type :label :text Messages/FormPropertySheetViewer_NO_PROPERTIES}]]}])
+    :children [[:no-selection-label {:type :label :text msg/FormPropertySheetViewer_NO_PROPERTIES}]]}])
 
 (defn- make-empty-property-page
-  [toolkit properties-form]
-  (widgets/make-control toolkit (widgets/widget properties-form [:form :composite]) empty-property-page))
+  [properties-form]
+  (widgets/make-control (widgets/widget properties-form [:form :composite]) empty-property-page))
 
 (defn- settings-for-page
   [properties]
@@ -121,10 +117,10 @@
   (map-vals #(assoc % :presenter (presenter-for-property node %)) content))
 
 (defn- refresh-property-page
-  [{:keys [sheet-cache toolkit properties-form] :as node}]
+  [{:keys [sheet-cache properties-form] :as node}]
   (let [content (attach-presenters node (in/get-node-value node :content))
         key     (cache-key content)
-        page    (lookup-or-create sheet-cache key make-property-page toolkit node properties-form content)]
+        page    (lookup-or-create sheet-cache key make-property-page node properties-form content)]
     (widgets/update-ui!      (get-in page [:page-content]) (settings-for-page content))
     (widgets/bring-to-front! (widgets/widget page [:page-content]))
     (widgets/scroll-to-top!  (widgets/widget properties-form [:form]))))
@@ -154,19 +150,16 @@
   (trigger delayed-refresh :modified refresh-after-a-while)
 
   (on :create
-    (let [toolkit           (FormToolkit. (.getDisplay ^Composite (:parent event)))
-          properties-form   (widgets/make-control toolkit (:parent event) gui)
+    (let [properties-form   (widgets/make-control (:parent event) gui)
           sheet-cache       (atom {})
-          ui-event-listener (ui/make-listener #(n/dispatch-message self :ui-event :ui-event %) [])]
-      (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page toolkit properties-form)
+          ;;ui-event-listener (ui/make-listener #(n/dispatch-message self :ui-event :ui-event %) [])
+          ]
+      (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page properties-form)
       (ds/set-property self
         :sheet-cache       sheet-cache
-        :toolkit           toolkit
-        :properties-form   properties-form
-        :ui-event-listener ui-event-listener
-        :debouncer         (ui/display-debouncer 100 #(refresh-property-page (ds/refresh self))))))
+        :properties-form   properties-form)))
 
-  (on :ui-event
+  #_(on :ui-event
     (let [ui-event (:ui-event event)
           {:keys [presenter prop-name path]} (widgets/get-user-data (:widget ui-event))
           content (in/get-node-value self :content)
@@ -183,12 +176,8 @@
               (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
         (log/warn :message "Expected event from widget on active property page"))))
 
-  t/Frame
-  (frame [this]
-    (t/signal (:debouncer this)))
-
-  ISelectionListener
-  (selectionChanged [this part selection]
+;;  ISelectionListener
+  #_(selectionChanged [this part selection]
     (let [current-inputs (ds/sources-of this :properties)]
       (when (not= @selection (map (comp :_id first) current-inputs))
         (ds/transactional
@@ -197,13 +186,13 @@
           (doseq [n @selection]
             (ds/connect {:_id n} :properties this :properties)))))))
 
-(defn implementation-for
+#_(defn implementation-for
   [scope]
   (ds/transactional
     (ds/in scope
       (ds/add (n/construct PropertyView)))))
 
-(defn get-control
+#_(defn get-control
   "This is called by the Java shim GenericPropertySheetPage. Not for other use."
   [property-view-node]
   (-> property-view-node
