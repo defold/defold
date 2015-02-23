@@ -16,8 +16,11 @@
             [dynamo.system.test-support :refer [with-clean-world tempfile mock-iproject fixture]]
             [dynamo.types :as t]
             [schema.test]
-            [editors.atlas :as atlas])
+            [editors.atlas :as atlas]
+            [clojure.pprint :refer [pprint]]
+            [dynamo.file.protobuf :as proto])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
+           [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
            [java.io StringReader]
            [dynamo.types Image]
            [javax.imageio ImageIO]))
@@ -137,6 +140,22 @@
         expected (slurp (builtin-fixture fixture-name))]
     (= actual expected)))
 
+(defn- texturesetc-fail-message [fixture-name output-file]
+  (with-open [expected-reader (io/input-stream (builtin-fixture fixture-name))
+              actual-reader   (io/input-stream output-file)]
+    (with-out-str
+      (doseq [[label reader] [["EXPECTED" expected-reader] ["ACTUAL" actual-reader]]]
+        (println label)
+        (pprint (-> reader
+                  TextureSetProto$TextureSet/parseFrom
+                  proto/pb->map
+                  (update-in [:vertices]         #(.size %))
+                  (update-in [:atlas-vertices]   #(.size %))
+                  (update-in [:outline-vertices] #(.size %))
+                  (update-in [:tex-coords]       #(.size %))))))))
+
+(def ^:dynamic *record-fixture-path* nil)
+
 (defn verify-atlas-artifacts [fixture-basename]
   (with-clean-world
     (let [project-node (test-project FixtureImageResourceNode)
@@ -157,8 +176,12 @@
       #_(is (= atlas-text (n/get-node-value atlas :text-format)))
       (is (= :ok (n/get-node-value compiler :texturec)))
       (is (= :ok (n/get-node-value compiler :texturesetc)))
-      (is (matches-fixture? (str "build/default/" fixture-basename ".texturesetc") texturesetc))
-      (is (matches-fixture? (str "build/default/" fixture-basename ".texturec")    texturec)))))
+      (is (matches-fixture? (str "build/default/" fixture-basename ".texturesetc") texturesetc)
+        (texturesetc-fail-message (str "build/default/" fixture-basename ".texturesetc") texturesetc))
+      (is (matches-fixture? (str "build/default/" fixture-basename ".texturec") texturec))
+      (when *record-fixture-path*
+        (with-open [w (io/output-stream (str *record-fixture-path* "/" fixture-basename ".texturesetc"))] (io/copy texturesetc w))
+        (with-open [w (io/output-stream (str *record-fixture-path* "/" fixture-basename ".texturec"   ))] (io/copy texturec    w))))))
 
 (deftest expected-atlas-artifacts
   (verify-atlas-artifacts "atlases/empty")
@@ -174,6 +197,12 @@
   (verify-atlas-artifacts "atlases/single-image-multiple-references-in-animation")
   (verify-atlas-artifacts "atlases/missing-image-multiple-references")
   (verify-atlas-artifacts "atlases/missing-image-multiple-references-in-animation"))
+
+(comment
+  ; re-record fixtures
+  (binding [*record-fixture-path* (str (System/getenv "HOME") "/src/defold/com.dynamo.cr/com.dynamo.cr.builtins/test/resources/build/default")]
+    (expected-atlas-artifacts))
+  )
 
 (defn simple-outline [outline-tree]
   [(:label outline-tree) (map simple-outline (:children outline-tree))])
