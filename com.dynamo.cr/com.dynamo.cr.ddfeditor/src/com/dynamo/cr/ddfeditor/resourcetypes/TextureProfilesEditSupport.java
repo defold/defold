@@ -16,43 +16,43 @@ public class TextureProfilesEditSupport implements IResourceTypeEditSupport {
 
     @Override
     public Message getTemplateMessageFor(Descriptor descriptor) {
-		if (descriptor.getFullName().equals(TextureProfile.getDescriptor().getFullName())) {
-			return TextureProfile.newBuilder().setName("unnamed").build();
-		}
-		else if (descriptor.getFullName().equals(PlatformProfile.getDescriptor().getFullName())) {
-			TextureFormatAlternative tmpFormat = TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();
-			return PlatformProfile.newBuilder().setOs(PlatformProfile.OSId.OS_ID_GENERIC).setMipmaps(true).addFormats(tmpFormat).build();
-		}
-    	else if (descriptor.getFullName().equals(TextureFormatAlternative.getDescriptor().getFullName())) {
-    		return TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();
-    	}
-		else if (descriptor.getFullName().equals(PathSettings.getDescriptor().getFullName())) {
-			return PathSettings.newBuilder().setPath("**").setProfile("Default").build();
-		}
+        if (descriptor.getFullName().equals(TextureProfile.getDescriptor().getFullName())) {
+            return TextureProfile.newBuilder().setName("unnamed").build();
+        }
+        else if (descriptor.getFullName().equals(PlatformProfile.getDescriptor().getFullName())) {
+            TextureFormatAlternative tmpFormat = TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();
+            return PlatformProfile.newBuilder().setOs(PlatformProfile.OSId.OS_ID_GENERIC).setMipmaps(true).addFormats(tmpFormat).build();
+        }
+        else if (descriptor.getFullName().equals(TextureFormatAlternative.getDescriptor().getFullName())) {
+            return TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();
+        }
+        else if (descriptor.getFullName().equals(PathSettings.getDescriptor().getFullName())) {
+            return PathSettings.newBuilder().setPath("**").setProfile("Default").build();
+        }
 
         return null;
     }
 
     @Override
     public String getLabelText(Message message) {
-    	
-    	if (message instanceof TextureProfile)
-    	{
-    		TextureProfile texProfile = (TextureProfile) message;
-    		return texProfile.getName();
-    	}
-    	else if (message instanceof PlatformProfile) {
-    		PlatformProfile platformProfile = (PlatformProfile) message;
-    		return platformProfile.getOs().toString();
-    	}
-    	else if (message instanceof TextureFormatAlternative) {
-    		TextureFormatAlternative formatAlternative = (TextureFormatAlternative) message;
-    		return formatAlternative.getFormat().toString();
-    	}
-    	else if (message instanceof PathSettings) {
-    		PathSettings pathSetting = (PathSettings) message;
-    		return pathSetting.getProfile() + ": " + pathSetting.getPath(); 
-    	}
+
+        if (message instanceof TextureProfile)
+        {
+            TextureProfile texProfile = (TextureProfile) message;
+            return texProfile.getName();
+        }
+        else if (message instanceof PlatformProfile) {
+            PlatformProfile platformProfile = (PlatformProfile) message;
+            return platformProfile.getOs().toString();
+        }
+        else if (message instanceof TextureFormatAlternative) {
+            TextureFormatAlternative formatAlternative = (TextureFormatAlternative) message;
+            return formatAlternative.getFormat().toString();
+        }
+        else if (message instanceof PathSettings) {
+            PathSettings pathSetting = (PathSettings) message;
+            return pathSetting.getProfile() + ": " + pathSetting.getPath();
+        }
 
         return "";
     }
