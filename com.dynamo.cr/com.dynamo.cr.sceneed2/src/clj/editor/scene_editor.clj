@@ -39,10 +39,10 @@
             [javafx.scene.input MouseEvent]
             [javafx.event ActionEvent EventHandler]
             [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-            [javafx.scene.layout AnchorPane StackPane HBox Priority]
+            [javafx.scene.layout AnchorPane StackPane Pane HBox Priority]
             [javafx.embed.swing SwingFXUtils]
             [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]
-            [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLDrawableFactory GLCapabilities]
+            [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
             [javax.media.opengl.glu GLU]
             [com.jogamp.opengl.util.awt TextRenderer Screenshot]
             [dynamo.types Camera AABB Region]
@@ -63,14 +63,14 @@
   (let [[w h] (vp-dims viewport)]
     (and (> w 0) (> h 0))))
 
-(defn z-distance [camera obj]
+(defn z-distance [camera viewport obj]
   (let [p (->> (Point3d.)
             (g/world-space obj)
-            (c/camera-project camera (:viewport camera)))]
+            (c/camera-project camera viewport))]
     (long (* Integer/MAX_VALUE (.z p)))))
 
-(defn render-key [camera obj]
-  (+ (z-distance camera obj)
+(defn render-key [camera viewport obj]
+  (+ (z-distance camera viewport obj)
      (bit-shift-left (or (:index obj) 0)        INDEX_SHIFT)
      (bit-shift-left (or (:manipulator? obj) 0) MANIPULATOR_SHIFT)))
 
@@ -109,18 +109,6 @@
                    :renderable renderable
                    :message "skipping renderable")))))
 
-(defrecord DrawableRef [^GLAutoDrawable drawable]
-  clojure.lang.IDeref
-  (deref [this] drawable)
-  IDisposable
-  (dispose [this]
-    (prn "disposing drawable")
-    (.destroy drawable)))
-
-(defmethod print-method DrawableRef
-  [^DrawableRef v ^java.io.Writer w]
-  (.write w (str "<DrawableRef@" (:drawable v) ">")))
-
 (defrecord TextRendererRef [^TextRenderer text-renderer]
   clojure.lang.IDeref
   (deref [this] text-renderer)
@@ -133,9 +121,9 @@
   [^TextRendererRef v ^java.io.Writer w]
   (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
 
-(defnk produce-frame [^Region viewport ^DrawableRef drawable camera ^TextRendererRef text-renderer renderables]
-  (when (vp-not-empty? viewport)
-    (let [^GLContext context (.getContext ^GLAutoDrawable @drawable)]
+(defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
+  (when (and drawable (vp-not-empty? viewport))
+    (let [^GLContext context (.getContext drawable)]
       (.makeCurrent context)
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)]
@@ -144,7 +132,7 @@
           (gl/gl-clear gl 0.0 0.0 0.0 1)
           (.glColor4f gl 1.0 1.0 1.0 1.0)
           (gl-viewport gl viewport)
-          (when-let [renderables (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera %) (concat a b)))) renderables)]
+          (when-let [renderables (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera viewport %) (concat a b)))) renderables)]
             (doseq [pass pass/render-passes]
               (setup-pass context gl glu pass camera viewport)
               (doseq [node (get renderables pass)]
@@ -154,7 +142,18 @@
               (.release context)
               buf-image))))))
 
-(defnk produce-drawable [^Region viewport]
+(n/defnode SceneRenderer
+
+  (input viewport Region)
+  (input camera Camera)
+  (input renderables [t/RenderData])
+  (input drawable GLAutoDrawable)
+
+  (output text-renderer TextRendererRef :cached (fnk [] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
+  (output frame BufferedImage produce-frame) ; TODO cache when the cache bug is fixed
+  )
+
+(defnk produce-drawable [self ^Region viewport]
   (when (vp-not-empty? viewport)
     (let [[w h] (vp-dims viewport)
           profile (GLProfile/getGL2ES2)
@@ -163,18 +162,12 @@
       (.setOnscreen caps false)
       (.setPBuffer caps true)
       (.setDoubleBuffered caps false)
-      (->DrawableRef (.createOffscreenAutoDrawable factory nil caps nil w h nil))
-      )))
-
-(n/defnode SceneRenderer
-  (input viewport Region)
-  (input camera Camera)
-  (input renderables [t/RenderData])
-
-  (output drawable DrawableRef :cached produce-drawable)
-  (output text-renderer TextRendererRef :cached (fnk [] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
-  (output frame BufferedImage produce-frame) ; TODO cache when the cache bug is fixed
-  )
+      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable self)
+            drawable (if drawable
+                       (do (.setSize drawable w h) drawable)
+                       (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
+        (ds/transactional (ds/set-property self :gl-drawable drawable))
+        drawable))))
 
 (n/defnode SceneEditor
   (inherits n/Scope)
@@ -182,11 +175,13 @@
   (property image-view ImageView)
   (property viewport Region (default (t/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
+  (property gl-drawable GLAutoDrawable)
   (property visible s/Bool (default true))
 
   (input frame BufferedImage)
   (input controller `t/Node)
 
+  (output drawable GLAutoDrawable :cached produce-drawable)
   (output viewport Region (fnk [viewport] viewport))
   (output frame BufferedImage :cached (fnk [visible frame] (when visible frame)))
 
@@ -201,7 +196,7 @@
         (AnchorPane/setBottomAnchor image-view 0.0)
         (AnchorPane/setLeftAnchor image-view 0.0)
         (AnchorPane/setRightAnchor image-view 0.0)
-        (.add (.getChildren parent) image-view)
+        (.add (.getChildren ^Pane parent) image-view)
         (ds/set-property self :image-view image-view)
         (let [self-ref (t/node-ref self)
               event-handler (reify EventHandler (handle [this e]
@@ -239,24 +234,7 @@
   t/IDisposable
   (dispose [self]
            (prn "Disposing SceneEditor")
-           )
-  )
+           (when-let [^GLAutoDrawable drawable (:gl-drawable self)]
+             (.destroy drawable))
+           ))
 
-(defn construct-scene-editor
-  [project-node node]
-  (let [editor (n/construct SceneEditor)]
-    (ds/in (ds/add editor)
-           (let [renderer     (ds/add (n/construct SceneRenderer))
-                 background   (ds/add (n/construct background/Gradient))
-                 grid         (ds/add (n/construct grid/Grid))
-                 camera       (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
-             (ds/connect background   :renderable      renderer     :renderables)
-             (ds/connect grid         :renderable      renderer     :renderables)
-             (ds/connect camera       :camera          grid         :camera)
-             (ds/connect camera       :camera          renderer     :camera)
-             (ds/connect camera       :self            editor       :controller)
-             (ds/connect editor       :viewport        camera       :viewport)
-             (ds/connect editor       :viewport        renderer     :viewport)
-             (ds/connect renderer     :frame           editor       :frame)
-             )
-           editor)))

@@ -12,8 +12,9 @@
             [internal.disposal :as disp]
             [camel-snake-kebab :as camel]
             [service.log :as log]
-            [editor.scene-editor :as es]
+            [editor.atlas :as atlas]
             [editor.jfx :as jfx]
+            [editor.image-node :as ein]
             )
   (:import  [com.defold.editor Start UIUtil]
             [java.io File]
@@ -275,7 +276,7 @@
       (println "Destory GameProject")
       (ds/delete self)))
 
-(def editor-fns {:atlas es/construct-scene-editor})
+(def editor-fns {:atlas atlas/construct-atlas-editor})
 
 (defn- find-editor-fn [file]
   (let [ext (last (.split file "\\."))
@@ -396,7 +397,11 @@
         game-project (ds/transactional
                        (ds/add
                          (n/construct GameProject
-                                      :node-types {"script" TextNode "clj" clojure/ClojureSourceNode}
+                                      :node-types {"script" TextNode
+                                                   "clj" clojure/ClojureSourceNode
+                                                   "jpg" ein/ImageResourceNode
+                                                   "png" ein/ImageResourceNode
+                                                   "atlas" atlas/AtlasNode}
                                       :content-root content-root)))
         resources       (get-project-paths game-project content-root)
         _ (apply post-load "Loading" (load-resource-nodes game-project resources progress-bar))
