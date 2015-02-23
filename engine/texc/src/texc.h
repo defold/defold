@@ -76,6 +76,7 @@ namespace dmTexc
     DM_TEXC_PROTO(void, Destroy, HTexture texture);
 
     DM_TEXC_PROTO(bool, GetHeader, HTexture texture, Header* out_header);
+    DM_TEXC_PROTO(uint32_t, GetDataSize, HTexture texture, uint32_t mip_map);
     DM_TEXC_PROTO(uint32_t, GetData, HTexture texture, void* out_data, uint32_t out_data_size);
 
     /**

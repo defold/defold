@@ -26,3 +26,4 @@ Export-Package: com.dynamo.bob,
  com.dynamo.bob.textureset,
  com.dynamo.bob.tile,
  com.dynamo.bob.util
+Import-Package: org.slf4j

@@ -41,6 +41,7 @@ public class TexcLibrary {
     public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
+    public static native int TEXC_GetDataSize(Pointer texture, int minMap);
     public static native int TEXC_GetData(Pointer texture, Buffer outData, int maxOutDataSize);
 
     public static native boolean TEXC_Resize(Pointer texture, int width, int height);

@@ -10,6 +10,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 
@@ -126,16 +128,29 @@ public class TextureGenerator {
             newWidth = TextureUtil.closestPOT(newWidth);
             newHeight = TextureUtil.closestPOT(newHeight);
 
+            // Shrink sides until width & height fit max texture size specified in tex profile
             if (maxTextureSize > 0) {
-                while (newWidth > maxTextureSize) {
+                while (newWidth > maxTextureSize || newHeight > maxTextureSize) {
                     newWidth = newWidth / 2;
-                }
-
-                while (newHeight > maxTextureSize) {
                     newHeight = newHeight / 2;
                 }
 
                 assert( newWidth <= maxTextureSize && newHeight <= maxTextureSize );
+            }
+
+            // PVR textures need to be square on iOS
+            if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 ||
+                textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 ||
+                textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 ||
+                textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)
+            {
+
+                Logger logger = LoggerFactory.getLogger(TextureGenerator.class);
+                logger.warn("PVR compressed texture is not square and will be resized.");
+
+                newWidth = Math.max(newWidth, newHeight);
+                newHeight = newWidth;
+
             }
 
             if (width != newWidth || height != newHeight) {
@@ -173,17 +188,19 @@ public class TextureGenerator {
             int w = newWidth;
             int h = newHeight;
             int offset = 0;
+            int mipMap = 0;
             while (w != 0 || h != 0) {
                 w = Math.max(w, 1);
                 h = Math.max(h, 1);
-                int size = w * h * componentCount;
+                int size = TexcLibrary.TEXC_GetDataSize(texture, mipMap);
                 raw.addMipMapOffset(offset);
                 raw.addMipMapSize(size);
                 offset += size;
                 w >>= 1;
                 h >>= 1;
+                mipMap += 1;
 
-                if (!generateMipMaps) // Run only once for non-mipmaps
+                if (!generateMipMaps) // Run section only once for non-mipmaps
                     break;
             }
 
@@ -213,22 +230,17 @@ public class TextureGenerator {
         ColorModel colorModel = origImage.getColorModel();
         TextureImage.Builder textureBuilder = TextureImage.newBuilder();
 
-        if (texProfile != null)
-        {
+        if (texProfile != null) {
 
             // Generate an image for each format specified in the profile
-            int altCount = 0;
-            for ( PlatformProfile platformProfile : texProfile.getPlatformsList())
-            {
-                for ( int i = 0; i < platformProfile.getFormatsList().size(); ++i)
-                {
+            for ( PlatformProfile platformProfile : texProfile.getPlatformsList()) {
+                for ( int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
                     textureFormat = platformProfile.getFormats(i).getFormat();
 
                     try
                     {
                         TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );
                         textureBuilder.addAlternatives(raw);
-                        altCount += 1;
                     } catch (TextureGeneratorException e) {
                         throw e;
                     }
@@ -236,19 +248,14 @@ public class TextureGenerator {
                 }
             }
 
-            if (altCount > 0)
-            {
-                textureBuilder.setCount(altCount);
-            } else {
-                // if no platform alternatives or texture formats was found,
-                // we need to fall back to default texture formats below.
+            textureBuilder.setCount(1);
+            if (textureBuilder.getAlternativesCount() == 0) {
                 texProfile = null;
             }
         }
 
         // If no texture profile was supplied, or no matching format was found
-        if (texProfile == null)
-        {
+        if (texProfile == null) {
 
             // Guess texture format based on number color components of input image
             int componentCount = colorModel.getNumComponents();
