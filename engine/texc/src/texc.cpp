@@ -108,6 +108,13 @@ namespace dmTexc
         }
     }
 
+    uint32_t GetDataSize(HTexture texture, uint32_t mip_map)
+    {
+        pvrtexture::CPVRTexture* t = (pvrtexture::CPVRTexture*)texture;
+        uint32_t size = t->getTextureSize(mip_map) * t->getBitsPerPixel() / 8;
+        return size;
+    }
+
     uint32_t GetData(HTexture texture, void* out_data, uint32_t out_data_size)
     {
         uint8_t* out = (uint8_t*)out_data;
@@ -116,7 +123,7 @@ namespace dmTexc
         uint32_t mip_maps = t->getNumMIPLevels();
         for (uint32_t mip_map = 0; mip_map < mip_maps; ++mip_map)
         {
-            uint32_t size = t->getTextureSize(mip_map) * t->getBitsPerPixel() / 8;
+            uint32_t size = GetDataSize(t, mip_map);
             size = dmMath::Min(size, out_data_size - offset);
             void* data = t->getDataPtr(mip_map);
             memcpy(out, data, size);
@@ -190,6 +197,7 @@ namespace dmTexc
     DM_TEXC_TRAMPOLINE5(HTexture, Create, uint32_t, uint32_t, PixelFormat, ColorSpace, void*);
     DM_TEXC_TRAMPOLINE1(void, Destroy, HTexture);
     DM_TEXC_TRAMPOLINE2(bool, GetHeader, HTexture, Header*);
+    DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSize, HTexture, uint32_t);
     DM_TEXC_TRAMPOLINE3(uint32_t, GetData, HTexture, void*, uint32_t);
     DM_TEXC_TRAMPOLINE3(bool, Resize, HTexture, uint32_t, uint32_t);
     DM_TEXC_TRAMPOLINE1(bool, PreMultiplyAlpha, HTexture);

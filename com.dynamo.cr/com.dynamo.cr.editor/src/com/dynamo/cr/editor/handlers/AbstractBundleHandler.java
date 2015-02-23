@@ -50,7 +50,7 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
     class BundleRunnable implements IRunnableWithProgress {
         private void buildProject(IProject project, int kind, IProgressMonitor monitor) throws CoreException {
 
-        	final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+            final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
 
             HashMap<String, String> bobArgs = new HashMap<String, String>();
             bobArgs.put("archive", "true");
@@ -65,8 +65,6 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
             commands.add("bundle");
             BobUtil.putBobCommands(commands, args);
             project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
-
-
         }
 
         @Override
