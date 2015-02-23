@@ -42,8 +42,6 @@
             [org.eclipse.swt SWT]
             [org.eclipse.ui IEditorSite]))
 
-(def integers (iterate (comp int inc) (int 0)))
-
 (def min-drag-move
   "Minimum number of pixels the mouse must travel to initiate a click-and-drag."
   2)
@@ -96,29 +94,29 @@
   [commands outline-item]
   (update-in outline-item [:commands] concat commands))
 
-(defn disconnect-to-delete-command
-  [{:keys [source-node-ref source-label target-node-ref target-label] :as context}]
-  (ds/transactional (ds/disconnect @source-node-ref source-label @target-node-ref target-label)))
+(declare copy-child-command)
+(declare cut-child-command)
+(declare paste-child-command)
+(declare disconnect-to-delete-command)
 
-(defn clipboard-commands [child-node-ref child-output-label parent-node-ref parent-input-label]
-  [{:label "Copy"   :enabled false :command-fn nil :context nil}
-   {:label "Cut"    :enabled false :command-fn nil :context nil}
-   {:label "Paste"  :enabled false :command-fn nil :context nil}
-   {:label "Delete"
-    :enabled true
-    :command-fn disconnect-to-delete-command
-    :context {:source-node-ref child-node-ref
-              :source-label    child-output-label
-              :target-node-ref parent-node-ref
-              :target-label    parent-input-label}}])
+(defn clipboard-commands [clipboard-ref child-node-ref child-output-label parent-node-ref parent-input-label]
+  (let [context {:clipboard-ref   clipboard-ref
+                 :source-node-ref child-node-ref
+                 :source-label    child-output-label
+                 :target-node-ref parent-node-ref
+                 :target-label    parent-input-label}]
+    [{:label "Copy"   :enabled true :command-fn copy-child-command           :context context}
+     {:label "Cut"    :enabled true :command-fn cut-child-command            :context context}
+     {:label "Paste"  :enabled true :command-fn paste-child-command          :context context}
+     {:label "Delete" :enabled true :command-fn disconnect-to-delete-command :context context}]))
 
 (defnk animation-group-outline-commands [this]
   [{:label "Add Images" :enabled true :command-fn add-images-command :context {:node-ref (node-ref this) :input-label :images}}])
 
-(defnk animation-group-outline-children [this images-outline-children]
+(defnk animation-group-outline-children [this clipboard images-outline-children]
   (map (fn [outline-item]
          (attach-commands-to-outline-item
-           (clipboard-commands (:node-ref outline-item) :content (t/node-ref this) :images)
+           (clipboard-commands clipboard (:node-ref outline-item) :content (t/node-ref this) :images)
            outline-item))
     images-outline-children))
 
@@ -126,6 +124,8 @@
   (inherits n/OutlineNode)
   (output outline-label s/Str (fnk [id] id))
   (output outline-commands [t/OutlineCommand] animation-group-outline-commands)
+
+  (input clipboard s/Any :inject)
 
   (inherits n/AutowireResources)
 
@@ -827,37 +827,20 @@
       (ds/delete compiler))))
 
 (defnk build-atlas-outline-children
-  [this images-outline-children animations-outline-children]
+  [this clipboard images-outline-children animations-outline-children]
   (concat
     (map (fn [outline-item]
            (attach-commands-to-outline-item
-             (clipboard-commands (:node-ref outline-item) :content (t/node-ref this) :images)
+             (clipboard-commands clipboard (:node-ref outline-item) :content (t/node-ref this) :images)
              outline-item))
       images-outline-children)
     (map (fn [outline-item]
            (attach-commands-to-outline-item
-             (clipboard-commands (:node-ref outline-item) :animation (t/node-ref this) :animations)
+             (clipboard-commands clipboard (:node-ref outline-item) :animation (t/node-ref this) :animations)
              outline-item))
       animations-outline-children)))
 
-(defn unique-name [base-name existing-names]
-  (->> (cons nil (rest (range)))
-    (map (partial str base-name))
-    (remove (set existing-names))
-    first))
-
-(defn add-child-node-command
-  [{:keys [node-ref input-label node-type name-property base-name output-label] :as context}]
-  (when-let [target @node-ref]
-    (let [name (->> (ds/sources-of target input-label)
-                    (filter #(= output-label (second %)))
-                    (map (comp name-property first))
-                    (unique-name base-name))
-          project-node (p/project-enclosing target)]
-      (ds/transactional
-        (ds/in project-node
-          (let [child-node (ds/add (n/construct node-type name-property name))]
-            (ds/connect child-node output-label target input-label)))))))
+(declare add-child-node-command)
 
 (defnk atlas-outline-commands [this]
   (concat
@@ -904,6 +887,8 @@
   (inherits n/ResourceNode)
   (inherits n/Saveable)
 
+  (input clipboard s/Any :inject)
+
   (input animations [Animation])
   (input animations-outline-children [OutlineItem])
   (trigger connect-animations-outline-children :input-connections (partial connect-outline-children [:animations] :animations-outline-children))
@@ -936,6 +921,72 @@
     (doto self
       (remove-ancillary-nodes)
       (remove-compiler))))
+
+(defn existing-animation-group-names [atlas-node]
+  (map (comp :id first) (ds/sources-of atlas-node :animations)))
+
+(defn unique-name [orig-name existing-names]
+  (let [[_ base-name num] (re-matches #"^(.*?)([0-9]*)$" orig-name)
+        num (Long. (str "0" num))]
+    (->> (range)
+      (drop (inc num))
+      (map (partial str base-name))
+      (cons orig-name)
+      (remove (set existing-names))
+      first)))
+
+(defn add-child-node-command
+  [{:keys [node-ref input-label node-type name-property base-name output-label] :as context}]
+  (when-let [target @node-ref]
+    (let [name (->> (ds/sources-of target input-label)
+                    (filter #(= output-label (second %)))
+                    (map (comp name-property first))
+                    (unique-name base-name))
+          project-node (p/project-enclosing target)]
+      (ds/transactional
+        (ds/in project-node
+          (let [child-node (ds/add (n/construct node-type name-property name))]
+            (ds/connect child-node output-label target input-label)))))))
+
+(defn duplicate-animation-group-node [atlas-node animation-group-node]
+  (ds/transactional
+    (ds/in (p/project-enclosing atlas-node)
+      (let [name (unique-name (:id animation-group-node) (existing-animation-group-names atlas-node))
+            attrs (reduce (fn [m prop] (assoc m prop (get animation-group-node prop))) {} (keys (t/properties animation-group-node)))
+            new-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (assoc attrs :id name))))]
+        ;; NOTE: Assumes shallow copy of all input connections.
+        (doseq [input (t/inputs animation-group-node)
+                [node output] (ds/sources-of animation-group-node input)]
+          (ds/connect node output new-node input))
+        new-node))))
+
+(defn copy-child-command
+  [{:keys [clipboard-ref source-node-ref source-label] :as context}]
+  (dosync (ref-set clipboard-ref {:node-ref source-node-ref :node-label source-label})))
+
+(defn cut-child-command
+  [{:keys [source-node-ref source-label target-node-ref target-label] :as context}]
+  (copy-child-command context)
+  (disconnect-to-delete-command context))
+
+(defn paste-child-command
+  [{:keys [clipboard-ref target-node-ref] :as context}]
+  (when-let [{source-node-ref :node-ref source-label :node-label} @clipboard-ref]
+    (ds/transactional
+      (condp = [(t/node-type @source-node-ref) (t/node-type @target-node-ref)]
+        [AnimationGroupNode AtlasNode]
+        (let [n (duplicate-animation-group-node @target-node-ref @source-node-ref)]
+          (ds/connect n source-label @target-node-ref :animations))
+
+        [editors.image-node/ImageResourceNode AtlasNode]
+        (ds/connect @source-node-ref source-label @target-node-ref :images)
+
+        [editors.image-node/ImageResourceNode AnimationGroupNode]
+        (ds/connect @source-node-ref source-label @target-node-ref :images)))))
+
+(defn disconnect-to-delete-command
+  [{:keys [source-node-ref source-label target-node-ref target-label] :as context}]
+  (ds/transactional (ds/disconnect @source-node-ref source-label @target-node-ref target-label)))
 
 (defn add-image
   [evt]
