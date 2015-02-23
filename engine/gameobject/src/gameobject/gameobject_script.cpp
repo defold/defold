@@ -1070,7 +1070,7 @@ namespace dmGameObject
     }
 
     /*# deletes a game object instance
-     * <div>Use this function to delete a game object identified by its id.</div>
+     * <div>Delete a game object identified by its id.</div>
      *
      * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
      *
@@ -1093,6 +1093,75 @@ namespace dmGameObject
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance);
+        return 0;
+    }
+
+    /*# deletes a set of game object instance
+     * <div>Delete all game objects simultaneously as listed in table.
+     * The table values (not keys) should be game object ids (hashes).</div>
+     *
+     * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
+     *
+     * @name go.delete_all
+     * @param [ids] table with values of instance ids (hashes) to be deleted
+     * @examples
+     * <p>
+     * An example how to delete game objects listed in a table
+     * </p>
+     * <pre>
+     * -- List the objects to be deleted 
+     * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
+     * go.delete_all(ids)
+     * </pre>
+     * <p>
+     * An example how to delete game objects spawned via a collectionfactory
+     * </p>
+     * <pre>
+     * -- Spawn a collection of game objects.
+     * local ids = collectionfactory.create("#collectionfactory")
+     * ...
+     * -- Delete all objects listed in the table 'ids'.
+     * go.delete_all(ids)
+     * </pre>
+     */
+    int Script_DeleteAll(lua_State* L)
+    {
+        const int top = lua_gettop(L);
+        if (lua_gettop(L) != 1 || !lua_istable(L, 1)) {
+            dmLogWarning("go.delete_all() needs a table as its first argument");
+            return 0;
+        }
+
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+
+        // read table
+        lua_pushnil(L);
+        while (lua_next(L, 1)) {
+
+            // value should be hashes
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, -1, &receiver, 0x0);
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            {
+                luaL_error(L, "function called can only access instances within the same collection.");
+            }
+
+            Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            if (todelete)
+            {
+                dmGameObject::HCollection collection = todelete->m_Collection;
+                dmGameObject::Delete(collection, todelete);
+            }
+            else
+            {
+                dmLogWarning("go.delete_all(): instance could not be resolved");
+            }
+
+            lua_pop(L, 1);
+        }
+
+        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -1216,6 +1285,7 @@ namespace dmGameObject
         {"animate",             Script_Animate},
         {"cancel_animations",   Script_CancelAnimations},
         {"delete",              Script_Delete},
+        {"delete_all",          Script_DeleteAll},
         {"screen_ray",          Script_ScreenRay},
         {"property",            Script_Property},
         {0, 0}
@@ -1390,6 +1460,7 @@ bail:
             return 0;
         }
 
+        lua_pop(L, 1);
         return script;
     }
 

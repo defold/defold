@@ -114,6 +114,7 @@ namespace dmEngine
         dmGameSystem::SpriteContext                 m_SpriteContext;
         dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
         dmGameSystem::FactoryContext                m_FactoryContext;
+        dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
         dmGameSystem::SpineModelContext             m_SpineModelContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
@@ -126,8 +127,8 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
-        bool										m_UseVariableDt;
-        uint64_t									m_PreviousFrameTime;
+        bool                                        m_UseVariableDt;
+        uint64_t                                    m_PreviousFrameTime;
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;

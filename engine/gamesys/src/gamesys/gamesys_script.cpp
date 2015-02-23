@@ -13,6 +13,7 @@
 #include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
 #include "scripts/script_factory.h"
+#include "scripts/script_collection_factory.h"
 #include "scripts/script_spine_model.h"
 
 extern "C"
@@ -42,6 +43,7 @@ namespace dmGameSystem
         ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
         ScriptFactoryRegister(context);
+        ScriptCollectionFactoryRegister(context);
         ScriptSpriteRegister(context);
         ScriptSoundRegister(context);
         ScriptSpineModelRegister(context);
