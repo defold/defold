@@ -26,6 +26,7 @@
 #include "resources/res_input_binding.h"
 #include "resources/res_gamepad_map.h"
 #include "resources/res_factory.h"
+#include "resources/res_collection_factory.h"
 #include "resources/res_light.h"
 #include "resources/res_render_script.h"
 #include "resources/res_render_prototype.h"
@@ -44,6 +45,7 @@
 #include "components/comp_sound.h"
 #include "components/comp_camera.h"
 #include "components/comp_factory.h"
+#include "components/comp_collection_factory.h"
 #include "components/comp_light.h"
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
@@ -100,6 +102,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("input_bindingc", input_context, ResInputBindingCreate, ResInputBindingDestroy, ResInputBindingRecreate);
         REGISTER_RESOURCE_TYPE("gamepadsc", 0, ResGamepadMapCreate, ResGamepadMapDestroy, ResGamepadMapRecreate);
         REGISTER_RESOURCE_TYPE("factoryc", 0, ResFactoryCreate, ResFactoryDestroy, ResFactoryRecreate);
+        REGISTER_RESOURCE_TYPE("collectionfactoryc", 0, ResCollectionFactoryCreate, ResCollectionFactoryDestroy, ResCollectionFactoryRecreate);
         REGISTER_RESOURCE_TYPE("lightc", 0, ResLightCreate, ResLightDestroy, ResLightRecreate);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
@@ -123,6 +126,7 @@ namespace dmGameSystem
                                                 SpriteContext* sprite_context,
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
+                                                CollectionFactoryContext *collectionfactory_context,
                                                 SpineModelContext* spine_model_context)
     {
         dmResource::ResourceType type;
@@ -181,7 +185,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
-                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, 0, &CompCollisionObjectAddToUpdate,
+                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate,
                 &CompCollisionObjectUpdate, 0, &CompCollisionObjectOnMessage, 0, &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty);
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
@@ -213,6 +217,11 @@ namespace dmGameSystem
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
                 CompFactoryCreate, CompFactoryDestroy, 0, 0, 0,
                 0, 0, CompFactoryOnMessage, 0, 0, 0, 0);
+
+        REGISTER_COMPONENT_TYPE("collectionfactoryc", 950, collectionfactory_context,
+                CompCollectionFactoryNewWorld, CompCollectionFactoryDeleteWorld,
+                CompCollectionFactoryCreate, CompCollectionFactoryDestroy, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0);
 
         REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
                 CompLightNewWorld, CompLightDeleteWorld,

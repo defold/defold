@@ -1,0 +1,13 @@
+name: "spawnee"
+instances {
+  id: "spawnee1"
+  prototype: "/collectionfactory/spawnee.go"
+}
+instances {
+  id: "spawnee2"
+  prototype: "/collectionfactory/spawnee.go"
+}
+instances {
+  id: "spawnee3"
+  prototype: "/collectionfactory/spawnee.go"
+}

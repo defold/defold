@@ -122,14 +122,14 @@ public class Bob {
 
         return f.getAbsolutePath();
     }
-    
-    public static String getDmengineExe(Platform platform, boolean release) throws IOException {
-    	if(release) {
-    		return getExe(platform, "dmengine_release");
-    	}
-    	else {
-    		return getExe(platform, "dmengine");
-    	}
+
+    public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
+        if(debug) {
+            return getExe(platform, "dmengine");
+        }
+        else {
+            return getExe(platform, "dmengine_release");
+        }
     }
 
     public static String getLib(String name) throws IOException {
@@ -169,7 +169,7 @@ public class Bob {
         options.addOption("ce", "certificate", true, "Certificate (Android)");
         options.addOption("pk", "private-key", true, "Private key (Android)");
 
-        options.addOption("re", "release", false, "Release mode (when bundling)");
+        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;

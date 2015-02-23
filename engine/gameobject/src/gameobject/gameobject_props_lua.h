@@ -1,5 +1,5 @@
-#ifndef GAMEOBJECT_PROPS_DDF_H
-#define GAMEOBJECT_PROPS_DDF_H
+#ifndef GAMEOBJECT_PROPS_LUA_H
+#define GAMEOBJECT_PROPS_LUA_H
 
 #include <ddf/ddf.h>
 

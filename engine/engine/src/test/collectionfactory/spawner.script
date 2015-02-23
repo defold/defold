@@ -1,0 +1,14 @@
+local count = 3
+
+function init(self, params)
+	local id = collectionfactory.create("#collectionfactory");
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("spawned") then
+		count = count - 1
+		if count == 0 then
+			msg.post("main:/main#script", "done")
+		end
+	end
+end
