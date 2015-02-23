@@ -14,7 +14,8 @@
             [service.log :as log]
             [editor.scene-editor :as es]
             [editor.jfx :as jfx]
-            )
+            [editor.ui :as ui]
+            [editor.graph_view :as graph_view])
   (:import  [com.defold.editor Start UIUtil]
             [java.io File]
             [java.nio.file Paths]
@@ -64,12 +65,6 @@
     (let [image-view (load-image-view name)]
       ((swap! cached-image-views assoc name image-view) name))))
 
-; Events
-(defmacro event-handler [event & body]
-  `(reify EventHandler
-     (handle [this ~event]
-       ~@body)))
-
 (declare tree-item)
 
 ; TreeItem creator
@@ -95,6 +90,7 @@
 (defn- setup-console [root]
   (.appendText (.lookup root "#console") "Hello Console"))
 
+
 ; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj
 (defmacro doseq-indexed
   "loops over a set of values, binding index-sym to the 0-based index of each value"
@@ -114,7 +110,7 @@
 (defmethod create-property-control! String [_ on-new-value]
   (let [text (TextField.)
         setter #(.setText text (str %))]
-    (.setOnAction text (event-handler event (on-new-value (.getText text))))
+    (.setOnAction text (ui/event-handler event (on-new-value (.getText text))))
     [text setter]))
 
 (defn- to-double [s]
@@ -131,7 +127,7 @@
         setter (fn [vec]
                  (doseq-indexed [t [x y z] i]
                    (.setText t (str (nth vec i)))))
-        handler (event-handler event (on-new-value (mapv #(to-double (.getText %)) [x y z])))]
+        handler (ui/event-handler event (on-new-value (mapv #(to-double (.getText %)) [x y z])))]
 
     (doseq [t [x y z]]
       (.setOnAction t handler)
@@ -291,7 +287,7 @@
                (ds/in game-project
                       (let [editor-fn (find-editor-fn (.getName file))]
                         (editor-fn game-project resource-node))))
-        close-handler (event-handler event
+        close-handler (ui/event-handler event
                         (ds/transactional
                           (ds/delete node)))]
 
@@ -341,18 +337,19 @@
     (.setScene stage scene)
 
     (.show stage)
-    (let [handler (event-handler event (println event))]
+    (let [handler (ui/event-handler event (println event))]
       (bind-menus (.lookup root "#menu-bar") handler))
 
-    (let [close-handler (event-handler event
+    (let [close-handler (ui/event-handler event
                           (ds/transactional
                             (ds/delete game-project))
                           (disp/dispose-pending (:state (:world the-system))))
-          dispose-handler (event-handler event (disp/dispose-pending (:state (:world  the-system))))]
+          dispose-handler (ui/event-handler event (disp/dispose-pending (:state (:world  the-system))))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
     (setup-assets-browser game-project root)
+    (graph_view/setup-graph-view root (:world-ref game-project))
     (reset! the-root root)
     root))
 
