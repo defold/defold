@@ -96,10 +96,10 @@
   (.appendText (.lookup root "#console") "Hello Console"))
 
 ; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj
-(defmacro doseq-indexed 
+(defmacro doseq-indexed
   "loops over a set of values, binding index-sym to the 0-based index of each value"
   ([[val-sym values index-sym] & code]
-  `(loop [vals# (seq ~values) 
+  `(loop [vals# (seq ~values)
           ~index-sym (long 0)]
      (if vals#
        (let [~val-sym (first vals#)]
@@ -183,8 +183,8 @@
     (.setHgap grid 4)
     (doseq [[key p] properties]
       (let [row (/ (.size (.getChildren grid)) 2)]
-        (create-properties-row grid node key p row)))    
-    
+        (create-properties-row grid node key p row)))
+
     (.add (.getChildren parent) grid)))
 
 ; Editors
@@ -194,7 +194,7 @@
       (let [btn (Button.)]
         (.setText btn "Curve Editor WIP!")
         (.add (.getChildren (:parent event)) btn)))
-  
+
   t/IDisposable
   (dispose [this]))
 
@@ -203,7 +203,7 @@
   (inherits n/ResourceNode)
 
   (input text s/Str )
-  
+
   (on :create
       (let [textarea (TextArea.)]
         (fill-control textarea)
@@ -216,10 +216,10 @@
 (n/defnode TextNode
   (inherits n/Scope)
   (inherits n/ResourceNode)
-  
+
   (property text s/Str)
   (property a-vector t/Vec3 (default [1 2 3]))
-  
+
   (on :load
       (ds/set-property self :text (slurp (:filename self)))))
 
@@ -253,7 +253,7 @@
 
 (n/defnode GameProject
   (inherits n/Scope)
-  
+
   (property node-types         {s/Str s/Symbol})
   ;TODO: Resource type instead of string?
   (property content-root File)
@@ -287,18 +287,18 @@
         parent (AnchorPane.)
         path (relative-path (:content-root game-project) file)
         resource-node (t/lookup game-project path)
-        node (ds/transactional 
+        node (ds/transactional
                (ds/in game-project
                       (let [editor-fn (find-editor-fn (.getName file))]
                         (editor-fn game-project resource-node))))
         close-handler (event-handler event
-                        (ds/transactional 
+                        (ds/transactional
                           (ds/delete node)))]
 
     (if (satisfies? t/MessageTarget node)
       (let [tab (Tab. (.getName file))]
         (setup-properties root resource-node)
-        
+
         (.setOnClosed tab close-handler)
         (.setGraphic tab (get-image-view "cog.png"))
         (.add (.getTabs tab-pane) tab)
@@ -343,9 +343,9 @@
     (.show stage)
     (let [handler (event-handler event (println event))]
       (bind-menus (.lookup root "#menu-bar") handler))
-    
+
     (let [close-handler (event-handler event
-                          (ds/transactional 
+                          (ds/transactional
                             (ds/delete game-project))
                           (disp/dispose-pending (:state (:world the-system))))
           dispose-handler (event-handler event (disp/dispose-pending (:state (:world  the-system))))]
@@ -411,7 +411,7 @@
   (let [prefs (.node (Preferences/userRoot) "defold")]
     (.put prefs key value)))
 
-(Platform/runLater 
+(Platform/runLater
   (fn []
     (let [pref-key "default-project-file"
           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
