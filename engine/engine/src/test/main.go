@@ -42,6 +42,11 @@ embedded_components {
   data: "collection: \"/factory/test_factory.collection\"\n"
 }
 embedded_components {
+  id: "collectionfactory_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/collectionfactory/test_collectionfactory.collection\"\n"
+}
+embedded_components {
   id: "script_props_proxy"
   type: "collectionproxy"
   data: "collection: \"/script_props/test_script_props.collection\"\n"

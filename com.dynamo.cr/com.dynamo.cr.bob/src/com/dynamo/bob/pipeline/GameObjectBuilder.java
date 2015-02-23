@@ -148,6 +148,7 @@ public class GameObjectBuilder extends Builder<Void> {
         {".script", ".scriptc"},
         {".sound", ".soundc"},
         {".wav", ".soundc"},
+        {".collectionfactory", ".collectionfactoryc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},
         {".sprite", ".spritec"},

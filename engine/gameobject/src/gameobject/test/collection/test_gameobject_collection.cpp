@@ -140,6 +140,86 @@ TEST_F(CollectionTest, Collection)
     }
 }
 
+TEST_F(CollectionTest, CollectionSpawning)
+{
+    // NOTE: Coll is local and not m_Collection in CollectionTest
+    dmGameObject::HCollection coll;
+
+    dmResource::Result r = dmResource::Get(m_Factory, "/empty.collectionc", (void**) &coll);
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_NE((void*) 0, coll);
+
+    dmGameObject::Init(coll);
+
+    Vectormath::Aos::Point3 pos(0,0,0);
+    Vectormath::Aos::Quat rot(0,0,0,1);
+    const float scale = 1.0f;
+
+    bool ret;
+    ret = dmGameObject::Update(coll, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+
+    for (int i=0;i!=10;i++)
+    {
+        dmGameObject::InstanceIdMap output;
+        dmGameObject::InstancePropertyBuffers props;
+
+        bool result = dmGameObject::SpawnFromCollection(coll, "/root1.collectionc", &props, pos, rot, scale, &output);
+        ASSERT_TRUE(result);
+        ASSERT_NE(output.Size(), 0);
+
+        ret = dmGameObject::Update(coll, &m_UpdateContext);
+        ASSERT_TRUE(ret);
+
+        ret = dmGameObject::Update(coll, &m_UpdateContext);
+        ASSERT_TRUE(ret);
+    }
+
+    dmResource::Release(m_Factory, (void*) coll);
+    dmGameObject::PostUpdate(m_Register);
+}
+
+TEST_F(CollectionTest, CollectionSpawningToFail)
+{
+    const uint32_t max = 100;
+
+    dmGameObject::HCollection coll;
+    coll = dmGameObject::NewCollection("TestCollection", m_Factory, m_Register, max);
+    dmGameObject::Init(coll);
+
+    Vectormath::Aos::Point3 pos(0,0,0);
+    Vectormath::Aos::Quat rot(0,0,0,1);
+    const float scale = 1.0f;
+
+    // Spawn until failure
+    bool filled = false;
+    for (int i=0;i<50;i++)
+    {
+        dmGameObject::InstanceIdMap output;
+        dmGameObject::InstancePropertyBuffers props;
+        bool result = dmGameObject::SpawnFromCollection(coll, "/root1.collectionc", &props, pos, rot, scale, &output);
+        if (!result)
+        {
+            ASSERT_NE(i, 0);
+            ASSERT_EQ(output.Size(), 0);
+            filled = true;
+            break;
+        }
+        ASSERT_TRUE(result);
+        ASSERT_NE(output.Size(), 0);
+        bool ret = dmGameObject::Update(coll, &m_UpdateContext);
+        ASSERT_TRUE(ret);
+    }
+
+    dmGameObject::DeleteCollection(coll);
+
+    ASSERT_TRUE(filled);
+    dmGameObject::PostUpdate(m_Register);
+    
+    ASSERT_TRUE(true);
+}
+
+
 TEST_F(CollectionTest, PostCollection)
 {
     for (int i = 0; i < 10; ++i)
