@@ -238,7 +238,7 @@ namespace dmGraphics
         vb->m_Size = size;
         if (size > 0 && data != 0x0)
             memcpy(vb->m_Buffer, data, size);
-        return (uint32_t)vb;
+        return (uintptr_t)vb;
     }
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
@@ -291,7 +291,7 @@ namespace dmGraphics
         ib->m_Copy = 0x0;
         ib->m_Size = size;
         memcpy(ib->m_Buffer, data, size);
-        return (uint32_t)ib;
+        return (uintptr_t)ib;
     }
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
@@ -545,7 +545,7 @@ namespace dmGraphics
         p->m_Data = new char[program_size+1];
         memcpy(p->m_Data, program, program_size);
         p->m_Data[program_size] = '\0';
-        return (uint32_t)p;
+        return (uintptr_t)p;
     }
 
     HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
@@ -555,7 +555,7 @@ namespace dmGraphics
         p->m_Data = new char[program_size+1];
         memcpy(p->m_Data, program, program_size);
         p->m_Data[program_size] = '\0';
-        return (uint32_t)p;
+        return (uintptr_t)p;
     }
 
     void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)

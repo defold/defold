@@ -353,7 +353,7 @@ namespace dmGameObject
 
             if (component_ext != 0x0)
             {
-                uint32_t resource_type;
+                dmResource::ResourceType resource_type;
                 dmResource::Result resource_res = dmResource::GetTypeFromExtension(instance->m_Collection->m_Factory, component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
@@ -826,7 +826,7 @@ namespace dmGameObject
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = component_id;
 
-        int ref = (int)userdata2;
+        int ref = (int) (((uintptr_t) userdata2) & 0xffffffff);
 
         if (finished)
         {
