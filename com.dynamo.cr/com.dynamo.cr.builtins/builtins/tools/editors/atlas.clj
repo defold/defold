@@ -982,7 +982,11 @@
         (ds/connect @source-node-ref source-label @target-node-ref :images)
 
         [editors.image-node/ImageResourceNode AnimationGroupNode]
-        (ds/connect @source-node-ref source-label @target-node-ref :images)))))
+        (ds/connect @source-node-ref source-label @target-node-ref :images)
+
+        [AnimationGroupNode AnimationGroupNode]
+        (let [parent-node (ds/node-consuming @target-node-ref :animation)]
+          (paste-child-command (assoc context :target-node-ref (t/node-ref parent-node))))))))
 
 (defn disconnect-to-delete-command
   [{:keys [source-node-ref source-label target-node-ref target-label] :as context}]
