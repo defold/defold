@@ -946,6 +946,9 @@ namespace dmGameObject
                 {
                     new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
                 }
+
+                // world transforms need to be up to date in time for the script init calls
+                collection->m_WorldTransforms[new_instances[i]->m_Index] = new_instances[i]->m_Transform;
             }
         }
 
