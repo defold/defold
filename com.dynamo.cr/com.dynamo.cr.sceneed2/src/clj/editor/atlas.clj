@@ -20,7 +20,6 @@
             [dynamo.project :as p]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
-            [internal.ui.scene-editor :as ius]
             [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]

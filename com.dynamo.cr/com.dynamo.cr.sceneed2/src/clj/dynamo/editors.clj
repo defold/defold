@@ -1,25 +1,10 @@
 (ns dynamo.editors
-  "This namespace provides the built in editor parts, along with support for building your own editors."
-  (:require [schema.core :as s]
-            [plumbing.core :refer [fnk]]
-            [dynamo.camera :as c]
-            [dynamo.gl :as gl]
-            [dynamo.gl.texture :as texture]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
-            [dynamo.types :as t]
-            [internal.node :as in]
-            [internal.ui.editors :as ie]
-            [internal.ui.scene-editor :as iuse])
-  (:import  [dynamo.types Camera AABB]
-            [java.awt Font]
-            [javax.media.opengl GL2 GLAutoDrawable GLContext GLDrawableFactory GLEventListener]
-            [com.jogamp.opengl.util.awt TextRenderer]))
+  "Not used at present. Kept here for reference until we're done integrating the javafx test branch with the main body of the project."
+)
 
-(set! *warn-on-reflection* true)
-
-(n/defnode Renderer
-  "This node type provides 3D rendering abilities. It should be mixed in to an editor or view node.
+(comment
+  (n/defnode Renderer
+    "This node type provides 3D rendering abilities. It should be mixed in to an editor or view node.
 
 Inputs:
 
@@ -36,55 +21,55 @@ Outputs
 - render-data `dynamo.types/RenderData` - Depth sorted, collated render data. For internal use only.
 - aabb - Passthrough of the aabb input. For internal use only.
 "
-  (input view-camera Camera)
-  (input renderables [t/RenderData])
-  (input aabb        AABB)
+    (input view-camera Camera)
+    (input renderables [t/RenderData])
+    (input aabb        AABB)
 
-  (property context GLContext)
-  (property canvas  GLCanvas)
-  (property text-renderer TextRenderer)
-  (property first-resize s/Bool (default true) (visible false))
+    (property context GLContext)
+    (property canvas  GLCanvas)
+    (property text-renderer TextRenderer)
+    (property first-resize s/Bool (default true) (visible false))
 
-  (output render-data t/RenderData iuse/produce-render-data)
-  (output aabb AABB (fnk [aabb] aabb))
-  (output glcontext GLContext (fnk [context] context))
+    (output render-data t/RenderData iuse/produce-render-data)
+    (output aabb AABB (fnk [aabb] aabb))
+    (output glcontext GLContext (fnk [context] context))
 
-  t/Frame
-  (frame [this]
-    (iuse/paint-renderer
-      (:context this)
-      (:canvas this)
-      this
-      (first (n/get-node-inputs this :view-camera))
-      (:text-renderer this)))
+    t/Frame
+    (frame [this]
+           (iuse/paint-renderer
+            (:context this)
+            (:canvas this)
+            this
+            (first (n/get-node-inputs this :view-camera))
+            (:text-renderer this)))
 
-  (on :resize
-    (let [canvas      (:canvas self)
-          client      (.getClientArea ^GLCanvas canvas)
-          viewport    (t/->Region 0 (.width client) 0 (.height client))
-          aspect      (/ (double (.width client)) (.height client))
-          camera-node (ds/node-feeding-into self :view-camera)
-          camera      (n/get-node-value camera-node :camera)
-          new-camera  (-> camera
-                        (c/set-orthographic (:fov camera)
-                                            aspect
-                                            -100000
-                                            100000)
-                        (assoc :viewport viewport))]
-      (ds/set-property camera-node :camera new-camera)
-      (when (:first-resize self)
-        (ds/set-property self :first-resize false)
-        (ds/send-after self {:type :reframe}))))
+    (on :resize
+        (let [canvas      (:canvas self)
+              client      (.getClientArea ^GLCanvas canvas)
+              viewport    (t/->Region 0 (.width client) 0 (.height client))
+              aspect      (/ (double (.width client)) (.height client))
+              camera-node (ds/node-feeding-into self :view-camera)
+              camera      (n/get-node-value camera-node :camera)
+              new-camera  (-> camera
+                              (c/set-orthographic (:fov camera)
+                                                  aspect
+                                                  -100000
+                                                  100000)
+                              (assoc :viewport viewport))]
+          (ds/set-property camera-node :camera new-camera)
+          (when (:first-resize self)
+            (ds/set-property self :first-resize false)
+            (ds/send-after self {:type :reframe}))))
 
-  (on :reframe
-    (let [camera-node (ds/node-feeding-into self :view-camera)
-          camera      (n/get-node-value camera-node :camera)
-          aabb        (n/get-node-value self :aabb)]
-      (when aabb ;; there exists an aabb to center on
-        (ds/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
+    (on :reframe
+        (let [camera-node (ds/node-feeding-into self :view-camera)
+              camera      (n/get-node-value camera-node :camera)
+              aabb        (n/get-node-value self :aabb)]
+          (when aabb ;; there exists an aabb to center on
+            (ds/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
 
-(n/defnode SceneEditor
-  "SceneEditor is the basis for all 2D orthographic and 3D perspective editors.
+  (n/defnode SceneEditor
+    "SceneEditor is the basis for all 2D orthographic and 3D perspective editors.
 It provides rendering behavior (inherited from Renderer). It also acts as a Scope for
 view-local nodes (e.g., view camera, controller, manipulator).
 
@@ -104,41 +89,41 @@ Messages:
 - :save    - Sent by the GUI when the user wants to save the content
 - :destroy - Clean up
 "
-  (inherits n/Scope)
-  (inherits Renderer)
+    (inherits n/Scope)
+    (inherits Renderer)
 
-  (input controller `t/Node)
+    (input controller `t/Node)
 
-  (input  saveable  s/Keyword)
-  (output saveable  s/Keyword (fnk [saveable] saveable))
+    (input  saveable  s/Keyword)
+    (output saveable  s/Keyword (fnk [saveable] saveable))
 
-  (input  presenter-registry t/Registry)
-  (output presenter-registry t/Registry (fnk [presenter-registry] presenter-registry))
+    (input  presenter-registry t/Registry)
+    (output presenter-registry t/Registry (fnk [presenter-registry] presenter-registry))
 
-  (trigger view-scope :input-connections iuse/send-view-scope-message)
+    (trigger view-scope :input-connections iuse/send-view-scope-message)
 
-  (on :create
-    (let [canvas        (gl/glcanvas (:parent event))
-          factory       (gl/glfactory)
-          _             (.setCurrent canvas)
-          context       (.createExternalGLContext factory)
-          _             (.makeCurrent context)
-          gl            (.. context getGL getGL2)]
-      (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
-      (.release context)
-      (iuse/pipe-events-to-node canvas :resize self)
-      (iuse/start-event-pump canvas self)
-      (texture/initialize gl)
-      (ds/set-property self
-        :context context
-        :canvas canvas
-        :text-renderer (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
+    (on :create
+        (let [canvas        (gl/glcanvas (:parent event))
+              factory       (gl/glfactory)
+              _             (.setCurrent canvas)
+              context       (.createExternalGLContext factory)
+              _             (.makeCurrent context)
+              gl            (.. context getGL getGL2)]
+          (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
+          (.release context)
+          (iuse/pipe-events-to-node canvas :resize self)
+          (iuse/start-event-pump canvas self)
+          (texture/initialize gl)
+          (ds/set-property self
+                           :context context
+                           :canvas canvas
+                           :text-renderer (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
 
-  (on :destroy
-    (when (:context self)
-      (texture/unload-all (.. ^GLContext (:context self) getGL)))
+    (on :destroy
+        (when (:context self)
+          (texture/unload-all (.. ^GLContext (:context self) getGL)))
 
-    (ds/delete self))
+        (ds/delete self))
 
-  (on :save
-    (n/get-node-value self :saveable)))
+    (on :save
+        (n/get-node-value self :saveable))))
