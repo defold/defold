@@ -57,11 +57,16 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
 
         if (EditorUtil.isMac()) {
             Exec.exec("chmod", "+x", getUtilPath("/lib/codesign_allocate"));
+            Exec.exec("chmod", "+x", getUtilPath("/lib/lipo"));
         }
     }
 
     public String getCodeSignAllocatePath() {
         return getUtilPath("/lib/codesign_allocate");
+    }
+
+    public String getLipoPath() {
+        return getUtilPath("/lib/lipo");
     }
 
     private String getUtilPath(String path) {

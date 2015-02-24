@@ -402,7 +402,7 @@ namespace dmSocket
         }
     }
 
-#if !(defined(__MACH__) && defined(__arm__))
+#if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__)))
     Result GetLocalAddress(Address* address)
     {
 #ifdef __ANDROID__

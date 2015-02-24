@@ -349,7 +349,7 @@ namespace dmGameObject
 
     static AnimWorld* GetWorld(HCollection collection)
     {
-        uint32_t resource_type;
+        dmResource::ResourceType resource_type;
         dmResource::Result result = dmResource::GetTypeFromExtension(collection->m_Factory, "animc", &resource_type);
         assert(result == dmResource::RESULT_OK);
         uint32_t component_index;

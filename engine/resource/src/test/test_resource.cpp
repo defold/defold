@@ -66,7 +66,7 @@ TEST_F(ResourceTest, RegisterType)
     ASSERT_EQ(dmResource::RESULT_ALREADY_REGISTERED, e);
 
     // Test get type/extension from type/extension
-    uint32_t type;
+    dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -579,7 +579,7 @@ TEST(RecreateTest, RecreateTest)
     e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    uint32_t type;
+    dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -652,7 +652,7 @@ TEST(RecreateTest, RecreateTestHttp)
     e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    uint32_t type;
+    dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -761,7 +761,7 @@ TEST(FilenameTest, FilenameTest)
     e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    uint32_t type;
+    dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
