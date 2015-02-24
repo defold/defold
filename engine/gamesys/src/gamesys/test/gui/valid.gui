@@ -43,3 +43,4 @@ nodes {
   texture: "test_texture"
   font: "test_font"
 }
+material: "/gui/gui.material"

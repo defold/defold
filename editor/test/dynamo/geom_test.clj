@@ -19,6 +19,15 @@
   (prop/for-all [fuv gen-float]
                 (= (Geometry/toShortUV fuv) (to-short-uv fuv))))
 
+(deftest to-short-uv-problem-cases
+  (testing "Avoid Clojure's off-by-one cases"
+    (are [f-uv s-uv] (= s-uv (Geometry/toShortUV f-uv) (to-short-uv f-uv))
+             0      0
+        1.3785  24804
+        6.3785  24799
+       -9.456  -29875
+      -21.0141   -903)))
+
 (def gen-point (gen/fmap (fn [[x y z]] (Point3d. x y z))
                          (gen/tuple gen/int gen/int gen/int)))
 

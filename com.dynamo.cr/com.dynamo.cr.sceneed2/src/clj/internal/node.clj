@@ -21,8 +21,6 @@
             [inflections.core :refer [plural]]
             [camel-snake-kebab :refer [->kebab-case]]))
 
-(set! *warn-on-reflection* true)
-
 (defn- resource?
   ([property-type]
     (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
@@ -53,41 +51,48 @@
    :node-type (class n)
    :label     l})
 
-(declare get-node-value)
+(declare get-node-value-internal)
 
-(defn get-inputs
+(defn- get-inputs-internal
   "Gets an input (maybe with multiple values) needed to invoke a production function for a node.
 The input to the production function may be one of three things:
 
 1. An input of the node. In this case, the nodes connected to this input are asked to supply their values.
 2. A property of the node. In this case, the property is retrieved directly from the node.
 3. An output of this node or another node. The source node is asked to supply a value for this output. (This recurses back into get-node-value.)"
-  [target-node g target-label]
-  (let [input-schema     (some-> target-node t/input-types target-label)
+  [world target-node target-label]
+  (let [graph            (:graph world)
+        input-schema     (some-> target-node t/input-types target-label)
         output-transform (some-> target-node t/transforms target-label)]
     (cond
       (vector? input-schema)
-      (mapv (fn [[source-node source-label]]
-              (get-node-value (dg/node g source-node) source-label))
-           (lg/sources g (:_id target-node) target-label))
+      (vec
+        (reduce
+          (fn [[world inputs] [source-node source-label]]
+            (let [[world-after input] (get-node-value-internal world (dg/node graph source-node) source-label)]
+              [world-after (e/bind (conj (e/result inputs) (e/result input)))]))
+          [world (e/bind [])] (lg/sources graph (:_id target-node) target-label)))
 
       (not (nil? input-schema))
-      (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
-        (when first-source-node
-          (get-node-value (dg/node g first-source-node) first-source-label)))
+      (let [[first-source-node first-source-label] (first (lg/sources graph (:_id target-node) target-label))]
+        (if first-source-node
+          (let [[world-after value] (get-node-value-internal world (dg/node graph first-source-node) first-source-label)]
+            [world-after value])
+          [world (e/bind nil)]))
 
       (contains? target-node target-label)
-      (get target-node target-label)
+      [world (e/bind (get target-node target-label))]
 
       (not (nil? output-transform))
-      (get-node-value target-node target-label)
+      (let [[world-after value] (get-node-value-internal world target-node target-label)]
+        [world-after value])
 
       :else
       (let [missing (missing-input target-node target-label)]
         (service.log/warn :missing-input missing)
-        missing))))
+        [world (e/bind missing)]))))
 
-(defn collect-inputs
+(defn- collect-inputs-internal
   "Return a map of all inputs needed for the input-schema. The schema will usually
 come from a production-function. Some keys on the schema are handled specially:
 
@@ -97,68 +102,84 @@ come from a production-function. Some keys on the schema are handled specially:
 :project - Look up through enclosing scopes to find a Project node, and attach it to the map
 
 All other keys are passed along to get-inputs for resolution."
-  [node g input-schema]
-  (reduce-kv
-    (fn [m k v]
+  [world node input-schema]
+  (reduce
+    (fn [[world m] [k v]]
       (condp = k
-        :g         (assoc m k g)
-        :this      (assoc m k node)
-        :world     (assoc m k (:world-ref node))
-        :project   (assoc m k (find-enclosing-scope :project node))
-        s/Keyword  m
-        (assoc m k (get-inputs node g k))))
-    {} input-schema))
+        :g         [world (assoc m k (e/bind (:graph world)))]
+        :this      [world (assoc m k (e/bind node))]
+        :world     [world (assoc m k (e/bind (:world-ref node)))]
+        :project   [world (assoc m k (e/bind (find-enclosing-scope :project node)))]
+        s/Keyword  [world m]
+        (let [[world-after v] (get-inputs-internal world node k)]
+          [world-after (assoc m k v)])))
+    [world {}] input-schema))
 
 (defn- pfnk? [f] (contains? (meta f) :schema))
 
-(defn- perform-with-inputs [production-fn node g]
+(defn- perform-with-inputs [world node production-fn]
   (if (pfnk? production-fn)
-    (production-fn (collect-inputs node g (pf/input-schema production-fn)))
-    (t/apply-if-fn production-fn node g)))
+    (let [[world-after inputs] (collect-inputs-internal world node (pf/input-schema production-fn))]
+      [world-after (e/bind (production-fn (map-vals e/result inputs)))])
+    [world (e/bind (t/apply-if-fn production-fn node (:graph world)))]))
 
 (defn- default-substitute-value-fn [v]
   (throw (:exception v)))
 
-(defn perform* [transform node g]
+(defn- perform* [world node transform]
   (let [production-fn       (-> transform :production-fn t/var-get-recursive)
-        substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)]
-    (-> (e/bind (perform-with-inputs production-fn node g))
-        (e/or-else (fn [e] (t/apply-if-fn substitute-value-fn {:exception e :node node}))))))
+        substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)
+        [world-after value] (perform-with-inputs world node production-fn)]
+    [world-after (e/or-else value (fn [e] (t/apply-if-fn substitute-value-fn {:exception e :node node})))]))
 
 (def ^:dynamic *perform-depth* 200)
 
-(defn perform [transform node g]
+(defn- perform [world node transform]
   {:pre [(pos? *perform-depth*)]}
   (binding [*perform-depth* (dec *perform-depth*)]
-    (perform* transform node g)))
+    (perform* world node transform)))
 
-(defn- hit-cache [world-state cache-key value]
-  (dosync (alter world-state update-in [:cache] cache/hit cache-key))
-  value)
+(defn- hit-cache [cache-key [world value]]
+  [(update-in world [:cache] cache/hit cache-key) value])
 
-(defn- miss-cache [world-state cache-key value]
-  (dosync (alter world-state update-in [:cache] cache/miss cache-key value))
-  value)
+(defn- miss-cache [cache-key [world value]]
+  [(update-in world [:cache] cache/miss cache-key value) value])
 
 (defn- produce-value
   "Pull a value from a node. This is called when there is no cached value.
 If the given label does not exist on the node, this will throw an AssertionError."
-  [node g label]
+  [world node label]
   (assert (contains? (t/outputs node) label) (str "There is no transform " label " on node " (:_id node)))
   (let [transform (some-> node t/transforms label)]
     (assert (not= ::abstract transform) )
     (metrics/node-value node label)
-    (perform transform node g)))
+    (perform world node transform)))
 
 (defn- get-node-value-internal
-  [node label]
-  (let [world-state (:world-ref node)]
-    (if-let [cache-key (get-in @world-state [:cache-keys (:_id node) label])]
-      (let [cache (:cache @world-state)]
-        (if (cache/has? cache cache-key)
-            (hit-cache  world-state cache-key (get cache cache-key))
-            (miss-cache world-state cache-key (produce-value node (:graph @world-state) label))))
-      (produce-value node (:graph @world-state) label))))
+  [world node label]
+  (if-let [cache-key (get-in world [:cache-keys (:_id node) label])]
+    (let [cache (:cache world)]
+      (if (cache/has? cache cache-key)
+        (hit-cache  cache-key [world (get cache cache-key)])
+        (miss-cache cache-key (produce-value world node label))))
+    (produce-value world node label)))
+
+(defn- update-cache [world-ref world-before world-after]
+  (dosync
+    (when (= (:world-time world-before) (:world-time @world-ref))
+      (alter world-ref assoc-in [:cache] (:cache world-after)))))
+
+(defn get-inputs [world target-node target-label]
+  (let [[world-after inputs] (get-inputs-internal world target-node target-label)]
+    ;; TODO: assumes `target-node` value is consistent with `world`
+    (update-cache (:world-ref target-node) world world-after)
+    (e/result inputs)))
+
+(defn collect-inputs [world node input-schema]
+  (let [[world-after inputs] (collect-inputs-internal world node input-schema)]
+    ;; TODO: assumes `node` value is consistent with `world`
+    (update-cache (:world-ref node) world world-after)
+    (map-vals e/result inputs)))
 
 (defn get-node-value
   "Get a value, possibly cached, from a node. This is the entry point to the \"plumbing\".
@@ -166,7 +187,12 @@ If the value is cacheable and exists in the cache, then return that value. Other
 produce the value by gathering inputs to call a production function, invoke the function,
 maybe cache the value that was produced, and return it."
   [node label]
-  (e/result (get-node-value-internal node label)))
+  (let [world-ref           (:world-ref node)
+        world-before        @world-ref
+        [world-after value] (get-node-value-internal world-before node label)]
+    ;; TODO: assumes `node` value is consistent with `world-before`
+    (update-cache world-ref world-before world-after)
+    (e/result value)))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
@@ -376,7 +402,7 @@ must be part of a protocol or interface attached to the description."
   (let [{:keys [ns name]} (meta (resolve s))]
     (symbol (str ns) (str name))))
 
-(def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections :modified})
+(def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections})
 
 (defn- node-type-form
   "Translate the sugared `defnode` forms into function calls that
@@ -427,7 +453,7 @@ build the node type description (map). These are emitted where you invoked
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (map-vals t/default-property-value (t/properties' node-type)))
+  (map-vals t/property-default-value (t/properties' node-type)))
 
 (defn classname-for [prefix] (symbol (str prefix "__")))
 
@@ -534,9 +560,13 @@ and protocols that the node type requires."
 ; Intrinsics
 ; ---------------------------------------------------------------------------
 (defn- gather-property [this prop]
-  {:node-id (:_id this)
-   :value (get this prop)
-   :type  (-> this t/properties prop)})
+  (let [type     (-> this t/properties prop)
+        value    (get this prop)
+        problems (t/property-validate type value)]
+    {:node-id             (:_id this)
+     :value               value
+     :type                type
+     :validation-problems problems}))
 
 (defnk gather-properties :- t/Properties
   "Production function that delivers the definition and value

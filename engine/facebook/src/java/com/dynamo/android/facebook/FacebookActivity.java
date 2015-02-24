@@ -2,7 +2,6 @@ package com.dynamo.android.facebook;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import android.app.Activity;
@@ -121,7 +120,7 @@ public class FacebookActivity implements PseudoActivity {
                     }
                 }
             };
-            session.openForRead(new OpenRequest(parent).setPermissions(Collections.singletonList("basic_info"))
+            session.openForRead(new OpenRequest(parent).setPermissions(Arrays.asList("public_profile", "email", "user_friends"))
                     .setCallback(statusCallback));
         } else if (action.equals(Facebook.ACTION_REQ_READ_PERMS)) {
             this.session = Session.getActiveSession();

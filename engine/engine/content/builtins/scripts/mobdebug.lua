@@ -303,10 +303,11 @@ local function stack(start)
     if not source then break end
 
     local src = source.source
-    if src:find("@") == 1 then
+    if src:find("@") == 1 or src:find("=") == 1 then
       src = src:sub(2):gsub("\\", "/")
       if src:find("%./") == 1 then src = src:sub(3) end
     end
+
 
     table.insert(stack, { -- remove basedir from source
       {source.name, removebasedir(src, basedir),
@@ -567,8 +568,8 @@ local function debug_hook(event, line)
       -- Unfortunately, there is no reliable/quick way to figure out
       -- what is the filename and what is the source code.
       -- The following will work if the supplied filename uses Unix path.
-      if file:find("^@") then
-        file = file:gsub("^@", ""):gsub("\\", "/")
+      if file:find("^@") or file:find("^=") then
+        file = file:gsub("^=", ""):gsub("^@", ""):gsub("\\", "/")
         -- need this conversion to be applied to relative and absolute
         -- file names as you may write "require 'Foo'" to
         -- load "foo.lua" (on a case insensitive file system) and breakpoints
@@ -590,14 +591,6 @@ local function debug_hook(event, line)
         end
       end
 
-      -- DEFOLD: Change 'scriptc' into 'script' because of how files are built.
-      --         If that does not update the string, it should be a .lua file
-      --         where we can get paths with . instead of /
-      local old = file
-      file = string.lower(file:gsub("scriptc$", "script"))
-      if old == file then
-            file = file:gsub("%.", "/") .. ".lua"
-      end
       -- set to true if we got here; this only needs to be done once per
       -- session, so do it here to at least avoid setting it for every line.
       seen_hook = true

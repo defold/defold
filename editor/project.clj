@@ -58,11 +58,12 @@
                       "../engine/particle/proto/particle"
                       "../engine/render/proto/render"
                       "../engine/resource/proto"
-                      "../engine/script/proto"
+                      "../engine/script/src"
                       "../engine/vscript/proto"]
 
   :protobuf-includes ["../engine/gamesys/proto"
                       "../engine/ddf/src"
+                      "../engine/script/src"
                       "../tmp/dynamo_home/ext/include"]
 
   :protobuf-exclude  ["../engine/ddf/src/test"]

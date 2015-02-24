@@ -7,8 +7,6 @@
             [internal.system :as is]
             [internal.transaction :as it]))
 
-(set! *warn-on-reflection* true)
-
 (defn clean-world
   []
   (let [report-ch (a/chan (a/dropping-buffer 1))
@@ -41,8 +39,14 @@
     (first (a/alts!! [valch timer]))))
 
 (defn tempfile
-  [prefix suffix auto-delete?]
+  ^java.io.File [prefix suffix auto-delete?]
   (let [f (java.io.File/createTempFile prefix suffix)]
     (when auto-delete?
       (.deleteOnExit f))
     f))
+
+(defn array= [a b]
+  (and
+    (= (class a) (class b))
+    (= (count a) (count b))
+    (every? true? (map = a b))))

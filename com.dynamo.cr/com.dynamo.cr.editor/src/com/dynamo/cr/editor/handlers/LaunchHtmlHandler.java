@@ -1,5 +1,6 @@
 package com.dynamo.cr.editor.handlers;
 
+import java.awt.Desktop;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -8,11 +9,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.awt.Desktop;
 
-import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -30,7 +30,6 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.QualifiedName;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.SubProgressMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorPart;
@@ -40,12 +39,11 @@ import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ProjectProperties;
-import com.dynamo.cr.engine.Engine;
-import com.dynamo.cr.target.bundle.HTML5Bundler;
 
 /**
  * LaunchHtmlHandler:
@@ -57,16 +55,16 @@ import com.dynamo.cr.target.bundle.HTML5Bundler;
 @SuppressWarnings("restriction")
 public class LaunchHtmlHandler extends AbstractHandler {
 
-	private static final String HTML_DIR = "__htmlLaunchDir";
+    private static final String HTML_DIR = "__htmlLaunchDir";
 
-	private ProjectProperties projectProperties = null;
+    private BobProjectProperties projectProperties = null;
 
-	@Override
+    @Override
     public boolean isEnabled() {
         return Activator.getDefault().getBranchClient() != null;
     }
 
-	IProject getActiveProject(ExecutionEvent event) {
+    IProject getActiveProject(ExecutionEvent event) {
         IEditorPart editor = HandlerUtil.getActiveEditor(event);
         if (editor != null) {
             IEditorInput input = editor.getEditorInput();
@@ -80,11 +78,11 @@ public class LaunchHtmlHandler extends AbstractHandler {
         return ResourcesPlugin.getWorkspace().getRoot().getProjects()[0];
     }
 
-	private void loadProjectProperties(IProject project) throws CoreException, IOException, ParseException {
+    private void loadProjectProperties(IProject project) throws CoreException, IOException, ParseException {
         URI projectPropertiesLocation = EditorUtil.getContentRoot(project).getFile("game.project").getRawLocationURI();
         File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0, new NullProgressMonitor());
 
-        ProjectProperties projectProperties = new ProjectProperties();
+        BobProjectProperties projectProperties = new BobProjectProperties();
         FileInputStream in = new FileInputStream(localProjectPropertiesFile);
         try {
             projectProperties.load(in);
@@ -105,25 +103,25 @@ public class LaunchHtmlHandler extends AbstractHandler {
         return new Path(getProjectRoot(project)).append("build").append("default").toPortableString();
     }
 
-	@Override
-	public Object execute(ExecutionEvent event) throws ExecutionException {
-		final Logger logger = LoggerFactory.getLogger(AbstractBundleHandler.class);
+    @Override
+    public Object execute(ExecutionEvent event) throws ExecutionException {
+        final Logger logger = LoggerFactory.getLogger(AbstractBundleHandler.class);
 
-		// save all editors depending on user preferences (this is set to true by default in plugin_customization.ini)
+        // save all editors depending on user preferences (this is set to true by default in plugin_customization.ini)
         BuildUtilities.saveEditors(null);
 
         Job job = new Job("Launching HTML") {
-        	@Override
-        	protected IStatus run(IProgressMonitor monitor) {
+            @Override
+            protected IStatus run(IProgressMonitor monitor) {
                  try {
-                	 IProject project = EditorUtil.getProject();
-                	 loadProjectProperties(project);
+                     IProject project = EditorUtil.getProject();
+                     loadProjectProperties(project);
 
-                	 buildProject(project, IncrementalProjectBuilder.FULL_BUILD, monitor);
+                     buildProject(project, IncrementalProjectBuilder.FULL_BUILD, monitor);
                      int severity = project.findMaxProblemSeverity(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
 
                      if (severity < IMarker.SEVERITY_ERROR) {
-                    	 bundleContent(project);
+                         //bundleContent(project);
                          launchBrowser();
                      }
 
@@ -132,61 +130,60 @@ public class LaunchHtmlHandler extends AbstractHandler {
 
                      return Status.OK_STATUS;
                  } catch (CoreException e) {
-                	 return e.getStatus();
+                     return e.getStatus();
                  } catch (Exception e) {
-                	 final String msg = e.getMessage();
+                     final String msg = e.getMessage();
                      final Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
                      logger.error("Failed to launch HTML application", e);
                      return status;
                  }
-        	}
+            }
         };
         job.setProperty(new QualifiedName("com.dynamo.cr.editor", "build"), true);
         job.schedule();
-		return null;
-	}
+        return null;
+    }
 
-	private void bundleContent(IProject project) throws CoreException, IOException, ConfigurationException {
-		String js = Engine.getDefault().getEnginePath("js-web", true);
-		String projectRoot = getProjectRoot(project);
-		String contentRoot = getCompiledContent(project);
+    private String getEscapedTitle() throws UnsupportedEncodingException {
+        String title = projectProperties.getStringValue("project",  "title", "Unnamed");
+        return URLEncoder.encode(title, "UTF-8").replace("+", "%20");
+    }
 
-		File launchHtmlPath = new File(contentRoot, HTML_DIR);
-		launchHtmlPath.mkdirs();
-		String outputDir = new Path(launchHtmlPath.getAbsolutePath()).toPortableString();
-
-        HTML5Bundler bundler = new HTML5Bundler(projectProperties, js, projectRoot, contentRoot, outputDir);
-        bundler.bundleApplication();
-	}
-
-	private String getEscapedTitle() throws UnsupportedEncodingException {
-		String title = projectProperties.getStringValue("project",  "title", "Unnamed");
-		return URLEncoder.encode(title, "UTF-8").replace("+", "%20");
-	}
-
-	private void launchBrowser() throws IOException, URISyntaxException, UnsupportedOperationException {
+    private void launchBrowser() throws IOException, URISyntaxException, UnsupportedOperationException {
 
         String launchPath = String.format("http://localhost:%3$d/build/default/%1$s/%2$s/%2$s.html", HTML_DIR, getEscapedTitle(), Activator.SERVER_PORT);
         if (Desktop.isDesktopSupported()) {
-        	Desktop desktop = Desktop.getDesktop();
-        	if (desktop.isSupported(Desktop.Action.BROWSE)) {
-        		desktop.browse(new URI(launchPath));
-        	} else {
-        		throw new UnsupportedOperationException("Cannot launch browser");
-        	}
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.BROWSE)) {
+                desktop.browse(new URI(launchPath));
+            } else {
+                throw new UnsupportedOperationException("Cannot launch browser");
+            }
         }
-	}
+    }
 
-	private void buildProject(IProject project, int kind, IProgressMonitor monitor) throws CoreException {
+    private void buildProject(IProject project, int kind, IProgressMonitor monitor) throws CoreException {
         HashMap<String, String> bobArgs = new HashMap<String, String>();
-        bobArgs.put("build_disk_archive", "true");
+        bobArgs.put("archive", "true");
         if (this.projectProperties.getBooleanValue("project", "compress_archive", true)) {
-            bobArgs.put("compress_disk_archive_entries", "true");
+            bobArgs.put("compress", "true");
         }
+
+        File launchHtmlPath = new File(getCompiledContent(project), HTML_DIR);
+        launchHtmlPath.mkdirs();
+        String outputDir = new Path(launchHtmlPath.getAbsolutePath()).toPortableString();
+
+        bobArgs.put("platform", Platform.JsWeb.getPair());
+        bobArgs.put("bundle-output", outputDir);
 
         Map<String, String> args = new HashMap<String, String>();
         args.put("location", "local");
         BobUtil.putBobArgs(bobArgs, args);
+
+        ArrayList<String> commands = new ArrayList<String>();
+        commands.add("bundle");
+        BobUtil.putBobCommands(commands, args);
+
         project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
     }
 

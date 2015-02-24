@@ -26,7 +26,23 @@ namespace dmImage
                 buffer[10] == 0x00);
     }
 
-    Result Load(const void* buffer, uint32 buffer_size, Image* image)
+    void Premultiply(uint8_t* buffer, int width, int height)
+    {
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int index = (y * width + x) * 4;
+                uint32_t a = buffer[index + 3];
+                uint32_t r = (buffer[index + 0] * a + 255) >> 8;
+                uint32_t g = (buffer[index + 1] * a + 255) >> 8;
+                uint32_t b = (buffer[index + 2] * a + 255) >> 8;
+                buffer[index + 0] = r;
+                buffer[index + 1] = g;
+                buffer[index + 2] = b;
+            }
+        }
+    }
+
+    Result Load(const void* buffer, uint32 buffer_size, bool premult, Image* image)
     {
         int x, y, comp;
 
@@ -56,6 +72,9 @@ namespace dmImage
                 break;
             case 4:
                 i.m_Type = TYPE_RGBA;
+                if (premult) {
+                    Premultiply(ret, x, y);
+                }
                 break;
             default:
                 dmLogError("Unexpected number of components in image (%d)", comp);

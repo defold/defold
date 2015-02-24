@@ -1,10 +1,8 @@
 (ns dynamo.buffers
   (:require [schema.core :as s]
             [schema.macros :as sm])
-  (:import [java.nio ByteBuffer ByteOrder]
+  (:import [java.nio Buffer ByteBuffer ByteOrder IntBuffer]
            [com.google.protobuf ByteString]))
-
-(set! *warn-on-reflection* true)
 
 (defn slurp-bytes
   [^ByteBuffer buff]
@@ -24,13 +22,20 @@
 (defn bbuf->string [^ByteBuffer bb] (String. ^bytes (alias-buf-bytes bb) "UTF-8"))
 
 (defprotocol ByteStringCoding
-  (byte-pack [source] "Return a Protocol Buffer compatible byte string from the given source."))
+  (byte-pack ^ByteString [source] "Return a Protocol Buffer compatible byte string from the given source."))
 
-(defn new-buffer [s] (.order (ByteBuffer/allocateDirect s) ByteOrder/LITTLE_ENDIAN))
+(defn- new-buffer [s] (ByteBuffer/allocateDirect s))
 
 (defn new-byte-buffer ^ByteBuffer [& dims] (new-buffer (reduce * 1 dims)))
 
-(defn copy-buffer
+(defn byte-order ^ByteBuffer [order ^ByteBuffer b] (.order b order))
+(def ^ByteBuffer little-endian (partial byte-order ByteOrder/LITTLE_ENDIAN))
+(def ^ByteBuffer big-endian    (partial byte-order ByteOrder/BIG_ENDIAN))
+(def ^ByteBuffer native-order  (partial byte-order (ByteOrder/nativeOrder)))
+
+(defn as-int-buffer ^IntBuffer [^ByteBuffer b] (.asIntBuffer b))
+
+(defn ^ByteBuffer copy-buffer
   [^ByteBuffer b]
   (let [sz      (.capacity b)
         clone   (if (.isDirect b) (ByteBuffer/allocateDirect sz) (ByteBuffer/allocate sz))
@@ -49,5 +54,4 @@
 
 (extend-type ByteBuffer
   ByteStringCoding
-  (byte-pack [buffer] (ByteString/copyFrom buffer)))
-
+  (byte-pack [buffer] (ByteString/copyFrom (.asReadOnlyBuffer buffer))))

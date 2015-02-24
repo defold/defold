@@ -8,8 +8,6 @@
            [com.dynamo.tile.proto Tile$Playback]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
-(set! *warn-on-reflection* true)
-
 ; ----------------------------------------
 ; Protocols here help avoid circular dependencies
 ; ----------------------------------------
@@ -118,15 +116,23 @@
     var-or-value))
 
 (defprotocol PropertyType
-  (property-value-type    [this] "Prismatic schema for property value type")
-  (default-property-value [this])
-  (valid-property-value?  [this v])
-  (property-visible       [this] "If true, this property appears in the UI")
+  (property-value-type    [this]   "Prismatic schema for property value type")
+  (property-default-value [this])
+  (property-validate      [this v] "Returns a possibly-empty seq of messages.")
+  (property-valid-value?  [this v] "If valid, returns nil. If invalid, returns seq of Marker")
+  (property-visible       [this]   "If true, this property appears in the UI")
   (property-tags          [this]))
 
 (defn property-type? [x] (satisfies? PropertyType x))
 
 (def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
+
+(defprotocol Marker
+  "Annotates a location with extra information."
+  (marker-kind     [this] "Keyword denoting the marker's intent")
+  (marker-status   [this] "Keyword denoting the status. Predefined statuses are :error, :information, :ok")
+  (marker-location [this] "Map that must include :node-ref, may include other keys added by the marker's creator.")
+  (marker-message  [this] "Human readable string"))
 
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)
@@ -209,10 +215,13 @@
    mipmap-offsets  :- [Int32]])
 
 (sm/defrecord TextureSetAnimationFrame
-  [image            :- Image ; TODO: is this necessary?
-   vertices         :- [[s/Num]]
-   outline-vertices :- [[s/Num]]
-   tex-coords       :- [[s/Num]]])
+  [image                :- Image ; TODO: is this necessary?
+   vertex-start         :- s/Num
+   vertex-count         :- s/Num
+   outline-vertex-start :- s/Num
+   outline-vertex-count :- s/Num
+   tex-coords-start     :- s/Num
+   tex-coords-count     :- s/Num])
 
 (sm/defrecord TextureSetAnimation
   [id              :- s/Str
@@ -225,7 +234,10 @@
    frames          :- [TextureSetAnimationFrame]])
 
 (sm/defrecord TextureSet
-  [animations :- [TextureSetAnimation]])
+  [animations       :- {s/Str TextureSetAnimation}
+   vertices         :- s/Any #_dynamo.gl.vertex/PersistentVertexBuffer
+   outline-vertices :- s/Any #_dynamo.gl.vertex/PersistentVertexBuffer
+   tex-coords       :- s/Any #_dynamo.gl.vertex/PersistentVertexBuffer])
 
 (defprotocol Pass
   (selection?       [this])
@@ -256,10 +268,17 @@
   Rotation
   (rotation [this] rotation))
 
+(def OutlineCommand
+  {:label      s/Str
+   :enabled    s/Bool
+   :command-fn s/Any
+   :context    s/Any})
+
 (def OutlineItem
   {:label    s/Str
    :icon     Icon
    :node-ref NodeRef
+   :commands [OutlineCommand]
    :children [(s/recursive #'OutlineItem)]})
 
 ; ----------------------------------------

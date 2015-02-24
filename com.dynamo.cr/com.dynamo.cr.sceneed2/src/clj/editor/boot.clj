@@ -157,7 +157,7 @@
         on-new-value (fn [new-val]
                        (let [old-val (key (ds/refresh node))]
                          (when-not (= new-val old-val)
-                           (try (t/valid-property-value? property new-val)
+                           (try (t/property-valid-value? property new-val)
                              (ds/transactional
                                (ds/set-property node key new-val)
                                (@setter-atom new-val))
@@ -420,4 +420,3 @@
       (when project-file
         (set-preference pref-key project-file)
         (load-project (io/file project-file))))))
-

@@ -136,6 +136,7 @@ def transform_gui(task, msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
     font_names = set()
     texture_names = set()
+    msg.material = msg.material.replace(".material", ".materialc")
     for f in msg.fonts:
         font_names.add(f.name)
         f.font = f.font.replace('.font', '.fontc')
@@ -362,8 +363,8 @@ def compile_lua(task):
         script = in_f.read()
         modules = scan_lua(script)
         lua_module = lua_ddf_pb2.LuaModule()
-        lua_module.script = script
-        lua_module.type = lua_ddf_pb2.LuaModule.TYPE_TEXT
+        lua_module.source.script = script
+        lua_module.source.filename = task.inputs[0].srcpath(task.env)
         for m in modules:
             module_file = "/%s.lua" % m.replace(".", "/")
             lua_module.modules.append(m)

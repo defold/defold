@@ -339,12 +339,14 @@
 (defn- dispose-obsoletes
   [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
   (let [candidates (concat
-                     (filter #(and (instance? internal.either.Right %) (t/disposable? (e/result %))) (map #(get cache %) obsolete-cache-keys))
+                     (keep #(when (and % (e/exists? %)) (e/result %)) (map #(get cache %) obsolete-cache-keys))
                      (filter t/disposable? (vals nodes-deleted)))]
     (assoc ctx :values-to-dispose (keep identity candidates))))
 
 (defn- evict-obsolete-caches
   [{:keys [obsolete-cache-keys] :as ctx}]
+  (when *tx-debug*
+    (println (txerrstr ctx "Evicting " (pr-str obsolete-cache-keys))))
   (update-in ctx [:cache] (fn [c] (reduce cache/evict c obsolete-cache-keys))))
 
 (defn- determine-autoupdates
@@ -427,7 +429,7 @@
       ctx
       (recur (one-transaction-pass (assoc ctx :pending pending-actions) current-action) (dec retrigger-count)))))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
+(def tx-report-keys [:status :obsolete-cache-keys :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph.

@@ -131,3 +131,37 @@
     (with-clean-world
       (let [node (ds/transactional (ds/add (n/construct ReflexiveFeedback)))]
         (is (not (lg/connected? (-> world-ref deref :graph) (:_id node) :port (:_id node) :ports)))))))
+
+(n/defnode OutputProvider
+  (inherits n/Scope)
+  (property context s/Int (default 0)))
+
+(n/defnode InputConsumer
+  (input context s/Int :inject))
+
+(defn- create-simulated-project []
+  (ds/transactional (ds/add (n/construct n/Scope :tag :project))))
+
+(deftest adding-nodes-in-nested-scopes
+  (testing "one consumer in a nested scope"
+    (with-clean-world
+     (let [project  (create-simulated-project)
+           provider (ds/transactional
+                      (ds/in (ds/add (n/construct OutputProvider :context 119))
+                        (ds/add (n/construct InputConsumer))
+                        (ds/current-scope)))]
+       (is (= 1 (count (ds/nodes-consuming provider :context)))))))
+
+  (testing "two consumers each in their own nested scope"
+    (with-clean-world
+     (let [project   (create-simulated-project)
+           provider1 (ds/transactional
+                       (ds/in (ds/add (n/construct OutputProvider :context 119))
+                         (ds/add (n/construct InputConsumer))
+                         (ds/current-scope)))
+           provider2 (ds/transactional
+                       (ds/in (ds/add (n/construct OutputProvider :context 113))
+                         (ds/add (n/construct InputConsumer))
+                         (ds/current-scope)))]
+       (is (= 1 (count (ds/nodes-consuming provider1 :context))))
+       (is (= 1 (count (ds/nodes-consuming provider2 :context))))))))

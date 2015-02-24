@@ -37,7 +37,7 @@ public class SpriteTest extends AbstractNodeTest {
 
         String[] paths = {"/test.tileset2", "/invalid.tileset2"};
         String[] contents = {
-                "image: \"/2x5_16_1.png\" tile_width: 1 tile_height: 1 tile_margin: 0 tile_spacing: 0 material_tag: \"tile\"",
+                "image: \"/2x5_16_1.png\" tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 1 material_tag: \"tile\"",
                 "image: \"non_existant\" tile_width: 1 tile_height: 1 tile_margin: 0 tile_spacing: 0 material_tag: \"tile\""
         };
         for (int i = 0; i < paths.length; ++i) {

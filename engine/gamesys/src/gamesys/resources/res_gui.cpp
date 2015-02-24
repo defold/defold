@@ -29,7 +29,7 @@ namespace dmGameSystem
         }
 
         dmGui::HScript script = dmGui::NewScript(gui_context->m_GuiContext);
-        dmGui::Result result = dmGui::SetScript(script, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
+        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source);
         if (result == dmGui::RESULT_OK)
         {
             resource->m_Resource = script;
@@ -73,7 +73,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmGui::Result result = dmGui::SetScript(script, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
+        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source);
         if (result == dmGui::RESULT_OK)
         {
             GuiContext* gui_context = (GuiContext*)context;
@@ -105,6 +105,11 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(buffer, buffer_size, &resource->m_SceneDesc);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
+
+        dmResource::Result fr = dmResource::Get(factory, resource->m_SceneDesc->m_Material, (void**) &resource->m_Material);
+        if (fr != dmResource::RESULT_OK) {
+            return fr;
+        }
 
         if (resource->m_SceneDesc->m_Script != 0x0 && *resource->m_SceneDesc->m_Script != '\0')
         {
@@ -160,6 +165,8 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_SceneDesc);
         if (resource->m_Path)
             free((void*)resource->m_Path);
+        if (resource->m_Material)
+            dmResource::Release(factory, resource->m_Material);
     }
 
     dmResource::Result ResCreateSceneDesc(dmResource::HFactory factory,
@@ -214,6 +221,7 @@ namespace dmGameSystem
             scene_resource->m_Textures.Swap(tmp_scene_resource.m_Textures);
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
+            scene_resource->m_Material = tmp_scene_resource.m_Material;
         }
         else
         {

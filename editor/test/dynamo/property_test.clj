@@ -12,7 +12,8 @@
     (is (var? property-defn))
     (is (identical? (resolve `SomeProperty) property-defn))
     (is (satisfies? t/PropertyType (var-get property-defn)))
-    (is (= s/Any (-> property-defn var-get :value-type))))
+    (is (= s/Any (-> property-defn var-get :value-type)))
+    (is (t/property-visible SomeProperty)))
   (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"\(schema.core/protocol dynamo.property-test/MyProtocol\)"
         (eval '(dynamo.property/defproperty BadProp dynamo.property-test/MyProtocol)))))
 
@@ -47,18 +48,18 @@
 
 (deftest property-type-default-value
   (is (= 42 (:default PropWithDefaultValue)))
-  (is (= 42 (t/default-property-value PropWithDefaultValue)))
-  (is (nil? (t/default-property-value PropWithDefaultValueNil)))
-  (is (=  2 (t/default-property-value PropWithMultipleDefaultValues)))
-  (is (= 23 (t/default-property-value PropWithDefaultValueFn)))
-  (is (= -5 (t/default-property-value PropWithDefaultValueVarAsSymbol)))
-  (is (= -5 (t/default-property-value PropWithDefaultValueVarForm)))
+  (is (= 42 (t/property-default-value PropWithDefaultValue)))
+  (is (nil? (t/property-default-value PropWithDefaultValueNil)))
+  (is (=  2 (t/property-default-value PropWithMultipleDefaultValues)))
+  (is (= 23 (t/property-default-value PropWithDefaultValueFn)))
+  (is (= -5 (t/property-default-value PropWithDefaultValueVarAsSymbol)))
+  (is (= -5 (t/property-default-value PropWithDefaultValueVarForm)))
   (binding [*default-value* 61]
-    (is (= 61 (t/default-property-value PropWithDefaultValueVarAsSymbol)))
-    (is (= 61 (t/default-property-value PropWithDefaultValueVarForm))))
-  (is (= :some-keyword (t/default-property-value PropWithTypeKeyword)))
-  (is (= 'some-symbol (t/default-property-value PropWithTypeSymbol)))
-  (is (nil? (t/default-property-value PropWithoutDefaultValue)))
+    (is (= 61 (t/property-default-value PropWithDefaultValueVarAsSymbol)))
+    (is (= 61 (t/property-default-value PropWithDefaultValueVarForm))))
+  (is (= :some-keyword (t/property-default-value PropWithTypeKeyword)))
+  (is (= 'some-symbol (t/property-default-value PropWithTypeSymbol)))
+  (is (nil? (t/property-default-value PropWithoutDefaultValue)))
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
         (eval '(dynamo.property/defproperty BadProp schema.core/Num (default non-existent-symbol))))))
@@ -66,56 +67,100 @@
 (defproperty PropWithoutValidation s/Any)
 
 (defproperty PropWithValidationFnInline s/Num
-  (validation #(pos? %)))
+  (validate pos #(pos? %)))
 
 (defproperty PropWithValidationFnValue s/Num
-  (validation (every-pred pos? even?)))
+  (validate pos (every-pred pos? even?)))
 
 (defproperty PropWithValidationLiteralTrue s/Num
-  (validation true))
+  (validate any-value true))
 
 (defproperty PropWithValidationLiteralFalse s/Num
-  (validation false))
+  (validate no-value false))
 
 (defproperty PropWithMultipleValidations s/Num
-  (validation pos?)
-  (validation neg?))
+  (validate same-label pos?)
+  (validate same-label neg?))
 
 (defn ^:dynamic *validation-fn* [v] (= 42 v))
 
 (defproperty PropWithValidationVarAsSymbol s/Num
-  (validation *validation-fn*))
+  (validate must-be-the-answer *validation-fn*))
 
 (defproperty PropWithValidationVarForm s/Num
-  (validation #'*validation-fn*))
+  (validate must-be-the-answer #'*validation-fn*))
 
 (deftest property-type-validation
-  (is (true?  (t/valid-property-value? PropWithoutValidation nil)))
-  (is (true?  (t/valid-property-value? PropWithoutValidation 0)))
-  (is (true?  (t/valid-property-value? PropWithoutValidation 1)))
-  (is (false? (t/valid-property-value? PropWithValidationFnInline 0)))
-  (is (true?  (t/valid-property-value? PropWithValidationFnInline 1)))
-  (is (false? (t/valid-property-value? PropWithValidationFnValue 0)))
-  (is (false? (t/valid-property-value? PropWithValidationFnValue 1)))
-  (is (true?  (t/valid-property-value? PropWithValidationFnValue 2)))
-  (is (true?  (t/valid-property-value? PropWithValidationLiteralTrue 0)))
-  (is (true?  (t/valid-property-value? PropWithValidationLiteralTrue 1)))
-  (is (false? (t/valid-property-value? PropWithValidationLiteralFalse 0)))
-  (is (false? (t/valid-property-value? PropWithValidationLiteralFalse 1)))
-  (is (false? (t/valid-property-value? PropWithMultipleValidations +1)))
-  (is (true?  (t/valid-property-value? PropWithMultipleValidations -1)))
-  (is (false? (t/valid-property-value? PropWithValidationVarAsSymbol 23)))
-  (is (true?  (t/valid-property-value? PropWithValidationVarAsSymbol 42)))
-  (is (false? (t/valid-property-value? PropWithValidationVarForm 23)))
-  (is (true?  (t/valid-property-value? PropWithValidationVarForm 42)))
+  (is (true?  (t/property-valid-value? PropWithoutValidation nil)))
+  (is (true?  (t/property-valid-value? PropWithoutValidation 0)))
+  (is (true?  (t/property-valid-value? PropWithoutValidation 1)))
+  (is (false? (t/property-valid-value? PropWithValidationFnInline 0)))
+  (is (true?  (t/property-valid-value? PropWithValidationFnInline 1)))
+  (is (false? (t/property-valid-value? PropWithValidationFnValue 0)))
+  (is (false? (t/property-valid-value? PropWithValidationFnValue 1)))
+  (is (true?  (t/property-valid-value? PropWithValidationFnValue 2)))
+  (is (true?  (t/property-valid-value? PropWithValidationLiteralTrue 0)))
+  (is (true?  (t/property-valid-value? PropWithValidationLiteralTrue 1)))
+  (is (false? (t/property-valid-value? PropWithValidationLiteralFalse 0)))
+  (is (false? (t/property-valid-value? PropWithValidationLiteralFalse 1)))
+  (is (false? (t/property-valid-value? PropWithMultipleValidations +1)))
+  (is (false? (t/property-valid-value? PropWithMultipleValidations -1)))
+  (is (false? (t/property-valid-value? PropWithValidationVarAsSymbol 23)))
+  (is (true?  (t/property-valid-value? PropWithValidationVarAsSymbol 42)))
+  (is (false? (t/property-valid-value? PropWithValidationVarForm 23)))
+  (is (true?  (t/property-valid-value? PropWithValidationVarForm 42)))
   (binding [*validation-fn* #(= 23 %)]
-    (is (true?  (t/valid-property-value? PropWithValidationVarAsSymbol 23)))
-    (is (false? (t/valid-property-value? PropWithValidationVarAsSymbol 42)))
-    (is (true?  (t/valid-property-value? PropWithValidationVarForm 23)))
-    (is (false? (t/valid-property-value? PropWithValidationVarForm 42))))
+    (is (true?  (t/property-valid-value? PropWithValidationVarAsSymbol 23)))
+    (is (false? (t/property-valid-value? PropWithValidationVarAsSymbol 42)))
+    (is (true?  (t/property-valid-value? PropWithValidationVarForm 23)))
+    (is (false? (t/property-valid-value? PropWithValidationVarForm 42))))
+  (is (false? (t/property-valid-value? PropWithValidationFnInline "not an integer")))
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
-        (eval '(dynamo.property/defproperty BadProp schema.core/Num (validation non-existent-symbol))))))
+        (eval '(dynamo.property/defproperty BadProp schema.core/Num (validate bad-case non-existent-symbol))))))
+
+(defn- make-formatter [s]
+  (fn [x] (str x s)))
+
+(defproperty PropWithoutValidationFormatter s/Any
+  (validate must-be-even even?))
+
+(defproperty PropWithValidationFormatterFnInline s/Num
+  (validate must-be-even :message #(str % " is not even") even?))
+
+(defproperty PropWithValidationFormatterFnValue s/Num
+  (validate must-be-even :message (make-formatter " is not even") even?))
+
+(defproperty PropWithValidationFormatterLiteral s/Num
+  (validate must-be-even :message "value must be even" even?))
+
+(defproperty PropWithMultipleValidationsAndFormatters s/Num
+  (validate must-be-even     :message "value must be even" even?)
+  (validate must-be-positive :message "value must be positive" pos?))
+
+(defn ^:dynamic *formatter-fn* [x] (str x " is not even"))
+
+(defproperty PropWithValidationFormatterVarAsSymbol s/Num
+  (validate must-be-even :message *formatter-fn* even?))
+
+(defproperty PropWithValidationFormatterVarForm s/Num
+  (validate must-be-even :message #'*formatter-fn* even?))
+
+(deftest property-type-validation-messages
+  (is (= []                                              (t/property-validate PropWithoutValidationFormatter 4)))
+  (is (= ["invalid value"]                               (t/property-validate PropWithoutValidationFormatter 5)))
+  (is (= ["invalid value"]                               (t/property-validate PropWithoutValidationFormatter "not a number")))
+  (is (= ["5 is not even"]                               (t/property-validate PropWithValidationFormatterFnInline 5)))
+  (is (= ["5 is not even"]                               (t/property-validate PropWithValidationFormatterFnValue 5)))
+  (is (= ["value must be even"]                          (t/property-validate PropWithValidationFormatterLiteral 5)))
+  (is (= ["value must be even"]                          (t/property-validate PropWithMultipleValidationsAndFormatters 5)))
+  (is (= ["value must be positive"]                      (t/property-validate PropWithMultipleValidationsAndFormatters -4)))
+  (is (= ["value must be even" "value must be positive"] (t/property-validate PropWithMultipleValidationsAndFormatters -5)))
+  (is (= ["5 is not even"]                               (t/property-validate PropWithValidationFormatterVarAsSymbol 5)))
+  (is (= ["5 is not even"]                               (t/property-validate PropWithValidationFormatterVarForm 5)))
+  (binding [*formatter-fn* (fn [x] (str x " is odd"))]
+    (is (= ["5 is odd"]                                  (t/property-validate PropWithValidationFormatterVarAsSymbol 5)))
+    (is (= ["5 is odd"]                                  (t/property-validate PropWithValidationFormatterVarForm 5)))))
 
 (defproperty BaseProp s/Num)
 
@@ -123,11 +168,11 @@
   (default 42))
 
 (defproperty BasePropWithValidation s/Num
-  (validation pos?))
+  (validate must-be-pos pos?))
 
 (defproperty BasePropWithDefaultAndValidation s/Num
   (default 42)
-  (validation pos?))
+  (validate must-be-pos pos?))
 
 (defproperty DerivedProp BaseProp)
 
@@ -135,29 +180,29 @@
   (default 23))
 
 (defproperty DerivedPropInheritDefaultOverrideValidation BasePropWithDefault
-  (validation even?))
+  (validate must-be-pos even?))
 
 (defproperty DerivedPropInheritBothOverrideBoth BasePropWithDefaultAndValidation
   (default 23)
-  (validation even?))
+  (validate must-be-pos even?))
 
 (deftest property-type-inheritance
   (is (= s/Num (:value-type DerivedProp)))
   (is (= s/Num (:value-type DerivedPropOverrideDefaultInheritValidation)))
   (is (= s/Num (:value-type DerivedPropInheritDefaultOverrideValidation)))
   (is (= s/Num (:value-type DerivedPropInheritBothOverrideBoth)))
-  (is (= 23 (t/default-property-value DerivedPropOverrideDefaultInheritValidation)))
-  (is (= 42 (t/default-property-value DerivedPropInheritDefaultOverrideValidation)))
-  (is (= 23 (t/default-property-value DerivedPropInheritBothOverrideBoth)))
-  (is (false? (t/valid-property-value? DerivedPropOverrideDefaultInheritValidation 0)))
-  (is (true?  (t/valid-property-value? DerivedPropOverrideDefaultInheritValidation 1)))
-  (is (true?  (t/valid-property-value? DerivedPropOverrideDefaultInheritValidation 2)))
-  (is (true?  (t/valid-property-value? DerivedPropInheritDefaultOverrideValidation 0)))
-  (is (false? (t/valid-property-value? DerivedPropInheritDefaultOverrideValidation 1)))
-  (is (true?  (t/valid-property-value? DerivedPropInheritDefaultOverrideValidation 2)))
-  (is (true?  (t/valid-property-value? DerivedPropInheritBothOverrideBoth 0)))
-  (is (false? (t/valid-property-value? DerivedPropInheritBothOverrideBoth 1)))
-  (is (true?  (t/valid-property-value? DerivedPropInheritBothOverrideBoth 2))))
+  (is (= 23 (t/property-default-value DerivedPropOverrideDefaultInheritValidation)))
+  (is (= 42 (t/property-default-value DerivedPropInheritDefaultOverrideValidation)))
+  (is (= 23 (t/property-default-value DerivedPropInheritBothOverrideBoth)))
+  (is (false? (t/property-valid-value? DerivedPropOverrideDefaultInheritValidation 0)))
+  (is (true?  (t/property-valid-value? DerivedPropOverrideDefaultInheritValidation 1)))
+  (is (true?  (t/property-valid-value? DerivedPropOverrideDefaultInheritValidation 2)))
+  (is (true?  (t/property-valid-value? DerivedPropInheritDefaultOverrideValidation 0)))
+  (is (false? (t/property-valid-value? DerivedPropInheritDefaultOverrideValidation 1)))
+  (is (true?  (t/property-valid-value? DerivedPropInheritDefaultOverrideValidation 2)))
+  (is (false? (t/property-valid-value? DerivedPropInheritBothOverrideBoth 0)))
+  (is (false? (t/property-valid-value? DerivedPropInheritBothOverrideBoth 1)))
+  (is (true?  (t/property-valid-value? DerivedPropInheritBothOverrideBoth 2))))
 
 (defproperty UntaggedProp s/Keyword)
 

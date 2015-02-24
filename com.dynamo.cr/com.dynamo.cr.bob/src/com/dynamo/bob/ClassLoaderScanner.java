@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+import org.apache.commons.io.IOUtils;
+
 public class ClassLoaderScanner implements IClassScanner {
 
     private static void scanDir(File dir, String packageName, Set<String> classes) {
@@ -26,17 +28,20 @@ public class ClassLoaderScanner implements IClassScanner {
         String relPath = pkgname.replace('.', '/');
         String resPath = resource.getPath();
         String jarPath = resPath.replaceFirst("[.]jar[!].*", ".jar").replaceFirst("file:", "");
-        JarFile jarFile;
-        jarFile = new JarFile(jarPath);
-        Enumeration<JarEntry> entries = jarFile.entries();
-        while(entries.hasMoreElements()) {
-            JarEntry entry = entries.nextElement();
-            String entryName = entry.getName();
-            String className = null;
-            if(entryName.endsWith(".class") && entryName.startsWith(relPath) && entryName.length() > (relPath.length() + "/".length())) {
-                className = entryName.replace('/', '.').replace('\\', '.').replace(".class", "");
-                classes.add(className);
+        JarFile jarFile = new JarFile(jarPath);
+        try {
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while(entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                String entryName = entry.getName();
+                String className = null;
+                if(entryName.endsWith(".class") && entryName.startsWith(relPath) && entryName.length() > (relPath.length() + "/".length())) {
+                    className = entryName.replace('/', '.').replace('\\', '.').replace(".class", "");
+                    classes.add(className);
+                }
             }
+        } finally {
+            IOUtils.closeQuietly(jarFile);
         }
     }
 

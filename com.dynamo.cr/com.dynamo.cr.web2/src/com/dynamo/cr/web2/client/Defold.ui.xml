@@ -14,7 +14,7 @@
 	                    <ul class="nav">
 	                        <li><a href="/blog">Blog</a></li>
                             <li><a href="/plans">Plans</a></li>
-	                        <li><a href="/doc">Documentation</a></li>
+	                        <li><a href="http://doc.defold.com">Documentation</a></li>
 	                        <li><a href="/dashboard">Dashboard</a></li>
 	                    </ul>
                         <ul class="nav pull-right">

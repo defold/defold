@@ -1,0 +1,46 @@
+{
+"skeleton": { "hash": "jozzPLnoeyPlKq3FgOWwmXbiU78", "spine": "2.0.23", "width": 152.26, "height": 268.52 },
+"bones": [
+	{ "name": "root" },
+	{ "name": "first_bone", "parent": "root", "y": 86.04 },
+	{ "name": "second_bone", "parent": "first_bone", "y": 82.06 }
+],
+"slots": [
+	{ "name": "images/head", "bone": "second_bone", "attachment": "images/head" }
+],
+"skins": {
+	"default": {
+		"images/head": {
+			"images/head": {
+				"type": "skinnedmesh",
+				"uvs": [ 1, 0.52352, 1, 1, 0, 1, 0, 0.51493, 0, 0, 1, 0 ],
+				"triangles": [ 2, 0, 1, 3, 4, 5, 2, 3, 0, 3, 5, 0 ],
+				"vertices": [ 1, 1, 52, 36.95, 1, 1, 0, 52, 0.03, 1, 1, 0, -64, 0.03, 1, 1, 1, -64, 39.16, 1, 1, 2, -64, 89.99, 1, 1, 2, 52, 89.99, 1 ],
+				"hull": 6
+			}
+		}
+	}
+},
+"animations": {
+	"animation": {
+		"bones": {
+			"first_bone": {
+				"rotate": [
+					{ "time": 0, "angle": 0 },
+					{ "time": 0.5, "angle": 10 },
+					{ "time": 1, "angle": 20 },
+					{ "time": 1.5, "angle": 30 }
+				]
+			},
+			"second_bone": {
+				"rotate": [
+					{ "time": 0, "angle": 0 },
+					{ "time": 0.5, "angle": 10 },
+					{ "time": 1, "angle": 20 },
+					{ "time": 1.5, "angle": 30 }
+				]
+			}
+		}
+	}
+}
+}

@@ -11,6 +11,9 @@ using namespace Vectormath::Aos;
 #include <Carbon/Carbon.h>
 #endif
 
+#include <ddf/ddf.h>
+#include <script/lua_source_ddf.h>
+
 GLuint checker_texture;
 dmGui::HContext g_GuiContext;
 
@@ -20,15 +23,16 @@ void OnWindowResize(int width, int height)
 }
 
 void MyRenderNodes(dmGui::HScene scene,
-                  dmGui::HNode* nodes,
+                  const dmGui::RenderEntry* nodes,
                   const Vectormath::Aos::Matrix4* node_transforms,
                   const Vectormath::Aos::Vector4* node_colors,
+                  const dmGui::StencilScope** stencil_scopes,
                   uint32_t node_count,
                   void* context)
 {
     for (uint32_t i = 0; i < node_count; ++i)
     {
-        dmGui::HNode node = nodes[i];
+        dmGui::HNode node = nodes[i].m_Node;
         Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
         glColor4fv((const GLfloat*)&color);
 
@@ -194,7 +198,13 @@ int main(void)
         fclose(f);
 
         dmGui::AddTexture(scene, "checker", (void*) checker_texture);
-        dmGui::SetScript(script, buf, file_size, script_file);
+
+        dmLuaDDF::LuaSource luaSource;
+        memset(&luaSource, 0x00, sizeof(luaSource));
+        luaSource.m_Script.m_Data = (uint8_t*) buf;
+        luaSource.m_Script.m_Count = file_size;
+        luaSource.m_Filename = script_file;
+        dmGui::SetScript(script, &luaSource);
 
         delete [] buf;
     }

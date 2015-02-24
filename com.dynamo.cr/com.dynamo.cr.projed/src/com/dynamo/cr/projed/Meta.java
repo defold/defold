@@ -13,6 +13,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.projed.KeyMeta.Type;
@@ -107,7 +108,7 @@ public class Meta {
                 IFolder root = EditorUtil.getContentRoot(project);
                 // TODO: Hack until we compile game.project file
                 if (!value.endsWith(".icns") && !value.endsWith(".ico") && !value.endsWith(".png") &&
-                		!value.endsWith(".html") && !value.endsWith(".css")) {
+                    !value.endsWith(".html") && !value.endsWith(".css") && !value.endsWith(".plist") && !value.endsWith(".xml")) {
                     value = value.substring(0, value.length() - 1);
                 }
 
@@ -137,7 +138,7 @@ public class Meta {
     private static void createMeta() {
         categories = new ArrayList<CategoryMeta>();
 
-        InputStream is = Meta.class.getResourceAsStream("meta.properties");
+        InputStream is = Bob.class.getResourceAsStream("meta.properties");
         ProjectProperties pp = new ProjectProperties();
         try {
             pp.load(is);

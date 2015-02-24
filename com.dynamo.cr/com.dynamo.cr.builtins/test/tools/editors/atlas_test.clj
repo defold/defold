@@ -17,8 +17,10 @@
             [dynamo.types :as t]
             [schema.test]
             [editors.atlas :as atlas]
-            [editors.image-node :as image-node])
+            [clojure.pprint :refer [pprint]]
+            [dynamo.file.protobuf :as proto])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
+           [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
            [java.io StringReader]
            [dynamo.types Image]
            [javax.imageio ImageIO]))
@@ -62,40 +64,40 @@
   [atlas]
   (n/get-node-value atlas :text-format))
 
+(n/defnode WildcardImageResourceNode
+  (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [filename] (t/local-name filename)))
+  (property filename (s/protocol t/PathManipulation) (visible false))
+  (output content Image :cached (fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))
+
 (defn test-project
-  []
+  [image-resource-node-type]
   (ds/transactional
     (let [eproj (mock-iproject {})
           project-node (ds/add (n/construct p/Project :eclipse-project eproj))]
       (ds/in project-node
         (p/register-editor "atlas" #'editors.atlas/on-edit)
         (p/register-node-type "atlas" editors.atlas/AtlasNode)
-        (p/register-node-type "png" editors.image-node/ImageResourceNode)
-        (p/register-node-type "jpg" editors.image-node/ImageResourceNode)
+        (p/register-node-type "png" image-resource-node-type)
+        (p/register-node-type "jpg" image-resource-node-type)
         project-node))))
 
 (defn round-trip
   [random-atlas]
   (with-clean-world
-    (let [project-node (test-project)
+    (let [project-node (test-project WildcardImageResourceNode)
           first-gen    (->text (<-text project-node random-atlas))
           second-gen   (->text (<-text project-node first-gen))]
       (= first-gen second-gen))))
 
-;; MTN - Removed on 2014-02-02
-;;
-;; This is failing due to the autowiring work. We now need to have legit image references.
-;;
-;; Sam has a test fixture on its way that we can use to resurrect this test.
-;;
-#_(defspec round-trip-preserves-fidelity
+(defspec round-trip-preserves-fidelity
   10
   (prop/for-all* [atlas] round-trip))
 
 (deftest compilation-to-binary
   (testing "Doesn't throw an exception"
     (with-clean-world
-      (let [project-node (test-project)
+      (let [project-node (test-project WildcardImageResourceNode)
             atlas        (<-text project-node (first (gen/sample (gen/resize 5 atlas) 1)))
             txname       "random-mcnally"
             texturesetc  (tempfile txname "texturesetc" true)
@@ -115,66 +117,191 @@
   (fixture "com.dynamo.cr.builtins" (str "/test/resources/" fixture-name)))
 
 (defnk image-from-fixture [this filename]
-  (if-let [img (ImageIO/read (io/input-stream (builtin-fixture filename)))]
-    (image/make-image filename img)))
+  (let [filename-str (t/local-path filename)]
+    (if-let [img (ImageIO/read (io/input-stream (builtin-fixture filename-str)))]
+      (image/make-image filename-str img))))
 
 (n/defnode FixtureImageResourceNode
+  (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [filename] (t/local-name filename)))
   (property filename (s/protocol t/PathManipulation) (visible false))
-  (output   image Image :cached :substitute-value image/placeholder-image image-from-fixture))
-
-(defn fixture-resource-locator []
-  (let [cache (atom {})
-        ensure-resource-node (fn [cache-map name]
-                                (merge {name (ds/add (n/construct FixtureImageResourceNode :filename name))} cache-map))]
-    (reify t/NamingContext
-     (lookup [this name]
-       (get (swap! cache ensure-resource-node name) name)))))
+  (output content Image :cached :substitute-value image/placeholder-image image-from-fixture))
 
 (defn atlas-from-fixture
-  [atlas-text]
+  [project-node atlas-text]
   (ds/transactional
-    (let [locator (fixture-resource-locator)
-          atlas   (ds/add (n/construct atlas/AtlasNode))]
-      (atlas/construct-ancillary-nodes atlas locator (StringReader. atlas-text))
-      atlas)))
+    (ds/in project-node
+      (let [atlas (ds/add (n/construct atlas/AtlasNode))]
+        (atlas/construct-ancillary-nodes atlas (StringReader. atlas-text))
+        atlas))))
 
 (defn matches-fixture? [fixture-name output-file]
   (let [actual   (slurp output-file)
         expected (slurp (builtin-fixture fixture-name))]
     (= actual expected)))
 
+(defn- texturesetc-fail-message [fixture-name output-file]
+  (with-open [expected-reader (io/input-stream (builtin-fixture fixture-name))
+              actual-reader   (io/input-stream output-file)]
+    (with-out-str
+      (doseq [[label reader] [["EXPECTED" expected-reader] ["ACTUAL" actual-reader]]]
+        (println label)
+        (pprint (-> reader
+                  TextureSetProto$TextureSet/parseFrom
+                  proto/pb->map
+                  (update-in [:vertices]         #(.size %))
+                  (update-in [:atlas-vertices]   #(.size %))
+                  (update-in [:outline-vertices] #(.size %))
+                  (update-in [:tex-coords]       #(.size %))))))))
+
+(def ^:dynamic *record-fixture-path* nil)
+
 (defn verify-atlas-artifacts [fixture-basename]
   (with-clean-world
-    (let [atlas-text  (slurp (builtin-fixture (str fixture-basename ".atlas")))
-          atlas       (atlas-from-fixture atlas-text)
-          texturesetc (tempfile fixture-basename ".texturesetc" true)
-          texturec    (tempfile fixture-basename ".texturec" true)
-          compiler    (ds/transactional
-                        (ds/add
-                          (n/construct atlas/TextureSave
-                            :texture-name        (format "atlases/%s.texturesetc" fixture-basename)
-                            :textureset-filename (file/native-path (.getPath texturesetc))
-                            :texture-filename    (file/native-path (.getPath texturec)))))]
+    (let [project-node (test-project FixtureImageResourceNode)
+          atlas-text   (slurp (builtin-fixture (str fixture-basename ".atlas")))
+          atlas        (atlas-from-fixture project-node atlas-text)
+          texturesetc  (tempfile fixture-basename ".texturesetc" true)
+          texturec     (tempfile fixture-basename ".texturec" true)
+          compiler     (ds/transactional
+                         (ds/add
+                           (n/construct atlas/TextureSave
+                             :texture-name        (str fixture-basename ".texturesetc")
+                             :textureset-filename (file/native-path (.getPath texturesetc))
+                             :texture-filename    (file/native-path (.getPath texturec)))))]
       (ds/transactional (ds/connect atlas :textureset   compiler :textureset))
       (ds/transactional (ds/connect atlas :packed-image compiler :packed-image))
+
       ; TODO: fails when placeholder image is used
       #_(is (= atlas-text (n/get-node-value atlas :text-format)))
       (is (= :ok (n/get-node-value compiler :texturec)))
       (is (= :ok (n/get-node-value compiler :texturesetc)))
-      (is (matches-fixture? (str fixture-basename ".texturesetc") texturesetc))
-      (is (matches-fixture? (str fixture-basename ".texturec")    texturec)))))
+      (is (matches-fixture? (str "build/default/" fixture-basename ".texturesetc") texturesetc)
+        (texturesetc-fail-message (str "build/default/" fixture-basename ".texturesetc") texturesetc))
+      (is (matches-fixture? (str "build/default/" fixture-basename ".texturec") texturec))
+      (when *record-fixture-path*
+        (with-open [w (io/output-stream (str *record-fixture-path* "/" fixture-basename ".texturesetc"))] (io/copy texturesetc w))
+        (with-open [w (io/output-stream (str *record-fixture-path* "/" fixture-basename ".texturec"   ))] (io/copy texturec    w))))))
 
-;; Disable failing test
-;;
-;; Must be updated to use new `mock-iproject` infrastructure.
-;;
-#_(deftest expected-atlas-artifacts
-   (verify-atlas-artifacts "empty")
-   (verify-atlas-artifacts "single-image")
-   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-   #_(verify-atlas-artifacts "single-animation")
-   (verify-atlas-artifacts "empty-animation")
-   (verify-atlas-artifacts "missing-image")
-   (verify-atlas-artifacts "missing-image-in-animation")
-   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-   #_(verify-atlas-artifacts "complex"))
+(deftest expected-atlas-artifacts
+  (verify-atlas-artifacts "atlases/empty")
+  (verify-atlas-artifacts "atlases/single-image")
+  ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
+  #_(verify-atlas-artifacts "atlases/single-animation")
+  (verify-atlas-artifacts "atlases/empty-animation")
+  (verify-atlas-artifacts "atlases/missing-image")
+  (verify-atlas-artifacts "atlases/missing-image-in-animation")
+  ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
+  #_(verify-atlas-artifacts "atlases/complex")
+  (verify-atlas-artifacts "atlases/single-image-multiple-references")
+  (verify-atlas-artifacts "atlases/single-image-multiple-references-in-animation")
+  (verify-atlas-artifacts "atlases/missing-image-multiple-references")
+  (verify-atlas-artifacts "atlases/missing-image-multiple-references-in-animation"))
+
+(comment
+  ; re-record fixtures
+  (binding [*record-fixture-path* (str (System/getenv "HOME") "/src/defold/com.dynamo.cr/com.dynamo.cr.builtins/test/resources/build/default")]
+    (expected-atlas-artifacts))
+  )
+
+(defn simple-outline [outline-tree]
+  [(:label outline-tree) (map simple-outline (:children outline-tree))])
+
+(deftest outline
+  (with-clean-world
+    (let [project-node (test-project FixtureImageResourceNode)
+          atlas-text   (slurp (builtin-fixture "atlases/complex.atlas"))
+          atlas        (atlas-from-fixture project-node atlas-text)]
+      (is (= ["Atlas" [["frame-01.png" []]
+                       ["frame-02.png" []]
+                       ["small.png" []]
+                       ["large.png" []]
+                       ["anim1" [["frame-01.png" []]]]
+                       ["anim2" [["frame-02.png" []]]]
+                       ["anim3" [["frame-03.png" []]]]
+                       ["anim4" [["frame-01.png" []]
+                                 ["frame-02.png" []]
+                                 ["frame-03.png" []]]]]]
+            (simple-outline (n/get-node-value atlas :outline-tree))))))
+  (with-clean-world
+    (let [project-node (test-project FixtureImageResourceNode)
+          atlas-text   (slurp (builtin-fixture "atlases/single-animation.atlas"))
+          atlas        (atlas-from-fixture project-node atlas-text)
+          anim1        (ffirst (ds/sources-of (:graph @world-ref) atlas :animations))
+          img-frame-01 (t/lookup project-node "/images/frame-01.png")
+          img-frame-02 (t/lookup project-node "/images/frame-02.png")
+
+          ; initial load
+          outline1     (n/get-node-value atlas :outline-tree)
+
+          ; disconnect image from anim
+          atlas        (ds/transactional (ds/disconnect img-frame-02 :content anim1 :images) atlas)
+          outline2     (n/get-node-value atlas :outline-tree)
+
+          ; disconnect anim
+          atlas        (ds/transactional (ds/disconnect anim1 :animation atlas :animations) atlas)
+          outline3     (n/get-node-value atlas :outline-tree)
+
+          ; connect existing image
+          atlas        (ds/transactional (ds/connect img-frame-01 :content atlas :images) atlas)
+          outline4     (n/get-node-value atlas :outline-tree)
+
+          ; disconnect image
+          atlas        (ds/transactional (ds/disconnect img-frame-01 :content atlas :images) atlas)
+          outline5     (n/get-node-value atlas :outline-tree)
+
+          ; add anim
+          anim2        (ds/transactional (ds/add (n/construct atlas/AnimationGroupNode :id "anim2")))
+          atlas        (ds/transactional (ds/connect anim2 :animation atlas :animations) atlas)
+          outline6     (n/get-node-value atlas :outline-tree)
+
+          ; connect image to anim
+          img-small    (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/small.png")))))
+          atlas        (ds/transactional (ds/connect img-small    :content anim2 :images) atlas)
+          atlas        (ds/transactional (ds/connect img-frame-01 :content anim2 :images) atlas)
+          outline7     (n/get-node-value atlas :outline-tree)
+
+          ; connect missing (placeholder) image
+          img-missing  (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/missing.png")))))
+          atlas        (ds/transactional (ds/connect img-missing :content anim2 :images) atlas)
+          outline8     (n/get-node-value atlas :outline-tree)
+
+          ; connect another missing (placeholder) image
+          img-missing2 (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/missing2.png")))))
+          atlas        (ds/transactional (ds/connect img-missing2 :content anim2 :images) atlas)
+          outline9     (n/get-node-value atlas :outline-tree)
+
+          ; disconnect placeholder
+          atlas        (ds/transactional (ds/disconnect img-missing :content anim2 :images) atlas)
+          outline10    (n/get-node-value atlas :outline-tree)
+
+          ; connect duplicate existing image
+          atlas        (ds/transactional (ds/connect img-frame-01 :content anim2 :images) atlas)
+          outline11    (n/get-node-value atlas :outline-tree)
+
+          ; disconnect duplicate existing image
+          atlas        (ds/transactional (ds/disconnect img-frame-01 :content anim2 :images) atlas)
+          outline12    (n/get-node-value atlas :outline-tree)
+
+          ; connect duplicate missing (placeholder) image
+          atlas        (ds/transactional (ds/connect img-missing2 :content anim2 :images) atlas)
+          outline13    (n/get-node-value atlas :outline-tree)
+
+          ; disconnect duplicate missing (placeholder) image
+          atlas        (ds/transactional (ds/disconnect img-missing2 :content anim2 :images) atlas)
+          outline14    (n/get-node-value atlas :outline-tree)]
+      (are [outline-tree expected] (= expected (simple-outline outline-tree))
+        outline1  ["Atlas" [["anim1" [["frame-01.png" []] ["frame-02.png" []] ["frame-03.png" []]]]]]
+        outline2  ["Atlas" [["anim1" [["frame-01.png" []] ["frame-03.png" []]]]]]
+        outline3  ["Atlas" []]
+        outline4  ["Atlas" [["frame-01.png" []]]]
+        outline5  ["Atlas" []]
+        outline6  ["Atlas" [["anim2" []]]]
+        outline7  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []]]]]]
+        outline8  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing.png" []]]]]]
+        outline9  ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing.png" []] ["missing2.png" []]]]]]
+        outline10 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]
+        outline11 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] ["frame-01.png" []]]]]]
+        outline12 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]
+        outline13 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] ["missing2.png" []]]]]]
+        outline14 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]))))

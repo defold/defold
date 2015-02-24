@@ -1,4 +1,6 @@
 (ns dynamo.gl
+  "Expose some GL functions and constants with Clojure-ish flavor"
+  (:refer-clojure :exclude [repeat])
   (:require [dynamo.gl.protocols :as p])
   (:import [java.awt Font]
            [java.util WeakHashMap]
@@ -8,8 +10,6 @@
            [javax.vecmath Matrix4d]
            [javax.media.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
-
-(set! *warn-on-reflection* true)
 
 (defn gl-version-info [^GL2 gl]
   {:vendor                   (.glGetString gl GL2/GL_VENDOR)
@@ -45,6 +45,7 @@
 
 (defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~gl ~face ~mode))
 
+(defmacro gl-active-texture [gl texunit]                                 `(.glActiveTexture ~gl ~texunit))
 (defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~gl ~shader ~name))
 (defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~gl ~type ~name))
 (defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~gl ~type ~size ~data ~usage))
@@ -182,6 +183,34 @@
 (defmacro glu-ortho [glu region]
   `(.gluOrtho2D ~glu (double (.left ~region)) (double (.right ~region)) (double (.bottom ~region)) (double (.top ~region))))
 
+(def red                    GL2/GL_RED)
+(def green                  GL2/GL_GREEN)
+(def blue                   GL2/GL_BLUE)
+(def alpha                  GL2/GL_ALPHA)
+(def zero                   GL2/GL_ZERO)
+(def one                    GL2/GL_ONE)
+(def lequal                 GL2/GL_LEQUAL)
+(def gequal                 GL2/GL_GEQUAL)
+(def less                   GL2/GL_LESS)
+(def greater                GL2/GL_GREATER)
+(def equal                  GL2/GL_EQUAL)
+(def notequal               GL2/GL_NOTEQUAL)
+(def always                 GL2/GL_ALWAYS)
+(def never                  GL2/GL_NEVER)
+(def clamp_to_edge          GL2/GL_CLAMP_TO_EDGE)
+(def clamp_to_border        GL2/GL_CLAMP_TO_BORDER)
+(def mirrored_repeat        GL2/GL_MIRRORED_REPEAT)
+(def repeat                 GL2/GL_REPEAT)
+(def clamp                  GL2/GL_CLAMP)
+(def compare-ref-to-texture GL2/GL_COMPARE_REF_TO_TEXTURE)
+(def none                   GL2/GL_NONE)
+(def nearest                GL2/GL_NEAREST)
+(def linear                 GL2/GL_LINEAR)
+(def nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST)
+(def linear-mipmap-nearest  GL2/GL_LINEAR_MIPMAP_NEAREST)
+(def nearest-mipmap-linear  GL2/GL_NEAREST_MIPMAP_LINEAR)
+(def linear-mipmap-linear   GL2/GL_LINEAR_MIPMAP_LINEAR)
+
 (defn ^"[I" viewport-array [viewport]
   (int-array [(:left viewport)
               (:top viewport)
@@ -210,20 +239,21 @@
     (.end3DRendering text-renderer)))
 
 (defn select-buffer-names
-  [hit-count ^IntBuffer select-buffer]
   "Returns a collection of names from a GL_SELECT buffer.
-  Names are integers assigned during rendering with glPushName and glPopName.
-  The select-buffer contains a series of 'hits' where each hit
-  is [name-count min-z max-z & names+]. In our usage, names may not be
-  nested so name-count must always be one."
+   Names are integers assigned during rendering with glPushName and glPopName.
+   The select-buffer contains a series of 'hits' where each hit
+   is [name-count min-z max-z & names+]. In our usage, names may not be
+   nested so name-count must always be one."
+  [hit-count ^IntBuffer select-buffer]
   (loop [i 0
          ptr 0
          names []]
     (if (< i hit-count)
       (let [name-count (.get select-buffer ptr)
             name (.get select-buffer (+ ptr 3))]
-        (assert (= 1 name-count) "Count of names in a hit record must be one")
-        (recur (inc i)
-               (+ ptr 3 name-count)
-               (conj names name)))
+        (assert (>= 1 name-count) (str "Count of names in a hit record must be no more than one, was " name-count))
+        (when (< 0 name-count)
+          (recur (inc i)
+            (+ ptr 3 name-count)
+            (conj names name))))
       names)))

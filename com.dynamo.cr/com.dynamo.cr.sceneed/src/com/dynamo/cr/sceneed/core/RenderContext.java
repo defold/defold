@@ -187,7 +187,7 @@ public class RenderContext {
     }
 
     // NOTE: We hard-code colors for now
-    private static float OBJECT_COLOR[] = new float[] { 43.0f/255, 25.0f/255, 116.0f/255 };
+    private static float OBJECT_OUTLINE_COLOR[] = new float[] { 43.0f/255, 25.0f/255, 116.0f/255 };
     private static float SELECTED_COLOR[] = new float[] { 69.0f/255, 255.0f/255, 162.0f/255 };
 
     public boolean isSelected(Node node) {
@@ -213,7 +213,7 @@ public class RenderContext {
             if (isSelected(node)) {
                 return SELECTED_COLOR;
             } else {
-                return OBJECT_COLOR;
+                return OBJECT_OUTLINE_COLOR;
             }
         case TRANSPARENT:
             return objectColor;

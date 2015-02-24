@@ -92,6 +92,22 @@ namespace dmGui
      */
     typedef void (*GetTextMetricsCallback)(const void* font, const char* text, float width, bool line_break, TextMetrics* out_metrics);
 
+    /**
+     * Stencil clipping render state
+     */
+    struct StencilScope
+    {
+        /// Stencil reference value
+        uint8_t     m_RefVal;
+        /// Stencil test mask
+        uint8_t     m_TestMask;
+        /// Stencil write mask
+        uint8_t     m_WriteMask;
+        /// Color mask (R,G,B,A)
+        uint8_t     m_ColorMask : 4;
+        uint8_t     m_Padding : 4;
+    };
+
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
 
@@ -136,10 +152,11 @@ namespace dmGui
         PROPERTY_OUTLINE    = 5,
         PROPERTY_SHADOW     = 6,
         PROPERTY_SLICE9     = 7,
+        PROPERTY_PIE_PARAMS = 8,
 
-        PROPERTY_RESERVED   = 8,
+        PROPERTY_RESERVED   = 9,
 
-        PROPERTY_COUNT      = 9,
+        PROPERTY_COUNT      = 10,
     };
 
     enum Playback
@@ -165,10 +182,19 @@ namespace dmGui
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here
+    enum ClippingMode
+    {
+        CLIPPING_MODE_NONE    = 0,
+        CLIPPING_MODE_STENCIL = 2,
+    };
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
     enum NodeType
     {
         NODE_TYPE_BOX  = 0,
         NODE_TYPE_TEXT = 1,
+        NODE_TYPE_PIE  = 2,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -211,6 +237,14 @@ namespace dmGui
         ADJUST_MODE_FIT     = 0,
         ADJUST_MODE_ZOOM    = 1,
         ADJUST_MODE_STRETCH = 2,
+    };
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
+    enum PieBounds
+    {
+        PIEBOUNDS_RECTANGLE = 0,
+        PIEBOUNDS_ELLIPSE   = 1,
     };
 
     /**
@@ -256,6 +290,11 @@ namespace dmGui
         uint16_t m_PositionSet : 1;
     };
 
+    struct RenderEntry {
+        uint32_t m_RenderKey;
+        HNode m_Node;
+    };
+
     /**
      * Render nodes callback
      * @param scene
@@ -263,12 +302,14 @@ namespace dmGui
      * @param node_transforms
      * @param node_colors
      * @param node_count
+     * @param stencil_clipping_render_states
      * @param context
      */
     typedef void (*RenderNodes)(HScene scene,
-                               HNode* nodes,
+                               const RenderEntry* node_entries,
                                const Vectormath::Aos::Matrix4* node_transforms,
                                const Vectormath::Aos::Vector4* node_colors,
+                               const StencilScope** node_stencils,
                                uint32_t node_count,
                                void* context);
 
@@ -409,6 +450,19 @@ namespace dmGui
      * @param scene Scene to clear from fonts
      */
     void ClearFonts(HScene scene);
+
+    /**
+     * Set scene material
+     * @param scene
+     * @param material
+     */
+    void SetMaterial(HScene scene, void* material);
+
+    /**
+     * Get scene material
+     * @param scene
+     */
+    void* GetMaterial(HScene scene);
 
     /**
      * Adds a layer with the specified name to the scene.
@@ -592,6 +646,54 @@ namespace dmGui
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
+    /**
+     * Set node clipping mode
+     * @param scene scene
+     * @param node node
+     * @param mode ClippingMode enumerated type
+     */
+    void SetNodeClippingMode(HScene scene, HNode node, ClippingMode mode);
+
+    /**
+     * Get node clipping state.
+     * @param scene scene
+     * @param node node
+     * @return mode
+     */
+    ClippingMode GetNodeClippingMode(HScene scene, HNode node);
+
+    /**
+     * Set node clipping visibilty
+     * @param scene scene
+     * @param node node
+     * @param visible true to show clipping node, false for invisible clipper
+     */
+    void SetNodeClippingVisible(HScene scene, HNode node, bool visible);
+
+    /**
+     * Get node clipping visibilty
+     * @param scene scene
+     * @param node node
+     * @return true if clipping node visible, false for invisible clipper
+     */
+    bool GetNodeClippingVisible(HScene scene, HNode node);
+
+    /**
+     * Set node clipping inverted
+     * @param scene scene
+     * @param node node
+     * @param inverted true to invert clipping node (exlusive), false for default (inclusive) clipping
+     */
+    void SetNodeClippingInverted(HScene scene, HNode node, bool inverted);
+
+    /**
+     * Get node clipping inverted setting
+     * @param scene scene
+     * @param node node
+     * @return true if clipping is inverted (exclusive), false for default (inclusive) clipping
+     */
+    bool GetNodeClippingInverted(HScene scene, HNode node);
+
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics);
 
@@ -606,6 +708,16 @@ namespace dmGui
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
+
+    void SetNodeInnerRadius(HScene scene, HNode node, float radius);
+    void SetNodeOuterBounds(HScene scene, HNode node, PieBounds bounds);
+    void SetNodePieFillAngle(HScene scene, HNode node, float fill_angle);
+    void SetNodePerimeterVertices(HScene scene, HNode node, uint32_t vertices);
+
+    float GetNodeInnerRadius(HScene scene, HNode node);
+    PieBounds GetNodeOuterBounds(HScene scene, HNode node);
+    float GetNodePieFillAngle(HScene scene, HNode node);
+    uint32_t GetNodePerimeterVertices(HScene scene, HNode node);
 
     /**
      * Convenience method, converting a dmGui::Property value into a hash value suitable for use
@@ -703,7 +815,7 @@ namespace dmGui
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);
-    Result SetScript(HScript script, const char* source, uint32_t source_length, const char* filename);
+    Result SetScript(HScript script, dmLuaDDF::LuaSource *source);
 
     /** Gets the lua state used for gui scripts.
      * @return lua state

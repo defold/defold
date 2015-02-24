@@ -2,11 +2,13 @@
 
 #include <map>
 
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 
 #include <resource/resource.h>
 
 #include "../gameobject.h"
+#include "../gameobject_private.h"
 
 #include "gameobject/test/component/test_gameobject_component_ddf.h"
 
@@ -51,6 +53,8 @@ protected:
         a_type.m_Context = this;
         a_type.m_CreateFunction = AComponentCreate;
         a_type.m_InitFunction = AComponentInit;
+        a_type.m_AddToUpdateFunction = AComponentAddToUpdate;
+        a_type.m_FinalFunction = AComponentFinal;
         a_type.m_DestroyFunction = AComponentDestroy;
         a_type.m_UpdateFunction = AComponentsUpdate;
         a_type.m_InstanceHasUserData = true;
@@ -67,6 +71,8 @@ protected:
         b_type.m_Context = this;
         b_type.m_CreateFunction = BComponentCreate;
         b_type.m_InitFunction = BComponentInit;
+        b_type.m_AddToUpdateFunction = BComponentAddToUpdate;
+        b_type.m_FinalFunction = BComponentFinal;
         b_type.m_DestroyFunction = BComponentDestroy;
         b_type.m_UpdateFunction = BComponentsUpdate;
         result = dmGameObject::RegisterComponentType(m_Register, b_type);
@@ -82,6 +88,8 @@ protected:
         c_type.m_Context = this;
         c_type.m_CreateFunction = CComponentCreate;
         c_type.m_InitFunction = CComponentInit;
+        c_type.m_AddToUpdateFunction = CComponentAddToUpdate;
+        c_type.m_FinalFunction = CComponentFinal;
         c_type.m_DestroyFunction = CComponentDestroy;
         c_type.m_UpdateFunction = CComponentsUpdate;
         c_type.m_InstanceHasUserData = true;
@@ -100,30 +108,36 @@ protected:
         dmGameObject::PostUpdate(m_Register);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
-        dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
+        dmResource::DeleteFactory(m_Factory);
     }
 
-    static dmResource::FResourceCreate    ACreate;
-    static dmResource::FResourceDestroy   ADestroy;
-    static dmGameObject::ComponentCreate  AComponentCreate;
-    static dmGameObject::ComponentInit    AComponentInit;
-    static dmGameObject::ComponentDestroy AComponentDestroy;
-    static dmGameObject::ComponentsUpdate AComponentsUpdate;
+    static dmResource::FResourceCreate          ACreate;
+    static dmResource::FResourceDestroy         ADestroy;
+    static dmGameObject::ComponentCreate        AComponentCreate;
+    static dmGameObject::ComponentInit          AComponentInit;
+    static dmGameObject::ComponentFinal         AComponentFinal;
+    static dmGameObject::ComponentDestroy       AComponentDestroy;
+    static dmGameObject::ComponentAddToUpdate   AComponentAddToUpdate;
+    static dmGameObject::ComponentsUpdate       AComponentsUpdate;
 
-    static dmResource::FResourceCreate    BCreate;
-    static dmResource::FResourceDestroy   BDestroy;
-    static dmGameObject::ComponentCreate  BComponentCreate;
-    static dmGameObject::ComponentInit    BComponentInit;
-    static dmGameObject::ComponentDestroy BComponentDestroy;
-    static dmGameObject::ComponentsUpdate BComponentsUpdate;
+    static dmResource::FResourceCreate          BCreate;
+    static dmResource::FResourceDestroy         BDestroy;
+    static dmGameObject::ComponentCreate        BComponentCreate;
+    static dmGameObject::ComponentInit          BComponentInit;
+    static dmGameObject::ComponentFinal         BComponentFinal;
+    static dmGameObject::ComponentDestroy       BComponentDestroy;
+    static dmGameObject::ComponentAddToUpdate   BComponentAddToUpdate;
+    static dmGameObject::ComponentsUpdate       BComponentsUpdate;
 
-    static dmResource::FResourceCreate    CCreate;
-    static dmResource::FResourceDestroy   CDestroy;
-    static dmGameObject::ComponentCreate  CComponentCreate;
-    static dmGameObject::ComponentInit    CComponentInit;
-    static dmGameObject::ComponentDestroy CComponentDestroy;
-    static dmGameObject::ComponentsUpdate CComponentsUpdate;
+    static dmResource::FResourceCreate          CCreate;
+    static dmResource::FResourceDestroy         CDestroy;
+    static dmGameObject::ComponentCreate        CComponentCreate;
+    static dmGameObject::ComponentInit          CComponentInit;
+    static dmGameObject::ComponentFinal         CComponentFinal;
+    static dmGameObject::ComponentDestroy       CComponentDestroy;
+    static dmGameObject::ComponentAddToUpdate   CComponentAddToUpdate;
+    static dmGameObject::ComponentsUpdate       CComponentsUpdate;
 
 public:
     uint32_t                     m_UpdateCount;
@@ -132,8 +146,10 @@ public:
 
     std::map<uint64_t, uint32_t> m_ComponentCreateCountMap;
     std::map<uint64_t, uint32_t> m_ComponentInitCountMap;
+    std::map<uint64_t, uint32_t> m_ComponentFinalCountMap;
     std::map<uint64_t, uint32_t> m_ComponentDestroyCountMap;
     std::map<uint64_t, uint32_t> m_ComponentUpdateCountMap;
+    std::map<uint64_t, uint32_t> m_ComponentAddToUpdateCountMap;
     std::map<uint64_t, uint32_t> m_MaxComponentCreateCountMap;
 
     std::map<uint64_t, uint32_t> m_ComponentUpdateOrderMap;
@@ -208,6 +224,22 @@ static dmGameObject::CreateResult GenericComponentInit(const dmGameObject::Compo
 }
 
 template <typename T>
+static dmGameObject::CreateResult GenericComponentFinal(const dmGameObject::ComponentFinalParams& params)
+{
+    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    game_object_test->m_ComponentFinalCountMap[T::m_DDFHash]++;
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+template <typename T>
+static dmGameObject::CreateResult GenericComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+{
+    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    game_object_test->m_ComponentAddToUpdateCountMap[T::m_DDFHash]++;
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+template <typename T>
 static dmGameObject::UpdateResult GenericComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
@@ -230,36 +262,42 @@ static dmGameObject::CreateResult GenericComponentDestroy(const dmGameObject::Co
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmResource::FResourceCreate ComponentTest::ACreate              = GenericDDFCreate<TestGameObjectDDF::AResource>;
-dmResource::FResourceDestroy ComponentTest::ADestroy            = GenericDDFDestory<TestGameObjectDDF::AResource>;
-dmGameObject::ComponentCreate ComponentTest::AComponentCreate   = GenericComponentCreate<TestGameObjectDDF::AResource, 1>;
-dmGameObject::ComponentInit ComponentTest::AComponentInit       = GenericComponentInit<TestGameObjectDDF::AResource>;
-dmGameObject::ComponentDestroy ComponentTest::AComponentDestroy = GenericComponentDestroy<TestGameObjectDDF::AResource>;
-dmGameObject::ComponentsUpdate ComponentTest::AComponentsUpdate = GenericComponentsUpdate<TestGameObjectDDF::AResource>;
+dmResource::FResourceCreate ComponentTest::ACreate                      = GenericDDFCreate<TestGameObjectDDF::AResource>;
+dmResource::FResourceDestroy ComponentTest::ADestroy                    = GenericDDFDestory<TestGameObjectDDF::AResource>;
+dmGameObject::ComponentCreate ComponentTest::AComponentCreate           = GenericComponentCreate<TestGameObjectDDF::AResource, 1>;
+dmGameObject::ComponentInit ComponentTest::AComponentInit               = GenericComponentInit<TestGameObjectDDF::AResource>;
+dmGameObject::ComponentFinal ComponentTest::AComponentFinal             = GenericComponentFinal<TestGameObjectDDF::AResource>;
+dmGameObject::ComponentDestroy ComponentTest::AComponentDestroy         = GenericComponentDestroy<TestGameObjectDDF::AResource>;
+dmGameObject::ComponentAddToUpdate ComponentTest::AComponentAddToUpdate = GenericComponentAddToUpdate<TestGameObjectDDF::AResource>;
+dmGameObject::ComponentsUpdate ComponentTest::AComponentsUpdate         = GenericComponentsUpdate<TestGameObjectDDF::AResource>;
 
-dmResource::FResourceCreate ComponentTest::BCreate              = GenericDDFCreate<TestGameObjectDDF::BResource>;
-dmResource::FResourceDestroy ComponentTest::BDestroy            = GenericDDFDestory<TestGameObjectDDF::BResource>;
-dmGameObject::ComponentCreate ComponentTest::BComponentCreate   = GenericComponentCreate<TestGameObjectDDF::BResource, -1>;
-dmGameObject::ComponentInit ComponentTest::BComponentInit       = GenericComponentInit<TestGameObjectDDF::BResource>;
-dmGameObject::ComponentDestroy ComponentTest::BComponentDestroy = GenericComponentDestroy<TestGameObjectDDF::BResource>;
-dmGameObject::ComponentsUpdate ComponentTest::BComponentsUpdate = GenericComponentsUpdate<TestGameObjectDDF::BResource>;
+dmResource::FResourceCreate ComponentTest::BCreate                      = GenericDDFCreate<TestGameObjectDDF::BResource>;
+dmResource::FResourceDestroy ComponentTest::BDestroy                    = GenericDDFDestory<TestGameObjectDDF::BResource>;
+dmGameObject::ComponentCreate ComponentTest::BComponentCreate           = GenericComponentCreate<TestGameObjectDDF::BResource, -1>;
+dmGameObject::ComponentInit ComponentTest::BComponentInit               = GenericComponentInit<TestGameObjectDDF::BResource>;
+dmGameObject::ComponentFinal ComponentTest::BComponentFinal             = GenericComponentFinal<TestGameObjectDDF::BResource>;
+dmGameObject::ComponentDestroy ComponentTest::BComponentDestroy         = GenericComponentDestroy<TestGameObjectDDF::BResource>;
+dmGameObject::ComponentAddToUpdate ComponentTest::BComponentAddToUpdate = GenericComponentAddToUpdate<TestGameObjectDDF::BResource>;
+dmGameObject::ComponentsUpdate ComponentTest::BComponentsUpdate         = GenericComponentsUpdate<TestGameObjectDDF::BResource>;
 
-dmResource::FResourceCreate ComponentTest::CCreate              = GenericDDFCreate<TestGameObjectDDF::CResource>;
-dmResource::FResourceDestroy ComponentTest::CDestroy            = GenericDDFDestory<TestGameObjectDDF::CResource>;
-dmGameObject::ComponentCreate ComponentTest::CComponentCreate   = GenericComponentCreate<TestGameObjectDDF::CResource, 10>;
-dmGameObject::ComponentInit ComponentTest::CComponentInit       = GenericComponentInit<TestGameObjectDDF::CResource>;
-dmGameObject::ComponentDestroy ComponentTest::CComponentDestroy = GenericComponentDestroy<TestGameObjectDDF::CResource>;
-dmGameObject::ComponentsUpdate ComponentTest::CComponentsUpdate = GenericComponentsUpdate<TestGameObjectDDF::CResource>;
+dmResource::FResourceCreate ComponentTest::CCreate                      = GenericDDFCreate<TestGameObjectDDF::CResource>;
+dmResource::FResourceDestroy ComponentTest::CDestroy                    = GenericDDFDestory<TestGameObjectDDF::CResource>;
+dmGameObject::ComponentCreate ComponentTest::CComponentCreate           = GenericComponentCreate<TestGameObjectDDF::CResource, 10>;
+dmGameObject::ComponentInit ComponentTest::CComponentInit               = GenericComponentInit<TestGameObjectDDF::CResource>;
+dmGameObject::ComponentFinal ComponentTest::CComponentFinal             = GenericComponentFinal<TestGameObjectDDF::CResource>;
+dmGameObject::ComponentDestroy ComponentTest::CComponentDestroy         = GenericComponentDestroy<TestGameObjectDDF::CResource>;
+dmGameObject::ComponentAddToUpdate ComponentTest::CComponentAddToUpdate = GenericComponentAddToUpdate<TestGameObjectDDF::CResource>;
+dmGameObject::ComponentsUpdate ComponentTest::CComponentsUpdate         = GenericComponentsUpdate<TestGameObjectDDF::CResource>;
 
 TEST_F(ComponentTest, TestUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
     ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::Init(m_Collection);
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
     ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
-    ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     dmGameObject::Delete(m_Collection, go);
     ret = dmGameObject::PostUpdate(m_Collection);
@@ -267,6 +305,10 @@ TEST_F(ComponentTest, TestUpdate)
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentInitCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentAddToUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 1, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentDestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 }
 
@@ -387,9 +429,10 @@ static int LuaTestCompType(lua_State* L)
 {
     int top = lua_gettop(L);
 
+    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     uintptr_t user_data = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentUserDataFromLua(L, 1, "a", &user_data, &receiver);
+    dmGameObject::GetComponentUserDataFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &user_data, &receiver, 0);
     assert(user_data == 1);
 
     assert(top == lua_gettop(L));
@@ -406,10 +449,50 @@ TEST_F(ComponentTest, TestComponentType)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_comp_type.goc");
     dmGameObject::SetIdentifier(m_Collection, go, "test_instance");
 
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_FALSE(ret);
 
     dmGameObject::Delete(m_Collection, go);
+}
+
+// Deleting the first go should delete the second in its final callback
+// The test is to verify that the final callback is called for a cascading deletion of objects.
+TEST_F(ComponentTest, FinalCallsFinal)
+{
+    dmGameObject::HCollection collection = dmGameObject::NewCollection("test_final_collection", m_Factory, m_Register, 11);
+
+    dmGameObject::HInstance go_a = dmGameObject::New(collection, "/test_final_final.goc");
+    dmGameObject::SetIdentifier(collection, go_a, "first");
+
+    char buf[5];
+    for (uint32_t i = 0; i < 10; ++i) {
+        dmGameObject::HInstance go_b = dmGameObject::New(collection, "/test_final_final.goc");
+        DM_SNPRINTF(buf, 5, "id%d", i);
+        dmGameObject::SetIdentifier(collection, go_b, buf);
+    }
+
+    // 11 objects in total
+    ASSERT_EQ(11u, collection->m_InstanceIndices.Size());
+
+    dmGameObject::Init(collection); // Init is required for final
+    dmGameObject::Delete(collection, go_a);
+    dmGameObject::PostUpdate(collection);
+
+    // One lingering due to the cap of passes in dmGameObject::PostUpdate, which is currently set to 10
+    ASSERT_EQ(1u, collection->m_InstanceIndices.Size());
+    ASSERT_EQ((uint32_t) 10, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+
+    // One more pass needed to delete the last object in the chain
+    dmGameObject::PostUpdate(collection);
+
+    // All done
+    ASSERT_EQ(0u, collection->m_InstanceIndices.Size());
+    ASSERT_EQ((uint32_t) 11, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+
+    dmGameObject::DeleteCollection(collection);
+    dmGameObject::PostUpdate(m_Register);
 }
 
 int main(int argc, char **argv)

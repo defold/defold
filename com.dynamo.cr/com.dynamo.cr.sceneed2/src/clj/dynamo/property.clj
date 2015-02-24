@@ -5,16 +5,11 @@
             [dynamo.util :refer :all]
             [internal.property :as ip]))
 
-(set! *warn-on-reflection* true)
-
 (defmacro defproperty [name value-type & body-forms]
   (apply ip/def-property-type-descriptor name value-type body-forms))
 
 (defproperty NonNegativeInt s/Int
-  (validation (comp not neg?)))
-
-(defproperty NonNegativeInt s/Int
-  (validation (fn [v] (not (neg? v)))))
+  (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
 
 (defproperty Resource s/Str (tag ::resource))
 (defproperty ImageResource Resource (tag ::image))
