@@ -4,7 +4,7 @@
 
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
-  :plugins          [[lein-protobuf-minimal "0.4.3"]
+  :plugins          [[lein-protobuf-minimal "0.4.4"]
                      [codox "0.8.10"]]
 
   :dependencies     [[org.clojure/clojure                         "1.7.0-alpha5"]
@@ -34,7 +34,7 @@
                      [com.sun.jna/platform                        "3.4.1"]
                      [dlib/upnp                                   "0.1"]]
 
-;  :main              ^:skip-aot editor
+  :main              ^:skip-aot editor
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
@@ -77,7 +77,7 @@
                       :src-linenum-anchor-prefix "L"
                       :doc/format                :markdown}
 
-  :profiles          {:uberjar {:main editor.Main
+  :profiles          {:uberjar {:main com.defold.editor.Start
                                 :aot [editor]}
                       :dev     {:dependencies [[org.clojure/test.check "0.5.8"]
                                                [org.mockito/mockito-core "1.8.5"]]
