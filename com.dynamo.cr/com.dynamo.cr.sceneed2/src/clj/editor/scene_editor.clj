@@ -156,7 +156,7 @@
 (defnk produce-drawable [self ^Region viewport]
   (when (vp-not-empty? viewport)
     (let [[w h] (vp-dims viewport)
-          profile (GLProfile/getGL2ES2)
+          profile (GLProfile/getDefault)
           factory (GLDrawableFactory/getFactory profile)
           caps (GLCapabilities. profile)]
       (.setOnscreen caps false)
@@ -237,4 +237,3 @@
            (when-let [^GLAutoDrawable drawable (:gl-drawable self)]
              (.destroy drawable))
            ))
-
