@@ -1224,6 +1224,42 @@ namespace dmGui
         return (dmImage::Type) 0;
     }
 
+    /*# create new texture
+     * Dynamically create a new texture.
+     *
+     * @name gui.new_texture
+     * @param texture texture id (string|hash)
+     * @param width texture width (number)
+     * @param height texture height (number)
+     * @param type texture type (string|constant)
+     * <ul>
+     *   <li><code>"rgb"</code> - RGB</li>
+     *   <li><code>"rgba"</code> - RGBA</li>
+     *   <li><code>"l"</code> - LUMINANCE</li>
+     * </ul>
+     * @param buffer texture data (string)
+     * @return texture creation was successful (boolean)
+     * @examples
+     * <pre>
+     * function init(self)
+     *      local w = 200
+     *      local h = 300
+     *
+     *      -- A nice orange. String with the RGB values.
+     *      local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+     *
+     *      -- Create the texture. Repeat the color string for each pixel.
+     *      if gui.new_texture("orange_tx", w, h, "rgb", string.rep(orange, w * h)) then
+     *          -- Create a box node and apply the texture to it.
+     *          local n = gui.new_box_node(vmath.vector3(200, 200, 0), vmath.vector3(w, h, 0))
+     *          gui.set_texture(n, "orange_tx")
+     *      else
+     *          -- Could not create texture...
+     *          ...
+     *      end
+     * end
+     * </pre>
+     */
     static int LuaNewTexture(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -1250,6 +1286,25 @@ namespace dmGui
         return 1;
     }
 
+    /*# delete texture
+     * Delete a dynamically created texture.
+     *
+     * @name gui.delete_texture
+     * @param texture texture id (string|hash)
+     * @examples
+     * <pre>
+     * function init(self)
+     *      -- Create a texture.
+     *      if gui.new_texture("temp_tx", 10, 10, "rgb", string.rep('\0', 10 * 10 * 3)) then
+     *          -- Do something with the texture.
+     *          ...
+     *
+     *          -- Delete the texture
+     *          gui.delete_texture("temp_tx")
+     *      end
+     * end
+     * </pre>
+     */
     static int LuaDeleteTexture(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -1268,6 +1323,48 @@ namespace dmGui
         return 0;
     }
 
+    /*# set the buffer data for a texture
+     * Set the texture buffer data for a dynamically created texture.
+     *
+     * @name gui.set_texture_data
+     * @param texture texture id (string|hash)
+     * @param width texture width (number)
+     * @param height texture height (number)
+     * @param type texture type (string|constant)
+     * <ul>
+     *   <li><code>"rgb"</code> - RGB</li>
+     *   <li><code>"rgba"</code> - RGBA</li>
+     *   <li><code>"l"</code> - LUMINANCE</li>
+     * </ul>
+     * @param buffer texture data (string)
+     * @return setting the data was successful (boolean)
+     * @examples
+     * <pre>
+     * function init(self)
+     *      local w = 200
+     *      local h = 300 
+     *
+     *      -- Create a dynamic texture, all white.
+     *      if gui.new_texture("dynamic_tx", w, h, "rgb", string.rep(string.char(0xff), w * h * 3)) then
+     *          -- Create a box node and apply the texture to it.
+     *          local n = gui.new_box_node(vmath.vector3(200, 200, 0), vmath.vector3(w, h, 0))
+     *          gui.set_texture(n, "dynamic_tx")
+     *
+     *          ...
+     *
+     *          -- Change the data in the texture to a nice orange.
+     *          local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+     *          if gui.set_texture_data("dynamic_tx", w, h, "rgb", string.rep(orange, w * h)) then
+     *              -- Go on and to more stuff
+     *              ...
+     *          end
+     *      else
+     *          -- Something went wrong
+     *          ...
+     *      end
+     * end
+     * </pre>
+     */
     static int LuaSetTextureData(lua_State* L)
     {
         int top = lua_gettop(L);
