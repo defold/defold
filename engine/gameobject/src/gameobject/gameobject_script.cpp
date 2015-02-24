@@ -1072,8 +1072,6 @@ namespace dmGameObject
     /*# deletes a game object instance
      * <div>Delete a game object identified by its id.</div>
      *
-     * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
-     *
      * @name go.delete
      * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string|url)
      * @examples
@@ -1099,8 +1097,6 @@ namespace dmGameObject
     /*# deletes a set of game object instance
      * <div>Delete all game objects simultaneously as listed in table.
      * The table values (not keys) should be game object ids (hashes).</div>
-     *
-     * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
      *
      * @name go.delete_all
      * @param [ids] table with values of instance ids (hashes) to be deleted
