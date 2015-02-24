@@ -140,25 +140,7 @@ public class IOSBundler implements IBundler {
         String exe = tmpFile.getPath();
 
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        ProcessBuilder lipoProcessBuilder = new ProcessBuilder( Bob.getExe(Platform.getHostPlatform(), "lipo"),
-                    "-create", exeArmv7, exeArm64,
-                    "-output", exe);
-        Process lipoProcess = lipoProcessBuilder.start();
-        try {
-            InputStream errorIn = lipoProcess.getErrorStream();
-            ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-            IOUtils.copy(errorIn, errorOut);
-            errorIn.close();
-            String errorMessage = new String(errorOut.toByteArray());
-
-            int ret = lipoProcess.waitFor();
-            if (ret != 0) {
-                logger.log(Level.SEVERE, errorMessage);
-                throw new IOException(errorMessage);
-            }
-        } catch (InterruptedException e1) {
-            throw new RuntimeException(e1);
-        }
+        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
 
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, title));

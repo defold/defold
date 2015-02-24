@@ -431,9 +431,6 @@ class Configuration(object):
             for lib in base_libs:
                 self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
                 cwd = join(self.defold_root, 'engine/%s' % (lib))
-                pf_arg = ""
-                #if platform != self.host:
-                # TODO: Any problems with this change?
                 pf_arg = "--platform=%s" % (platform)
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
                 self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
