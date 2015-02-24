@@ -12,11 +12,15 @@
             [internal.disposal :as disp]
             [camel-snake-kebab :as camel]
             [service.log :as log]
-            [editor.scene-editor :as es]
-            )
+            [editor.atlas :as atlas]
+            [editor.jfx :as jfx]
+            [editor.image-node :as ein]
+            [editor.ui :as ui]
+            [editor.graph_view :as graph_view])
   (:import  [com.defold.editor Start UIUtil]
             [java.io File]
             [java.nio.file Paths]
+            [java.util.prefs Preferences]
             [javafx.application Platform]
             [javafx.fxml FXMLLoader]
             [javafx.collections FXCollections ObservableList]
@@ -62,12 +66,6 @@
     (let [image-view (load-image-view name)]
       ((swap! cached-image-views assoc name image-view) name))))
 
-; Events
-(defmacro event-handler [event & body]
-  `(reify EventHandler
-     (handle [this ~event]
-       ~@body)))
-
 (declare tree-item)
 
 ; TreeItem creator
@@ -93,30 +91,57 @@
 (defn- setup-console [root]
   (.appendText (.lookup root "#console") "Hello Console"))
 
-(defmulti create-property-control! (fn [t] t))
 
-(defmethod create-property-control! String [_]
+; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj
+(defmacro doseq-indexed
+  "loops over a set of values, binding index-sym to the 0-based index of each value"
+  ([[val-sym values index-sym] & code]
+  `(loop [vals# (seq ~values)
+          ~index-sym (long 0)]
+     (if vals#
+       (let [~val-sym (first vals#)]
+             ~@code
+             (recur (next vals#) (inc ~index-sym)))
+       nil))))
+
+(def create-property-control! nil)
+
+(defmulti create-property-control! (fn [t _] t))
+
+(defmethod create-property-control! String [_ on-new-value]
   (let [text (TextField.)
         setter #(.setText text (str %))]
+    (.setOnAction text (ui/event-handler event (on-new-value (.getText text))))
     [text setter]))
 
-(defmethod create-property-control! t/Vec3 [_]
+(defn- to-double [s]
+  (try
+    (Double/parseDouble s)
+    (catch Throwable _
+      nil)))
+
+(defmethod create-property-control! t/Vec3 [_ on-new-value]
   (let [x (TextField.)
         y (TextField.)
         z (TextField.)
         box (HBox.)
         setter (fn [vec]
-                 (.setText x (str (nth vec 0)))
-                 (.setText y (str (nth vec 1)))
-                 (.setText z (str (nth vec 2))))]
+                 (doseq-indexed [t [x y z] i]
+                   (.setText t (str (nth vec i)))))
+        handler (ui/event-handler event (on-new-value (mapv #(to-double (.getText %)) [x y z])))]
+
     (doseq [t [x y z]]
+      (.setOnAction t handler)
       (HBox/setHgrow t Priority/SOMETIMES)
       (.setPrefWidth t 60)
       (.add (.getChildren box) t))
     [box setter]))
 
-(defmethod create-property-control! :default [_]
-  (create-property-control! String))
+(defmethod create-property-control! :default [_ on-new-value]
+  (let [text (TextField.)
+        setter #(.setText text (str %))]
+    (.setDisable text true)
+    [text setter]))
 
 (defn- niceify-label
   [k]
@@ -127,7 +152,19 @@
 
 (defn- create-properties-row [grid node key property row]
   (let [label (Label. (niceify-label key))
-        [control setter] (create-property-control! (:value-type property))]
+        ; TODO: Possible to solve mutual references without an atom here?
+        setter-atom (atom nil)
+        on-new-value (fn [new-val]
+                       (let [old-val (key (ds/refresh node))]
+                         (when-not (= new-val old-val)
+                           (try (t/valid-property-value? property new-val)
+                             (ds/transactional
+                               (ds/set-property node key new-val)
+                               (@setter-atom new-val))
+                             (catch Exception e
+                               (@setter-atom old-val))))))
+        [control setter] (create-property-control! (t/property-value-type property) on-new-value)]
+    (reset! setter-atom setter)
     (setter (get node key))
     (GridPane/setConstraints label 1 row)
     (GridPane/setConstraints control 2 row)
@@ -143,8 +180,8 @@
     (.setHgap grid 4)
     (doseq [[key p] properties]
       (let [row (/ (.size (.getChildren grid)) 2)]
-        (create-properties-row grid node key p row)))    
-    
+        (create-properties-row grid node key p row)))
+
     (.add (.getChildren parent) grid)))
 
 ; Editors
@@ -154,7 +191,7 @@
       (let [btn (Button.)]
         (.setText btn "Curve Editor WIP!")
         (.add (.getChildren (:parent event)) btn)))
-  
+
   t/IDisposable
   (dispose [this]))
 
@@ -163,7 +200,7 @@
   (inherits n/ResourceNode)
 
   (input text s/Str )
-  
+
   (on :create
       (let [textarea (TextArea.)]
         (fill-control textarea)
@@ -176,15 +213,15 @@
 (n/defnode TextNode
   (inherits n/Scope)
   (inherits n/ResourceNode)
-  
+
   (property text s/Str)
   (property a-vector t/Vec3 (default [1 2 3]))
-  
+
   (on :load
       (ds/set-property self :text (slurp (:filename self)))))
 
 (defn on-edit-text
-  [project-node editor-site text-node]
+  [project-node text-node]
   (let [editor (n/construct TextEditor)]
     (ds/in (ds/add editor)
            (ds/connect text-node :text editor :text)
@@ -213,7 +250,7 @@
 
 (n/defnode GameProject
   (inherits n/Scope)
-  
+
   (property node-types         {s/Str s/Symbol})
   ;TODO: Resource type instead of string?
   (property content-root File)
@@ -235,36 +272,35 @@
       (println "Destory GameProject")
       (ds/delete self)))
 
-(def editor-fns {:atlas es/construct-scene-editor})
+(def editor-fns {:atlas atlas/construct-atlas-editor})
 
 (defn- find-editor-fn [file]
   (let [ext (last (.split file "\\."))
         editor-fn (if ext ((keyword ext) editor-fns) nil)]
     (or editor-fn on-edit-text)))
 
-(defn- create-editor [game-project file root node-type]
+(defn- create-editor [game-project file root]
   (let [tab-pane (.lookup root "#editor-tabs")
         parent (AnchorPane.)
         path (relative-path (:content-root game-project) file)
         resource-node (t/lookup game-project path)
-        node (ds/transactional 
+        node (ds/transactional
                (ds/in game-project
                       (let [editor-fn (find-editor-fn (.getName file))]
-                        (editor-fn game-project nil resource-node))))
-        close-handler (event-handler event
-                        (ds/transactional 
+                        (editor-fn game-project resource-node))))
+        close-handler (ui/event-handler event
+                        (ds/transactional
                           (ds/delete node)))]
 
-    
     (if (satisfies? t/MessageTarget node)
       (let [tab (Tab. (.getName file))]
         (setup-properties root resource-node)
-        
+
         (.setOnClosed tab close-handler)
         (.setGraphic tab (get-image-view "cog.png"))
-        (n/dispatch-message node :create :parent parent :file file)
-        (.setContent tab parent)
         (.add (.getTabs tab-pane) tab)
+        (.setContent tab parent)
+        (n/dispatch-message node :create :parent parent :file file :tab tab)
         (.select (.getSelectionModel tab-pane) tab))
       (println "No editor for " node))))
 
@@ -277,7 +313,7 @@
                       (let [item (-> tree (.getSelectionModel) (.getSelectedItem))
                             file (.getValue item)]
                         (when (.isFile file)
-                          (create-editor game-project file root TextEditor))))))]
+                          (create-editor game-project file root))))))]
     (.setOnMouseClicked tree handler)
     (.setCellFactory tree (UIUtil/newFileCellFactory))
     (.setRoot tree (tree-item (:content-root game-project)))))
@@ -287,8 +323,6 @@
     (instance? MenuBar menu) (doseq [m (.getMenus menu)] (bind-menus m handler))
     (instance? Menu menu) (doseq [m (.getItems menu)]
                             (.addEventHandler m ActionEvent/ACTION handler))))
-
-
 
 (def system nil)
 ;(is/stop)
@@ -304,18 +338,19 @@
     (.setScene stage scene)
 
     (.show stage)
-    (let [handler (event-handler event (println event))]
+    (let [handler (ui/event-handler event (println event))]
       (bind-menus (.lookup root "#menu-bar") handler))
-    
-    (let [close-handler (event-handler event
-                          (ds/transactional 
+
+    (let [close-handler (ui/event-handler event
+                          (ds/transactional
                             (ds/delete game-project))
                           (disp/dispose-pending (:state (:world the-system))))
-          dispose-handler (event-handler event (disp/dispose-pending (:state (:world  the-system))))]
+          dispose-handler (ui/event-handler event (disp/dispose-pending (:state (:world  the-system))))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
     (setup-assets-browser game-project root)
+    (graph_view/setup-graph-view root (:world-ref game-project))
     (reset! the-root root)
     root))
 
@@ -359,14 +394,30 @@
         game-project (ds/transactional
                        (ds/add
                          (n/construct GameProject
-                                      :node-types {"script" TextNode "clj" clojure/ClojureSourceNode}
+                                      :node-types {"script" TextNode
+                                                   "clj" clojure/ClojureSourceNode
+                                                   "jpg" ein/ImageResourceNode
+                                                   "png" ein/ImageResourceNode
+                                                   "atlas" atlas/AtlasNode}
                                       :content-root content-root)))
         resources       (get-project-paths game-project content-root)
         _ (apply post-load "Loading" (load-resource-nodes game-project resources progress-bar))
         root (load-stage game-project)
         curve (create-view game-project root "#curve-editor-container" CurveEditor)]))
 
-(Platform/runLater 
-  (fn [] 
-    (load-project (io/file "/Users/ragnarsvensson/eclipse44/branches/1645/1144/test/game.project"))))
+(defn get-preference [key]
+  (let [prefs (.node (Preferences/userRoot) "defold")]
+    (.get prefs key nil)))
+
+(defn set-preference [key value]
+  (let [prefs (.node (Preferences/userRoot) "defold")]
+    (.put prefs key value)))
+
+(Platform/runLater
+  (fn []
+    (let [pref-key "default-project-file"
+          project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
+      (when project-file
+        (set-preference pref-key project-file)
+        (load-project (io/file project-file))))))
 

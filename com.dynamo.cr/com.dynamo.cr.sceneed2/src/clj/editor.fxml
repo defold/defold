@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.scene.image.*?>
+<?import javafx.scene.web.*?>
 <?import javafx.geometry.*?>
 <?import javafx.scene.input.*?>
 <?import java.lang.*?>
@@ -90,6 +92,24 @@
                                                   <AnchorPane id="curve-editor-container" minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" />
                                                 </content>
                                               </Tab>
+                                                <Tab text="Graph">
+                                                  <content>
+                                                    <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                                         <children>
+                                                            <VBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                               <children>
+                                                                  <Button id="graph-refresh" mnemonicParsing="false" text="Refresh" />
+                                                                  <ScrollPane prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                                                                     <content>
+                                                                        <ImageView id="graph-image" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
+                                                                     </content>
+                                                                  </ScrollPane>
+                                                               </children>
+                                                            </VBox>
+                                                         </children>
+                                                      </AnchorPane>
+                                                  </content>
+                                                </Tab>
                                             </tabs>
                                           </TabPane>
                                        </children>

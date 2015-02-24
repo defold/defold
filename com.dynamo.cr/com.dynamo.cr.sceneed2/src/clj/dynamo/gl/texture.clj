@@ -51,7 +51,7 @@
 
 (defn first-available-texture-unit
   [gl]
-  (ffirst (filter available? (texture-unit-assignments gl))))
+  (or (ffirst (filter available? (texture-unit-assignments gl))) 0))
 
 (defn unload-texture-from-unit
   [gl [unit tex]]
@@ -62,7 +62,7 @@
 (defn load-texture-in-unit
   [gl unit tex]
   (if (not (available? (texture-unit-assignment gl unit)))
-    (unload-texture-from-unit (texture-unit-assignment gl unit)))
+    (unload-texture-from-unit gl (texture-unit-assignment gl unit)))
   (.glActiveTexture ^GL2 gl (texture-unit-id unit))
   (texture-unit-assign gl unit tex))
 
