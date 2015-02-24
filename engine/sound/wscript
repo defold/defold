@@ -32,11 +32,11 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin":
+    if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenAL', '-framework', 'IOKit'])
-    elif platform == "armv7-darwin":
+    elif platform == "armv7-darwin" or platform == "arm64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL', '-framework', 'AudioToolbox'])
-    elif platform == "linux":
+    elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_OPENAL'] = 'openal'
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
     elif platform == "win32":

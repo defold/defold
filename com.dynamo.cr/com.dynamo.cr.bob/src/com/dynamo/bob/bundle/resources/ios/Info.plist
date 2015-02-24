@@ -80,8 +80,8 @@
         <{{project.write_log}}/>
         <key>LSRequiresIPhoneOS</key>
         <true/>
-        <key>LSMinimumSystemVersion</key>
-        <string>5.0</string>
+        <key>MinimumOSVersion</key>
+        <string>5.1</string>
         <key>UIDeviceFamily</key>
         <array>
                 <integer>1</integer>

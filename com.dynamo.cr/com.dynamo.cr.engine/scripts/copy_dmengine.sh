@@ -3,6 +3,7 @@ mkdir -p engine/linux
 mkdir -p engine/darwin
 mkdir -p engine/win32
 mkdir -p engine/ios
+mkdir -p engine/arm64-ios
 mkdir -p engine/android
 mkdir -p engine/js-web
 
@@ -20,6 +21,8 @@ copy darwin/dmengine engine/darwin/dmengine
 copy darwin/dmengine_release engine/darwin/dmengine_release
 copy win32/dmengine.exe engine/win32/dmengine.exe
 copy win32/dmengine_release.exe engine/win32/dmengine_release.exe
+copy arm64-darwin/dmengine engine/arm64-ios/dmengine
+copy arm64-darwin/dmengine_release engine/arm64-ios/dmengine_release
 copy armv7-darwin/dmengine engine/ios/dmengine
 copy armv7-darwin/dmengine_release engine/ios/dmengine_release
 copy armv7-android/libdmengine.so engine/android/libdmengine.so

@@ -14,7 +14,7 @@
 #include "../graphics.h"
 #include "graphics_opengl.h"
 
-#if defined(__MACH__) && !defined(__arm__)
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
 #include <Carbon/Carbon.h>
 #endif
@@ -441,7 +441,7 @@ static void LogFrameBufferError(GLenum status)
             dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
 
-#if defined(__MACH__) && !defined(__arm__)
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
         ProcessSerialNumber psn;
         OSErr err;
 
@@ -640,7 +640,8 @@ static void LogFrameBufferError(GLenum status)
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        glDeleteBuffersARB(1, &buffer);
+        GLuint b = (GLuint) buffer;
+        glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR
     }
 
@@ -681,7 +682,8 @@ static void LogFrameBufferError(GLenum status)
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
-        glDeleteBuffersARB(1, &buffer);
+        GLuint b = (GLuint) buffer;
+        glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR
     }
 

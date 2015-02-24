@@ -65,11 +65,13 @@ namespace dmGraphics
         uint32_t    m_ModificationVersion;
 
     };
+    // TODO: Why this one here!? Not used?
     struct VertexBuffer
     {
         GLuint      m_VboId;
     };
 
+    // TODO: Why this one here!? Not used?
     struct IndexBuffer
     {
         GLuint      m_VboId;

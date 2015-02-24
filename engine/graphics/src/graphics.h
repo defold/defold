@@ -12,13 +12,13 @@
 
 namespace dmGraphics
 {
-    typedef uint32_t                  HVertexProgram;
-    typedef uint32_t                  HFragmentProgram;
-    typedef uint32_t                  HProgram;
+    typedef uintptr_t                 HVertexProgram;
+    typedef uintptr_t                 HFragmentProgram;
+    typedef uintptr_t                 HProgram;
     typedef struct Context*           HContext;
     typedef struct Texture*           HTexture;
-    typedef uint32_t                  HVertexBuffer;
-    typedef uint32_t                  HIndexBuffer;
+    typedef uintptr_t                 HVertexBuffer;
+    typedef uintptr_t                 HIndexBuffer;
     typedef struct VertexDeclaration* HVertexDeclaration;
     typedef struct RenderTarget*      HRenderTarget;
 

@@ -129,7 +129,7 @@ namespace dmGameSystem
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 SpineModelContext* spine_model_context)
     {
-        uint32_t type;
+        dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
         dmResource::Result factory_result;
         dmGameObject::Result go_result;

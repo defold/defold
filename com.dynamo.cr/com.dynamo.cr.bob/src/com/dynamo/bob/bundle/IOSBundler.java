@@ -48,7 +48,8 @@ public class IOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("debug"));
+        String exeArmv7 = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("debug"));
+        String exeArm64 = Bob.getDmengineExe(Platform.Arm64Darwin, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -132,6 +133,14 @@ public class IOSBundler implements IBundler {
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+
+        // Create fat/universal binary
+        File tmpFile = File.createTempFile("dmengine", "");
+        tmpFile.deleteOnExit();
+        String exe = tmpFile.getPath();
+
+        // Run lipo to add exeArmv7 + exeArm64 together into universal bin
+        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
 
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, title));
