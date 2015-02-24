@@ -63,7 +63,7 @@
 
   :protobuf-includes ["../engine/gamesys/proto"
                       "../engine/ddf/src"
-                      "../tmp/dynamo_home/ext/include"]
+                      ~(str (System/getenv "DYNAMO_HOME") "/ext/include")]
 
   :protobuf-exclude  ["../engine/ddf/src/test"]
 
