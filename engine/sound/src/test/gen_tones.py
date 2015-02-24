@@ -1,6 +1,6 @@
 import math, struct, wave, cStringIO
 
-def gen_tone(name, tone_freq, sample_freq, sample_count):
+def gen_tone(name, tone_freq, sample_freq, sample_count, ramp = False):
     f = wave.open(name, "wb")
     f.setnchannels(1)
     f.setsampwidth(2)
@@ -10,6 +10,9 @@ def gen_tone(name, tone_freq, sample_freq, sample_count):
     frames = []
     for i in range(sample_count):
         a = 0.8 * 32768 * math.sin((i * 2.0 * math.pi * freq) / sample_freq)
+        if ramp:
+            r = ((sample_count - 1) - i) / float(sample_count)
+            a = a * r
         buf.write(struct.pack('h', int(a)))
     f.writeframes(buf.getvalue())
     f.close()
@@ -20,3 +23,9 @@ for sample_freq in [22050, 32000, 44100]:
         samples = length * sample_freq
         name = 'tone_%d_%d_%d.wav' % (samples, freq, sample_freq)
         gen_tone(name, freq, sample_freq, samples)
+
+for sample_freq in [32000]:
+    for freq in [440]:
+        samples = length * sample_freq
+        name = 'toneramp_%d_%d_%d.wav' % (samples, freq, sample_freq)
+        gen_tone(name, freq, sample_freq, samples, True)

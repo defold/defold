@@ -17,6 +17,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompParticleFXDestroy(const dmGameObject::ComponentDestroyParams& params);
 
+    dmGameObject::CreateResult CompParticleFXAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
+
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params);

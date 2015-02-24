@@ -54,6 +54,9 @@ namespace dmGameSystem
         params.m_ShadowY = ddf->m_ShadowY;
         params.m_MaxAscent = ddf->m_MaxAscent;
         params.m_MaxDescent = ddf->m_MaxDescent;
+        params.m_SdfOffset = ddf->m_SdfOffset;
+        params.m_SdfScale = ddf->m_SdfScale;
+        params.m_SdfOutline = ddf->m_SdfOutline;
 
         if (font_map == 0)
             font_map = dmRender::NewFontMap(dmRender::GetGraphicsContext(context), params);

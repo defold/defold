@@ -13,20 +13,49 @@ import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
+import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
 import com.dynamo.gui.proto.Gui.NodeDesc.YAnchor;
 
 @SuppressWarnings("serial")
-public class GuiNode extends Node {
+public class GuiNode extends Node implements Identifiable {
 
     // Fields of the render key
-    private static final int ORDER_SHIFT = 0;
-    private static final int LAYER_SHIFT = ORDER_SHIFT + 8;
+    private enum RenderKeyRange {
+        SUB_INDEX(9),
+        SUB_LAYER(3),
+        INV_CLIPPER_ID(8),
+        INDEX(9),
+        LAYER(3);
+
+        private final int bitRange;
+
+        RenderKeyRange(int bitRange) {
+            this.bitRange = bitRange;
+        }
+
+        private int mask() {
+            return (1 << this.bitRange) - 1;
+        }
+
+        public int shift(int val) {
+            int end = this.ordinal();
+            int offset = 0;
+            int result = val & mask();
+            for (int i = 0; i < end; ++i) {
+                RenderKeyRange range = values()[i];
+                offset += range.bitRange;
+            }
+            result <<= offset;
+            return result;
+        }
+    }
 
     @Property
     private Vector3d size = new Vector3d(0.0, 0.0, 0.0);
@@ -162,6 +191,27 @@ public class GuiNode extends Node {
         this.inheritAlpha = inheritAlpha;
     }
 
+    public void setClippingMode(ClippingMode mode) {
+    }
+
+    public ClippingMode getClippingMode() {
+        return ClippingMode.CLIPPING_MODE_NONE;
+    }
+
+    public void setClippingVisible(boolean show) {
+    }
+
+    public boolean getClippingVisible() {
+        return true;
+    }
+
+    public void setClippingInverted(boolean inverted) {
+    }
+
+    public boolean getClippingInverted() {
+        return false;
+    }
+
     public Object[] getLayerOptions() {
         List<Node> layerNodes = getScene().getLayersNode().getChildren();
         List<String> layers = new ArrayList<String>(layerNodes.size());
@@ -196,9 +246,20 @@ public class GuiNode extends Node {
         }
     }
 
-    public void setRenderKey(int order, Map<String, Integer> layersToIndexMap) {
-        int layer = getLayerIndex(layersToIndexMap);
-        this.renderKey = (order << ORDER_SHIFT) | (layer << LAYER_SHIFT);
+    protected static int calcRenderKey(int layer, int index, int invClipperId, int subLayer, int subIndex) {
+        return RenderKeyRange.LAYER.shift(layer)
+                | RenderKeyRange.INDEX.shift(index)
+                | RenderKeyRange.INV_CLIPPER_ID.shift(invClipperId)
+                | RenderKeyRange.SUB_LAYER.shift(subLayer)
+                | RenderKeyRange.SUB_INDEX.shift(subIndex);
+    }
+
+    public void setRenderKey(int layer, int index, int invClipperId, int subLayer, int subIndex) {
+        this.renderKey = calcRenderKey(layer, index, invClipperId, subLayer, subIndex);
+    }
+
+    public void setRenderKey(int renderKey) {
+        this.renderKey = renderKey;
     }
 
     @Override
@@ -227,4 +288,19 @@ public class GuiNode extends Node {
         }
         return rgba;
     }
+
+    public ClippingNode getClosestParentClippingNode() {
+        Node parent = getParent();
+        while (parent != null) {
+            if (parent instanceof ClippingNode) {
+                ClippingNode clipper = (ClippingNode)parent;
+                if (clipper.isClipping()) {
+                    return clipper;
+                }
+            }
+            parent = parent.getParent();
+        }
+        return null;
+    }
 }
+

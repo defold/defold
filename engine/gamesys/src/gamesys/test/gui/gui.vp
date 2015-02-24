@@ -1,0 +1,16 @@
+uniform mediump mat4 view_proj;
+uniform mediump mat4 world;
+
+attribute mediump vec4 position;
+attribute mediump vec2 texcoord0;
+attribute lowp vec4 color;
+
+varying mediump vec2 var_texcoord0;
+varying lowp vec4 var_color;
+
+void main()
+{
+    var_texcoord0 = texcoord0;
+    var_color = color;
+    gl_Position = view_proj * vec4(position.xyz, 1.0);
+}

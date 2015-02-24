@@ -1,6 +1,9 @@
 (ns dynamo.gl.vertex-test
   (:require [clojure.test :refer :all]
-            [dynamo.gl.vertex :refer :all]))
+            [dynamo.system.test-support :refer [array=]]
+            [dynamo.gl.vertex :refer :all]
+            [dynamo.buffers :as b])
+  (:import [com.google.protobuf ByteString]))
 
 (defn- contents-of
   [vb]
@@ -16,12 +19,6 @@
         rows (partition cols (seq (contents-of b)))]
     (doseq [r rows]
       (println (apply format fmt r)))))
-
-(defn- array= [a b]
-  (and
-    (= (class a) (class b))
-    (= (count a) (count b))
-    (every? true? (map = a b))))
 
 (defvertex one-d-position-only
   (vec1.byte location))
@@ -78,7 +75,7 @@
                    [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19]))
   (is (laid-out-as two-d-position-short (range 20)
                    [0 0 1 0 2 0 3 0 4 0 5 0 6 0 7 0 8 0 9 0 10 0 11 0 12 0 13 0 14 0 15 0 16 0 17 0 18 0 19 0]))
-  (is (laid-out-as short-byte-byte (interleave (range 0x10 0x18) (range 0x20 0x28) (range 0x100 0x108) (range 0x200 0x208) (range 0x80 0x88))
+  (is (laid-out-as short-byte-byte (interleave (range 0x10 0x18) (range 0x20 0x28) (range 0x100 0x108) (range 0x200 0x208) (map unchecked-byte (range 0x80 0x88)))
                    [;byte  byte   short       short       byte
                     0x10   0x20   0x00 0x01   0x00 0x02   0x80
                     0x11   0x21   0x01 0x01   0x01 0x02   0x81
@@ -89,13 +86,13 @@
                     0x16   0x26   0x06 0x01   0x06 0x02   0x86
                     0x17   0x27   0x07 0x01   0x07 0x02   0x87]))
 
-  (is (laid-out-as short-short (interleave (range 0x188 0x190) (range 0x9000 0x9002))
+  (is (laid-out-as short-short (interleave (range 0x188 0x190) (map unchecked-short (range 0x9000 0x9002)))
                    [;short        ;short
                     0x88 0x01     0x00 0x90   ;; u0 v0
                     0x89 0x01     0x01 0x90   ;; u1 v1
                     ]))
 
-  (is (laid-out-as short-short-chunky (interleave (range 0x188 0x190) (range 0x9000 0x9002))
+  (is (laid-out-as short-short-chunky (interleave (range 0x188 0x190) (map unchecked-short (range 0x9000 0x9002)))
                    [0x88 0x01 0x89 0x01   ;; u0 u1
                     0x00 0x90 0x01 0x90   ;; v0 v1
                     ])))
@@ -117,3 +114,24 @@
     (is (= 2 (count vertex-buffer)))
     (is (= vertex-1 (get vertex-buffer 0)))
     (is (= vertex-2 (get vertex-buffer 1)))))
+
+(deftest byte-pack
+  (testing "returns a ByteString containing contents before current position"
+    (are [expected vertex-buffer] (array= (byte-array expected) (.toByteArray (b/byte-pack vertex-buffer)))
+      [0 0 0 0] (reduce conj! (->two-d-position 2) [])
+      [1 2 0 0] (reduce conj! (->two-d-position 2) [[1 2]])
+      [1 2 3 4] (reduce conj! (->two-d-position 2) [[1 2] [3 4]])
+      [0 0 0 0] (persistent! (reduce conj! (->two-d-position 2) []))
+      [1 2 0 0] (persistent! (reduce conj! (->two-d-position 2) [[1 2]]))
+      [1 2 3 4] (persistent! (reduce conj! (->two-d-position 2) [[1 2] [3 4]]))))
+  (testing "multiple calls to byte-pack return the same value"
+    (are [vertex-buffer] (let [vertex-buffer-val   vertex-buffer
+                               byte-string1 (b/byte-pack vertex-buffer-val)
+                               byte-string2 (b/byte-pack vertex-buffer-val)]
+                           (array= (.toByteArray byte-string1) (.toByteArray byte-string2)))
+      (reduce conj! (->two-d-position 2) [])
+      (reduce conj! (->two-d-position 2) [[1 2]])
+      (reduce conj! (->two-d-position 2) [[1 2] [3 4]])
+      (persistent! (reduce conj! (->two-d-position 2) []))
+      (persistent! (reduce conj! (->two-d-position 2) [[1 2]]))
+      (persistent! (reduce conj! (->two-d-position 2) [[1 2] [3 4]])))))

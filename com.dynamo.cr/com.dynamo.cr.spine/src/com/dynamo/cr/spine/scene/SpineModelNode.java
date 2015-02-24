@@ -320,9 +320,9 @@ public class SpineModelNode extends ComponentTypeNode {
                 SpineBoneNode node = nodes.get(b.name);
                 if (node == null) {
                     node = new SpineBoneNode(b.name);
-                    Matrix4d transform = new Matrix4d();
-                    b.localT.toMatrix4d(transform);
-                    node.setLocalTransform(transform);
+                    node.setTranslation(b.localT.position);
+                    node.setRotation(b.localT.rotation);
+                    node.setComponentScale(b.localT.scale);
                     nodes.put(b.name, node);
                 }
                 Node parent = this;
@@ -347,9 +347,19 @@ public class SpineModelNode extends ComponentTypeNode {
         if (ts == null) {
             return;
         }
-        List<Mesh> meshes = new ArrayList<Mesh>(this.scene.meshes);
+        List<Mesh> meshes = new ArrayList<Mesh>(this.scene.meshes.size());
+        for (Mesh mesh : this.scene.meshes) {
+            if (mesh.visible) {
+                meshes.add(mesh);
+            }
+        }
         if (!this.skin.isEmpty() && this.scene.skins.containsKey(this.skin)) {
-            meshes.addAll(this.scene.skins.get(this.skin));
+            List<Mesh> source = this.scene.skins.get(this.skin);
+            for (Mesh mesh : source) {
+                if (mesh.visible) {
+                    meshes.add(mesh);
+                }
+            }
         }
         Collections.sort(meshes, new Comparator<Mesh>() {
             @Override

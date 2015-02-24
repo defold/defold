@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [schema.core :as s]
             [schema.macros :as sm]
+            [plumbing.core :refer [fnk]]
             [dynamo.file :as f]
             [dynamo.file.protobuf :refer :all]
             [dynamo.node :as n]
@@ -14,44 +15,32 @@
   (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [dynamo.types Animation Image]))
 
-(sm/defn produce-animation [this] nil)
-(sm/defn produce-tree      [this] nil)
-(sm/defn produce-image     [this] nil)
-
 (n/defnode AtlasNode
-  (inherits n/OutlineNode)
-
-  (input images     [Image])
-  (input animations [Animation])
-
   (property extrude-borders s/Int)
-  (property margin          s/Int))
+  (property margin          s/Int)
+
+  (input images     [s/Str])
+  (input animations [s/Str]))
 
 (n/defnode AtlasAnimationNode
-  (inherits n/OutlineNode)
-
-  (output tree      [OutlineItem] produce-tree)
-  (output animation Animation     produce-animation))
+  (property id s/Str)
+  (input  images    [s/Str])
+  (output animation s/Str (fnk [id] (str "Animation " id))))
 
 (n/defnode AtlasImageNode
-  (inherits n/OutlineNode)
-
-  (output tree [OutlineItem] produce-tree))
+  (property image s/Str))
 
 (protocol-buffer-converters
  TestAtlasProto$Atlas
  {:node-type        AtlasNode
   :basic-properties [:extrude-borders :margin]
-  :node-properties  {:images-list [:tree -> :children,
-                                   :image -> :images]
-                     :animations-list [:tree -> :children,
-                                       :animation -> :animations]}}
+  :node-properties  {:images-list [:image -> :images]
+                     :animations-list [:animation -> :animations]}}
 
  TestAtlasProto$AtlasAnimation
  {:node-type        AtlasAnimationNode
   :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
-  :node-properties  {:images-list [:tree -> :children,
-                                   :image -> :images]}}
+  :node-properties  {:images-list [:image -> :images]}}
 
  TestAtlasProto$AtlasImage
  {:node-type        AtlasImageNode

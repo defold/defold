@@ -180,6 +180,50 @@ TEST_F(LuaTableTest, VerifySinTable01)
     ASSERT_EQ(0, result);
 }
 
+TEST_F(LuaTableTest, TestSerializeLargeNumbers)
+{
+    uint32_t numbers[] = {0, 0x1234, 0x8765, 0xffff, 0x12345678, 0x7fffffff, 0x87654321, 268435456, 0xffffffff, 0xfffffffe};
+    const uint32_t count = sizeof(numbers) / sizeof(uint32_t);
+
+    lua_newtable(L);
+    for (uint32_t i=0;i!=count;i++)
+    {
+        // same key & value
+        lua_pushnumber(L, numbers[i]);
+        lua_pushnumber(L, numbers[i]);
+        lua_settable(L, -3);
+    }
+
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    dmScript::PushTable(L, m_Buf);
+
+    uint32_t found[count] = { 0 };
+
+    lua_pushnil(L);
+    while (lua_next(L, -2) != 0)
+    {
+        uint32_t key = (uint32_t) lua_tonumber(L, -1);
+        uint32_t value = (uint32_t) lua_tonumber(L, -2);
+        ASSERT_EQ(key, value);
+
+        for (uint32_t i=0;i!=count;i++)
+        {
+            if (key == numbers[i])
+                found[i]++;
+        }
+
+        lua_pop(L, 1);
+    }
+
+    for (uint32_t i=0;i!=count;i++)
+        ASSERT_EQ(found[i], 1);
+
+    lua_pop(L, 1);
+}
+
 // header + count (+ align) + n * element-size (overestimate)
 const uint32_t OVERFLOW_BUFFER_SIZE = 8 + 2 + 2 + 0xffff * (sizeof(char) + sizeof(char) + sizeof(char) * 6 + sizeof(lua_Number));
 char* g_DynamicBuffer = 0x0;

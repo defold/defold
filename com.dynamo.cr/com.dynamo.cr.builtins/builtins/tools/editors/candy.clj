@@ -31,9 +31,8 @@
             [dynamo.types Animation Camera Image TextureSet Rect AABB]
             [javax.media.opengl GL GL2]
             [javax.media.opengl.glu GLU]
-            [javax.vecmath Point3d]))
-
-(set! *warn-on-reflection* true)
+            [javax.vecmath Point3d]
+            [org.eclipse.swt SWT]))
 
 ; Config
 
@@ -135,24 +134,23 @@
     (render-text ctx gl text-renderer (:name group) (- (:x group) palette-cell-size-half) (+ (* 0.25 group-spacing) (- palette-cell-size-half (:y group))) 0 1))
   (let [cell-count (reduce (fn [v0 v1] (+ v0 (count (:cells v1)))) 0 layout)]
    (gl/with-enabled gl [gpu-texture shader vertex-binding]
-    (shader/set-uniform shader gl "texture" (texture/texture-unit-index gl gpu-texture))
+    (shader/set-uniform shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 cell-count)))))
 
 (defn render-level [^GL2 gl level gpu-texture vertex-binding layout]
   (let [cell-count (count layout)]
    (gl/with-enabled gl [gpu-texture shader vertex-binding]
-    (shader/set-uniform shader gl "texture" (texture/texture-unit-index gl gpu-texture))
+    (shader/set-uniform shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 cell-count)))))
 
 ; Vertex generation
 
 (defn anim-uvs [textureset id]
-  (let [anim (first (filter (fn [anim] (= id (:id anim))) (:animations textureset)))
+  (let [anim (get (:animations textureset) id)
         frame (first (:frames anim))]
-    (if frame
-      (:tex-coords frame)
-      [[0 0] [0 0]])
-    ))
+    (if-let [{start :tex-coords-start count :tex-coords-count} frame]
+      (mapv #(nth (:tex-coords textureset) %) (range start (+ start count)))
+      [[0 0] [0 0]])))
 
 (defn flip [v0 v1]
   [v1 v0])
@@ -203,7 +201,7 @@
 ; Node defs
 
 (defnk produce-renderable
-  [this level gpu-texture texture-packing palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
+  [this level gpu-texture palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
   {pass/overlay [{:world-transform g/Identity4d 
                   :render-fn (fn [ctx gl glu text-renderer]
                                (render-palette ctx gl text-renderer gpu-texture palette-vertex-binding palette-layout))}]
@@ -214,14 +212,14 @@
 (n/defnode CandyRender
   (input level s/Any)
   (input gpu-texture s/Any)
-  (input texture-packing s/Any)
   (input textureset s/Any)
   (input active-brush s/Str)
-  (output palette-layout s/Any (fnk [] (layout-palette palette)))
-  (output level-layout s/Any (fnk [level] (layout-level level)))
-  (output palette-vertex-binding s/Any        (fnk [textureset palette-layout active-brush] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half active-brush) shader)))
-  (output level-vertex-binding s/Any        (fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
-  (output renderable t/RenderData produce-renderable))
+
+  (output palette-layout         s/Any :cached (fnk [] (layout-palette palette)))
+  (output level-layout           s/Any :cached (fnk [level] (layout-level level)))
+  (output palette-vertex-binding s/Any :cached (fnk [textureset palette-layout active-brush] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half active-brush) shader)))
+  (output level-vertex-binding   s/Any :cached (fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
+  (output renderable             t/RenderData  produce-renderable))
 
 (defn- hit? [cell pos cell-size-half]
   (let [xc (:x cell)
@@ -231,8 +229,18 @@
                (<= (- yc d) (:y pos) (+ yc d)))
       cell)))
 
+(defn- selection-event?
+  "True if the event is the beginning of a mouse-selection. That means:
+  1. No other mouse button is already held down;
+  2. Neither CTRL nor ALT is held down (camera movement);
+  3. The mouse button clicked was button 1."
+  [event]
+  (and (zero? (bit-and (:state-mask event) (bit-or SWT/BUTTON_MASK SWT/CTRL SWT/ALT)))
+       (= 1 (:button event))))
+
 (n/defnode CandyNode
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "Level"))
   (input camera s/Any)
   (property level s/Any (visible false))
   (property width s/Int)
@@ -261,6 +269,7 @@
         (reset! active-cell level-hit)
         (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [(ds/node-consuming self :aabb)])))
   (on :mouse-down
+    (when (selection-event? event)
       (let [camera (first (n/get-node-inputs self :camera))
             pos {:x (:x event) :y (:y event)}
             world-pos-v4 (camera-unproject camera (:x event) (:y event) 0)
@@ -275,7 +284,7 @@
           (ds/set-property self :active-brush (:image palette-hit)))
         (when level-hit
           (ds/tx-label "Paint Cell")
-          (ds/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self))))))
+          (ds/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))))))
   (on :load
       (let [project (:project event)
             level (edn/read-string (slurp (:filename self)))]
@@ -330,7 +339,6 @@
         (ds/connect candy-node     :active-brush candy-render   :active-brush)
         (ds/connect candy-node     :aabb editor   :aabb)
         (ds/connect atlas-node     :gpu-texture  candy-render   :gpu-texture)
-        (ds/connect atlas-node     :texture-packing  candy-render   :texture-packing)
         (ds/connect atlas-node     :textureset  candy-render   :textureset))
       editor)))
 

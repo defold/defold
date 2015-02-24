@@ -1,5 +1,4 @@
 #include "comp_factory.h"
-#include "resources/res_factory.h"
 
 #include <string.h>
 
@@ -19,11 +18,6 @@ namespace dmGameSystem
     using namespace Vectormath::Aos;
 
     const char* FACTORY_MAX_COUNT_KEY = "factory.max_count";
-
-    struct FactoryComponent
-    {
-        FactoryResource*    m_Resource;
-    };
 
     struct FactoryWorld
     {
@@ -87,32 +81,23 @@ namespace dmGameSystem
             dmGameObject::HInstance instance = params.m_Instance;
             dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
             dmMessage::Message* message = params.m_Message;
-            // redispatch messages on the component socket to the frame socket
-            dmMessage::URL receiver = message->m_Receiver;
-            if (receiver.m_Socket == dmGameObject::GetMessageSocket(collection))
+
+            dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) params.m_Message->m_Data;
+            uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
+            uint32_t property_buffer_size = message->m_DataSize - msg_size;
+            uint8_t* property_buffer = 0x0;
+            if (property_buffer_size > 0)
             {
-                receiver.m_Socket = dmGameObject::GetFrameMessageSocket(collection);
-                dmMessage::Post(&message->m_Sender, &receiver, message->m_Id, message->m_UserData, message->m_Descriptor, (const void*)message->m_Data, message->m_DataSize);
+                property_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
             }
-            else
+            FactoryComponent* fc = (FactoryComponent*) *params.m_UserData;
+            dmhash_t id = create->m_Id;
+            if (id == 0)
             {
-                dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) params.m_Message->m_Data;
-                uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
-                uint32_t property_buffer_size = message->m_DataSize - msg_size;
-                uint8_t* property_buffer = 0x0;
-                if (property_buffer_size > 0)
-                {
-                    property_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
-                }
-                FactoryComponent* fc = (FactoryComponent*) *params.m_UserData;
-                dmhash_t id = create->m_Id;
-                if (id == 0)
-                {
-                    id = dmGameObject::GenerateUniqueInstanceId(collection);
-                }
-                dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
-                        create->m_Position, create->m_Rotation, create->m_Scale);
+                id = dmGameObject::GenerateUniqueInstanceId(collection);
             }
+            dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
+                    create->m_Position, create->m_Rotation, create->m_Scale);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

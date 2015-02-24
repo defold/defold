@@ -17,8 +17,6 @@ ordinary paths."
             [service.log :as log])
   (:import [java.io File]))
 
-(set! *warn-on-reflection* true)
-
 (defn register-node-type
   [filetype node-type]
   (ds/update-property (ds/current-scope) :node-types assoc filetype node-type))

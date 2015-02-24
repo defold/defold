@@ -39,7 +39,7 @@ public class SpineSceneTest {
     private static class TestUVTProvider implements UVTransformProvider {
         @Override
         public UVTransform getUVTransform(String animId) {
-            return new UVTransform(new Point2d(0.0, 0.0), new Vector2d(0.5, 1.0));
+            return new UVTransform(new Point2d(0.0, 0.0), new Vector2d(0.5, 1.0), false);
         }
     }
 

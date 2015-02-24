@@ -466,10 +466,10 @@
     (is (:string-property (t/properties (construct BasicNode))))
     (is (:string-property (t/properties (construct InheritsBasicNode))))
     (is (:property-to-override (t/properties (construct InheritsBasicNode))))
-    (is (= nil         (-> (construct BasicNode)         t/properties :property-to-override   t/default-property-value)))
-    (is (= "override"  (-> (construct InheritsBasicNode) t/properties :property-to-override   t/default-property-value)))
-    (is (= "a-default" (-> (construct InheritsBasicNode) t/properties :property-from-type     t/default-property-value)))
-    (is (= "multiple"  (-> (construct InheritsBasicNode) t/properties :property-from-multiple t/default-property-value))))
+    (is (= nil         (-> (construct BasicNode)         t/properties :property-to-override   t/property-default-value)))
+    (is (= "override"  (-> (construct InheritsBasicNode) t/properties :property-to-override   t/property-default-value)))
+    (is (= "a-default" (-> (construct InheritsBasicNode) t/properties :property-from-type     t/property-default-value)))
+    (is (= "multiple"  (-> (construct InheritsBasicNode) t/properties :property-from-multiple t/property-default-value))))
   (testing "transforms"
     (is (every? (-> (construct BasicNode) t/outputs)
                 #{:string-property :property-to-override :multi-valued-property :basic-output}))
@@ -493,3 +493,14 @@
     (is (:basic-output (t/auto-update-outputs (construct InheritsBasicNode))))
     (is (:another-cached-output (t/auto-update-outputs (construct InheritsBasicNode))))
     (is (not (:another-output (t/auto-update-outputs (construct InheritsBasicNode)))))))
+
+(defnode PropertyValidationNode
+  (property even-number s/Int
+    (default 0)
+    (validate must-be-even :message "only even numbers are allowed" even?)))
+
+(deftest validation-errors-delivered-in-properties-output
+  (with-clean-world
+    (let [[node]     (tx-nodes (n/construct PropertyValidationNode :even-number 1))
+          properties (n/get-node-value node :properties)]
+      (is (= ["only even numbers are allowed"] (some-> properties :even-number :validation-problems))))))

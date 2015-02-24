@@ -1,0 +1,3 @@
+function final(self)
+    go.delete("/target")
+end

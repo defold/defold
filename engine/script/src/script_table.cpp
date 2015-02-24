@@ -169,7 +169,7 @@ namespace dmScript
         else
         {
             lua_Number index = lua_tonumber(L, -2);
-            if (index > 0xfffffff) {
+            if (index > 0xffffffff) {
                 luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
             }
             uint32_t key = (uint32_t)index;

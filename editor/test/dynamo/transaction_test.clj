@@ -13,9 +13,11 @@
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
+            [internal.disposal :as disposal]
             [internal.either :as e]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
+            [internal.node :as in]
             [internal.transaction :as it]))
 
 (defn dummy-output [& _] :ok)
@@ -96,13 +98,6 @@
     (swap! (:tracking self) update-in [kind] (fnil inc 0)))
   ([transaction graph self label kind afflicted]
     (swap! (:tracking self) update-in [kind] (fnil conj []) afflicted)))
-
-#_(defn track-trigger-transaction-state
-   ([transaction graph self label kind]
-     (swap! (get self label)
-       (fn [m]
-         (-> m
-           (update-in [todo] (fnil conj []) todo))))))
 
 (n/defnode StringSource
   (property label s/Str (default "a-string")))
@@ -372,7 +367,7 @@
 
 (defn cache-locate-key
   [world-ref node-id output]
-  (some-> world-ref deref :cache-keys (get-in [node-id :cached-output])))
+  (some-> world-ref deref :cache-keys (get-in [node-id output])))
 
 (deftest deleted-nodes-values-removed-from-cache
   (with-clean-world
@@ -385,3 +380,179 @@
         (ds/transactional (ds/delete node))
         (is (nil? (cache-peek world-ref cache-key)))
         (is (nil? (cache-locate-key world-ref node-id :cached-output)))))))
+
+(defrecord DisposableValue [disposed?]
+  t/IDisposable
+  (dispose [this]
+    (deliver disposed? true)))
+
+(n/defnode DisposableCachedValueNode
+  (property a-property s/Str)
+
+  (output cached-output t/IDisposable :cached (fnk [a-property] (->DisposableValue (promise)))))
+
+(deftest cached-values-are-disposed-when-invalidated
+  (with-clean-world
+    (let [node (ds/transactional (ds/add (n/construct DisposableCachedValueNode)))
+          value1 (n/get-node-value node :cached-output)]
+      (ds/transactional (ds/set-property node :a-property "this should trigger disposal"))
+      (disposal/dispose-pending world-ref)
+      (is (= true (deref (:disposed? value1) 100 :timeout))))))
+
+(n/defnode OriginalNode
+  (output original-output s/Str :cached (fnk [] "original-output-value")))
+
+(n/defnode ReplacementNode
+  (output original-output s/Str (fnk [] "original-value-replaced"))
+  (output additional-output s/Str :cached (fnk [] "new-output-added")))
+
+(deftest become-interacts-with-caching
+  (testing "vanished keys are removed"
+    (with-clean-world
+      (let [node (ds/transactional (ds/add (n/construct OriginalNode)))]
+        (is (not (nil? (cache-locate-key world-ref (:_id node) :original-output))))
+
+        (let [node (ds/transactional (ds/become node (n/construct ReplacementNode)))]
+          (is (nil? (cache-locate-key world-ref (:_id node) :original-output)))))))
+
+  (testing "new keys are added"
+    (with-clean-world
+      (let [node (ds/transactional (ds/add (n/construct OriginalNode)))]
+        (is (nil? (cache-locate-key world-ref (:_id node) :additional-output)))
+
+        (let [node (ds/transactional (ds/become node (n/construct ReplacementNode)))]
+          (def cache-keys* (-> world-ref deref :cache-keys))
+          (is (not (nil? (cache-locate-key world-ref (:_id node) :additional-output))))))))
+
+  (testing "new uncacheable values are disposed"
+    (with-clean-world
+      (let [node         (ds/transactional (ds/add (n/construct OriginalNode)))
+            cache-key    (cache-locate-key world-ref (:_id node) :original-output)
+            cached-value (n/get-node-value node :original-output)]
+        (is (= cached-value (e/result (cache-peek world-ref cache-key))))
+        (is (not (nil? (cache-peek world-ref cache-key))))
+
+        (let [node (ds/transactional (ds/become node (n/construct ReplacementNode)))]
+          (is (nil? (cache-peek world-ref cache-key)))
+          (is (nil? (cache-locate-key world-ref (:_id node) :original-output)))))))
+
+  (testing "new cacheable values are indeed cached"
+    (with-clean-world
+      (let [node         (ds/transactional (ds/add (n/construct OriginalNode)))
+            node         (ds/transactional (ds/become node (n/construct ReplacementNode)))
+            cache-key    (cache-locate-key world-ref (:_id node) :additional-output)
+            cached-value (n/get-node-value node :additional-output)]
+        (is (not (nil? cache-key)))
+        (is (= cached-value (e/result (cache-peek world-ref cache-key))))
+        (is (not (nil? (cache-peek world-ref cache-key))))))))
+
+(n/defnode NumberSource
+  (property x          s/Num         (default 0))
+  (output   sum        s/Num         (fnk [x] x))
+  (output   cached-sum s/Num :cached (fnk [x] x)))
+
+(n/defnode InputAndPropertyAdder
+  (input    x          s/Num)
+  (property y          s/Num (default 0))
+  (output   sum        s/Num         (fnk [x y] (+ x y)))
+  (output   cached-sum s/Num :cached (fnk [x y] (+ x y))))
+
+(n/defnode InputAdder
+  (input xs [s/Num])
+  (output sum        s/Num         (fnk [xs] (reduce + 0 xs)))
+  (output cached-sum s/Num :cached (fnk [xs] (reduce + 0 xs))))
+
+(defn build-adder-tree
+  "Builds a binary tree of connected adder nodes; returns a 2-tuple of root node and leaf nodes."
+  [output-name tree-levels]
+  (if (pos? tree-levels)
+    (let [[n1 l1] (build-adder-tree output-name (dec tree-levels))
+          [n2 l2] (build-adder-tree output-name (dec tree-levels))
+          n (ds/add (n/construct InputAdder))]
+      (ds/connect n1 output-name n :xs)
+      (ds/connect n2 output-name n :xs)
+      [n (vec (concat l1 l2))])
+    (let [n (ds/add (n/construct NumberSource :x 0))]
+      [n [n]])))
+
+(deftest output-computation-inconsistencies
+  (testing "computing output with stale property value"
+    (with-clean-world
+      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (ds/transactional (ds/connect number-source :x adder-before :x))
+            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+        (is (= 6 (n/get-node-value adder-after  :sum)))
+        (is (= 5 (n/get-node-value adder-before :sum)))))
+    (with-clean-world
+      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (ds/transactional (ds/connect number-source :x adder-before :x))
+            _             (ds/transactional (ds/set-property number-source :x 22))
+            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+        (is (= 26 (n/get-node-value adder-after  :sum)))
+        (is (= 25 (n/get-node-value adder-before :sum))))))
+  (testing "caching stale output value"
+    (with-clean-world
+      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (ds/transactional (ds/connect number-source :x adder-before :x))
+            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+        (is (= 5 (n/get-node-value adder-before :cached-sum)))
+        (is (= 5 (n/get-node-value adder-before :sum)))
+        (is (= 5 (n/get-node-value adder-after  :cached-sum)))
+        (is (= 6 (n/get-node-value adder-after  :sum))))))
+  (testing "computation with inconsistent world"
+    (with-clean-world
+      (let [tree-levels            5
+            iterations             100
+            [adder number-sources] (ds/transactional (build-adder-tree :sum tree-levels))]
+        (is (= 0 (n/get-node-value adder :sum)))
+        (dotimes [i iterations]
+          (let [f1 (future (n/get-node-value adder :sum))
+                f2 (future (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
+            (is (zero? (mod @f1 (count number-sources))))
+            @f2))
+        (is (= (* iterations (count number-sources)) (n/get-node-value adder :sum))))))
+  (testing "caching result of computation with inconsistent world"
+    (with-clean-world
+      (let [tree-levels            5
+            iterations             100
+            [adder number-sources] (ds/transactional (build-adder-tree :sum tree-levels))]
+        (is (= 0 (n/get-node-value adder :cached-sum)))
+        (loop [i iterations]
+          (when (pos? i)
+            (let [f1 (future (n/get-node-value adder :cached-sum))
+                  f2 (future (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
+              @f2
+              @f1
+              (recur (dec i)))))
+        (is (= (n/get-node-value adder :sum) (n/get-node-value adder :cached-sum))))))
+  (testing "recursively computed values are cached"
+    (with-clean-world
+      (let [tree-levels            5
+            [adder number-sources] (ds/transactional (build-adder-tree :cached-sum tree-levels))
+            adder-cache-key        (cache-locate-key world-ref (:_id adder) :cached-sum)
+            source-cache-key       (cache-locate-key world-ref (:_id (first number-sources)) :cached-sum)]
+        (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc)))
+        (is (nil? (cache-peek world-ref adder-cache-key)))
+        (is (nil? (cache-peek world-ref source-cache-key)))
+        (n/get-node-value adder :cached-sum)
+        (is (= (count number-sources) (some-> (cache-peek world-ref adder-cache-key)  e/result)))
+        (is (= 1                      (some-> (cache-peek world-ref source-cache-key) e/result))))))
+  (testing "get-inputs stores results in cache"
+    (with-clean-world
+      (let [node         (ds/transactional (ds/add (n/construct NumberSource :x 13)))
+            cache-key    (cache-locate-key world-ref (:_id node) :cached-sum)
+            world-before @world-ref]
+        (is (nil? (cache-peek world-ref cache-key)))
+        (is (= 13 (in/get-inputs world-before node :cached-sum)))
+        (is (= 13 (some-> (cache-peek world-ref cache-key) e/result))))))
+  (testing "collect-inputs stores results in cache"
+    (with-clean-world
+      (let [node         (ds/transactional (ds/add (n/construct NumberSource :x 42)))
+            cache-key    (cache-locate-key world-ref (:_id node) :cached-sum)
+            world-before @world-ref]
+        (is (nil? (cache-peek world-ref cache-key)))
+        (is (= {:x 42 :sum 42 :cached-sum 42} (in/collect-inputs world-before node {:x ::unused :sum ::unused :cached-sum ::unused})))
+        (is (= 42 (some-> (cache-peek world-ref cache-key) e/result)))))))

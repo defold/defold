@@ -117,42 +117,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params)
-    {
-        CollisionObjectResource* co_res = (CollisionObjectResource*)params.m_Resource;
-        if (co_res == 0x0 || co_res->m_DDF == 0x0)
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        if ((co_res->m_DDF->m_Mass == 0.0f && co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
-            || (co_res->m_DDF->m_Mass > 0.0f && co_res->m_DDF->m_Type != dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC))
-        {
-            dmLogError("Invalid mass %f for shape type %d", co_res->m_DDF->m_Mass, co_res->m_DDF->m_Type);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
-        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        CollisionComponent* component = new CollisionComponent();
-        component->m_3D = (uint8_t) physics_context->m_3D;
-        component->m_Resource = (CollisionObjectResource*)params.m_Resource;
-        component->m_Instance = params.m_Instance;
-        component->m_Object2D = 0;
-        component->m_ComponentIndex = params.m_ComponentIndex;
-        *params.m_UserData = (uintptr_t)component;
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
-    {
-        CollisionComponent* cc = (CollisionComponent*)*params.m_UserData;
-        // TODO This is a temp-fix related to:
-        // https://defold.fogbugz.com/default.asp?2005
-        // https://defold.fogbugz.com/default.asp?116
-        if (cc->m_Object2D != 0 || cc->m_Object3D != 0)
-        {
-            dmLogFatal("Collision object destroyed without being finalized; calling go.delete() from a final()-callback (directly or via message passing) is not allowed.");
-        }
-        delete cc;
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
     uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash)
     {
         if (group_hash != 0)
@@ -197,7 +161,41 @@ namespace dmGameSystem
         return 0;
     }
 
-    bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component)
+    static void SetupTileGrid(CollisionWorld* world, CollisionComponent* component) {
+        CollisionObjectResource* resource = component->m_Resource;
+        if (resource->m_TileGrid)
+        {
+            TileGridResource* tile_grid_resource = resource->m_TileGridResource;
+            dmGameSystemDDF::TileGrid* tile_grid = tile_grid_resource->m_TileGrid;
+            dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
+            uint32_t shape_count = shapes.Size();
+            dmPhysics::HullFlags flags;
+            for (uint32_t i = 0; i < shape_count; ++i)
+            {
+                dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
+                TextureSetResource* texture_set_resource = tile_grid_resource->m_TextureSet;
+                dmGameSystemDDF::TextureSet* tile_set = texture_set_resource->m_TextureSet;
+                uint32_t cell_count = layer->m_Cell.m_Count;
+                for (uint32_t j = 0; j < cell_count; ++j)
+                {
+                    dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
+                    uint32_t tile = cell->m_Tile;
+
+                    if (tile < tile_set->m_ConvexHulls.m_Count && tile_set->m_ConvexHulls[tile].m_Count > 0)
+                    {
+                        uint32_t cell_x = cell->m_X - tile_grid_resource->m_MinCellX;
+                        uint32_t cell_y = cell->m_Y - tile_grid_resource->m_MinCellY;
+                        dmPhysics::SetGridShapeHull(component->m_Object2D, i, cell_y, cell_x, tile, flags);
+                        uint16_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
+                        uint16_t group = GetGroupBitIndex(world, texture_set_resource->m_HullCollisionGroups[tile]);
+                        dmPhysics::SetCollisionObjectFilter(component->m_Object2D, i, child, group, component->m_Mask);
+                    }
+                }
+            }
+        }
+    }
+
+    bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
     {
         CollisionObjectResource* resource = component->m_Resource;
         dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
@@ -212,10 +210,12 @@ namespace dmGameSystem
         data.m_LinearDamping = ddf->m_LinearDamping;
         data.m_AngularDamping = ddf->m_AngularDamping;
         data.m_LockedRotation = ddf->m_LockedRotation;
+        data.m_Enabled = enabled;
         for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
         {
             data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
         }
+        component->m_Mask = data.m_Mask;
         if (physics_context->m_3D)
         {
             if (resource->m_TileGrid)
@@ -265,35 +265,8 @@ namespace dmGameSystem
                 if (component->m_Object2D != 0x0)
                     dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
                 component->m_Object2D = collision_object;
-                if (resource->m_TileGrid)
-                {
-                    TileGridResource* tile_grid_resource = resource->m_TileGridResource;
-                    dmGameSystemDDF::TileGrid* tile_grid = tile_grid_resource->m_TileGrid;
-                    dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
-                    uint32_t shape_count = shapes.Size();
-                    dmPhysics::HullFlags flags;
-                    for (uint32_t i = 0; i < shape_count; ++i)
-                    {
-                        dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
-                        TextureSetResource* texture_set_resource = tile_grid_resource->m_TextureSet;
-                        dmGameSystemDDF::TextureSet* tile_set = texture_set_resource->m_TextureSet;
-                        uint32_t cell_count = layer->m_Cell.m_Count;
-                        for (uint32_t j = 0; j < cell_count; ++j)
-                        {
-                            dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
-                            uint32_t tile = cell->m_Tile;
-
-                            if (tile < tile_set->m_ConvexHulls.m_Count && tile_set->m_ConvexHulls[tile].m_Count > 0)
-                            {
-                                uint32_t cell_x = cell->m_X - tile_grid_resource->m_MinCellX;
-                                uint32_t cell_y = cell->m_Y - tile_grid_resource->m_MinCellY;
-                                dmPhysics::SetGridShapeHull(component->m_Object2D, i, cell_y, cell_x, tile, flags);
-                                uint16_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
-                                uint16_t group = GetGroupBitIndex(world, texture_set_resource->m_HullCollisionGroups[tile]);
-                                dmPhysics::SetCollisionObjectFilter(component->m_Object2D, i, child, group, data.m_Mask);
-                            }
-                        }
-                    }
+                if (enabled) {
+                    SetupTileGrid(world, component);
                 }
             }
             else
@@ -301,26 +274,38 @@ namespace dmGameSystem
                 return false;
             }
         }
-        component->m_Mask = data.m_Mask;
         return true;
     }
 
-    dmGameObject::CreateResult CompCollisionObjectInit(const dmGameObject::ComponentInitParams& params)
+    dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        CollisionComponent* component = (CollisionComponent*) *params.m_UserData;
-        if (component->m_Object2D == 0)
+        CollisionObjectResource* co_res = (CollisionObjectResource*)params.m_Resource;
+        if (co_res == 0x0 || co_res->m_DDF == 0x0)
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        if ((co_res->m_DDF->m_Mass == 0.0f && co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
+            || (co_res->m_DDF->m_Mass > 0.0f && co_res->m_DDF->m_Type != dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC))
         {
-            CollisionWorld* world = (CollisionWorld*)params.m_World;
-            if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
-            {
-                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-            }
+            dmLogError("Invalid mass %f for shape type %d", co_res->m_DDF->m_Mass, co_res->m_DDF->m_Type);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        CollisionComponent* component = new CollisionComponent();
+        component->m_3D = (uint8_t) physics_context->m_3D;
+        component->m_Resource = (CollisionObjectResource*)params.m_Resource;
+        component->m_Instance = params.m_Instance;
+        component->m_Object2D = 0;
+        component->m_ComponentIndex = params.m_ComponentIndex;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
+        {
+            delete component;
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
+    dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
@@ -343,6 +328,7 @@ namespace dmGameSystem
                 component->m_Object2D = 0;
             }
         }
+        delete component;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -444,6 +430,7 @@ namespace dmGameSystem
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+            ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
             // Broadcast to B components
@@ -457,6 +444,7 @@ namespace dmGameSystem
             ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
+            ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
 
             return true;
@@ -607,6 +595,20 @@ namespace dmGameSystem
                 }
             }
         }
+    }
+
+    dmGameObject::CreateResult CompCollisionObjectAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        if (world != 0x0) {
+            CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+            if (component->m_3D) {
+                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, true);
+            } else {
+                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, true);
+                SetupTileGrid(world, component);
+            }
+        }
+        return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params)
@@ -797,7 +799,7 @@ namespace dmGameSystem
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
-        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
+        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, true))
         {
             dmLogError("%s", "Could not recreate collision object component, not reloaded.");
         }

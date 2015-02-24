@@ -7,7 +7,7 @@
             [dynamo.file :refer :all]
             [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters]]
             [dynamo.geom :as g]
-            [dynamo.gl :as gl :refer :all]
+            [dynamo.gl :as gl]
             [dynamo.grid :as grid]
             [dynamo.node :as n]
             [dynamo.particle-lib :as pl :refer :all]
@@ -70,14 +70,13 @@
   (* 0.5 v))
 
 (defn render-emitter-outlines
-  [ctx ^GL2 gl this]
-  (let [properties (n/get-node-value this :properties)
-        size-x    (:size-x properties)
+  [ctx ^GL2 gl this properties]
+  (let [size-x    (:size-x properties)
         size-y    (:size-y properties)
         size-z    (:size-z properties)]
     (print "hej")
-    (do-gl gl [this            (assoc this :gl-context ctx)
-               this            (assoc this :gl gl)]
+    (gl/do-gl gl [this (assoc this :gl-context ctx)
+                  this (assoc this :gl gl)]
       ;; Convert into vbo
       (.glBegin gl GL/GL_LINES)
       (.glVertex3f gl 0.0 0.0 0.0)
@@ -89,15 +88,14 @@
       (.glEnd gl))))
 
 (defn render-modifier-outlines
-  [ctx ^GL2 gl this]
-  (let [properties (n/get-node-value this :properties)
-        scale    (:magnitude properties)]
+  [ctx ^GL2 gl this properties]
+  (let [scale    (:magnitude properties)]
     (print "PROPS!!!")
     (print this)
     (print properties)
     (print scale)
-    (do-gl gl [this (assoc this :gl-context ctx)
-               this (assoc this :gl gl)]
+    (gl/do-gl gl [this (assoc this :gl-context ctx)
+                  this (assoc this :gl gl)]
       ;; Convert into vbo
       (.glBegin gl GL/GL_LINES)
       (.glVertex3f gl 0.0 0.0 0.0)
@@ -145,6 +143,7 @@
 
 (n/defnode ParticlefxNode
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "Particle FX"))
   (inherits ParticlefxProperties)
   (input    renderables s/Any)
   (output   renderables s/Any :cached passthrough-renderables)
@@ -170,11 +169,11 @@
   (property start-delay s/Num))
 
 (defnk produce-emitter-renderable :- RenderData
-  [this project renderables]
+  [this project renderables properties]
   (let [world (Matrix4d. g/Identity4d)
         renderable {pass/outline
                     [{:world-transform world
-                      :render-fn       (fn [ctx gl glu text-renderer] (render-emitter-outlines ctx gl this))}]}]
+                      :render-fn       (fn [ctx gl glu text-renderer] (render-emitter-outlines ctx gl this properties))}]}]
     (apply merge-with concat renderable renderables)
     ))
 
@@ -185,6 +184,7 @@
 (n/defnode EmitterNode
   (inherits TransformNode)
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "emitter"))
   (inherits EmitterProperties)
   (inherits EmitterRender))
 
@@ -194,11 +194,11 @@
   (property use-direction int))
 
 (defnk produce-modifier-renderable :- RenderData
-  [this project]
+  [this project properties]
   (let [world (Matrix4d. g/Identity4d)]
     {pass/outline
      [{:world-transform world
-       :render-fn       (fn [ctx gl glu text-renderer] (render-modifier-outlines ctx gl this))}]}))
+       :render-fn       (fn [ctx gl glu text-renderer] (render-modifier-outlines ctx gl this properties))}]}))
 
 (n/defnode ModifierRender
     (output renderable    RenderData :cached produce-modifier-renderable))
@@ -206,6 +206,7 @@
 (n/defnode ModifierNode
   (inherits TransformNode)
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [type] (str type)))
   (inherits ModifierProperties)
   (inherits ModifierRender))
 
@@ -253,7 +254,7 @@ Particle$Modifier$Property
  :enum-maps        {:key (automatic-protobuf-enum Particle$ModifierKey "MODIFIER_KEY_")}})
 
 (defmethod protobuf/message->node Particle$SplinePoint
-  [msg]
+  [^Particle$SplinePoint msg]
   {:x (.getX msg)
    :y (.getY msg)
    :t-x (.getTX msg)

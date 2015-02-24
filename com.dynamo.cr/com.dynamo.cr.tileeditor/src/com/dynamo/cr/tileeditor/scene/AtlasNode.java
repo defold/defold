@@ -34,6 +34,10 @@ public class AtlasNode extends TextureSetNode {
     @GreaterEqualThanZero
     private int extrudeBorders;
 
+    @Property
+    @GreaterEqualThanZero
+    private int innerPadding;
+
     private transient AtlasAnimationNode playBackNode;
     private transient TextureHandle textureHandle = new TextureHandle();
     private transient RuntimeTextureSet runtimeTextureSet = new RuntimeTextureSet();
@@ -67,6 +71,15 @@ public class AtlasNode extends TextureSetNode {
 
     public void setExtrudeBorders(int extrudeBorders) {
         this.extrudeBorders = extrudeBorders;
+        increaseVersion();
+    }
+
+    public int getInnerPadding() {
+        return innerPadding;
+    }
+
+    public void setInnerPadding(int innerPadding) {
+        this.innerPadding = innerPadding;
         increaseVersion();
     }
 
@@ -153,8 +166,9 @@ public class AtlasNode extends TextureSetNode {
             if (ok) {
                 MappedAnimIterator iterator = new MappedAnimIterator(animations, imageNames);
                 TextureSetResult result = TextureSetGenerator.generate(images, iterator,
- Math.max(0, margin),
-                        Math.max(0, extrudeBorders), true);
+                        Math.max(0, margin),
+                        Math.max(0, innerPadding),
+                        Math.max(0, extrudeBorders), true, true, true, false);
                 TextureSet textureSet = result.builder.setTexture("").build();
                 runtimeTextureSet.update(textureSet, result.uvTransforms);
 

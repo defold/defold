@@ -5,6 +5,7 @@ import logging
 import sys
 import StringIO
 from optparse import OptionParser
+
 import script_doc_ddf_pb2
 
 def _strip_comment_stars(str):

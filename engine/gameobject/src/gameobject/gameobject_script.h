@@ -60,6 +60,8 @@ namespace dmGameObject
         int         m_ScriptDataReference;
         uint8_t     m_ComponentIndex;
         HProperties m_Properties;
+        uint16_t    m_Update : 1;
+        uint16_t    m_Padding : 15;
     };
 
     struct ScriptWorld
@@ -71,8 +73,8 @@ namespace dmGameObject
 
     void    InitializeScript(dmScript::HContext context);
 
-    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module, const char* filename);
-    bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename);
+    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module);
+    bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
     void    DeleteScript(HScript script);
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index);

@@ -1,0 +1,13 @@
+
+local function callback(self, url, property_id)
+   print "Animation 4 complete" -- should not arrive here
+end
+
+function init(self)
+    print "Third animates fourth"
+    go.animate("fourth", "position.x", go.PLAYBACK_ONCE_FORWARD, 1, go.EASING_LINEAR, 0.05, 0, callback)
+end
+
+function final(self)
+    print "Third object has been finalised"
+end

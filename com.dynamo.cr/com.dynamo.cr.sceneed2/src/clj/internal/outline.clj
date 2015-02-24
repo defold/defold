@@ -1,11 +1,11 @@
 (ns internal.outline
-  (:require [dynamo.types :refer :all]
+  (:require [dynamo.types :as t]
             [plumbing.core :refer [defnk]]))
 
-(set! *warn-on-reflection* true)
-
-;; Transform produces value
-(defnk outline-tree-producer :- OutlineItem
-  [this g children :- [OutlineItem]]
-  {:label "my name" :icon "my type of icon" :node-ref this :children children})
-
+(defnk outline-tree-producer :- t/OutlineItem
+  [this outline-label outline-commands outline-children :- [t/OutlineItem]]
+  {:label outline-label
+   ;:icon "my type of icon"
+   :node-ref (t/node-ref this)
+   :commands outline-commands
+   :children outline-children})

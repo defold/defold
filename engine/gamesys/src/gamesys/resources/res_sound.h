@@ -18,6 +18,8 @@ namespace dmGameSystem
 
         dmSound::HSoundData m_SoundData;
         bool m_Looping;
+        dmhash_t m_GroupHash;
+        float    m_Gain;
     };
 
     dmResource::Result ResSoundCreate(dmResource::HFactory factory,

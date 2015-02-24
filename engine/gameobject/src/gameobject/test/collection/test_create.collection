@@ -1,0 +1,32 @@
+name: "level1"
+instances {
+  id: "go1"
+  prototype: "/go1.goc"
+  children: "go2"
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "go2"
+  prototype: "/create_2.goc"
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}

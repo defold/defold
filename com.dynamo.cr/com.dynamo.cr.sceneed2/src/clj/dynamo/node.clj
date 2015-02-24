@@ -6,7 +6,7 @@ Second, this namespace defines some of the basic node types and mixins."
   (:require [clojure.set :as set]
             [clojure.core.match :refer [match]]
             [clojure.tools.macro :refer [name-with-attributes]]
-            [plumbing.core :refer [defnk]]
+            [plumbing.core :refer [defnk fnk]]
             [schema.core :as s]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
@@ -17,8 +17,6 @@ Second, this namespace defines some of the basic node types and mixins."
             [internal.property :as ip]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]))
-
-(set! *warn-on-reflection* true)
 
 (defn get-node-value
   "Pull a value from a node's output, identified by `label`.
@@ -190,7 +188,8 @@ This function should mainly be used to create 'plumbing'."
    This function takes any number of input labels and returns a vector of their
    values, in the same order."
   [node & labels]
-  (map (in/collect-inputs node (-> node :world-ref deref :graph) (zipmap labels (repeat :ok))) labels))
+  ;; TODO: Pass graph or world value into this function to avoid interactions with concurrent transactions..
+  (map (in/collect-inputs (-> node :world-ref deref) node (zipmap labels (repeat :ok))) labels))
 
 ; ---------------------------------------------------------------------------
 ; Bootstrapping the core node types
@@ -200,8 +199,9 @@ This function should mainly be used to create 'plumbing'."
 This function should not be called directly."
   [transaction graph self label kind inputs-affected]
   (when (inputs-affected :nodes)
-    (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
-          nodes-added              (map #(dg/node graph %) (:nodes-added transaction))
+    (let [world                    {:graph graph} ; TODO: We're cheating here... we need a real "world" value.
+          existing-nodes           (cons self (in/get-inputs world self :nodes))
+          nodes-added              (filter #((:nodes-added transaction) (:_id %)) existing-nodes)
           out-from-new-connections (in/injection-candidates existing-nodes nodes-added)
           in-to-new-connections    (in/injection-candidates nodes-added existing-nodes)
           candidates               (set/union out-from-new-connections in-to-new-connections)
@@ -218,8 +218,8 @@ This function should not be called directly."
 This should not be called directly."
   [transaction graph self label kind]
   (when (ds/is-deleted? transaction self)
-    (let [graph-before-deletion (-> transaction :world-ref deref :graph)
-          nodes-to-delete       (:nodes (in/collect-inputs self graph-before-deletion {:nodes :ok}))]
+    (let [world-before-deletion (-> transaction :world-ref deref) ; TODO: We should use a world value explicitly passed to us (instead of deref-ing current value).
+          nodes-to-delete       (:nodes (in/collect-inputs world-before-deletion self {:nodes :ok}))]
       (doseq [n nodes-to-delete]
         (ds/delete n)))))
 
@@ -278,5 +278,7 @@ Inputs:
 
 Outputs:
 - tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (input  children [OutlineItem])
-  (output tree     OutlineItem outline/outline-tree-producer))
+  (output outline-children [OutlineItem] (fnk [] []))
+  (output outline-label    s/Str :abstract)
+  (output outline-commands [OutlineCommand] (fnk [] []))
+  (output outline-tree     OutlineItem outline/outline-tree-producer))

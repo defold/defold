@@ -1,0 +1,6 @@
+
+
+
+function final(self)
+    print "Second object has been finalised"
+end
