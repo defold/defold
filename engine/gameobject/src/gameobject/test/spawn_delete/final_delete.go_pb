@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/final_delete.scriptc"
+}

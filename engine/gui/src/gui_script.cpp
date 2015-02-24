@@ -728,13 +728,31 @@ namespace dmGui
      * can be animated simultaneously. Use <code>gui.cancel_animation</code> to stop the animation before it has completed.
      * </p>
      * <p>
-     * If a <code>complete_function</code> (lua function) is specified, that function will be called when the animation has completed.
+     * Composite properties of type vector3, vector4 or quaternion also expose their sub-components (x, y, z and w).
+     * You can address the components individually by suffixing the name with a dot '.' and the name of the component.
+     * For instance, "position.x" (the position x coordinate) or "color.w" (the color alpha value).
+     * </p>
+     * <p>
+     * If a <code>complete_function</code> (Lua function) is specified, that function will be called when the animation has completed.
      * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
      * </p>
      *
      * @name gui.animate
      * @param node node to animate (node)
-     * @param property property to animate (constant)
+     * @param property property to animate (string|constant)
+     * <ul>
+     *   <li><code>"position"</code></li>
+     *   <li><code>"rotation"</code></li>
+     *   <li><code>"scale"</code></li>
+     *   <li><code>"color"</code></li>
+     *   <li><code>"outline"</code></li>
+     *   <li><code>"shadow"</code></li>
+     *   <li><code>"size"</code></li>
+     *   <li><code>"fill_angle"</code> (pie nodes)</li>
+     *   <li><code>"inner_radius"</code> (pie nodes)</li>
+     *   <li><code>"slice9"</code> (slice9 nodes)</li>
+     * </ul>
+     * The following property constants are also defined equalling the corresponding property string names.
      * <ul>
      *   <li><code>gui.PROP_POSITION</code></li>
      *   <li><code>gui.PROP_ROTATION</code></li>
@@ -745,7 +763,7 @@ namespace dmGui
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      * <p>
-     * Single values can also be animated by specifying e.g. "position.x" as the property.
+     *
      * </p>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant). See gui.EASING_* constants
@@ -867,15 +885,18 @@ namespace dmGui
      *
      * @name gui.cancel_animation
      * @param node node that should have its animation canceled (node)
-     * @param property property for which the animation should be canceled (constant)
+     * @param property property for which the animation should be canceled (string|constant)
      * <ul>
-     *   <li><code>gui.PROP_POSITION</code></li>
-     *   <li><code>gui.PROP_ROTATION</code></li>
-     *   <li><code>gui.PROP_SCALE</code></li>
-     *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_OUTLINE</code></li>
-     *   <li><code>gui.PROP_SHADOW</code></li>
-     *   <li><code>gui.PROP_SIZE</code></li>
+     *   <li><code>"position"</code></li>
+     *   <li><code>"rotation"</code></li>
+     *   <li><code>"scale"</code></li>
+     *   <li><code>"color"</code></li>
+     *   <li><code>"outline"</code></li>
+     *   <li><code>"shadow"</code></li>
+     *   <li><code>"size"</code></li>
+     *   <li><code>"fill_angle"</code> (pie nodes)</li>
+     *   <li><code>"inner_radius"</code> (pie nodes)</li>
+     *   <li><code>"slice9"</code> (slice9 nodes)</li>
      * </ul>
      */
     int LuaCancelAnimation(lua_State* L)
@@ -993,6 +1014,30 @@ namespace dmGui
         }
 
         return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font);
+    }
+
+    /*# creates a new pie node
+     *
+     * @name gui.new_pie_node
+     * @param pos node position (vector3|vector4)
+     * @param size node size (vector3)
+     * @return new box node (node)
+     */
+    static int LuaNewPieNode(lua_State* L)
+    {
+        Vector3 pos;
+        if (dmScript::IsVector4(L, 1))
+        {
+            Vector4* p4 = dmScript::CheckVector4(L, 1);
+            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
+        }
+        else
+        {
+            pos = *dmScript::CheckVector3(L, 1);
+        }
+        Vector3 size = *dmScript::CheckVector3(L, 2);
+        Scene* scene = GuiScriptInstance_Check(L);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0);
     }
 
     /*# gets the node text
@@ -1119,7 +1164,7 @@ namespace dmGui
     }
 
     /*# sets the node texture
-     * This is currently only useful for box nodes. The texture must be mapped to the gui scene in the gui editor.
+     * Set the texture on a box or pie node. The texture must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_texture
      * @param node node to set texture for (node)
@@ -1386,6 +1431,106 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the node clipping mode
+     * Clipping mode defines how the node will clipping it's children nodes
+     *
+     * @name gui.get_clipping_mode
+     * @param node node from which to get the clipping mode (node)
+     * @return node clipping mode (constant)
+     * <ul>
+     *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
+     *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
+     * </ul>
+     */
+    static int LuaGetClippingMode(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushnumber(L, (lua_Number) n->m_Node.m_ClippingMode);
+        return 1;
+    }
+
+    /*# sets node clipping mode state
+     * Clipping mode defines how the node will clipping it's children nodes
+     *
+     * @name gui.set_clipping_mode
+     * @param node node to set clipping mode for (node)
+     * @param clipping_mode clipping mode to set (constant)
+     * <ul>
+     *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
+     *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
+     * </ul>
+     */
+    static int LuaSetClippingMode(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int clipping_mode = (int) luaL_checknumber(L, 2);
+        n->m_Node.m_ClippingMode = (ClippingMode) clipping_mode;
+        return 0;
+    }
+
+    /*# gets node clipping visibility state
+     * If node is set as visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
+     *
+     * @name gui.get_clipping_visible
+     * @param node node from which to get the clipping visibility state (node)
+     * @return true or false
+     */
+    static int LuaGetClippingVisible(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        lua_pushboolean(L, n->m_Node.m_ClippingVisible);
+        return 1;
+    }
+
+    /*# sets node clipping visibility
+     * If node is set as an visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
+     *
+     * @name gui.set_clipping_visible
+     * @param node node to set clipping visibility for (node)
+     * @param visible true or false
+     */
+    static int LuaSetClippingVisible(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int visible = lua_toboolean(L, 2);
+        n->m_Node.m_ClippingVisible = visible;
+        return 0;
+    }
+
+    /*# gets node clipping inverted state
+     * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
+     *
+     * @name gui.get_clipping_inverted
+     * @param node node from which to get the clipping inverted state (node)
+     * @return true or false
+     */
+    static int LuaGetClippingInverted(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        lua_pushboolean(L, n->m_Node.m_ClippingInverted);
+        return 1;
+    }
+
+    /*# sets node clipping visibility
+     * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
+     *
+     * @name gui.set_clipping_inverted
+     * @param node node to set clipping inverted state for (node)
+     * @param visible true or false
+     */
+    static int LuaSetClippingInverted(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int inverted = lua_toboolean(L, 2);
+        n->m_Node.m_ClippingInverted = inverted;
+        return 0;
+    }
+
     static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break)
     {
         dmGui::TextMetrics metrics;
@@ -1605,15 +1750,15 @@ namespace dmGui
      * @param node node to get pivot from (node)
      * @return pivot constant (constant)
      * <ul>
-     *   <li><code>gui.PIVOT_CENTER</code></lid>
-     *   <li><code>gui.PIVOT_N</code></lid>
-     *   <li><code>gui.PIVOT_NE</code></lid>
-     *   <li><code>gui.PIVOT_E</code></lid>
-     *   <li><code>gui.PIVOT_SE</code></lid>
-     *   <li><code>gui.PIVOT_S</code></lid>
-     *   <li><code>gui.PIVOT_SW</code></lid>
-     *   <li><code>gui.PIVOT_W</code></lid>
-     *   <li><code>gui.PIVOT_NW</code></lid>
+     *   <li><code>gui.PIVOT_CENTER</code></li>
+     *   <li><code>gui.PIVOT_N</code></li>
+     *   <li><code>gui.PIVOT_NE</code></li>
+     *   <li><code>gui.PIVOT_E</code></li>
+     *   <li><code>gui.PIVOT_SE</code></li>
+     *   <li><code>gui.PIVOT_S</code></li>
+     *   <li><code>gui.PIVOT_SW</code></li>
+     *   <li><code>gui.PIVOT_W</code></li>
+     *   <li><code>gui.PIVOT_NW</code></li>
      * </ul>
      */
     static int LuaGetPivot(lua_State* L)
@@ -1640,15 +1785,15 @@ namespace dmGui
      * @param node node to set pivot for (node)
      * @param pivot pivot constant (constant)
      * <ul>
-     *   <li><code>gui.PIVOT_CENTER</code></lid>
-     *   <li><code>gui.PIVOT_N</code></lid>
-     *   <li><code>gui.PIVOT_NE</code></lid>
-     *   <li><code>gui.PIVOT_E</code></lid>
-     *   <li><code>gui.PIVOT_SE</code></lid>
-     *   <li><code>gui.PIVOT_S</code></lid>
-     *   <li><code>gui.PIVOT_SW</code></lid>
-     *   <li><code>gui.PIVOT_W</code></lid>
-     *   <li><code>gui.PIVOT_NW</code></lid>
+     *   <li><code>gui.PIVOT_CENTER</code></li>
+     *   <li><code>gui.PIVOT_N</code></li>
+     *   <li><code>gui.PIVOT_NE</code></li>
+     *   <li><code>gui.PIVOT_E</code></li>
+     *   <li><code>gui.PIVOT_SE</code></li>
+     *   <li><code>gui.PIVOT_S</code></li>
+     *   <li><code>gui.PIVOT_SW</code></li>
+     *   <li><code>gui.PIVOT_W</code></li>
+     *   <li><code>gui.PIVOT_NW</code></li>
      * </ul>
      */
     static int LuaSetPivot(lua_State* L)
@@ -1697,6 +1842,198 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         lua_pushnumber(L, scene->m_Context->m_Height);
+        return 1;
+    }
+
+    /*# sets the number of generarted vertices around the perimeter
+     *
+     * @name gui.set_perimeter_vertices
+     * @param vertex count (number)
+     */
+    static int LuaSetPerimeterVertices(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        const int vertices = luaL_checkint(L, 2);
+        if (vertices < 2 || vertices > 100000)
+        {
+            luaL_error(L, "Unreasonable number of vertices: %d", vertices);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodePerimeterVertices(scene, hnode, vertices);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the number of generarted vertices around the perimeter
+     *
+     * @name gui.get_perimeter_vertices
+     * @return vertex count (number)
+     */
+    static int LuaGetPerimeterVertices(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushinteger(L, dmGui::GetNodePerimeterVertices(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the angle for the filled pie sector
+     *
+     * @name gui.set_fill_angle
+     * @param sector angle
+     */
+    static int LuaSetPieFillAngle(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        float angle = luaL_checknumber(L, 2);
+        if (angle < -360.f || angle > 360.f)
+        {
+            luaL_error(L, "Fill angle out of bounds %f", angle);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodePieFillAngle(scene, hnode, angle);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the angle for the filled pie sector
+     *
+     * @name gui.get_fill_angle
+     * @return sector angle
+     */
+    static int LuaGetPieFillAngle(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, dmGui::GetNodePieFillAngle(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the pie inner radius (defined along the x dimension)
+     *
+     * @name gui.set_inner_radius
+     * @param inner radius
+     */
+    static int LuaSetInnerRadius(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        float inner_radius = luaL_checknumber(L, 2);
+        if (inner_radius < 0)
+        {
+            luaL_error(L, "Inner radius out of bounds %f", inner_radius);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeInnerRadius(scene, hnode, inner_radius);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the pie inner radius (defined along the x dimension)
+     *
+     * @name gui.get_inner_radius
+     * @return inner radius
+     */
+    static int LuaGetInnerRadius(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, dmGui::GetNodeInnerRadius(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the pie outer bounds mode
+     *
+     * @name gui.set_outer_bounds
+     * @param BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
+     */
+    static int LuaSetOuterBounds(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int bounds = luaL_checkint(L, 2);
+        if (bounds != PIEBOUNDS_ELLIPSE && bounds != PIEBOUNDS_RECTANGLE)
+        {
+            luaL_error(L, "Invalid value for outer bounds! %d", bounds);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeOuterBounds(scene, hnode, (PieBounds)bounds);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the pie outer bounds mode
+     *
+     * @name gui.get_outer_bounds
+     * @return BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
+     */
+    static int LuaGetOuterBounds(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushinteger(L, dmGui::GetNodeOuterBounds(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -2067,7 +2404,16 @@ namespace dmGui
         return 0;
     }
 
-    // Currently a private function
+    /*# set the render ordering for the current GUI scene
+     *
+     * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words 
+     * in which order the scene will be rendered in relation to other currently rendered GUI scenes.
+     *
+     * The number must be in the range 0 to 7.
+     *
+     * @name gui.set_render_order
+     * @param order rendering order (number)
+     */
     static int LuaSetRenderOrder(lua_State* L)
     {
         Scene* scene = GuiScriptInstance_Check(L);
@@ -2101,8 +2447,16 @@ namespace dmGui
 
     /*# display on-display keyboard if available
      *
+     * The specified type of keyboard is displayed, if it is available on
+     * the device.
+     *
      * @name gui.show_keyboard
-     * @param type keyboard type
+     * @param type keyboard type (constant)
+     * <ul>
+     *   <li><code>gui.KEYBOARD_TYPE_DEFAULT</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_EMAIL</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_NUMBER_PAD</code></li>
+     * </ul>
      * @param autoclose close keyboard automatically when clicking outside
      */
     static int LuaShowKeyboard(lua_State* L)
@@ -2116,6 +2470,8 @@ namespace dmGui
     }
 
     /*# hide on-display keyboard if available
+     *
+     * Hide the on-display keyboard on the device.
      *
      * @name gui.hide_keyboard
      */
@@ -2315,12 +2671,19 @@ namespace dmGui
         {"cancel_animation",LuaCancelAnimation},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
+        {"new_pie_node",    LuaNewPieNode},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
         {"set_line_break",  LuaSetLineBreak},
         {"get_line_break",  LuaGetLineBreak},
         {"get_blend_mode",  LuaGetBlendMode},
         {"set_blend_mode",  LuaSetBlendMode},
+        {"get_clipping_mode",  LuaGetClippingMode},
+        {"set_clipping_mode",  LuaSetClippingMode},
+        {"get_clipping_visible", LuaGetClippingVisible},
+        {"set_clipping_visible",LuaSetClippingVisible},
+        {"get_clipping_inverted", LuaGetClippingInverted},
+        {"set_clipping_inverted",LuaSetClippingInverted},
         {"get_texture",     LuaGetTexture},
         {"set_texture",     LuaSetTexture},
         {"new_texture",     LuaNewTexture},
@@ -2356,6 +2719,15 @@ namespace dmGui
         {"get_screen_position", LuaGetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
+        {"set_fill_angle", LuaSetPieFillAngle},
+        {"get_fill_angle", LuaGetPieFillAngle},
+        {"set_perimeter_vertices", LuaSetPerimeterVertices},
+        {"get_perimeter_vertices", LuaGetPerimeterVertices},
+        {"set_inner_radius", LuaSetInnerRadius},
+        {"get_inner_radius", LuaGetInnerRadius},
+        {"set_outer_bounds", LuaSetOuterBounds},
+        {"get_outer_bounds", LuaGetOuterBounds},
+
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
@@ -2431,6 +2803,18 @@ namespace dmGui
     /*# multiply blending
      *
      * @name gui.BLEND_MULT
+     * @variable
+     */
+
+    /*# clipping mode none
+     *
+     * @name gui.CLIPPING_MODE_NONE
+     * @variable
+     */
+
+    /*# clipping mode stencil
+     *
+     * @name gui.CLIPPING_MODE_STENCIL
      * @variable
      */
 
@@ -2522,6 +2906,16 @@ namespace dmGui
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The stretch mode ensures that the node is displayed as is in the adjusted gui scene, which might scale it non-uniformally.
      * @name gui.ADJUST_STRETCH
+     * @variable
+     */
+
+    /*# elliptical pie node bounds
+     * @name gui.PIEBOUNDS_ELLIPSE
+     * @variable
+     */
+
+    /*# rectangular pie node bounds
+     * @name gui.PIEBOUNDS_RECTANGLE
      * @variable
      */
 
@@ -2626,6 +3020,15 @@ namespace dmGui
 
 #undef SETBLEND
 
+#define SETCLIPPINGMODE(name) \
+        lua_pushnumber(L, (lua_Number) CLIPPING_MODE_##name); \
+        lua_setfield(L, -2, "CLIPPING_MODE_"#name);\
+
+        SETCLIPPINGMODE(NONE)
+        SETCLIPPINGMODE(STENCIL)
+
+#undef SETBLEND
+
 #define SETKEYBOARD(name) \
         lua_pushnumber(L, (lua_Number) dmHID::KEYBOARD_TYPE_##name); \
         lua_setfield(L, -2, "KEYBOARD_TYPE_"#name);\
@@ -2689,6 +3092,15 @@ namespace dmGui
         SETPLAYBACK(LOOP_PINGPONG)
 
 #undef SETADJUST
+
+#define SETBOUNDS(name) \
+        lua_pushnumber(L, (lua_Number) PIEBOUNDS_##name); \
+        lua_setfield(L, -2, "PIEBOUNDS_"#name);\
+
+        SETBOUNDS(RECTANGLE)
+        SETBOUNDS(ELLIPSE)
+#undef SETBOUNDS
+
 
         lua_pop(L, 1);
 

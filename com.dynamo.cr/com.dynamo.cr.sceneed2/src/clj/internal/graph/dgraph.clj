@@ -50,7 +50,11 @@
 
 (defn remove-arc
   [g source source-attributes target target-attributes]
-  (update-in g [:arcs] (fn [arcs] (removev #(= % {:source source :source-attributes source-attributes :target target :target-attributes target-attributes}) arcs))))
+  (update-in g [:arcs]
+    (fn [arcs]
+      (if-let [last-index (->> arcs (keep-indexed (fn [i a] (when (= {:source source :source-attributes source-attributes :target target :target-attributes target-attributes} a) i))) last)]
+        (let [[n m] (split-at last-index arcs)] (into (vec n) (rest m)))
+        arcs))))
 
 (defn arcs-from-to [g source target]
   (filter #(and (= source (:source %)) (= target (:target %))) (:arcs g)))

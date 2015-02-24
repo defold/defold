@@ -16,8 +16,6 @@
             [schema.core :as s]
             [service.log :as log :refer [logging-exceptions]]))
 
-(set! *warn-on-reflection* true)
-
 (defn graph [world-ref]
   (-> world-ref deref :graph))
 

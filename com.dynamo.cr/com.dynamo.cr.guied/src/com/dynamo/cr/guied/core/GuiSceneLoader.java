@@ -13,6 +13,7 @@ import java.util.Map;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.filesystem.EFS;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -41,6 +42,14 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             boxNode.setTexture(desc.getTexture());
             boxNode.setSlice9(LoaderUtil.toVector4(desc.getSlice9()));
             node = boxNode;
+        } else if (desc.getType() == Type.TYPE_PIE) {
+            PieNode pieNode = new PieNode();
+            pieNode.setTexture(desc.getTexture());
+            pieNode.setPerimeterVertices(desc.getPerimeterVertices());
+            pieNode.setOuterBounds(desc.getOuterBounds());
+            pieNode.setInnerRadius(desc.getInnerRadius());
+            pieNode.setPieFillAngle(desc.getPieFillAngle());
+            node = pieNode;
         } else if (desc.getType() == Type.TYPE_TEXT) {
             TextNode textNode = new TextNode();
             textNode.setText(desc.getText());
@@ -66,6 +75,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setAdjustMode(desc.getAdjustMode());
         node.setLayer(desc.getLayer());
         node.setInheritAlpha(desc.getInheritAlpha());
+        node.setClippingMode(desc.getClippingMode());
+        node.setClippingVisible(desc.getClippingVisible());
+        node.setClippingInverted(desc.getClippingInverted());
         return node;
     }
 
@@ -77,6 +89,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         SceneDesc sceneDesc = builder.build();
         GuiSceneNode node = new GuiSceneNode();
         node.setScript(sceneDesc.getScript());
+        node.setMaterial(sceneDesc.getMaterial());
         if (sceneDesc.hasBackgroundColor()) {
             node.setBackgroundColor(LoaderUtil.toRGB(sceneDesc.getBackgroundColor()));
         }
@@ -130,16 +143,20 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             layersNode.addChild(layer);
         }
 
-        URI projectPropertiesLocation = EditorUtil.getContentRoot(EditorUtil.getProject()).getFile("game.project")
-                .getRawLocationURI();
-        File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0,
-                new NullProgressMonitor());
-        if (localProjectPropertiesFile.isFile()) {
-            // in cr.integrationstest the root isn't /content and the
-            // file doesn't exists. That's the reason we accept missing game.project
-            FileInputStream in = new FileInputStream(localProjectPropertiesFile);
-            node.loadProjectProperties(in);
-            IOUtils.closeQuietly(in);
+        // Projects are not available when running tests
+        IProject project = EditorUtil.getProject();
+        if (project != null) {
+            URI projectPropertiesLocation = EditorUtil.getContentRoot(project).getFile("game.project")
+                    .getRawLocationURI();
+            File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0,
+                    new NullProgressMonitor());
+            if (localProjectPropertiesFile.isFile()) {
+                // in cr.integrationstest the root isn't /content and the
+                // file doesn't exists. That's the reason we accept missing game.project
+                FileInputStream in = new FileInputStream(localProjectPropertiesFile);
+                node.loadProjectProperties(in);
+                IOUtils.closeQuietly(in);
+            }
         }
 
         return node;
@@ -152,6 +169,14 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             BoxNode box = (BoxNode)node;
             builder.setTexture(box.getTexture());
             builder.setSlice9(LoaderUtil.toVector4(box.getSlice9()));
+        } else if (node instanceof PieNode) {
+            builder.setType(NodeDesc.Type.TYPE_PIE);
+            PieNode box = (PieNode)node;
+            builder.setTexture(box.getTexture());
+            builder.setPerimeterVertices(box.getPerimeterVertices());
+            builder.setInnerRadius(box.getInnerRadius());
+            builder.setOuterBounds(box.getOuterBounds());
+            builder.setPieFillAngle(box.getPieFillAngle());
         } else if (node instanceof TextNode) {
             builder.setType(NodeDesc.Type.TYPE_TEXT);
             TextNode text = (TextNode)node;
@@ -174,6 +199,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         builder.setAdjustMode(node.getAdjustMode());
         builder.setLayer(node.getLayer());
         builder.setInheritAlpha(node.isInheritAlpha());
+        builder.setClippingMode(node.getClippingMode());
+        builder.setClippingVisible(node.getClippingVisible());
+        builder.setClippingInverted(node.getClippingInverted());
         return builder;
     }
 
@@ -194,6 +222,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
                                                                                                     CoreException {
         Builder b = SceneDesc.newBuilder();
         b.setScript(node.getScript());
+        b.setMaterial(node.getMaterial());
         b.setBackgroundColor(LoaderUtil.toVector4(node.getBackgroundColor(), 1.0));
         for (Node n : node.getNodesNode().getChildren()) {
             collectNodes(b, (GuiNode) n, null);

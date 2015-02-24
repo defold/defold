@@ -7,8 +7,6 @@
             [internal.texture.math :refer :all])
   (:import [dynamo.types Rect Image TexturePacking]))
 
-(set! *warn-on-reflection* true)
-
 ; ---------------------------------------------------------------------------
 ; Configuration parameters
 ; ---------------------------------------------------------------------------

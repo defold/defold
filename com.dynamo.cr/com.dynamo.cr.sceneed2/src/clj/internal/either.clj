@@ -10,14 +10,17 @@
 
 (defprotocol Either
   (result  [this])
-  (or-else [this f]))
+  (or-else [this f])
+  (exists? [this]))
 
-(defrecord Right [value]
+(deftype Right [value]
   Either
   (result  [_] value)
-  (or-else [this _] this))
+  (or-else [this _] this)
+  (exists? [_] true))
 
-(defrecord Left [exception]
+(deftype Left [exception]
   Either
   (result  [_] (throw exception))
-  (or-else [_ f] (bind (f exception))))
+  (or-else [_ f] (bind (f exception)))
+  (exists? [_] false))

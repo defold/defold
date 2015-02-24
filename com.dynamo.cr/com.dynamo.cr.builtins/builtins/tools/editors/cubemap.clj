@@ -65,7 +65,7 @@
   (gl/with-enabled gl [gpu-texture cubemap-shader vertex-binding]
     (shader/set-uniform cubemap-shader gl "world" world)
     (shader/set-uniform cubemap-shader gl "cameraPosition" (t/position camera))
-    (shader/set-uniform cubemap-shader gl "envMap" (texture/texture-unit-index gl gpu-texture))
+    (shader/set-uniform cubemap-shader gl "envMap" 0)
     (gl/gl-enable gl GL/GL_CULL_FACE)
     (gl/gl-cull-face gl GL/GL_BACK)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))
@@ -84,8 +84,8 @@
   (input  camera        Camera)
 
   (output vertex-binding s/Any     :cached (fnk [] (vtx/use-with unit-sphere cubemap-shader)))
-  (output renderable    RenderData  produce-renderable)
-  (output aabb          AABB               (fnk [] g/unit-bounding-box)))
+  (output renderable    RenderData :cached produce-renderable)
+  (output aabb          AABB       :cached (fnk [] g/unit-bounding-box)))
 
 (defnk produce-gpu-texture
   [right left top bottom front back]
@@ -94,6 +94,7 @@
 (n/defnode CubemapNode
   (inherits n/AutowireResources)
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "Cubemap"))
 
   (property right  dp/ImageResource)
   (property left   dp/ImageResource)

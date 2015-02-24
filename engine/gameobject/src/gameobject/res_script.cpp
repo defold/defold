@@ -26,7 +26,7 @@ namespace dmGameObject
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        HScript script = NewScript(L, lua_module, filename);
+        HScript script = NewScript(L, lua_module);
         if (script)
         {
             resource->m_Resource = (void*) script;
@@ -70,7 +70,7 @@ namespace dmGameObject
         }
 
         dmLuaDDF::LuaModule* old_lua_module = script->m_LuaModule;
-        bool ok = ReloadScript(script, lua_module, filename);
+        bool ok = ReloadScript(script, lua_module);
         if (ok)
         {
             dmDDF::FreeMessage(old_lua_module);

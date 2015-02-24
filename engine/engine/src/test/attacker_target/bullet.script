@@ -12,7 +12,7 @@ function update(self, dt)
     if self.hit_response then
         go.delete()
         factory.create("#factory")
-        msg.post(receiver, "hit", { damage = self.impact_damage })
+        self.hit_response = nil
     else
         local pos = go.get_world_position()
         -- prediction for CD

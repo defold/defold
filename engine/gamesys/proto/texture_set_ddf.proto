@@ -46,7 +46,7 @@ message TextureSet
     repeated ConvexHull convex_hulls        = 3;
 
     // Only used when the source is a tile-source
-    // tile_width and tile_height should only be used in tilmap
+    // tile_width and tile_height should only be used in tilemap
     optional uint32 tile_width              = 4;
     optional uint32 tile_height             = 5;
 
@@ -54,14 +54,23 @@ message TextureSet
     repeated uint32 vertex_start            = 7;
     repeated uint32 vertex_count            = 8;
 
-    required bytes outline_vertices         = 9;
-    repeated uint32 outline_vertex_start    = 10;
-    repeated uint32 outline_vertex_count    = 11;
+    // Used to preview atlases, allowing for rotation of image components.
+    required bytes atlas_vertices           = 9;
+    repeated uint32 atlas_vertex_start      = 10;
+    repeated uint32 atlas_vertex_count      = 11;
 
-    repeated float convex_hull_points       = 12;
-    repeated string collision_groups        = 13;
+    required bytes outline_vertices         = 12;
+    repeated uint32 outline_vertex_start    = 13;
+    repeated uint32 outline_vertex_count    = 14;
 
-    // min/max uv, 4 floats. Legacy and the vertex-buffer should be used instead.
-    required bytes tex_coords               = 14;
-    required uint32 tile_count              = 15;
+    repeated float convex_hull_points       = 15;
+    repeated string collision_groups        = 16;
+
+    // A series of four pairs of UV coords, representing quad texture coordinates and
+    // allowing for rotation on texture atlases.
+    // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
+    // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
+    // (See TextureSetGenerator.java)
+    required bytes tex_coords               = 17;
+    required uint32 tile_count              = 18;
 }

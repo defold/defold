@@ -7,6 +7,7 @@ def gen_tone(task):
     sample_freq = int(task.generator.rate)
     sample_count = int(task.generator.frames)
     channels = int(task.generator.channels)
+    ramp = bool(task.generator.ramp)
 
     f = wave.open(task.outputs[0].abspath(task.env), "wb")
     f.setnchannels(channels)
@@ -17,6 +18,32 @@ def gen_tone(task):
     frames = []
     for i in range(sample_count):
         a = 0.8 * 32768 * math.sin((i * 2.0 * math.pi * tone_freq) / sample_freq)
+        if ramp:
+            r = ((sample_count - 1) - i) / float(sample_count)
+            a = a * r
+        if channels == 1:
+            buf.write(struct.pack('h', int(a)))
+        else:
+            buf.write(struct.pack('hh', int(a), int(a)))
+    f.writeframes(buf.getvalue())
+    f.close()
+
+    return 0
+
+def gen_dc(task):
+    sample_freq = int(task.generator.rate)
+    sample_count = int(task.generator.frames)
+    channels = int(task.generator.channels)
+
+    f = wave.open(task.outputs[0].abspath(task.env), "wb")
+    f.setnchannels(channels)
+    f.setsampwidth(2)
+    f.setframerate(sample_freq)
+    buf = cStringIO.StringIO()
+
+    frames = []
+    for i in range(sample_count):
+        a = 0.8 * 32768
         if channels == 1:
             buf.write(struct.pack('h', int(a)))
         else:
@@ -45,7 +72,34 @@ def build(bld):
                                  rate = rate,
                                  frames = frames,
                                  channels = channels,
+                                 ramp = False,
                                  rule = gen_tone,)
+
+    for rate in [32000]:
+        for tone in [440]:
+            channels = 1
+            frames = 2 * rate
+            name = '%s_toneramp_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
+            wavs.append(name)
+            bld.new_task_gen(target = name,
+                             tone = tone,
+                             rate = rate,
+                             frames = frames,
+                             channels = channels,
+                             ramp = True,
+                             rule = gen_tone)
+
+    for rate in [44100]:
+        channels = 1
+        frames = 2 * rate
+        name = '%s_dc_%d_%d.wav' % (["mono", "stereo"][channels-1], rate, frames)
+        wavs.append(name)
+        bld.new_task_gen(target = name,
+                         rate = rate,
+                         frames = frames,
+                         channels = channels,
+                         ramp = True,
+                         rule = gen_dc)
 
     bld.add_group()
 
@@ -59,11 +113,43 @@ def build(bld):
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = bld.path.ant_glob('**/*.ogg'))
 
+    extra_libs = ''
+    if 'js-web' not in bld.env['PLATFORM'] and 'win32' not in bld.env['PLATFORM']:
+        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderTremolo"]
+        extra_libs = ' TREMOLO'
+        use_tremolo = True
+    else:
+        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis"]
+        use_tremolo = False
+
+    if use_tremolo:
+        test_sound_perf = bld.new_task_gen(features = 'cxx cprogram embed test',
+                                      includes = '../../../src .',
+                                      uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL' + extra_libs ,
+                                      uselib_local = 'sound2 embedded_wavs embedded_oggs',
+                                      exported_symbols = exported_symbols,
+                                      target = 'test_sound_perf',
+                                      source = 'test_sound_perf.cpp')
+        test_sound_perf.install_path = None
+
+        # enforce tremolo being used
+        test_sound_tremolo = bld.new_task_gen(features = 'cxx cprogram embed',
+                                      includes = '../../../src .',
+                                      uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL TREMOLO',
+                                      uselib_local = 'sound2 embedded_wavs embedded_oggs',
+                                      exported_symbols = ['AudioDecoderTremolo',
+                                      'AudioDecoderWav', 'DefaultSoundDevice'],
+                                      target = 'test_sound_tremolo',
+                                      source = 'test_sound.cpp')
+
+
+        test_sound_tremolo.install_path = None
+
     test_sound = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
-                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
+                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
                                   uselib_local = 'sound2 embedded_wavs embedded_oggs',
-                                  exported_symbols = ["DefaultSoundDevice"],
+                                  exported_symbols = exported_symbols,
                                   target = 'test_sound',
                                   source = 'test_sound.cpp')
 
@@ -71,8 +157,9 @@ def build(bld):
 
     test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
-                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
+                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
                                   uselib_local = 'sound_null embedded_wavs embedded_oggs',
+                                  exported_symbols = ['AudioDecoderStbVorbis', 'AudioDecoderWav'],
                                   target = 'test_sound_null',
                                   source = 'test_sound.cpp')
 
@@ -81,10 +168,12 @@ def build(bld):
 
     test_sound2 = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
-                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
+                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
                                   uselib_local = 'sound2 embedded_wavs embedded_oggs',
-                                  exported_symbols = ["DefaultSoundDevice"],
+                                  exported_symbols = exported_symbols,
                                   target = 'test_sound2',
                                   source = 'test_sound2.cpp')
 
     test_sound2.install_path = None
+
+

@@ -839,12 +839,18 @@ namespace dmParticle
 
     static float unit_tex_coords[] =
     {
-            0.0f, 0.0f, 1.0f, 1.0f
+            0.0f,1.0f, 0.0f,0.0f, 1.0f,0.0f, 1.0f,1.0f
     };
 
     static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
+        static int tex_coord_order[] = {
+            0,1,2,2,3,0,
+            3,2,1,1,0,3,	//h
+            1,0,3,3,2,1,	//v
+            2,3,0,0,1,2		//hv
+        };
 
         emitter->m_VertexIndex = vertex_index;
         emitter->m_VertexCount = 0;
@@ -944,23 +950,17 @@ namespace dmParticle
                     tile = tile_count - tile - 1;
             }
             tile += start_tile;
-            float* tex_coord = &tex_coords[tile * 4];
-            float u0 = tex_coord[0];
-            float v0 = tex_coord[1];
-            float u1 = tex_coord[2];
-            float v1 = tex_coord[3];
+            float* tex_coord = &tex_coords[tile * 8];
+            uint32_t flip_flag = 0;
             if (hFlip)
             {
-                float tmp = u0;
-                u0 = u1;
-                u1 = tmp;
+                flip_flag = 1;
             }
             if (vFlip)
             {
-                float tmp = v0;
-                v0 = v1;
-                v1 = tmp;
+                flip_flag |= 2;
             }
+            const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
             Vertex* vertex = &((Vertex*)vertex_buffer)[vertex_index];
 
@@ -984,17 +984,17 @@ namespace dmParticle
     vertex->m_U = TO_SHORT(u);\
     vertex->m_V = TO_SHORT(v);
 
-            SET_VERTEX(vertex, p0, c, u0, v1)
+            SET_VERTEX(vertex, p0, c, tex_coord[tex_lookup[0] * 2], tex_coord[tex_lookup[0] * 2 + 1])
             ++vertex;
-            SET_VERTEX(vertex, p1, c, u0, v0)
+            SET_VERTEX(vertex, p1, c, tex_coord[tex_lookup[1] * 2], tex_coord[tex_lookup[1] * 2 + 1])
             ++vertex;
-            SET_VERTEX(vertex, p2, c, u1, v1)
+            SET_VERTEX(vertex, p3, c, tex_coord[tex_lookup[2] * 2], tex_coord[tex_lookup[2] * 2 + 1])
             ++vertex;
-            SET_VERTEX(vertex, p2, c, u1, v1)
+            SET_VERTEX(vertex, p3, c, tex_coord[tex_lookup[3] * 2], tex_coord[tex_lookup[3] * 2 + 1])
             ++vertex;
-            SET_VERTEX(vertex, p1, c, u0, v0)
+            SET_VERTEX(vertex, p2, c, tex_coord[tex_lookup[4] * 2], tex_coord[tex_lookup[4] * 2 + 1])
             ++vertex;
-            SET_VERTEX(vertex, p3, c, u1, v0)
+            SET_VERTEX(vertex, p0, c, tex_coord[tex_lookup[5] * 2], tex_coord[tex_lookup[5] * 2 + 1])
 
 #undef TO_BYTE
 #undef SET_VERTEX

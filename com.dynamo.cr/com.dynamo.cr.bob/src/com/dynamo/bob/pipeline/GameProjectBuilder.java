@@ -20,6 +20,7 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
@@ -73,6 +74,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".guic", Gui.SceneDesc.class);
         extToMessageClass.put(".scriptc", LuaModule.class);
         extToMessageClass.put(".gui_scriptc", LuaModule.class);
+        extToMessageClass.put(".render_scriptc", LuaModule.class);
         extToMessageClass.put(".luac", LuaModule.class);
         extToMessageClass.put(".tilegridc", TileGrid.class);
         extToMessageClass.put(".collisionobjectc", CollisionObjectDesc.class);
@@ -98,7 +100,6 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".fpc");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
-        leafResourceTypes.add(".render_scriptc");
         leafResourceTypes.add(".meshc");
     }
 
@@ -108,7 +109,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc"));
-        if (project.option("build_disk_archive", "false").equals("true")) {
+        if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".darc"));
         }
 
@@ -132,7 +133,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder ab = new ArchiveBuilder(root);
-        boolean doCompress = project.option("compress_disk_archive_entries", "false").equals("true");
+        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
 
         for (String s : resources) {
             // 2:d argument is true to use compression.
@@ -147,7 +148,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return tempArchiveFile;
     }
 
-    private void findResources(Message node, Collection<String> resources) throws CompileExceptionError {
+    private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
         List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
 
         for (FieldDescriptor fieldDescriptor : fields) {
@@ -156,26 +157,26 @@ public class GameProjectBuilder extends Builder<Void> {
             boolean isResource = (Boolean) options.getField(resourceDesc);
             Object value = node.getField(fieldDescriptor);
             if (value instanceof Message) {
-                findResources((Message) value, resources);
+                findResources(project, (Message) value, resources);
 
             } else if (value instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) value;
                 for (Object v : list) {
                     if (v instanceof Message) {
-                        findResources((Message) v, resources);
+                        findResources(project, (Message) v, resources);
                     } else if (isResource && v instanceof String) {
-                        findResources(project.getResource((String) v), resources);
+                        findResources(project, project.getResource((String) v), resources);
                     }
                 }
 
             } else if (isResource && value instanceof String) {
-                findResources(project.getResource((String) value), resources);
+                findResources(project, project.getResource((String) value), resources);
             }
         }
     }
 
-    private void findResources(IResource resource, Collection<String> resources) throws CompileExceptionError {
+    private static void findResources(Project project, IResource resource, Collection<String> resources) throws CompileExceptionError {
         if (resource.getPath().equals("") || resource.getPath().startsWith("/builtins")) {
             return;
         }
@@ -200,7 +201,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
                 builder.mergeFrom(resource.output().getContent());
                 Object message = builder.build();
-                findResources((Message) message, resources);
+                findResources(project, (Message) message, resources);
 
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -208,6 +209,31 @@ public class GameProjectBuilder extends Builder<Void> {
         } else {
             throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
         }
+    }
+
+
+    public static HashSet<String> findResources(Project project) throws CompileExceptionError {
+        HashSet<String> resources = new HashSet<String>();
+
+        // Root nodes to follow
+        for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}}) {
+            String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
+            if (path != null) {
+                findResources(project, project.getResource(path), resources);
+            }
+        }
+
+        // Custom resources
+        String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
+        for (String s : custom_resources) {
+            s = s.trim();
+            if (s.length() > 0) {
+                IResource r = project.getResource(s);
+                resources.add(r.output().getAbsPath());
+            }
+        }
+
+        return resources;
     }
 
     @Override
@@ -223,26 +249,8 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         try {
-            if (project.option("build_disk_archive", "false").equals("true")) {
-                HashSet<String> resources = new HashSet<String>();
-
-                // Root nodes to follow
-                for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}}) {
-                    String path = properties.getStringValue(pair[0], pair[1]);
-                    if (path != null) {
-                        findResources(project.getResource(path), resources);
-                    }
-                }
-
-                // Custom resources
-                String[] custom_resources = properties.getStringValue("project", "custom_resources", "").split(",");
-                for (String s : custom_resources) {
-                    s = s.trim();
-                    if (s.length() > 0) {
-                        IResource r = this.project.getResource(s);
-                        resources.add(r.output().getAbsPath());
-                    }
-                }
+            if (project.option("archive", "false").equals("true")) {
+                HashSet<String> resources = findResources(project);
 
                 File archiveFile = createArchive(resources);
                 is = new FileInputStream(archiveFile);

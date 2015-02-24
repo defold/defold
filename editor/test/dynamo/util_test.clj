@@ -72,3 +72,12 @@
         (= (count addition-ops) (count new-minus-old))
         (= 1 (apply max 1 (vals (frequencies removal-ops))))
         (= 1 (apply max 1 (vals (frequencies addition-ops))))))))
+
+(deftest stringifying-keywords
+  (are [s k] (= s (keyword->label k))
+    "Word"                :word
+    "Two Words"           :two-words
+    "2words"              :2words
+    "2 Words"             :2-words
+    "More Than Two Words" :more-than-two-words
+    "More Than 2words"    :more-than2words))

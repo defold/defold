@@ -25,6 +25,14 @@ namespace dmGameSystem
             Sound*s = new Sound();
             s->m_SoundData = sound_data;
             s->m_Looping = sound_desc->m_Looping;
+            s->m_GroupHash = dmHashString64(sound_desc->m_Group);
+            s->m_Gain = sound_desc->m_Gain;
+
+            dmSound::Result result = dmSound::AddGroup(sound_desc->m_Group);
+            if (result != dmSound::RESULT_OK) {
+                dmLogError("Failed to create group '%s' (%d)", sound_desc->m_Group, result);
+            }
+
             *sound = s;
         }
 

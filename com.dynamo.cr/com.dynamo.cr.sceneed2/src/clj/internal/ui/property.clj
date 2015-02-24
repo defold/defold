@@ -16,21 +16,40 @@
             [internal.system :as is]
             [camel-snake-kebab :refer :all]))
 
-(set! *warn-on-reflection* true)
+(defrecord ValidationPresenter []
+  dp/Presenter
+  (control-for-property [this]
+    {:type :status-label :style :border #_:status #_Status/OK_STATUS :layout-data {:min-width 50 :exclude true}})
+  (settings-for-control [_ value]
+    (if (empty? value)
+      {#_:status #_Status/OK_STATUS :layout-data {:exclude true} :visible false}
+      {#_:status #_(marker/error-status (str/join "\n" value)) :layout-data {:min-width 50 :exclude false} :visible true})))
+
+(def validation-presenter (->ValidationPresenter))
+
+(defrecord FillerPresenter []
+  dp/Presenter
+  (control-for-property [this]
+    {:type :label :layout-data {:exclude true}})
+  (settings-for-control [_ value]
+    (if (empty? value)
+      {:layout-data {:exclude true}  :visible false}
+      {:layout-data {:exclude false} :visible true})))
+
+(def filler-presenter (->FillerPresenter))
+
+(defn- prop-name-modifier [suffix prop-name]
+  (keyword (str (name prop-name) suffix)))
+(def ^:private prop-filler-label (partial prop-name-modifier "-filler"))
+(def ^:private prop-status-label (partial prop-name-modifier "-status"))
 
 (defnk aggregate-properties
   [properties]
-  (into {} (for [node-prop-map        properties
-                 [prop-name prop]     node-prop-map
-                 :when (some-> prop :type t/property-visible)]
-             [prop-name prop])))
-
-(defn- niceify-label
-  [k]
-  (-> k
-    name
-    ->Camel_Snake_Case_String
-    (str/replace "_" " ")))
+  (into {}
+    (for [node-prop-map        properties
+          [prop-name prop]     node-prop-map
+          :when (some-> prop :type t/property-visible)]
+      [prop-name prop])))
 
 (defnk passthrough-presenter-registry
   [presenter-registry]
@@ -61,9 +80,16 @@
       (attach-user-data node prop-name presenter [])
       (attach-listeners (:ui-event-listener node))))
 
+(defn- prop-label
+  [prop-name label-text]
+  {:type :composite
+   :layout {:type :stack}
+   :children [[:label      {:type :label :text label-text}]
+              [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text msg/FormPropertySheetViewer_RESET_VALUE}]]})
+
 (defn- property-control-strip
   [node [prop-name {:keys [presenter]}]]
-  (let [label-text (niceify-label prop-name)]
+  (let [label-text (keyword->label prop-name)]
     [[:label-stack {:type :stack
                     :children [[:label      {:type :label :text label-text}]
                                [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text msg/FormPropertySheetViewer_RESET_VALUE}]]}]
@@ -97,8 +123,13 @@
 (defn- settings-for-page
   [properties]
   {:children
-   (for [[prop-name {:keys [presenter value]}] properties]
-     [prop-name (dp/settings-for-control presenter value)])})
+   (concat
+     (for [[prop-name {:keys [presenter value]}] properties]
+       [prop-name (dp/settings-for-control presenter value)])
+     (for [[prop-name {:keys [validation-problems]}] properties]
+       [(prop-filler-label prop-name) (dp/settings-for-control filler-presenter validation-problems)])
+     (for [[prop-name {:keys [validation-problems]}] properties]
+       [(prop-status-label prop-name) (dp/settings-for-control validation-presenter validation-problems)]))})
 
 (defn- cache-key
   [properties]
@@ -125,13 +156,6 @@
     (widgets/bring-to-front! (widgets/widget page [:page-content]))
     (widgets/scroll-to-top!  (widgets/widget properties-form [:form]))))
 
-(defn- refresh-after-a-while
-  [transaction graph this label kind]
-  (when (and (ds/is-modified? transaction this :content)
-             (not (ds/is-deleted? transaction this))
-             (:debouncer this))
-    (t/signal (:debouncer this))))
-
 (def gui
   [:form {:type   :form
           :text   "Properties"
@@ -146,8 +170,6 @@
 
   (input  presenter-registry t/Registry :inject)
   (output presenter-registry t/Registry passthrough-presenter-registry)
-
-  (trigger delayed-refresh :modified refresh-after-a-while)
 
   (on :create
     (let [properties-form   (widgets/make-control (:parent event) gui)
@@ -172,7 +194,7 @@
               result (dp/on-event presenter widget-subtree path presenter-event old-value)]
           (when-let [new-value (:value result)]
             (when (not= new-value old-value)
-              (ds/tx-label (str "Set " (niceify-label prop-name)))
+              (ds/tx-label (str "Set " (keyword->label prop-name)))
               (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
         (log/warn :message "Expected event from widget on active property page"))))
 

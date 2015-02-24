@@ -1,0 +1,15 @@
+animations {
+  id: "anim1"
+  images {
+    image: "/images/missing.png"
+  }
+  images {
+    image: "/images/missing.png"
+  }
+  playback: PLAYBACK_LOOP_PINGPONG
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 1
+}
+margin: 0
+extrude_borders: 0

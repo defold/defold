@@ -34,7 +34,7 @@
                 <configuration>
                     <executable>sh</executable>
                     <arguments>
-                        <argument>scripts/copy_libtexc.sh</argument>
+                        <argument>scripts/copy.sh</argument>
                     </arguments>
                 </configuration>
             </plugin>

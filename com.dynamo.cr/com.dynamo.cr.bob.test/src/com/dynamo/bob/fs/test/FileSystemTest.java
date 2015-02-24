@@ -8,31 +8,27 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.commons.io.FilenameUtils;
-import org.eclipse.core.runtime.FileLocator;
-import org.eclipse.core.runtime.Path;
-import org.eclipse.core.runtime.Platform;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.osgi.framework.Bundle;
 
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.OsgiResourceScanner;
-import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem.IWalker;
-import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.test.TestLibrariesRule;
 
 public class FileSystemTest {
 
     DefaultFileSystem fileSystem;
 
+    @Rule
+    public TestLibrariesRule testLibs = new TestLibrariesRule();
+
     @Before
     public void setUp() throws Exception {
         this.fileSystem = new DefaultFileSystem();
-        Bundle bundle = Platform.getBundle("com.dynamo.cr.bob.test");
-        this.fileSystem.setRootDirectory(FileLocator.resolve(FileLocator.find(bundle, new Path("server_root"), null)).getPath());
+        this.fileSystem.setRootDirectory(testLibs.getServerLocation());
     }
 
     @After
@@ -46,9 +42,9 @@ public class FileSystemTest {
         List<String> results = new ArrayList<String>();
         this.fileSystem.walk(".", walker, results);
         assertFalse(results.isEmpty());
-        assertTrue(results.get(0).equals("test_lib.zip"));
+        assertTrue(results.get(0).equals("test_lib1.zip"));
     }
-    
+
     private static class ZipWalker extends FileSystemWalker {
         @Override
         public void handleFile(String path, Collection<String> results) {

@@ -6,6 +6,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/hash.h>
 #include <script/script.h>
+#include <script/lua_source_ddf.h>
 #include <graphics/graphics.h>
 #include "render/material_ddf.h"
 
@@ -100,6 +101,22 @@ namespace dmRender
         }
     };
 
+    struct StencilTestParams
+    {
+        StencilTestParams();
+        void Init();
+
+        dmGraphics::CompareFunc m_Func;
+        dmGraphics::StencilOp m_OpSFail;
+        dmGraphics::StencilOp m_OpDPFail;
+        dmGraphics::StencilOp m_OpDPPass;
+        uint32_t m_Ref : 8;
+        uint32_t m_RefMask : 8;
+        uint32_t m_BufferMask : 8;
+        uint8_t m_ColorBufferMask : 4;
+        uint8_t m_Padding : 4;
+    };
+
     struct MaterialConstant
     {
         Constant m_Constant;
@@ -126,11 +143,13 @@ namespace dmRender
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
+        StencilTestParams               m_StencilTestParams;
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
         uint8_t                         m_VertexConstantMask;
         uint8_t                         m_FragmentConstantMask;
         uint8_t                         m_SetBlendFactors : 1;
+        uint8_t                         m_SetStencilTest : 1;
         // Set to true if RenderKey.m_Depth should be filled in
         uint8_t                         m_CalculateDepthKey : 1;
     };
@@ -223,8 +242,10 @@ namespace dmRender
      */
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color);
 
-    HRenderScript   NewRenderScript(HRenderContext render_context, const void* buffer, uint32_t buffer_size, const char* filename);
-    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, const void* buffer, uint32_t buffer_size, const char* filename);
+    HRenderScript   NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source);
+
+    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source);
+
     void            DeleteRenderScript(HRenderContext render_context, HRenderScript render_script);
 
     HRenderScriptInstance   NewRenderScriptInstance(HRenderContext render_context, HRenderScript render_script);

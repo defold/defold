@@ -3,13 +3,14 @@ package com.dynamo.bob;
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ConnectException;
+import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,11 +28,19 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.bundle.AndroidBundler;
+import com.dynamo.bob.bundle.HTML5Bundler;
+import com.dynamo.bob.bundle.IBundler;
+import com.dynamo.bob.bundle.IOSBundler;
+import com.dynamo.bob.bundle.LinuxBundler;
+import com.dynamo.bob.bundle.OSXBundler;
+import com.dynamo.bob.bundle.Win32Bundler;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 
 /**
@@ -52,6 +61,8 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
+
+    private BobProjectProperties projectProperties;
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -81,6 +92,10 @@ public class Project {
 
     public String getLibPath() {
         return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
+    }
+
+    public BobProjectProperties getProjectProperties() {
+        return projectProperties;
     }
 
     /**
@@ -224,6 +239,14 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         try {
+            projectProperties = new BobProjectProperties();
+            IResource gameProject = this.fileSystem.get("/game.project");
+            if (gameProject.exists()) {
+                ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
+                projectProperties.load(is);
+            } else {
+                logWarning("No game.project found");
+            }
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
             // Pass on unmodified
@@ -322,6 +345,66 @@ public class Project {
         }
     }
 
+
+    static Map<Platform, Class<? extends IBundler>> bundlers;
+    static {
+        bundlers = new HashMap<Platform, Class<? extends IBundler>>();
+        bundlers.put(Platform.X86Darwin, OSXBundler.class);
+        bundlers.put(Platform.X86Linux, LinuxBundler.class);
+        bundlers.put(Platform.X86Win32, Win32Bundler.class);
+        bundlers.put(Platform.Armv7Android, AndroidBundler.class);
+        bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
+        bundlers.put(Platform.JsWeb, HTML5Bundler.class);
+    }
+
+    private void bundle(IProgress monitor) throws IOException, CompileExceptionError {
+        IProgress m = monitor.subProgress(1);
+        m.beginTask("Bundling...", 1);
+        String pair = option("platform", null);
+        if (pair == null) {
+            throw new CompileExceptionError(null, -1, "No platform specified");
+        }
+
+        Platform platform = Platform.get(pair);
+        if (platform == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+
+        Class<? extends IBundler> bundlerClass = bundlers.get(platform);
+        if (bundlerClass == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+
+        IBundler bundler;
+        try {
+            bundler = bundlerClass.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        String bundleOutput = option("bundle-output", null);
+        File bundleDir = null;
+        if (bundleOutput != null) {
+            bundleDir = new File(bundleOutput);
+        } else {
+            bundleDir = new File(getRootDirectory(), getBuildDirectory());
+        }
+        bundleDir.mkdirs();
+        bundler.bundleApplication(this, bundleDir);
+        m.worked(1);
+        m.done();
+    }
+
+    static boolean anyFailing(Collection<TaskResult> results) {
+        for (TaskResult taskResult : results) {
+            if (!taskResult.isOk()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
@@ -338,6 +421,9 @@ public class Project {
                 m.beginTask("Building...", newTasks.size());
                 result = runTasks(m);
                 m.done();
+                if (anyFailing(result)) {
+                    break;
+                }
             } else if (command.equals("clean")) {
                 IProgress m = monitor.subProgress(1);
                 m.beginTask("Cleaning...", newTasks.size());
@@ -355,6 +441,8 @@ public class Project {
                 FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
                 m.worked(1);
                 m.done();
+            } else if (command.equals("bundle")) {
+                bundle(monitor);
             }
         }
 
@@ -365,7 +453,7 @@ public class Project {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List<TaskResult> runTasks(IProgress monitor) throws IOException {
+    List<TaskResult> runTasks(IProgress monitor) throws IOException {
 
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)
@@ -536,7 +624,7 @@ run:
         String libPath = getLibPath();
         File libDir = new File(libPath);
         // Clean lib dir first
-        FileUtils.deleteQuietly(libDir);
+        //FileUtils.deleteQuietly(libDir);
         FileUtils.forceMkdir(libDir);
         // Download libs
         List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
@@ -547,22 +635,47 @@ run:
             if (progress.isCanceled()) {
                 break;
             }
+            File f = libFiles.get(i);
+            String sha1 = null;
+
+            if (f.exists()) {
+                ZipFile zipFile = null;
+
+                try {
+                    zipFile = new ZipFile(f);
+                    sha1 = zipFile.getComment();
+                } finally {
+                    if (zipFile != null) {
+                        zipFile.close();
+                    }
+                }
+            }
+
             URL url = libUrls.get(i);
-            URLConnection connection = url.openConnection();
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            if (sha1 != null) {
+                connection.addRequestProperty("If-None-Match", sha1);
+            }
             connection.addRequestProperty("X-Email", this.options.get("email"));
             connection.addRequestProperty("X-Auth", this.options.get("auth"));
             InputStream input = null;
             try {
-                input = new BufferedInputStream(connection.getInputStream());
-                File f = libFiles.get(i);
-                FileUtils.copyInputStreamToFile(input, f);
-                try {
-                    ZipFile zip = new ZipFile(f);
-                    zip.close();
-                } catch (ZipException e) {
-                    f.delete();
-                    throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                connection.connect();
+                int code = connection.getResponseCode();
+                if (code == 304) {
+                    // Reusing cached library
+                } else {
+                    input = new BufferedInputStream(connection.getInputStream());
+                    FileUtils.copyInputStreamToFile(input, f);
+                    try {
+                        ZipFile zip = new ZipFile(f);
+                        zip.close();
+                    } catch (ZipException e) {
+                        f.delete();
+                        throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                    }
                 }
+                connection.disconnect();
             } catch (ConnectException e) {
                 throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
             } catch (FileNotFoundException e) {

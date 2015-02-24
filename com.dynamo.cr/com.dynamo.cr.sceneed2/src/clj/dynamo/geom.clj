@@ -6,8 +6,6 @@
            [com.defold.util Geometry]
            [javax.vecmath Point3d Point4d Vector4d Vector3d Matrix4d]))
 
-(set! *warn-on-reflection* true)
-
 (defn clamper [low high] (fn [x] (min (max x low) high)))
 
 (defn lift-f1 [op] (fn [c xs] (into (empty xs) (for [x xs] (op c x)))))
@@ -163,7 +161,7 @@
     (.transform tfm p)
     p))
 
-(def Identity4d (doto (Matrix4d.) (.setIdentity)))
+(def ^Matrix4d Identity4d (doto (Matrix4d.) (.setIdentity)))
 
 ; -------------------------------------
 ; Matrix sloshing

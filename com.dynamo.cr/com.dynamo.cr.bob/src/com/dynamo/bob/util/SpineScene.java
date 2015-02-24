@@ -122,6 +122,7 @@ public class SpineScene {
         public String attachment;
         public String path;
         public Slot slot;
+        public boolean visible;
         // format is: x0, y0, z0, u0, v0, ...
         public float[] vertices;
         public int[] triangles;
@@ -130,11 +131,14 @@ public class SpineScene {
     }
 
     public static class Slot {
+        public String name;
         public Bone bone;
         public int index;
         public String attachment;
+        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
 
-        public Slot(Bone bone, int index, String attachment) {
+        public Slot(String name, Bone bone, int index, String attachment) {
+            this.name = name;
             this.bone = bone;
             this.index = index;
             this.attachment = attachment;
@@ -155,13 +159,36 @@ public class SpineScene {
         public AnimationCurve curve;
     }
 
-    public static class AnimationTrack {
+    public static abstract class AbstractAnimationTrack<Key extends AnimationKey> {
+        public List<Key> keys = new ArrayList<Key>();
+    }
+
+    public static class AnimationTrack extends AbstractAnimationTrack<AnimationKey> {
         public enum Property {
             POSITION, ROTATION, SCALE
         }
         public Bone bone;
         public Property property;
-        public List<AnimationKey> keys = new ArrayList<AnimationKey>();
+    }
+
+    public static class SlotAnimationKey extends AnimationKey {
+        public String attachment;
+        public int orderOffset;
+    }
+
+    public static class SlotAnimationTrack extends AbstractAnimationTrack<SlotAnimationKey> {
+        public enum Property {
+            ATTACHMENT, COLOR, DRAW_ORDER
+        }
+        public Slot slot;
+        public Property property;
+    }
+
+    public static class Event {
+        public String name;
+        public String stringPayload;
+        public float floatPayload;
+        public int intPayload;
     }
 
     public static class EventKey {
@@ -180,6 +207,7 @@ public class SpineScene {
         public String name;
         public float duration;
         public List<AnimationTrack> tracks = new ArrayList<AnimationTrack>();
+        public List<SlotAnimationTrack> slotTracks = new ArrayList<SlotAnimationTrack>();
         public List<EventTrack> eventTracks = new ArrayList<EventTrack>();
     }
 
@@ -188,6 +216,8 @@ public class SpineScene {
     public List<Mesh> meshes = new ArrayList<Mesh>();
     public Map<String, List<Mesh>> skins = new HashMap<String, List<Mesh>>();
     public Map<String, Animation> animations = new HashMap<String, Animation>();
+    public Map<String, Slot> slots = new HashMap<String, Slot>();
+    public Map<String, Event> events = new HashMap<String, Event>();
 
     public Bone getBone(String name) {
         return nameToBones.get(name);
@@ -197,8 +227,16 @@ public class SpineScene {
         return bones.get(index);
     }
 
+    public Slot getSlot(String name) {
+        return slots.get(name);
+    }
+
     public Animation getAnimation(String name) {
         return animations.get(name);
+    }
+
+    public Event getEvent(String name) {
+        return events.get(name);
     }
 
     private static void loadTransform(JsonNode node, Transform t) {
@@ -414,6 +452,43 @@ public class SpineScene {
         }
     }
 
+    private void loadSlotTrack(JsonNode propNode, SlotAnimationTrack track) {
+        Iterator<JsonNode> keyIt = propNode.getElements();
+        while (keyIt.hasNext()) {
+            JsonNode keyNode =  keyIt.next();
+            SlotAnimationKey key = new SlotAnimationKey();
+            key.t = (float)keyNode.get("time").asDouble();
+            switch (track.property) {
+            case COLOR:
+                // Hex to RGBA
+                String hex = JsonUtil.get(keyNode, "color", "ffffffff");
+                JsonUtil.hexToRGBA(hex, key.value);
+                break;
+            case ATTACHMENT:
+                key.attachment = JsonUtil.get(keyNode, "name", (String)null);
+                break;
+            case DRAW_ORDER:
+                // Handled separately, stored in separate JSON node
+                break;
+            }
+            if (keyNode.has("curve")) {
+                JsonNode curveNode = keyNode.get("curve");
+                if (curveNode.isArray()) {
+                    AnimationCurve curve = new AnimationCurve();
+                    Iterator<JsonNode> curveIt = curveNode.getElements();
+                    curve.x0 = (float)curveIt.next().asDouble();
+                    curve.y0 = (float)curveIt.next().asDouble();
+                    curve.x1 = (float)curveIt.next().asDouble();
+                    curve.y1 = (float)curveIt.next().asDouble();
+                    key.curve = curve;
+                } else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
+                    key.stepped = true;
+                }
+            }
+            track.keys.add(key);
+        }
+    }
+
     private void loadAnimation(JsonNode animNode, Animation animation) {
         JsonNode bonesNode = animNode.get("bones");
         if (bonesNode != null) {
@@ -435,6 +510,26 @@ public class SpineScene {
                 }
             }
         }
+        JsonNode slotsNode = animNode.get("slots");
+        if (slotsNode != null) {
+            Iterator<Map.Entry<String, JsonNode>> animSlotIt = slotsNode.getFields();
+            while (animSlotIt.hasNext()) {
+                Map.Entry<String, JsonNode> slotEntry = animSlotIt.next();
+                String slotName = slotEntry.getKey();
+                JsonNode slotNode = slotEntry.getValue();
+                Iterator<Map.Entry<String, JsonNode>> propIt = slotNode.getFields();
+                while (propIt.hasNext()) {
+                    Map.Entry<String, JsonNode> propEntry = propIt.next();
+                    String propName = propEntry.getKey();
+                    JsonNode propNode = propEntry.getValue();
+                    SlotAnimationTrack track = new SlotAnimationTrack();
+                    track.slot = getSlot(slotName);
+                    track.property = spineToSlotProperty(propName);
+                    loadSlotTrack(propNode, track);
+                    animation.slotTracks.add(track);
+                }
+            }
+        }
         JsonNode eventsNode = animNode.get("events");
         if (eventsNode != null) {
             Iterator<JsonNode> keyIt = eventsNode.getElements();
@@ -447,11 +542,12 @@ public class SpineScene {
                     keys = new ArrayList<EventKey>();
                     tracks.put(eventId, keys);
                 }
+                Event event = getEvent(eventId);
                 EventKey key = new EventKey();
                 key.t = (float)keyNode.get("time").asDouble();
-                key.intPayload = JsonUtil.get(keyNode, "int", 0);
-                key.floatPayload = JsonUtil.get(keyNode, "float", 0.0f);
-                key.stringPayload = JsonUtil.get(keyNode, "string", "");
+                key.intPayload = JsonUtil.get(keyNode, "int", event.intPayload);
+                key.floatPayload = JsonUtil.get(keyNode, "float", event.floatPayload);
+                key.stringPayload = JsonUtil.get(keyNode, "string", event.stringPayload);
                 keys.add(key);
             }
             for (Map.Entry<String, List<EventKey>> entry : tracks.entrySet()) {
@@ -462,8 +558,55 @@ public class SpineScene {
             }
         }
         float duration = 0.0f;
+        JsonNode drawOrderNode = animNode.get("drawOrder");
+        if (drawOrderNode != null) {
+            Iterator<JsonNode> animDrawOrderIt = drawOrderNode.getElements();
+            Map<String, SlotAnimationTrack> slotTracks = new HashMap<String, SlotAnimationTrack>();
+
+            while (animDrawOrderIt.hasNext()) {
+                JsonNode drawOrderEntry = animDrawOrderIt.next();
+                float t = JsonUtil.get(drawOrderEntry, "time", 0.0f);
+                duration = Math.max(duration, t);
+                JsonNode offsetsNode = drawOrderEntry.get("offsets");
+                if (offsetsNode != null) {
+                    Iterator<JsonNode> offsetIt = offsetsNode.getElements();
+                    while (offsetIt.hasNext()) {
+                        JsonNode offsetNode = offsetIt.next();
+                        String slotName = JsonUtil.get(offsetNode, "slot", (String)null);
+                        SlotAnimationTrack track = slotTracks.get(slotName);
+                        if (track == null) {
+                            track = new SlotAnimationTrack();
+                            track.property = SlotAnimationTrack.Property.DRAW_ORDER;
+                            track.slot = slots.get(slotName);
+                            slotTracks.put(slotName, track);
+                            animation.slotTracks.add(track);
+                        }
+                        SlotAnimationKey key = new SlotAnimationKey();
+                        key.orderOffset = JsonUtil.get(offsetNode, "offset", 0);
+                        key.t = t;
+                        track.keys.add(key);
+                    }
+                }
+                // Add default keys for all slots who were not explicitly changed in offset this key
+                for (Map.Entry<String, SlotAnimationTrack> entry : slotTracks.entrySet()) {
+                    SlotAnimationTrack track = entry.getValue();
+                    SlotAnimationKey key = track.keys.get(track.keys.size() - 1);
+                    if (key.t != t) {
+                        key = new SlotAnimationKey();
+                        key.orderOffset = 0;
+                        key.t = t;
+                        track.keys.add(key);
+                    }
+                }
+            }
+        }
         for (AnimationTrack track : animation.tracks) {
             for (AnimationKey key : track.keys) {
+                duration = Math.max(duration, key.t);
+            }
+        }
+        for (SlotAnimationTrack track : animation.slotTracks) {
+            for (SlotAnimationKey key : track.keys) {
                 duration = Math.max(duration, key.t);
             }
         }
@@ -498,7 +641,6 @@ public class SpineScene {
                 JsonNode boneNode = boneIt.next();
                 scene.loadBone(boneNode);
             }
-            final Map<String, Slot> slots = new HashMap<String, Slot>();
             int slotIndex = 0;
             if (!node.has("slots")) {
                 return scene;
@@ -508,12 +650,28 @@ public class SpineScene {
                 JsonNode slotNode = slotIt.next();
                 String attachment = JsonUtil.get(slotNode, "attachment", (String)null);
                 String boneName = slotNode.get("bone").asText();
+                String slotName = JsonUtil.get(slotNode, "name", (String)null);
                 Bone bone = scene.getBone(boneName);
                 if (bone == null) {
                     throw new LoadException(String.format("The bone '%s' of attachment '%s' does not exist.", boneName, attachment));
                 }
-                slots.put(slotNode.get("name").asText(), new Slot(bone, slotIndex, attachment));
+                Slot slot = new Slot(slotName, bone, slotIndex, attachment);
+                JsonUtil.hexToRGBA(JsonUtil.get(slotNode,  "color",  "ffffffff"), slot.color);
+                scene.slots.put(slotNode.get("name").asText(), slot);
                 ++slotIndex;
+            }
+            if (node.has("events")) {
+                Iterator<Map.Entry<String, JsonNode>> eventIt = node.get("events").getFields();
+                while (eventIt.hasNext()) {
+                    Map.Entry<String, JsonNode> eventEntry = eventIt.next();
+                    Event event = new Event();
+                    event.name = eventEntry.getKey();
+                    JsonNode eventNode = eventEntry.getValue();
+                    event.stringPayload = JsonUtil.get(eventNode, "string", "");
+                    event.intPayload = JsonUtil.get(eventNode, "int", 0);
+                    event.floatPayload = JsonUtil.get(eventNode, "float", 0.0f);
+                    scene.events.put(event.name, event);
+                }
             }
             if (!node.has("skins")) {
                 return scene;
@@ -528,41 +686,40 @@ public class SpineScene {
                 while (skinSlotIt.hasNext()) {
                     Map.Entry<String, JsonNode> slotEntry = skinSlotIt.next();
                     String slotName = slotEntry.getKey();
-                    Slot slot = slots.get(slotName);
+                    Slot slot = scene.slots.get(slotName);
                     JsonNode slotNode = slotEntry.getValue();
                     Iterator<Map.Entry<String, JsonNode>> attIt = slotNode.getFields();
                     while (attIt.hasNext()) {
                         Map.Entry<String, JsonNode> attEntry = attIt.next();
                         String attName = attEntry.getKey();
-                        if (attName.equals(slot.attachment)) {
-                            JsonNode attNode = attEntry.getValue();
-                            Bone bone = slot.bone;
-                            if (bone == null) {
-                                throw new LoadException(String.format("No bone mapped to attachment '%s'.", attName));
-                            }
-                            String path = attName;
-                            if (attNode.has("name")) {
-                                path = attNode.get("name").asText();
-                            }
-                            String type = JsonUtil.get(attNode, "type", "region");
-                            Mesh mesh = new Mesh();
-                            mesh.attachment = attName;
-                            mesh.path = path;
-                            mesh.slot = slot;
-                            if (type.equals("region")) {
-                                scene.loadRegion(attNode, mesh, bone);
-                            } else if (type.equals("mesh")) {
-                                scene.loadMesh(attNode, mesh, bone, false);
-                            } else if (type.equals("skinnedmesh")) {
-                                scene.loadMesh(attNode, mesh, bone, true);
-                            } else {
-                                mesh = null;
-                            }
-                            // Silently ignore unsupported types
-                            if (mesh != null) {
-                                transformUvs(mesh, uvTransformProvider);
-                                meshes.add(mesh);
-                            }
+                        JsonNode attNode = attEntry.getValue();
+                        Bone bone = slot.bone;
+                        if (bone == null) {
+                            throw new LoadException(String.format("No bone mapped to attachment '%s'.", attName));
+                        }
+                        String path = attName;
+                        if (attNode.has("name")) {
+                            path = attNode.get("name").asText();
+                        }
+                        String type = JsonUtil.get(attNode, "type", "region");
+                        Mesh mesh = new Mesh();
+                        mesh.attachment = attName;
+                        mesh.path = path;
+                        mesh.slot = slot;
+                        mesh.visible = attName.equals(slot.attachment);
+                        if (type.equals("region")) {
+                            scene.loadRegion(attNode, mesh, bone);
+                        } else if (type.equals("mesh")) {
+                            scene.loadMesh(attNode, mesh, bone, false);
+                        } else if (type.equals("skinnedmesh")) {
+                            scene.loadMesh(attNode, mesh, bone, true);
+                        } else {
+                            mesh = null;
+                        }
+                        // Silently ignore unsupported types
+                        if (mesh != null) {
+                            transformUvs(mesh, uvTransformProvider);
+                            meshes.add(mesh);
                         }
                     }
                 }
@@ -606,8 +763,9 @@ public class SpineScene {
         Point2d p = new Point2d();
         for (int i = 0; i < vertexCount; ++i) {
             int uvi = i*5+3;
-            p.set(mesh.vertices[uvi+0] * t.scale.x, mesh.vertices[uvi+1] * t.scale.y);
-            p.add(t.translation);
+            p.x = mesh.vertices[uvi+0];
+            p.y = mesh.vertices[uvi+1];
+            t.apply(p);
             mesh.vertices[uvi+0] = (float)p.x;
             mesh.vertices[uvi+1] = (float)p.y;
         }
@@ -620,6 +778,15 @@ public class SpineScene {
             return Property.ROTATION;
         } else if (name.equals("scale")) {
             return Property.SCALE;
+        }
+        return null;
+    }
+
+    public static SlotAnimationTrack.Property spineToSlotProperty(String name) {
+        if (name.equals("color")) {
+            return SlotAnimationTrack.Property.COLOR;
+        } else if (name.equals("attachment")) {
+            return SlotAnimationTrack.Property.ATTACHMENT;
         }
         return null;
     }
@@ -642,5 +809,11 @@ public class SpineScene {
             return n.has(name) ? n.get(name).asInt() : defaultVal;
         }
 
+        public static void hexToRGBA(String hex, float[] value) {
+            for (int i = 0; i < 4; ++i) {
+                int offset = i*2;
+                value[i] = Integer.valueOf(hex.substring(0 + offset, 2 + offset), 16) / 255.0f;
+            }
+        }
     }
 }

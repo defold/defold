@@ -12,6 +12,11 @@ struct {
     int m_Pipefd[2];
 } g_SavedWin;
 
+typedef struct EglAttribSetting_t {
+    EGLint m_Attribute;
+    EGLint m_Value;
+} EglAttribSetting;
+
 void SaveWin(_GLFWwin* win) {
     g_SavedWin.display = win->display;
     g_SavedWin.context = win->context;
@@ -32,21 +37,111 @@ void RestoreWin(_GLFWwin* win) {
     win->m_Pipefd[1] = g_SavedWin.m_Pipefd[1];
 }
 
+static int add_egl_attrib(EglAttribSetting* buffer, int size, int offset, const EglAttribSetting* setting)
+{
+    int result;
+    if (0 <= offset && size > offset)
+    {
+        buffer[offset] = *setting;
+        result = offset + 1;
+    }
+    else
+    {
+        LOGV("Exhausted egl attrib buffer");
+        result = -1;
+    }
+    return result;
+}
+
+static int add_egl_base_attrib(EglAttribSetting* buffer, int size, int offset)
+{
+    const EglAttribSetting surface = {EGL_SURFACE_TYPE, EGL_WINDOW_BIT};
+    return add_egl_attrib(buffer, size, offset, &surface);
+}
+
+static int add_egl_colour_attrib(EglAttribSetting* buffer, int size, int offset)
+{
+    const EglAttribSetting colour[] = {
+        {EGL_BLUE_SIZE, 8},
+        {EGL_GREEN_SIZE, 8},
+        {EGL_RED_SIZE, 8}
+    };
+    int i;
+    const int num_entries = sizeof(colour) / sizeof(EglAttribSetting);
+    for (i=0; i<num_entries; ++i)
+    {
+        offset = add_egl_attrib(buffer, size, offset, &colour[i]);
+        if (0 > offset)
+            break;
+    }
+    return offset;
+}
+
+static int add_egl_depth_attrib(EglAttribSetting* buffer, int size, int offset)
+{
+    const EglAttribSetting depth = {EGL_DEPTH_SIZE, 16};
+    return add_egl_attrib(buffer, size, offset, &depth);
+}
+
+static int add_egl_stencil_attrib(EglAttribSetting* buffer, int size, int offset)
+{
+    // TODO: Tegra support.
+    const EglAttribSetting stencil = {EGL_STENCIL_SIZE, 8};
+    return add_egl_attrib(buffer, size, offset, &stencil);
+}
+
+static int add_egl_concluding_attrib(EglAttribSetting* buffer, int size, int offset)
+{
+    const EglAttribSetting conclusion[] = {
+        // NOTE: In order to run on emulator
+        // EGL_CONFORMANT must not be specified
+        {EGL_CONFORMANT, EGL_OPENGL_ES2_BIT},
+        {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT},
+        {EGL_NONE, 0}
+    };
+    int i = 0;
+    const int num_entries = sizeof(conclusion) / sizeof(EglAttribSetting);
+    for (i=0; i<num_entries; ++i) {
+        offset = add_egl_attrib(buffer, size, offset, &conclusion[i]);
+        if (0 > offset)
+            break;
+    }
+    return offset;
+}
+
+static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
+{
+    EGLint result = 0;
+    const int max_settings = 9;
+    EglAttribSetting settings[max_settings];
+
+    int offset = 0;
+    int stencil_offset;
+
+    offset = add_egl_base_attrib(&settings, max_settings, offset);
+    offset = add_egl_colour_attrib(&settings, max_settings, offset);
+    offset = add_egl_depth_attrib(&settings, max_settings, offset);
+    stencil_offset = offset;
+    offset = add_egl_stencil_attrib(&settings, max_settings, offset);
+    offset = add_egl_concluding_attrib(&settings, max_settings, offset);
+
+    eglChooseConfig(display, (const EGLint *)&settings[0], config, 1, &result);
+    CHECK_EGL_ERROR
+    if (0 == result)
+    {
+        // Something along this sort of line when adding Tegra support?
+        LOGV("egl config choice failed - removing stencil");
+        add_egl_concluding_attrib(&settings, max_settings, stencil_offset);
+        eglChooseConfig(display, (const EGLint *)&settings[0], config, 1, &result);
+        CHECK_EGL_ERROR
+    }
+
+    return result;
+}
+
 int init_gl(_GLFWwin* win)
 {
     LOGV("init_gl");
-    const EGLint attribs[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-            EGL_BLUE_SIZE, 8,
-            EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
-            EGL_DEPTH_SIZE, 16,
-            // NOTE: In order to run on emulator
-            // EGL_CONFORMANT must not be specified
-            EGL_CONFORMANT, EGL_OPENGL_ES2_BIT,
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-            EGL_NONE
-    };
 
     /*
      * NOTE: The example simple_gles2 doesn't work with EGL_CONTEXT_CLIENT_VERSION
@@ -67,13 +162,14 @@ int init_gl(_GLFWwin* win)
     eglInitialize(display, 0, 0);
     CHECK_EGL_ERROR
 
-    eglChooseConfig(display, attribs, &config, 1, &numConfigs);
-    CHECK_EGL_ERROR
+
+    numConfigs = choose_egl_config(display, &config);
     // No configs found, error out
     if (numConfigs == 0)
     {
         return 0;
     }
+
     eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format);
     CHECK_EGL_ERROR
     ANativeWindow_setBuffersGeometry(win->app->window, 0, 0, format);

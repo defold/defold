@@ -3,6 +3,10 @@ package com.dynamo.bob.pipeline;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -130,5 +134,14 @@ public class TextureGenerator {
             TexcLibrary.TEXC_Destroy(texture);
         }
 
+    }
+
+    public static void main(String[] args) throws IOException, TextureGeneratorException {
+        System.setProperty("java.awt.headless", "true");
+        try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
+             BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
+            TextureImage texture = generate(is);
+            texture.writeTo(os);
+        }
     }
 }

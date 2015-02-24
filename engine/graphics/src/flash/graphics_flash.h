@@ -107,7 +107,8 @@ namespace dmGraphics
         void*                       m_WindowCloseCallbackUserData;
         TextureFilter               m_DefaultTextureMinFilter;
         TextureFilter               m_DefaultTextureMagFilter;
-        StencilFunc                 m_StencilFunc;
+        CompareFunc                 m_DepthFunc;
+        CompareFunc                 m_StencilFunc;
         StencilOp                   m_StencilOpSFail;
         StencilOp                   m_StencilOpDPFail;
         StencilOp                   m_StencilOpDPPass;

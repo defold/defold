@@ -7,7 +7,7 @@ function init(self)
     self.health = 1
 end
 
-function on_message(self, message_id, message)
+function on_message(self, message_id, message, sender)
     if message_id == hash("hit") then
         self.health = self.health - message.damage
         if self.health < 0 then

@@ -38,6 +38,8 @@ namespace dmGameObject
         AnimationStopped    m_AnimationStopped;
         void*               m_Userdata1;
         void*               m_Userdata2;
+        uint16_t            m_PreviousListener;
+        uint16_t            m_NextListener;
         uint16_t            m_Index;
         uint16_t            m_Next;
         uint16_t            m_Playing : 1;
@@ -53,6 +55,7 @@ namespace dmGameObject
         dmArray<uint16_t>                   m_AnimMap;
         dmIndexPool<uint16_t>               m_AnimMapIndexPool;
         dmHashTable<uintptr_t, uint16_t>    m_InstanceToIndex;
+        dmHashTable<uintptr_t, uint16_t>    m_ListenerInstanceToIndex;
         uint32_t                            m_InUpdate : 1;
     };
 
@@ -70,6 +73,7 @@ namespace dmGameObject
             // This is fetched from res_collection.cpp (ResCollectionCreate)
             const uint32_t instance_count = 1024;
             world->m_InstanceToIndex.SetCapacity(instance_count/3, instance_count);
+            world->m_ListenerInstanceToIndex.SetCapacity(instance_count/3, instance_count);
             world->m_InUpdate = 0;
             return CREATE_RESULT_OK;
         }
@@ -127,6 +131,13 @@ namespace dmGameObject
                 index = anim->m_Next;
             }
         }
+    }
+
+    static void RemoveAnimationCallback(AnimWorld* world, Animation* anim);
+
+    CreateResult CompAnimAddToUpdate(const ComponentAddToUpdateParams& params) {
+        // Intentional pass-through
+        return CREATE_RESULT_OK;
     }
 
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params)
@@ -296,6 +307,7 @@ namespace dmGameObject
                     size = world->m_Animations.Size();
                     if (size != orig_size)
                         anim = &world->m_Animations[i];
+                    RemoveAnimationCallback(world, anim);
                 }
                 uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
                 uint16_t* index_ptr = head_ptr;
@@ -420,12 +432,35 @@ namespace dmGameObject
         animation.m_AnimationStopped = animation_stopped;
         animation.m_Userdata1 = userdata1;
         animation.m_Userdata2 = userdata2;
+        animation.m_PreviousListener = INVALID_INDEX;
+        animation.m_NextListener = INVALID_INDEX;
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
         animation.m_FirstUpdate = 1;
+
+        if (0x0 != animation_stopped)
+        {
+            index_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)userdata1);
+            if (0x0 == index_ptr)
+            {
+                if (world->m_ListenerInstanceToIndex.Full())
+                {
+                    dmLogError("Animation listener could not be stored since the buffer is full (%d).", world->m_ListenerInstanceToIndex.Size());
+                    return false;
+                }
+            }
+            else
+            {
+                Animation* last_anim = &world->m_Animations[world->m_AnimMap[*index_ptr]];
+                animation.m_NextListener = last_anim->m_Index;
+                last_anim->m_PreviousListener = index;
+            }
+            world->m_ListenerInstanceToIndex.Put((uintptr_t)userdata1, index);
+        }
+
         return true;
     }
 
@@ -565,6 +600,7 @@ namespace dmGameObject
                     {
                         anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
                                 anim->m_Userdata1, anim->m_Userdata2);
+                        RemoveAnimationCallback(world, anim);
                     }
                     world->m_AnimMapIndexPool.Push(index);
                     index = anim->m_Next;
@@ -580,6 +616,64 @@ namespace dmGameObject
                 }
                 world->m_InstanceToIndex.Erase((uintptr_t)instance);
             }
+        }
+    }
+
+    static void RemoveAnimationCallback(AnimWorld* world, Animation* anim)
+    {
+        uint16_t previous = anim->m_PreviousListener;
+        uint16_t next = anim->m_NextListener;
+
+        if (INVALID_INDEX != previous)
+        {
+            uint16_t anim_index_prev = world->m_AnimMap[previous];
+            world->m_Animations[anim_index_prev].m_NextListener = next;
+        }
+        if (INVALID_INDEX != next)
+        {
+            uint16_t anim_index_next = world->m_AnimMap[next];
+            world->m_Animations[anim_index_next].m_PreviousListener = previous;
+        }
+        if (INVALID_INDEX == previous)
+        {
+            if (INVALID_INDEX == next)
+            {
+                world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
+            }
+            else
+            {
+                world->m_ListenerInstanceToIndex.Put((uintptr_t)anim->m_Userdata1, next);
+            }
+        }
+
+        anim->m_PreviousListener = INVALID_INDEX;
+        anim->m_NextListener = INVALID_INDEX;
+        anim->m_AnimationStopped = 0x0;
+        anim->m_Userdata1 = 0x0;
+        anim->m_Userdata2 = 0x0;
+    }
+
+    void CancelAnimationCallbacks(HCollection collection, void* userdata1)
+    {
+        AnimWorld* const world = GetWorld(collection);
+        uint16_t* head_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)userdata1);
+        if (0x0 != head_ptr)
+        {
+            uint16_t index = *head_ptr;
+            while (INVALID_INDEX != index)
+            {
+                uint16_t anim_index = world->m_AnimMap[index];
+                Animation* const anim = &world->m_Animations[anim_index];
+
+                index = anim->m_NextListener;
+
+                anim->m_PreviousListener = INVALID_INDEX;
+                anim->m_NextListener = INVALID_INDEX;
+                anim->m_AnimationStopped = 0x0;
+                anim->m_Userdata1 = 0x0;
+                anim->m_Userdata2 = 0x0;
+            }
+            world->m_ListenerInstanceToIndex.Erase((uintptr_t)userdata1);
         }
     }
 }

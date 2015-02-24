@@ -15,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.common.util.Exec;
-import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.IConsoleFactory;
 import com.dynamo.cr.editor.ui.ConsoleFactory;
@@ -63,47 +62,6 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
 
     public String getCodeSignAllocatePath() {
         return getUtilPath("/lib/codesign_allocate");
-    }
-
-    public String getAndroirJarPath() {
-        return getUtilPath("lib/android.jar");
-    }
-
-    public String getClassesDexPath() {
-        return getUtilPath("lib/classes.dex");
-    }
-
-    public String getFacebookResPath() {
-        return getUtilPath("res/facebook");
-    }
-
-    public String getGooglePlayResPath() {
-        return getUtilPath("res/google-play-services");
-    }
-
-    public String getAaptPath() {
-        return getExePath("aapt");
-    }
-
-    public String getApkcPath() {
-        return getExePath("apkc");
-    }
-
-    private String getExePath(String name) {
-        String platform = EditorCorePlugin.getPlatform();
-        String ext = "";
-        if (platform.equals("win32")) {
-            ext = ".exe";
-        }
-
-        String p = getUtilPath(String.format("/lib/%s/%s%s", platform, name, ext));
-
-        try {
-            Exec.exec("chmod", "+x", p);
-        } catch (IOException e) {
-            logger.error("Failed to chmod " + name, e);
-        }
-        return p;
     }
 
     private String getUtilPath(String path) {

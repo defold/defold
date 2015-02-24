@@ -4,6 +4,7 @@
 #include "../dlib/image.h"
 
 #include "data/color_check_2x2.png.embed.h"
+#include "data/color_check_2x2_premult.png.embed.h"
 #include "data/case2319.jpg.embed.h"
 #include "data/color16_check_2x2.png.embed.h"
 #include "data/gray_check_2x2.png.embed.h"
@@ -50,7 +51,7 @@ static void SaveTga(const void* lpBits, uint32_t width, uint32_t height, FILE* f
 TEST(dmImage, Empty)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(0, 0, &image);
+    dmImage::Result r =  dmImage::Load(0, 0, false, &image);
     ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
 }
 
@@ -60,15 +61,48 @@ TEST(dmImage, Corrupt)
     void* b = malloc(size);
     memset(b, 0, size);
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(b, size, &image);
+    dmImage::Result r =  dmImage::Load(b, size, false, &image);
     free(b);
     ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
 }
 
 TEST(dmImage, PngColor)
 {
+    for (int iter = 0; iter < 2; iter++) {
+        dmImage::Image image;
+        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, &image);
+        ASSERT_EQ(dmImage::RESULT_OK, r);
+        ASSERT_EQ(2U, image.m_Width);
+        ASSERT_EQ(2U, image.m_Height);
+        ASSERT_EQ(dmImage::TYPE_RGBA, image.m_Type);
+        ASSERT_NE((void*) 0, image.m_Buffer);
+
+        const uint8_t* b = (const uint8_t*) image.m_Buffer;
+        int i = 0;
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(127U, (uint32_t) b[i++]);
+        dmImage::Free(&image);
+    }
+}
+
+TEST(dmImage, Premult)
+{
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, &image);
+    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PREMULT_PNG, COLOR_CHECK_2X2_PREMULT_PNG_SIZE, true, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -77,22 +111,25 @@ TEST(dmImage, PngColor)
 
     const uint8_t* b = (const uint8_t*) image.m_Buffer;
     int i = 0;
-    ASSERT_EQ(255U, (uint32_t) b[i++]);
+    ASSERT_EQ(76U, (uint32_t) b[i++]);
     ASSERT_EQ(0U, (uint32_t) b[i++]);
     ASSERT_EQ(0U, (uint32_t) b[i++]);
-    ASSERT_EQ(255U, (uint32_t) b[i++]);
-    ASSERT_EQ(0U, (uint32_t) b[i++]);
-    ASSERT_EQ(255U, (uint32_t) b[i++]);
-    ASSERT_EQ(0U, (uint32_t) b[i++]);
-    ASSERT_EQ(255U, (uint32_t) b[i++]);
-    ASSERT_EQ(0U, (uint32_t) b[i++]);
-    ASSERT_EQ(0U, (uint32_t) b[i++]);
-    ASSERT_EQ(255U, (uint32_t) b[i++]);
-    ASSERT_EQ(255U, (uint32_t) b[i++]);
-    ASSERT_EQ(0U, (uint32_t) b[i++]);
-    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(76U, (uint32_t) b[i++]);
+
     ASSERT_EQ(0U, (uint32_t) b[i++]);
     ASSERT_EQ(127U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(127U, (uint32_t) b[i++]);
+
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(1U, (uint32_t) b[i++]);
+    ASSERT_EQ(204U, (uint32_t) b[i++]);
+    ASSERT_EQ(204U, (uint32_t) b[i++]);
+
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
     dmImage::Free(&image);
 }
 
@@ -100,14 +137,14 @@ TEST(dmImage, Png16Color)
 {
     // 16-bit images are not supported.
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(COLOR16_CHECK_2X2_PNG, COLOR16_CHECK_2X2_PNG_SIZE, &image);
+    dmImage::Result r =  dmImage::Load(COLOR16_CHECK_2X2_PNG, COLOR16_CHECK_2X2_PNG_SIZE, false, &image);
     ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
 }
 
 TEST(dmImage, PngGray)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(GRAY_CHECK_2X2_PNG, GRAY_CHECK_2X2_PNG_SIZE, &image);
+    dmImage::Result r =  dmImage::Load(GRAY_CHECK_2X2_PNG, GRAY_CHECK_2X2_PNG_SIZE, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -127,7 +164,7 @@ TEST(dmImage, PngGrayAlpha)
 {
     // Test implicit alpha channel removal for 2-component images.
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(GRAY_ALPHA_CHECK_2X2_PNG, GRAY_ALPHA_CHECK_2X2_PNG_SIZE, &image);
+    dmImage::Result r =  dmImage::Load(GRAY_ALPHA_CHECK_2X2_PNG, GRAY_ALPHA_CHECK_2X2_PNG_SIZE, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -146,7 +183,7 @@ TEST(dmImage, PngGrayAlpha)
 TEST(dmImage, Jpeg)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(DEFOLD_64_JPG, DEFOLD_64_JPG_SIZE, &image);
+    dmImage::Result r =  dmImage::Load(DEFOLD_64_JPG, DEFOLD_64_JPG_SIZE, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(64U, image.m_Width);
     ASSERT_EQ(64U, image.m_Height);
@@ -158,7 +195,7 @@ TEST(dmImage, Jpeg)
 TEST(dmImage, ProgressiveJpeg)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(DEFOLD_64_PROGRESSIVE_JPG, DEFOLD_64_PROGRESSIVE_JPG_SIZE, &image);
+    dmImage::Result r =  dmImage::Load(DEFOLD_64_PROGRESSIVE_JPG, DEFOLD_64_PROGRESSIVE_JPG_SIZE, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(64U, image.m_Width);
     ASSERT_EQ(64U, image.m_Height);
@@ -170,7 +207,7 @@ TEST(dmImage, ProgressiveJpeg)
 TEST(dmImage, case2319)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(CASE2319_JPG, CASE2319_JPG_SIZE, &image);
+    dmImage::Result r =  dmImage::Load(CASE2319_JPG, CASE2319_JPG_SIZE, false, &image);
 
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(165U, image.m_Width);

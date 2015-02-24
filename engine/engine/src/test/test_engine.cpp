@@ -149,6 +149,20 @@ TEST_F(EngineTest, ConnectionReboot)
     ASSERT_EQ(0, g_PostExitResult);
 }
 
+TEST_F(EngineTest, DEF_841)
+{
+    // DEF-841: do not attempt to fire Lua animation end callbacks using deleted ScriptInstances as targets.
+    // See first.script for test details.
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-841/def-841.collectionc", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
+}
+
+TEST_F(EngineTest, SpineAnim)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/spine_anim/spine.collectionc", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
+}
+
 int main(int argc, char **argv)
 {
     dmProfile::Initialize(256, 1024 * 16, 128);

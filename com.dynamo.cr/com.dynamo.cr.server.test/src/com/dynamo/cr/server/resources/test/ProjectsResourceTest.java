@@ -5,7 +5,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -13,16 +12,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
@@ -54,6 +55,7 @@ import com.dynamo.server.dgit.IGit;
 import com.google.common.io.Files;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
+import com.sun.jersey.api.client.ClientResponse.Status;
 import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.ClientConfig;
@@ -575,10 +577,18 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         cloneRepoOpenID(bob, projectInfo);
     }
 
-    ClientResponse testGetArchive(String version) throws IOException {
+    ClientResponse testGetArchive(String version, String sha1) throws IOException {
         ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
-        ClientResponse response = joeProjectsWebResource.path(String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version)).get(ClientResponse.class);
-        return response;
+        String path = String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version);
+        WebResource resource = joeProjectsWebResource.path(path);
+        if (sha1 != null) {
+        }
+        if (sha1 != null) {
+            return resource.header("If-None-Match", sha1).get(ClientResponse.class);
+        } else {
+            return resource.get(ClientResponse.class);
+
+        }
     }
 
     void verifyArchive(ClientResponse response) throws IOException {
@@ -586,14 +596,21 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         IOUtils.copy(is, os);
         IOUtils.closeQuietly(is);
+        File zip = File.createTempFile("tmp", "zip");
+        zip.deleteOnExit();
+        FileUtils.writeByteArrayToFile(zip, os.toByteArray());
 
-        ZipInputStream zipIn = new ZipInputStream(new ByteArrayInputStream(os.toByteArray()));
+        String etag = response.getHeaders().getFirst("ETag");
+        ZipFile zipFile = new ZipFile(zip);
+        assertEquals(etag, zipFile.getComment());
+        Enumeration<? extends ZipEntry> entries = zipFile.entries();
         Set<String> names = new HashSet<String>();
-        ZipEntry ze = zipIn.getNextEntry();
-        while (ze != null) {
+        while (entries.hasMoreElements()) {
+            ZipEntry ze = entries.nextElement();
             names.add(ze.getName());
-            ze = zipIn.getNextEntry();
         }
+        zipFile.close();
+
         assertEquals(new HashSet<String>(Arrays.asList("content/test space.txt", "content/file1.txt", "content/file2.txt")), names);
     }
 
@@ -602,29 +619,57 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     // but current test, including helper functions for creating projects, resides in ProjectsResourceTest.java
     @Test
     public void getArchive1() throws Exception {
-        ClientResponse response = testGetArchive("");
+        ClientResponse response = testGetArchive("", null);
+        String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
+        response = testGetArchive("", sha1);
+        assertEquals(304, response.getStatus());
     }
 
     @Test
     public void getArchive2() throws Exception {
-        ClientResponse response = testGetArchive("master");
+        ClientResponse response = testGetArchive("master", null);
+        String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
+        response = testGetArchive("", sha1);
+        assertEquals(304, response.getStatus());
     }
 
     @Test
     public void getArchive3() throws Exception {
-        ClientResponse response = testGetArchive("HEAD");
+        ClientResponse response = testGetArchive("HEAD", null);
+        String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
         verifyArchive(response);
+        response = testGetArchive("", sha1);
+        assertEquals(304, response.getStatus());
     }
 
     @Test
     public void getArchive4() throws Exception {
-        ClientResponse response = testGetArchive("INVALID");
-        assertEquals(500, response.getStatus());
+        ClientResponse response = testGetArchive("INVALID", null);
+        String sha1 = response.getHeaders().getFirst("ETag");
+        assertEquals(null, sha1);
+        assertEquals(404, response.getStatus());
+    }
+
+    ClientResponse getArchiveETag(String version) {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        String path = String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version);
+        ClientResponse headResponse = joeProjectsWebResource.path(path).head();
+        return headResponse;
+    }
+
+    @Test
+    public void getArchiveHead() {
+        String head = getArchiveETag("HEAD").getHeaders().getFirst("ETag");
+        String _1_0 = getArchiveETag("1.0").getHeaders().getFirst("ETag");
+        assertEquals(head, _1_0);
+
+        ClientResponse foo = getArchiveETag("foo");
+        assertEquals(Status.NOT_FOUND.getStatusCode(), foo.getStatus());
     }
 
     private static void alterFile(String cloneDir, String name, String content) throws IOException {

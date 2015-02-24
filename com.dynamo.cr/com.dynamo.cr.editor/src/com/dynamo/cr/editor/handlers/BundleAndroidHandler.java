@@ -1,13 +1,9 @@
 package com.dynamo.cr.editor.handlers;
 
-import java.io.IOException;
+import java.util.Map;
 
-import org.apache.commons.configuration.ConfigurationException;
 import org.eclipse.jface.dialogs.Dialog;
 
-import com.dynamo.cr.editor.core.ProjectProperties;
-import com.dynamo.cr.engine.Engine;
-import com.dynamo.cr.target.bundle.AndroidBundler;
 import com.dynamo.cr.target.bundle.BundleAndroidDialog;
 import com.dynamo.cr.target.bundle.BundleAndroidPresenter;
 import com.dynamo.cr.target.bundle.IBundleAndroidView;
@@ -49,16 +45,12 @@ public class BundleAndroidHandler extends AbstractBundleHandler {
     }
 
     @Override
-    protected void bundleApp(ProjectProperties projectProperties,
-            String projectRoot, String contentRoot, String outputDir)
-            throws ConfigurationException, IOException {
-
+    protected void setProjectOptions(Map<String, String> options) {
         String certificate = presenter.getCertificate();
         String key = presenter.getKey();
-
-        String exe = Engine.getDefault().getEnginePath("android", true);
-        AndroidBundler bundler = new AndroidBundler(certificate, key,  projectProperties, exe, projectRoot, contentRoot, outputDir);
-        bundler.bundleApplication();
+        options.put("certificate", certificate);
+        options.put("private-key", key);
+        options.put("platform", "armv7-android");
     }
 
 }
