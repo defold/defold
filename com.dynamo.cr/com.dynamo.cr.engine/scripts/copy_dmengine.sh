@@ -3,6 +3,7 @@ mkdir -p engine/linux
 mkdir -p engine/darwin
 mkdir -p engine/win32
 mkdir -p engine/ios
+mkdir -p engine/arm64-ios
 mkdir -p engine/android
 mkdir -p engine/js-web
 

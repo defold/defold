@@ -33,6 +33,9 @@ namespace dmThread
         int ret = pthread_attr_init(&attr);
         assert(ret == 0);
 
+        if (page_size == -1)
+            page_size = 4096;
+
         if (PTHREAD_STACK_MIN > stack_size)
             stack_size = PTHREAD_STACK_MIN;
 

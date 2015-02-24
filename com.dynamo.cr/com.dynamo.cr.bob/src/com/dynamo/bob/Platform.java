@@ -64,11 +64,11 @@ public enum Platform {
         } else if (os_name.indexOf("mac") != -1) {
             return Platform.X86_64Darwin;
         } else if (os_name.indexOf("linux") != -1) {
-	    if (arch.equals("x86_64") || arch.equals("amd64")) {
-		return Platform.X86_64Linux;
-	    } else {
-		return Platform.X86Linux;
-	    }
+            if (arch.equals("x86_64") || arch.equals("amd64")) {
+                return Platform.X86_64Linux;
+            } else {
+                return Platform.X86Linux;
+            }
         } else {
             throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
         }
@@ -83,12 +83,11 @@ public enum Platform {
         } else if (os_name.indexOf("mac") != -1) {
             return Platform.X86Darwin;
         } else if (os_name.indexOf("linux") != -1) {
-	    if (arch.equals("x86_64") || arch.equals("amd64")) {
-	       	System.out.println("YES!");
-		return Platform.X86_64Linux;
-	    } else {
-		return Platform.X86Linux;
-	    }
+            if (arch.equals("x86_64") || arch.equals("amd64")) {
+                return Platform.X86_64Linux;
+            } else {
+                return Platform.X86Linux;
+            }
         } else {
             throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
         }

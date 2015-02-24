@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.util.Exec;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
@@ -138,20 +139,7 @@ public class SignHandler extends AbstractHandler {
                 String engine = tmpFile.getPath();
 
                 // Run lipo to add armv7 + arm64 together into universal bin
-                ProcessBuilder lipoProcessBuilder = new ProcessBuilder( Bob.getExe(Platform.getHostPlatform(), "lipo"),
-                            "-create", engineArmv7, engineArm64,
-                            "-output", engine);
-                Process lipoProcess = lipoProcessBuilder.start();
-                InputStream errorIn = lipoProcess.getErrorStream();
-                ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-                IOUtils.copy(errorIn, errorOut);
-                errorIn.close();
-                String errorMessage = new String(errorOut.toByteArray());
-
-                int ret = lipoProcess.waitFor();
-                if (ret != 0) {
-                    throw new IOException(errorMessage);
-                }
+                Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", engineArmv7, engineArm64, "-output", engine );
 
                 String ipaPath = signer.sign(identity, profile, engine, properties);
                 monitor.worked(1);
