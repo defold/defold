@@ -5,7 +5,7 @@ set -e
 mkdir -p lib/x86-linux
 # mkdir -p lib/x86_64-linux
 mkdir -p lib/x86-darwin
-mkdir -p lib/x86_64-darwin
+# mkdir -p lib/x86_64-darwin
 mkdir -p lib/x86-win32
 mkdir -p libexec/x86-linux
 # mkdir -p libexec/x86_64-linux
@@ -31,7 +31,7 @@ cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/linux/libtexc_shared.so lib/x86-linux/libtexc_shared.so
 # cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
+# cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/win32/texc_shared.dll lib/x86-win32/texc_shared.dll
 
 rm -rf tmp
