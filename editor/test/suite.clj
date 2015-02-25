@@ -27,7 +27,8 @@
                       'dynamo.ui.property-test
                       'dynamo.util-test
                       'dynamo.gl.translate-test
-                      'dynamo.gl.vertex-test])
+                      'dynamo.gl.vertex-test
+                      'editor.atlas-test])
 
 (def builtin-basedir (io/file "../com.dynamo.cr/com.dynamo.cr.builtins"))
 

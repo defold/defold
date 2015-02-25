@@ -51,10 +51,29 @@
 
 (declare tex-outline-vertices)
 
+(defn- input-connections
+  [graph node input-label]
+  (mapv (fn [[source-node output-label]] [(:_id source-node) output-label])
+    (ds/sources-of graph node input-label)))
+
+(defn connect-outline-children
+  [input-labels input-name transaction graph self label kind inputs-touched]
+  (when (some (set input-labels) inputs-touched)
+    (let [children-before (input-connections (ds/in-transaction-graph transaction) self input-name)
+          children-after  (mapcat #(input-connections graph self %) input-labels)]
+      (doseq [[n l] children-before]
+        (ds/disconnect {:_id n} l self input-name))
+      (doseq [[n _] children-after]
+        (ds/connect {:_id n} :outline-tree self input-name)))))
+
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [id] id))
 
   (property images dp/ImageResourceList)
+  (input images-outline-children [OutlineItem])
+  (trigger connect-images-outline-children :input-connections (partial connect-outline-children [:images] :images-outline-children))
+  (output outline-children [OutlineItem] (fnk [images-outline-children] images-outline-children))
   (property id s/Str)
   (property fps             dp/NonNegativeInt (default 30))
   (property flip-horizontal s/Bool)
@@ -372,24 +391,9 @@
                            (str "/" (t/local-path filename)))) all-resource-nodes)]
     (zipmap filenames all-resource-nodes)))
 
-(defn construct-ancillary-nodes
-  [self project input]
-  (let [atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
-        img-nodes (find-resource-nodes project #{"png" "jpb"})]
-    (ds/set-property self :margin (:margin atlas))
-    (ds/set-property self :extrude-borders (:extrude-borders atlas))
-    (doseq [anim (:animations atlas)
-            :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
-                  images (mapv :image (:images anim))]]
-      (ds/set-property anim-node :images images)
-      (ds/connect anim-node :animation self :animations)
-      (ds/connect anim-node :tree      self :children)
-      (doseq [image images]
-        (when-let [img-node (get img-nodes image)]
-          (ds/connect img-node :content anim-node :images)
-          )))
-    (ds/set-property self :images (mapv :image (:images atlas)))
-    self))
+(defnk build-atlas-outline-children
+  [images-outline-children animations-outline-children]
+  (concat images-outline-children animations-outline-children))
 
 (n/defnode AtlasNode
   "This node represents an actual Atlas. It accepts a collection
@@ -413,6 +417,7 @@
    packed-image `BufferedImage` - BufferedImage instance with the actual pixels.
    textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
   (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [] "Atlas"))
   (inherits n/ResourceNode)
   (inherits n/Saveable)
 
@@ -423,7 +428,14 @@
   (property filename (s/protocol PathManipulation) (visible false))
 
   (input animations [Animation])
+  (input animations-outline-children [OutlineItem])
+  (trigger connect-animations-outline-children :input-connections (partial connect-outline-children [:animations] :animations-outline-children))
+
   (input images [ein/ImageResourceNode])
+  (input images-outline-children [OutlineItem])
+  (trigger connect-images-outline-children :input-connections (partial connect-outline-children [:images] :images-outline-children))
+
+  (output outline-children [OutlineItem] build-atlas-outline-children)
 
   (output aabb            AABB               (fnk [texture-packing] (g/rect->aabb (:aabb texture-packing))))
   (output gpu-texture     s/Any      :cached (fnk [packed-image] (texture/image-texture packed-image)))
@@ -445,14 +457,15 @@
                       images (mapv :image (:images anim))]]
           (ds/set-property anim-node :images images)
           (ds/connect anim-node :animation self :animations)
-          (ds/connect anim-node :tree      self :children)
           (doseq [image images]
             (when-let [img-node (get img-nodes image)]
-              (ds/connect img-node :content anim-node :images)
-              )))
+              (ds/connect img-node :content anim-node :images))))
         (let [images (mapv :image (:images atlas))]
           (prn "imgs" images)
-          (ds/set-property self :images images))
+          (ds/set-property self :images images)
+          (doseq [image images]
+            (when-let [img-node (get img-nodes image)]
+              (ds/connect img-node :content self :images))))
         self))
 
   (on :unload
