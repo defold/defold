@@ -15,6 +15,7 @@
                       'internal.type-test
                       'internal.value-test
                       'internal.graph.graph-test
+                      'dynamo.buffers-test
                       'dynamo.camera-test
                       'dynamo.defnode-test
                       'dynamo.geom-test
