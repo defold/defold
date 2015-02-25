@@ -42,7 +42,9 @@ ordinary paths."
   "A Placeholder node represents a file-based asset that doesn't have any specific
 behavior."
   (inherits n/ResourceNode)
-  (output content s/Any (fnk [] nil)))
+  (output content s/Any (fnk [] nil))
+  (inherits n/OutlineNode)
+  (output outline-label s/Str (fnk [filename] (t/local-name filename))))
 
 (defn- new-node-for-path
   [project-node path type-if-not-registered]

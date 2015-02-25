@@ -84,4 +84,5 @@
                                                [org.mockito/mockito-core "1.8.5"]]
                                 :repl-options {:port 4001}
                                 :proto-paths  ["test/proto"]
-                                :resource-paths ["test/resources"]}})
+                                :resource-paths ["test/resources"
+                                                 "../com.dynamo.cr/com.dynamo.cr.builtins/test/resources/"]}})
