@@ -38,6 +38,13 @@ public class TexcLibrary {
         public static int SRGB = 1;
     }
 
+    public interface CompressionLevel {
+        public static int CL_FAST    = 0;
+        public static int CL_NORMAL  = 1;
+        public static int CL_HIGH    = 2;
+        public static int CL_BEST    = 3;
+    }
+
     public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
@@ -47,6 +54,6 @@ public class TexcLibrary {
     public static native boolean TEXC_Resize(Pointer texture, int width, int height);
     public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
     public static native boolean TEXC_GenMipMaps(Pointer texture);
-    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace);
+    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel);
 
 }
