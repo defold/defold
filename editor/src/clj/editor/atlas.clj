@@ -449,7 +449,7 @@
       (let [project (:project event)
             input (:filename self)
             atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
-            img-nodes (find-resource-nodes project #{"png" "jpb"})]
+            img-nodes (find-resource-nodes project #{"png" "jpg"})]
         (ds/set-property self :margin (:margin atlas))
         (ds/set-property self :extrude-borders (:extrude-borders atlas))
         (doseq [anim (:animations atlas)
