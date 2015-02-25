@@ -22,7 +22,6 @@ extern "C"
 }
 
 #define PHYSICS_CONTEXT_NAME "__PhysicsContext"
-#define COLLISION_OBJECT_EXT "collisionobjectc"
 
 namespace dmGameSystem
 {
@@ -31,7 +30,7 @@ namespace dmGameSystem
         dmMessage::HSocket m_Socket;
         uint32_t m_ComponentIndex;
     };
-    
+
     /*# collision object mass (number)
      *
      * [READ ONLY] Returns the defined physical mass of the collision object component as a number.
