@@ -146,17 +146,17 @@ TEST_F(TexcTest, Transcode)
     dmTexc::HTexture texture = CreateDefaultRGBA();
     dmTexc::Header header;
 
-    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB));
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL));
     dmTexc::GetHeader(texture, &header);
     char l8[8] = {'l', 0, 0, 0, 8, 0, 0, 0};
     ASSERT_EQ(0, memcmp(l8, (void*)&header.m_PixelFormat, 8));
 
-    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB));
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8[8] = {'r', 'g', 'b', 0, 8, 8, 8, 0};
     ASSERT_EQ(0, memcmp(r8g8b8, (void*)&header.m_PixelFormat, 8));
 
-    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB));
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));

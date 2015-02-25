@@ -21,7 +21,7 @@ public class TextureProfilesEditSupport implements IResourceTypeEditSupport {
         }
         else if (descriptor.getFullName().equals(PlatformProfile.getDescriptor().getFullName())) {
             TextureFormatAlternative tmpFormat = TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();
-            return PlatformProfile.newBuilder().setOs(PlatformProfile.OSId.OS_ID_GENERIC).setMipmaps(true).addFormats(tmpFormat).build();
+            return PlatformProfile.newBuilder().setOs(PlatformProfile.OS.OS_ID_GENERIC).setMipmaps(true).addFormats(tmpFormat).build();
         }
         else if (descriptor.getFullName().equals(TextureFormatAlternative.getDescriptor().getFullName())) {
             return TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();

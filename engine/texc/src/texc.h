@@ -34,6 +34,14 @@ namespace dmTexc
         CS_SRGB,
     };
 
+    enum CompressionLevel
+    {
+        CL_FAST,
+        CL_NORMAL,
+        CL_HIGH,
+        CL_BEST,
+    };
+
     struct Header
     {
         uint32_t m_Version;
@@ -97,7 +105,7 @@ namespace dmTexc
     /**
      * Transcode a texture into another format.
      */
-    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space);
+    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel);
 
 #undef DM_TEXC_PROTO
 

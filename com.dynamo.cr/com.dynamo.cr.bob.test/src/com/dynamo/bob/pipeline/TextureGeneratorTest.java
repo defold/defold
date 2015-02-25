@@ -9,9 +9,10 @@ import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.PlatformProfile.OSId;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -170,8 +171,9 @@ public class TextureGeneratorTest {
         TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
 
         textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_ETC1);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.NORMAL);
 
-        platformProfile.setOs(PlatformProfile.OSId.OS_ID_GENERIC);
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
         platformProfile.addFormats(textureFormatAlt1.build());
         platformProfile.setMipmaps(false);
         platformProfile.setMaxTextureSize(0);
@@ -197,8 +199,9 @@ public class TextureGeneratorTest {
         TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
 
         textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.NORMAL);
 
-        platformProfile.setOs(PlatformProfile.OSId.OS_ID_GENERIC);
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
         platformProfile.addFormats(textureFormatAlt1.build());
         platformProfile.setMipmaps(false);
         platformProfile.setMaxTextureSize(16);
@@ -226,16 +229,19 @@ public class TextureGeneratorTest {
         TextureFormatAlternative.Builder textureFormatAlt3 = TextureFormatAlternative.newBuilder();
 
         textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
         textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+        textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
         textureFormatAlt3.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        textureFormatAlt3.setCompressionLevel(CompressionLevel.NORMAL);
 
-        platformProfile1.setOs(PlatformProfile.OSId.OS_ID_IOS);
+        platformProfile1.setOs(PlatformProfile.OS.OS_ID_IOS);
         platformProfile1.addFormats(textureFormatAlt1.build());
         platformProfile1.addFormats(textureFormatAlt2.build());
         platformProfile1.setMipmaps(false);
         platformProfile1.setMaxTextureSize(16);
 
-        platformProfile2.setOs(PlatformProfile.OSId.OS_ID_GENERIC);
+        platformProfile2.setOs(PlatformProfile.OS.OS_ID_GENERIC);
         platformProfile2.addFormats(textureFormatAlt3.build());
         platformProfile2.setMipmaps(false);
         platformProfile2.setMaxTextureSize(0);
@@ -258,7 +264,7 @@ public class TextureGeneratorTest {
         assertEquals(16, texture.getAlternatives(1).getHeight());
 
 
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(2).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(2).getFormat());
         assertEquals(128, texture.getAlternatives(2).getWidth());
         assertEquals(64, texture.getAlternatives(2).getHeight());
 
@@ -274,8 +280,9 @@ public class TextureGeneratorTest {
         TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
 
         textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
 
-        platformProfile.setOs(PlatformProfile.OSId.OS_ID_GENERIC);
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
         platformProfile.addFormats(textureFormatAlt1.build());
         platformProfile.setMipmaps(false);
         platformProfile.setMaxTextureSize(0);
@@ -288,6 +295,33 @@ public class TextureGeneratorTest {
         // PVR will result in square textures
         assertEquals(128, texture.getAlternatives(0).getWidth());
         assertEquals(128, texture.getAlternatives(0).getHeight());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+
+    }
+
+
+    @Test
+    public void textOptimalFormat() throws TextureGeneratorException, IOException {
+
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build());
+
+        // If input has less channels than target format, it should use a format in the same family with fewer channels (if available).
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
 
     }

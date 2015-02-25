@@ -49,6 +49,23 @@ namespace dmTexc
         return pvrtexture::PixelType();
     }
 
+    static pvrtexture::ECompressorQuality ConvertCompressionLevel(CompressionLevel compression_level)
+    {
+        switch (compression_level)
+        {
+            case CL_FAST:
+                return pvrtexture::ePVRTCFast;
+            case CL_NORMAL:
+                return pvrtexture::ePVRTCNormal;
+            case CL_HIGH:
+                return pvrtexture::ePVRTCHigh;
+            case CL_BEST:
+                return pvrtexture::ePVRTCBest;
+        }
+
+        return pvrtexture::ePVRTCNormal;
+    }
+
     static EPVRTColourSpace ConvertColorSpace(ColorSpace color_space)
     {
         switch (color_space)
@@ -153,12 +170,12 @@ namespace dmTexc
         return pvrtexture::GenerateMIPMaps(*t, pvrtexture::eResizeLinear);
     }
 
-    bool Transcode(HTexture texture, PixelFormat pixel_format, ColorSpace color_space)
+    bool Transcode(HTexture texture, PixelFormat pixel_format, ColorSpace color_space, CompressionLevel compression_level)
     {
         pvrtexture::PixelType pf = ConvertPixelFormat(pixel_format);
         EPVRTVariableType var_type = ePVRTVarTypeUnsignedByteNorm;
         EPVRTColourSpace cs = ConvertColorSpace(color_space);
-        pvrtexture::ECompressorQuality quality = pvrtexture::ePVRTCNormal;
+        pvrtexture::ECompressorQuality quality = ConvertCompressionLevel(compression_level);
         bool dither = true;
         return pvrtexture::Transcode(*(pvrtexture::CPVRTexture*)texture, pf, var_type,
                 cs, quality, dither);
@@ -202,5 +219,5 @@ namespace dmTexc
     DM_TEXC_TRAMPOLINE3(bool, Resize, HTexture, uint32_t, uint32_t);
     DM_TEXC_TRAMPOLINE1(bool, PreMultiplyAlpha, HTexture);
     DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
-    DM_TEXC_TRAMPOLINE3(bool, Transcode, HTexture, PixelFormat, ColorSpace);
+    DM_TEXC_TRAMPOLINE4(bool, Transcode, HTexture, PixelFormat, ColorSpace, CompressionLevel);
 }

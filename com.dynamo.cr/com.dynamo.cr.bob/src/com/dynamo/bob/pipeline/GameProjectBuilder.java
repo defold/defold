@@ -13,7 +13,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -24,6 +23,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
@@ -38,7 +38,7 @@ import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.PlatformProfile.OSId;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -113,40 +113,6 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".meshc");
     }
 
-    private static boolean matchPlatformAgainstOS( String platform, PlatformProfile.OSId osId ) {
-
-        if (osId == PlatformProfile.OSId.OS_ID_GENERIC) {
-            return true;
-
-        } else if (osId == PlatformProfile.OSId.OS_ID_WINDOWS) {
-            if (platform.equals("x86-win32"))
-                return true;
-
-        } else if (osId == PlatformProfile.OSId.OS_ID_OSX) {
-            if (platform.equals("x86-darwin") || platform.equals("x86_64-darwin"))
-                return true;
-
-        } else if (osId == PlatformProfile.OSId.OS_ID_LINUX) {
-            if (platform.equals("x86-linux"))
-                return true;
-
-        } else if (osId == PlatformProfile.OSId.OS_ID_IOS) {
-            if (platform.equals("armv7-darwin"))
-                return true;
-
-        } else if (osId == PlatformProfile.OSId.OS_ID_ANDROID) {
-            if (platform.equals("armv7-android"))
-                return true;
-
-        } else if (osId == PlatformProfile.OSId.OS_ID_JSWEB) {
-            if (platform.equals("js-web"))
-                return true;
-
-        }
-
-        return false;
-    }
-
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -187,7 +153,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 // Take only the platforms that matches the target platform
                 for (PlatformProfile platformProfile : profile.getPlatformsList()) {
-                    if ( matchPlatformAgainstOS( targetPlatform, platformProfile.getOs() ) ) {
+                    if ( Platform.matchPlatformAgainstOS( targetPlatform, platformProfile.getOs() ) ) {
                         profileBuilder.addPlatforms(platformProfile);
                     }
                 }
@@ -206,6 +172,7 @@ public class GameProjectBuilder extends Builder<Void> {
             // needs to be reachedable by the TextureGenerator.
             TextureProfiles textureProfiles = texProfilesBuilder.build();
             project.setTextureProfiles(textureProfiles);
+            System.out.println(textureProfiles.toString());
         }
 
         for (Task<?> task : project.getTasks()) {
