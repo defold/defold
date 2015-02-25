@@ -15,12 +15,8 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-world tempfile]]
             [dynamo.types :as t]
-            [editor.atlas :as atlas]
-            #_[clojure.pprint :refer [pprint]]
-            #_[dynamo.file.protobuf :as proto])
-  (:import #_[com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
-           #_[com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
-           [dynamo.types Image]
+            [editor.atlas :as atlas])
+  (:import [dynamo.types Image]
            [javax.imageio ImageIO]))
 
 (def ident (gen/not-empty gen/string-alpha-numeric))
@@ -226,83 +222,3 @@
         (ds/transactional (ds/connect atlas :packed-image compiler :packed-image))
         (is (= :ok (n/get-node-value compiler :texturec)))
         (is (= :ok (n/get-node-value compiler :texturesetc)))))))
-
-#_(defnk image-from-fixture [this filename]
-  (let [filename-str (t/local-path filename)]
-    (if-let [img (ImageIO/read (io/input-stream (io/resource filename-str)))]
-      (image/make-image filename-str img))))
-
-#_(n/defnode FixtureImageResourceNode
-  (inherits n/OutlineNode)
-  (output outline-label s/Str (fnk [filename] (t/local-name filename)))
-  (property filename (s/protocol t/PathManipulation) (visible false))
-  (output content Image :cached :substitute-value image/placeholder-image image-from-fixture))
-
-#_(defn matches-fixture? [fixture-name output-file]
-  (let [actual   (slurp output-file)
-        expected (slurp (io/resource fixture-name))]
-    (= actual expected)))
-
-#_(defn- texturesetc-fail-message [fixture-name output-file]
-  (with-open [expected-reader (io/input-stream (io/resource fixture-name))
-              actual-reader   (io/input-stream output-file)]
-    (with-out-str
-      (doseq [[label reader] [["EXPECTED" expected-reader] ["ACTUAL" actual-reader]]]
-        (println label)
-        (pprint (-> reader
-                  TextureSetProto$TextureSet/parseFrom
-                  proto/pb->map
-                  (update-in [:vertices]         #(.size %))
-                  (update-in [:atlas-vertices]   #(.size %))
-                  (update-in [:outline-vertices] #(.size %))
-                  (update-in [:tex-coords]       #(.size %))))))))
-
-#_(def ^:dynamic *record-fixture-path* nil)
-
-#_(defn verify-atlas-artifacts [fixture-basename]
-  (with-clean-world
-    (let [project-node (test-project FixtureImageResourceNode)
-          atlas-text   (slurp (io/resource (str fixture-basename ".atlas")))
-          atlas        (atlas-from-fixture project-node atlas-text)
-          texturesetc  (tempfile fixture-basename ".texturesetc" true)
-          texturec     (tempfile fixture-basename ".texturec" true)
-          compiler     (ds/transactional
-                         (ds/add
-                           (n/construct atlas/TextureSave
-                             :texture-name        (str fixture-basename ".texturesetc")
-                             :textureset-filename (file/native-path (.getPath texturesetc))
-                             :texture-filename    (file/native-path (.getPath texturec)))))]
-      (ds/transactional (ds/connect atlas :textureset   compiler :textureset))
-      (ds/transactional (ds/connect atlas :packed-image compiler :packed-image))
-
-      ; TODO: fails when placeholder image is used
-      #_(is (= atlas-text (n/get-node-value atlas :text-format)))
-      (is (= :ok (n/get-node-value compiler :texturec)))
-      (is (= :ok (n/get-node-value compiler :texturesetc)))
-      (is (matches-fixture? (str "build/default/" fixture-basename ".texturesetc") texturesetc)
-        (texturesetc-fail-message (str "build/default/" fixture-basename ".texturesetc") texturesetc))
-      (is (matches-fixture? (str "build/default/" fixture-basename ".texturec") texturec))
-      (when *record-fixture-path*
-        (with-open [w (io/output-stream (str *record-fixture-path* "/" fixture-basename ".texturesetc"))] (io/copy texturesetc w))
-        (with-open [w (io/output-stream (str *record-fixture-path* "/" fixture-basename ".texturec"   ))] (io/copy texturec    w))))))
-
-#_(deftest expected-atlas-artifacts
-  (verify-atlas-artifacts "atlases/empty")
-  (verify-atlas-artifacts "atlases/single-image")
-  ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-  #_(verify-atlas-artifacts "atlases/single-animation")
-  (verify-atlas-artifacts "atlases/empty-animation")
-  (verify-atlas-artifacts "atlases/missing-image")
-  (verify-atlas-artifacts "atlases/missing-image-in-animation")
-  ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-  #_(verify-atlas-artifacts "atlases/complex")
-  (verify-atlas-artifacts "atlases/single-image-multiple-references")
-  (verify-atlas-artifacts "atlases/single-image-multiple-references-in-animation")
-  (verify-atlas-artifacts "atlases/missing-image-multiple-references")
-  (verify-atlas-artifacts "atlases/missing-image-multiple-references-in-animation"))
-
-(comment
-  ; re-record fixtures
-  (binding [*record-fixture-path* (str (System/getenv "HOME") "/src/defold/com.dynamo.cr/com.dynamo.cr.builtins/test/resources/build/default")]
-    (expected-atlas-artifacts))
-  )
