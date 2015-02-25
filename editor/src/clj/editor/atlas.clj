@@ -461,7 +461,6 @@
             (when-let [img-node (get img-nodes image)]
               (ds/connect img-node :content anim-node :images))))
         (let [images (mapv :image (:images atlas))]
-          (prn "imgs" images)
           (ds/set-property self :images images)
           (doseq [image images]
             (when-let [img-node (get img-nodes image)]
