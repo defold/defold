@@ -153,6 +153,7 @@ There is no guaranteed ordering of the sequence."
   (property presenter-registry t/Registry)
   (property node-types         {s/Str s/Symbol})
   (property handlers           {s/Keyword {s/Str s/fn-schema}})
+  (property clipboard s/Any (default (constantly (ref nil))))
 
   ProjectRoot
   t/NamingContext
