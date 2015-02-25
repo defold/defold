@@ -13,6 +13,7 @@ namespace dmGameSystem
 #define TILE_MAP_EXT "tilegridc"
 #define FACTORY_EXT "factoryc"
 #define COLLECTION_FACTORY_EXT "collectionfactoryc"
+#define COLLISION_OBJECT_EXT "collisionobjectc"
 
     /**
      * Return current game object instance, if any.
