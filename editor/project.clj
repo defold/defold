@@ -34,8 +34,6 @@
                      [com.sun.jna/platform                        "3.4.1"]
                      [dlib/upnp                                   "0.1"]]
 
-  :main              ^:skip-aot editor
-
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
 
@@ -80,9 +78,14 @@
 
   :profiles          {:uberjar {:main com.defold.editor.Start
                                 :aot [editor]}
-                      :dev     {:dependencies [[org.clojure/test.check "0.5.8"]
-                                               [org.mockito/mockito-core "1.8.5"]]
-                                :repl-options {:port 4001}
-                                :proto-paths  ["test/proto"]
+                      :repl    {:source-paths   ["dev"]
+                                :prep-tasks     ^:replace []
+                                :aot            ^:replace []
+                                :repl-options   {:init-ns user}}
+                      :dev     {:dependencies   [[org.clojure/test.check "0.5.8"]
+                                                 [org.mockito/mockito-core "1.8.5"]]
+                                :repl-options   {:port 4001}
+                                :proto-paths    ["test/proto"]
+                                :main ^:skip-aot editor
                                 :resource-paths ["test/resources"
                                                  "../com.dynamo.cr/com.dynamo.cr.builtins/test/resources/"]}})
