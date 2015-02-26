@@ -157,12 +157,11 @@
         on-new-value (fn [new-val]
                        (let [old-val (key (ds/refresh node))]
                          (when-not (= new-val old-val)
-                           (try (t/property-valid-value? property new-val)
+                           (if (t/property-valid-value? property new-val)
                              (ds/transactional
                                (ds/set-property node key new-val)
                                (@setter-atom new-val))
-                             (catch Exception e
-                               (@setter-atom old-val))))))
+                             (@setter-atom old-val)))))
         [control setter] (create-property-control! (t/property-value-type property) on-new-value)]
     (reset! setter-atom setter)
     (setter (get node key))
