@@ -1,17 +1,46 @@
 (ns internal.cache
-  (:require [clojure.core.cache :as cache]))
+  (:require [clojure.core.cache :as cc]
+            [com.stuartsierra.component :as component]))
 
 (defn make-cache
   []
-  (cache/lru-cache-factory {} :threshold 1000))
+  (cc/lru-cache-factory {} :threshold 1000))
 
-(defn caching
-  "Like memoize, but uses an LRU cache with a finite size"
-  [f]
-  (let [cache (atom (make-cache))]
-    (fn [& args]
-      (if-let [v (get @cache args)]
-        v
-        (let [ret (apply f args)]
-          (swap! cache assoc args ret)
-          ret)))))
+(defrecord Cache [size dispose-ch state]
+  component/Lifecycle
+  (start [this]
+    (if state
+      this
+      (assoc this :state (atom (cc/lru-cache-factory {} :threshold size)))))
+
+  (stop [this]
+    (if state
+      (assoc this :state nil)
+      this))
+
+  clojure.lang.IDeref
+  (deref [this]
+    (when state @state)))
+
+(defn- encache [c kvs] (reduce (fn [c [k v]] (cc/miss c k v)) c kvs))
+(defn- decache [c ks]  (reduce cc/evict c ks))
+
+;; ----------------------------------------
+;; Interface
+;; ----------------------------------------
+
+(defn make-cache-component
+  [size dispose-ch]
+  (Cache. size dispose-ch nil))
+
+(defn cache-snapshot
+  [ccomp]
+  @ccomp)
+
+(defn cache-hit
+  [ccomp kvs]
+  (swap! (:state ccomp) encache kvs))
+
+(defn cache-invalidate
+  [ccomp ks]
+  (swap! (:state ccomp) decache ks))
