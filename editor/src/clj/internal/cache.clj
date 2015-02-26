@@ -1,5 +1,6 @@
 (ns internal.cache
-  (:require [clojure.core.cache :as cc]
+  (:require [clojure.core.async :as a]
+            [clojure.core.cache :as cc]
             [com.stuartsierra.component :as component]))
 
 (defn make-cache
@@ -22,8 +23,30 @@
   (deref [this]
     (when state @state)))
 
-(defn- encache [c kvs] (reduce (fn [c [k v]] (cc/miss c k v)) c kvs))
-(defn- decache [c ks]  (reduce cc/evict c ks))
+(defn- encache
+  [c kvs]
+  (reduce
+   (fn [c [k v]]
+     (cc/miss c k v))
+   c kvs))
+
+(defn- dispose
+  [ch vs]
+  (when ch
+    (a/onto-chan ch vs false)))
+
+(defn- decache
+  [cache dispose-ch ks]
+  (loop [cache   cache
+         ks      (seq ks)
+         evicted []]
+    (if-let [k (first ks)]
+      (if-let [v (get cache k)]
+        (recur (cc/evict cache k) (next ks) (conj evicted v))
+        (recur cache (next ks) evicted))
+      (do
+        (dispose dispose-ch evicted)
+        cache))))
 
 ;; ----------------------------------------
 ;; Interface
@@ -43,4 +66,4 @@
 
 (defn cache-invalidate
   [ccomp ks]
-  (swap! (:state ccomp) decache ks))
+  (swap! (:state ccomp) decache (:dispose-ch ccomp) ks))
