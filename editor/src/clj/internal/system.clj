@@ -16,6 +16,8 @@
             [schema.core :as s]
             [service.log :as log :refer [logging-exceptions]]))
 
+(prefer-method print-method java.util.Map clojure.lang.IDeref)
+
 (defn graph [world-ref]
   (-> world-ref deref :graph))
 
