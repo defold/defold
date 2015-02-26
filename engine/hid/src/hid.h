@@ -1,3 +1,11 @@
+
+// Visual Studio 2013 seems to be defining MAX_TOUCH_COUNT to 256
+// https://msdn.microsoft.com/en-us/library/windows/desktop/hh802879(v=vs.85).aspx
+// This will clash with our dmHID::MAX_TOUCH_COUNT
+#ifdef MAX_TOUCH_COUNT
+#undef MAX_TOUCH_COUNT
+#endif
+
 #ifndef DM_HID_H
 #define DM_HID_H
 

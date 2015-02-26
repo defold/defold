@@ -21,7 +21,6 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1".split()
-PACKAGES_WIN32="PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 android-support-v4 android-4.2.2 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -246,9 +245,6 @@ class Configuration(object):
 
         for p in PACKAGES_IOS_64:
                 self._extract_tgz(make_path('arm64-darwin'), self.ext)
-
-        for p in PACKAGES_WIN32:
-                self._extract_tgz(make_path('win32'), self.ext)
 
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:

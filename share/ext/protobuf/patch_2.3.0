@@ -40,6 +40,18 @@ index dcbb0d4..3ddf0c3 100644
  #include <string>
  #ifndef _MSC_VER
  #include <sys/param.h>
+diff --git a/src/google/protobuf/io/zero_copy_stream_impl_lite.cc b/src/google/protobuf/io/zero_copy_stream_impl_lite.cc
+index e801251..de70ef3 100644
+--- a/src/google/protobuf/io/zero_copy_stream_impl_lite.cc
++++ b/src/google/protobuf/io/zero_copy_stream_impl_lite.cc
+@@ -32,6 +32,7 @@
+ //  Based on original Protocol Buffers design by
+ //  Sanjay Ghemawat, Jeff Dean, and others.
+
++#include <algorithm>
+ #include <google/protobuf/io/zero_copy_stream_impl.h>
+ #include <google/protobuf/stubs/common.h>
+ #include <google/protobuf/stubs/stl_util-inl.h>
 diff --git a/src/google/protobuf/message.cc b/src/google/protobuf/message.cc
 index 91e6878..fcb97b8 100644
 --- a/src/google/protobuf/message.cc
@@ -67,6 +79,18 @@ index c0062f9..98a5812 100644
  #endif
 
  #include <google/protobuf/message_lite.h>
+diff --git a/src/google/protobuf/repeated_field.cc b/src/google/protobuf/repeated_field.cc
+index f7beb11..7882ad1 100644
+--- a/src/google/protobuf/repeated_field.cc
++++ b/src/google/protobuf/repeated_field.cc
+@@ -32,6 +32,7 @@
+ //  Based on original Protocol Buffers design by
+ //  Sanjay Ghemawat, Jeff Dean, and others.
+
++#include <algorithm>
+ #include <google/protobuf/repeated_field.h>
+ #include <google/protobuf/stubs/common.h>
+
 diff --git a/src/google/protobuf/stubs/common.cc b/src/google/protobuf/stubs/common.cc
 index 1e2d68d..0204bd6 100644
 --- a/src/google/protobuf/stubs/common.cc
@@ -108,3 +132,15 @@ index 1e2d68d..0204bd6 100644
  #endif
 
  // ===================================================================
+diff --git a/src/google/protobuf/wire_format_lite_inl.h b/src/google/protobuf/wire_format_lite_inl.h
+index d7b2c30..f1f6d22 100644
+--- a/src/google/protobuf/wire_format_lite_inl.h
++++ b/src/google/protobuf/wire_format_lite_inl.h
+@@ -36,6 +36,7 @@
+ #ifndef GOOGLE_PROTOBUF_WIRE_FORMAT_LITE_INL_H__
+ #define GOOGLE_PROTOBUF_WIRE_FORMAT_LITE_INL_H__
+
++#include <algorithm>
+ #include <string>
+ #include <google/protobuf/stubs/common.h>
+ #include <google/protobuf/message_lite.h>
