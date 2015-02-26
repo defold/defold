@@ -203,22 +203,3 @@
         outline12 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]
         outline13 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []] ["missing2.png" []]]]]]
         outline14 ["Atlas" [["anim2" [["small.png" []] ["frame-01.png" []] ["missing2.png" []]]]]]))))
-
-#_(deftest compilation-to-binary
-  (testing "Doesn't throw an exception"
-    (with-clean-world
-      (let [project-node (test-project WildcardImageResourceNode)
-            atlas        (<-text project-node (first (gen/sample (gen/resize 5 atlas) 1)))
-            txname       "random-mcnally"
-            texturesetc  (tempfile txname "texturesetc" true)
-            texturec     (tempfile txname "texturec" true)
-            compiler     (ds/transactional
-                           (ds/add
-                             (n/construct atlas/TextureSave
-                               :texture-name        txname
-                               :texture-filename    (file/native-path (.getPath texturec))
-                               :textureset-filename (file/native-path (.getPath texturesetc)))))]
-        (ds/transactional (ds/connect atlas :textureset   compiler :textureset))
-        (ds/transactional (ds/connect atlas :packed-image compiler :packed-image))
-        (is (= :ok (n/get-node-value compiler :texturec)))
-        (is (= :ok (n/get-node-value compiler :texturesetc)))))))
