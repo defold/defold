@@ -164,10 +164,9 @@
              (protobuf/set-if-present :extrude-borders this)))))
 
 (defnk save-atlas-file
-  [this filename]
-  (let [text (n/get-node-value this :text-format)]
-    (file/write-file filename (.getBytes text))
-    :ok))
+  [this filename text-format]
+  (file/write-file filename (.getBytes text-format))
+  :ok)
 
 (defn render-overlay
   [ctx ^GL2 gl ^TextRenderer text-renderer texture-packing]
