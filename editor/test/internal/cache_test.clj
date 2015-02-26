@@ -12,17 +12,17 @@
 
 (defn cache-with-stuff
   []
-  (let [cache-component (component/start (make-cache-component 1000 null-chan))]
+  (let [cache-component (component/start (cache-subsystem 1000 null-chan))]
     (cache-hit cache-component [[:a 1] [:b 2] [:c 3]])
     cache-component))
 
 (deftest cache-lifecycle-tests
   (testing "has an embedded cache"
-    (let [cache-component (component/start (make-cache-component 1000 nil))]
+    (let [cache-component (component/start (cache-subsystem 1000 nil))]
       (is (not (nil? (cache-snapshot cache-component))))))
 
   (testing "things put into cache appear in snapshot"
-    (let [cache-component (component/start (make-cache-component 1000 nil))]
+    (let [cache-component (component/start (cache-subsystem 1000 nil))]
       (cache-hit cache-component [[:a 1] [:b 2] [:c 3]])
       (let [snapshot (cache-snapshot cache-component)]
         (are [k v] (= v (get snapshot k))
@@ -31,20 +31,20 @@
              :c 3))))
 
   (testing "multiple starts are idempotent"
-    (let [cache-component (component/start (make-cache-component 1000 nil))]
+    (let [cache-component (component/start (cache-subsystem 1000 nil))]
       (cache-hit cache-component [[:a 1] [:b 2] [:c 3]])
       (let [snapshot (cache-snapshot cache-component)
             cc2      (component/start cache-component)]
         (is (= snapshot (cache-snapshot cc2))))))
 
   (testing "after stop, is empty"
-    (let [cache-component (component/start (make-cache-component 1000 nil))]
+    (let [cache-component (component/start (cache-subsystem 1000 nil))]
       (cache-hit cache-component [[:a 1] [:b 2] [:c 3]])
       (let [cc2 (component/stop cache-component)]
         (is (empty? (cache-snapshot cc2))))))
 
   (testing "multiple stops are idempotent"
-    (let [cache-component (component/start (make-cache-component 1000 nil))]
+    (let [cache-component (component/start (cache-subsystem 1000 nil))]
       (cache-hit cache-component [[:a 1] [:b 2] [:c 3]])
       (let [cc2 (component/stop cache-component)
             cc3 (component/stop cc2)]
@@ -76,7 +76,7 @@
 (deftest value-disposal
   (testing "one value disposed when decached"
     (let [dispose-ch (a/chan 10)
-          ccomp      (component/start (make-cache-component 1000 dispose-ch))]
+          ccomp      (component/start (cache-subsystem 1000 dispose-ch))]
       (cache-hit ccomp [[:a (thing 1)] [:b (thing 2)] [:c (thing 3)]])
       (cache-invalidate ccomp [:a])
       (yield)
@@ -86,7 +86,7 @@
 
   (testing "multiple values disposed when decached"
     (let [dispose-ch (a/chan 10)
-          ccomp      (component/start (make-cache-component 1000 dispose-ch))]
+          ccomp      (component/start (cache-subsystem 1000 dispose-ch))]
       (cache-hit ccomp [[:a (thing 1)] [:b (thing 2)] [:c (thing 3)]])
       (cache-invalidate ccomp [:b :c])
       (yield)
@@ -96,7 +96,7 @@
 
   (testing "values that are pushed out also get disposed"
     (let [dispose-ch (a/chan 10)
-          ccomp      (component/start (make-cache-component 1 dispose-ch))]
+          ccomp      (component/start (cache-subsystem 1 dispose-ch))]
       (cache-hit ccomp [[:a (thing 1)]])
       (yield)
       (cache-hit ccomp [[:b (thing 2)] [:c (thing 3)]])

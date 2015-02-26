@@ -6,7 +6,7 @@
             [dynamo.ui :as ui]
             [dynamo.util :as util]
             [internal.bus :as bus]
-            [internal.cache :refer [make-cache]]
+            [internal.cache :as c]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
@@ -15,6 +15,9 @@
             [internal.transaction :as it]
             [schema.core :as s]
             [service.log :as log :refer [logging-exceptions]]))
+
+(def ^:private maximum-cached-items     10000)
+(def ^:private maximum-disposal-backlog 2500)
 
 (prefer-method print-method java.util.Map clojure.lang.IDeref)
 
@@ -26,13 +29,13 @@
   (lg/add-labeled-node g (t/inputs r) (t/outputs r) r))
 
 (defn new-world-state
-  [state root repaint-needed]
+  [state root repaint-needed disposal-queue]
   {:graph               (attach-root (dg/empty-graph) root)
-   :cache               (make-cache)
+   :cache               (c/make-cache) ;; TODO - remove once the new component is in use
    :cache-keys          {}
    :world-time          0
    :message-bus         (bus/make-bus)
-   :disposal-queue      (a/chan (a/dropping-buffer 1000))
+   :disposal-queue      disposal-queue
    :repaint-needed      repaint-needed})
 
 (defn- new-history
@@ -42,14 +45,14 @@
    :undo-stack []
    :redo-stack []})
 
-(defrecord World [started state history undo-context repaint-needed]
+(defrecord World [started state history undo-context repaint-needed disposal-queue]
   component/Lifecycle
   (start [this]
     (if (:started this)
       this
       (dosync
         (let [root (n/construct n/RootScope :world-ref state :_id 1)]
-          (ref-set state (new-world-state state root repaint-needed))
+          (ref-set state (new-world-state state root repaint-needed disposal-queue))
           (ref-set history (new-history state repaint-needed))
           (assoc this :started true)))))
   (stop [this]
@@ -125,14 +128,14 @@
         (repaint-all (:graph new-world) (:repaint-needed @history-ref))))))
 
 (defn world
-  [report-ch repaint-needed]
+  [report-ch repaint-needed disposal-queue]
   (let [world-ref    (ref nil)
         history-ref  (ref nil)
         undo-context {} #_(UndoContext.)]
     (add-watch world-ref :send-tx-reports   (partial send-tx-reports report-ch))
     (add-watch world-ref :schedule-repaints (partial schedule-repaints repaint-needed))
     (add-watch world-ref :push-history      (partial push-history history-ref undo-context))
-    (->World false world-ref history-ref undo-context repaint-needed)))
+    (->World false world-ref history-ref undo-context repaint-needed disposal-queue)))
 
 (defn- refresh-messages
   [{:keys [expired-outputs]}]
@@ -160,13 +163,13 @@
 (defn system
  []
  (let [repaint-needed (ref #{})
-       tx-report-chan (a/chan 1)]
+       tx-report-chan (a/chan 1)
+       disposal-queue (a/chan (a/dropping-buffer maximum-disposal-backlog))]
    (component/map->SystemMap
     {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 1)
-     :world     (world tx-report-chan repaint-needed)
+     :world     (world tx-report-chan repaint-needed disposal-queue)
      :repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])
-     })))
-
+     :cache     (c/cache-subsystem maximum-cached-items disposal-queue)})))
 
 (def the-system (atom (system)))
 
