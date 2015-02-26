@@ -3,16 +3,93 @@
             [clojure.core.cache :as cc]
             [com.stuartsierra.component :as component]))
 
+(defn- build-leastness-queue
+  [base limit start-at]
+  (into (clojure.data.priority-map/priority-map)
+        (concat (take (- limit (count base)) (for [k (range (- limit) 0)] [k k]))
+                (for [[k _] base] [k start-at]))))
+
+(defn- post-removal [ch v]
+  (when v (a/>!! ch v)))
+
+;; This is the LRUCache from clojure.core.cache,
+;; but with an added core.async channel that
+;; removed values are put into
+(cc/defcache LRUCache [cache lru tick limit ch]
+  cc/CacheProtocol
+  (lookup [_ item]
+          (get cache item))
+  (lookup [_ item not-found]
+          (get cache item not-found))
+  (has? [_ item]
+        (contains? cache item))
+  (hit [_ item]
+       (let [tick+ (inc tick)]
+         (LRUCache. cache
+                    (if (contains? cache item)
+                      (assoc lru item tick+)
+                      lru)
+                    tick+
+                    limit
+                    ch)))
+  (miss [_ item result]
+        (let [tick+ (inc tick)]
+          (if (>= (count lru) limit)
+            (let [k (if (contains? lru item)
+                      item
+                      (first (peek lru))) ;; minimum-key, maybe evict case
+                  c (-> cache (dissoc k) (assoc item result))
+                  l (-> lru (dissoc k) (assoc item tick+))]
+              (when-not (= item k)
+                (post-removal ch (get cache k)))
+              (LRUCache. c l tick+ limit ch))
+            (LRUCache. (assoc cache item result) ;; no change case
+                       (assoc lru item tick+)
+                       tick+
+                       limit
+                       ch))))
+  (evict [this key]
+         (let [v (get cache key ::miss)]
+           (if (= v ::miss)
+             this
+             (do
+               (post-removal ch v)
+               (LRUCache. (dissoc cache key)
+                          (dissoc lru key)
+                          (inc tick)
+                          limit
+                          ch)))))
+  (seed [_ base]
+        (LRUCache. base
+                   (build-leastness-queue base limit 0)
+                   0
+                   limit
+                   ch))
+  Object
+  (toString [_]
+            (str cache \, \space lru \, \space tick \, \space limit)))
+
+(defn lru-cache-factory
+  "Returns an LRU cache with the cache and usage-table initialied to `base` --
+   each entry is initialized with the same usage value.
+   This function takes an optional `:threshold` argument that defines the maximum number
+   of elements in the cache before the LRU semantics apply (default is 32)."
+  [base & {threshold :threshold dispose-ch :dispose-ch :or {threshold 32}}]
+  {:pre [(number? threshold) (< 0 threshold)
+         (map? base)]}
+  (clojure.core.cache/seed (LRUCache. {} (clojure.data.priority-map/priority-map) 0 threshold dispose-ch) base))
+
 (defn make-cache
+  "DEPRECATED. Remove once internal.system is updated for the new component."
   []
   (cc/lru-cache-factory {} :threshold 1000))
 
-(defrecord Cache [size dispose-ch state]
+(defrecord CacheLifecycle [limit dispose-ch state]
   component/Lifecycle
   (start [this]
     (if state
       this
-      (assoc this :state (atom (cc/lru-cache-factory {} :threshold size)))))
+      (assoc this :state (atom (lru-cache-factory {} :threshold limit :dispose-ch dispose-ch)))))
 
   (stop [this]
     (if state
@@ -30,31 +107,15 @@
      (cc/miss c k v))
    c kvs))
 
-(defn- dispose
-  [ch vs]
-  (when ch
-    (a/onto-chan ch vs false)))
-
-(defn- decache
-  [cache dispose-ch ks]
-  (loop [cache   cache
-         ks      (seq ks)
-         evicted []]
-    (if-let [k (first ks)]
-      (if-let [v (get cache k)]
-        (recur (cc/evict cache k) (next ks) (conj evicted v))
-        (recur cache (next ks) evicted))
-      (do
-        (dispose dispose-ch evicted)
-        cache))))
+(defn- decache [cache ks] (reduce cc/evict cache ks))
 
 ;; ----------------------------------------
 ;; Interface
 ;; ----------------------------------------
 
 (defn make-cache-component
-  [size dispose-ch]
-  (Cache. size dispose-ch nil))
+  [limit dispose-ch]
+  (CacheLifecycle. limit dispose-ch nil))
 
 (defn cache-snapshot
   [ccomp]
@@ -66,4 +127,4 @@
 
 (defn cache-invalidate
   [ccomp ks]
-  (swap! (:state ccomp) decache (:dispose-ch ccomp) ks))
+  (swap! (:state ccomp) decache ks))
