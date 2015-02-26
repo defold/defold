@@ -195,3 +195,28 @@
     (is (= [{:source parent :source-attributes {:label :textureset}
              :target grandparent :target-attributes {:label :textureset}}]
            (arcs-from-to g parent grandparent)))))
+
+(deftest multiple-arcs
+  (let [g    (empty-graph)
+        g    (add-node g :anim)
+        anim (last-node g)
+        g    (add-node g :img1)
+        img1 (last-node g)
+        g    (add-node g :img2)
+        img2 (last-node g)
+        ops  [#(add-arc    % img1 :out anim :in)
+              #(add-arc    % img2 :out anim :in)
+              #(add-arc    % img1 :out anim :in)
+              #(remove-arc % img1 :out anim :in)
+              #(remove-arc % img1 :out anim :in)
+              #(remove-arc % img1 :out anim :in)]
+        gs   (reductions (fn [g op] (op g)) g ops)
+        arcs (->> gs (map #(arcs-to % anim)) (map #(map :source %)))]
+    (is (= [[]
+            [img1]
+            [img1 img2]
+            [img1 img2 img1]
+            [img1 img2]
+            [img2]
+            [img2]]
+           arcs))))
