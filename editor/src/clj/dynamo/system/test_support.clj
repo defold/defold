@@ -9,8 +9,9 @@
 
 (defn clean-world
   []
-  (let [report-ch (a/chan (a/dropping-buffer 1))
-        world     (is/world report-ch (ref #{}))]
+  (let [report-ch   (a/chan (a/dropping-buffer 1))
+        disposal-ch (a/chan (a/dropping-buffer 10))
+        world       (is/world report-ch (ref #{}) disposal-ch)]
     (component/start world)))
 
 (defmacro with-clean-world
