@@ -82,6 +82,37 @@
               (ds/add (n/construct image-resource-node-type :filename (file/make-project-path project-node path))))
             project-node))))
 
+(defn atlas-from-fixture
+  [project-node atlas-text]
+  (ds/transactional
+    (ds/in project-node
+      (let [atlas (ds/add (n/construct atlas/AtlasNode :filename (atlas-tempfile atlas-text)))]
+        (n/dispatch-message atlas :load :project project-node)
+        atlas))))
+
+(defn verify-atlas-text-format [fixture-basename]
+  (with-clean-world
+    (let [project-node (test-project WildcardImageResourceNode)
+          atlas-path   (str fixture-basename ".atlas")
+          atlas-text   (slurp (io/resource atlas-path))
+          atlas        (atlas-from-fixture project-node atlas-text)]
+      (is (= atlas-text (n/get-node-value atlas :text-format))
+          (str "Fixture " atlas-path " did not round-trip through protobuf text format")))))
+
+(deftest text-format-output-matches-input
+  (verify-atlas-text-format "atlases/empty")
+  (verify-atlas-text-format "atlases/single-image")
+  (verify-atlas-text-format "atlases/single-animation")
+  (verify-atlas-text-format "atlases/empty-animation")
+  (verify-atlas-text-format "atlases/complex")
+  (verify-atlas-text-format "atlases/single-image-multiple-references")
+  (verify-atlas-text-format "atlases/single-image-multiple-references-in-animation")
+  ;; TODO: [#87948214] fails when placeholder image is used
+  #_(verify-atlas-text-format "atlases/missing-image")
+  #_(verify-atlas-text-format "atlases/missing-image-in-animation")
+  #_(verify-atlas-text-format "atlases/missing-image-multiple-references")
+  #_(verify-atlas-text-format "atlases/missing-image-multiple-references-in-animation"))
+
 (defn round-trip
   [random-atlas]
   (with-clean-world
@@ -93,14 +124,6 @@
 (defspec round-trip-preserves-fidelity
   10
   (prop/for-all* [atlas] round-trip))
-
-(defn atlas-from-fixture
-  [project-node atlas-text]
-  (ds/transactional
-    (ds/in project-node
-      (let [atlas (ds/add (n/construct atlas/AtlasNode :filename (atlas-tempfile atlas-text)))]
-        (n/dispatch-message atlas :load :project project-node)
-        atlas))))
 
 (defn simple-outline [outline-tree]
   [(:label outline-tree) (map simple-outline (:children outline-tree))])
