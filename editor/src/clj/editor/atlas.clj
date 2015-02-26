@@ -114,7 +114,7 @@
         outline-vertices [[x0 y0 0 (g/to-short-uv u0) (g/to-short-uv v1)]
                           [x1 y0 0 (g/to-short-uv u1) (g/to-short-uv v1)]
                           [x1 y1 0 (g/to-short-uv u1) (g/to-short-uv v0)]
-                          [x0 y1 0 (g/to-short-uv v0) (g/to-short-uv v0)]]]
+                          [x0 y1 0 (g/to-short-uv u0) (g/to-short-uv v0)]]]
     (t/map->TextureSetAnimationFrame
      {:image            image ; TODO: is this necessary?
       :outline-vertices outline-vertices
