@@ -113,7 +113,7 @@
 ;; Interface
 ;; ----------------------------------------
 
-(defn make-cache-component
+(defn cache-subsystem
   [limit dispose-ch]
   (CacheLifecycle. limit dispose-ch nil))
 
