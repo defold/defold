@@ -6,11 +6,13 @@
             [internal.async :as ia]
             [internal.cache :refer :all]))
 
-(defn- as-map    [c]       (select-keys c (keys c)))
+(def null-chan (a/chan (a/sliding-buffer 1)))
+
+(defn- as-map [c] (select-keys c (keys c)))
 
 (defn cache-with-stuff
   []
-  (let [cache-component (component/start (make-cache-component 1000 nil))]
+  (let [cache-component (component/start (make-cache-component 1000 null-chan))]
     (cache-hit cache-component [[:a 1] [:b 2] [:c 3]])
     cache-component))
 
@@ -69,7 +71,7 @@
 (defn- yield
   "Give up the thread just long enough for a context switch"
   []
-  (Thread/sleep 0))
+  (Thread/sleep 1))
 
 (deftest value-disposal
   (testing "one value disposed when decached"
@@ -80,7 +82,7 @@
       (yield)
       (let [waiting-to-dispose (ia/take-all dispose-ch)]
         (is (= 1 (count waiting-to-dispose)))
-        (is (= 1 (t/dispose (first waiting-to-dispose)))))))
+        (is (= [1] (map t/dispose waiting-to-dispose))))))
 
   (testing "multiple values disposed when decached"
     (let [dispose-ch (a/chan 10)
@@ -90,6 +92,15 @@
       (yield)
       (let [waiting-to-dispose (ia/take-all dispose-ch)]
         (is (= 2 (count waiting-to-dispose)))
-        (is (= [2 3] (map t/dispose waiting-to-dispose)))))))
+        (is (= [2 3] (map t/dispose waiting-to-dispose))))))
 
-(run-tests)
+  (testing "values that are pushed out also get disposed"
+    (let [dispose-ch (a/chan 10)
+          ccomp      (component/start (make-cache-component 1 dispose-ch))]
+      (cache-hit ccomp [[:a (thing 1)]])
+      (yield)
+      (cache-hit ccomp [[:b (thing 2)] [:c (thing 3)]])
+      (yield)
+      (let [waiting-to-dispose (ia/take-all dispose-ch)]
+        (is (= 2 (count waiting-to-dispose)))
+        (is (= [1 2] (map t/dispose waiting-to-dispose)))))))
