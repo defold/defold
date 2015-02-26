@@ -4,7 +4,8 @@
             [dynamo.messages :as m])
  (:import [clojure.lang Compiler]))
 
-(def test-namespaces ['internal.either-test
+(def test-namespaces ['internal.cache-test
+                      'internal.either-test
                       'internal.injection-test
                       'internal.math-test
                       'internal.node-test
