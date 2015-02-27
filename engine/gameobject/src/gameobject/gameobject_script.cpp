@@ -1907,6 +1907,9 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *   <tr><td><code>y</code></td><td>The y touch location.</td></tr>
      *   <tr><td><code>dx</code></td><td>The change in x value.</td></tr>
      *   <tr><td><code>dy</code></td><td>The change in y value.</td></tr>
+     *   <tr><td><code>acc_x</code></td><td>Accelerometer x value (if present).</td></tr>
+     *   <tr><td><code>acc_y</code></td><td>Accelerometer y value (if present).</td></tr>
+     *   <tr><td><code>acc_z</code></td><td>Accelerometer z value (if present).</td></tr>
      * </table>
      *
      * @name on_input
