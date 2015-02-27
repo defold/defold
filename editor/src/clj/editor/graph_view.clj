@@ -10,7 +10,9 @@
 
 ; TODO: How to check for interface instead?
 (defn- include-node? [node]
-  (and (= -1 (.indexOf (node-label node) "Placeholder")) (= -1 (.indexOf (node-label node) "TextNode"))))
+  (and (= -1 (.indexOf (node-label node) "Placeholder"))
+       (= -1 (.indexOf (node-label node) "ImageResource"))
+       (= -1 (.indexOf (node-label node) "TextNode"))))
 
 (defn- conj-set [set val]
   (if set
