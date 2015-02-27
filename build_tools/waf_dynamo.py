@@ -6,7 +6,6 @@ from Logs import error
 import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
-import _winreg
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
 ANDROID_BUILD_TOOLS_VERSION = '20.0.0'
@@ -1033,6 +1032,7 @@ echo LIB=%%LIB%%
 
 # Check the registry for VisualStudio entries
 def _find_msvc(conf,versions):
+    import _winreg
     version_pattern=re.compile('^..?\...?')
     for vcver,vcvar in[('VCExpress','exp'),('VisualStudio','')]:
         try:
