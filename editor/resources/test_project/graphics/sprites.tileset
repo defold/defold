@@ -1,0 +1,7 @@
+image: "/graphics/ball.png"
+tile_width: 16
+tile_height: 16
+tile_margin: 0
+tile_spacing: 0
+collision: "/graphics/pow.png"
+material_tag: "default"

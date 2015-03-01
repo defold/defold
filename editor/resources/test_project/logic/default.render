@@ -1,0 +1,2 @@
+script: "/logic/default.render_script"
+materials { name: "test" material: "/logic/test.material" }

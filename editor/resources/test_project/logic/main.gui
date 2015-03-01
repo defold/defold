@@ -1,0 +1,21 @@
+script: "/logic/main.gui_script"
+fonts {
+  name: "menu_item"
+  font: "/fonts/menu_item.font"
+}
+fonts {
+  name: "logo"
+  font: "/fonts/logo.font"
+}
+fonts {
+  name: "active_menu_item"
+  font: "/fonts/active_menu_item.font"
+}
+fonts {
+  name: "highscore"
+  font: "/fonts/highscore.font"
+}
+textures {
+  name: "test"
+  texture: "/graphics/ball.png"
+}

@@ -1,0 +1,5 @@
+spine_scene: "/spine/reload.spinescene"
+default_animation: "idle"
+skin: ""
+blend_mode: BLEND_MODE_ALPHA
+material: "/sprite/sprite.material"
