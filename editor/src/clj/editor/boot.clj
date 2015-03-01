@@ -30,7 +30,8 @@
             [javafx.scene.image Image ImageView WritableImage PixelWriter]
             [javafx.scene.input MouseEvent]
             [javafx.event ActionEvent EventHandler]
-            [javafx.scene.control Button Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+            [javafx.scene.paint Color]
+            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
             [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
             [javafx.embed.swing SwingFXUtils]
             [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
@@ -137,6 +138,15 @@
       (.add (.getChildren box) t))
     [box setter]))
 
+(defmethod create-property-control! t/Color [_ on-new-value]
+ (let [color-picker (ColorPicker.)
+       handler (ui/event-handler event
+                                 (let [c (.getValue color-picker)]
+                                   (on-new-value [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)])))
+       setter #(.setValue color-picker (Color. (nth % 0) (nth % 1) (nth % 2) (nth % 3)))]
+   (.setOnAction color-picker handler)
+   [color-picker setter]))
+
 (defmethod create-property-control! :default [_ on-new-value]
   (let [text (TextField.)
         setter #(.setText text (str %))]
@@ -215,6 +225,8 @@
 
   (property text s/Str)
   (property a-vector t/Vec3 (default [1 2 3]))
+  (property a-color t/Color (default [1 0 0 1]))
+
 
   (on :load
       (ds/set-property self :text (slurp (:filename self)))))
