@@ -1,0 +1,40 @@
+function init(self)
+	self.nodes = {}
+	self.score = 0
+	self.target_score = 0
+    
+    local n = gui.new_text_node(vmath.vector3(15, 60, 0), "" .. self.score)
+    gui.set_font(n, "big_score")
+    self.nodes.score = n
+    n = gui.new_box_node(vmath.vector3(100, 320, 0), vmath.vector3(200, 640, 0))
+    gui.set_texture(n, "left_hud")
+    self.nodes.left_hud = n
+    n = gui.new_box_node(vmath.vector3(868, 320, 0), vmath.vector3(200, 640, 0))
+    gui.set_texture(n, "right_hud")
+    self.nodes.right_hud = n
+end
+
+function update(self)
+    if self.score ~= self.target_score then
+		self.score = self.score + 1
+		gui.set_text(self.nodes.score, self.score)
+	end
+end
+
+function fade_done(node)
+    gui.delete_node(node)
+end
+
+function on_message(self, message_id, message)
+	if message_id == hash("inc_score") then
+		self.target_score = self.target_score + message.score
+		local p = message.position
+		p.y = 640 - p.y
+        local n = gui.new_text_node(p, tostring(message.score))
+        gui.set_font(n, "score")
+        local start_color = vmath.vector4(1, 0, 0, 0.9)
+        local end_color = vmath.vector4(1, 0, 0, 0.0)
+        gui.set_color(n, start_color)
+        gui.animate(n, gui.COLOR, end_color, gui.EASING_NONE, 1, 0, fade_done)        
+	end
+end

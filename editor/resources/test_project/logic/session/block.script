@@ -1,0 +1,11 @@
+function init(self)
+	msg.post("session:/session#script", "count_block")
+end
+
+function on_message(self, message_id, message)
+	if message_id == hash("destroy") then
+		go.delete()
+		local p = go.get_position()
+		msg.post("session:/session#script", "block_destroyed", {score = 20, position = p})
+	end
+end

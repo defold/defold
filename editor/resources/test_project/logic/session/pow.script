@@ -1,0 +1,21 @@
+function init(self)
+    self.life = 8
+    self.speed = 220
+end
+
+function update(self, dt)
+    self.life = self.life - dt
+    if self.life < 0 then
+        go.delete()
+        return
+    end
+    local pos = go.get_position()
+    pos.y = pos.y - self.speed * dt
+    go.set_position(pos)
+end
+
+function on_message(self, message_id, message)
+	if message_id == hash("destroy") then
+		go.delete()
+	end
+end

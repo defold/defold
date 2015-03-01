@@ -1,0 +1,14 @@
+name: "sub_sub_props"
+collection_instances {
+    id: "sub_props"
+    collection: "/collection/sub_props.collection"
+    instance_properties {
+        id: "props/props"
+        properties {
+            id: "script"
+            properties {id: "number" value: "5" type: PROPERTY_TYPE_NUMBER}
+            properties {id: "hash" value: "hash5" type: PROPERTY_TYPE_HASH}
+            properties {id: "url" value: "/url4" type: PROPERTY_TYPE_URL}
+        }
+    }
+}

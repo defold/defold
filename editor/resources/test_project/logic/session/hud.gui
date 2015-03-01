@@ -1,0 +1,21 @@
+script: "/logic/session/hud.gui_script"
+fonts {
+  name: "default"
+  font: "/fonts/vera_mo_bd.font"
+}
+fonts {
+  name: "score"
+  font: "/fonts/score.font"
+}
+fonts {
+  name: "big_score"
+  font: "/fonts/big_score.font"
+}
+textures {
+  name: "left_hud"
+  texture: "/graphics/left_hud.png"
+}
+textures {
+  name: "right_hud"
+  texture: "/graphics/right_hud.png"
+}

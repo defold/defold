@@ -1,0 +1,5 @@
+embedded_components {
+  id: "co"
+  type: "collisionobject"
+  data: "collision_shape: \"/logic/session/roof.convexshape\"\ntype: COLLISION_OBJECT_TYPE_STATIC\nmass: 0.0\nfriction: 0.0\nrestitution: 1.0\ngroup: \"1\"\nmask: \"2\"\nmask: \"4\"\n"
+}

@@ -1,0 +1,77 @@
+name: "base_level"
+instances {
+  id: "left_wall"
+  prototype: "/logic/session/wall.go"
+  position {
+    x: 158.51591
+    y: 320.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "paddle"
+  prototype: "/logic/session/paddle.go"
+  children: "ball"
+  position {
+    x: 488.51593
+    y: 20.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "ball"
+  prototype: "/logic/session/ball.go"
+  position {
+    x: 0.0
+    y: 22.5
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "right_wall"
+  prototype: "/logic/session/wall.go"
+  position {
+    x: 808.51587
+    y: 320.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "roof"
+  prototype: "/logic/session/roof.go"
+  position {
+    x: 483.51593
+    y: 680.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
