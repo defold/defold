@@ -1,0 +1,11 @@
+font: "/fonts/nuwab.ttf"
+material: "/fonts/font.material"
+size: 42
+antialias: 1
+alpha: 1.0
+outline_alpha: 1.0
+outline_width: 2.0
+shadow_alpha: 0.5
+shadow_blur: 4
+shadow_x: 2.0
+shadow_y: 2.0
