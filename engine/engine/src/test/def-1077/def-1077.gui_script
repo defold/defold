@@ -1,0 +1,4 @@
+function update(self)
+    msg.post("@system:", "exit", {code = 0})
+end
+
