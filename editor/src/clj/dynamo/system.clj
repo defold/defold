@@ -4,9 +4,11 @@
             [clojure.core.cache :as cache]
             [dynamo.file :as file]
             [dynamo.types :as t]
+            [dynamo.util :refer :all]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.graph.query :as q]
+            [internal.graph.tracing :as gt]
             [internal.transaction :as it :refer [Transaction *transaction*]]))
 
 (defn- n->g
@@ -78,10 +80,10 @@ to distinguish it from a function call."
 
 (defn output-dependencies
   "Find all the outputs that could be affected by a change in the given outputs.
-  Outputs are specified as pairs of [node-ref label] for both the
+  Outputs are specified as pairs of [node-id label] for both the
   argument and return value."
   [graph outputs]
-  outputs)
+  (gt/trace-dependencies graph outputs))
 
 ; ---------------------------------------------------------------------------
 ; Transactional state
