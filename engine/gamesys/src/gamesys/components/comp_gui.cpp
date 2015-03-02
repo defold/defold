@@ -627,6 +627,22 @@ namespace dmGameSystem
         dmRender::AddToRender(gui_context->m_RenderContext, &ro);
     }
 
+    // Computes max vertices required in the vertex buffer to draw a pie node with a
+    // given number of perimeter vertices in its configuration.
+    inline uint32_t ComputeRequiredVertices(uint32_t perimeter_vertices)
+    {
+        // 1.  Minimum is capped to 4
+        // 2a. There will always be one extra needed to complete a full fill.
+        //     I.e. an 8-gon will need 9 vertices around, where the first and last
+        //     overlap. (+1)
+        // 2b. If the shape has rectangular bounds and pass through all four corners,
+        //     there will be 4 vertices inserted around the loop. (+4)
+        // 3.  Each vertex around the perimeter has its twin along the inside (*2)
+        // 4.  To draw all pie nodes in one draw call as a strip, each pie adds two
+        //     doubled vertices to tie it together (+2)
+        return 2 * (dmMath::Max<uint32_t>(perimeter_vertices, 4) + 5) + 2;
+    }
+
     void RenderPieNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
@@ -673,12 +689,7 @@ namespace dmGameSystem
         uint32_t max_total_vertices = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            // Computation for required number of vertices:
-            // 1. four extra corner vertices per node (if rect bounds)
-            // 2. above times 2 for inner and outer vertices
-            // 3. one extra step for where we close the loop with exact overlapping start/stop
-            const uint32_t perimeterVertices = dmMath::Max<uint32_t>(4, dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node));
-            max_total_vertices += (perimeterVertices + 4) * 2 + 2;
+            max_total_vertices += ComputeRequiredVertices(dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node));
         }
 
         if (gui_world->m_ClientVertexBuffer.Remaining() < max_total_vertices) {
@@ -719,11 +730,20 @@ namespace dmGameSystem
             }
 
             stopAngle = dmMath::Min(360.0f, stopAngle) * PI / 180.0f;
-            const uint32_t generate = ceilf(stopAngle / ad) + 1;
+
+            // 1. Division computes number of cirlce segments needed, and we need 1 more
+            // vertex than that (1 lone segment = 2 perimeter vertices).
+            // 2. Round up because 48 deg fill drawn with 45 deg segmenst should be be rendered
+            // as 45+3. (Set limit to if segment exceeds more than 1/1000 to allow for some
+            // floating point imprecision)
+            const uint32_t generate = floorf(stopAngle / ad + 0.999f) + 1;
 
             float lastAngle = 0;
             float nextCorner = 0.25f * PI; // upper right rectangle corner at 45 deg
             bool first = true;
+
+            uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
+
             for (int j=0;j!=generate;j++)
             {
                 float a;
@@ -779,6 +799,8 @@ namespace dmGameSystem
                 if (j == generate-1)
                     gui_world->m_ClientVertexBuffer.Push(vOuter);
             }
+
+            assert((gui_world->m_ClientVertexBuffer.Size() - sizeBefore) <= ComputeRequiredVertices(dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node)));
         }
 
         ro.m_VertexCount = gui_world->m_ClientVertexBuffer.Size() - ro.m_VertexStart;
