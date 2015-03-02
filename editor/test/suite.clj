@@ -5,6 +5,7 @@
  (:import [clojure.lang Compiler]))
 
 (def test-namespaces ['internal.cache-test
+                      'internal.dependency-test
                       'internal.either-test
                       'internal.injection-test
                       'internal.math-test
