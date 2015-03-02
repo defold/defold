@@ -157,6 +157,14 @@ TEST_F(EngineTest, DEF_841)
     ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, DEF_1077)
+{
+    // DEF-1077: Crash triggered by gui scene containing a fully filled pie node with rectangular bounds that precisely fills up the remaining
+    //           capacity in the vertex buffer, fails to allocate memory.
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-1077/def-1077.collectionc", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, SpineAnim)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/spine_anim/spine.collectionc", CONTENT_ROOT "/game.projectc"};
