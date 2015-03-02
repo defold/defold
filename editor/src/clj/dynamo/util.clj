@@ -19,6 +19,10 @@
     (keys m)
     (map f (vals m))))
 
+(defn map-first
+  [f pairs]
+  (mapv (fn [[a b]] [(f a) b]) pairs))
+
 (defn map-diff
   [m1 m2 sub-fn]
   (reduce-kv
