@@ -76,6 +76,13 @@ to distinguish it from a function call."
   [world-ref clauses]
   (map #(node world-ref %) (q/query (:graph @world-ref) clauses)))
 
+(defn output-dependencies
+  "Find all the outputs that could be affected by a change in the given outputs.
+  Outputs are specified as pairs of [node-ref label] for both the
+  argument and return value."
+  [graph outputs]
+  outputs)
+
 ; ---------------------------------------------------------------------------
 ; Transactional state
 ; ---------------------------------------------------------------------------
