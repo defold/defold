@@ -138,6 +138,36 @@ message SpinePlayAnimation
     optional float blend_duration = 3 [default = 0.0];
 }
 
+/*# reports the completion of a Spine animation
+ * <p>
+ * This message is sent when a Spine animation has finished playing back to the script
+ * that started the animation. This message is sent only for animations that play with
+ * the following playback modes and no message is sent if the animation is cancelled with
+ * spine.cancel():
+ * <ul>
+ *  <li>go.PLAYBACK_ONCE_FORWARD</li>
+ *  <li>go.PLAYBACK_ONCE_BACKWARD</li>
+ *  <li>go.PLAYBACK_ONCE_PINGPONG</li>
+ * </ul>
+ * </p>
+ * 
+ * @message
+ * @name spine_animation_done
+ * @param animation_id the id of the completed animation (hash)
+ * @param playback the playback mode of the completed animation (constant)
+ * @examples
+ *  
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *   if message_id == hash("spine_animation_done") then
+ *     if message.animation_id == hash("run") and message.playback == go.PLAYBACK_ONCE_FORWARD then
+ *       -- The animation "run" has finished running forward.
+ *       ...
+ *     end
+ *   end
+ * end
+ * </pre>
+ */
 message SpineAnimationDone
 {
     required uint64 animation_id = 1;
@@ -149,6 +179,39 @@ message SpineCancelAnimation
 {
 }
 
+/*# reports an incoming event from the Spine animation
+ * <p>
+ * This message is sent when Spine animation playback fires events. These events
+ * has to be defined on the animation track in the Spine animation editor. An event
+ * can contain custom values expressed in the fields "integer", "float" and "string".
+ * </p>
+ *
+ * @message
+ * @name spine_event
+ * @param event_id the id of the event (hash)
+ * @param animation_id the id of the animation (hash)
+ * @param t the time of the event in seconds, relative to the start of the animation (number)
+ * @param blend_weight the blend weight (between 0.0-1.0) of the current animation at time t (number) 
+ * @param integer user defined integer value for the event (number)
+ * @param float user defined floating point value for the event (number)
+ * @param string user defined string value for the event (hash)
+ * @examples
+ * <p>
+ * The following example assumes that an animation sends event messages with the id "footstep"
+ * and that the "integer" field is used to distinguish between left and right foot (values 0 and 1).
+ * </p>
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *   if message_id == hash("spine_event") then
+ *     -- Receiving animation event from Spine. Play footsteps.
+ *     if message.event_id == hash("footstep") and message.integer == 0 then
+ *       msg.post("#sound_footstep_right", "play_sound")     
+ *     elseif message.event_id == hash("footstep") and message.integer == 1 then
+ *       msg.post("#sound_footstep_left", "play_sound")
+ *   end
+ * end
+ * </pre>
+ */
 message SpineEvent
 {
     required uint64 event_id = 1;
