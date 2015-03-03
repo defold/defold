@@ -173,6 +173,8 @@
 
 (def the-system (atom (system)))
 
+(defn system-cache [] (-> @the-system :cache))
+
 (defn world-ref [] (-> @the-system :world :state))
 
 (defn start
