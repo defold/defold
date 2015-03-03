@@ -125,8 +125,9 @@
   [properties f]
   (with-clean-world
     (let [node (ds/transactional (ds/add (construct SimpleTestNode :foo "one")))]
-     (ds/transactional (f node))
-     (is (= properties (get-in @(:world-ref node) [:last-tx :outputs-modified (:_id node)] #{}))))))
+      (ds/transactional (f node))
+      (let [modified (into #{} (map second (get-in @(:world-ref node) [:last-tx :outputs-modified])))]
+        (is (= properties modified))))))
 
 (deftest invalidating-properties-output
   (expect-modified #{:properties :foo} (fn [node] (ds/set-property    node :foo "two")))
@@ -237,48 +238,34 @@
   (output out-from-in       s/Any out-from-in)
   (output out-const         s/Any (fn [this g] :const-val)))
 
-(deftest value-computation-dependency-loops
+(deftest dependency-loops
   (testing "output dependent on itself"
     (with-clean-world
       (let [[node] (tx-nodes (construct DependencyNode))]
         (is (thrown? java.lang.AssertionError (in/get-node-value node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
     (with-clean-world
-       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-         (ds/transactional
-           (ds/connect node0 :out-from-self node1 :in))
-         (is (thrown? java.lang.AssertionError (in/get-node-value node1 :out-from-in))))))
+      (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
+        (ds/transactional
+         (ds/connect node0 :out-from-self node1 :in))
+        (is (thrown? java.lang.AssertionError (in/get-node-value node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-world
       (let [[node] (tx-nodes (construct DependencyNode))]
-        (ds/transactional
-          (ds/connect node :out-from-in node :in))
-        (is (thrown? java.lang.AssertionError (in/get-node-value node :out-from-in))))))
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                               (ds/connect node :out-from-in node :in)))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-world
       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-        (ds/transactional
-          (ds/connect node0 :out-from-in node1 :in)
-          (ds/connect node1 :out-from-in node0 :in))
-        (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-in))))))
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                               (ds/connect node0 :out-from-in node1 :in)
+                                               (ds/connect node1 :out-from-in node0 :in)))))))
   (testing "cycle of period 2 (multiple transactions)"
     (with-clean-world
       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
         (ds/transactional (ds/connect node0 :out-from-in node1 :in))
-        (ds/transactional (ds/connect node1 :out-from-in node0 :in))
-        (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-in)))))))
-
-(deftest production-function-dependency-limit
-  (with-clean-world
-    (let [nodes (apply tx-nodes (repeatedly 201 #(construct DependencyNode)))
-          _ (ds/transactional
-              (ds/connect (first nodes) :out-const (second nodes) :in)
-              (doall (for [[x y] (partition 2 1 (rest nodes))]
-                       (ds/connect x :out-from-in y :in))))]
-      (is (= :const-val (in/get-node-value (nth nodes 0) :out-const)))
-      (is (= :const-val (in/get-node-value (nth nodes 1) :out-from-in)))
-      (is (= :const-val (in/get-node-value (nth nodes 199) :out-from-in)))
-      (is (thrown? java.lang.AssertionError (in/get-node-value (nth nodes 200) :out-from-in))))))
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                               (ds/connect node1 :out-from-in node0 :in))))))))
 
 (defn throw-exception-defn [this g]
   (throw (ex-info "Exception from production function" {})))
