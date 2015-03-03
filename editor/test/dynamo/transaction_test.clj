@@ -393,11 +393,10 @@
 
 (deftest cached-values-are-disposed-when-invalidated
   (with-clean-world
-    (let [node (ds/transactional (ds/add (n/construct DisposableCachedValueNode)))
-          value1 (n/get-node-value node :cached-output)]
-      (ds/transactional (ds/set-property node :a-property "this should trigger disposal"))
-      (disposal/dispose-pending world-ref)
-      (is (= true (deref (:disposed? value1) 100 :timeout))))))
+    (let [node   (ds/transactional (ds/add (n/construct DisposableCachedValueNode)))
+          value1 (n/get-node-value node :cached-output)
+          tx-result (it/transact world-ref [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
+      (is (= [value1] (:values-to-dispose tx-result))))))
 
 (n/defnode OriginalNode
   (output original-output s/Str :cached (fnk [] "original-output-value")))
