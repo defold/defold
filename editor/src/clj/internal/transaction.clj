@@ -1,11 +1,12 @@
 (ns internal.transaction
-  (:require [clojure.set :as set]
-            [clojure.core.async :as a]
+  (:require [clojure.core.async :as a]
             [clojure.core.cache :as cache]
+            [clojure.set :as set]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.bus :as bus]
             [internal.either :as e]
+            [internal.graph.tracing :as gt]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [service.log :as log]))
@@ -299,65 +300,14 @@
 (defn- apply-tx
   [ctx actions]
   (reduce
-    (fn [ctx action]
-      (cond
-        (sequential? action) (apply-tx ctx action)
-        :else                (-> ctx
-                                 (perform action)
-                                 (update-in [:completed] conj action))))
-    ctx
-    actions))
-
-(defn- pairwise [f coll]
-  (for [n coll
-        x (f n)]
-    [n x]))
-
-(defn- downstream-affected-nodes
-  [{:keys [graph] :as ctx} outputs]
-  (->> (pairs outputs)
-       (mapcat #(apply lg/targets graph %))
-       (reduce #(apply mark-activated %1 %2) ctx)))
-
-(defn- trace-affected-nodes
-  ([ctx]
-    (trace-affected-nodes ctx (:nodes-affected ctx) maximum-graph-coloring-recursion))
-  ([ctx next-batch iterations-remaining]
-    (assert (< 0 iterations-remaining) (txerrstr ctx "Output tracing stopped; probable cycle in the graph"))
-    (let [new-ctx    (downstream-affected-nodes ctx next-batch)
-          next-batch (map-diff (:nodes-affected new-ctx) (:nodes-affected ctx) set/difference)]
-      (if (empty? next-batch)
-        new-ctx
-        (recur new-ctx next-batch (dec iterations-remaining))))))
-
-(defn- determine-obsoletes
-  [{:keys [graph obsolete-cache-keys outputs-modified cache-keys] :as ctx}]
-  (assoc ctx :obsolete-cache-keys
-    (concat obsolete-cache-keys
-      (keep identity (map #(get-in cache-keys %) (pairs outputs-modified))))))
-
-(defn- dispose-obsoletes
-  [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
-  (let [candidates (concat
-                     (keep #(when (and % (e/exists? %)) (e/result %)) (map #(get cache %) obsolete-cache-keys))
-                     (filter t/disposable? (vals nodes-deleted)))]
-    (assoc ctx :values-to-dispose (keep identity candidates))))
-
-(defn- evict-obsolete-caches
-  [{:keys [obsolete-cache-keys] :as ctx}]
-  (when *tx-debug*
-    (println (txerrstr ctx "Evicting " (pr-str obsolete-cache-keys))))
-  (update-in ctx [:cache] (fn [c] (reduce cache/evict c obsolete-cache-keys))))
-
-(defn- determine-autoupdates
-  [{:keys [graph outputs-modified] :as ctx}]
-  (update-in ctx [:expired-outputs] concat
-             (doall
-               (for [[n vs] outputs-modified
-                    v vs
-                    :let [node (dg/node graph n)]
-                    :when (and node (contains? (t/auto-update-outputs node) v))]
-                [node v]))))
+   (fn [ctx action]
+     (cond
+       (sequential? action) (apply-tx ctx action)
+       :else                (-> ctx
+                                (perform action)
+                                (update-in [:completed] conj action))))
+   ctx
+   actions))
 
 (deftype TriggerReceiver [transaction-context]
   TransactionReceiver
@@ -405,8 +355,9 @@
       (assoc ctx :pending (:pending trigger-ctx)))))
 
 (defn- mark-outputs-modified
-  [ctx]
-  (update-in ctx [:outputs-modified] #(merge-with set/union % (:nodes-affected ctx))))
+  [{:keys [graph nodes-affected] :as ctx}]
+  (update-in ctx [:outputs-modified]
+             #(set/union % (pairs nodes-affected))))
 
 (defn- one-transaction-pass
   [ctx actions]
@@ -414,7 +365,6 @@
     (assoc :triggers-to-fire {})
     (assoc :nodes-affected {})
     (apply-tx actions)
-    trace-affected-nodes
     mark-outputs-modified
     process-triggers
     (dissoc :triggers-to-fire)
@@ -467,6 +417,53 @@
      :txid                (new-txid)
      :txpass              0}))
 
+(defn- trace-dependencies
+  [{:keys [graph outputs-modified] :as ctx}]
+  (update-in ctx [:outputs-modified]
+             #(gt/trace-dependencies graph %)))
+
+(defn- determine-obsoletes
+  [{:keys [graph obsolete-cache-keys outputs-modified cache-keys] :as ctx}]
+  (assoc ctx :obsolete-cache-keys
+    (concat obsolete-cache-keys
+            (keep identity (map #(get-in cache-keys %) outputs-modified)))))
+
+(defn- dispose-obsoletes
+  [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
+  (let [candidates (concat
+                     (keep #(when (and % (e/exists? %)) (e/result %)) (map #(get cache %) obsolete-cache-keys))
+                     (filter t/disposable? (vals nodes-deleted)))]
+    (assoc ctx :values-to-dispose (keep identity candidates))))
+
+(defn- evict-obsolete-caches
+  [{:keys [obsolete-cache-keys] :as ctx}]
+  (when *tx-debug*
+    (println (txerrstr ctx "Evicting " (pr-str obsolete-cache-keys))))
+  (update-in ctx [:cache] (fn [c] (reduce cache/evict c obsolete-cache-keys))))
+
+(defn- determine-autoupdates
+  [{:keys [graph outputs-modified] :as ctx}]
+  (update-in ctx [:expired-outputs] concat
+             (doall
+              (for [[n v] outputs-modified
+                    :let [node (dg/node graph n)]
+                    :when (and node (contains? (t/auto-update-outputs node) v))]
+                [node v]))))
+
+(defn- transact*
+  [world-ref ctx]
+  (dosync
+   (let [txr (-> ctx
+                 exhaust-actions-and-triggers
+                 trace-dependencies
+                 determine-obsoletes
+                 dispose-obsoletes
+                 evict-obsolete-caches
+                 determine-autoupdates
+                 finalize-update)]
+     (ref-set world-ref (:world txr))
+     txr)))
+
 (defn start-event-loop!
   [world-ref id]
   (let [in (bus/subscribe (:message-bus @world-ref) id)]
@@ -486,19 +483,6 @@
 (defn stop-event-loop!
   [world-ref {:keys [_id]}]
   (bus/publish (:message-bus @world-ref) (bus/address-to _id {:type ::stop-event-loop})))
-
-(defn- transact*
-  [world-ref ctx]
-  (dosync
-    (let [txr (-> ctx
-                 exhaust-actions-and-triggers
-                 determine-obsoletes
-                 dispose-obsoletes
-                 evict-obsolete-caches
-                 determine-autoupdates
-                 finalize-update)]
-      (ref-set world-ref (:world txr))
-      txr)))
 
 (defn transact
   [world-ref txs]

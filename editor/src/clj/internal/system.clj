@@ -74,7 +74,7 @@
 
 (defn- nodes-modified
   [graph last-tx]
-  (map (partial dg/node graph) (-> last-tx :outputs-modified keys)))
+  (map #(dg/node graph (first %)) (:outputs-modified last-tx)))
 
 (defn- schedule-repaints
   [repaint-needed _ world-ref old-world {last-tx :last-tx graph :graph :as new-world}]

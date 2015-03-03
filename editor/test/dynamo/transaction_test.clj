@@ -281,10 +281,15 @@
      (ds/transactional ~@forms)
      (:outputs-modified (:last-tx (deref ~'world-ref)))))
 
+(defn pairwise [f m]
+  (for [[k vs] m
+        v vs]
+    [(f k) v]))
+
 (deftest precise-invalidation
   (with-clean-world
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network)]
-      (are [update expected] (= (map-keys :_id expected) (affected-by (apply ds/set-property update)))
+      (are [update expected] (= (into #{} (pairwise :_id expected)) (affected-by (apply ds/set-property update)))
         [calculator :touched true]                {calculator        #{:properties :touched}}
         [person :date-of-birth (java.util.Date.)] {person            #{:properties :age :date-of-birth}
                                                    calculator        #{:passthrough}}
@@ -293,7 +298,6 @@
                                                    greeter           #{:passthrough}
                                                    formal-greeter    #{:passthrough}
                                                    multi-node-target #{:aggregated}}))))
-
 (n/defnode EventReceiver
   (on :custom-event
     (deliver (:latch self) true)))
@@ -340,15 +344,18 @@
 
 (deftest invalidated-properties-noted-by-transaction
   (with-clean-world
-    (let [node      (n/construct CachedOutputInvalidation)
-          tx-result (it/transact world-ref [(it/new-node node)])]
-      (let [real-node (dg/node (:graph tx-result) (it/resolve-tempid tx-result (:_id node)))]
-        (is (= 1 (count (:outputs-modified tx-result))))
-        (is (= [(:_id real-node) #{:properties :self :self-dependent :a-property :ordinary}] (first (:outputs-modified tx-result))))
-        (let [tx-data   [(it/update-property real-node :a-property (constantly "new-value") [])]
-              tx-result (it/transact world-ref tx-data)]
-          (is (= 1 (count (:outputs-modified tx-result))))
-          (is (= [(:_id real-node) #{:properties :a-property :ordinary :self-dependent}] (first (:outputs-modified tx-result)))))))))
+    (let [node             (n/construct CachedOutputInvalidation)
+          tx-result        (it/transact world-ref [(it/new-node node)])
+          real-node        (dg/node (:graph tx-result) (it/resolve-tempid tx-result (:_id node)))
+          real-id          (:_id real-node)
+          outputs-modified (:outputs-modified tx-result)]
+      (is (some #{real-id} (map first outputs-modified)))
+      (is (= #{:properties :self :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (let [tx-data          [(it/update-property real-node :a-property (constantly "new-value") [])]
+            tx-result        (it/transact world-ref tx-data)
+            outputs-modified (:outputs-modified tx-result)]
+        (is (some #{real-id} (map first outputs-modified)))
+        (is (= #{:properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
 
 (deftest short-lived-nodes
   (with-clean-world
@@ -555,3 +562,5 @@
         (is (nil? (cache-peek world-ref cache-key)))
         (is (= {:x 42 :sum 42 :cached-sum 42} (in/collect-inputs world-before node {:x ::unused :sum ::unused :cached-sum ::unused})))
         (is (= 42 (some-> (cache-peek world-ref cache-key) e/result)))))))
+
+(run-tests)
