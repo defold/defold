@@ -128,6 +128,9 @@ namespace dmSSDP
 
         // Hostname (local) in ip-format (x.y.z.w)
         char                    m_Hostname[32];
+        // Local IP Address
+        dmSocket::Address       m_Address;
+        uint64_t                m_AddressExpires;
 
         // Http server for device descriptions
         dmHttpServer::HServer   m_HttpServer;
@@ -360,6 +363,10 @@ bail:
         dmSocket::Socket sock = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Socket mcast_sock = dmSocket::INVALID_SOCKET_HANDLE;
         dmSocket::Result sr;
+        dmSocket::Address address;
+
+        sr = dmSocket::GetLocalAddress(&address);
+        if (sr != dmSocket::RESULT_OK) goto bail;
 
         sock = NewSocket();
         if (sock == dmSocket::INVALID_SOCKET_HANDLE) goto bail;
@@ -386,6 +393,7 @@ bail:
         }
 
         ssdp->m_Socket = sock;
+        ssdp->m_Address = address;
         ssdp->m_Port = sock_port;
         ssdp->m_MCastSocket = mcast_sock;
 
@@ -416,6 +424,7 @@ bail:
         ssdp->m_MaxAge = params->m_MaxAge;
         DM_SNPRINTF(ssdp->m_MaxAgeText, sizeof(ssdp->m_MaxAgeText), "%u", params->m_MaxAge);
         ssdp->m_Announce = params->m_Announce;
+        ssdp->m_AddressExpires = dmTime::GetTime() + SSDP_LOCAL_ADDRESS_EXPIRATION * uint64_t(1000000U);
 
         *hssdp = ssdp;
 
@@ -434,7 +443,11 @@ bail:
 
         DM_SNPRINTF(ssdp->m_HttpPortText, sizeof(ssdp->m_HttpPortText), "%u", http_port);
 
-        dmLogInfo("SSDP started (ssdp://0.0.0.0:%u, http://%u.%u.%u.%u:%u)",
+        DM_SNPRINTF(ssdp->m_Hostname, sizeof(ssdp->m_Hostname), "%u.%u.%u.%u",
+                (ssdp->m_Address >> 24) & 0xff, (ssdp->m_Address >> 16) & 0xff, (ssdp->m_Address >> 8) & 0xff, (ssdp->m_Address >> 0) & 0xff);
+
+        dmLogInfo("SSDP started (ssdp://%s:%u, http://%u.%u.%u.%u:%u)",
+                ssdp->m_Hostname,
                 ssdp->m_Port,
                 (http_address >> 24) & 0xff,
                 (http_address >> 16) & 0xff,
@@ -743,6 +756,12 @@ bail:
         comps[0] = (from_addr >> 24) & 0xff; comps[1] = (from_addr >> 16) & 0xff;
         comps[2] = (from_addr >> 8) & 0xff; comps[3] = (from_addr >> 0) & 0xff;
 
+        if (from_addr == ssdp->m_Address && from_port == ssdp->m_Port)
+        {
+            dmLogDebug("Ignoring package from self (%u.%u.%u.%u:%d)", comps[0],comps[1],comps[2],comps[3], from_port);
+            return true;
+        }
+
         dmLogDebug("Multicast SSDP message from %u.%u.%u.%u:%d", comps[0],comps[1],comps[2],comps[3], from_port);
 
         RequestParseState state(ssdp);
@@ -859,6 +878,20 @@ bail:
             dmLogWarning("Reconnecting SSDP");
             Connect(ssdp);
             ssdp->m_Reconnect = 0;
+        }
+
+        dmSocket::Address address;
+
+        uint64_t current_time = dmTime::GetTime();
+        if (current_time > ssdp->m_AddressExpires)
+        {
+            dmLogDebug("Update SSDP address");
+            // Update address. It might have change. 3G -> wifi etc
+            if (dmSocket::GetLocalAddress(&address) == dmSocket::RESULT_OK)
+            {
+                ssdp->m_Address = address;
+            }
+            ssdp->m_AddressExpires = current_time + SSDP_LOCAL_ADDRESS_EXPIRATION * uint64_t(1000000U);
         }
 
         ExpireDiscovered(ssdp);
