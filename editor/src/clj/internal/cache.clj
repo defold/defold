@@ -107,6 +107,13 @@
      (cc/miss c k v))
    c kvs))
 
+(defn- hits
+  [c ks]
+  (reduce
+   (fn [c [k v]]
+     (cc/hit c k))
+   c ks))
+
 (defn- decache [cache ks] (reduce cc/evict cache ks))
 
 ;; ----------------------------------------
@@ -122,6 +129,10 @@
   @ccomp)
 
 (defn cache-hit
+  [ccomp ks]
+  (swap! (:state ccomp) hits ks))
+
+(defn cache-miss
   [ccomp kvs]
   (swap! (:state ccomp) encache kvs))
 
