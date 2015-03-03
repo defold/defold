@@ -17,8 +17,9 @@ create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParti
 def build(bld):
     test_particle = bld.new_task_gen(features = 'cc cxx cprogram test',
                                      includes = '. .. ../../proto',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD',
+                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD SOL_RUNTIME SOL',
                                      uselib_local = 'particle',
+                                     exported_symbols = 'foo_bar',
                                      proto_gen_py = True,
                                      target = 'test_particle')
     test_particle.find_sources_in_dirs(['.'])
