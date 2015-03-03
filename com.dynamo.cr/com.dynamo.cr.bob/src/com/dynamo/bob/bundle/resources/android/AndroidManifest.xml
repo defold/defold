@@ -21,7 +21,8 @@
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="{{project.title}}"
                 android:configChanges="orientation|keyboardHidden"
-                android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+                android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name"
                     android:value="{{exe-name}}" />
             <intent-filter>
