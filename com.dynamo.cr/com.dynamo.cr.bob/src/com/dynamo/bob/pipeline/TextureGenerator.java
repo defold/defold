@@ -283,7 +283,6 @@ public class TextureGenerator {
         }
 
         // Setup texture format and settings
-        TextureFormat textureFormat;
         ColorModel colorModel = origImage.getColorModel();
         int componentCount = colorModel.getNumComponents();
         TextureImage.Builder textureBuilder = TextureImage.newBuilder();
@@ -294,7 +293,7 @@ public class TextureGenerator {
             for ( PlatformProfile platformProfile : texProfile.getPlatformsList()) {
                 for ( int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
                     TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
-                    textureFormat = platformProfile.getFormats(i).getFormat();
+                    TextureFormat textureFormat = platformProfile.getFormats(i).getFormat();
 
                     // We pick a "new" format based on the input image component count and a "target" format.
                     // For example we would rather have a texture format with 3 channels if the input
@@ -322,7 +321,7 @@ public class TextureGenerator {
         if (texProfile == null) {
 
             // Guess texture format based on number color components of input image
-            textureFormat = pickOptimalFormat( componentCount, textureFormat );
+            TextureFormat textureFormat = pickOptimalFormat( componentCount, TextureFormat.TEXTURE_FORMAT_RGBA );
 
             TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, true, 0);
             textureBuilder.addAlternatives(raw);
