@@ -142,8 +142,7 @@ public class TextureSetGenerator {
         images = extrudeBorders(images, extrudeBorders);
 
         Layout layout;
-        if (useTileGrid)
-        {
+        if (useTileGrid) {
             layout = TextureSetLayout.gridLayout(margin, rectanglesFromImages(images), gridSize);
         } else {
             layout = packedImageLayout(margin, images, rotate);
