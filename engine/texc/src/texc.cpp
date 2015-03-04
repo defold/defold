@@ -41,7 +41,7 @@ namespace dmTexc
         case PF_RGBA_DXT1:
         case PF_RGBA_DXT3:
         case PF_RGBA_DXT5:
-            printf( "DXT formats not supported in PVRTexTool.\n" );
+            printf("DXT formats not supported in PVRTexTool.\n");
             break;
         }
         // Should never get here
@@ -128,7 +128,7 @@ namespace dmTexc
     uint32_t GetDataSize(HTexture texture, uint32_t mip_map)
     {
         pvrtexture::CPVRTexture* t = (pvrtexture::CPVRTexture*)texture;
-        uint32_t size = t->getTextureSize(mip_map) * t->getBitsPerPixel() / 8;
+        uint32_t size = t->getDataSize(mip_map);
         return size;
     }
 

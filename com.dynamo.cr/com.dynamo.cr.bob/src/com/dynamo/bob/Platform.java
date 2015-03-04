@@ -27,7 +27,7 @@ public enum Platform {
     }
 
 
-    public static boolean matchPlatformAgainstOS( String platform, PlatformProfile.OS os ) {
+    public static boolean matchPlatformAgainstOS(String platform, PlatformProfile.OS os) {
         if (os == PlatformProfile.OS.OS_ID_GENERIC) {
             return true;
         }

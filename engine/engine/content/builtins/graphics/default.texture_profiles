@@ -8,7 +8,7 @@ profiles {
     os: OS_ID_GENERIC
     formats {
       format: TEXTURE_FORMAT_RGBA
-      compression_level: MEDIUM
+      compression_level: BEST
     }
     mipmaps: true
   }
