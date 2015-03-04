@@ -9,7 +9,6 @@ import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;

@@ -153,23 +153,20 @@ public class TextureUtil {
      * Returns null if no profile was found, as will be expected by the second parameter
      * to TextureGenerator.generate().
      */
-    public static TextureProfile getTextureProfileByPath( TextureProfiles textureProfiles, String path ) {
+    public static TextureProfile getTextureProfileByPath(TextureProfiles textureProfiles, String path) {
 
         if (textureProfiles == null)
             return null;
 
         // Look through the path settings if the current input filepath matches,
         // if found, lookup the correct texture profile to use.
-        for (PathSettings pathSettings : textureProfiles.getPathSettingsList())
-        {
+        for (PathSettings pathSettings : textureProfiles.getPathSettingsList()) {
             // Path matches are stored as ant-glob
-            if (PathUtil.wildcardMatch( path, pathSettings.getPath() ))
-            {
+            if (PathUtil.wildcardMatch(path, pathSettings.getPath())) {
 
                 // Find matching profile name (there could be a reference to an non-existent profile):
-                for ( TextureProfile texProfile : textureProfiles.getProfilesList() ) {
-                    if ( texProfile.getName().toString().equals( pathSettings.getProfile().toString() ) )
-                    {
+                for (TextureProfile texProfile : textureProfiles.getProfilesList()) {
+                    if (texProfile.getName().toString().equals(pathSettings.getProfile().toString())) {
                         return texProfile;
                     }
                 }

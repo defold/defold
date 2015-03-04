@@ -17,7 +17,6 @@ import java.util.Set;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
-import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -36,11 +35,7 @@ import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
-import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
-import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
-import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.gui.proto.Gui;
@@ -153,12 +148,12 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 // Take only the platforms that matches the target platform
                 for (PlatformProfile platformProfile : profile.getPlatformsList()) {
-                    if ( Platform.matchPlatformAgainstOS( targetPlatform, platformProfile.getOs() ) ) {
+                    if (Platform.matchPlatformAgainstOS(targetPlatform, platformProfile.getOs())) {
                         profileBuilder.addPlatforms(platformProfile);
                     }
                 }
 
-                newProfiles.add( profileBuilder.build() );
+                newProfiles.add(profileBuilder.build());
             }
 
             // Update profiles list with new filtered one

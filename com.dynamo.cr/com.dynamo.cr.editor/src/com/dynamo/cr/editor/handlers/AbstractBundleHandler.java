@@ -18,7 +18,6 @@ import org.eclipse.core.runtime.SubProgressMonitor;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.ProgressMonitorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
-import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
@@ -29,7 +28,6 @@ import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.preferences.PreferenceConstants;
 
 /**
  * Bundle handler
@@ -49,8 +47,6 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
 
     class BundleRunnable implements IRunnableWithProgress {
         private void buildProject(IProject project, int kind, IProgressMonitor monitor) throws CoreException {
-
-            final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
 
             HashMap<String, String> bobArgs = new HashMap<String, String>();
             bobArgs.put("archive", "true");
