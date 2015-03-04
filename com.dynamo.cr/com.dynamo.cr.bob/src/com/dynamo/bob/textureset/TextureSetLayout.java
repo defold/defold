@@ -128,7 +128,7 @@ public class TextureSetLayout {
             r.x = x;
             r.y = y;
 
-             if (x + cellWidth >= inputWidth) {
+             if (x + cellWidth >= inputWidth - margin) {
                  x = margin;
                  y += cellHeight;
              } else {
