@@ -106,8 +106,9 @@ public class LaunchHandler extends AbstractHandler {
 
                 HashMap<String, String> bobArgs = new HashMap<String, String>();
                 boolean enableTextureProfiles = store.getBoolean(PreferenceConstants.P_TEXTURE_PROFILES);
-                if (enableTextureProfiles)
+                if (enableTextureProfiles) {
                     bobArgs.put("texture-profiles", "true");
+                }
 
                 BobUtil.putBobArgs(bobArgs, args);
 

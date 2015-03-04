@@ -16,8 +16,6 @@ import java.util.logging.Logger;
 
 import javax.imageio.ImageIO;
 
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.TexcLibrary;
 import com.dynamo.bob.TexcLibrary.ColorSpace;
 import com.dynamo.bob.TexcLibrary.PixelFormat;
@@ -37,10 +35,10 @@ public class TextureGenerator {
 
     private static HashMap<TextureFormatAlternative.CompressionLevel, Integer> compressionLevelLUT = new HashMap<TextureFormatAlternative.CompressionLevel, Integer>();
     static {
-        compressionLevelLUT.put( TextureFormatAlternative.CompressionLevel.FAST, CompressionLevel.CL_FAST);
-        compressionLevelLUT.put( TextureFormatAlternative.CompressionLevel.HIGH, CompressionLevel.CL_HIGH);
-        compressionLevelLUT.put( TextureFormatAlternative.CompressionLevel.BEST, CompressionLevel.CL_BEST);
-        compressionLevelLUT.put( TextureFormatAlternative.CompressionLevel.NORMAL, CompressionLevel.CL_NORMAL);
+        compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.FAST, CompressionLevel.CL_FAST);
+        compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.NORMAL, CompressionLevel.CL_NORMAL);
+        compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.HIGH, CompressionLevel.CL_HIGH);
+        compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.BEST, CompressionLevel.CL_BEST);
     }
 
     private static HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<TextureFormat, Integer>();
@@ -85,16 +83,13 @@ public class TextureGenerator {
 
     // pickOptimalFormat will try to pick a texture format with the same number of channels as componentCount,
     // while still using a texture format within the same "family".
-    private static TextureFormat pickOptimalFormat( int componentCount, TextureFormat targetFormat )
-    {
+    private static TextureFormat pickOptimalFormat(int componentCount, TextureFormat targetFormat) {
 
-        switch (targetFormat)
-        {
+        switch (targetFormat) {
             // Uncompressed formats
             case TEXTURE_FORMAT_LUMINANCE:
             case TEXTURE_FORMAT_RGB:
-            case TEXTURE_FORMAT_RGBA:
-            {
+            case TEXTURE_FORMAT_RGBA: {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
                 else if (componentCount == 3)
@@ -105,21 +100,18 @@ public class TextureGenerator {
 
             // PVRTC with 3 channels
             case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-            {
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1: {
                 return targetFormat;
             }
 
             // PVRTC with 4 channels
-            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-            {
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1: {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
             }
 
-            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-            {
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1: {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
@@ -128,21 +120,18 @@ public class TextureGenerator {
             // DXT
             case TEXTURE_FORMAT_RGBA_DXT1:
             case TEXTURE_FORMAT_RGBA_DXT3:
-            case TEXTURE_FORMAT_RGBA_DXT5:
-            {
+            case TEXTURE_FORMAT_RGBA_DXT5: {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_DXT1;
 
                 return targetFormat;
             }
 
-            case TEXTURE_FORMAT_RGB_DXT1:
-            {
+            case TEXTURE_FORMAT_RGB_DXT1: {
                 return TextureFormat.TEXTURE_FORMAT_RGB_DXT1;
             }
 
-            case TEXTURE_FORMAT_RGB_ETC1:
-            {
+            case TEXTURE_FORMAT_RGB_ETC1: {
                 return TextureFormat.TEXTURE_FORMAT_RGB_ETC1;
             }
         }
@@ -174,7 +163,7 @@ public class TextureGenerator {
         // pick a pixel format (for texc) based on the texture format
         pixelFormat = pixelFormatLUT.get(textureFormat);
         if (pixelFormat == null) {
-            throw new TextureGeneratorException( "Invalid texture format." );
+            throw new TextureGeneratorException("Invalid texture format.");
         }
 
         try {
@@ -192,15 +181,14 @@ public class TextureGenerator {
                     newHeight = newHeight / 2;
                 }
 
-                assert( newWidth <= maxTextureSize && newHeight <= maxTextureSize );
+                assert(newWidth <= maxTextureSize && newHeight <= maxTextureSize);
             }
 
             // PVR textures need to be square on iOS
             if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 ||
                 textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 ||
                 textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 ||
-                textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)
-            {
+                textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1) {
 
                 Logger logger = Logger.getLogger(TextureGenerator.class.getName());
                 logger.log(Level.WARNING, "PVR compressed texture is not square and will be resized.");
@@ -220,8 +208,7 @@ public class TextureGenerator {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
             }
-            if (generateMipMaps)
-            {
+            if (generateMipMaps) {
                 if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
@@ -290,18 +277,17 @@ public class TextureGenerator {
         if (texProfile != null) {
 
             // Generate an image for each format specified in the profile
-            for ( PlatformProfile platformProfile : texProfile.getPlatformsList()) {
-                for ( int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
+            for (PlatformProfile platformProfile : texProfile.getPlatformsList()) {
+                for (int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
                     TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
                     TextureFormat textureFormat = platformProfile.getFormats(i).getFormat();
 
                     // We pick a "new" format based on the input image component count and a "target" format.
                     // For example we would rather have a texture format with 3 channels if the input
                     // image has 3 channels, even if the texture profile specified a format with 4 channels.
-                    textureFormat = pickOptimalFormat( componentCount, textureFormat );
+                    textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
-                    try
-                    {
+                    try {
                         TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );
                         textureBuilder.addAlternatives(raw);
                     } catch (TextureGeneratorException e) {
@@ -321,7 +307,7 @@ public class TextureGenerator {
         if (texProfile == null) {
 
             // Guess texture format based on number color components of input image
-            TextureFormat textureFormat = pickOptimalFormat( componentCount, TextureFormat.TEXTURE_FORMAT_RGBA );
+            TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
 
             TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, true, 0);
             textureBuilder.addAlternatives(raw);
