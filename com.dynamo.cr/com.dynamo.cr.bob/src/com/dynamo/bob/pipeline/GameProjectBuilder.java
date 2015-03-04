@@ -172,7 +172,6 @@ public class GameProjectBuilder extends Builder<Void> {
             // needs to be reachedable by the TextureGenerator.
             TextureProfiles textureProfiles = texProfilesBuilder.build();
             project.setTextureProfiles(textureProfiles);
-            System.out.println(textureProfiles.toString());
         }
 
         for (Task<?> task : project.getTasks()) {
