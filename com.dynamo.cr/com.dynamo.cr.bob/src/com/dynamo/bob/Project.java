@@ -42,6 +42,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
+import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -63,6 +64,8 @@ public class Project {
     private List<URL> libUrls = new ArrayList<URL>();
 
     private BobProjectProperties projectProperties;
+
+    private TextureProfiles textureProfiles;
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -795,5 +798,13 @@ run:
     public List<Task<?>> getTasks() {
         return Collections.unmodifiableList(this.newTasks);
     }
+
+	public TextureProfiles getTextureProfiles() {
+		return textureProfiles;
+	}
+
+	public void setTextureProfiles(TextureProfiles textureProfiles) {
+		this.textureProfiles = textureProfiles;
+	}
 
 }
