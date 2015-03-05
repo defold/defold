@@ -83,6 +83,15 @@ namespace dmGameSystem
             if (!texture)
                 texture = dmGraphics::NewTexture(context, creation_params);
 
+            // Need to revert to simple bilinear filtering if no mipmaps were supplied
+            if (image->m_MipMapOffset.m_Count <= 1) {
+                if (params.m_MinFilter == dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST) {
+                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+                } else if (params.m_MinFilter == dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST) {
+                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+                }
+            }
+
             for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
             {
                 params.m_MipMap = i;

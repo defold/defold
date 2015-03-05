@@ -9,6 +9,7 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +22,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
@@ -34,6 +36,9 @@ import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.gui.proto.Gui;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
@@ -105,6 +110,7 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".meshc");
     }
 
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
@@ -116,6 +122,54 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
+
+
+        // Load texture profile message if supplied and enabled
+        String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
+        if (textureProfilesPath != null && project.option("texture-profiles", "false").equals("true")) {
+
+            TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
+            IResource texProfilesInput = project.getResource(textureProfilesPath);
+            if (!texProfilesInput.exists()) {
+                throw new CompileExceptionError(input, -1, "Could not find supplied texture_profiles file: " + textureProfilesPath);
+            }
+            ProtoUtil.merge(texProfilesInput, texProfilesBuilder);
+
+            // If Bob is building for a specific platform, we need to
+            // filter out any platform entries not relevant to the target platform.
+            // (i.e. we don't want win32 specific profiles lingering in android bundles)
+            String targetPlatform = project.option("platform", "");
+
+            List<TextureProfile> newProfiles = new LinkedList<TextureProfile>();
+            for (int i = 0; i < texProfilesBuilder.getProfilesCount(); i++) {
+
+                TextureProfile profile = texProfilesBuilder.getProfiles(i);
+                TextureProfile.Builder profileBuilder = TextureProfile.newBuilder();
+                profileBuilder.mergeFrom(profile);
+                profileBuilder.clearPlatforms();
+
+                // Take only the platforms that matches the target platform
+                for (PlatformProfile platformProfile : profile.getPlatformsList()) {
+                    if (Platform.matchPlatformAgainstOS(targetPlatform, platformProfile.getOs())) {
+                        profileBuilder.addPlatforms(platformProfile);
+                    }
+                }
+
+                newProfiles.add(profileBuilder.build());
+            }
+
+            // Update profiles list with new filtered one
+            // Now it should only contain profiles with platform entries
+            // relevant for the target platform...
+            texProfilesBuilder.clearProfiles();
+            texProfilesBuilder.addAllProfiles(newProfiles);
+
+
+            // Add the current texture profiles to the project, since this
+            // needs to be reachedable by the TextureGenerator.
+            TextureProfiles textureProfiles = texProfilesBuilder.build();
+            project.setTextureProfiles(textureProfiles);
+        }
 
         for (Task<?> task : project.getTasks()) {
             for (IResource output : task.getOutputs()) {
