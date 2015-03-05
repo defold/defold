@@ -84,6 +84,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "go",
                 "gui",
                 "http",
+                "iap",
                 "image",
                 "json",
                 "msg",
