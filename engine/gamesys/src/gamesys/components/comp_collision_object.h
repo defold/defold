@@ -21,6 +21,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
+    dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
+
     dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params);

@@ -22,7 +22,6 @@ extern "C"
 }
 
 #define PHYSICS_CONTEXT_NAME "__PhysicsContext"
-#define COLLISION_OBJECT_EXT "collisionobjectc"
 
 namespace dmGameSystem
 {
