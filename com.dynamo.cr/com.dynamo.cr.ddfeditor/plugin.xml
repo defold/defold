@@ -134,6 +134,7 @@
             contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
             extensions="texture_profiles"
+            icon="icons/picture_insert.png"
             id="com.dynamo.cr.ddfeditor.textureprofileseditor"
             name="Texture Profiles Editor">
       </editor>
@@ -209,6 +210,13 @@
             icon="icons/paintcan.png"
             id="com.dynamo.cr.ddfeditor.wizards.RenderNewWizard"
             name="Render File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.TextureProfilesNewWizard"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.wizards.TextureProfilesNewWizard"
+            name="Texture Profiles File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
@@ -528,7 +536,8 @@
             file-extension="texture_profiles"
             id="com.dynamo.cr.ddfeditor.resourcetypes.TextureProfiles"
             name="Texture Profiles"
-            proto-message-class="com.dynamo.graphics.proto.Graphics$TextureProfiles">
+            proto-message-class="com.dynamo.graphics.proto.Graphics$TextureProfiles"
+            template-data="path_settings { path: '**' profile: 'Default' } profiles { name: 'Default' platforms { os: OS_ID_GENERIC formats { format: TEXTURE_FORMAT_RGBA compression_level: BEST } mipmaps: true } }">
       </resource-type>
     </extension>
    <extension
