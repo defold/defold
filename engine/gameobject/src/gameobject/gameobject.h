@@ -235,6 +235,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
+        /// Component index that can be used later with GetWorld()
+        uint8_t m_ComponentIndex;
         /// Out-parameter of the pointer in which to store the created world
         void** m_World;
     };
