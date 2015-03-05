@@ -167,6 +167,6 @@ public class AtlasUtil {
         return TextureSetGenerator.generate(images, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0,  atlas.getInnerPadding()),
-                Math.max(0, atlas.getExtrudeBorders()), false, false, true, false);
+                Math.max(0, atlas.getExtrudeBorders()), false, false, true, false, null);
     }
 }

@@ -107,19 +107,19 @@ public class TileSetGeneratorTest {
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage texture = result.image;
 
-        assertEquals(1024, texture.getWidth());
-        assertEquals(256, texture.getHeight());
+        assertEquals(512, texture.getWidth());
+        assertEquals(512, texture.getHeight());
 
         ByteString vertices = textureSet.getVertices();
         ByteBuffer v = ByteBuffer.wrap(vertices.toByteArray());
         // Vertex buffers is in little endian (java big)
         v.order(ByteOrder.LITTLE_ENDIAN);
-        float[] us = { 0.0f, 0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.725f, 1f};
-        float[] vs = { 0.0f, 0.5f, 1f };
+        float[] us = { 0.0f, 0.25f, 0.5f, 0.75f, 1f};
+        float[] vs = { 0.0f, 0.25f, 0.5f, 0.75f, 1f};
         // Verify vertices
         for (int i = 0; i < tileCount; ++i) {
-            int x = i / 2;
-            int y = i % 2;
+            int x = i % 3;
+            int y = i / 3;
             assertQuad(v, tileWidth, tileHeight, us[x], us[x + 1], vs[y], vs[y + 1]);
         }
 
@@ -129,8 +129,8 @@ public class TileSetGeneratorTest {
         // Verify tex coords
         assertThat(textureSet.getTexCoords().size(), is(8 * 4 * tileCount));
         for (int i = 0; i < tileCount; ++i) {
-            int x = i / 2;
-            int y = i % 2;
+            int x = i % 3;
+            int y = i / 3;
             assertQuadTexCoords(uv, us[x], us[x + 1], vs[y], vs[y + 1], false);
         }
     }
