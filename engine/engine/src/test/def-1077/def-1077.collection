@@ -1,0 +1,16 @@
+name: "main"
+instances {
+  id: "main"
+  prototype: "/def-1077/def-1077.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
