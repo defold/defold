@@ -1,12 +1,11 @@
 (ns dynamo.transaction-test
   (:require [clojure.core.async :as a]
             [clojure.test.check :as tc]
+            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
-            [schema.core :as s]
-            [plumbing.core :refer [defnk fnk]]
+            [dynamo.cache :as cache]
             [dynamo.node :as n :refer [Scope]]
             [dynamo.project :as p]
             [dynamo.system :as ds]
@@ -18,7 +17,9 @@
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
-            [internal.transaction :as it]))
+            [internal.transaction :as it]
+            [plumbing.core :refer [defnk fnk]]
+            [schema.core :as s]))
 
 (defn dummy-output [& _] :ok)
 
@@ -369,24 +370,19 @@
   (output cached-output s/Str :cached (fnk [] "an-output-value")))
 
 (defn cache-peek
-  [world-ref cache-key]
-  (some-> world-ref deref :cache (get cache-key)))
+  [system node-id output]
+  (some-> system :cache deref (get [node-id output])))
 
-(defn cache-locate-key
-  [world-ref node-id output]
-  (some-> world-ref deref :cache-keys (get-in [node-id output])))
-
+;; TODO - move this to an integration test group
 (deftest deleted-nodes-values-removed-from-cache
-  (with-clean-world
+  (with-clean-system
     (let [node    (ds/transactional (ds/add (n/construct CachedValueNode)))
           node-id (:_id node)]
       (is (= "an-output-value" (n/get-node-value node :cached-output)))
-      (let [cache-key    (cache-locate-key world-ref node-id :cached-output)
-            cached-value (cache-peek world-ref cache-key)]
+      (let [cached-value (cache-peek system node-id :cached-output)]
         (is (= "an-output-value" (e/result cached-value)))
         (ds/transactional (ds/delete node))
-        (is (nil? (cache-peek world-ref cache-key)))
-        (is (nil? (cache-locate-key world-ref node-id :cached-output)))))))
+        (is (nil? (cache-peek system node-id :cached-output)))))))
 
 (defrecord DisposableValue [disposed?]
   t/IDisposable
@@ -562,5 +558,3 @@
         (is (nil? (cache-peek world-ref cache-key)))
         (is (= {:x 42 :sum 42 :cached-sum 42} (in/collect-inputs world-before node {:x ::unused :sum ::unused :cached-sum ::unused})))
         (is (= 42 (some-> (cache-peek world-ref cache-key) e/result)))))))
-
-(run-tests)

@@ -20,6 +20,7 @@
 (def ^:private maximum-disposal-backlog 2500)
 
 (prefer-method print-method java.util.Map clojure.lang.IDeref)
+(prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
 
 (defn graph [world-ref]
   (-> world-ref deref :graph))
@@ -31,8 +32,6 @@
 (defn new-world-state
   [state root repaint-needed disposal-queue]
   {:graph               (attach-root (dg/empty-graph) root)
-   :cache               (c/make-cache) ;; TODO - remove once the new component is in use
-   :cache-keys          {}
    :world-time          0
    :message-bus         (bus/make-bus)
    :disposal-queue      disposal-queue
@@ -169,7 +168,7 @@
     {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 1)
      :world     (world tx-report-chan repaint-needed disposal-queue)
      :repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])
-     :cache     (c/cache-subsystem maximum-cached-items disposal-queue)})))
+     :cache     (component/using (c/cache-subsystem maximum-cached-items disposal-queue) [:world])})))
 
 (def the-system (atom (system)))
 
