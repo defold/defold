@@ -1,8 +1,5 @@
 package com.dynamo.cr.guied.core;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.eclipse.core.resources.IFile;
 import org.eclipse.swt.graphics.Image;
 
@@ -11,8 +8,6 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.sceneed.core.ISceneModel;
-import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.PieBounds;
 
@@ -22,7 +17,7 @@ public class PieNode extends ClippingNode {
     @Property(editorType = EditorType.DROP_DOWN)
     private String texture = "";
 
-    private transient TextureHandle textureHandle = new TextureHandle();
+    private transient GuiTextureNode guiTextureNode = new GuiTextureNode();
 
     @Property
     private float innerRadius = 0.0f;
@@ -74,42 +69,33 @@ public class PieNode extends ClippingNode {
         return this.texture;
     }
 
-    private void updateTexture() {
-        if (!this.texture.isEmpty() && getModel() != null) {
-            List<Node> textureNodes = getScene().getTexturesNode().getChildren();
-            String texturePath = null;
-            for (Node n : textureNodes) {
-                TextureNode textureNode = (TextureNode) n;
-                if (textureNode.getId().equals(this.texture)) {
-                    texturePath = textureNode.getTexture();
-                    break;
-                }
-            }
-            if (texturePath != null) {
-                if (this.textureHandle == null) {
-                    this.textureHandle = new TextureHandle();
-                }
-                this.textureHandle.setImage(getModel().getImage(texturePath));
-            }
-        }
-    }
-
     public void setTexture(String texture) {
         this.texture = texture;
         updateTexture();
     }
 
-    public Object[] getTextureOptions() {
-        List<Node> textureNodes = getScene().getTexturesNode().getChildren();
-        List<String> textures = new ArrayList<String>(textureNodes.size());
-        for (Node n : textureNodes) {
-            textures.add(((TextureNode) n).getId());
+    private void updateTexture() {
+        if (!this.texture.isEmpty() && getModel() != null) {
+            TextureNode textureNode = ((TexturesNode) getScene().getTexturesNode()).getTextureNode(this.texture);
+            if(textureNode != null)
+            {
+                if (this.guiTextureNode == null) {
+                    this.guiTextureNode = new GuiTextureNode();
+                }
+                this.guiTextureNode.setTexture(this, textureNode.getTexture(), this.texture);
+                return;
+            }
         }
-        return textures.toArray();
+        this.guiTextureNode = null;
     }
 
-    public TextureHandle getTextureHandle() {
-        return this.textureHandle;
+    public Object[] getTextureOptions() {
+        TexturesNode node = (TexturesNode) getScene().getTexturesNode();
+        return node.getTextures(getModel()).toArray();
+    }
+
+    public GuiTextureNode getGuiTextureNode() {
+        return this.guiTextureNode;
     }
 
     @Override
@@ -122,10 +108,13 @@ public class PieNode extends ClippingNode {
     public boolean handleReload(IFile file, boolean childWasReloaded) {
         boolean reloaded = false;
         if (this.texture != null && !this.texture.isEmpty()) {
-            IFile imgFile = getModel().getFile(this.texture);
-            if (file.equals(imgFile)) {
-                updateTexture();
-                reloaded = true;
+            TextureNode textureNode = ((TexturesNode) getScene().getTexturesNode()).getTextureNode(this.texture);
+            if(textureNode != null) {
+                IFile imgFile = getModel().getFile(textureNode.getTexture());
+                if (file.equals(imgFile)) {
+                    updateTexture();
+                    reloaded = true;
+                }
             }
         }
         return reloaded;
