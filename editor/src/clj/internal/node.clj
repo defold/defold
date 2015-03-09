@@ -4,22 +4,22 @@
             [clojure.core.cache :as cache]
             [clojure.core.match :refer [match]]
             [clojure.set :as set]
-            [plumbing.core :refer [fnk defnk]]
-            [plumbing.fnk.pfnk :as pf]
             [dynamo.file :as file]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [internal.graph.lgraph :as lg]
+            [inflections.core :refer [plural]]
+            [internal.cache :as c]
+            [internal.either :as e]
             [internal.graph.dgraph :as dg]
+            [internal.graph.lgraph :as lg]
             [internal.metrics :as metrics]
             [internal.property :as ip]
-            [internal.either :as e]
-            [service.log :as log]
-            [inflections.core :refer [plural]]
-            [camel-snake-kebab :refer [->kebab-case]]))
+            [plumbing.core :refer [fnk defnk]]
+            [plumbing.fnk.pfnk :as pf]
+            [schema.core :as s]
+            [schema.macros :as sm]
+            [service.log :as log]))
 
 (defn- resource?
   ([property-type]
@@ -27,9 +27,95 @@
   ([node label]
     (some-> node t/node-type t/properties' label resource?)))
 
-; ---------------------------------------------------------------------------
-; Value handling
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; New evaluation
+;; ---------------------------------------------------------------------------
+(defn not-found
+  [graph node-id label & _]
+  (throw (ex-info "No such property, input or output" {:node-id node-id :label label})))
+
+(defn- chain-eval
+  [evaluators graph node-id label]
+  ((first evaluators) graph node-id label evaluators (next evaluators)))
+
+(defn- continue
+  [graph node-id label chain-head chain-next]
+  ((first chain-next) graph node-id label chain-head (next chain-next)))
+
+(defn lookup-property
+  [graph node-id label chain-head chain-next]
+  (let [node (dg/node graph node-id)]
+    (if (contains? node label)
+      (e/bind (get node label))
+      (continue graph node-id label chain-head chain-next))))
+
+(def world-evaluation-chain
+  [lookup-property
+;;   read-input
+   ;;   evaluate-production-function
+   not-found
+   ])
+
+(defn local-deltas
+  "Return a thunk. The thunk will look at some local state for any
+  values that have already been computed during this process."
+  [cache]
+  (let [deltas (atom [])
+        delta  (fn [node-id label v] (swap! deltas conj [[node-id label] v]) v)
+        local  (fn [node-id label]   (first (keep (fn [[i l v]] (when (and (= node-id i) (= l label)) v)) @deltas)))]
+    [(fn [graph node-id label chain-head chain-next]
+       (if-some [r (local node-id label)]
+          r
+          (delta node-id label
+                 (continue graph node-id label chain-head chain-next))))
+     (fn [] @deltas)]))
+
+(defn cache-lookup
+  [cache]
+  (let [snapshot (c/cache-snapshot cache)
+        hits     (atom [])
+        hit      (fn [node-id label v] (swap! hits conj [node-id label]) v)]
+    [(fn [graph node-id label chain-head chain-next]
+       (if-some [v (get snapshot [node-id label])]
+         (hit node-id label v)
+         (continue graph node-id label chain-head chain-next)))
+     (fn [] @hits)]))
+
+(defn fork
+  [test]
+  (fn [graph node-id label chain-head chain-next]
+    (let [[consequent alternate & _] chain-next
+          branch?                    (test graph node-id label)]
+      (chain-eval (if branch? consequent alternate) graph node-id label))))
+
+(defn cacheable?
+  [graph node-id label]
+  ((t/cached-outputs (dg/node graph node-id)) label))
+
+(def fork-cacheable (fork cacheable?))
+
+(defn get-node-value-2
+  "Get a value, possibly cached, from a node. This is the entry point to the \"plumbing\".
+If the value is cacheable and exists in the cache, then return that value. Otherwise,
+produce the value by gathering inputs to call a production function, invoke the function,
+maybe cache the value that was produced, and return it."
+  ([graph cache node-id label]
+   (let [[local-lookup deltas] (local-deltas cache)
+         [cache-lookup hits]   (cache-lookup cache)
+         evaluators            [fork-cacheable
+                                (list* local-lookup
+                                       cache-lookup
+                                       world-evaluation-chain)
+                                world-evaluation-chain]
+         result                (chain-eval evaluators graph node-id label)]
+     (do
+       (c/cache-hit cache (hits))
+       (c/cache-encache cache (deltas)))
+     (e/result result))))
+
+;; ---------------------------------------------------------------------------
+;; Value handling
+;; ---------------------------------------------------------------------------
 (defn- abstract-function
   [nodetype label type]
   (fn [this g]
