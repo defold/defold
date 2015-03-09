@@ -120,6 +120,16 @@ namespace dmSocket
         return RESULT_OK;
     }
 
+    Result SetMulticastIf(Socket socket, Address address)
+    {
+        struct in_addr if_addr;
+        if_addr.s_addr = htonl(address);
+        int ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, &if_addr, sizeof(if_addr));
+        if (ret != 0)
+            return NativeToResult(DM_SOCKET_ERRNO);
+        return RESULT_OK;
+    }
+
     Result Delete(Socket socket)
     {
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
@@ -528,11 +538,11 @@ namespace dmSocket
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
     {
 #ifdef WIN32
-		DWORD timeval = time / 1000;
-		if (time > 0 && timeval == 0) {
-		    dmLogWarning("Socket timeout requested less than 1ms. Timeout set to 1ms.");
-		    timeval = 1;
-		}
+        DWORD timeval = time / 1000;
+        if (time > 0 && timeval == 0) {
+            dmLogWarning("Socket timeout requested less than 1ms. Timeout set to 1ms.");
+            timeval = 1;
+        }
 #else
         struct timeval timeval;
         timeval.tv_sec = time / 1000000;
