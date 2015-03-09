@@ -14,6 +14,10 @@
         world       (is/world report-ch (ref #{}) disposal-ch)]
     (component/start world)))
 
+(defn clean-system
+  []
+  (component/start-system (is/system)))
+
 (defmacro with-clean-world
   [& forms]
   `(let [~'world     (clean-world)
@@ -22,6 +26,16 @@
      (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
        (ds/in ~'root
            ~@forms))))
+
+(defmacro with-clean-system
+  [& forms]
+  `(let [~'system    (clean-system)
+         ~'world     (:world ~'system)
+         ~'world-ref (:state ~'world)
+         ~'root      (ds/node ~'world-ref 1)]
+     (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
+       (ds/in ~'root
+              ~@forms))))
 
 (defn tx-nodes [& resources]
   (ds/transactional
