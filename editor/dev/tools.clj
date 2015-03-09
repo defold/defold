@@ -11,6 +11,7 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [dynamo.cache :as cache]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.java :as j]
@@ -35,7 +36,7 @@
 
 (defn the-world       [] (-> is/the-system deref :world))
 (defn the-world-state [] (-> (the-world) :state deref))
-(defn the-cache       [] (-> (the-world-state) :cache))
+(defn the-cache       [] (-> is/the-system deref :cache))
 (defn the-graph       [] (-> (the-world-state) :graph))
 (defn nodes           [] (-> (the-graph) :nodes vals))
 
@@ -84,21 +85,14 @@
 
 (defn cache-peek
   [id label]
-  (if-let [cache-key (some-> (the-world-state) :cache-keys (get-in [id label]))]
-    (if-let [x (get (the-cache) cache-key)]
-      x
-      :value-not-cached)
-    :output-not-cacheable))
+  (if-let [x (get cache/cache-snapshot [id label])]
+    x
+    :value-not-cached))
 
 (defn decache
   [id label]
-  (if-let [cache-key (some-> (the-world-state) :cache-keys (get-in [id label]))]
-    (if (get (the-cache) cache-key)
-      (dosync
-        (alter (:state (the-world)) update-in [:cache] clojure.core.cache/evict cache-key)
-        :ok)
-      :value-not-cached)
-    :output-not-cacheable))
+  (cache/cache-invalidate [[id label]])
+  :ok)
 
 (defn projects-in-memory
   []

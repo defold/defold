@@ -108,13 +108,6 @@
 
 (use-fixtures :each with-function-counts)
 
-(deftest labels-appear-in-cache-keys
-  (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
-    (testing "uncached values are unaffected"
-      (is (contains? (:cache-keys @world-ref) (:_id combiner)))
-      (is (= #{:expensive-value :nickname :derived-value :another-value}
-            (into #{} (keys (get-in @world-ref [:cache-keys (:_id combiner)]))))))))
-
 (deftest project-cache
   (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
     (testing "uncached values are unaffected"

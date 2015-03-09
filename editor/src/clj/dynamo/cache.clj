@@ -11,7 +11,7 @@
   [pairs]
   (c/cache-invalidate (is/system-cache) pairs))
 
-(defn cache-miss
+(defn cache-encache
   "Uses the system’s Cache component.
 
   Atomic action to record one or more items in cache.

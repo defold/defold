@@ -1,6 +1,5 @@
 (ns internal.transaction
   (:require [clojure.core.async :as a]
-            [clojure.core.cache :as cache]
             [clojure.set :as set]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
@@ -23,9 +22,6 @@
 ; ---------------------------------------------------------------------------
 (def ^:dynamic *tx-debug* nil)
 (def ^:dynamic *scope* nil)
-
-(def ^:private ^java.util.concurrent.atomic.AtomicInteger nextkey (java.util.concurrent.atomic.AtomicInteger. 1000000))
-(defn- new-cache-key [] (.getAndIncrement nextkey))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger next-txid (java.util.concurrent.atomic.AtomicInteger. 1))
 (defn- new-txid [] (.getAndIncrement next-txid))
@@ -145,9 +141,6 @@
 (defn has-tempid? [n] (and (:_id n) (tempid? (:_id n))))
 (defn resolve-tempid [ctx x] (when x (if (pos? x) x (get (:tempids ctx) x))))
 
-(defn node->cache-keys [n]
-  (zipmap (t/cached-outputs n) (repeatedly new-cache-key)))
-
 ; ---------------------------------------------------------------------------
 ; Executing transactions
 ; ---------------------------------------------------------------------------
@@ -171,7 +164,7 @@
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys triggers-to-fire nodes-affected world-ref new-event-loops nodes-added] :as ctx}
+  [{:keys [graph tempids triggers-to-fire nodes-affected world-ref new-event-loops nodes-added] :as ctx}
    {:keys [node]}]
   (let [next-id     (dg/next-node graph)
         full-node   (assoc node :_id next-id :world-ref world-ref) ;; TODO: can we remove :world-ref from nodes?
@@ -181,7 +174,6 @@
       :graph               graph-after
       :nodes-added         (conj nodes-added next-id)
       :tempids             (assoc tempids (:_id node) next-id)
-      :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
       :triggers-to-fire    (update-in triggers-to-fire [next-id :added] concat [])
       :nodes-affected      (merge-with set/union nodes-affected {next-id (t/outputs full-node)}))))
@@ -211,7 +203,7 @@
     (lg/targets (:graph ctx) (:_id source-node) source-label)))
 
 (defmethod perform :become
-  [{:keys [graph tempids cache-keys nodes-affected world-ref new-event-loops obsolete-cache-keys old-event-loops] :as ctx}
+  [{:keys [graph tempids nodes-affected world-ref new-event-loops old-event-loops] :as ctx}
    {:keys [node-id to-node]}]
   (let [old-node         (dg/node graph node-id)
         to-node-id       (:_id to-node)
@@ -234,11 +226,10 @@
       :tempids             (if (tempid? to-node-id) (assoc tempids to-node-id node-id) tempids)
       :new-event-loops     (if start-loop (conj new-event-loops node-id)  new-event-loops)
       :old-event-loops     (if end-loop   (conj old-event-loops old-node) old-event-loops)
-      :obsolete-cache-keys (concat obsolete-cache-keys (vals (get cache-keys node-id)))
-      :cache-keys          (assoc cache-keys node-id (node->cache-keys to-node)))))
+)))
 
 (defmethod perform :delete-node
-  [{:keys [graph nodes-deleted old-event-loops nodes-added triggers-to-fire obsolete-cache-keys cache-keys] :as ctx} {:keys [node-id]}]
+  [{:keys [graph nodes-deleted old-event-loops nodes-added triggers-to-fire] :as ctx} {:keys [node-id]}]
   (when-not (dg/node graph (resolve-tempid ctx node-id))
     (prn :delete-node "Can't locate node for ID " node-id))
   (let [node-id     (resolve-tempid ctx node-id)
@@ -249,9 +240,7 @@
       :old-event-loops     (if (satisfies? t/MessageTarget node) (conj old-event-loops node) old-event-loops)
       :nodes-deleted       (assoc nodes-deleted node-id node)
       :nodes-added         (disj nodes-added node-id)
-      :obsolete-cache-keys (concat obsolete-cache-keys (vals (get cache-keys node-id)))
-      :triggers-to-fire    (update-in triggers-to-fire [node-id :deleted] concat [])
-      :cache-keys          (dissoc cache-keys node-id))))
+      :triggers-to-fire    (update-in triggers-to-fire [node-id :deleted] concat []))))
 
 (defmethod perform :update-property
   [{:keys [graph triggers-to-fire properties-modified] :as ctx} {:keys [node-id property fn args]}]
@@ -379,19 +368,16 @@
       ctx
       (recur (one-transaction-pass (assoc ctx :pending pending-actions) current-action) (dec retrigger-count)))))
 
-(def tx-report-keys [:status :obsolete-cache-keys :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
 
 (defn- finalize-update
-  "Makes the transacted graph the new value of the world-state graph.
-   Likewise for cache and cache-keys."
-  [{:keys [graph cache cache-keys world-time] :as ctx}]
+  "Makes the transacted graph the new value of the world-state graph."
+  [{:keys [graph world-time] :as ctx}]
   (let [empty-tx?  (empty? (:completed ctx))
         status     (if empty-tx? :empty :ok)
         world-time (if empty-tx? world-time (inc world-time))]
     (update-in ctx [:world] assoc
       :graph      graph
-      :cache      cache
-      :cache-keys cache-keys
       :world-time world-time
       :last-tx    (assoc (select-keys ctx tx-report-keys) :status status))))
 
@@ -401,8 +387,6 @@
     {:world-ref           world-ref
      :world               current-world
      :graph               (:graph current-world)
-     :cache               (:cache current-world)
-     :cache-keys          (:cache-keys current-world)
      :world-time          (:world-time current-world)
      :expired-outputs     []
      :tempids             {}
@@ -422,25 +406,6 @@
   (update-in ctx [:outputs-modified]
              #(gt/trace-dependencies graph %)))
 
-(defn- determine-obsoletes
-  [{:keys [graph obsolete-cache-keys outputs-modified cache-keys] :as ctx}]
-  (assoc ctx :obsolete-cache-keys
-    (concat obsolete-cache-keys
-            (keep identity (map #(get-in cache-keys %) outputs-modified)))))
-
-(defn- dispose-obsoletes
-  [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
-  (let [candidates (concat
-                     (keep #(when (and % (e/exists? %)) (e/result %)) (map #(get cache %) obsolete-cache-keys))
-                     (filter t/disposable? (vals nodes-deleted)))]
-    (assoc ctx :values-to-dispose (keep identity candidates))))
-
-(defn- evict-obsolete-caches
-  [{:keys [obsolete-cache-keys] :as ctx}]
-  (when *tx-debug*
-    (println (txerrstr ctx "Evicting " (pr-str obsolete-cache-keys))))
-  (update-in ctx [:cache] (fn [c] (reduce cache/evict c obsolete-cache-keys))))
-
 (defn- determine-autoupdates
   [{:keys [graph outputs-modified] :as ctx}]
   (update-in ctx [:expired-outputs] concat
@@ -456,9 +421,6 @@
    (let [txr (-> ctx
                  exhaust-actions-and-triggers
                  trace-dependencies
-                 determine-obsoletes
-                 dispose-obsoletes
-                 evict-obsolete-caches
                  determine-autoupdates
                  finalize-update)]
      (ref-set world-ref (:world txr))
