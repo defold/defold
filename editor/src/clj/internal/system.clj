@@ -9,7 +9,6 @@
             [internal.cache :as c]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
-            [internal.node :as in]
             [internal.refresh :refer [refresh-message refresh-subsystem]]
             [internal.repaint :as repaint]
             [internal.transaction :as it]
