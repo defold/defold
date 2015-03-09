@@ -85,7 +85,7 @@
 
 (defn cache-peek
   [id label]
-  (if-let [x (get cache/cache-snapshot [id label])]
+  (if-let [x (get (cache/cache-snapshot) [id label])]
     x
     :value-not-cached))
 
