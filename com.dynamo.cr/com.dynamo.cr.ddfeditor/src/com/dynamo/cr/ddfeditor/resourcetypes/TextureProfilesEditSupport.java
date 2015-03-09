@@ -20,11 +20,11 @@ public class TextureProfilesEditSupport implements IResourceTypeEditSupport {
             return TextureProfile.newBuilder().setName("unnamed").build();
         }
         else if (descriptor.getFullName().equals(PlatformProfile.getDescriptor().getFullName())) {
-            TextureFormatAlternative tmpFormat = TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();
+            TextureFormatAlternative tmpFormat = TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).setCompressionLevel(TextureFormatAlternative.CompressionLevel.BEST).build();
             return PlatformProfile.newBuilder().setOs(PlatformProfile.OS.OS_ID_GENERIC).setMipmaps(true).addFormats(tmpFormat).build();
         }
         else if (descriptor.getFullName().equals(TextureFormatAlternative.getDescriptor().getFullName())) {
-            return TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).build();
+            return TextureFormatAlternative.newBuilder().setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA).setCompressionLevel(TextureFormatAlternative.CompressionLevel.BEST).build();
         }
         else if (descriptor.getFullName().equals(PathSettings.getDescriptor().getFullName())) {
             return PathSettings.newBuilder().setPath("**").setProfile("Default").build();
