@@ -9,6 +9,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
+import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
@@ -97,9 +98,12 @@ public class TileSetGenerator {
 
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
 
+        // Since all the images already are positioned optimally in a grid,
+        // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
+        Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
         TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0,
                 tileSet.getInnerPadding(),
-                tileSet.getExtrudeBorders(), genOutlines, genAtlasVertices, false, true);
+                tileSet.getExtrudeBorders(), genOutlines, genAtlasVertices, false, true, grid_size );
 
         TextureSet.Builder builder = result.builder;
 

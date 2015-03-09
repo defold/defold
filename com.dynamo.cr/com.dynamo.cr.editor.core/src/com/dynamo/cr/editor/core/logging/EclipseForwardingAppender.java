@@ -42,9 +42,6 @@ public class EclipseForwardingAppender extends ConsoleAppender<ILoggingEvent> {
         if (proxy instanceof ThrowableProxy) {
             ThrowableProxy p = (ThrowableProxy) proxy;
             throwable = p.getThrowable();
-        } else {
-            // NOTE: No logging here... :-)
-            System.err.println("FATAL: proxy isn't an instance of ThrowableProxy. Unable to extract throwable.");
         }
 
         if (bundle == null) {

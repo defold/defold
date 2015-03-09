@@ -57,6 +57,7 @@ import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
 import com.dynamo.cr.builtins.Builtins;
 import com.dynamo.cr.client.BranchStatusChangedEvent;
@@ -205,6 +206,10 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         super.start(bundleContext);
         plugin = this;
         Activator.context = bundleContext;
+
+        // Install java.util.logging to slf4j logging bridge
+        // java.util.logging is used by TextureGenerator
+        SLF4JBridgeHandler.install();
 
         IPreferenceStore store = getPreferenceStore();
         if (store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING) && !EditorUtil.isDev()) {

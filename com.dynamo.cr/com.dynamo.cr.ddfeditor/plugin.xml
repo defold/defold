@@ -129,6 +129,15 @@
             id="com.dynamo.cr.ddfeditor.cubemapeditor"
             name="Cubemap Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.TextureProfilesEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="texture_profiles"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.textureprofileseditor"
+            name="Texture Profiles Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -201,6 +210,13 @@
             icon="icons/paintcan.png"
             id="com.dynamo.cr.ddfeditor.wizards.RenderNewWizard"
             name="Render File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.TextureProfilesNewWizard"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.wizards.TextureProfilesNewWizard"
+            name="Texture Profiles File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
@@ -514,6 +530,14 @@
                   type-class="image">
             </reference-type-class>
          </references>
+      </resource-type>
+      <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.TextureProfilesEditSupport"
+            file-extension="texture_profiles"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.TextureProfiles"
+            name="Texture Profiles"
+            proto-message-class="com.dynamo.graphics.proto.Graphics$TextureProfiles"
+            template-data="path_settings { path: '**' profile: 'Default' } profiles { name: 'Default' platforms { os: OS_ID_GENERIC formats { format: TEXTURE_FORMAT_RGBA compression_level: BEST } mipmaps: true } }">
       </resource-type>
     </extension>
    <extension

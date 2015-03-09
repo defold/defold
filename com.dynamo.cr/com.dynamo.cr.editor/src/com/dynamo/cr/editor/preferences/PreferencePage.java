@@ -17,6 +17,7 @@ public class PreferencePage
 	private BooleanFieldEditor customApplicationField;
     private FileFieldEditor applicationField;
     private BooleanFieldEditor anonymousLogging;
+    private BooleanFieldEditor enableTextureProfiles;
 
     public PreferencePage() {
 		super(GRID);
@@ -35,6 +36,9 @@ public class PreferencePage
 
         anonymousLogging = new BooleanFieldEditor(PreferenceConstants.P_ANONYMOUS_LOGGING, "Enable anonymous logging", getFieldEditorParent());
         addField(anonymousLogging);
+
+        enableTextureProfiles = new BooleanFieldEditor(PreferenceConstants.P_TEXTURE_PROFILES, "Enable texture profiles", getFieldEditorParent());
+        addField(enableTextureProfiles);
 	}
 
 	@Override
