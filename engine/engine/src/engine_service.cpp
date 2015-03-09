@@ -206,7 +206,8 @@ namespace dmEngineService
             }
             else if (strcmp(key, "HOSTNAME") == 0)
             {
-                return self->m_LocalAddress;
+                // this will be filled in by the SSDP response
+                return "${HTTP-HOST}";
             }
             else if (strcmp(key, "ENGINE_VERSION") == 0)
             {
