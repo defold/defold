@@ -165,7 +165,7 @@ public class SSDP implements ISSDP {
                             discoveredDevices.put(usn, device);
                             ++changeCount;
                         } else {
-                            // The port might have changed (for identical usn) so we check
+                            // The address might have changed (for identical usn) so we check
                             // for equality here (equals in DeviceInfo compares headers)
                             if (!discDevice.equals(device)) {
                                 discoveredDevices.put(usn, device);
