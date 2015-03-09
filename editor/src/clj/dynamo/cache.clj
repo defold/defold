@@ -18,7 +18,7 @@
 
   The collection must contain tuples of [[node-id label] value]."
   [coll]
-  (c/cache-miss (is/system-cache) coll))
+  (c/cache-encache (is/system-cache) coll))
 
 (defn cache-hit
   "Uses the system’s Cache component.
