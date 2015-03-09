@@ -73,7 +73,7 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
     }
 
     public void onAddTextureNode(IPresenterContext context) {
-        String[] textures = context.selectFiles("Add Textures", new String[] { "png", "jpg" });
+        String[] textures = context.selectFiles("Add Textures", new String[] { "atlas", "tilesource" });
         if (textures != null) {
             GuiSceneNode scene = findSceneFromSelection(context.getSelection());
             List<Node> nodes = new ArrayList<Node>(textures.length);

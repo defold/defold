@@ -307,6 +307,18 @@ public class GuiEditorTest {
         EditorTextureDesc textureDesc = editor.getScene().getTextures().iterator().next();
         assertTrue(editor.getScene().getRenderResourceCollection().hasTexture(textureDesc.getName()));
 
+
+        resource = project.getFile("/graphics/atlas.atlas");
+        assertNotNull(resource);
+
+        addTexture.doExecute(editor, resource);
+        assertEquals(2, editor.getScene().getTextures().size());
+
+        textureDesc = editor.getScene().getTextures().iterator().next();
+        assertTrue(editor.getScene().getRenderResourceCollection().hasTexture(textureDesc.getName()));
+
+        history.undo(undoContext, new NullProgressMonitor(), null);
+        assertEquals(1, editor.getScene().getTextures().size());
         history.undo(undoContext, new NullProgressMonitor(), null);
         assertEquals(0, editor.getScene().getTextures().size());
     }
