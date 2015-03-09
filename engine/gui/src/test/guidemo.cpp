@@ -197,7 +197,7 @@ int main(void)
         fread(buf, 1, file_size, f);
         fclose(f);
 
-        dmGui::AddTexture(scene, "checker", (void*) checker_texture);
+        dmGui::AddTexture(scene, "checker", (void*) checker_texture, 0);
 
         dmLuaDDF::LuaSource luaSource;
         memset(&luaSource, 0x00, sizeof(luaSource));

@@ -7,6 +7,7 @@
 #include <render/font_renderer.h>
 #include <gui/gui.h>
 #include "../proto/gui_ddf.h"
+#include "res_textureset.h"
 
 namespace dmGameSystem
 {
@@ -15,7 +16,8 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc*            m_SceneDesc;
         dmGui::HScript                  m_Script;
         dmArray<dmRender::HFontMap>     m_FontMaps;
-        dmArray<dmGraphics::HTexture>   m_Textures;
+        dmArray<TextureSetResource*>    m_TextureSets;
+        dmArray<TextureSetResource>     m_TextureSetProxies;
         const char*                     m_Path;
         dmGui::HContext                 m_GuiContext;
         dmRender::HMaterial             m_Material;
