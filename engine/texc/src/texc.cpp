@@ -39,9 +39,11 @@ namespace dmTexc
         // DXT
         case PF_RGB_DXT1:
         case PF_RGBA_DXT1:
+            return ePVRTPF_DXT1;
         case PF_RGBA_DXT3:
+            return ePVRTPF_DXT3;
         case PF_RGBA_DXT5:
-            printf("DXT formats not supported in PVRTexTool.\n");
+            return ePVRTPF_DXT5;
             break;
         }
         // Should never get here

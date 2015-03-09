@@ -21,6 +21,7 @@ import com.dynamo.bob.TexcLibrary.ColorSpace;
 import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.bob.Platform;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
@@ -185,17 +186,17 @@ public class TextureGenerator {
             }
 
             // PVR textures need to be square on iOS
-            if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 ||
+            if ((newHeight != newWidth) &&
+                (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 ||
                 textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 ||
                 textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 ||
-                textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1) {
+                textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)) {
 
                 Logger logger = Logger.getLogger(TextureGenerator.class.getName());
                 logger.log(Level.WARNING, "PVR compressed texture is not square and will be resized.");
 
                 newWidth = Math.max(newWidth, newHeight);
                 newHeight = newWidth;
-
             }
 
             if (width != newWidth || height != newHeight) {
@@ -286,6 +287,19 @@ public class TextureGenerator {
                     // For example we would rather have a texture format with 3 channels if the input
                     // image has 3 channels, even if the texture profile specified a format with 4 channels.
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
+
+                    // PVRTexLib does not allow DXT compression on other platforms than Windows at the moment.
+                    if (Platform.getHostPlatform() != Platform.X86Win32 &&
+                        (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_DXT1 ||
+                        textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_DXT1 ||
+                        textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_DXT3 ||
+                        textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_DXT5)) {
+
+                        Logger logger = Logger.getLogger(TextureGenerator.class.getName());
+                        logger.log(Level.WARNING, "DXT compression is not supported on this platform.");
+
+                        continue;
+                    }
 
                     try {
                         TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );

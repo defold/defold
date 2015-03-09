@@ -8,6 +8,7 @@ import java.io.IOException;
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.bob.Platform;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
@@ -300,7 +301,7 @@ public class TextureGeneratorTest {
 
 
     @Test
-    public void textOptimalFormat() throws TextureGeneratorException, IOException {
+    public void testOptimalFormat() throws TextureGeneratorException, IOException {
 
         // Create a texture profile with texture compression
         TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
@@ -322,6 +323,44 @@ public class TextureGeneratorTest {
 
         // If input has less channels than target format, it should use a format in the same family with fewer channels (if available).
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+
+    }
+
+    @Test
+    public void testDXTCompress() throws TextureGeneratorException, IOException {
+
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt2 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGB_DXT1);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.addFormats(textureFormatAlt2.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build());
+
+        // Only on Windows can texc compress to DXT textures.
+        if (Platform.getHostPlatform() == Platform.X86Win32) {
+            assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_DXT1, texture.getAlternatives(0).getFormat());
+            assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(1).getFormat());
+            assertEquals(2, texture.getAlternativesCount());
+        } else {
+            assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
+            assertEquals(1, texture.getAlternativesCount());
+        }
 
     }
 
