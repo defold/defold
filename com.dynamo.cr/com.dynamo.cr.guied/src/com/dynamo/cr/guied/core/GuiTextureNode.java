@@ -53,7 +53,7 @@ public class GuiTextureNode {
                 return;
             }
             try {
-                this.animation = textureAnimation.split("/")[1];
+                this.animation = textureAnimation.substring(textureAnimation.indexOf("/")+1);
             } catch (Exception e) {
                 this.animation = null;
             }

@@ -193,26 +193,25 @@ namespace dmGameSystem
                 }
                 if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
                 {
-                    static const char anim_delimiter[] = "/";
                     char texture_str[strlen(node_desc->m_Texture)+1];
                     strcpy(texture_str, node_desc->m_Texture);
-                    const char* texture_name = strtok(texture_str, anim_delimiter);
-                    const char *texture_anim_name = strtok(NULL, anim_delimiter);
+                    char* texture_anim_name = strstr(texture_str, "/");
+                    if(texture_anim_name)
+                        *texture_anim_name++ = 0;
 
-                    dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_name);
+                    dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_str);
                     if (gui_result != dmGui::RESULT_OK)
                     {
-                        dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_name, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
                         result = false;
                     }
 
                     if(texture_anim_name != NULL)
                     {
-                        assert(strtok(NULL, anim_delimiter) == NULL);
                         gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name);
                         if (gui_result != dmGui::RESULT_OK)
                         {
-                            dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_name, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                            dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
                             result = false;
                         }
                     }
