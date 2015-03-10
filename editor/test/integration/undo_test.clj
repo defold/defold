@@ -1,15 +1,16 @@
 (ns integration.undo-test
   (:require [clojure.test :refer :all]
-            [schema.core :as s]
-            [plumbing.core :refer [fnk defnk]]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
+            [dynamo.system.test-support :refer [with-clean-system tx-nodes]]
             [dynamo.types :as dt]
-            [internal.system :as is]
             [editor.atlas :as atlas]
-             [internal.clojure :as clojure])
+            [internal.clojure :as clojure]
+            [internal.system :as is]
+            [plumbing.core :refer [fnk defnk]]
+            [schema.core :as s])
   (:import [java.io File]))
 
 (def not-nil? (complement nil?))
@@ -44,7 +45,7 @@
 
 (deftest preconditions
   (testing "Verify preconditions for remaining tests"
-           (with-clean-world
+           (with-clean-system
              (let [project (load-test-project)
                    history-count 0 ; TODO retrieve actual undo-history count
                    ]
@@ -53,11 +54,11 @@
                  (is (> (count atlas-nodes) 0))
                  (let [atlas-node (first atlas-nodes)
                        editor-node (p/make-editor project (:filename atlas-node))]
-                   (is (= atlas-node (n/get-node-value editor-node :node)))))))))
+                   (is (= atlas-node (g/node-value (:graph @world-ref) cache editor-node :node)))))))))
 
 (deftest open-editor
   (testing "Opening editor does not alter undo history"
-           (with-clean-world
+           (with-clean-system
             (let [project (load-test-project)
                   atlas-node (first (p/nodes-with-extensions project ["atlas"]))
                   editor-node (p/make-editor project (:filename atlas-node))
@@ -68,12 +69,12 @@
 
 (deftest undo-node-deletion-reconnects-editor
   (testing "Undoing the deletion of a node reconnects it to its editor"
-           (with-clean-world
+           (with-clean-system
             (let [project (load-test-project)
                   atlas-node-ref (dt/node-ref (first (p/nodes-with-extensions project ["atlas"])))
                   editor-node-ref (dt/node-ref (p/make-editor project (:filename @atlas-node-ref)))]
               (ds/transactional (ds/delete @atlas-node-ref))
               (is (not-nil? @editor-node-ref))
-              (is (nil? (n/get-node-value @editor-node-ref :node)))
+              (is (nil? (g/node-value (:graph @world-ref) cache @editor-node-ref :node)))
               (is/undo) ; TODO undo should not be in an internal ns
-              (is (not-nil? (n/get-node-value @editor-node-ref :node)))))))
+              (is (not-nil? (g/node-value (:graph @world-ref) cache @editor-node-ref :node)))))))

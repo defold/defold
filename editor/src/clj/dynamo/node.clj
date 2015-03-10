@@ -53,18 +53,15 @@ Define an input with the name, whose values must match the schema.
 Define a property with schema and, possibly, default value and constraints.
 Property type and options have the same syntax as for `dynamo.property/defproperty`.
 
-(output   _symbol_ _type_ (:cached)? (:on-update)? _producer_)
-Define an output to produce values of type. Flags ':cached' and
-':on-update' are optional. _producer_ may be a var that names an fn, or fnk.
-It may also be a function tail as [arglist] + forms.
+(output _symbol_ _type_ (:cached)? _producer_)
+
+Define an output to produce values of type. The ':cached' flag is
+optional. _producer_ may be a var that names an fn, or fnk.  It may
+also be a function tail as [arglist] + forms.
 
 Values produced on an output with the :cached flag will be cached in memory until
 the node is affected by some change in inputs or properties. At that time, the
 cached value will be sent for disposal.
-
-Ordinarily, an output value is not produced until it is requested. However, an
-output with the :on-update flag will be updated as soon as possible after the
-previous value is invalidated.
 
 Example (from [[editors.atlas]]):
 

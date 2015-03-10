@@ -41,7 +41,6 @@
   (injectable-inputs'   [this])
   (outputs'             [this])
   (cached-outputs'      [this])
-  (auto-update-outputs' [this])
   (event-handlers'      [this])
   (output-dependencies' [this]))
 
@@ -65,7 +64,6 @@
   (input-types         [this]        "Return a map from input label to schema of the value type allowed for the input")
   (outputs             [this]        "Return a set of labels for the outputs of this node.")
   (cached-outputs      [this]        "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
-  (auto-update-outputs [this]        "Return a set of labels for the outputs of this node which are updated whenever they get invalidated. This must be a subset of 'outputs'.")
   (output-dependencies [this]        "Return a map of labels for the inputs and properties to outputs that depend on them."))
 
 (defprotocol MessageTarget

@@ -53,7 +53,7 @@
   (input operand String))
 
 (n/defnode UpdatesExpensiveValue
-  (output expensive-value String :cached :on-update
+  (output expensive-value String :cached
     (fn [node g]
       (tally node 'compute-expensive-value)
       "this took a long time to produce")))

@@ -300,7 +300,7 @@ maybe cache the value that was produced, and return it."
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-  [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers auto-update-outputs output-dependencies]
+  [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers output-dependencies]
 
   t/NodeType
   (supertypes           [_] supertypes)
@@ -315,7 +315,6 @@ maybe cache the value that was produced, and return it."
   (injectable-inputs'   [_] injectable-inputs)
   (outputs'             [_] (set (keys transforms)))
   (cached-outputs'      [_] cached-outputs)
-  (auto-update-outputs' [_] auto-update-outputs)
   (event-handlers'      [_] event-handlers)
   (output-dependencies' [_] output-dependencies))
 
@@ -378,7 +377,6 @@ not called directly."
     (update-in [:transforms]          combine-with merge      {} (from-supertypes description t/transforms'))
     (update-in [:transform-types]     combine-with merge      {} (from-supertypes description t/transform-types'))
     (update-in [:cached-outputs]      combine-with set/union #{} (from-supertypes description t/cached-outputs'))
-    (update-in [:auto-update-outputs] combine-with set/union #{} (from-supertypes description t/auto-update-outputs'))
     (update-in [:event-handlers]      combine-with set/union #{} (from-supertypes description t/event-handlers'))
     (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description t/interfaces))
     (update-in [:protocols]           combine-with set/union #{} (from-supertypes description t/protocols))
@@ -419,9 +417,6 @@ not called directly."
 
     (:cached properties)
     (update-in [:cached-outputs] #(conj (or % #{}) label))
-
-    (:on-update properties)
-    (update-in [:auto-update-outputs] #(conj (or % #{}) label))
 
     (:abstract properties)
     (update-in [:transforms] assoc-in [label :production-fn] (abstract-function label schema))
@@ -472,7 +467,7 @@ must be part of a protocol or interface attached to the description."
   [description sym argv fn-def]
   (assoc-in description [:method-impls sym] [argv fn-def]))
 
-(def ^:private property-flags #{:cached :on-update :abstract})
+(def ^:private property-flags #{:cached :abstract})
 (def ^:private option-flags #{:substitute-value})
 
 (defn parse-output-options [args]
@@ -578,7 +573,6 @@ build the node type description (map). These are emitted where you invoked
      (transforms          [_]    (t/transforms' ~node-type-name))
      (transform-types     [_]    (t/transform-types' ~node-type-name))
      (cached-outputs      [_]    (t/cached-outputs' ~node-type-name))
-     (auto-update-outputs [_]    (t/auto-update-outputs' ~node-type-name))
      (properties          [_]    (t/properties' ~node-type-name))
      (output-dependencies [_]    (t/output-dependencies' ~node-type-name))
      ~@(t/interfaces node-type)
