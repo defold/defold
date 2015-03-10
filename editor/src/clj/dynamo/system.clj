@@ -4,9 +4,11 @@
             [clojure.core.cache :as cache]
             [dynamo.file :as file]
             [dynamo.types :as t]
+            [dynamo.util :refer :all]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.graph.query :as q]
+            [internal.graph.tracing :as gt]
             [internal.transaction :as it :refer [Transaction *transaction*]]))
 
 (defn- n->g
@@ -75,6 +77,13 @@ All the list forms look for symbols in the first position. Be sure to quote the 
 to distinguish it from a function call."
   [world-ref clauses]
   (map #(node world-ref %) (q/query (:graph @world-ref) clauses)))
+
+(defn output-dependencies
+  "Find all the outputs that could be affected by a change in the given outputs.
+  Outputs are specified as pairs of [node-id label] for both the
+  argument and return value."
+  [graph outputs]
+  (gt/trace-dependencies graph outputs))
 
 ; ---------------------------------------------------------------------------
 ; Transactional state

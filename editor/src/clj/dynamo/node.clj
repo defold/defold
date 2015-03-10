@@ -3,34 +3,20 @@
 for defining and instantiating nodes: `defnode` and `construct`.
 
 Second, this namespace defines some of the basic node types and mixins."
-  (:require [clojure.set :as set]
-            [clojure.core.match :refer [match]]
+  (:require [clojure.core.match :refer [match]]
+            [clojure.set :as set]
             [clojure.tools.macro :refer [name-with-attributes]]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [dynamo.util :refer :all]
+            [internal.graph.dgraph :as dg]
+            [internal.graph.lgraph :as lg]
             [internal.node :as in]
             [internal.outline :as outline]
             [internal.property :as ip]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]))
-
-(defn get-node-value
-  "Pull a value from a node's output, identified by `label`.
-The value may be cached or it may be computed on demand. This
-is transparent to the caller.
-
-This uses the current \"world\" value of the node and its output.
-That means the caller will receive a value consistent with the most
-recently committed transaction.
-
-The label must exist as a defined transform on the node, or an
-AssertionError will result."
-  [node label]
-  (in/get-node-value node label))
+            [plumbing.core :refer [defnk fnk]]
+            [schema.core :as s]))
 
 (defn construct
   "Creates an instance of a node. The node-type must have been
@@ -182,15 +168,6 @@ This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
   (process-one-event (ds/refresh node) (assoc body :type type)))
 
-
-(defn get-node-inputs
-  "Sometimes a production function needs direct access to an input source.
-   This function takes any number of input labels and returns a vector of their
-   values, in the same order."
-  [node & labels]
-  ;; TODO: Pass graph or world value into this function to avoid interactions with concurrent transactions..
-  (map (in/collect-inputs (-> node :world-ref deref) node (zipmap labels (repeat :ok))) labels))
-
 ; ---------------------------------------------------------------------------
 ; Bootstrapping the core node types
 ; ---------------------------------------------------------------------------
@@ -199,17 +176,19 @@ This function should mainly be used to create 'plumbing'."
 This function should not be called directly."
   [transaction graph self label kind inputs-affected]
   (when (inputs-affected :nodes)
-    (let [world                    {:graph graph} ; TODO: We're cheating here... we need a real "world" value.
-          existing-nodes           (cons self (in/get-inputs world self :nodes))
-          nodes-added              (filter #((:nodes-added transaction) (:_id %)) existing-nodes)
-          out-from-new-connections (in/injection-candidates existing-nodes nodes-added)
-          in-to-new-connections    (in/injection-candidates nodes-added existing-nodes)
-          candidates               (set/union out-from-new-connections in-to-new-connections)
+    (let [nodes-before-txn         (cons self (in/get-inputs (ds/pre-transaction-graph transaction) self :nodes))
+          nodes-after-txn          (in/get-inputs (ds/in-transaction-graph transaction) self :nodes)
+          nodes-before-txn-ids     (into #{} (map :_id nodes-before-txn))
+          new-nodes-in-scope       (remove nodes-before-txn-ids nodes-after-txn)
+          out-from-new-connections (in/injection-candidates nodes-before-txn new-nodes-in-scope)
+          in-to-new-connections    (in/injection-candidates new-nodes-in-scope nodes-before-txn)
+          between-new-nodes        (in/injection-candidates new-nodes-in-scope new-nodes-in-scope)
+          candidates               (set/union out-from-new-connections in-to-new-connections between-new-nodes)
           candidates               (remove (fn [[out out-label in in-label]]
                                              (or
-                                               (= (:_id out) (:_id in))
-                                               (lg/connected? graph (:_id out) out-label (:_id in) in-label)))
-                                     candidates)]
+                                              (= (:_id out) (:_id in))
+                                              (lg/connected? graph (:_id out) out-label (:_id in) in-label)))
+                                           candidates)]
       (doseq [connection candidates]
         (apply ds/connect connection)))))
 
@@ -218,8 +197,8 @@ This function should not be called directly."
 This should not be called directly."
   [transaction graph self label kind]
   (when (ds/is-deleted? transaction self)
-    (let [world-before-deletion (-> transaction :world-ref deref) ; TODO: We should use a world value explicitly passed to us (instead of deref-ing current value).
-          nodes-to-delete       (:nodes (in/collect-inputs world-before-deletion self {:nodes :ok}))]
+    (let [graph-before-deletion (-> transaction :world-ref deref :graph)
+          nodes-to-delete       (in/get-inputs graph-before-deletion self :nodes)]
       (doseq [n nodes-to-delete]
         (ds/delete n)))))
 
@@ -237,10 +216,11 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted  #'dispose-nodes)
 
-  (output dictionary s/Any in/scope-dictionary)
-
   NamingContext
-  (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))
+  (lookup
+   [this nm]
+   (let [nodes (in/get-inputs (-> this :world-ref deref :graph) this :nodes)]
+     (first (filter #(= nm (:name %)) nodes)))))
 
 (defnode RootScope
   "There should be exactly one RootScope in the graph, with ID 1.
