@@ -264,7 +264,7 @@ public class TextureGeneratorTest {
         assertEquals(16, texture.getAlternatives(1).getHeight());
 
 
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(2).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(2).getFormat());
         assertEquals(128, texture.getAlternatives(2).getWidth());
         assertEquals(64, texture.getAlternatives(2).getHeight());
 
@@ -323,6 +323,61 @@ public class TextureGeneratorTest {
 
         // If input has less channels than target format, it should use a format in the same family with fewer channels (if available).
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, texture.getAlternatives(0).getFormat());
+
+    }
+
+
+    @Test
+    public void testOptimalFormatLUM2LUM() throws TextureGeneratorException, IOException {
+
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_lum.png"), textureProfile.build());
+
+        // If input has less channels than target format (and is uncompressed) pick the format with equal components to not waste memory.
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(0).getFormat());
+        assertEquals(128*64*1, texture.getAlternatives(0).getData().toByteArray().length);
+
+    }
+
+    @Test
+    public void testOptimalFormatRGB2LUM() throws TextureGeneratorException, IOException {
+
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build());
+
+        // If input has more channels than target format (and is uncompressed) discard channels.
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(0).getFormat());
+        assertEquals(128*64*1, texture.getAlternatives(0).getData().toByteArray().length);
 
     }
 

@@ -44,7 +44,6 @@ public class TextureGenerator {
 
     private static HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<TextureFormat, Integer>();
     static {
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB, PixelFormat.R8G8B8);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_LUMINANCE, PixelFormat.L8);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB, PixelFormat.R8G8B8);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA, PixelFormat.R8G8B8A8);
@@ -87,9 +86,14 @@ public class TextureGenerator {
     private static TextureFormat pickOptimalFormat(int componentCount, TextureFormat targetFormat) {
 
         switch (targetFormat) {
-            // Uncompressed formats
-            case TEXTURE_FORMAT_LUMINANCE:
-            case TEXTURE_FORMAT_RGB:
+
+            // Force down to luminance if only 1 input component
+            case TEXTURE_FORMAT_RGB: {
+                if (componentCount == 1)
+                    return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
+                return TextureFormat.TEXTURE_FORMAT_RGB;
+            }
+
             case TEXTURE_FORMAT_RGBA: {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
@@ -97,12 +101,6 @@ public class TextureGenerator {
                     return TextureFormat.TEXTURE_FORMAT_RGB;
 
                 return TextureFormat.TEXTURE_FORMAT_RGBA;
-            }
-
-            // PVRTC with 3 channels
-            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1: {
-                return targetFormat;
             }
 
             // PVRTC with 4 channels
@@ -119,21 +117,11 @@ public class TextureGenerator {
             }
 
             // DXT
-            case TEXTURE_FORMAT_RGBA_DXT1:
-            case TEXTURE_FORMAT_RGBA_DXT3:
-            case TEXTURE_FORMAT_RGBA_DXT5: {
+            case TEXTURE_FORMAT_RGBA_DXT1: {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_DXT1;
 
                 return targetFormat;
-            }
-
-            case TEXTURE_FORMAT_RGB_DXT1: {
-                return TextureFormat.TEXTURE_FORMAT_RGB_DXT1;
-            }
-
-            case TEXTURE_FORMAT_RGB_ETC1: {
-                return TextureFormat.TEXTURE_FORMAT_RGB_ETC1;
             }
         }
 
