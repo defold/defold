@@ -4,35 +4,23 @@
             [com.stuartsierra.component :as component]
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [in]]
+            [internal.async :as ia]
+            [internal.cache :as c]
             [internal.system :as is]
             [internal.transaction :as it]))
-
-(defn clean-world
-  []
-  (let [report-ch   (a/chan (a/dropping-buffer 1))
-        disposal-ch (a/chan (a/dropping-buffer 10))
-        world       (is/world report-ch (ref #{}) disposal-ch)]
-    (component/start world)))
 
 (defn clean-system
   []
   (component/start-system (is/system)))
 
-(defmacro with-clean-world
-  [& forms]
-  `(let [~'world     (clean-world)
-         ~'world-ref (:state ~'world)
-         ~'root      (ds/node ~'world-ref 1)]
-     (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
-       (ds/in ~'root
-           ~@forms))))
-
 (defmacro with-clean-system
   [& forms]
-  `(let [~'system    (clean-system)
-         ~'world     (:world ~'system)
-         ~'world-ref (:state ~'world)
-         ~'root      (ds/node ~'world-ref 1)]
+  `(let [~'system      (clean-system)
+         ~'world       (:world ~'system)
+         ~'cache       (:cache ~'system)
+         ~'world-ref   (:state ~'world)
+         ~'disposal-ch (get-in ~'system [:cache :dispose-ch])
+         ~'root        (ds/node ~'world-ref 1)]
      (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
        (ds/in ~'root
               ~@forms))))
@@ -53,6 +41,10 @@
           (a/put! valch n))))
     (first (a/alts!! [valch timer]))))
 
+(defn take-waiting-to-dispose
+  [system]
+  (ia/take-all (get-in system [:cache :dispose-ch])))
+
 (defn tempfile
   ^java.io.File [prefix suffix auto-delete?]
   (let [f (java.io.File/createTempFile prefix suffix)]
@@ -65,3 +57,8 @@
     (= (class a) (class b))
     (= (count a) (count b))
     (every? true? (map = a b))))
+
+(defn yield
+  "Give up the thread just long enough for a context switch"
+  []
+  (Thread/sleep 1))

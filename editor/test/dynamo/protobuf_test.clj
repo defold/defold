@@ -10,7 +10,7 @@
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-world]]
+            [dynamo.system.test-support :refer [with-clean-system]]
             [internal.transaction :as it])
   (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [dynamo.types Animation Image]))
@@ -54,7 +54,7 @@
 
 (deftest node-connections-have-right-cardinality
   (testing "Children of the atlas node should be created exactly once."
-    (with-clean-world
+    (with-clean-system
       (let [message    (atlas-with-one-animation "the-animation")
             atlas-node (ds/transactional (message->node message))
             anim-node  (ds/node-feeding-into atlas-node :animations)]

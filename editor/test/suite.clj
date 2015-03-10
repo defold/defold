@@ -11,7 +11,6 @@
                       'internal.math-test
                       'internal.node-test
                       'internal.packing-test
-                      'internal.refresh-test
                       'internal.scope-test
                       'internal.system-test
                       'internal.type-test

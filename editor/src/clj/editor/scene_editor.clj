@@ -1,52 +1,51 @@
 (ns editor.scene-editor
   (:require [clojure.java.io :as io]
-            [schema.core :as s]
-            [internal.clojure :as clojure]
-            [editor.input :as i]
-            [editor.camera :as c]
+            [dynamo.background :as background]
+            [dynamo.file :as f]
+            [dynamo.geom :as geom]
+            [dynamo.gl :as gl]
+            [dynamo.graph :as g]
+            [dynamo.grid :as grid]
             [dynamo.node :as n]
+            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.file :as f]
-            [dynamo.project :as p]
-            [dynamo.geom :as g]
-            [dynamo.gl :as gl]
-            [dynamo.background :as background]
-            [dynamo.grid :as grid]
-            [internal.system :as is]
-            [internal.transaction :as it]
+            [dynamo.types :refer [IDisposable dispose]]
+            [editor.camera :as c]
+            [editor.input :as i]
+            [internal.clojure :as clojure]
             [internal.disposal :as disp]
             [internal.render.pass :as pass]
-            [service.log :as log]
+            [internal.system :as is]
+            [internal.transaction :as it]
             [plumbing.core :refer [fnk defnk]]
-            [dynamo.types :refer [IDisposable dispose]]
-            )
-  (:import  [com.defold.editor Start UIUtil]
-            [java.io File]
-            [java.lang Runnable System]
-            [java.nio.file Paths]
-            [java.awt Font]
-            [java.awt.image BufferedImage]
-            [javafx.animation AnimationTimer]
-            [javafx.application Platform]
-            [javafx.beans.value ChangeListener]
-            [javafx.fxml FXMLLoader]
-            [javafx.collections FXCollections ObservableList]
-            [javafx.geometry BoundingBox]
-            [javafx.scene Scene Node Parent]
-            [javafx.stage Stage FileChooser]
-            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-            [javafx.scene.input MouseEvent]
-            [javafx.event ActionEvent EventHandler]
-            [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-            [javafx.scene.layout AnchorPane StackPane Pane HBox Priority]
-            [javafx.embed.swing SwingFXUtils]
-            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]
-            [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-            [javax.media.opengl.glu GLU]
-            [com.jogamp.opengl.util.awt TextRenderer Screenshot]
-            [dynamo.types Camera AABB Region]
-            ))
+            [schema.core :as s]
+            [service.log :as log])
+  (:import [com.defold.editor Start UIUtil]
+           [com.jogamp.opengl.util.awt TextRenderer Screenshot]
+           [dynamo.types Camera AABB Region]
+           [java.awt Font]
+           [java.awt.image BufferedImage]
+           [javafx.animation AnimationTimer]
+           [javafx.application Platform]
+           [javafx.beans.value ChangeListener]
+           [javafx.collections FXCollections ObservableList]
+           [javafx.embed.swing SwingFXUtils]
+           [javafx.event ActionEvent EventHandler]
+           [javafx.fxml FXMLLoader]
+           [javafx.geometry BoundingBox]
+           [javafx.scene Scene Node Parent]
+           [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.image Image ImageView WritableImage PixelWriter]
+           [javafx.scene.input MouseEvent]
+           [javafx.scene.layout AnchorPane StackPane Pane HBox Priority]
+           [javafx.stage Stage FileChooser]
+           [java.io File]
+           [java.lang Runnable System]
+           [java.nio.file Paths]
+           [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [javax.media.opengl.glu GLU]
+           [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -65,7 +64,7 @@
 
 (defn z-distance [camera viewport obj]
   (let [p (->> (Point3d.)
-            (g/world-space obj)
+            (geom/world-space obj)
             (c/camera-project camera viewport))]
     (long (* Integer/MAX_VALUE (.z p)))))
 
@@ -218,10 +217,10 @@
           (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
           (let [repainter (proxy [AnimationTimer] []
                             (handle [now]
-                              (let [self @self-ref
+                              (let [self                  @self-ref
                                     image-view ^ImageView (:image-view self)
-                                    frame (n/get-node-value self :frame)
-                                    visible (:visible self)]
+                                    frame                 (g/node-value self :frame)
+                                    visible               (:visible self)]
                                 (when frame
                                   (.setImage image-view (SwingFXUtils/toFXImage frame (.getImage image-view)))))))]
             (ds/transactional (ds/set-property self :repainter repainter))
