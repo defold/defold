@@ -20,19 +20,23 @@ public class TextureNode extends Node implements Identifiable {
     @Unique(scope = TextureNode.class, base = TexturesNode.class)
     private String id;
 
-    String[] textureSetFormats = {".atlas", ".tilesource"};
-    private boolean isTextureSet(String resourceName) {
-        for (String name : this.textureSetFormats) {
-            if(resourceName.endsWith(name))
-                return true;
-        }
-        return false;
+    enum subType {
+        ATLAS,
+        TILESOURCE,
+        TEXTURE,
+    }
+    private subType resourceSubType = subType.TEXTURE;
+
+    private subType getResourceSubType(String resourceName) {
+        if(resourceName.endsWith(".atlas"))
+            return subType.ATLAS;
+        if(resourceName.endsWith(".tilesource"))
+            return subType.TILESOURCE;
+        return subType.TEXTURE;
     }
 
     @Property(editorType = EditorType.RESOURCE, extensions = { "jpg", "png", "atlas", "tilesource" })
     private String texture;
-
-    private boolean isTextureSet = false;
 
     public TextureNode() {
         this.texture = "";
@@ -40,7 +44,7 @@ public class TextureNode extends Node implements Identifiable {
     }
 
     public TextureNode(String texture) {
-        this.isTextureSet = isTextureSet(texture);
+        this.resourceSubType = getResourceSubType(texture);
         this.texture = texture;
         this.id = new Path(texture).removeFileExtension().lastSegment();
     }
@@ -60,7 +64,7 @@ public class TextureNode extends Node implements Identifiable {
     }
 
     public void setTexture(String texture) {
-        this.isTextureSet = isTextureSet(texture);
+        this.resourceSubType = getResourceSubType(texture);
         this.texture = texture;
     }
 
@@ -71,6 +75,18 @@ public class TextureNode extends Node implements Identifiable {
 
     @Override
     public Image getIcon() {
-        return Activator.getDefault().getImageRegistry().get(this.isTextureSet ? Activator.TEXTURE_ATLAS_IMAGE_ID : Activator.TEXTURE_IMAGE_ID);
+        String iconImageKey;
+        switch(this.resourceSubType) {
+        case ATLAS:
+            iconImageKey = Activator.TEXTURE_ATLAS_IMAGE_ID;
+            break;
+        case TILESOURCE:
+            iconImageKey = Activator.TEXTURE_TILESOURCE_IMAGE_ID;
+            break;
+        default:
+            iconImageKey = Activator.TEXTURE_IMAGE_ID;
+            break;
+        }
+        return Activator.getDefault().getImageRegistry().get(iconImageKey);
     }
 }
