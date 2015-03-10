@@ -32,21 +32,31 @@
 ;; ---------------------------------------------------------------------------
 ;; New evaluation
 ;; ---------------------------------------------------------------------------
+(defn abort
+  [why _ in-production node-id label & _]
+  (throw (ex-info (str why " Trying to produce " node-id ", " label)
+                  {:node-id node-id :label label :in-production in-production})))
+
+(def not-found (partial abort "No such property, input or output."))
+(def cycle-detected (partial abort "Production cycle detected."))
+
 (defn not-found
   [graph in-production node-id label & _]
-  (throw (ex-info "No such property, input or output" {:node-id node-id :label label :in-production in-production})))
+  (throw (ex-info  {:node-id node-id :label label :in-production in-production})))
 
 (defn cycle-detected
   [graph in-production node-id label & _]
-  (throw (ex-info (str "Production cycle detected. Trying to produce " node-id ", " label) {:node-id node-id :label label :in-production in-production})))
+  (throw (ex-info (str " Trying to produce " node-id ", " label) {:node-id node-id :label label :in-production in-production})))
 
 (defn- chain-eval
+  "Start a chain of evaluators"
   [evaluators graph in-production node-id label]
   (let [chain-head    (first evaluators)
         chain-tail    (next evaluators)]
     (chain-head graph in-production node-id label evaluators chain-tail)))
 
 (defn- continue
+  "Continue evaluation with the next link in the chain."
   [graph in-production node-id label chain-head chain-next]
   ((first chain-next) graph in-production node-id label chain-head (next chain-next)))
 
@@ -56,8 +66,15 @@
 (defn- has-output? [node label] (some-> node t/transforms label boolean))
 (def ^:private first-source (comp first lg/sources))
 
-
 (defn- evaluate-input-internal
+  "Gather an named argument for a production function. Depending on
+  the name, this could mean one of five things:
+
+  1. It names an input label. Evaluate the sources to get their values.
+  2. It names a property of the node itself. Return the value of the property.
+  3. It names another output of the same node. (The node has functions that depend on other outputs of the same node.) Evaluate that output first, then use its value.
+  4. It is the special name :this. Use the entire node as an argument.
+  5. It is the special name :g. Use the entire graph as an argument."
   [graph in-production node-id label chain-head]
   (let [node             (dg/node graph node-id)
         input-schema     (some-> node t/input-types label)
@@ -92,13 +109,7 @@
       (e/bind node))))
 
 (defn- collect-inputs-2
-  "Return a map of all inputs needed for the input-schema. Every map
-  includes the special keys :g and :this
-
-:g - The input graph
-:this - The node's value from the input graph
-
-All other keys are passed along to evaluate-input-internal for resolution."
+  "Return a map of all inputs needed for the input-schema."
   [graph in-production node-id label chain-head input-schema]
   (reduce-kv
    (fn [inputs desired-input-name desired-input-schema]
@@ -108,6 +119,8 @@ All other keys are passed along to evaluate-input-internal for resolution."
    (dissoc input-schema s/Keyword)))
 
 (defn- produce-with-schema
+  "Helper function: if the production function has schema information,
+  use it to collect the required arguments."
   [graph in-production node-id label chain-head production-fn]
   (let [input-schema (pf/input-schema production-fn)]
     (e/bind
@@ -116,6 +129,8 @@ All other keys are passed along to evaluate-input-internal for resolution."
                 (collect-inputs-2 graph in-production node-id label chain-head input-schema))))))
 
 (defn apply-transform-or-substitute
+  "Attempt to invoke the production function for an output. If it
+  fails, call the transform's substitute value function."
   [graph in-production node-id label chain-head transform]
   (let [producer (:production-fn transform)
         fallback (:substitute-value-fn transform)]
@@ -129,18 +144,28 @@ All other keys are passed along to evaluate-input-internal for resolution."
          (throw e))))))
 
 (defn mark-in-production
+  "This evaluation function checks whether the requested value is
+  already being computed. If so, it means there is a cycle in the
+  graph somewhere, so we must abort."
   [graph in-production node-id label chain-head chain-next]
   (if (some #{[node-id label]} in-production)
     (cycle-detected graph in-production node-id label)
-    (continue graph in-production node-id label chain-head chain-next)))
+    (continue graph (conj in-production [node-id label]) node-id label chain-head chain-next)))
 
 (defn evaluate-production-function
+  "This evaluation function looks for a production function to create
+  the output on the node. If there is a production function, it
+  gathers the arguments needed for the production function and invokes
+  it."
   [graph in-production node-id label chain-head chain-next]
   (if-let [transform (some->> node-id (dg/node graph) t/transforms label)]
     (apply-transform-or-substitute graph in-production node-id label chain-head transform)
     (continue graph in-production node-id label chain-head chain-next)))
 
 (defn lookup-property
+  "This evaluation function looks for a property on the node. If there
+  is no such property, evaluation continues with the rest of the
+  chain."
   [graph in-production node-id label chain-head chain-next]
   (let [node (dg/node graph node-id)]
     (if (has-property? node label)
@@ -148,6 +173,10 @@ All other keys are passed along to evaluate-input-internal for resolution."
       (continue graph in-production node-id label chain-head chain-next))))
 
 (defn read-input
+  "This evaluation function looks for an input to the node. If the
+  input exists and is multivalued, then all the incoming values are
+  conjed together. If the input does not exist, evaluation continues
+  with the rest of the chain."
   [graph in-production node-id label chain-head chain-next]
   (let [node             (dg/node graph node-id)
         input-schema     (some-> node t/input-types label)]
@@ -179,8 +208,15 @@ All other keys are passed along to evaluate-input-internal for resolution."
    not-found])
 
 (defn local-deltas
-  "Return a thunk. The thunk will look at some local state for any
-  values that have already been computed during this process."
+  "Returns a pair of [evaluator, accumulator]. The evaluator is an evaluation function
+  that looks for any values that have already been produced during this computation.
+
+  If no local delta is found, the evaluator continues the
+  chain. Whatever the chain returns gets recorded as a local delta for
+  possible use during the remainder of the evaluation.
+
+  When called, the accumulator function returns triples of [node-id
+  label value] for the values that have been produced."
   [cache]
   (let [deltas (atom [])
         delta  (fn [node-id label v] (swap! deltas conj [[node-id label] v]) v)
@@ -193,6 +229,11 @@ All other keys are passed along to evaluate-input-internal for resolution."
      (fn [] @deltas)]))
 
 (defn cache-lookup
+  "Returns a pair of [evaluator, accumulator]. The evaluator is an evaluation function.
+
+  The evaluator collects records of values that were 'hits' in the
+  cache. Those records can be retrieved by calling the accumulator
+  function."
   [cache]
   (let [snapshot (c/cache-snapshot cache)
         hits     (atom [])
@@ -204,13 +245,22 @@ All other keys are passed along to evaluate-input-internal for resolution."
      (fn [] @hits)]))
 
 (defn fork
+  "Return a thunk for an evaluation chain. When invoked during evaluation,
+  it will call `test` with 6 arguments: the graph, the in-production
+  set, the node-id and label, the head of the evaluation chain and the
+  rest of the current chain.
+
+  The rest of the current chain should be 2 items
+  long. Each one is a nested sequence of evaluators."
   [test]
   (fn [graph in-production node-id label chain-head chain-next]
+    (assert (= 2 (count chain-next)))
     (let [[consequent alternate & _] chain-next
           branch?                    (test graph node-id label)]
       (chain-eval (if branch? consequent alternate) graph in-production node-id label))))
 
-(defn cacheable?
+(defn- cacheable?
+  "Check the node type to see if the given output should be cached once computed."
   [graph node-id label]
   ((t/cached-outputs (dg/node graph node-id)) label))
 
@@ -221,19 +271,19 @@ All other keys are passed along to evaluate-input-internal for resolution."
 If the value is cacheable and exists in the cache, then return that value. Otherwise,
 produce the value by gathering inputs to call a production function, invoke the function,
 maybe cache the value that was produced, and return it."
-  ([graph cache node-id label]
-   (let [[local-lookup deltas] (local-deltas cache)
-         [cache-lookup hits]   (cache-lookup cache)
-         evaluators            [fork-cacheable
-                                (list* local-lookup
-                                       cache-lookup
-                                       world-evaluation-chain)
-                                world-evaluation-chain]
-         result                (chain-eval evaluators graph #{} node-id label)]
-     (do
-       (c/cache-hit cache (hits))
-       (c/cache-encache cache (deltas)))
-     (e/result result))))
+  [graph cache node-id label]
+  (let [[local-lookup deltas] (local-deltas cache)
+        [cache-lookup hits]   (cache-lookup cache)
+        evaluators            [fork-cacheable
+                               (list* local-lookup
+                                      cache-lookup
+                                      world-evaluation-chain)
+                               world-evaluation-chain]
+        result                (chain-eval evaluators graph #{} node-id label)]
+    (do
+      (c/cache-hit cache (hits))
+      (c/cache-encache cache (deltas)))
+    (e/result result)))
 
 ;; ---------------------------------------------------------------------------
 ;; Value handling
