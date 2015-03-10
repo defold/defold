@@ -1,19 +1,16 @@
 (ns editor.atlas
   (:require [clojure.set :refer [difference union]]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [service.log :as log]
             [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.file :as file]
             [dynamo.file.protobuf :as protobuf :refer [pb->str]]
-            [dynamo.geom :as g]
+            [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
             [dynamo.gl.vertex :as vtx]
+            [dynamo.graph :as g]
             [dynamo.grid :as grid]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
@@ -23,20 +20,24 @@
             [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
-            [internal.render.pass :as pass]
             [editor.camera :as c]
+            [editor.image-node :as ein]
             [editor.scene-editor :as sceneed]
-            [editor.image-node :as ein])
-  (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
-            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
-            [com.dynamo.tile.proto Tile$Playback]
-            [com.jogamp.opengl.util.awt TextRenderer]
-            [dynamo.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-            [java.awt.image BufferedImage]
-            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-            [javax.media.opengl.glu GLU]
-            [javax.vecmath Matrix4d]))
+            [internal.render.pass :as pass]
+            [plumbing.core :refer [fnk defnk]]
+            [schema.core :as s]
+            [schema.macros :as sm]
+            [service.log :as log])
+  (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
+           [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
+           [com.dynamo.tile.proto Tile$Playback]
+           [com.jogamp.opengl.util.awt TextRenderer]
+           [dynamo.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [java.awt.image BufferedImage]
+           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
+           [javax.media.opengl.glu GLU]
+           [javax.vecmath Matrix4d]))
 
 (vtx/defvertex engine-format-texture
   (vec3.float position)
@@ -111,10 +112,10 @@
         y0 (* -0.5 (.height coord))
         x1 (*  0.5 (.width  coord))
         y1 (*  0.5 (.height coord))
-        outline-vertices [[x0 y0 0 (g/to-short-uv u0) (g/to-short-uv v1)]
-                          [x1 y0 0 (g/to-short-uv u1) (g/to-short-uv v1)]
-                          [x1 y1 0 (g/to-short-uv u1) (g/to-short-uv v0)]
-                          [x0 y1 0 (g/to-short-uv u0) (g/to-short-uv v0)]]]
+        outline-vertices [[x0 y0 0 (geom/to-short-uv u0) (geom/to-short-uv v1)]
+                          [x1 y0 0 (geom/to-short-uv u1) (geom/to-short-uv v1)]
+                          [x1 y1 0 (geom/to-short-uv u1) (geom/to-short-uv v0)]
+                          [x0 y1 0 (geom/to-short-uv u0) (geom/to-short-uv v0)]]]
     (t/map->TextureSetAnimationFrame
      {:image            image ; TODO: is this necessary?
       :outline-vertices outline-vertices
@@ -204,10 +205,10 @@
 (defnk produce-renderable :- RenderData
   [this texture-packing vertex-binding gpu-texture]
   {pass/overlay
-   [{:world-transform g/Identity4d
+   [{:world-transform geom/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer texture-packing))}]
    pass/transparent
-   [{:world-transform g/Identity4d
+   [{:world-transform geom/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-texture-packing ctx gl texture-packing vertex-binding gpu-texture))}]})
 
 (defnk produce-renderable-vertex-buffer
@@ -365,9 +366,8 @@
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
 (defn broadcast-event [this event]
-  (let [[controllers] (n/get-node-inputs this :controllers)]
-    (doseq [controller controllers]
-      (t/process-one-event controller event))))
+  (doseq [controller (first (g/node-value this :controllers))]
+    (t/process-one-event controller event)))
 
 (n/defnode BroadcastController
   (input controllers [s/Any])
@@ -436,7 +436,7 @@
 
   (output outline-children [OutlineItem] build-atlas-outline-children)
 
-  (output aabb            AABB               (fnk [texture-packing] (g/rect->aabb (:aabb texture-packing))))
+  (output aabb            AABB               (fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
   (output gpu-texture     s/Any      :cached (fnk [packed-image] (texture/image-texture packed-image)))
   (output save            s/Keyword          save-atlas-file)
   (output text-format     s/Str              get-text-format)

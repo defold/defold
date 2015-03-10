@@ -1,17 +1,18 @@
 (ns internal.node-test
-  (:require [clojure.test :refer :all]
-            [clojure.string :as str]
-            [schema.core :as s]
-            [plumbing.core :refer [defnk fnk]]
-            [dynamo.types :as t]
+  (:require [clojure.string :as str]
+            [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [dynamo.node :as n :refer [defnode construct]]
-            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.project :as p]
+            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
+            [dynamo.system.test-support :refer [with-clean-system tx-nodes]]
+            [dynamo.types :as t]
             [internal.node :as in]
             [internal.system :as is]
-            [internal.transaction :as it]))
+            [internal.transaction :as it]
+            [plumbing.core :refer [defnk fnk]]
+            [schema.core :as s]))
 
 (def ^:dynamic *calls*)
 
@@ -52,7 +53,7 @@
     :ok))
 
 (deftest event-delivery
-  (with-clean-world
+  (with-clean-system
     (let [evented (ds/transactional (ds/add (construct NodeWithEvents)))]
       (is (= :ok (t/process-one-event evented {:type :mousedown})))
       (is (:message-processed (ds/node world-ref (:_id evented)))))))
@@ -108,25 +109,31 @@
 (defnode EmptyNode)
 
 (deftest node-intrinsics
-  (with-clean-world
+  (with-clean-system
     (let [[node] (tx-nodes (construct EmptyNode))]
-      (is (identical? node (in/get-node-value node :self)))))
-  (with-clean-world
-    (let [before   (ds/transactional (ds/add (construct SimpleTestNode)))
-          after    (ds/transactional (ds/set-property before :foo "quux"))
-          override (ds/transactional (ds/add (construct SimpleTestNode :foo "bar")))]
-      (are [expected-value node] (= expected-value (-> (in/get-node-value node :properties) :foo :value))
-           "FOO!" before
-           "quux" after
-           "bar"  override)
-      (is (every? t/property-type? (map :type (vals (in/get-node-value before :properties))))))))
+      (is (identical? node (g/node-value (:graph @world-ref) cache node :self)))))
+  (with-clean-system
+    (let [n1       (ds/transactional (ds/add (construct SimpleTestNode)))
+          before   (:graph @world-ref)
+          _        (ds/transactional (ds/set-property n1 :foo "quux"))
+          after    (:graph @world-ref)
+          n2       (ds/transactional (ds/add (construct SimpleTestNode :foo "bar")))
+          override (:graph @world-ref)]
+      (is (not (identical? before after)))
+      (are [expected-value when node]
+        (= expected-value (-> (g/node-value when cache node :properties) :foo :value))
+           "FOO!" before   n1
+           "quux" after    n1
+           "bar"  override n2)
+      (is (every? t/property-type? (map :type (vals (g/node-value before cache n1 :properties))))))))
 
 (defn- expect-modified
   [properties f]
-  (with-clean-world
+  (with-clean-system
     (let [node (ds/transactional (ds/add (construct SimpleTestNode :foo "one")))]
-     (ds/transactional (f node))
-     (is (= properties (get-in @(:world-ref node) [:last-tx :outputs-modified (:_id node)] #{}))))))
+      (ds/transactional (f node))
+      (let [modified (into #{} (map second (get-in @(:world-ref node) [:last-tx :outputs-modified])))]
+        (is (= properties modified))))))
 
 (deftest invalidating-properties-output
   (expect-modified #{:properties :foo} (fn [node] (ds/set-property    node :foo "two")))
@@ -143,18 +150,16 @@
   (output def-as-symbol  s/Keyword production-val))
 
 (deftest production-function-types
-  (with-clean-world
+  (with-clean-system
     (let [[node] (tx-nodes (construct ProductionFunctionTypesNode))]
-      (is (= :fn   (in/get-node-value node :inline-fn)))
-      (is (= :defn (in/get-node-value node :defn-as-symbol)))
-      (is (= :def  (in/get-node-value node :def-as-symbol))))))
+      (is (= :fn   (g/node-value (:graph @world-ref) cache node :inline-fn)))
+      (is (= :defn (g/node-value (:graph @world-ref) cache node :defn-as-symbol)))
+      (is (= :def  (g/node-value (:graph @world-ref) cache node :def-as-symbol))))))
 
 (defn production-fn-this [this g] this)
 (defn production-fn-g [this g] g)
 (defnk production-fnk-this [this] this)
 (defnk production-fnk-g [g] g)
-(defnk production-fnk-world [world] world)
-(defnk production-fnk-project [project] project)
 (defnk production-fnk-prop [prop] prop)
 (defnk production-fnk-in [in] in)
 (defnk production-fnk-in-multi [in-multi] in-multi)
@@ -170,20 +175,16 @@
   (output defn-g           s/Any     production-fn-g)
   (output defnk-this       s/Any     production-fnk-this)
   (output defnk-g          s/Any     production-fnk-g)
-  (output defnk-world      s/Any     production-fnk-world)
-  (output defnk-project    s/Any     production-fnk-project)
   (output defnk-prop       s/Any     production-fnk-prop)
   (output defnk-in         s/Any     production-fnk-in)
   (output defnk-in-multi   s/Any     production-fnk-in-multi))
 
 (deftest production-function-inputs
-  (with-clean-world
-    (let [project (ds/transactional (ds/add (construct p/Project)))
-          [node0 node1 node2] (ds/in project
-                                (tx-nodes
-                                  (construct ProductionFunctionInputsNode :prop :node0)
-                                  (construct ProductionFunctionInputsNode :prop :node1)
-                                  (construct ProductionFunctionInputsNode :prop :node2)))
+  (with-clean-system
+    (let [[node0 node1 node2] (tx-nodes
+                               (construct ProductionFunctionInputsNode :prop :node0)
+                               (construct ProductionFunctionInputsNode :prop :node1)
+                               (construct ProductionFunctionInputsNode :prop :node2))
           _ (ds/transactional
               (ds/connect node0 :defnk-prop node1 :in)
               (ds/connect node0 :defnk-prop node2 :in)
@@ -193,34 +194,32 @@
               (ds/connect node1 :defnk-prop node2 :in-multi))
           graph (is/graph world-ref)]
       (testing "inline fn parameters"
-        (is (identical? node0 (in/get-node-value node0 :inline-fn-this)))
-        (is (identical? graph (in/get-node-value node0 :inline-fn-g))))
+        (is (identical? node0 (g/node-value (:graph @world-ref) cache node0 :inline-fn-this)))
+        (is (identical? graph (g/node-value (:graph @world-ref) cache node0 :inline-fn-g))))
       (testing "standard defn parameters"
-        (is (identical? node0 (in/get-node-value node0 :defn-this)))
-        (is (identical? graph (in/get-node-value node0 :defn-g))))
+        (is (identical? node0 (g/node-value (:graph @world-ref) cache node0 :defn-this)))
+        (is (identical? graph (g/node-value (:graph @world-ref) cache node0 :defn-g))))
       (testing "'special' defnk inputs"
-        (is (identical? node0     (in/get-node-value node0 :defnk-this)))
-        (is (identical? graph     (in/get-node-value node0 :defnk-g)))
-        (is (identical? world-ref (in/get-node-value node0 :defnk-world)))
-        (is (= project (in/get-node-value node0 :defnk-project))))
+        (is (identical? node0     (g/node-value (:graph @world-ref) cache node0 :defnk-this)))
+        (is (identical? graph     (g/node-value (:graph @world-ref) cache node0 :defnk-g))))
       (testing "defnk inputs from node properties"
-        (is (= :node0 (in/get-node-value node0 :defnk-prop))))
+        (is (= :node0 (g/node-value (:graph @world-ref) cache node0 :defnk-prop))))
       (testing "defnk inputs from node inputs"
-        (is (nil?              (in/get-node-value node0 :defnk-in)))
-        (is (= :node0          (in/get-node-value node1 :defnk-in)))
-        (is (#{:node0 :node1}  (in/get-node-value node2 :defnk-in)))
-        (is (= []              (in/get-node-value node0 :defnk-in-multi)))
-        (is (= [:node0]        (in/get-node-value node1 :defnk-in-multi)))
-        (is (= [:node0 :node1] (in/get-node-value node2 :defnk-in-multi)))))))
+        (is (nil?              (g/node-value (:graph @world-ref) cache node0 :defnk-in)))
+        (is (= :node0          (g/node-value (:graph @world-ref) cache node1 :defnk-in)))
+        (is (#{:node0 :node1}  (g/node-value (:graph @world-ref) cache node2 :defnk-in)))
+        (is (= []              (g/node-value (:graph @world-ref) cache node0 :defnk-in-multi)))
+        (is (= [:node0]        (g/node-value (:graph @world-ref) cache node1 :defnk-in-multi)))
+        (is (= [:node0 :node1] (g/node-value (:graph @world-ref) cache node2 :defnk-in-multi)))))))
 
 (deftest node-properties-as-node-outputs
   (testing "every property automatically creates an output that produces the property's value"
-    (with-clean-world
+    (with-clean-system
       (let [[node0 node1] (tx-nodes
                             (construct ProductionFunctionInputsNode :prop :node0)
                             (construct ProductionFunctionInputsNode :prop :node1))
             _ (ds/transactional (ds/connect node0 :prop node1 :in))]
-        (is (= :node0 (in/get-node-value node1 :defnk-in))))))
+        (is (= :node0 (g/node-value (:graph @world-ref) cache node1 :defnk-in))))))
   (testing "the output has the same type as the property"
     (is (= s/Keyword
           (-> ProductionFunctionInputsNode t/transform-types' :prop)
@@ -237,48 +236,34 @@
   (output out-from-in       s/Any out-from-in)
   (output out-const         s/Any (fn [this g] :const-val)))
 
-(deftest value-computation-dependency-loops
+(deftest dependency-loops
   (testing "output dependent on itself"
-    (with-clean-world
+    (with-clean-system
       (let [[node] (tx-nodes (construct DependencyNode))]
-        (is (thrown? java.lang.AssertionError (in/get-node-value node :out-from-self))))))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
-    (with-clean-world
-       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-         (ds/transactional
-           (ds/connect node0 :out-from-self node1 :in))
-         (is (thrown? java.lang.AssertionError (in/get-node-value node1 :out-from-in))))))
-  (testing "cycle of period 1"
-    (with-clean-world
-      (let [[node] (tx-nodes (construct DependencyNode))]
-        (ds/transactional
-          (ds/connect node :out-from-in node :in))
-        (is (thrown? java.lang.AssertionError (in/get-node-value node :out-from-in))))))
-  (testing "cycle of period 2 (single transaction)"
-    (with-clean-world
+    (with-clean-system
       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
         (ds/transactional
-          (ds/connect node0 :out-from-in node1 :in)
-          (ds/connect node1 :out-from-in node0 :in))
-        (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-in))))))
+         (ds/connect node0 :out-from-self node1 :in))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache node1 :out-from-in))))))
+  (testing "cycle of period 1"
+    (with-clean-system
+      (let [[node] (tx-nodes (construct DependencyNode))]
+        (is (thrown? Throwable (ds/transactional
+                                (ds/connect node :out-from-in node :in)))))))
+  (testing "cycle of period 2 (single transaction)"
+    (with-clean-system
+      (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
+        (is (thrown? Throwable (ds/transactional
+                                (ds/connect node0 :out-from-in node1 :in)
+                                (ds/connect node1 :out-from-in node0 :in)))))))
   (testing "cycle of period 2 (multiple transactions)"
-    (with-clean-world
+    (with-clean-system
       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
         (ds/transactional (ds/connect node0 :out-from-in node1 :in))
-        (ds/transactional (ds/connect node1 :out-from-in node0 :in))
-        (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-in)))))))
-
-(deftest production-function-dependency-limit
-  (with-clean-world
-    (let [nodes (apply tx-nodes (repeatedly 201 #(construct DependencyNode)))
-          _ (ds/transactional
-              (ds/connect (first nodes) :out-const (second nodes) :in)
-              (doall (for [[x y] (partition 2 1 (rest nodes))]
-                       (ds/connect x :out-from-in y :in))))]
-      (is (= :const-val (in/get-node-value (nth nodes 0) :out-const)))
-      (is (= :const-val (in/get-node-value (nth nodes 1) :out-from-in)))
-      (is (= :const-val (in/get-node-value (nth nodes 199) :out-from-in)))
-      (is (thrown? java.lang.AssertionError (in/get-node-value (nth nodes 200) :out-from-in))))))
+        (is (thrown? Throwable (ds/transactional
+                                (ds/connect node1 :out-from-in node0 :in))))))))
 
 (defn throw-exception-defn [this g]
   (throw (ex-info "Exception from production function" {})))
@@ -308,34 +293,34 @@
   (output out-defnk-with-invocation-count s/Any :cached throw-exception-defnk-with-invocation-count))
 
 (deftest node-output-substitute-value
-  (with-clean-world
+  (with-clean-system
     (let [n (ds/transactional (ds/add (construct SubstituteValueNode)))]
-      (testing "exceptions from get-node-value when no substitute value fn"
-        (is (thrown? Throwable (in/get-node-value n :out-defn)))
-        (is (thrown? Throwable (in/get-node-value n :out-defnk))))
+      (testing "exceptions from node-value (:graph @world-ref) cache when no substitute value fn"
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defn)))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk))))
       (testing "substitute value replacement"
-        (is (= :substitute (in/get-node-value n :out-defn-with-substitute-fn)))
-        (is (= :substitute (in/get-node-value n :out-defnk-with-substitute-fn)))
-        (is (= :substitute (in/get-node-value n :out-defn-with-substitute)))
-        (is (= :substitute (in/get-node-value n :out-defnk-with-substitute))))
+        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-defn-with-substitute-fn)))
+        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-defnk-with-substitute-fn)))
+        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-defn-with-substitute)))
+        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-defnk-with-substitute))))
       (testing "parameters to substitute value fn"
-        (is (= n (:node (in/get-node-value n :substitute-value-passthrough)))))
+        (is (= (:_id n) (:node-id (g/node-value (:graph @world-ref) cache n :substitute-value-passthrough)))))
       (testing "exception from substitute value fn"
-        (is (thrown-with-msg? Throwable #"bailed" (in/get-node-value n :out-abort-with-substitute-f))))
+        (is (thrown-with-msg? Throwable #"bailed" (g/node-value (:graph @world-ref) cache n :out-abort-with-substitute-f))))
       (testing "abort"
-        (is (thrown-with-msg? Throwable #"Aborting\.\.\." (in/get-node-value n :out-abort)))
+        (is (thrown-with-msg? Throwable #"Aborting\.\.\." (g/node-value (:graph @world-ref) cache n :out-abort)))
         (try
-          (in/get-node-value n :out-abort)
-          (is false "Expected get-node-value to throw an exception")
+          (g/node-value (:graph @world-ref) cache n :out-abort)
+          (is false "Expected node-value (:graph @world-ref) cache to throw an exception")
           (catch Throwable e
             (is (= {:some-key :some-value} (ex-data e)))))
-        (is (= :substitute (in/get-node-value n :out-abort-with-substitute))))
+        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-abort-with-substitute))))
       (testing "interaction with cache"
         (binding [*calls* (atom {})]
           (is (= 0 (get-tally n :invocation-count)))
-          (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+          (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk-with-invocation-count)))
           (is (= 1 (get-tally n :invocation-count)))
-          (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+          (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk-with-invocation-count)))
           (is (= 1 (get-tally n :invocation-count))))))))
 
 (defnode ValueHolderNode
@@ -356,41 +341,41 @@
   (output out-cached-with-substitute s/Int :cached :substitute-value :forty-two the-answer))
 
 (deftest substitute-values-and-cache-invalidation
-  (with-clean-world
+  (with-clean-system
     (let [[holder-node answer-node] (tx-nodes (construct ValueHolderNode :value 23) (construct AnswerNode))]
 
       (ds/transactional (ds/connect holder-node :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
-        (is (thrown? Throwable (in/get-node-value answer-node :out)))
-        (is (thrown? Throwable (in/get-node-value answer-node :out)))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
         (is (= 2 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
-        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
-        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
+        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
+        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
         (is (= 2 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
-        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
+        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*)))
 
       (ds/transactional (ds/set-property holder-node :value 42))
 
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (in/get-node-value answer-node :out)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (in/get-node-value answer-node :out-cached)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*))))))
 
 (defnk always-fail []
@@ -400,22 +385,22 @@
   (output out s/Any always-fail))
 
 (deftest production-fn-input-failure
-  (with-clean-world
+  (with-clean-system
     (let [[failure-node answer-node] (tx-nodes (construct FailureNode) (construct AnswerNode))]
 
       (ds/transactional (ds/connect failure-node :out answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
-        (is (thrown? Throwable (in/get-node-value answer-node :out)))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
         (is (= 0 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
+        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
         (is (= 0 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
+        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
         (is (= 0 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 0 @*answer-call-count*)))
 
       (ds/transactional
@@ -423,18 +408,18 @@
         (ds/connect (ds/add (construct ValueHolderNode :value 42)) :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (in/get-node-value answer-node :out)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (in/get-node-value answer-node :out-cached)))
-        (is (= 42 (in/get-node-value answer-node :out-cached)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
-        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
+        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*))))))
 
 
@@ -500,7 +485,7 @@
     (validate must-be-even :message "only even numbers are allowed" even?)))
 
 (deftest validation-errors-delivered-in-properties-output
-  (with-clean-world
+  (with-clean-system
     (let [[node]     (tx-nodes (n/construct PropertyValidationNode :even-number 1))
-          properties (n/get-node-value node :properties)]
+          properties (g/node-value (:graph @world-ref) cache node :properties)]
       (is (= ["only even numbers are allowed"] (some-> properties :even-number :validation-problems))))))
