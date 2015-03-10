@@ -369,7 +369,7 @@
       ctx
       (recur (one-transaction-pass (assoc ctx :pending pending-actions) current-action) (dec retrigger-count)))))
 
-(def tx-report-keys [:status :expired-outputs :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
+(def tx-report-keys [:status :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
@@ -389,7 +389,6 @@
      :world               current-world
      :graph               (:graph current-world)
      :world-time          (:world-time current-world)
-     :expired-outputs     []
      :tempids             {}
      :new-event-loops     #{}
      :old-event-loops     #{}
@@ -407,22 +406,12 @@
   (update-in ctx [:outputs-modified]
              #(gt/trace-dependencies graph %)))
 
-(defn- determine-autoupdates
-  [{:keys [graph outputs-modified] :as ctx}]
-  (update-in ctx [:expired-outputs] concat
-             (doall
-              (for [[n v] outputs-modified
-                    :let [node (dg/node graph n)]
-                    :when (and node (contains? (t/auto-update-outputs node) v))]
-                [node v]))))
-
 (defn- transact*
   [world-ref ctx]
   (dosync
    (let [txr (-> ctx
                  exhaust-actions-and-triggers
                  trace-dependencies
-                 determine-autoupdates
                  finalize-update)]
      (ref-set world-ref (:world txr))
      txr)))

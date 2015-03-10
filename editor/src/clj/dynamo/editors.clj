@@ -104,9 +104,9 @@ Messages:
 
     #_(input outline-tree t/OutlineItem)
     #_(property outline-widget-tree s/Any)
-    #_(output update-outline-view s/Any :on-update (fnk [outline-widget-tree outline-tree]
-                                                      (when (and outline-widget-tree outline-tree)
-                                                        (outline/set-outline-tree-gui-data outline-widget-tree outline-tree))))
+    #_(output update-outline-view s/Any (fnk [outline-widget-tree outline-tree]
+                                             (when (and outline-widget-tree outline-tree)
+                                               (outline/set-outline-tree-gui-data outline-widget-tree outline-tree))))
 
     (on :create
         (let [canvas        (gl/glcanvas (:parent event))
@@ -128,7 +128,7 @@ Messages:
 
     (on :destroy
         #_(when-let [widget-tree (:outline-widget-tree self)]
-          (outline/close-outline-tree-gui-data widget-tree))
+            (outline/close-outline-tree-gui-data widget-tree))
         (when (:context self)
           (texture/unload-all (.. ^GLContext (:context self) getGL)))
 
