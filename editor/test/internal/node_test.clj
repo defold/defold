@@ -428,7 +428,7 @@
   (property string-property s/Str)
   (property property-to-override s/Str)
   (property multi-valued-property [s/Keyword] (default [:basic]))
-  (output basic-output s/Keyword :cached :on-update (fn [this g] :keyword)))
+  (output basic-output s/Keyword :cached (fn [this g] :keyword)))
 
 (defproperty predefined-property-type s/Str
   (default "a-default"))
@@ -444,7 +444,7 @@
   (property property-from-type predefined-property-type)
   (property multi-valued-property [s/Str] (default ["extra" "things"]))
   (output another-output s/Keyword (fn [this g] :keyword))
-  (output another-cached-output s/Keyword :cached :on-update (fn [this g] :keyword)))
+  (output another-cached-output s/Keyword :cached (fn [this g] :keyword)))
 
 (deftest inheritance-merges-node-types
   (testing "properties"
@@ -472,12 +472,7 @@
     (is (:basic-output (t/cached-outputs (construct BasicNode))))
     (is (:basic-output (t/cached-outputs (construct InheritsBasicNode))))
     (is (:another-cached-output (t/cached-outputs (construct InheritsBasicNode))))
-    (is (not (:another-output (t/cached-outputs (construct InheritsBasicNode))))))
-  (testing "on-update"
-    (is (:basic-output (t/auto-update-outputs (construct BasicNode))))
-    (is (:basic-output (t/auto-update-outputs (construct InheritsBasicNode))))
-    (is (:another-cached-output (t/auto-update-outputs (construct InheritsBasicNode))))
-    (is (not (:another-output (t/auto-update-outputs (construct InheritsBasicNode)))))))
+    (is (not (:another-output (t/cached-outputs (construct InheritsBasicNode)))))))
 
 (defnode PropertyValidationNode
   (property even-number s/Int

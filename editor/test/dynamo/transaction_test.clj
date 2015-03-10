@@ -312,21 +312,6 @@
         (ds/send-after receiver {:type :custom-event}))
       (is (= true (deref (:latch receiver) 500 :timeout))))))
 
-(n/defnode AutoUpdateOutput
-  (input first-name String)
-
-  (output ordinary String (fn [this g] "a-string"))
-  (output updating String :on-update (fnk [first-name] (str "Hello, " first-name))))
-
-(deftest on-update-properties-noted-by-transaction
-  (with-clean-system
-    (let [update-node (n/construct AutoUpdateOutput)
-          event-receiver (n/construct EventReceiver)
-          tx-result (it/transact world-ref [(it/new-node event-receiver) (it/new-node update-node)])]
-      (let [real-updater (dg/node (:graph tx-result) (it/resolve-tempid tx-result (:_id update-node)))]
-        (is (= 1 (count (:expired-outputs tx-result))))
-        (is (= [real-updater :updating] (first (:expired-outputs tx-result))))))))
-
 (n/defnode DisposableNode
   t/IDisposable
   (dispose [this] true))

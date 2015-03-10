@@ -362,8 +362,8 @@
   (property texture-name        s/Str)
   (property textureset-filename s/Str (default ""))
 
-  (output   texturec    s/Any :on-update compile-texturec)
-  (output   texturesetc s/Any :on-update compile-texturesetc))
+  (output   texturec    s/Any compile-texturec)
+  (output   texturesetc s/Any compile-texturesetc))
 
 (defn broadcast-event [this event]
   (doseq [controller (first (g/node-value this :controllers))]

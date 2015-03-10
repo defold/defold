@@ -225,7 +225,7 @@
   (output string-output         s/Str                                                 string-production-fnk)
   (output integer-output        IntegerProperty                                       integer-production-fnk)
   (output cached-output         s/Str           :cached                               string-production-fnk)
-  (output inline-string         s/Str           :on-update                            (fnk [string-input] "inline-string"))
+  (output inline-string         s/Str                                                 (fnk [string-input] "inline-string"))
   (output schemaless-production s/Str                                                 schemaless-production-fn)
   (output with-substitute       s/Str           :substitute-value substitute-value-fn string-production-fnk))
 
@@ -253,8 +253,7 @@
       (doseq [[label expected-schema] {:string-output s/Str :integer-output IntegerProperty :cached-output s/Str :inline-string s/Str :schemaless-production s/Str :with-substitute s/Str}]
         (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
       (is (:cached-output (t/cached-outputs' MultipleOutputNode)))
-      (is (:cached-output (t/cached-outputs node)))
-      (is (:inline-string (t/auto-update-outputs node)))))
+      (is (:cached-output (t/cached-outputs node)))))
   (testing "output inheritance"
     (let [node (n/construct InheritedOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute :abstract-output]]
