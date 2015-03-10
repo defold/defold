@@ -1,7 +1,8 @@
 (ns internal.cache
   (:require [clojure.core.async :as a]
             [clojure.core.cache :as cc]
-            [com.stuartsierra.component :as component]))
+            [com.stuartsierra.component :as component]
+            [internal.either :as e]))
 
 (defn- build-leastness-queue
   [base limit start-at]
@@ -10,7 +11,16 @@
                 (for [[k _] base] [k start-at]))))
 
 (defn- post-removal [ch v]
-  (when v (a/>!! ch v)))
+  (when v
+    (cond
+      (and (satisfies? e/Either v) (e/exists? v))
+      (a/>!! ch (e/result v))
+
+      (not (satisfies? e/Either v))
+      (a/>!! ch v)
+
+      :else
+      :ignored)))
 
 ;; This is the LRUCache from clojure.core.cache,
 ;; but with an added core.async channel that
@@ -133,10 +143,13 @@
 ;; ----------------------------------------
 ;; Interface
 ;; ----------------------------------------
+(def default-cache-limit 1000)
 
 (defn cache-subsystem
-  [limit dispose-ch]
-  (map->CacheLifecycle {:limit limit :dispose-ch dispose-ch}))
+  ([]
+   (cache-subsystem default-cache-limit (a/chan (a/dropping-buffer 1))))
+  ([limit dispose-ch]
+   (map->CacheLifecycle {:limit limit :dispose-ch dispose-ch})))
 
 (defn cache-snapshot
   [ccomp]

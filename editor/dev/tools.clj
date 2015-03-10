@@ -1,30 +1,30 @@
 (ns user
-  (:require [clojure.java.io :as io]
+  (:require [camel-snake-kebab :refer :all]
+            [clojure.java.io :as io]
             [clojure.java.io :refer [file]]
             [clojure.pprint :refer [pprint]]
             [clojure.repl :refer :all]
+            [dynamo.cache :as cache]
             [dynamo.file :as f]
-            [dynamo.geom :as g]
+            [dynamo.graph :as g]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
-            [dynamo.cache :as cache]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.java :as j]
             [internal.node :as in]
             [internal.system :as is]
-            [schema.core :as s]
-            [camel-snake-kebab :refer :all])
+            [schema.core :as s])
   (:import [java.awt Dimension]
            [javafx.application Platform]
+           [javafx.embed.swing JFXPanel]
            [javafx.fxml FXMLLoader]
            [javafx.scene Scene Node Parent]
            [javafx.stage Stage FileChooser]
-           [javafx.embed.swing JFXPanel]
            [javax.swing JFrame JPanel]
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]))
 
@@ -80,8 +80,8 @@
     (lg/targets (the-graph) id label)))
 
 (defn get-value
-  [id label & {:as opt-map}]
-  (n/get-node-value (merge (node id) opt-map) label))
+  [id label]
+  (g/node-value (node id) label))
 
 (defn cache-peek
   [id label]

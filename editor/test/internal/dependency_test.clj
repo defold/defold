@@ -29,14 +29,14 @@
 
 (deftest single-connection
   (testing "results include inputs"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a] (ts/tx-nodes (n/construct SingleOutput))
             deps (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]})))))
 
   (testing "without outputs, nobody cares"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a b] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct InputNoOutput))
             _     (ds/transactional (ds/connect a :out-from-inline b :unused-input))
@@ -45,7 +45,7 @@
                #{[(id a) :out-from-inline]})))))
 
   (testing "direct dependent outputs appear"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a b] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct InputUsedByOutput))
             _     (ds/transactional (ds/connect a :out-from-inline b :string-input))
@@ -56,7 +56,7 @@
 
 (deftest fan-in
   (testing "results include inputs"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a b c d] (ts/tx-nodes (n/construct SingleOutput)
                                    (n/construct SingleOutput)
                                    (n/construct SingleOutput)
@@ -73,7 +73,7 @@
                  [(id d) :out-from-inline]})))))
 
   (testing "multi-path dependency only appears once"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a b c d x] (ts/tx-nodes (n/construct SingleOutput)
                                      (n/construct SingleOutput)
                                      (n/construct SingleOutput)
@@ -99,7 +99,7 @@
 
 (deftest fan-out
   (testing "all dependents are marked"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a w x y z] (ts/tx-nodes (n/construct SingleOutput)
                                      (n/construct InputUsedByOutput)
                                      (n/construct InputUsedByOutput)
@@ -137,7 +137,7 @@
 
 (deftest one-step-multipath
   (testing "one output to several inputs"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct MultipleInputsIntoOneOutput))
             _     (ds/transactional
@@ -152,7 +152,7 @@
                  [(id x) :input-counter]})))))
 
   (testing "several outputs to one input"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct MultipleOutputs)
                                (n/construct MultipleInputsIntoOneOutput))
             _     (ds/transactional
@@ -186,7 +186,7 @@
 
 (deftest with-self-dependencies
   (testing "dependencies propagate through fnks"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct SelfDependent))
             _     (ds/transactional
@@ -198,7 +198,7 @@
                  [(id x) :counted]})))))
 
   (testing "outputs can depend on inputs with the same name"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct BadlyWrittenSelfDependent))
             _     (ds/transactional
@@ -209,7 +209,7 @@
                  [(id x) :string-value]})))))
 
   #_(testing "properties are not confused with inputs"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct PropertyShadowingInput))
             _     (ds/transactional
@@ -230,7 +230,7 @@
 
 (deftest diamond-pattern
   (testing "multipath reaching the same node"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a b c d] (ts/tx-nodes (n/construct SingleOutput)
                                      (n/construct InputUsedByOutput)
                                      (n/construct InputUsedByOutput)
@@ -256,7 +256,7 @@
 
 (deftest independence-of-outputs
   (testing "output is only marked when its specific inputs are  affected"
-    (ts/with-clean-world
+    (ts/with-clean-system
       (let [[a b x] (ts/tx-nodes (n/construct SingleOutput)
                                  (n/construct SingleOutput)
                                  (n/construct TwoIndependentOutputs))
