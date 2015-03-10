@@ -1,8 +1,7 @@
 (ns internal.ui.property
-  (:require [clojure.string :as str]
-            [schema.core :as s]
-            [plumbing.core :refer [defnk]]
-            [service.log :as log]
+  (:require [camel-snake-kebab :refer :all]
+            [clojure.string :as str]
+            [dynamo.graph :as g]
             [dynamo.messages :as msg]
             [dynamo.node :as n]
             [dynamo.project :as p]
@@ -14,7 +13,9 @@
             [dynamo.util :refer :all]
             [internal.node :as in]
             [internal.system :as is]
-            [camel-snake-kebab :refer :all]))
+            [plumbing.core :refer [defnk]]
+            [schema.core :as s]
+            [service.log :as log]))
 
 (defrecord ValidationPresenter []
   dp/Presenter
@@ -56,7 +57,7 @@
   presenter-registry)
 
 (defn presenter-for-property [node property]
-  (dp/lookup-presenter (n/get-node-value node :presenter-registry) (:type property)))
+  (dp/lookup-presenter (g/node-value node :presenter-registry) (:type property)))
 
 (defn- attach-user-data
   [spec node prop-name presenter path]
@@ -149,7 +150,7 @@
 
 (defn- refresh-property-page
   [{:keys [sheet-cache properties-form] :as node}]
-  (let [content (attach-presenters node (in/get-node-value node :content))
+  (let [content (attach-presenters node (g/node-value node :content))
         key     (cache-key content)
         page    (lookup-or-create sheet-cache key make-property-page node properties-form content)]
     (widgets/update-ui!      (get-in page [:page-content]) (settings-for-page content))
@@ -184,7 +185,7 @@
   #_(on :ui-event
     (let [ui-event (:ui-event event)
           {:keys [presenter prop-name path]} (widgets/get-user-data (:widget ui-event))
-          content (in/get-node-value self :content)
+          content (g/node-value self :content)
           page (get @(:sheet-cache self) (cache-key content))
           widget-subtree (get-in page [:page-content prop-name])]
       (if (identical? (:widget ui-event) (widgets/widget widget-subtree path))

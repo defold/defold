@@ -1,4 +1,5 @@
 (ns internal.transaction
+  "Internal functions that implement the transactional behavior."
   (:require [clojure.core.async :as a]
             [clojure.set :as set]
             [dynamo.types :as t]
@@ -154,6 +155,7 @@
 (defn- activate-all-outputs
   [{:keys [graph] :as ctx} node-id node]
   (let [all-labels  (concat (t/outputs node) (keys (t/properties node)))
+        ctx (update-in ctx [:nodes-affected node-id] set/union all-labels)
         all-targets (into #{[node-id nil]} (mapcat #(lg/targets graph node-id %) all-labels))]
     (reduce
       (fn [ctx [target-id target-label]]
@@ -225,8 +227,7 @@
       :graph               graph
       :tempids             (if (tempid? to-node-id) (assoc tempids to-node-id node-id) tempids)
       :new-event-loops     (if start-loop (conj new-event-loops node-id)  new-event-loops)
-      :old-event-loops     (if end-loop   (conj old-event-loops old-node) old-event-loops)
-)))
+      :old-event-loops     (if end-loop   (conj old-event-loops old-node) old-event-loops))))
 
 (defmethod perform :delete-node
   [{:keys [graph nodes-deleted old-event-loops nodes-added triggers-to-fire] :as ctx} {:keys [node-id]}]
@@ -368,7 +369,7 @@
       ctx
       (recur (one-transaction-pass (assoc ctx :pending pending-actions) current-action) (dec retrigger-count)))))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
+(def tx-report-keys [:status :expired-outputs :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
@@ -448,14 +449,14 @@
 
 (defn transact
   [world-ref txs]
-  (let [{:keys [world messages new-event-loops old-event-loops] :as tx-result} (transact* world-ref (new-transaction-context world-ref txs))]
+  (let [{:keys [world messages new-event-loops old-event-loops nodes-deleted] :as tx-result} (transact* world-ref (new-transaction-context world-ref txs))]
     (doseq [l old-event-loops]
       (stop-event-loop! world-ref l))
     (doseq [l new-event-loops]
       (start-event-loop! world-ref l))
     (when (= :ok (-> world :last-tx :status))
-      (when (not-empty (-> world :last-tx :values-to-dispose))
-        (a/onto-chan (:disposal-queue world) (-> world :last-tx :values-to-dispose) false))
+      (when (not (empty? nodes-deleted))
+        (a/onto-chan (:disposal-queue world) (vals nodes-deleted) false))
       (bus/publish-all (:message-bus world) messages))
     (:last-tx world)))
 
@@ -463,10 +464,7 @@
 ; Documentation
 ; ---------------------------------------------------------------------------
 (doseq [[v doc]
-       {*ns*
-        "Internal functions that implement the transactional behavior."
-
-        #'perform
+       {#'perform
         "A multimethod used for defining methods that perform the individual actions within a
 transaction. This is for internal use, not intended to be extended by applications.
 

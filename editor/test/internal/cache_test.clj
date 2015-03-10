@@ -2,6 +2,7 @@
   (:require [clojure.core.async :as a]
             [clojure.test :refer :all]
             [com.stuartsierra.component :as component]
+            [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [internal.async :as ia]
             [internal.cache :refer :all]))
@@ -11,6 +12,13 @@
 (defn- mock-system [cache-size ch]
   {:world {:state (ref {})}
    :cache (component/using (cache-subsystem cache-size ch) [:world])})
+
+(defn resize-cache
+  [system new-cache-size]
+  (let [oldc (component/stop (:cache system))
+        newc (assoc (cache-subsystem new-cache-size (:dispose-ch oldc))
+                    :world (:world system))]
+    (assoc system :cache (component/start newc))))
 
 (defn- as-map [c] (select-keys c (keys c)))
 
@@ -78,42 +86,38 @@
 
 (defn- thing [v] (DisposableThing. v))
 
-(defn- yield
-  "Give up the thread just long enough for a context switch"
-  []
-  (Thread/sleep 1))
-
 (deftest value-disposal
   (testing "one value disposed when decached"
-    (let [dispose-ch (a/chan 10)
-          system     (component/start-system (mock-system 1000 dispose-ch))
-          ccomp      (:cache system)]
-      (cache-encache ccomp [[:a (thing 1)] [:b (thing 2)] [:c (thing 3)]])
-      (cache-invalidate ccomp [:a])
-      (yield)
-      (let [waiting-to-dispose (ia/take-all dispose-ch)]
-        (is (= 1 (count waiting-to-dispose)))
-        (is (= [1] (map t/dispose waiting-to-dispose))))))
+    (with-clean-system
+      (let [system (resize-cache system 3)
+            cache  (:cache system)]
+        (cache-encache cache [[:a (thing 1)] [:b (thing 2)] [:c (thing 3)]])
+        (cache-invalidate cache [:a])
+        (yield)
+        (let [disposed (take-waiting-to-dispose system)]
+          (is (= 1 (count disposed)))
+          (is (= [1] (map t/dispose disposed)))))))
 
   (testing "multiple values disposed when decached"
-    (let [dispose-ch (a/chan 10)
-          system     (component/start-system (mock-system 1000 dispose-ch))
-          ccomp      (:cache system)]
-      (cache-encache ccomp [[:a (thing 1)] [:b (thing 2)] [:c (thing 3)]])
-      (cache-invalidate ccomp [:b :c])
-      (yield)
-      (let [waiting-to-dispose (ia/take-all dispose-ch)]
-        (is (= 2 (count waiting-to-dispose)))
-        (is (= [2 3] (map t/dispose waiting-to-dispose))))))
+    (with-clean-system
+      (let [system (resize-cache system 3)
+            cache  (:cache system)]
+        (cache-encache cache [[:a (thing 1)] [:b (thing 2)] [:c (thing 3)]])
+        (cache-invalidate cache [:b :c])
+        (yield)
+        (let [disposed (take-waiting-to-dispose system)]
+          (is (= 2 (count disposed)))
+          (is (= [2 3] (map t/dispose disposed)))))))
 
   (testing "values that are pushed out also get disposed"
-    (let [dispose-ch (a/chan 10)
-          system     (component/start-system (mock-system 1 dispose-ch))
-          ccomp      (:cache system)]
-      (cache-encache ccomp [[:a (thing 1)]])
-      (yield)
-      (cache-encache ccomp [[:b (thing 2)] [:c (thing 3)]])
-      (yield)
-      (let [waiting-to-dispose (ia/take-all dispose-ch)]
-        (is (= 2 (count waiting-to-dispose)))
-        (is (= [1 2] (map t/dispose waiting-to-dispose)))))))
+    (with-clean-system
+      (let [system (resize-cache system 1)
+            cache  (:cache system)]
+        (def c* cache)
+        (cache-encache cache [[:a (thing 1)]])
+        (yield)
+        (cache-encache cache [[:b (thing 2)] [:c (thing 3)]])
+        (yield)
+        (let [disposed (take-waiting-to-dispose system)]
+          (is (= 2 (count disposed)))
+          (is (= [1 2] (map t/dispose disposed))))))))

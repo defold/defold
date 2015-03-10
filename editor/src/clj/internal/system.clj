@@ -9,7 +9,6 @@
             [internal.cache :as c]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
-            [internal.refresh :refer [refresh-message refresh-subsystem]]
             [internal.repaint :as repaint]
             [internal.transaction :as it]
             [schema.core :as s]
@@ -126,46 +125,20 @@
         (repaint-all (:graph new-world) (:repaint-needed @history-ref))))))
 
 (defn world
-  [report-ch repaint-needed disposal-queue]
+  [repaint-needed disposal-queue]
   (let [world-ref    (ref nil)
         history-ref  (ref nil)
         undo-context {} #_(UndoContext.)]
-    (add-watch world-ref :send-tx-reports   (partial send-tx-reports report-ch))
     (add-watch world-ref :schedule-repaints (partial schedule-repaints repaint-needed))
     (add-watch world-ref :push-history      (partial push-history history-ref undo-context))
     (->World false world-ref history-ref undo-context repaint-needed disposal-queue)))
 
-(defn- refresh-messages
-  [{:keys [expired-outputs]}]
-  (filter identity
-    (for [[node output] expired-outputs]
-      (logging-exceptions "extracting refresh message"
-        (refresh-message node output)))))
-
-(defn- multiplex-reports
-  [tx-report refresh]
-  (a/onto-chan refresh (refresh-messages tx-report) false))
-
-(defn shred-tx-reports
-  [in]
-  (let [refresh (a/chan (a/sliding-buffer 1000))]
-    (a/go-loop []
-      (let [tx-report (a/<! in)]
-        (if tx-report
-          (do
-            (multiplex-reports tx-report refresh)
-            (recur))
-          (a/close! refresh))))
-    refresh))
-
 (defn system
  []
  (let [repaint-needed (ref #{})
-       tx-report-chan (a/chan 1)
        disposal-queue (a/chan (a/dropping-buffer maximum-disposal-backlog))]
    (component/map->SystemMap
-    {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 1)
-     :world     (world tx-report-chan repaint-needed disposal-queue)
+    {:world     (world repaint-needed disposal-queue)
      :repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])
      :cache     (component/using (c/cache-subsystem maximum-cached-items disposal-queue) [:world])})))
 
@@ -174,6 +147,8 @@
 (defn system-cache [] (-> @the-system :cache))
 
 (defn world-ref [] (-> @the-system :world :state))
+
+(defn world-graph [] (-> (world-ref) deref :graph))
 
 (defn start
   ([]    (let [system-map (start the-system)

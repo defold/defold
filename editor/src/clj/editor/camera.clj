@@ -1,16 +1,15 @@
 (ns editor.camera
-  (:require [schema.macros :as sm]
-            [schema.core :as s]
-            [plumbing.core :refer [defnk fnk]]
-            [dynamo.types :as t]
+  (:require [dynamo.geom :as geom]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
-            [dynamo.ui :as ui]
-            [dynamo.geom :as g]
             [dynamo.system :as ds]
-            [dynamo.geom :as g]
-            [dynamo.geom :as i])
-  (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]
-           [dynamo.types Camera Region AABB]))
+            [dynamo.types :as t]
+            [dynamo.ui :as ui]
+            [plumbing.core :refer [defnk fnk]]
+            [schema.core :as s]
+            [schema.macros :as sm])
+  (:import [dynamo.types Camera Region AABB]
+           [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -135,11 +134,11 @@
 
 (sm/defn camera-set-center :- Camera
   [camera :- Camera bounds :- AABB]
-  (let [center (g/aabb-center bounds)
+  (let [center (geom/aabb-center bounds)
         view-matrix (camera-view-matrix camera)]
     (.transform view-matrix center)
     (set! (. center z) 0)
-    (.transform ^Matrix4d (g/invert view-matrix) center)
+    (.transform ^Matrix4d (geom/invert view-matrix) center)
     (camera-set-position camera (.x center) (.y center) (.z center))))
 
 (sm/defn camera-project :- Point3d
@@ -325,7 +324,7 @@
 
   (on :input
       (let [action (:action event)
-            viewport (n/get-node-value self :viewport)]
+            viewport (g/node-value self :viewport)]
         (case (:type action)
          :scroll (when (contains? (:movements-enabled self) :dolly)
                    (let [dy (:delta-y action)]
