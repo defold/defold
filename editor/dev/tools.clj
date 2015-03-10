@@ -1,10 +1,12 @@
 (ns user
-  (:require [clojure.java.io :as io]
+  (:require [camel-snake-kebab :refer :all]
+            [clojure.java.io :as io]
             [clojure.java.io :refer [file]]
             [clojure.pprint :refer [pprint]]
             [clojure.repl :refer :all]
+            [dynamo.cache :as cache]
             [dynamo.file :as f]
-            [dynamo.geom :as g]
+            [dynamo.graph :as g]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
             [dynamo.project :as p]
@@ -16,14 +18,13 @@
             [internal.java :as j]
             [internal.node :as in]
             [internal.system :as is]
-            [schema.core :as s]
-            [camel-snake-kebab :refer :all])
+            [schema.core :as s])
   (:import [java.awt Dimension]
            [javafx.application Platform]
+           [javafx.embed.swing JFXPanel]
            [javafx.fxml FXMLLoader]
            [javafx.scene Scene Node Parent]
            [javafx.stage Stage FileChooser]
-           [javafx.embed.swing JFXPanel]
            [javax.swing JFrame JPanel]
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]))
 
@@ -35,7 +36,7 @@
 
 (defn the-world       [] (-> is/the-system deref :world))
 (defn the-world-state [] (-> (the-world) :state deref))
-(defn the-cache       [] (-> (the-world-state) :cache))
+(defn the-cache       [] (-> is/the-system deref :cache))
 (defn the-graph       [] (-> (the-world-state) :graph))
 (defn nodes           [] (-> (the-graph) :nodes vals))
 
@@ -79,26 +80,19 @@
     (lg/targets (the-graph) id label)))
 
 (defn get-value
-  [id label & {:as opt-map}]
-  (n/get-node-value (merge (node id) opt-map) label))
+  [id label]
+  (g/node-value (node id) label))
 
 (defn cache-peek
   [id label]
-  (if-let [cache-key (some-> (the-world-state) :cache-keys (get-in [id label]))]
-    (if-let [x (get (the-cache) cache-key)]
-      x
-      :value-not-cached)
-    :output-not-cacheable))
+  (if-let [x (get (cache/cache-snapshot) [id label])]
+    x
+    :value-not-cached))
 
 (defn decache
   [id label]
-  (if-let [cache-key (some-> (the-world-state) :cache-keys (get-in [id label]))]
-    (if (get (the-cache) cache-key)
-      (dosync
-        (alter (:state (the-world)) update-in [:cache] clojure.core.cache/evict cache-key)
-        :ok)
-      :value-not-cached)
-    :output-not-cacheable))
+  (cache/cache-invalidate [[id label]])
+  :ok)
 
 (defn projects-in-memory
   []

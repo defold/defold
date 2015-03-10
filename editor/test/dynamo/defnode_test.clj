@@ -299,7 +299,7 @@
     :another-ok))
 
 (deftest nodes-can-handle-events
-  (ts/with-clean-world
+  (ts/with-clean-system
     (testing "nodes with event handlers implement MessageTarget"
       (let [node (n/construct OneEventNode)]
         (is (:an-event (t/event-handlers' OneEventNode)))
@@ -353,7 +353,7 @@
      dynamo.defnode_test.MarkerInterface))
 
 (deftest redefining-nodes-updates-existing-world-instances
-  (ts/with-clean-world
+  (ts/with-clean-system
     (binding [*ns* (find-ns 'dynamo.defnode-test)]
       (eval original-node-definition))
 

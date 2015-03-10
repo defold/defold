@@ -4,7 +4,7 @@
             [dynamo.project :as p]
             [dynamo.file :as f]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
+            [dynamo.system.test-support :refer [with-clean-system tx-nodes]]
             [dynamo.types :as t]
             [clojure.java.io :as io])
   (:import [java.io StringReader]))
@@ -34,13 +34,13 @@
 
 #_(deftest make-editor
   (testing "throws if return value is not a node"
-    (with-clean-world
+    (with-clean-system
       (let [project-node (build-dummy-project)]
         (is (thrown-with-msg? AssertionError #"must return a node"
               (p/make-editor project-node (ExtensionHolder. "dummy") nil)))))))
 
 (deftest find-nodes-by-extension
-  (with-clean-world
+  (with-clean-system
     (let [d1           (n/construct DummyNode :filename (f/native-path "foo.png"))
           d2           (n/construct DummyNode :filename (f/native-path "/var/tmp/foo.png"))
           d3           (n/construct DummyNode :filename (f/native-path "foo.script"))

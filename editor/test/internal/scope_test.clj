@@ -12,7 +12,7 @@
             [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.system.test-support :refer :all]
-            [dynamo.system :as ds :refer [   ]]
+            [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.async :as ia]
             [internal.node :as in])
@@ -49,7 +49,7 @@
 
 (deftest scope-registration
   (testing "Nodes are registered within a scope by name"
-    (with-clean-world
+    (with-clean-system
       (ds/transactional
         (ds/in (ds/add (n/construct ParticleEditor :label "view scope"))
           (ds/add (n/construct Emitter  :name "emitter"))
@@ -72,12 +72,11 @@
 
 (defspec scope-disposes-contained-nodes
   (prop/for-all [scoped-nodes gen-nodelist]
-    (with-clean-world
+    (with-clean-system
       (let [scope          (ds/transactional (ds/add (n/construct n/Scope)))
             disposables    (ds/transactional (ds/in scope (doseq [n scoped-nodes] (ds/add n))) scoped-nodes)
             disposable-ids (map :_id disposables)]
         (ds/transactional (ds/delete scope))
-        (let [last-tx   (:last-tx @world-ref)
-              disposals (:values-to-dispose last-tx)]
-         
-          (is (= (sort disposable-ids) (sort (map :_id disposals)))))))))
+        (yield)
+        (let [disposed (take-waiting-to-dispose system)]
+          (is (= (sort (conj disposable-ids (:_id scope))) (sort (map :_id disposed)))))))))
