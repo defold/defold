@@ -170,7 +170,7 @@
                          (when-not (= new-val old-val)
                            (if (t/property-valid-value? property new-val)
                              (g/transactional
-                               (ds/set-property node key new-val)
+                               (g/set-property node key new-val)
                                (@setter-atom new-val))
                              (@setter-atom old-val)))))
         [control setter] (create-property-control! (t/property-value-type property) on-new-value)]
@@ -230,7 +230,7 @@
 
 
   (on :load
-      (ds/set-property self :text (slurp (:filename self)))))
+      (g/set-property self :text (slurp (:filename self)))))
 
 (defn on-edit-text
   [project-node text-node]

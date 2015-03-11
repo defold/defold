@@ -30,6 +30,31 @@
   [source-node source-label target-node target-label]
   (ds/disconnect source-node source-label target-node target-label))
 
+(defn become
+  "Turn one kind of node into another, in a transaction. All properties and their values
+   will be carried over from source-node to new-node. The resulting node will still have
+   the same node-id.
+
+   Any input or output connections to labels that exist on both
+  source-node and new-node will continue to exist. Any connections to
+  labels that don't exist on new-node will be disconnected in the same
+  transaction."
+  [source-node new-node]
+  (ds/become source-node new-node))
+
+(defn set-property
+  "Assign a value to a node's property (or properties) value(s) in a
+  transaction."
+  [n & kvs]
+  (apply ds/set-property n kvs))
+
+(defn update-property
+  "Apply a function to a node's property in a transaction. The
+  function f will be invoked as if by (apply f current-value args)"
+  [n p f & args]
+  (apply ds/update-property n p f args))
+
+
 
 ;; ---------------------------------------------------------------------------
 ;; Values

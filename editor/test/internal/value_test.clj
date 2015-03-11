@@ -198,15 +198,15 @@
     (let [node (g/transactional
                  (ds/add (n/construct p/Project :name "a project" :int-prop 0)))
           after-transaction (g/transactional
-                              (ds/update-property node :int-prop inc)
-                              (ds/update-property node :int-prop inc)
-                              (ds/update-property node :int-prop inc)
-                              (ds/update-property node :int-prop inc))]
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc))]
       (is (= 4 (:int-prop after-transaction))))))
 
 (n/defnode ScopeReceiver
   (on :project-scope
-    (ds/set-property self :message-received event)))
+    (g/set-property self :message-received event)))
 
 (deftest node-receives-scope-message
   (testing "project scope message"
