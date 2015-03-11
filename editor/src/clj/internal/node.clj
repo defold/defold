@@ -60,6 +60,7 @@
 (def ^:private has-property? contains?)
 (defn- has-output? [node label] (some-> node t/transforms label boolean))
 (def ^:private first-source (comp first lg/sources))
+(defn- currently-producing [in-production node-id label] (= (last in-production) [node-id label]))
 
 (defn- evaluate-input-internal
   "Gather an named argument for a production function. Depending on
@@ -75,6 +76,9 @@
         input-schema     (some-> node t/input-types label)
         output-transform (some-> node t/transforms  label)]
     (cond
+      (and (has-output? node label) (not (currently-producing in-production node-id label)))
+      (chain-eval chain-head graph in-production node-id label)
+
       (multivalued? input-schema)
       (reduce
        (fn [input-vals source]
@@ -93,9 +97,6 @@
 
       (has-property? node label)
       (e/bind (get node label))
-
-      (has-output? node label)
-      (chain-eval chain-head graph in-production node-id label)
 
       (= :g label)
       (e/bind graph)
@@ -214,42 +215,34 @@
    read-input
    not-found])
 
+(defn- delta [deltas node-id label v] (swap! deltas conj [[node-id label] v]) v)
+(defn- local [deltas node-id label]   (first (keep (fn [[i l v]] (when (and (= node-id i) (= l label)) v)) @deltas)))
+
 (defn local-deltas
-  "Returns a pair of [evaluator, accumulator]. The evaluator is an evaluation function
-  that looks for any values that have already been produced during this computation.
+  "Returns an evaluator. The evaluator is an evaluation function that
+  looks for any values that have already been produced during this
+  computation.
 
   If no local delta is found, the evaluator continues the
   chain. Whatever the chain returns gets recorded as a local delta for
-  possible use during the remainder of the evaluation.
+  possible use during the remainder of the evaluation."
+  [deltas graph in-production node-id label chain-head chain-next]
+  (if-some [r (local deltas node-id label)]
+    r
+    (delta deltas node-id label
+           (continue graph in-production node-id label chain-head chain-next))))
 
-  When called, the accumulator function returns triples of [node-id
-  label value] for the values that have been produced."
-  [cache]
-  (let [deltas (atom [])
-        delta  (fn [node-id label v] (swap! deltas conj [[node-id label] v]) v)
-        local  (fn [node-id label]   (first (keep (fn [[i l v]] (when (and (= node-id i) (= l label)) v)) @deltas)))]
-    [(fn [graph in-production node-id label chain-head chain-next]
-       (if-some [r (local node-id label)]
-          r
-          (delta node-id label
-                 (continue graph in-production node-id label chain-head chain-next))))
-     (fn [] @deltas)]))
+(defn- hit [hits node-id label v] (swap! hits conj [node-id label]) v)
 
 (defn cache-lookup
-  "Returns a pair of [evaluator, accumulator]. The evaluator is an evaluation function.
+  "Returns an evaluation function.
 
   The evaluator collects records of values that were 'hits' in the
-  cache. Those records can be retrieved by calling the accumulator
-  function."
-  [cache]
-  (let [snapshot (c/cache-snapshot cache)
-        hits     (atom [])
-        hit      (fn [node-id label v] (swap! hits conj [node-id label]) v)]
-    [(fn [graph in-production node-id label chain-head chain-next]
-       (if-some [v (get snapshot [node-id label])]
-         (hit node-id label v)
-         (continue graph in-production node-id label chain-head chain-next)))
-     (fn [] @hits)]))
+  atom of the same name."
+  [snapshot hits graph in-production node-id label chain-head chain-next]
+  (if-some [v (get snapshot [node-id label])]
+    (hit hits node-id label v)
+    (continue graph in-production node-id label chain-head chain-next)))
 
 (defn fork
   "Return a thunk for an evaluation chain. When invoked during evaluation,
@@ -279,17 +272,17 @@ If the value is cacheable and exists in the cache, then return that value. Other
 produce the value by gathering inputs to call a production function, invoke the function,
 maybe cache the value that was produced, and return it."
   [graph cache node-id label]
-  (let [[local-lookup deltas] (local-deltas cache)
-        [cache-lookup hits]   (cache-lookup cache)
+  (let [hits (atom [])
+        deltas (atom [])
         evaluators            [fork-cacheable
-                               (list* local-lookup
-                                      cache-lookup
+                               (list* (partial local-deltas deltas)
+                                      (partial cache-lookup (c/cache-snapshot cache) hits)
                                       world-evaluation-chain)
                                world-evaluation-chain]
-        result                (chain-eval evaluators graph #{} node-id label)]
+        result                (chain-eval evaluators graph [] node-id label)]
     (do
-      (c/cache-hit cache (hits))
-      (c/cache-encache cache (deltas)))
+      (c/cache-hit cache @hits)
+      (c/cache-encache cache @deltas))
     (e/result result)))
 
 (defn get-inputs
