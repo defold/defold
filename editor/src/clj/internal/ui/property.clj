@@ -205,9 +205,9 @@
       (when (not= @selection (map (comp :_id first) current-inputs))
         (g/transactional
           (doseq [[source-node source-label] current-inputs]
-            (ds/disconnect source-node source-label this :properties))
+            (g/disconnect source-node source-label this :properties))
           (doseq [n @selection]
-            (ds/connect {:_id n} :properties this :properties)))))))
+            (g/connect {:_id n} :properties this :properties)))))))
 
 #_(defn implementation-for
   [scope]

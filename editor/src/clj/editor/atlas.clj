@@ -63,7 +63,7 @@
     (let [children-before (input-connections (ds/in-transaction-graph transaction) self input-name)
           children-after  (mapcat #(input-connections graph self %) input-labels)]
       (doseq [[n l] children-before]
-        (ds/disconnect {:_id n} l self input-name))
+        (g/disconnect {:_id n} l self input-name))
       (doseq [[n _] children-after]
         (g/connect {:_id n} :outline-tree self input-name)))))
 
