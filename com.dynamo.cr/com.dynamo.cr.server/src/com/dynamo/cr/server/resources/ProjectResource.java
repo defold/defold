@@ -47,6 +47,7 @@ import org.eclipse.jgit.api.errors.InvalidRefNameException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -207,6 +208,10 @@ public class ProjectResource extends BaseResource {
             walk = new RevWalk(repo);
             Ref p = repo.getRef(name);
             if (p == null) {
+                // if not ref
+                ObjectId objId = repo.resolve(name);
+                if (objId != null)
+                    return objId.getName();
                 return null;
             }
             RevObject object = walk.parseAny(p.getObjectId());
