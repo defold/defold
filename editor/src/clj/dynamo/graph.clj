@@ -1,7 +1,24 @@
 (ns dynamo.graph
-  (:require [internal.node :as in]
+  (:require [dynamo.system :as ds]
+            [internal.node :as in]
             [internal.system :as is]))
 
+;; ---------------------------------------------------------------------------
+;; Transactions
+;; ---------------------------------------------------------------------------
+(defmacro transactional
+  "Executes the body within a project transaction. All actions
+described in the body will happen atomically at the end of the transactional
+block.
+
+Transactional blocks nest nicely. The transaction will happen when the outermost
+block ends."
+  [& forms]
+  `(ds/transactional* (fn [] ~@forms)))
+
+;; ---------------------------------------------------------------------------
+;; Values
+;; ---------------------------------------------------------------------------
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
   The value may be cached or it may be computed on demand. This is

@@ -203,7 +203,7 @@
   #_(selectionChanged [this part selection]
     (let [current-inputs (ds/sources-of this :properties)]
       (when (not= @selection (map (comp :_id first) current-inputs))
-        (ds/transactional
+        (g/transactional
           (doseq [[source-node source-label] current-inputs]
             (ds/disconnect source-node source-label this :properties))
           (doseq [n @selection]
@@ -211,7 +211,7 @@
 
 #_(defn implementation-for
   [scope]
-  (ds/transactional
+  (g/transactional
     (ds/in scope
       (ds/add (n/construct PropertyView)))))
 

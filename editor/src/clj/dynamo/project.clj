@@ -2,18 +2,19 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]
-            [dynamo.system :as ds]
             [dynamo.file :as file]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.selection :as selection]
+            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
+            [plumbing.core :refer [defnk fnk]]
+            [schema.core :as s]
             [service.log :as log])
   (:import [java.io File]))
 
@@ -56,7 +57,7 @@ behavior."
   "Load a resource, usually from file. This will create a node of the appropriate type (as defined by
 `register-node-type` and send it a :load message."
   [project-node path]
-  (ds/transactional
+  (g/transactional
     (ds/in project-node
       (ds/add
         (new-node-for-path project-node path Placeholder)))))
@@ -84,7 +85,7 @@ behavior."
 
 (defn make-editor
   [project-node path]
-  (ds/transactional
+  (g/transactional
    (ds/in project-node
           (let [content-node   (t/lookup project-node path)
                 editor-node    (build-editor-node project-node path content-node)
@@ -180,7 +181,7 @@ There is no guaranteed ordering of the sequence."
 
 (defn load-resource-nodes
   [project-node resources]
-  (ds/transactional
+  (g/transactional
    (ds/in project-node
           [project-node
            (doall
@@ -190,7 +191,7 @@ There is no guaranteed ordering of the sequence."
 
 (defn load-project
   [root branch]
-  (ds/transactional
+  (g/transactional
    (ds/add
     (n/construct Project
                  :content-root root
@@ -220,13 +221,13 @@ There is no guaranteed ordering of the sequence."
 
 (defn- unload-nodes
   [nodes]
-  (ds/transactional
+  (g/transactional
     (doseq [n nodes]
       (ds/send-after n {:type :unload}))))
 
 (defn- replace-nodes
   [project-node nodes-to-replace f]
-  (ds/transactional
+  (g/transactional
     (doseq [old nodes-to-replace
             :let [new (f old)]]
       (ds/become old new)

@@ -1,21 +1,22 @@
 (ns internal.scope-test
   (:require [clojure.core.async :as a]
             [clojure.string :as str]
-            [clojure.test :refer :all]
-            [clojure.test.check :refer :all]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [plumbing.core :refer [defnk]]
+            [clojure.test.check :refer :all]
+            [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.project :as p]
-            [dynamo.system.test-support :refer :all]
             [dynamo.system :as ds]
+            [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [internal.async :as ia]
-            [internal.node :as in])
+            [internal.node :as in]
+            [plumbing.core :refer [defnk]]
+            [schema.core :as s]
+            [schema.macros :as sm])
   (:import [dynamo.types Image AABB]))
 
 (n/defnode N1)
@@ -50,7 +51,7 @@
 (deftest scope-registration
   (testing "Nodes are registered within a scope by name"
     (with-clean-system
-      (ds/transactional
+      (g/transactional
         (ds/in (ds/add (n/construct ParticleEditor :label "view scope"))
           (ds/add (n/construct Emitter  :name "emitter"))
           (ds/add (n/construct Modifier :name "vortex"))))
@@ -73,10 +74,10 @@
 (defspec scope-disposes-contained-nodes
   (prop/for-all [scoped-nodes gen-nodelist]
     (with-clean-system
-      (let [scope          (ds/transactional (ds/add (n/construct n/Scope)))
-            disposables    (ds/transactional (ds/in scope (doseq [n scoped-nodes] (ds/add n))) scoped-nodes)
+      (let [scope          (g/transactional (ds/add (n/construct n/Scope)))
+            disposables    (g/transactional (ds/in scope (doseq [n scoped-nodes] (ds/add n))) scoped-nodes)
             disposable-ids (map :_id disposables)]
-        (ds/transactional (ds/delete scope))
+        (g/transactional (ds/delete scope))
         (yield)
         (let [disposed (take-waiting-to-dispose system)]
           (is (= (sort (conj disposable-ids (:_id scope))) (sort (map :_id disposed)))))))))

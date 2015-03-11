@@ -123,16 +123,6 @@ to distinguish it from a function call."
   []
   it/*scope*)
 
-(defmacro transactional
-  "Executes the body within a project transaction. All actions
-described in the body will happen atomically at the end of the transactional
-block.
-
-Transactional blocks nest nicely. The transaction will happen when the outermost
-block ends."
-  [& forms]
-  `(transactional* (fn [] ~@forms)))
-
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
 Takes effect when a transaction is applied."

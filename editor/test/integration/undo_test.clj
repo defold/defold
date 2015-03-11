@@ -34,7 +34,7 @@
 (defn- load-test-project []
   (let [root            (File. project-path)
         project         (ds/in (p/load-project root branch)
-                              (ds/transactional
+                              (g/transactional
                                 (p/register-editor "atlas" #'create-atlas-editor)
                                 (p/register-node-type "atlas" atlas/AtlasNode)))
         resources       (group-by clojure/clojure-source? (remove #(.isDirectory ^File %) (file-seq root)))
@@ -73,7 +73,7 @@
             (let [project (load-test-project)
                   atlas-node-ref (dt/node-ref (first (p/nodes-with-extensions project ["atlas"])))
                   editor-node-ref (dt/node-ref (p/make-editor project (:filename @atlas-node-ref)))]
-              (ds/transactional (ds/delete @atlas-node-ref))
+              (g/transactional (ds/delete @atlas-node-ref))
               (is (not-nil? @editor-node-ref))
               (is (nil? (g/node-value (:graph @world-ref) cache @editor-node-ref :node)))
               (is/undo) ; TODO undo should not be in an internal ns

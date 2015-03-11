@@ -96,7 +96,7 @@
                   (n/construct CacheTestNode)
                   (n/construct CacheTestNode))
           [name1 name2 combiner expensive]  nodes]
-      (ds/transactional
+      (g/transactional
         (ds/connect name1 :uncached-value combiner :first-name)
         (ds/connect name2 :uncached-value combiner :last-name)
         (ds/connect name1 :uncached-value expensive :operand))
@@ -183,7 +183,7 @@
                (n/construct OverrideValueNode)
                (n/construct CacheTestNode :scalar "Jane"))
         [override jane]  nodes]
-    (ds/transactional
+    (g/transactional
      (ds/connect jane :uncached-value override :overridden))
     nodes))
 
@@ -195,9 +195,9 @@
 
 (deftest update-sees-in-transaction-value
   (with-clean-system
-    (let [node (ds/transactional
+    (let [node (g/transactional
                  (ds/add (n/construct p/Project :name "a project" :int-prop 0)))
-          after-transaction (ds/transactional
+          after-transaction (g/transactional
                               (ds/update-property node :int-prop inc)
                               (ds/update-property node :int-prop inc)
                               (ds/update-property node :int-prop inc)
@@ -211,7 +211,7 @@
 (deftest node-receives-scope-message
   (testing "project scope message"
     (with-clean-system
-      (let [ps-node (ds/transactional
+      (let [ps-node (g/transactional
                       (ds/in (ds/add (n/construct p/Project :name "a project"))
                         (ds/add (n/construct ScopeReceiver))))]
         (await-world-time world-ref 3 500)
