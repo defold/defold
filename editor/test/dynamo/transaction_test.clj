@@ -162,7 +162,7 @@
             [node1 node2]      (tx-nodes
                                  (n/construct StringSource)
                                  (n/construct NameCollision :tracking tracker))
-            _                  (g/transactional (ds/connect node1 :label node2 :excalibur))
+            _                  (g/transactional (g/connect node1 :label node2 :excalibur))
             after-connect      @tracker
             _                  (g/transactional (ds/set-property node1 :label "there can be only one"))
             after-set-upstream @tracker
@@ -201,10 +201,10 @@
             counter         (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             [s r1 r2 r3]    (tx-nodes (n/construct StringSource) (n/construct Relay) (n/construct Relay) (n/construct Relay))
             _               (g/transactional
-                              (ds/connect s :label r1 :label)
-                              (ds/connect r1 :label r2 :label)
-                              (ds/connect r2 :label r3 :label)
-                              (ds/connect r3 :label counter :downstream))
+                              (g/connect s :label r1 :label)
+                              (g/connect r1 :label r2 :label)
+                              (g/connect r2 :label r3 :label)
+                              (g/connect r3 :label counter :downstream))
             before-updating @tracker
             _               (g/transactional (ds/set-property s :label "a different label"))
             after-updating  @tracker]
@@ -275,7 +275,7 @@
                [:person          :age           :calculator        :generic-input]
                [:person          :full-name     :multi-node-target :aggregator]
                [:formal-greeter  :passthrough   :multi-node-target :aggregator]]]
-        (ds/connect (f nodes) f-l (t nodes) t-l)))
+        (g/connect (f nodes) f-l (t nodes) t-l)))
     nodes))
 
 (defmacro affected-by [& forms]
@@ -438,8 +438,8 @@
     (let [[n1 l1] (build-adder-tree output-name (dec tree-levels))
           [n2 l2] (build-adder-tree output-name (dec tree-levels))
           n (ds/add (n/construct InputAdder))]
-      (ds/connect n1 output-name n :xs)
-      (ds/connect n2 output-name n :xs)
+      (g/connect n1 output-name n :xs)
+      (g/connect n2 output-name n :xs)
       [n (vec (concat l1 l2))])
     (let [n (ds/add (n/construct NumberSource :x 0))]
       [n [n]])))
@@ -449,7 +449,7 @@
     (with-clean-system
       (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
             adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
-            _             (g/transactional (ds/connect number-source :x adder-before :x))
+            _             (g/transactional (g/connect number-source :x adder-before :x))
             adder-after   (g/transactional (ds/update-property adder-before :y inc))]
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-after  :sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :sum)))))
@@ -457,7 +457,7 @@
     (with-clean-system
       (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
             adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
-            _             (g/transactional (ds/connect number-source :x adder-before :x))
+            _             (g/transactional (g/connect number-source :x adder-before :x))
             _             (g/transactional (ds/set-property number-source :x 22))
             adder-after   (g/transactional (ds/update-property adder-before :y inc))]
         (is (= 26 (g/node-value (:graph @world-ref) cache adder-after  :sum)))
@@ -467,7 +467,7 @@
     (with-clean-system
       (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
             adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
-            _             (g/transactional (ds/connect number-source :x adder-before :x))
+            _             (g/transactional (g/connect number-source :x adder-before :x))
             adder-after   (g/transactional (ds/update-property adder-before :y inc))]
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :cached-sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :sum)))

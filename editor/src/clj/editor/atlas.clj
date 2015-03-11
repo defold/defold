@@ -65,7 +65,7 @@
       (doseq [[n l] children-before]
         (ds/disconnect {:_id n} l self input-name))
       (doseq [[n _] children-after]
-        (ds/connect {:_id n} :outline-tree self input-name)))))
+        (g/connect {:_id n} :outline-tree self input-name)))))
 
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
@@ -455,15 +455,15 @@
                 :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
                       images (mapv :image (:images anim))]]
           (ds/set-property anim-node :images images)
-          (ds/connect anim-node :animation self :animations)
+          (g/connect anim-node :animation self :animations)
           (doseq [image images]
             (when-let [img-node (get img-nodes image)]
-              (ds/connect img-node :content anim-node :images))))
+              (g/connect img-node :content anim-node :images))))
         (let [images (mapv :image (:images atlas))]
           (ds/set-property self :images images)
           (doseq [image images]
             (when-let [img-node (get img-nodes image)]
-              (ds/connect img-node :content self :images))))
+              (g/connect img-node :content self :images))))
         self))
 
   (on :unload
@@ -479,18 +479,17 @@
                  background   (ds/add (n/construct background/Gradient))
                  grid         (ds/add (n/construct grid/Grid))
                  camera       (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
-             (ds/connect background   :renderable      renderer     :renderables)
-             (ds/connect grid         :renderable      renderer     :renderables)
-             (ds/connect camera       :camera          grid         :camera)
-             (ds/connect camera       :camera          renderer     :camera)
-             (ds/connect camera       :self            editor       :controller)
-             (ds/connect editor       :viewport        camera       :viewport)
-             (ds/connect editor       :viewport        renderer     :viewport)
-             (ds/connect editor       :drawable        renderer     :drawable)
-             (ds/connect renderer     :frame           editor       :frame)
+             (g/connect background   :renderable      renderer     :renderables)
+             (g/connect grid         :renderable      renderer     :renderables)
+             (g/connect camera       :camera          grid         :camera)
+             (g/connect camera       :camera          renderer     :camera)
+             (g/connect camera       :self            editor       :controller)
+             (g/connect editor       :viewport        camera       :viewport)
+             (g/connect editor       :viewport        renderer     :viewport)
+             (g/connect editor       :drawable        renderer     :drawable)
+             (g/connect renderer     :frame           editor       :frame)
 
-             (ds/connect atlas-node   :texture-packing atlas-render :texture-packing)
-             (ds/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)
-             (ds/connect atlas-render :renderable      renderer     :renderables)
-             )
+             (g/connect atlas-node   :texture-packing atlas-render :texture-packing)
+             (g/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)
+             (g/connect atlas-render :renderable      renderer     :renderables))
            editor)))

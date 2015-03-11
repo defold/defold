@@ -28,7 +28,7 @@
   (let [editor (n/construct DummyEditor)]
     (ds/in
       (ds/add editor)
-      (ds/connect atlas-node :self editor :node))
+      (g/connect atlas-node :self editor :node))
     editor))
 
 (defn- load-test-project []
