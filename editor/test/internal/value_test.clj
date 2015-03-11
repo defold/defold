@@ -97,9 +97,9 @@
                   (n/construct CacheTestNode))
           [name1 name2 combiner expensive]  nodes]
       (g/transactional
-        (ds/connect name1 :uncached-value combiner :first-name)
-        (ds/connect name2 :uncached-value combiner :last-name)
-        (ds/connect name1 :uncached-value expensive :operand))
+        (g/connect name1 :uncached-value combiner :first-name)
+        (g/connect name2 :uncached-value combiner :last-name)
+        (g/connect name1 :uncached-value expensive :operand))
       [world-ref cache nodes])))
 
 (defn with-function-counts
@@ -184,7 +184,7 @@
                (n/construct CacheTestNode :scalar "Jane"))
         [override jane]  nodes]
     (g/transactional
-     (ds/connect jane :uncached-value override :overridden))
+     (g/connect jane :uncached-value override :overridden))
     nodes))
 
 (deftest invalid-resource-values

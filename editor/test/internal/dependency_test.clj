@@ -40,7 +40,7 @@
     (ts/with-clean-system
       (let [[a b] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct InputNoOutput))
-            _     (g/transactional (ds/connect a :out-from-inline b :unused-input))
+            _     (g/transactional (g/connect a :out-from-inline b :unused-input))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]})))))
@@ -49,7 +49,7 @@
     (ts/with-clean-system
       (let [[a b] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct InputUsedByOutput))
-            _     (g/transactional (ds/connect a :out-from-inline b :string-input))
+            _     (g/transactional (g/connect a :out-from-inline b :string-input))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
@@ -81,10 +81,10 @@
                                      (n/construct SingleOutput)
                                      (n/construct InputUsedByOutput))
             _           (g/transactional
-                         (ds/connect a :out-from-inline x :string-input)
-                         (ds/connect b :out-from-inline x :string-input)
-                         (ds/connect c :out-from-inline x :string-input)
-                         (ds/connect d :out-from-inline x :string-input))
+                         (g/connect a :out-from-inline x :string-input)
+                         (g/connect b :out-from-inline x :string-input)
+                         (g/connect c :out-from-inline x :string-input)
+                         (g/connect d :out-from-inline x :string-input))
             deps        (dependencies world-ref
                                       a :out-from-inline
                                       b :out-from-inline
@@ -107,10 +107,10 @@
                                      (n/construct InputUsedByOutput)
                                      (n/construct InputUsedByOutput))
             _           (g/transactional
-                         (ds/connect a :out-from-inline x :string-input)
-                         (ds/connect a :out-from-inline y :string-input)
-                         (ds/connect a :out-from-inline z :string-input)
-                         (ds/connect a :out-from-inline w :string-input))
+                         (g/connect a :out-from-inline x :string-input)
+                         (g/connect a :out-from-inline y :string-input)
+                         (g/connect a :out-from-inline z :string-input)
+                         (g/connect a :out-from-inline w :string-input))
             deps        (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
@@ -142,11 +142,11 @@
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct MultipleInputsIntoOneOutput))
             _     (g/transactional
-                   (ds/connect a :out-from-inline x :input-1)
-                   (ds/connect a :out-from-inline x :input-2)
-                   (ds/connect a :out-from-inline x :input-3)
-                   (ds/connect a :out-from-inline x :input-4)
-                   (ds/connect a :out-from-inline x :input-5))
+                   (g/connect a :out-from-inline x :input-1)
+                   (g/connect a :out-from-inline x :input-2)
+                   (g/connect a :out-from-inline x :input-3)
+                   (g/connect a :out-from-inline x :input-4)
+                   (g/connect a :out-from-inline x :input-5))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
@@ -157,11 +157,11 @@
       (let [[a x] (ts/tx-nodes (n/construct MultipleOutputs)
                                (n/construct MultipleInputsIntoOneOutput))
             _     (g/transactional
-                   (ds/connect a :output-1 x :input-1)
-                   (ds/connect a :output-2 x :input-2)
-                   (ds/connect a :output-3 x :input-3)
-                   (ds/connect a :output-4 x :input-4)
-                   (ds/connect a :output-5 x :input-5))
+                   (g/connect a :output-1 x :input-1)
+                   (g/connect a :output-2 x :input-2)
+                   (g/connect a :output-3 x :input-3)
+                   (g/connect a :output-4 x :input-4)
+                   (g/connect a :output-5 x :input-5))
             deps  (dependencies world-ref a :output-1 a :output-2 a :output-3 a :output-4 a :output-5)]
         (is (= deps
                #{[(id a) :output-1]
@@ -191,7 +191,7 @@
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct SelfDependent))
             _     (g/transactional
-                   (ds/connect a :out-from-inline x :string-input))
+                   (g/connect a :out-from-inline x :string-input))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
@@ -203,7 +203,7 @@
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct BadlyWrittenSelfDependent))
             _     (g/transactional
-                   (ds/connect a :out-from-inline x :string-value))
+                   (g/connect a :out-from-inline x :string-value))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
@@ -214,7 +214,7 @@
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct PropertyShadowingInput))
             _     (g/transactional
-                   (ds/connect a :out-from-inline x :string-value))
+                   (g/connect a :out-from-inline x :string-value))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]}))))))
@@ -237,10 +237,10 @@
                                      (n/construct InputUsedByOutput)
                                      (n/construct InputUsedByOutput))
             _           (g/transactional
-                         (ds/connect a :out-from-inline b :string-input)
-                         (ds/connect a :out-from-inline c :string-input)
-                         (ds/connect b :out-from-input  d :string-input)
-                         (ds/connect c :out-from-input  d :string-input))
+                         (g/connect a :out-from-inline b :string-input)
+                         (g/connect a :out-from-inline c :string-input)
+                         (g/connect b :out-from-input  d :string-input)
+                         (g/connect c :out-from-input  d :string-input))
             deps        (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
@@ -262,8 +262,8 @@
                                  (n/construct SingleOutput)
                                  (n/construct TwoIndependentOutputs))
             _       (g/transactional
-                     (ds/connect a :out-from-inline x :input-1)
-                     (ds/connect b :out-from-inline x :input-2))
+                     (g/connect a :out-from-inline x :input-1)
+                     (g/connect b :out-from-inline x :input-2))
             a-deps  (dependencies world-ref a :out-from-inline)
             b-deps  (dependencies world-ref b :out-from-inline)]
         (def gr* (:graph @world-ref))
