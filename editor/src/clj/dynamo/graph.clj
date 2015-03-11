@@ -16,6 +16,11 @@
   [& forms]
   `(ds/transactional* (fn [] ~@forms)))
 
+(defn operation-label
+  "Set a human-readable label to describe the current transaction."
+  [label]
+  (ds/tx-label label))
+
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied."
@@ -53,6 +58,8 @@
   function f will be invoked as if by (apply f current-value args)"
   [n p f & args]
   (apply ds/update-property n p f args))
+
+
 
 
 
