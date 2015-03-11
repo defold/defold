@@ -236,7 +236,7 @@
   [project-node text-node]
   (let [editor (n/construct TextEditor)]
     (ds/in (ds/add editor)
-           (ds/connect text-node :text editor :text)
+           (g/connect text-node :text editor :text)
            editor)))
 
 (defrecord ProjectPath [project-ref ^String path ^String ext]

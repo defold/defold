@@ -16,6 +16,14 @@ block ends."
   [& forms]
   `(ds/transactional* (fn [] ~@forms)))
 
+(defn connect
+  "Make a connection from an output of the source node to an input on the target node.
+Takes effect when a transaction is applied."
+  [source-node source-label target-node target-label]
+  (ds/connect source-node source-label target-node target-label))
+
+
+
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------

@@ -80,7 +80,7 @@ behavior."
     (let [selection-node  (ds/add (n/construct selection/Selection))
           properties-node (ds/add (n/construct CannedProperties :rotation "e to the i pi"))]
       (doseq [node selected-nodes]
-        (ds/connect node :self selection-node :selected-nodes))
+        (g/connect node :self selection-node :selected-nodes))
       selection-node)))
 
 (defn make-editor
@@ -91,11 +91,11 @@ behavior."
                 editor-node    (build-editor-node project-node path content-node)
                 selection-node (build-selection-node editor-node [content-node])]
             (when ((t/inputs editor-node) :presenter-registry)
-              (ds/connect project-node :presenter-registry editor-node :presenter-registry))
+              (g/connect project-node :presenter-registry editor-node :presenter-registry))
             (when (and ((t/inputs editor-node) :saveable) ((t/outputs content-node) :save))
-              (ds/connect content-node :save editor-node :saveable))
+              (g/connect content-node :save editor-node :saveable))
             (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
-              (ds/connect content-node :dirty editor-node :dirty))
+              (g/connect content-node :dirty editor-node :dirty))
             editor-node))))
 
 (defn- send-project-scope-message
