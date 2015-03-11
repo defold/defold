@@ -157,11 +157,11 @@
           outline1     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect image from anim
-          atlas        (g/transactional (ds/disconnect img-frame-02 :content anim1 :images) atlas)
+          atlas        (g/transactional (g/disconnect img-frame-02 :content anim1 :images) atlas)
           outline2     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect anim
-          atlas        (g/transactional (ds/disconnect anim1 :animation atlas :animations) atlas)
+          atlas        (g/transactional (g/disconnect anim1 :animation atlas :animations) atlas)
           outline3     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect existing image
@@ -169,7 +169,7 @@
           outline4     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect image
-          atlas        (g/transactional (ds/disconnect img-frame-01 :content atlas :images) atlas)
+          atlas        (g/transactional (g/disconnect img-frame-01 :content atlas :images) atlas)
           outline5     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; add anim
@@ -194,7 +194,7 @@
           outline9     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect placeholder
-          atlas        (g/transactional (ds/disconnect img-missing :content anim2 :images) atlas)
+          atlas        (g/transactional (g/disconnect img-missing :content anim2 :images) atlas)
           outline10    (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect duplicate existing image
@@ -202,7 +202,7 @@
           outline11    (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect duplicate existing image
-          atlas        (g/transactional (ds/disconnect img-frame-01 :content anim2 :images) atlas)
+          atlas        (g/transactional (g/disconnect img-frame-01 :content anim2 :images) atlas)
           outline12    (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect duplicate missing (placeholder) image
@@ -210,7 +210,7 @@
           outline13    (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect duplicate missing (placeholder) image
-          atlas        (g/transactional (ds/disconnect img-missing2 :content anim2 :images) atlas)
+          atlas        (g/transactional (g/disconnect img-missing2 :content anim2 :images) atlas)
           outline14    (g/node-value (:graph @world-ref) cache atlas :outline-tree)]
       (are [outline-tree expected] (= expected (simple-outline outline-tree))
         outline1  ["Atlas" [["anim1" [["frame-01.png" []] ["frame-02.png" []] ["frame-03.png" []]]]]]

@@ -123,13 +123,13 @@ to distinguish it from a function call."
   []
   it/*scope*)
 
-(defn connect
+(defn ^:deprecated connect
   "Make a connection from an output of the source node to an input on the target node.
 Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
   (it/tx-bind *transaction* (it/connect source-node source-label target-node target-label)))
 
-(defn disconnect
+(defn ^:deprecated disconnect
   "Remove a connection from an output of the source node to the input on the target node.
 Note that there might still be connections between the two nodes, from other outputs to other inputs.
 Takes effect when a transaction is applied."
