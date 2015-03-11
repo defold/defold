@@ -158,6 +158,10 @@ public class TextureUtil {
         if (textureProfiles == null)
             return null;
 
+        // Paths are root relative inside Bob, but to the user resource paths look absolute (see paths
+        // specified in the game project UI). We need to match against the users expectations:
+        path = "/" + path;
+
         // Look through the path settings if the current input filepath matches,
         // if found, lookup the correct texture profile to use.
         for (PathSettings pathSettings : textureProfiles.getPathSettingsList()) {
