@@ -136,12 +136,12 @@ Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
   (it/tx-bind *transaction* (it/disconnect source-node source-label target-node target-label)))
 
-(defn become
+(defn ^:deprecated become
   [source-node new-node]
   (it/tx-bind *transaction* (it/become source-node new-node))
   new-node)
 
-(defn set-property
+(defn ^:deprecated set-property
   "Assign a value to a node's property (or properties) value(s) in a transaction."
   [n & kvs]
   (it/tx-bind *transaction*
@@ -149,7 +149,7 @@ Takes effect when a transaction is applied."
       (it/update-property n p (constantly v) [])))
   n)
 
-(defn update-property
+(defn ^:deprecated update-property
   "Apply a function to a node's property in a transaction. The function f will be
 invoked as if by (apply f current-value args)"
   [n p f & args]

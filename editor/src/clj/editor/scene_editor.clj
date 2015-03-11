@@ -165,7 +165,7 @@
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (g/transactional (ds/set-property self :gl-drawable drawable))
+        (g/transactional (g/set-property self :gl-drawable drawable))
         drawable))))
 
 (n/defnode SceneEditor
@@ -196,7 +196,7 @@
         (AnchorPane/setLeftAnchor image-view 0.0)
         (AnchorPane/setRightAnchor image-view 0.0)
         (.add (.getChildren ^Pane parent) image-view)
-        (ds/set-property self :image-view image-view)
+        (g/set-property self :image-view image-view)
         (let [self-ref (t/node-ref self)
               event-handler (reify EventHandler (handle [this e]
                                                   (let [self @self-ref
@@ -207,7 +207,7 @@
                                                             bb ^BoundingBox new-val
                                                             w (- (.getMaxX bb) (.getMinX bb))
                                                             h (- (.getMaxY bb) (.getMinY bb))]
-                                                        (g/transactional (ds/set-property self :viewport (t/->Region 0 w 0 h))))))]
+                                                        (g/transactional (g/set-property self :viewport (t/->Region 0 w 0 h))))))]
           (.setOnMousePressed parent event-handler)
           (.setOnMouseReleased parent event-handler)
           (.setOnMouseClicked parent event-handler)
@@ -223,11 +223,11 @@
                                     visible               (:visible self)]
                                 (when frame
                                   (.setImage image-view (SwingFXUtils/toFXImage frame (.getImage image-view)))))))]
-            (g/transactional (ds/set-property self :repainter repainter))
+            (g/transactional (g/set-property self :repainter repainter))
             (.start repainter))
           (.addListener (.selectedProperty tab) (reify ChangeListener (changed [this observable old-val new-val]
                                                                         (let [self @self-ref]
-                                                                          (g/transactional (ds/set-property self :visible new-val))))))
+                                                                          (g/transactional (g/set-property self :visible new-val))))))
           )))
 
   t/IDisposable

@@ -449,18 +449,18 @@
             input (:filename self)
             atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
             img-nodes (find-resource-nodes project #{"png" "jpg"})]
-        (ds/set-property self :margin (:margin atlas))
-        (ds/set-property self :extrude-borders (:extrude-borders atlas))
+        (g/set-property self :margin (:margin atlas))
+        (g/set-property self :extrude-borders (:extrude-borders atlas))
         (doseq [anim (:animations atlas)
                 :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
                       images (mapv :image (:images anim))]]
-          (ds/set-property anim-node :images images)
+          (g/set-property anim-node :images images)
           (g/connect anim-node :animation self :animations)
           (doseq [image images]
             (when-let [img-node (get img-nodes image)]
               (g/connect img-node :content anim-node :images))))
         (let [images (mapv :image (:images atlas))]
-          (ds/set-property self :images images)
+          (g/set-property self :images images)
           (doseq [image images]
             (when-let [img-node (get img-nodes image)]
               (g/connect img-node :content self :images))))

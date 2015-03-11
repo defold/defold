@@ -56,9 +56,9 @@ Outputs
                                                   -100000
                                                   100000)
                               (assoc :viewport viewport))]
-          (ds/set-property camera-node :camera new-camera)
+          (g/set-property camera-node :camera new-camera)
           (when (:first-resize self)
-            (ds/set-property self :first-resize false)
+            (g/set-property self :first-resize false)
             (ds/send-after self {:type :reframe}))))
 
     (on :reframe
@@ -66,7 +66,7 @@ Outputs
               camera      (n/get-node-value camera-node :camera)
               aabb        (n/get-node-value self :aabb)]
           (when aabb ;; there exists an aabb to center on
-            (ds/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
+            (g/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
 
   (n/defnode SceneEditor
     "SceneEditor is the basis for all 2D orthographic and 3D perspective editors.
@@ -120,7 +120,7 @@ Messages:
           (iuse/pipe-events-to-node canvas :resize self)
           (iuse/start-event-pump canvas self)
           (texture/initialize gl)
-          (ds/set-property self
+          (g/set-property self
                            ;; :outline-widget-tree (outline/outline-tree-gui)
                            :context context
                            :canvas canvas

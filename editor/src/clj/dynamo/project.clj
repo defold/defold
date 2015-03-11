@@ -20,15 +20,15 @@ ordinary paths."
 
 (defn register-node-type
   [filetype node-type]
-  (ds/update-property (ds/current-scope) :node-types assoc filetype node-type))
+  (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
 
 (defn register-editor
   [filetype editor-builder]
-  (ds/update-property (ds/current-scope) :handlers assoc-in [:editor filetype] editor-builder))
+  (g/update-property (ds/current-scope) :handlers assoc-in [:editor filetype] editor-builder))
 
 (defn register-presenter
   [property presenter]
-  (ds/update-property (ds/current-scope) :presenter-registry dp/register-presenter property presenter))
+  (g/update-property (ds/current-scope) :presenter-registry dp/register-presenter property presenter))
 
 (defn- editor-for [project-scope ext]
   (or

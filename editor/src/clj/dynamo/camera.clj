@@ -1,15 +1,15 @@
 (ns dynamo.camera
-  (:require [schema.macros :as sm]
-            [schema.core :as s]
-            [plumbing.core :refer [defnk]]
-            [dynamo.types :as t]
+  (:require [dynamo.geom :as g]
+            [dynamo.graph :as dg]
             [dynamo.node :as n]
-            [dynamo.ui :as ui]
-            [dynamo.geom :as g]
             [dynamo.system :as ds]
-            [dynamo.geom :as g])
-  (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]
-           [dynamo.types Camera Region AABB]))
+            [dynamo.types :as t]
+            [dynamo.ui :as ui]
+            [plumbing.core :refer [defnk]]
+            [schema.core :as s]
+            [schema.macros :as sm])
+  (:import [dynamo.types Camera Region AABB]
+           [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]))
 
 (sm/defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
@@ -319,9 +319,9 @@
           {:keys [x y]} event]
       (when (not (= :idle movement))
         (case movement
-          :dolly  (ds/update-property self :camera dolly  (* -0.002 (- y last-y)))
-          :track  (ds/update-property self :camera track  last-x last-y x y)
-          :tumble (ds/update-property self :camera tumble last-x last-y x y)
+          :dolly  (dg/update-property self :camera dolly  (* -0.002 (- y last-y)))
+          :track  (dg/update-property self :camera track  last-x last-y x y)
+          :tumble (dg/update-property self :camera tumble last-x last-y x y)
           nil)
         (swap! (:ui-state self) assoc
           :last-x x
@@ -335,4 +335,4 @@
 
   (on :mouse-wheel
     (when (contains? (:movements-enabled self) :dolly)
-      (ds/update-property self :camera dolly (* -0.02 (:count event))))))
+      (dg/update-property self :camera dolly (* -0.02 (:count event))))))

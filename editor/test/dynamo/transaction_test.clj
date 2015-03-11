@@ -122,7 +122,7 @@
 
   (trigger copy-self :property-touched (fn [txn graph self label kind afflicted]
                                          (when true (afflicted :source)
-                                           (ds/set-property self :sink (:source self))))))
+                                           (g/set-property self :sink (:source self))))))
 
 (n/defnode NameCollision
   (input    excalibur s/Str)
@@ -142,7 +142,7 @@
       (let [tracker          (atom {})
             counter          (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating  @tracker
-            _                (g/transactional (ds/set-property counter :any-property true))
+            _                (g/transactional (g/set-property counter :any-property true))
             after-updating   @tracker]
         (is (= {:added 1} before-updating))
         (is (= {:added 1 :property-touched [#{:any-property}]} after-updating)))))
@@ -151,7 +151,7 @@
     (with-clean-system
       (let [tracker        (atom {})
             [node]         (tx-nodes (n/construct PropertySync :tracking tracker))
-            node           (g/transactional (ds/set-property node :source 42))
+            node           (g/transactional (g/set-property node :source 42))
             after-updating @tracker]
         (is (= {:added 1 :property-touched [#{:source} #{:sink}]} after-updating))
         (is (= 42 (:sink node) (:source node))))))
@@ -164,9 +164,9 @@
                                  (n/construct NameCollision :tracking tracker))
             _                  (g/transactional (g/connect node1 :label node2 :excalibur))
             after-connect      @tracker
-            _                  (g/transactional (ds/set-property node1 :label "there can be only one"))
+            _                  (g/transactional (g/set-property node1 :label "there can be only one"))
             after-set-upstream @tracker
-            _                  (g/transactional (ds/set-property node2 :excalibur "basis for a system of government"))
+            _                  (g/transactional (g/set-property node2 :excalibur "basis for a system of government"))
             after-set-property @tracker
             _                  (g/transactional (g/disconnect node1 :label node2 :excalibur))
             after-disconnect   @tracker]
@@ -180,7 +180,7 @@
       (let [tracker          (atom {})
             counter          (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating  @tracker
-            _                (g/transactional (ds/set-property counter :dynamic-property true))
+            _                (g/transactional (g/set-property counter :dynamic-property true))
             after-updating   @tracker]
         (is (= {:added 1} before-updating))
         (is (= {:added 1 :property-touched [#{:dynamic-property}]} after-updating)))))
@@ -206,7 +206,7 @@
                               (g/connect r2 :label r3 :label)
                               (g/connect r3 :label counter :downstream))
             before-updating @tracker
-            _               (g/transactional (ds/set-property s :label "a different label"))
+            _               (g/transactional (g/set-property s :label "a different label"))
             after-updating  @tracker]
         (is (= {:added 1 :input-connections [#{:downstream}]} before-updating))
         (is (= before-updating after-updating)))))
@@ -291,7 +291,7 @@
 (deftest precise-invalidation
   (with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network)]
-      (are [update expected] (= (into #{} (pairwise :_id expected)) (affected-by (apply ds/set-property update)))
+      (are [update expected] (= (into #{} (pairwise :_id expected)) (affected-by (apply g/set-property update)))
         [calculator :touched true]                {calculator        #{:properties :touched}}
         [person :date-of-birth (java.util.Date.)] {person            #{:properties :age :date-of-birth}
                                                    calculator        #{:passthrough}}
@@ -450,7 +450,7 @@
       (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
             adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
             _             (g/transactional (g/connect number-source :x adder-before :x))
-            adder-after   (g/transactional (ds/update-property adder-before :y inc))]
+            adder-after   (g/transactional (g/update-property adder-before :y inc))]
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-after  :sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :sum)))))
 
@@ -458,8 +458,8 @@
       (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
             adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
             _             (g/transactional (g/connect number-source :x adder-before :x))
-            _             (g/transactional (ds/set-property number-source :x 22))
-            adder-after   (g/transactional (ds/update-property adder-before :y inc))]
+            _             (g/transactional (g/set-property number-source :x 22))
+            adder-after   (g/transactional (g/update-property adder-before :y inc))]
         (is (= 26 (g/node-value (:graph @world-ref) cache adder-after  :sum)))
         (is (= 26 (g/node-value (:graph @world-ref) cache adder-before :sum))))))
 
@@ -468,7 +468,7 @@
       (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
             adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
             _             (g/transactional (g/connect number-source :x adder-before :x))
-            adder-after   (g/transactional (ds/update-property adder-before :y inc))]
+            adder-after   (g/transactional (g/update-property adder-before :y inc))]
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :cached-sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-after  :cached-sum)))
@@ -482,7 +482,7 @@
         (is (= 0 (g/node-value (:graph @world-ref) cache adder :sum)))
         (dotimes [i iterations]
           (let [f1 (future (g/node-value (:graph @world-ref) cache adder :sum))
-                f2 (future (g/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
+                f2 (future (g/transactional (doseq [n number-sources] (g/update-property n :x inc))))]
             (is (zero? (mod @f1 (count number-sources))))
             @f2))
         (is (= (* iterations (count number-sources)) (g/node-value (:graph @world-ref) cache adder :sum))))))
@@ -496,7 +496,7 @@
         (loop [i iterations]
           (when (pos? i)
             (let [f1 (future (g/node-value (:graph @world-ref) cache adder :cached-sum))
-                  f2 (future (g/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
+                  f2 (future (g/transactional (doseq [n number-sources] (g/update-property n :x inc))))]
               @f2
               @f1
               (recur (dec i)))))
@@ -507,7 +507,7 @@
     (with-clean-system
       (let [tree-levels            5
             [adder number-sources] (g/transactional (build-adder-tree :cached-sum tree-levels))]
-        (g/transactional (doseq [n number-sources] (ds/update-property n :x inc)))
+        (g/transactional (doseq [n number-sources] (g/update-property n :x inc)))
         (is (nil? (cache-peek system (:_id adder) :cached-sum)))
         (is (nil? (cache-peek system (:_id (first number-sources)) :cached-sum)))
         (g/node-value (:graph @world-ref) cache adder :cached-sum)
