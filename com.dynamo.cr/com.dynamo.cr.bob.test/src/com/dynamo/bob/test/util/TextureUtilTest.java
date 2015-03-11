@@ -13,6 +13,9 @@ import javax.imageio.ImageIO;
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.graphics.proto.Graphics.PathSettings;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 public class TextureUtilTest {
 
@@ -125,4 +128,41 @@ public class TextureUtilTest {
             }
         }
     }
+
+    @Test
+    public void testTextureProfilePaths() throws FileNotFoundException, IOException {
+
+        // Create a texture profile with a max texture size
+        PathSettings p1 = PathSettings.newBuilder().setProfile("match1").setPath("/**/test.png").build();
+        PathSettings p2 = PathSettings.newBuilder().setProfile("match2").setPath("/**/*.jpg").build();
+        PathSettings p3 = PathSettings.newBuilder().setProfile("match3").setPath("/**/subdir/**/*.txt").build();
+        PathSettings p4 = PathSettings.newBuilder().setProfile("match4").setPath("**").build();
+        TextureProfiles texProfiles = TextureProfiles.newBuilder()
+                .addPathSettings(p1)
+                .addPathSettings(p2)
+                .addPathSettings(p3)
+                .addPathSettings(p4)
+                .addProfiles(TextureProfile.newBuilder().setName("match1").build())
+                .addProfiles(TextureProfile.newBuilder().setName("match2").build())
+                .addProfiles(TextureProfile.newBuilder().setName("match3").build())
+                .addProfiles(TextureProfile.newBuilder().setName("match4").build())
+                .build();
+
+        assertEquals("match1", TextureUtil.getTextureProfileByPath(texProfiles, "test.png" ).getName());
+        assertEquals("match1", TextureUtil.getTextureProfileByPath(texProfiles, "a/test.png" ).getName());
+        assertEquals("match1", TextureUtil.getTextureProfileByPath(texProfiles, "a/b/test.png" ).getName());
+
+        assertEquals("match2", TextureUtil.getTextureProfileByPath(texProfiles, "test.jpg" ).getName());
+        assertEquals("match2", TextureUtil.getTextureProfileByPath(texProfiles, "a/test.jpg" ).getName());
+        assertEquals("match2", TextureUtil.getTextureProfileByPath(texProfiles, "a/b/c.jpg" ).getName());
+
+        assertEquals("match3", TextureUtil.getTextureProfileByPath(texProfiles, "subdir/a.txt" ).getName());
+        assertEquals("match3", TextureUtil.getTextureProfileByPath(texProfiles, "a/subdir/b.txt" ).getName());
+        assertEquals("match3", TextureUtil.getTextureProfileByPath(texProfiles, "a/subdir/b/c.txt" ).getName());
+
+        assertEquals("match4", TextureUtil.getTextureProfileByPath(texProfiles, "a.bin" ).getName());
+        assertEquals("match4", TextureUtil.getTextureProfileByPath(texProfiles, "a/a.bin" ).getName());
+        assertEquals("match4", TextureUtil.getTextureProfileByPath(texProfiles, "a/b/c.bin" ).getName());
+    }
+
 }
