@@ -16,14 +16,6 @@ namespace dmGameSystem
             return dmGraphics::TEXTURE_FORMAT_RGB;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
             return dmGraphics::TEXTURE_FORMAT_RGBA;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
-            return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
             return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
@@ -34,6 +26,17 @@ namespace dmGameSystem
             return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
             return dmGraphics::TEXTURE_FORMAT_RGB_ETC1;
+        /*
+        JIRA issue: DEF-994
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
+            return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
+        */
         default:
             assert(0);
         }

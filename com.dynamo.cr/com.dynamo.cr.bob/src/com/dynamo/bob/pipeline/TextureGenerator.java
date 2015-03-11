@@ -52,10 +52,14 @@ public class TextureGenerator {
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, PixelFormat.RGBA_PVRTC_2BPPV1);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1, PixelFormat.RGBA_PVRTC_4BPPV1);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB_ETC1, PixelFormat.RGB_ETC1);
+
+        /*
+        JIRA issue: DEF-994
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB_DXT1, PixelFormat.RGB_DXT1);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_DXT1, PixelFormat.RGBA_DXT1);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_DXT3, PixelFormat.RGBA_DXT3);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_DXT5, PixelFormat.RGBA_DXT5);
+        */
     }
 
     // Two generate() methods to generate TextureImages without any texture profile.
@@ -117,12 +121,16 @@ public class TextureGenerator {
             }
 
             // DXT
+            /*
+            JIRA issue: DEF-994
+
             case TEXTURE_FORMAT_RGBA_DXT1: {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_DXT1;
 
                 return targetFormat;
             }
+            */
         }
 
         return targetFormat;
@@ -275,19 +283,6 @@ public class TextureGenerator {
                     // For example we would rather have a texture format with 3 channels if the input
                     // image has 3 channels, even if the texture profile specified a format with 4 channels.
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
-
-                    // PVRTexLib does not allow DXT compression on other platforms than Windows at the moment.
-                    if (Platform.getHostPlatform() != Platform.X86Win32 &&
-                        (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_DXT1 ||
-                        textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_DXT1 ||
-                        textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_DXT3 ||
-                        textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_DXT5)) {
-
-                        Logger logger = Logger.getLogger(TextureGenerator.class.getName());
-                        logger.log(Level.WARNING, "DXT compression is not supported on this platform.");
-
-                        continue;
-                    }
 
                     try {
                         TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );

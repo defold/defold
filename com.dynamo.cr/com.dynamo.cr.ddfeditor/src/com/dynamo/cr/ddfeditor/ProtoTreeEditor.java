@@ -137,8 +137,9 @@ public class ProtoTreeEditor implements Listener {
             if (fieldDescriptor.getType() == Type.ENUM) {
                 enumEditor.setEnumDescriptor(fieldDescriptor.getEnumType());
                 return enumEditor;
-            }
-            else if (isResource(fieldDescriptor)) {
+            } else if (fieldDescriptor.getType() == Type.BOOL) {
+                return textEditor;
+            } else if (isResource(fieldDescriptor)) {
                 return resourceEditor;
             }
             else {
@@ -160,6 +161,9 @@ public class ProtoTreeEditor implements Listener {
                     return true;
                 }
                 else if (value instanceof Number) {
+                    return true;
+                }
+                else if (value instanceof Boolean) {
                     return true;
                 }
             }
@@ -222,6 +226,14 @@ public class ProtoTreeEditor implements Listener {
             if (value instanceof Number && fieldPath.lastElement().fieldDescriptor.getType() == Type.ENUM) {
                 EnumDescriptor enumDesc = fieldPath.lastElement().fieldDescriptor.getEnumType();
                 value = enumDesc.findValueByNumber((Integer) value);
+            }
+            else if (fieldPath.lastElement().fieldDescriptor.getType() == Type.BOOL) {
+                String s = (String)value;
+                if (s.toLowerCase().equals("true")) {
+                    value = true;
+                } else {
+                    value = false;
+                }
             }
             else if (oldValue instanceof Number) {
                 try {

@@ -29,15 +29,26 @@ message TextureImage
         TEXTURE_FORMAT_LUMINANCE         = 0;
         TEXTURE_FORMAT_RGB               = 1;
         TEXTURE_FORMAT_RGBA              = 2;
-        TEXTURE_FORMAT_RGB_DXT1          = 3;
-        TEXTURE_FORMAT_RGBA_DXT1         = 4;
-        TEXTURE_FORMAT_RGBA_DXT3         = 5;
-        TEXTURE_FORMAT_RGBA_DXT5         = 6;
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1  = 7;
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1  = 8;
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 = 9;
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 = 10;
-        TEXTURE_FORMAT_RGB_ETC1          = 11;
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1  = 3;
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1  = 4;
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 = 5;
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 = 6;
+        TEXTURE_FORMAT_RGB_ETC1          = 7;
+
+        /*
+
+        PVRTexLib that is used in texc can't compress to DXT other than
+        on Windows at the moment. There is functionality in the engine to
+        handle DXT textures, but until we can generate them on all platforms
+        through Bob, this will be commented out.
+
+        JIRA issue: DEF-994
+
+        TEXTURE_FORMAT_RGB_DXT1          = 8;
+        TEXTURE_FORMAT_RGBA_DXT1         = 9;
+        TEXTURE_FORMAT_RGBA_DXT3         = 10;
+        TEXTURE_FORMAT_RGBA_DXT5         = 11;
+        */
     }
 
     message Image
