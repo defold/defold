@@ -13,7 +13,7 @@
 (defn- post-removal [ch v]
   (when v
     (cond
-      (and (satisfies? e/Either v) (e/exists? v))
+      (and (satisfies? e/Either v) (e/exists? v) (not (nil? (e/result v))))
       (a/>!! ch (e/result v))
 
       (not (satisfies? e/Either v))
