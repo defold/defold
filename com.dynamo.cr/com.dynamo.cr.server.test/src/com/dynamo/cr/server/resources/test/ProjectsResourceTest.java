@@ -672,6 +672,13 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertEquals(Status.NOT_FOUND.getStatusCode(), foo.getStatus());
     }
 
+    @Test
+    public void getArchiveByHash() {
+        String head1 = getArchiveETag("HEAD").getHeaders().getFirst("ETag");
+        String head2 = getArchiveETag(head1).getHeaders().getFirst("ETag");
+        assertEquals(head1, head2);
+    }
+
     private static void alterFile(String cloneDir, String name, String content) throws IOException {
         File file = new File(cloneDir + "/" + name);
         assertTrue(file.exists());
