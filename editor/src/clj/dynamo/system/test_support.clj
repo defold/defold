@@ -2,6 +2,7 @@
   (:require [clojure.core.async :as a]
             [clojure.java.io :as io]
             [com.stuartsierra.component :as component]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [in]]
             [internal.async :as ia]
@@ -26,7 +27,7 @@
               ~@forms))))
 
 (defn tx-nodes [& resources]
-  (ds/transactional
+  (g/transactional
     (doseq [r resources]
       (ds/add r))
     resources))

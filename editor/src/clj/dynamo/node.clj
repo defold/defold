@@ -147,9 +147,9 @@ implement dynamo.types/MessageTarget."
          (in/define-node-record  '~record-name '~symb ~symb)
          (in/define-print-method '~record-name '~symb ~symb)
          (when (and replacing# (ds/current-scope))
-           (ds/transactional
-             (doseq [r# to-be-replaced#]
-               (ds/become r# (construct ~symb)))))
+           (ds/transactional* (fn []
+                                (doseq [r# to-be-replaced#]
+                                  (ds/become r# (construct ~symb))))))
          (var ~symb)))))
 
 (defn abort

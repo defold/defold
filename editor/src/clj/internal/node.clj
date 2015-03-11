@@ -507,7 +507,7 @@ build the node type description (map). These are emitted where you invoked
     `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (fnk [~label] ~label))
 
     [(['on label & fn-body] :seq)]
-    `(attach-event-handler ~(keyword label) (fn [~'self ~'event] (dynamo.system/transactional ~@fn-body)))
+    `(attach-event-handler ~(keyword label) (fn [~'self ~'event] (dynamo.graph/transactional ~@fn-body)))
 
     [(['trigger label & rest] :seq)]
     (let [kinds (vec (take-while keyword? rest))

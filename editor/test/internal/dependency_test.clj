@@ -1,6 +1,7 @@
 (ns internal.dependency-test
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.system.test-support :as ts]
@@ -39,7 +40,7 @@
     (ts/with-clean-system
       (let [[a b] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct InputNoOutput))
-            _     (ds/transactional (ds/connect a :out-from-inline b :unused-input))
+            _     (g/transactional (ds/connect a :out-from-inline b :unused-input))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]})))))
@@ -48,7 +49,7 @@
     (ts/with-clean-system
       (let [[a b] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct InputUsedByOutput))
-            _     (ds/transactional (ds/connect a :out-from-inline b :string-input))
+            _     (g/transactional (ds/connect a :out-from-inline b :string-input))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
@@ -79,7 +80,7 @@
                                      (n/construct SingleOutput)
                                      (n/construct SingleOutput)
                                      (n/construct InputUsedByOutput))
-            _           (ds/transactional
+            _           (g/transactional
                          (ds/connect a :out-from-inline x :string-input)
                          (ds/connect b :out-from-inline x :string-input)
                          (ds/connect c :out-from-inline x :string-input)
@@ -105,7 +106,7 @@
                                      (n/construct InputUsedByOutput)
                                      (n/construct InputUsedByOutput)
                                      (n/construct InputUsedByOutput))
-            _           (ds/transactional
+            _           (g/transactional
                          (ds/connect a :out-from-inline x :string-input)
                          (ds/connect a :out-from-inline y :string-input)
                          (ds/connect a :out-from-inline z :string-input)
@@ -140,7 +141,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct MultipleInputsIntoOneOutput))
-            _     (ds/transactional
+            _     (g/transactional
                    (ds/connect a :out-from-inline x :input-1)
                    (ds/connect a :out-from-inline x :input-2)
                    (ds/connect a :out-from-inline x :input-3)
@@ -155,7 +156,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct MultipleOutputs)
                                (n/construct MultipleInputsIntoOneOutput))
-            _     (ds/transactional
+            _     (g/transactional
                    (ds/connect a :output-1 x :input-1)
                    (ds/connect a :output-2 x :input-2)
                    (ds/connect a :output-3 x :input-3)
@@ -189,7 +190,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct SelfDependent))
-            _     (ds/transactional
+            _     (g/transactional
                    (ds/connect a :out-from-inline x :string-input))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
@@ -201,7 +202,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct BadlyWrittenSelfDependent))
-            _     (ds/transactional
+            _     (g/transactional
                    (ds/connect a :out-from-inline x :string-value))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
@@ -212,7 +213,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (n/construct SingleOutput)
                                (n/construct PropertyShadowingInput))
-            _     (ds/transactional
+            _     (g/transactional
                    (ds/connect a :out-from-inline x :string-value))
             deps  (dependencies world-ref a :out-from-inline)]
         (is (= deps
@@ -235,7 +236,7 @@
                                      (n/construct InputUsedByOutput)
                                      (n/construct InputUsedByOutput)
                                      (n/construct InputUsedByOutput))
-            _           (ds/transactional
+            _           (g/transactional
                          (ds/connect a :out-from-inline b :string-input)
                          (ds/connect a :out-from-inline c :string-input)
                          (ds/connect b :out-from-input  d :string-input)
@@ -260,7 +261,7 @@
       (let [[a b x] (ts/tx-nodes (n/construct SingleOutput)
                                  (n/construct SingleOutput)
                                  (n/construct TwoIndependentOutputs))
-            _       (ds/transactional
+            _       (g/transactional
                      (ds/connect a :out-from-inline x :input-1)
                      (ds/connect b :out-from-inline x :input-2))
             a-deps  (dependencies world-ref a :out-from-inline)
