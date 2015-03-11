@@ -133,16 +133,16 @@
   (testing "runs when node is added"
     (with-clean-system
       (let [tracker      (atom {})
-            counter      (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter      (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             after-adding @tracker]
         (is (= {:added 1} after-adding)))))
 
   (testing "runs when node is altered in a way that affects an output"
     (with-clean-system
       (let [tracker          (atom {})
-            counter          (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter          (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating  @tracker
-            _                (ds/transactional (ds/set-property counter :any-property true))
+            _                (g/transactional (ds/set-property counter :any-property true))
             after-updating   @tracker]
         (is (= {:added 1} before-updating))
         (is (= {:added 1 :property-touched [#{:any-property}]} after-updating)))))
@@ -151,7 +151,7 @@
     (with-clean-system
       (let [tracker        (atom {})
             [node]         (tx-nodes (n/construct PropertySync :tracking tracker))
-            node           (ds/transactional (ds/set-property node :source 42))
+            node           (g/transactional (ds/set-property node :source 42))
             after-updating @tracker]
         (is (= {:added 1 :property-touched [#{:source} #{:sink}]} after-updating))
         (is (= 42 (:sink node) (:source node))))))
@@ -162,13 +162,13 @@
             [node1 node2]      (tx-nodes
                                  (n/construct StringSource)
                                  (n/construct NameCollision :tracking tracker))
-            _                  (ds/transactional (ds/connect node1 :label node2 :excalibur))
+            _                  (g/transactional (ds/connect node1 :label node2 :excalibur))
             after-connect      @tracker
-            _                  (ds/transactional (ds/set-property node1 :label "there can be only one"))
+            _                  (g/transactional (ds/set-property node1 :label "there can be only one"))
             after-set-upstream @tracker
-            _                  (ds/transactional (ds/set-property node2 :excalibur "basis for a system of government"))
+            _                  (g/transactional (ds/set-property node2 :excalibur "basis for a system of government"))
             after-set-property @tracker
-            _                  (ds/transactional (ds/disconnect node1 :label node2 :excalibur))
+            _                  (g/transactional (ds/disconnect node1 :label node2 :excalibur))
             after-disconnect   @tracker]
         (is (= {:added 1 :input-connections [#{:excalibur}]} after-connect))
         (is (= {:added 1 :input-connections [#{:excalibur}]} after-set-upstream))
@@ -178,9 +178,9 @@
   (testing "runs when node is altered in a way that doesn't affect an output"
     (with-clean-system
       (let [tracker          (atom {})
-            counter          (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter          (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating  @tracker
-            _                (ds/transactional (ds/set-property counter :dynamic-property true))
+            _                (g/transactional (ds/set-property counter :dynamic-property true))
             after-updating   @tracker]
         (is (= {:added 1} before-updating))
         (is (= {:added 1 :property-touched [#{:dynamic-property}]} after-updating)))))
@@ -188,9 +188,9 @@
   (testing "runs when node is deleted"
     (with-clean-system
       (let [tracker         (atom {})
-            counter         (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter         (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-removing @tracker
-            _               (ds/transactional (ds/delete counter))
+            _               (g/transactional (ds/delete counter))
             after-removing  @tracker]
         (is (= {:added 1} before-removing))
         (is (= {:added 1 :deleted 1} after-removing)))))
@@ -198,15 +198,15 @@
   (testing "does *not* run when an upstream output changes"
     (with-clean-system
       (let [tracker         (atom {})
-            counter         (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter         (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             [s r1 r2 r3]    (tx-nodes (n/construct StringSource) (n/construct Relay) (n/construct Relay) (n/construct Relay))
-            _               (ds/transactional
+            _               (g/transactional
                               (ds/connect s :label r1 :label)
                               (ds/connect r1 :label r2 :label)
                               (ds/connect r2 :label r3 :label)
                               (ds/connect r3 :label counter :downstream))
             before-updating @tracker
-            _               (ds/transactional (ds/set-property s :label "a different label"))
+            _               (g/transactional (ds/set-property s :label "a different label"))
             after-updating  @tracker]
         (is (= {:added 1 :input-connections [#{:downstream}]} before-updating))
         (is (= before-updating after-updating)))))
@@ -214,9 +214,9 @@
   (testing "runs on the new node type when a node becomes a new node"
     (with-clean-system
       (let [tracker          (atom {})
-            counter          (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter          (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-transmog  @tracker
-            stringer         (ds/transactional (ds/become counter (n/construct StringSource)))
+            stringer         (g/transactional (ds/become counter (n/construct StringSource)))
             after-transmog   @tracker]
         (is (identical? (:tracking counter) (:tracking stringer)))
         (is (= {:added 1} before-transmog))
@@ -225,10 +225,10 @@
   (testing "activation is correct even when scopes and injection happen"
     (with-clean-system
       (let [tracker            (atom {})
-            scope              (ds/transactional (ds/add (n/construct p/Project)))
-            counter            (ds/transactional (ds/in scope (ds/add (n/construct TriggerExecutionCounter :tracking tracker))))
+            scope              (g/transactional (ds/add (n/construct p/Project)))
+            counter            (g/transactional (ds/in scope (ds/add (n/construct TriggerExecutionCounter :tracking tracker))))
             before-removing    @tracker
-            _                  (ds/transactional (ds/delete counter))
+            _                  (g/transactional (ds/delete counter))
             after-removing     @tracker]
 
         (is (= {:added 1} before-removing))
@@ -266,7 +266,7 @@
                :calculator        (n/construct Receiver)
                :multi-node-target (n/construct FocalNode)}
         nodes (zipmap (keys nodes) (apply tx-nodes (vals nodes)))]
-    (ds/transactional
+    (g/transactional
       (doseq [[f f-l t t-l]
               [[:first-name-cell :name          :person            :first-name]
                [:last-name-cell  :name          :person            :surname]
@@ -280,7 +280,7 @@
 
 (defmacro affected-by [& forms]
   `(do
-     (ds/transactional ~@forms)
+     (g/transactional ~@forms)
      (:outputs-modified (:last-tx (deref ~'world-ref)))))
 
 (defn pairwise [f m]
@@ -306,9 +306,9 @@
 
 (deftest event-loops-started-by-transaction
   (with-clean-system
-    (let [receiver (ds/transactional
+    (let [receiver (g/transactional
                      (ds/add (n/construct EventReceiver :latch (promise))))]
-      (ds/transactional
+      (g/transactional
         (ds/send-after receiver {:type :custom-event}))
       (is (= true (deref (:latch receiver) 500 :timeout))))))
 
@@ -348,7 +348,7 @@
 (deftest short-lived-nodes
   (with-clean-system
     (let [node1 (n/construct CachedOutputInvalidation)]
-      (ds/transactional
+      (g/transactional
         (ds/add node1)
         (ds/delete node1))
       (is :ok))))
@@ -363,12 +363,12 @@
 ;; TODO - move this to an integration test group
 (deftest values-of-a-deleted-node-are-removed-from-cache
   (with-clean-system
-    (let [node    (ds/transactional (ds/add (n/construct CachedValueNode)))
+    (let [node    (g/transactional (ds/add (n/construct CachedValueNode)))
           node-id (:_id node)]
       (is (= "an-output-value" (g/node-value (:graph @world-ref) cache node :cached-output)))
       (let [cached-value (cache-peek system node-id :cached-output)]
         (is (= "an-output-value" (e/result cached-value)))
-        (ds/transactional (ds/delete node))
+        (g/transactional (ds/delete node))
         (is (nil? (cache-peek system node-id :cached-output)))))))
 
 (defrecord DisposableValue [disposed?]
@@ -383,7 +383,7 @@
 
 (deftest cached-values-are-disposed-when-invalidated
   (with-clean-system
-    (let [node   (ds/transactional (ds/add (n/construct DisposableCachedValueNode)))
+    (let [node   (g/transactional (ds/add (n/construct DisposableCachedValueNode)))
           value1 (g/node-value (:graph @world-ref) cache node :cached-output)
           tx-result (it/transact world-ref [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
       (is (= [value1] (take-waiting-to-dispose system))))))
@@ -398,19 +398,19 @@
 (deftest become-interacts-with-caching
   (testing "newly uncacheable values are disposed"
     (with-clean-system
-      (let [node           (ds/transactional (ds/add (n/construct OriginalNode)))
+      (let [node           (g/transactional (ds/add (n/construct OriginalNode)))
             node-id        (:_id node)
             expected-value (g/node-value (:graph @world-ref) cache node :original-output)]
         (is (not (nil? expected-value)))
         (is (= expected-value (e/result (cache-peek system node-id :original-output))))
-        (let [node (ds/transactional (ds/become node (n/construct ReplacementNode)))]
+        (let [node (g/transactional (ds/become node (n/construct ReplacementNode)))]
           (yield)
           (is (nil? (cache-peek system node-id :original-output)))))))
 
   (testing "newly cacheable values are indeed cached"
     (with-clean-system
-      (let [node         (ds/transactional (ds/add (n/construct OriginalNode)))
-            node         (ds/transactional (ds/become node (n/construct ReplacementNode)))
+      (let [node         (g/transactional (ds/add (n/construct OriginalNode)))
+            node         (g/transactional (ds/become node (n/construct ReplacementNode)))
             cached-value (g/node-value (:graph @world-ref) cache node :additional-output)]
         (yield)
         (is (= cached-value (e/result (cache-peek system (:_id node) :additional-output))))))))
@@ -447,28 +447,28 @@
 (deftest output-computation-inconsistencies
   (testing "computing output with stale property value"
     (with-clean-system
-      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
-            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
-            _             (ds/transactional (ds/connect number-source :x adder-before :x))
-            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+      (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (g/transactional (ds/connect number-source :x adder-before :x))
+            adder-after   (g/transactional (ds/update-property adder-before :y inc))]
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-after  :sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :sum)))))
 
     (with-clean-system
-      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
-            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
-            _             (ds/transactional (ds/connect number-source :x adder-before :x))
-            _             (ds/transactional (ds/set-property number-source :x 22))
-            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+      (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (g/transactional (ds/connect number-source :x adder-before :x))
+            _             (g/transactional (ds/set-property number-source :x 22))
+            adder-after   (g/transactional (ds/update-property adder-before :y inc))]
         (is (= 26 (g/node-value (:graph @world-ref) cache adder-after  :sum)))
         (is (= 26 (g/node-value (:graph @world-ref) cache adder-before :sum))))))
 
   (testing "caching stale output value"
     (with-clean-system
-      (let [number-source (ds/transactional (ds/add (n/construct NumberSource :x 2)))
-            adder-before  (ds/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
-            _             (ds/transactional (ds/connect number-source :x adder-before :x))
-            adder-after   (ds/transactional (ds/update-property adder-before :y inc))]
+      (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
+            adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+            _             (g/transactional (ds/connect number-source :x adder-before :x))
+            adder-after   (g/transactional (ds/update-property adder-before :y inc))]
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :cached-sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-after  :cached-sum)))
@@ -478,11 +478,11 @@
     (with-clean-system
       (let [tree-levels            5
             iterations             100
-            [adder number-sources] (ds/transactional (build-adder-tree :sum tree-levels))]
+            [adder number-sources] (g/transactional (build-adder-tree :sum tree-levels))]
         (is (= 0 (g/node-value (:graph @world-ref) cache adder :sum)))
         (dotimes [i iterations]
           (let [f1 (future (g/node-value (:graph @world-ref) cache adder :sum))
-                f2 (future (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
+                f2 (future (g/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
             (is (zero? (mod @f1 (count number-sources))))
             @f2))
         (is (= (* iterations (count number-sources)) (g/node-value (:graph @world-ref) cache adder :sum))))))
@@ -491,12 +491,12 @@
     (with-clean-system
       (let [tree-levels            5
             iterations             100
-            [adder number-sources] (ds/transactional (build-adder-tree :sum tree-levels))]
+            [adder number-sources] (g/transactional (build-adder-tree :sum tree-levels))]
         (is (= 0 (g/node-value (:graph @world-ref) cache adder :cached-sum)))
         (loop [i iterations]
           (when (pos? i)
             (let [f1 (future (g/node-value (:graph @world-ref) cache adder :cached-sum))
-                  f2 (future (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
+                  f2 (future (g/transactional (doseq [n number-sources] (ds/update-property n :x inc))))]
               @f2
               @f1
               (recur (dec i)))))
@@ -506,8 +506,8 @@
   (testing "recursively computed values are cached"
     (with-clean-system
       (let [tree-levels            5
-            [adder number-sources] (ds/transactional (build-adder-tree :cached-sum tree-levels))]
-        (ds/transactional (doseq [n number-sources] (ds/update-property n :x inc)))
+            [adder number-sources] (g/transactional (build-adder-tree :cached-sum tree-levels))]
+        (g/transactional (doseq [n number-sources] (ds/update-property n :x inc)))
         (is (nil? (cache-peek system (:_id adder) :cached-sum)))
         (is (nil? (cache-peek system (:_id (first number-sources)) :cached-sum)))
         (g/node-value (:graph @world-ref) cache adder :cached-sum)

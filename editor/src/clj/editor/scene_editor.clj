@@ -165,7 +165,7 @@
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (ds/transactional (ds/set-property self :gl-drawable drawable))
+        (g/transactional (ds/set-property self :gl-drawable drawable))
         drawable))))
 
 (n/defnode SceneEditor
@@ -207,7 +207,7 @@
                                                             bb ^BoundingBox new-val
                                                             w (- (.getMaxX bb) (.getMinX bb))
                                                             h (- (.getMaxY bb) (.getMinY bb))]
-                                                        (ds/transactional (ds/set-property self :viewport (t/->Region 0 w 0 h))))))]
+                                                        (g/transactional (ds/set-property self :viewport (t/->Region 0 w 0 h))))))]
           (.setOnMousePressed parent event-handler)
           (.setOnMouseReleased parent event-handler)
           (.setOnMouseClicked parent event-handler)
@@ -223,11 +223,11 @@
                                     visible               (:visible self)]
                                 (when frame
                                   (.setImage image-view (SwingFXUtils/toFXImage frame (.getImage image-view)))))))]
-            (ds/transactional (ds/set-property self :repainter repainter))
+            (g/transactional (ds/set-property self :repainter repainter))
             (.start repainter))
           (.addListener (.selectedProperty tab) (reify ChangeListener (changed [this observable old-val new-val]
                                                                         (let [self @self-ref]
-                                                                          (ds/transactional (ds/set-property self :visible new-val))))))
+                                                                          (g/transactional (ds/set-property self :visible new-val))))))
           )))
 
   t/IDisposable

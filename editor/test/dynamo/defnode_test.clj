@@ -1,14 +1,15 @@
 (ns dynamo.defnode-test
   (:require [clojure.test :refer :all]
-            [schema.core :as s]
-            [plumbing.core :refer [defnk fnk]]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.system.test-support :as ts]
             [dynamo.types :as t]
             [internal.graph.dgraph :as dg]
-            [internal.node :as in]))
+            [internal.node :as in]
+            [plumbing.core :refer [defnk fnk]]
+            [schema.core :as s]))
 
 (deftest nodetype
   (testing "is created from a data structure"
@@ -358,7 +359,7 @@
 
     (let [node-type-var        (resolve 'dynamo.defnode-test/MutagenicNode)
           node-type            (var-get node-type-var)
-          node-before-mutation (ds/transactional (ds/add (n/construct node-type)))
+          node-before-mutation (g/transactional (ds/add (n/construct node-type)))
           original-node-id     (:_id node-before-mutation)]
       (binding [*ns* (find-ns 'dynamo.defnode-test)]
         (eval replacement-node-definition))

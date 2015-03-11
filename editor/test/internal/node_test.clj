@@ -54,7 +54,7 @@
 
 (deftest event-delivery
   (with-clean-system
-    (let [evented (ds/transactional (ds/add (construct NodeWithEvents)))]
+    (let [evented (g/transactional (ds/add (construct NodeWithEvents)))]
       (is (= :ok (t/process-one-event evented {:type :mousedown})))
       (is (:message-processed (ds/node world-ref (:_id evented)))))))
 
@@ -113,11 +113,11 @@
     (let [[node] (tx-nodes (construct EmptyNode))]
       (is (identical? node (g/node-value (:graph @world-ref) cache node :self)))))
   (with-clean-system
-    (let [n1       (ds/transactional (ds/add (construct SimpleTestNode)))
+    (let [n1       (g/transactional (ds/add (construct SimpleTestNode)))
           before   (:graph @world-ref)
-          _        (ds/transactional (ds/set-property n1 :foo "quux"))
+          _        (g/transactional (ds/set-property n1 :foo "quux"))
           after    (:graph @world-ref)
-          n2       (ds/transactional (ds/add (construct SimpleTestNode :foo "bar")))
+          n2       (g/transactional (ds/add (construct SimpleTestNode :foo "bar")))
           override (:graph @world-ref)]
       (is (not (identical? before after)))
       (are [expected-value when node]
@@ -130,8 +130,8 @@
 (defn- expect-modified
   [properties f]
   (with-clean-system
-    (let [node (ds/transactional (ds/add (construct SimpleTestNode :foo "one")))]
-      (ds/transactional (f node))
+    (let [node (g/transactional (ds/add (construct SimpleTestNode :foo "one")))]
+      (g/transactional (f node))
       (let [modified (into #{} (map second (get-in @(:world-ref node) [:last-tx :outputs-modified])))]
         (is (= properties modified))))))
 
@@ -185,7 +185,7 @@
                                (construct ProductionFunctionInputsNode :prop :node0)
                                (construct ProductionFunctionInputsNode :prop :node1)
                                (construct ProductionFunctionInputsNode :prop :node2))
-          _ (ds/transactional
+          _ (g/transactional
               (ds/connect node0 :defnk-prop node1 :in)
               (ds/connect node0 :defnk-prop node2 :in)
               (ds/connect node1 :defnk-prop node2 :in)
@@ -218,7 +218,7 @@
       (let [[node0 node1] (tx-nodes
                             (construct ProductionFunctionInputsNode :prop :node0)
                             (construct ProductionFunctionInputsNode :prop :node1))
-            _ (ds/transactional (ds/connect node0 :prop node1 :in))]
+            _ (g/transactional (ds/connect node0 :prop node1 :in))]
         (is (= :node0 (g/node-value (:graph @world-ref) cache node1 :defnk-in))))))
   (testing "the output has the same type as the property"
     (is (= s/Keyword
@@ -244,25 +244,25 @@
   (testing "output dependent on itself connected to downstream input"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-        (ds/transactional
+        (g/transactional
          (ds/connect node0 :out-from-self node1 :in))
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
       (let [[node] (tx-nodes (construct DependencyNode))]
-        (is (thrown? Throwable (ds/transactional
+        (is (thrown? Throwable (g/transactional
                                 (ds/connect node :out-from-in node :in)))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-        (is (thrown? Throwable (ds/transactional
+        (is (thrown? Throwable (g/transactional
                                 (ds/connect node0 :out-from-in node1 :in)
                                 (ds/connect node1 :out-from-in node0 :in)))))))
   (testing "cycle of period 2 (multiple transactions)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-        (ds/transactional (ds/connect node0 :out-from-in node1 :in))
-        (is (thrown? Throwable (ds/transactional
+        (g/transactional (ds/connect node0 :out-from-in node1 :in))
+        (is (thrown? Throwable (g/transactional
                                 (ds/connect node1 :out-from-in node0 :in))))))))
 
 (defn throw-exception-defn [this g]
@@ -294,7 +294,7 @@
 
 (deftest node-output-substitute-value
   (with-clean-system
-    (let [n (ds/transactional (ds/add (construct SubstituteValueNode)))]
+    (let [n (g/transactional (ds/add (construct SubstituteValueNode)))]
       (testing "exceptions from node-value (:graph @world-ref) cache when no substitute value fn"
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defn)))
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk))))
@@ -344,7 +344,7 @@
   (with-clean-system
     (let [[holder-node answer-node] (tx-nodes (construct ValueHolderNode :value 23) (construct AnswerNode))]
 
-      (ds/transactional (ds/connect holder-node :value answer-node :in))
+      (g/transactional (ds/connect holder-node :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
@@ -363,7 +363,7 @@
         (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*)))
 
-      (ds/transactional (ds/set-property holder-node :value 42))
+      (g/transactional (ds/set-property holder-node :value 42))
 
       (binding [*answer-call-count* (atom 0)]
         (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))
@@ -388,7 +388,7 @@
   (with-clean-system
     (let [[failure-node answer-node] (tx-nodes (construct FailureNode) (construct AnswerNode))]
 
-      (ds/transactional (ds/connect failure-node :out answer-node :in))
+      (g/transactional (ds/connect failure-node :out answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
@@ -403,7 +403,7 @@
         (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 0 @*answer-call-count*)))
 
-      (ds/transactional
+      (g/transactional
         (ds/disconnect failure-node :out answer-node :in)
         (ds/connect (ds/add (construct ValueHolderNode :value 42)) :value answer-node :in))
 

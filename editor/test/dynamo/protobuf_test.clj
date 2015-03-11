@@ -1,17 +1,18 @@
 (ns dynamo.protobuf-test
   (:require [clojure.test :refer :all]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [plumbing.core :refer [fnk]]
             [dynamo.file :as f]
             [dynamo.file.protobuf :refer :all]
-            [dynamo.node :as n]
-            [dynamo.types :refer :all]
-            [dynamo.texture :refer :all]
+            [dynamo.graph :as g]
             [dynamo.image :refer :all]
+            [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system]]
-            [internal.transaction :as it])
+            [dynamo.texture :refer :all]
+            [dynamo.types :refer :all]
+            [internal.transaction :as it]
+            [plumbing.core :refer [fnk]]
+            [schema.core :as s]
+            [schema.macros :as sm])
   (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [dynamo.types Animation Image]))
 
@@ -56,7 +57,7 @@
   (testing "Children of the atlas node should be created exactly once."
     (with-clean-system
       (let [message    (atlas-with-one-animation "the-animation")
-            atlas-node (ds/transactional (message->node message))
+            atlas-node (g/transactional (message->node message))
             anim-node  (ds/node-feeding-into atlas-node :animations)]
         (is (not (nil? atlas-node)))
         (is (= 7 (:margin atlas-node)))

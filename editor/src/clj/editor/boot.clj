@@ -1,41 +1,42 @@
 (ns editor.boot
-  (:require [clojure.java.io :as io]
-            [schema.core :as s]
-            [internal.clojure :as clojure]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.java.io :as io]
+            [dynamo.file :as f]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
+            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.file :as f]
-            [dynamo.project :as p]
+            [editor.atlas :as atlas]
+            [editor.graph_view :as graph_view]
+            [editor.image-node :as ein]
+            [editor.jfx :as jfx]
+            [editor.ui :as ui]
+            [internal.clojure :as clojure]
+            [internal.disposal :as disp]
             [internal.system :as is]
             [internal.transaction :as it]
-            [internal.disposal :as disp]
-            [camel-snake-kebab :as camel]
-            [service.log :as log]
-            [editor.atlas :as atlas]
-            [editor.jfx :as jfx]
-            [editor.image-node :as ein]
-            [editor.ui :as ui]
-            [editor.graph_view :as graph_view])
-  (:import  [com.defold.editor Start UIUtil]
-            [java.io File]
-            [java.nio.file Paths]
-            [java.util.prefs Preferences]
-            [javafx.application Platform]
-            [javafx.fxml FXMLLoader]
-            [javafx.collections FXCollections ObservableList]
-            [javafx.scene Scene Node Parent]
-            [javafx.geometry Insets]
-            [javafx.stage Stage FileChooser]
-            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-            [javafx.scene.input MouseEvent]
-            [javafx.event ActionEvent EventHandler]
-            [javafx.scene.paint Color]
-            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
-            [javafx.embed.swing SwingFXUtils]
-            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-            [com.jogamp.opengl.util.awt Screenshot]))
+            [schema.core :as s]
+            [service.log :as log])
+  (:import [com.defold.editor Start UIUtil]
+           [com.jogamp.opengl.util.awt Screenshot]
+           [javafx.application Platform]
+           [javafx.collections FXCollections ObservableList]
+           [javafx.embed.swing SwingFXUtils]
+           [javafx.event ActionEvent EventHandler]
+           [javafx.fxml FXMLLoader]
+           [javafx.geometry Insets]
+           [javafx.scene Scene Node Parent]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.image Image ImageView WritableImage PixelWriter]
+           [javafx.scene.input MouseEvent]
+           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
+           [javafx.scene.paint Color]
+           [javafx.stage Stage FileChooser]
+           [java.io File]
+           [java.nio.file Paths]
+           [java.util.prefs Preferences]
+           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
 (defn- split-ext [f]
   (let [n (.getPath f)
@@ -168,7 +169,7 @@
                        (let [old-val (key (ds/refresh node))]
                          (when-not (= new-val old-val)
                            (if (t/property-valid-value? property new-val)
-                             (ds/transactional
+                             (g/transactional
                                (ds/set-property node key new-val)
                                (@setter-atom new-val))
                              (@setter-atom old-val)))))
@@ -295,12 +296,12 @@
         parent (AnchorPane.)
         path (relative-path (:content-root game-project) file)
         resource-node (t/lookup game-project path)
-        node (ds/transactional
+        node (g/transactional
                (ds/in game-project
                       (let [editor-fn (find-editor-fn (.getName file))]
                         (editor-fn game-project resource-node))))
         close-handler (ui/event-handler event
-                        (ds/transactional
+                        (g/transactional
                           (ds/delete node)))]
 
     (if (satisfies? t/MessageTarget node)
@@ -353,7 +354,7 @@
       (bind-menus (.lookup root "#menu-bar") handler))
 
     (let [close-handler (ui/event-handler event
-                          (ds/transactional
+                          (g/transactional
                             (ds/delete game-project))
                           (disp/dispose-pending (:state (:world the-system))))
           dispose-handler (ui/event-handler event (disp/dispose-pending (:state (:world  the-system))))]
@@ -368,7 +369,7 @@
 ;(.setProgress (.lookup @the-root "#progress-bar") 1.0)
 
 (defn- create-view [game-project root place node-type]
-  (let [node (ds/transactional
+  (let [node (g/transactional
                (ds/in game-project
                       (ds/add
                         (n/construct node-type))))]
@@ -376,7 +377,7 @@
 
 (defn load-resource-nodes
   [game-project paths ^ProgressBar progress-bar]
-  (ds/transactional
+  (g/transactional
     (ds/in game-project
         [game-project (doall
                         (for [p paths]
@@ -402,7 +403,7 @@
   [^File game-project-file]
   (let [progress-bar nil
         content-root (.getParentFile game-project-file)
-        game-project (ds/transactional
+        game-project (g/transactional
                        (ds/add
                          (n/construct GameProject
                                       :node-types {"script" TextNode
