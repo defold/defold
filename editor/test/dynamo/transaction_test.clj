@@ -168,7 +168,7 @@
             after-set-upstream @tracker
             _                  (g/transactional (ds/set-property node2 :excalibur "basis for a system of government"))
             after-set-property @tracker
-            _                  (g/transactional (ds/disconnect node1 :label node2 :excalibur))
+            _                  (g/transactional (g/disconnect node1 :label node2 :excalibur))
             after-disconnect   @tracker]
         (is (= {:added 1 :input-connections [#{:excalibur}]} after-connect))
         (is (= {:added 1 :input-connections [#{:excalibur}]} after-set-upstream))

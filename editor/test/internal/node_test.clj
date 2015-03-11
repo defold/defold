@@ -404,7 +404,7 @@
         (is (= 0 @*answer-call-count*)))
 
       (g/transactional
-        (ds/disconnect failure-node :out answer-node :in)
+        (g/disconnect failure-node :out answer-node :in)
         (g/connect (ds/add (construct ValueHolderNode :value 42)) :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
