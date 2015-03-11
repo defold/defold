@@ -27,10 +27,13 @@ public class TexcLibrary {
         public static int RGBA_PVRTC_2BPPV1 = 5;
         public static int RGBA_PVRTC_4BPPV1 = 6;
         public static int RGB_ETC1          = 7;
+        /*
+        JIRA issue: DEF-994
         public static int RGB_DXT1          = 8;
         public static int RGBA_DXT1         = 9;
         public static int RGBA_DXT3         = 10;
         public static int RGBA_DXT5         = 11;
+        */
     }
 
     public interface ColorSpace {

@@ -22,10 +22,13 @@ namespace dmTexc
         PF_RGBA_PVRTC_2BPPV1,
         PF_RGBA_PVRTC_4BPPV1,
         PF_RGB_ETC1,
+        /*
+        JIRA issue: DEF-994
         PF_RGB_DXT1,
         PF_RGBA_DXT1,
         PF_RGBA_DXT3,
         PF_RGBA_DXT5
+        */
     };
 
     enum ColorSpace

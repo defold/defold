@@ -37,6 +37,8 @@ namespace dmTexc
             return ePVRTPF_ETC1;
 
         // DXT
+        /*
+        JIRA issue: DEF-994
         case PF_RGB_DXT1:
         case PF_RGBA_DXT1:
             return ePVRTPF_DXT1;
@@ -45,6 +47,7 @@ namespace dmTexc
         case PF_RGBA_DXT5:
             return ePVRTPF_DXT5;
             break;
+        */
         }
         // Should never get here
         assert(false);
