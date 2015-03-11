@@ -195,7 +195,7 @@ inherits from dynamo.node/Scope."
        (node world-ref (:_id n))
        n)))
 
-(defn tx-label
+(defn ^:deprecated tx-label
   [label]
   (it/tx-bind *transaction* (it/label label)))
 
