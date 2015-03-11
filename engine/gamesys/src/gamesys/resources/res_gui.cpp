@@ -135,10 +135,8 @@ namespace dmGameSystem
         // This needs to be reflected in the ReleaseResources method.
         dmResource::ResourceType resource_type_textureset;
         dmResource::GetTypeFromExtension(factory, "texturesetc", &resource_type_textureset);
-        resource->m_TextureSets.SetCapacity(resource->m_SceneDesc->m_Textures.m_Count);
-        resource->m_TextureSets.SetSize(0);
-        dmArray<dmGraphics::HTexture> textures;
-        textures.SetCapacity(resource->m_SceneDesc->m_Textures.m_Count);
+        resource->m_GuiTextureSets.SetCapacity(resource->m_SceneDesc->m_Textures.m_Count);
+        resource->m_GuiTextureSets.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Textures.m_Count; ++i)
         {
             TextureSetResource* texture_set_resource;
@@ -149,31 +147,18 @@ namespace dmGameSystem
             r = dmResource::GetType(factory, texture_set_resource, &resource_type);
             if (r != dmResource::RESULT_OK)
                 return r;
+            GuiSceneTextureSetResource tsr;
             if(resource_type != resource_type_textureset)
             {
-                textures.Push((dmGraphics::HTexture) texture_set_resource);
-                texture_set_resource = 0;
+                tsr.m_TextureSet = 0;
+                tsr.m_Texture = (dmGraphics::HTexture) texture_set_resource;
             }
             else
             {
-                assert(texture_set_resource->m_TextureSet != 0);
+                tsr.m_TextureSet = texture_set_resource;
+                tsr.m_Texture = texture_set_resource->m_Texture;
             }
-            resource->m_TextureSets.Push(texture_set_resource);
-        }
-        resource->m_TextureSetProxies.SetCapacity(textures.Size());
-        resource->m_TextureSetProxies.SetSize(textures.Size());
-        if(!textures.Empty())
-        {
-            // Create (pruned) proxy array and reference into texturesets
-            for (uint32_t i = 0, j = 0; i < resource->m_SceneDesc->m_Textures.m_Count; ++i)
-            {
-                if(resource->m_TextureSets[i] != 0)
-                    continue;
-                TextureSetResource* texture_set_resource = new (&resource->m_TextureSetProxies[j]) TextureSetResource();
-                texture_set_resource->m_Texture = textures[j++];
-                resource->m_TextureSets[i] = texture_set_resource;
-            }
-            textures.SetCapacity(0);
+            resource->m_GuiTextureSets.Push(tsr);
         }
 
         resource->m_Path = strdup(resource->m_SceneDesc->m_Script);
@@ -189,16 +174,12 @@ namespace dmGameSystem
         {
             dmResource::Release(factory, resource->m_FontMaps[j]);
         }
-        for (uint32_t j = 0; j < resource->m_TextureSets.Size(); ++j)
+        for (uint32_t j = 0; j < resource->m_GuiTextureSets.Size(); ++j)
         {
-            if(resource->m_TextureSets[j]->m_TextureSet)
-                dmResource::Release(factory, resource->m_TextureSets[j]);
-        }
-        for (uint32_t j = 0; j < resource->m_TextureSetProxies.Size(); ++j)
-        {
-            dmResource::Release(factory, resource->m_TextureSetProxies[j].m_Texture);
-            resource->m_TextureSetProxies[j].m_Texture = 0;
-            resource->m_TextureSetProxies[j].~TextureSetResource();
+            if(resource->m_GuiTextureSets[j].m_TextureSet)
+                dmResource::Release(factory, resource->m_GuiTextureSets[j].m_TextureSet);
+            else
+                dmResource::Release(factory, resource->m_GuiTextureSets[j].m_Texture);
         }
         if (resource->m_Script)
             dmResource::Release(factory, resource->m_Script);
@@ -259,8 +240,7 @@ namespace dmGameSystem
             scene_resource->m_SceneDesc = tmp_scene_resource.m_SceneDesc;
             scene_resource->m_Script = tmp_scene_resource.m_Script;
             scene_resource->m_FontMaps.Swap(tmp_scene_resource.m_FontMaps);
-            scene_resource->m_TextureSets.Swap(tmp_scene_resource.m_TextureSets);
-            scene_resource->m_TextureSetProxies.Swap(tmp_scene_resource.m_TextureSetProxies);
+            scene_resource->m_GuiTextureSets.Swap(tmp_scene_resource.m_GuiTextureSets);
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
             scene_resource->m_Material = tmp_scene_resource.m_Material;

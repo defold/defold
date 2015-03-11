@@ -143,10 +143,10 @@ namespace dmGameSystem
             }
         }
 
-        for (uint32_t i = 0; i < scene_resource->m_TextureSets.Size(); ++i)
+        for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
-            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) scene_resource->m_TextureSets[i]->m_Texture, (void*) scene_resource->m_TextureSets[i]->m_TextureSet ? scene_resource->m_TextureSets[i] : 0);
+            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) scene_resource->m_GuiTextureSets[i].m_Texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -193,8 +193,10 @@ namespace dmGameSystem
                 }
                 if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
                 {
-                    char texture_str[strlen(node_desc->m_Texture)+1];
-                    strcpy(texture_str, node_desc->m_Texture);
+                    size_t path_str_size = strlen(node_desc->m_Texture)+1;
+                    char texture_str[path_str_size];
+                    dmStrlCpy(texture_str, node_desc->m_Texture, path_str_size);
+
                     char* texture_anim_name = strstr(texture_str, "/");
                     if(texture_anim_name)
                         *texture_anim_name++ = 0;
@@ -674,7 +676,6 @@ namespace dmGameSystem
                     v10.SetPosition(pts[y0][x1]);
                     v01.SetPosition(pts[y1][x0]);
                     v11.SetPosition(pts[y1][x1]);
-                    // v<x><y>
                     if(uv_rotated)
                     {
                         v00.SetUV(us[y0], vs[x0]);
@@ -1085,8 +1086,12 @@ namespace dmGameSystem
             {
                 return dmGui::FETCH_ANIMATION_UNKNOWN_ERROR;
             }
-            out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];
+            uint32_t playback_index = animation->m_Playback;
+            if(playback_index >= dmGui::PLAYBACK_COUNT)
+                return dmGui::FETCH_ANIMATION_INVALID_PLAYBACK;
+
+            out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_Start = animation->m_Start;
             out_data->m_End = animation->m_End;
             out_data->m_Width = animation->m_Width;
@@ -1094,31 +1099,16 @@ namespace dmGameSystem
             out_data->m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
-
-            switch (animation->m_Playback)
-            {
-            case dmGameSystemDDF::PLAYBACK_NONE:
-                out_data->m_Playback = dmGui::PLAYBACK_NONE;
-                break;
-            case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
-                out_data->m_Playback = dmGui::PLAYBACK_ONCE_FORWARD;
-                break;
-            case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
-                out_data->m_Playback = dmGui::PLAYBACK_ONCE_BACKWARD;
-                break;
-            case dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG:
-                out_data->m_Playback = dmGui::PLAYBACK_ONCE_PINGPONG;
-                break;
-            case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
-                out_data->m_Playback = dmGui::PLAYBACK_LOOP_FORWARD;
-                break;
-            case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD:
-                out_data->m_Playback = dmGui::PLAYBACK_LOOP_BACKWARD;
-                break;
-            case dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG:
-                out_data->m_Playback = dmGui::PLAYBACK_LOOP_PINGPONG;
-                break;
-            }
+            static const dmGui::Playback ddf_playback_map[dmGui::PLAYBACK_COUNT] = {
+                    [dmGameSystemDDF::PLAYBACK_NONE]            = dmGui::PLAYBACK_NONE,
+                    [dmGameSystemDDF::PLAYBACK_ONCE_FORWARD]    = dmGui::PLAYBACK_ONCE_FORWARD,
+                    [dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD]   = dmGui::PLAYBACK_ONCE_BACKWARD,
+                    [dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG,
+                    [dmGameSystemDDF::PLAYBACK_LOOP_FORWARD]    = dmGui::PLAYBACK_LOOP_FORWARD,
+                    [dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD]   = dmGui::PLAYBACK_LOOP_BACKWARD,
+                    [dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG]   = dmGui::PLAYBACK_LOOP_PINGPONG
+            };
+            out_data->m_Playback = ddf_playback_map[playback_index];
             return dmGui::FETCH_ANIMATION_OK;
         }
         else

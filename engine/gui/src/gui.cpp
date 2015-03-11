@@ -2409,13 +2409,21 @@ namespace dmGui
         }
 
         n->m_Node.m_FlipbookAnimHash = anim;
-        if(FetchTextureSetAnim(scene, n, anim)!=FETCH_ANIMATION_OK)
+        FetchTextureSetAnimResult result = FetchTextureSetAnim(scene, n, anim);
+        if(result != FETCH_ANIMATION_OK)
         {
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
             n->m_Node.m_FlipbookAnimHash = 0;
             n->m_Node.m_TextureSetAnimDesc.Init();
             const char* anim_str = (const char*)dmHashReverse64(anim, 0x0);
-            dmLogWarning("The animation '%s' could not be found.", anim_str == 0 ? "<unknown>" : anim_str);
+            if(result == FETCH_ANIMATION_NOT_FOUND)
+            {
+                dmLogWarning("The animation '%s' could not be found.", anim_str == 0 ? "<unknown>" : anim_str);
+            }
+            else
+            {
+                dmLogWarning("Error playing animation '%s' (result %d).", anim_str == 0 ? "<unknown>" : anim_str, (int32_t) result);
+            }
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
