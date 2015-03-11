@@ -49,7 +49,7 @@
 
 (defnode NodeWithEvents
   (on :mousedown
-    (ds/set-property self :message-processed true)
+    (g/set-property self :message-processed true)
     :ok))
 
 (deftest event-delivery
@@ -115,7 +115,7 @@
   (with-clean-system
     (let [n1       (g/transactional (ds/add (construct SimpleTestNode)))
           before   (:graph @world-ref)
-          _        (g/transactional (ds/set-property n1 :foo "quux"))
+          _        (g/transactional (g/set-property n1 :foo "quux"))
           after    (:graph @world-ref)
           n2       (g/transactional (ds/add (construct SimpleTestNode :foo "bar")))
           override (:graph @world-ref)]
@@ -136,10 +136,10 @@
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
-  (expect-modified #{:properties :foo} (fn [node] (ds/set-property    node :foo "two")))
-  (expect-modified #{:properties :foo} (fn [node] (ds/update-property node :foo str/reverse)))
-  (expect-modified #{}                 (fn [node] (ds/set-property    node :foo "one")))
-  (expect-modified #{}                 (fn [node] (ds/update-property node :foo identity))))
+  (expect-modified #{:properties :foo} (fn [node] (g/set-property    node :foo "two")))
+  (expect-modified #{:properties :foo} (fn [node] (g/update-property node :foo str/reverse)))
+  (expect-modified #{}                 (fn [node] (g/set-property    node :foo "one")))
+  (expect-modified #{}                 (fn [node] (g/update-property node :foo identity))))
 
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)
@@ -363,7 +363,7 @@
         (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*)))
 
-      (g/transactional (ds/set-property holder-node :value 42))
+      (g/transactional (g/set-property holder-node :value 42))
 
       (binding [*answer-call-count* (atom 0)]
         (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))

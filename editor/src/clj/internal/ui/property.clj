@@ -178,7 +178,7 @@
           ;;ui-event-listener (ui/make-listener #(n/dispatch-message self :ui-event :ui-event %) [])
           ]
       (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page properties-form)
-      (ds/set-property self
+      (g/set-property self
         :sheet-cache       sheet-cache
         :properties-form   properties-form)))
 
@@ -196,7 +196,7 @@
           (when-let [new-value (:value result)]
             (when (not= new-value old-value)
               (ds/tx-label (str "Set " (keyword->label prop-name)))
-              (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
+              (g/set-property {:_id (:node-id prop)} prop-name new-value))))
         (log/warn :message "Expected event from widget on active property page"))))
 
 ;;  ISelectionListener
