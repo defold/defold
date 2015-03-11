@@ -381,6 +381,8 @@ public class TextureGeneratorTest {
 
     }
 
+    /*
+     JIRA issue: DEF-994
     @Test
     public void testDXTCompress() throws TextureGeneratorException, IOException {
 
@@ -407,16 +409,11 @@ public class TextureGeneratorTest {
 
         TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"), textureProfile.build());
 
-        // Only on Windows can texc compress to DXT textures.
-        if (Platform.getHostPlatform() == Platform.X86Win32) {
-            assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_DXT1, texture.getAlternatives(0).getFormat());
-            assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(1).getFormat());
-            assertEquals(2, texture.getAlternativesCount());
-        } else {
-            assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
-            assertEquals(1, texture.getAlternativesCount());
-        }
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB_DXT1, texture.getAlternatives(0).getFormat());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(1).getFormat());
+        assertEquals(2, texture.getAlternativesCount());
 
     }
+    */
 
 }
