@@ -304,7 +304,7 @@ public class GuiEditorTest {
         addTexture.doExecute(editor, resource);
         assertEquals(1, editor.getScene().getTextures().size());
 
-        EditorTextureDesc textureDesc = editor.getScene().getTextures().iterator().next();
+        EditorTextureDesc textureDesc = editor.getScene().getTextures().get(0);
         assertTrue(editor.getScene().getRenderResourceCollection().hasTexture(textureDesc.getName()));
 
 
@@ -314,7 +314,7 @@ public class GuiEditorTest {
         addTexture.doExecute(editor, resource);
         assertEquals(2, editor.getScene().getTextures().size());
 
-        textureDesc = editor.getScene().getTextures().iterator().next();
+        textureDesc = editor.getScene().getTextures().get(1);
         assertTrue(editor.getScene().getRenderResourceCollection().hasTexture(textureDesc.getName()));
 
         history.undo(undoContext, new NullProgressMonitor(), null);

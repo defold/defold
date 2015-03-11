@@ -3,6 +3,8 @@ package com.dynamo.cr.guied.core;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
@@ -10,6 +12,8 @@ import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 
 @SuppressWarnings("serial")
 public class TexturesNode extends LabelNode {
+
+    private static Logger logger = LoggerFactory.getLogger(TexturesNode.class);
 
     public TexturesNode() {
         super("Textures");
@@ -35,13 +39,9 @@ public class TexturesNode extends LabelNode {
                 TextureSetNode textureSetNode = null;
                 try {
                     Node n = model.loadNode(textureNode.getTexture());
-                    if(n == null || !(n instanceof TextureSetNode)) {
-                        System.err.println("ERROR: GuiScene failed loading '" + textureNode.getTexture() + "', not an atlas or tilesource resource.");
-                        continue;
-                    }
                     textureSetNode = (TextureSetNode) n;
                 } catch (Exception e) {
-                    System.err.println("ERROR: GuiScene failed loading '" + textureNode.getTexture() + "' (" + e.getMessage() + ").");
+                    logger.error("Failed loading resource: " + textureNode.getTexture(), e);
                     continue;
                 }
 

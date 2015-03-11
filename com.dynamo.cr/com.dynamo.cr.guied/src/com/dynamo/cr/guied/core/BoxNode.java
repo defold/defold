@@ -1,5 +1,6 @@
 package com.dynamo.cr.guied.core;
 
+import javax.media.opengl.GL2;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.resources.IFile;
@@ -20,6 +21,14 @@ public class BoxNode extends ClippingNode {
     private Vector4d slice9 = new Vector4d(0,0,0,0);
 
     private transient GuiTextureNode guiTextureNode = new GuiTextureNode();
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        if (this.guiTextureNode != null) {
+            this.guiTextureNode.dispose(gl);
+        }
+    }
 
     public String getTexture() {
         return this.texture;

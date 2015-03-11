@@ -1,5 +1,7 @@
 package com.dynamo.cr.guied.core;
 
+import javax.media.opengl.GL2;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.swt.graphics.Image;
 
@@ -32,6 +34,14 @@ public class PieNode extends ClippingNode {
     @Property
     @Range(min = -360, max = 360)
     private float pieFillAngle = 360;
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        if (this.guiTextureNode != null) {
+            this.guiTextureNode.dispose(gl);
+        }
+    }
 
     public float getInnerRadius() {
         return innerRadius;
