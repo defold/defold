@@ -106,7 +106,7 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
         Texture texture = null;
         GuiTextureNode guiTextureNode = node.getGuiTextureNode();
         if (guiTextureNode != null) {
-            texture = guiTextureNode.getTexture(gl);
+            texture = guiTextureNode.getTextureHandle().getTexture(gl);
         }
 
         boolean clipping = renderData.getUserData() != null;

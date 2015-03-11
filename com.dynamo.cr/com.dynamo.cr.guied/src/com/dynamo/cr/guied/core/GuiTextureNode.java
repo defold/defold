@@ -1,28 +1,29 @@
 package com.dynamo.cr.guied.core;
-
-import java.awt.image.BufferedImage;
-
 import javax.media.opengl.GL2;
-import javax.media.opengl.GLProfile;
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
-import com.jogamp.opengl.util.texture.Texture;
-import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
 
 
 public class GuiTextureNode {
-    private BufferedImage image;
+
+    private static Logger logger = LoggerFactory.getLogger(GuiTextureNode.class);
+
     private TextureSetNode textureSetNode;
     private String animation;
 
-    private Texture texture;
-    private boolean reloadTexture = false;
+    private TextureHandle textureHandle = new TextureHandle();
+
+    public void dispose(GL2 gl) {
+        textureHandle.clear(gl);
+    }
 
     String[] supportedFormats = {".atlas", ".tilesource"};
     private boolean IsValidResource(String resourceName) {
@@ -34,22 +35,16 @@ public class GuiTextureNode {
     }
 
     public void setTexture(GuiNode node, String texturePath, String textureAnimation) {
-        this.image = null;
         this.textureSetNode = null;
         this.animation = null;
 
         if(this.IsValidResource(texturePath)) {
             try {
                 Node n = node.getModel().loadNode(texturePath);
-                if(n instanceof TextureSetNode) {
-                    n.setModel(node.getModel());
-                    this.textureSetNode = (TextureSetNode) n;
-                } else {
-                    System.err.println("ERROR: ImageNode failed loading '" + texturePath + "', not an atlas or tilesource resource.");
-                    return;
-                }
+                n.setModel(node.getModel());
+                this.textureSetNode = (TextureSetNode) n;
             } catch (Exception e) {
-                System.err.println("ERROR: ImageNode failed loading '" + texturePath + "' (" + e.getMessage() + ").");
+                logger.error("Failed loading resource: " + texturePath, e);
                 return;
             }
             try {
@@ -58,41 +53,22 @@ public class GuiTextureNode {
                 this.animation = null;
             }
         } else {
-            this.image = node.getModel().getImage(texturePath);
+            this.textureHandle.setImage(node.getModel().getImage(texturePath));
             this.animation = null;
+            this.textureSetNode = null;
         }
-        this.reloadTexture = true;
     }
 
-    public Texture getTexture(GL2 gl) {
-        if (this.reloadTexture) {
-            this.reloadTexture = false;
-
-            if (this.image != null) {
-                this.textureSetNode = null;
-
-                if (this.texture == null) {
-                    this.texture = AWTTextureIO.newTexture(GLProfile.getGL2GL3(), this.image, true);
-                } else {
-                    this.texture.updateImage(gl, AWTTextureIO.newTextureData(GLProfile.getGL2GL3(), this.image, true));
-                }
-                this.image = null;
-
-            } else {
-                if (this.texture != null) {
-                    this.texture.destroy(gl);
-                    this.texture = null;
-                }
-
-                if(this.textureSetNode != null) {
-                    this.textureSetNode.getRuntimeTextureSet();
-                }
-            }
+    public TextureHandle getTextureHandle() {
+        if (this.textureSetNode != null) {
+            this.textureSetNode.getRuntimeTextureSet();
+            return this.textureSetNode.getTextureHandle();
+        } else {
+            return this.textureHandle;
         }
-        return this.textureSetNode == null ? this.texture : this.textureSetNode.getTextureHandle().getTexture(gl);
     }
 
-    public class UVTransform {
+    public static class UVTransform {
         public Point2d translation;
         public Vector2d scale;
         public boolean rotated;

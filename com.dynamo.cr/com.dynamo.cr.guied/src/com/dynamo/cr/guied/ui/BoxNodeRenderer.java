@@ -105,7 +105,7 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
         Texture texture = null;
         GuiTextureNode guiTextureNode = node.getGuiTextureNode();
         if (guiTextureNode != null) {
-            texture = guiTextureNode.getTexture(gl);
+            texture = guiTextureNode.getTextureHandle().getTexture(gl);
         }
 
         boolean clipping = renderData.getUserData() != null;
@@ -181,9 +181,9 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
         }
 
         int[][] uvIndex = {{0,1,2,3}, {3,2,1,0}};
-        int[] uI, vI;
-        double u0,u1,v0,v1;
-        boolean uvRotated;
+        int[] uI = uvIndex[0], vI = uvIndex[0];
+        double u0 = 0, u1 = 1, v0 = 0, v1 = 1;
+        boolean uvRotated = false;
         if(node.getGuiTextureNode() != null) {
             GuiTextureNode.UVTransform uv = node.getGuiTextureNode().getUVTransform();
             u0 = uv.translation.x;
@@ -193,15 +193,6 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
             uI = uv.flipX ? uvIndex[1] : uvIndex[0];
             vI = uv.flipY ? uvIndex[1] : uvIndex[0];
             uvRotated = uv.rotated;
-        }
-        else {
-            uvRotated = false;
-            uI = uvIndex[0];
-            vI = uvIndex[0];
-            u0 = 0;
-            u1 = 1;
-            v0 = 0;
-            v1 = 1;
         }
 
         gl.glBegin(GL2.GL_QUADS);
