@@ -18,13 +18,13 @@
   (ds/output-dependencies (:graph @world-ref)
                           (map-first id (partition 2 pairs))))
 
-(n/defnode SingleOutput
+(g/defnode SingleOutput
   (output out-from-inline s/Str (fnk [] "out-from-inline")))
 
-(n/defnode InputNoOutput
+(g/defnode InputNoOutput
   (input unused-input s/Str))
 
-(n/defnode InputUsedByOutput
+(g/defnode InputUsedByOutput
   (input string-input s/Str)
   (output out-from-input s/Str (fnk [string-input] string-input)))
 
@@ -119,14 +119,14 @@
                  [(id y) :out-from-input]
                  [(id z) :out-from-input]}))))))
 
-(n/defnode MultipleOutputs
+(g/defnode MultipleOutputs
   (output output-1 s/Str (fnk [] "1"))
   (output output-2 s/Str (fnk [] "2"))
   (output output-3 s/Str (fnk [] "3"))
   (output output-4 s/Str (fnk [] "4"))
   (output output-5 s/Str (fnk [] "5")))
 
-(n/defnode MultipleInputsIntoOneOutput
+(g/defnode MultipleInputsIntoOneOutput
   (input input-1 s/Str)
   (input input-2 s/Str)
   (input input-3 s/Str)
@@ -171,17 +171,17 @@
                  [(id a) :output-5]
                  [(id x) :input-counter]}))))))
 
-(n/defnode SelfDependent
+(g/defnode SelfDependent
   (input string-input s/Str)
 
   (output uppercased s/Str (fnk [string-input] (str/upper-case string-input)))
   (output counted    s/Int (fnk [uppercased] (count uppercased))))
 
-(n/defnode BadlyWrittenSelfDependent
+(g/defnode BadlyWrittenSelfDependent
   (input string-value s/Str)
   (output string-value s/Str (fnk [string-value] (str/upper-case string-value))))
 
-(n/defnode PropertyShadowingInput
+(g/defnode PropertyShadowingInput
   (input string-value s/Str)
   (property string-value s/Str (default "Hey there!")))
 
@@ -219,13 +219,13 @@
         (is (= deps
                #{[(id a) :out-from-inline]}))))))
 
-(n/defnode SingleOutput
+(g/defnode SingleOutput
   (output out-from-inline s/Str (fnk [] "out-from-inline")))
 
-(n/defnode InputNoOutput
+(g/defnode InputNoOutput
   (input unused-input s/Str))
 
-(n/defnode InputUsedByOutput
+(g/defnode InputUsedByOutput
   (input string-input s/Str)
   (output out-from-input s/Str (fnk [string-input] string-input)))
 
@@ -248,7 +248,7 @@
                  [(id c) :out-from-input]
                  [(id d) :out-from-input]}))))))
 
-(n/defnode TwoIndependentOutputs
+(g/defnode TwoIndependentOutputs
   (input input-1 s/Str)
   (output output-1 s/Str (fnk [input-1] input-1))
 

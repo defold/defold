@@ -2,7 +2,7 @@
   (:require [clojure.core.async :as async :refer [chan >!! <! alts!! timeout]]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.node :as n :refer [Scope]]
+            [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
@@ -36,7 +36,7 @@
   (tally this 'produce-simple-value)
   scalar)
 
-(n/defnode UncachedOutput
+(g/defnode UncachedOutput
   (property scalar s/Str)
   (output uncached-value String produce-simple-value))
 
@@ -45,20 +45,20 @@
   (tally node 'compute-expensive-value)
   "this took a long time to produce")
 
-(n/defnode CachedOutputNoInputs
+(g/defnode CachedOutputNoInputs
   (output expensive-value String :cached
     (fn [node g]
       (tally node 'compute-expensive-value)
       "this took a long time to produce"))
   (input operand String))
 
-(n/defnode UpdatesExpensiveValue
+(g/defnode UpdatesExpensiveValue
   (output expensive-value String :cached
     (fn [node g]
       (tally node 'compute-expensive-value)
       "this took a long time to produce")))
 
-(n/defnode SecondaryCachedValue
+(g/defnode SecondaryCachedValue
   (output another-value String :cached
     (fn [node g]
       "this is distinct from the other outputs")))
@@ -73,14 +73,14 @@
   (tally this 'passthrough-first-name)
   first-name)
 
-(n/defnode CachedOutputFromInputs
+(g/defnode CachedOutputFromInputs
   (input first-name String)
   (input last-name  String)
 
   (output nickname String :cached passthrough-first-name)
   (output derived-value String :cached compute-derived-value))
 
-(n/defnode CacheTestNode
+(g/defnode CacheTestNode
   (inherits UncachedOutput)
   (inherits CachedOutputNoInputs)
   (inherits CachedOutputFromInputs)
@@ -161,7 +161,7 @@
       (tally this 'dispose)
       (>!! (:channel (dg/node g this)) :gone))))
 
-(n/defnode DisposableValueNode
+(g/defnode DisposableValueNode
   (output disposable-value 't/IDisposable :cached compute-disposable-value))
 
 (defnk produce-input-from-node
@@ -172,7 +172,7 @@
   [an-input]
   an-input)
 
-(n/defnode OverrideValueNode
+(g/defnode OverrideValueNode
   (input overridden s/Str)
   (output output s/Str produce-input-from-node)
   (output foo    s/Str derive-value-from-inputs))
@@ -204,7 +204,7 @@
                               (g/update-property node :int-prop inc))]
       (is (= 4 (:int-prop after-transaction))))))
 
-(n/defnode ScopeReceiver
+(g/defnode ScopeReceiver
   (on :project-scope
     (g/set-property self :message-received event)))
 

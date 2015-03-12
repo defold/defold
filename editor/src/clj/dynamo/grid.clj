@@ -1,16 +1,17 @@
 (ns dynamo.grid
-  (:require [plumbing.core :refer [defnk]]
-            [schema.core :as s]
-            [dynamo.camera :as c]
-            [dynamo.geom :as g]
+  (:require [dynamo.camera :as c]
+            [dynamo.geom :as geom]
+            [dynamo.gl :as gl]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.types :as t :refer [min-p max-p]]
-            [dynamo.gl :as gl]
-            [internal.render.pass :as pass])
-  (:import [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]
+            [internal.render.pass :as pass]
+            [plumbing.core :refer [defnk]]
+            [schema.core :as s])
+  (:import [dynamo.types AABB Camera]
            [javax.media.opengl GL GL2]
-           [dynamo.types AABB Camera]))
+           [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
 (def grid-color [0.44705 0.44314 0.5098])
@@ -30,8 +31,8 @@
 (defn render-grid
   [gl fixed-axis size aabb]
   ;; draw across
-  (let [min-values (g/as-array (min-p aabb))
-        max-values  (g/as-array (max-p aabb))
+  (let [min-values (geom/as-array (min-p aabb))
+        max-values  (geom/as-array (max-p aabb))
         u-axis      (mod (inc fixed-axis) 3)
         u-min       (nth min-values u-axis)
         u-max       (nth max-values u-axis)
@@ -75,12 +76,12 @@
         _           (.getRow view-matrix 2 dir)]
     (gl/gl-lines gl
       (render-grid-sizes dir grids)
-      (render-primary-axes (apply g/aabb-union (:aabbs grids))))))
+      (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
 (defnk grid-renderable :- t/RenderData
   [this camera grids]
   {pass/transparent
-   [{:world-transform g/Identity4d
+   [{:world-transform geom/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-scaled-grids ctx gl this camera grids))}]})
 
 (def axis-vectors
@@ -112,11 +113,11 @@
 
 (defn frustum-projection-aabb
   [planes]
-  (-> (g/null-aabb)
-    (g/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2)))
-    (g/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3)))
-    (g/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2)))
-    (g/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 3)))))
+  (-> (geom/null-aabb)
+    (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2)))
+    (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3)))
+    (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2)))
+    (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 3)))))
 
 (defn grid-ratio [extent]
   (let [exp (Math/log10 extent)]
@@ -143,7 +144,7 @@
         far-z-plane      (nth frustum-planes 5)
         normal           (as-unit-vector far-z-plane)
         aabb             (frustum-projection-aabb frustum-planes)
-        extent           (g/as-array (g/aabb-extent aabb))
+        extent           (geom/as-array (geom/aabb-extent aabb))
         perp-axis        2
         _                (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent  (reduce min extent)
@@ -154,7 +155,7 @@
      :sizes  [grid-size-small                         grid-size-large]
      :aabbs  [(snap-out-to-grid aabb grid-size-small) (snap-out-to-grid aabb grid-size-large)]}))
 
-(n/defnode Grid
+(g/defnode Grid
   (input camera Camera)
   (property grid-color t/Color)
   (property auto-grid  s/Bool)
@@ -162,4 +163,3 @@
 
   (output grids      s/Any :cached update-grids)
   (output renderable t/RenderData  grid-renderable))
-

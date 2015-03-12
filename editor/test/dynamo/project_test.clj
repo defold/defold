@@ -10,9 +10,9 @@
             [dynamo.types :as t])
   (:import [java.io StringReader]))
 
-(n/defnode DummyNode)
+(g/defnode DummyNode)
 
-(n/defnode FakeProject
+(g/defnode FakeProject
   t/NamingContext
   (lookup [this name]
     (g/transactional (ds/add (n/construct DummyNode)))))

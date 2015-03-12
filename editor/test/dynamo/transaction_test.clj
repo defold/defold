@@ -7,7 +7,7 @@
             [clojure.test :refer :all]
             [dynamo.cache :as cache]
             [dynamo.graph :as g]
-            [dynamo.node :as n :refer [Scope]]
+            [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
@@ -26,12 +26,12 @@
 
 (defnk upcase-a [a] (.toUpperCase a))
 
-(n/defnode Resource
+(g/defnode Resource
   (input a String)
   (output b s/Keyword dummy-output)
   (output c String upcase-a))
 
-(n/defnode Downstream
+(g/defnode Downstream
   (input consumer String))
 
 (def gen-node (gen/fmap (fn [n] (n/construct Resource :_id n :original-id n)) (gen/such-that #(< % 0) gen/neg-int)))
@@ -101,20 +101,20 @@
   ([transaction graph self label kind afflicted]
     (swap! (:tracking self) update-in [kind] (fnil conj []) afflicted)))
 
-(n/defnode StringSource
+(g/defnode StringSource
   (property label s/Str (default "a-string")))
 
-(n/defnode Relay
+(g/defnode Relay
   (input label s/Str)
   (output label s/Str (fnk [label] label)))
 
-(n/defnode TriggerExecutionCounter
+(g/defnode TriggerExecutionCounter
   (input downstream s/Any)
   (property any-property s/Bool)
 
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity))
 
-(n/defnode PropertySync
+(g/defnode PropertySync
   (property source s/Int (default 0))
   (property sink   s/Int (default -1))
 
@@ -124,7 +124,7 @@
                                          (when true (afflicted :source)
                                            (g/set-property self :sink (:source self))))))
 
-(n/defnode NameCollision
+(g/defnode NameCollision
   (input    excalibur s/Str)
   (property excalibur s/Str)
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity))
@@ -234,10 +234,10 @@
         (is (= {:added 1} before-removing))
         (is (= {:added 1 :deleted 1} after-removing))))))
 
-(n/defnode NamedThing
+(g/defnode NamedThing
   (property name s/Str))
 
-(n/defnode Person
+(g/defnode Person
   (property date-of-birth java.util.Date)
 
   (input first-name String)
@@ -247,12 +247,12 @@
   (output full-name String (fnk [first-name surname] (str first-name " " surname)))
   (output age java.util.Date (fnk [date-of-birth] date-of-birth)))
 
-(n/defnode Receiver
+(g/defnode Receiver
   (input generic-input s/Any)
   (property touched s/Bool (default false))
   (output passthrough s/Any (fnk [generic-input] generic-input)))
 
-(n/defnode FocalNode
+(g/defnode FocalNode
   (input aggregator [s/Any])
   (output aggregated [s/Any] (fnk [aggregator] aggregator)))
 
@@ -300,7 +300,7 @@
                                                    greeter           #{:passthrough}
                                                    formal-greeter    #{:passthrough}
                                                    multi-node-target #{:aggregated}}))))
-(n/defnode EventReceiver
+(g/defnode EventReceiver
   (on :custom-event
     (deliver (:latch self) true)))
 
@@ -312,7 +312,7 @@
         (ds/send-after receiver {:type :custom-event}))
       (is (= true (deref (:latch receiver) 500 :timeout))))))
 
-(n/defnode DisposableNode
+(g/defnode DisposableNode
   t/IDisposable
   (dispose [this] true))
 
@@ -324,7 +324,7 @@
       (yield)
       (is (= disposable (first (take-waiting-to-dispose system)))))))
 
-(n/defnode CachedOutputInvalidation
+(g/defnode CachedOutputInvalidation
   (property a-property String (default "a-string"))
 
   (output ordinary String :cached (fnk [a-property] a-property))
@@ -353,7 +353,7 @@
         (ds/delete node1))
       (is :ok))))
 
-(n/defnode CachedValueNode
+(g/defnode CachedValueNode
   (output cached-output s/Str :cached (fnk [] "an-output-value")))
 
 (defn cache-peek
@@ -376,7 +376,7 @@
   (dispose [this]
     (deliver disposed? true)))
 
-(n/defnode DisposableCachedValueNode
+(g/defnode DisposableCachedValueNode
   (property a-property s/Str)
 
   (output cached-output t/IDisposable :cached (fnk [a-property] (->DisposableValue (promise)))))
@@ -388,10 +388,10 @@
           tx-result (it/transact world-ref [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
       (is (= [value1] (take-waiting-to-dispose system))))))
 
-(n/defnode OriginalNode
+(g/defnode OriginalNode
   (output original-output s/Str :cached (fnk [] "original-output-value")))
 
-(n/defnode ReplacementNode
+(g/defnode ReplacementNode
   (output original-output s/Str (fnk [] "original-value-replaced"))
   (output additional-output s/Str :cached (fnk [] "new-output-added")))
 
@@ -415,18 +415,18 @@
         (yield)
         (is (= cached-value (e/result (cache-peek system (:_id node) :additional-output))))))))
 
-(n/defnode NumberSource
+(g/defnode NumberSource
   (property x          s/Num         (default 0))
   (output   sum        s/Num         (fnk [x] x))
   (output   cached-sum s/Num :cached (fnk [x] x)))
 
-(n/defnode InputAndPropertyAdder
+(g/defnode InputAndPropertyAdder
   (input    x          s/Num)
   (property y          s/Num (default 0))
   (output   sum        s/Num         (fnk [x y] (+ x y)))
   (output   cached-sum s/Num :cached (fnk [x y] (+ x y))))
 
-(n/defnode InputAdder
+(g/defnode InputAdder
   (input xs [s/Num])
   (output sum        s/Num         (fnk [xs] (reduce + 0 xs)))
   (output cached-sum s/Num :cached (fnk [xs] (reduce + 0 xs))))
@@ -490,7 +490,7 @@
   (testing "caching result of computation with inconsistent world"
     (with-clean-system
       (let [tree-levels            5
-            iterations             100
+            iterations             250
             [adder number-sources] (g/transactional (build-adder-tree :sum tree-levels))]
         (is (= 0 (g/node-value (:graph @world-ref) cache adder :cached-sum)))
         (loop [i iterations]

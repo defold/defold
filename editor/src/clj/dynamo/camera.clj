@@ -1,6 +1,6 @@
 (ns dynamo.camera
-  (:require [dynamo.geom :as g]
-            [dynamo.graph :as dg]
+  (:require [dynamo.geom :as geom]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
@@ -132,11 +132,11 @@
 
 (sm/defn camera-set-center :- Camera
   [camera :- Camera bounds :- AABB]
-  (let [center (g/aabb-center bounds)
+  (let [center (geom/aabb-center bounds)
         view-matrix (camera-view-matrix camera)]
     (.transform view-matrix center)
     (set! (. center z) 0)
-    (.transform ^Matrix4d (g/invert view-matrix) center)
+    (.transform ^Matrix4d (geom/invert view-matrix) center)
     (camera-set-position camera (.x center) (.y center) (.z center))))
 
 (sm/defn camera-project :- Point3d
@@ -302,7 +302,7 @@
     (set-orthographic (camera-fov-from-aabb camera aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
-(n/defnode CameraController
+(g/defnode CameraController
   (property camera Camera)
 
   (property ui-state s/Any (default (constantly (atom {:movement :idle}))))
@@ -319,9 +319,9 @@
           {:keys [x y]} event]
       (when (not (= :idle movement))
         (case movement
-          :dolly  (dg/update-property self :camera dolly  (* -0.002 (- y last-y)))
-          :track  (dg/update-property self :camera track  last-x last-y x y)
-          :tumble (dg/update-property self :camera tumble last-x last-y x y)
+          :dolly  (g/update-property self :camera dolly  (* -0.002 (- y last-y)))
+          :track  (g/update-property self :camera track  last-x last-y x y)
+          :tumble (g/update-property self :camera tumble last-x last-y x y)
           nil)
         (swap! (:ui-state self) assoc
           :last-x x
@@ -335,4 +335,4 @@
 
   (on :mouse-wheel
     (when (contains? (:movements-enabled self) :dolly)
-      (dg/update-property self :camera dolly (* -0.02 (:count event))))))
+      (g/update-property self :camera dolly (* -0.02 (:count event))))))

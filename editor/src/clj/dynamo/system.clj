@@ -9,6 +9,7 @@
             [internal.graph.lgraph :as lg]
             [internal.graph.query :as q]
             [internal.graph.tracing :as gt]
+            [internal.system :as is]
             [internal.transaction :as it :refer [Transaction *transaction*]]))
 
 (defn- n->g
@@ -245,3 +246,33 @@ inherits from dynamo.node/Scope."
 (defn parent
   [graph n]
   (first (drop 1 (path-to-root graph n))))
+
+
+;; ---------------------------------------------------------------------------
+;; Boot and initialization
+;; ---------------------------------------------------------------------------
+(def the-system (atom nil))
+
+(defn system-cache [] (-> @the-system :cache))
+(defn world-ref    [] (-> @the-system :world :state))
+(defn ^:deprecated world-graph  [] (-> (world-ref) deref :graph))
+
+(defn initialize
+  [config]
+  (reset! the-system (is/system config)))
+
+(defn start
+  []
+  (swap! the-system is/start-system))
+
+(defn stop
+  []
+  (swap! the-system is/stop-system))
+
+(defn undo
+  []
+  (is/undo-history (-> @the-system :world :history)))
+
+(defn redo
+  []
+  (is/redo-history (-> @the-system :world :history)))

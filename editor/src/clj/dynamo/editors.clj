@@ -3,7 +3,7 @@
 )
 
 (comment
-  (n/defnode Renderer
+  (g/defnode Renderer
     "This node type provides 3D rendering abilities. It should be mixed in to an editor or view node.
 
 Inputs:
@@ -68,7 +68,7 @@ Outputs
           (when aabb ;; there exists an aabb to center on
             (g/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
 
-  (n/defnode SceneEditor
+  (g/defnode SceneEditor
     "SceneEditor is the basis for all 2D orthographic and 3D perspective editors.
 It provides rendering behavior (inherited from Renderer). It also acts as a Scope for
 view-local nodes (e.g., view camera, controller, manipulator).
@@ -89,7 +89,7 @@ Messages:
 - :save    - Sent by the GUI when the user wants to save the content
 - :destroy - Clean up
 "
-    (inherits n/Scope)
+    (inherits g/Scope)
     (inherits Renderer)
 
     (input controller `t/Node)

@@ -14,8 +14,6 @@
             [editor.ui :as ui]
             [internal.clojure :as clojure]
             [internal.disposal :as disp]
-            [internal.system :as is]
-            [internal.transaction :as it]
             [schema.core :as s]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -195,8 +193,8 @@
     (.add (.getChildren parent) grid)))
 
 ; Editors
-(n/defnode CurveEditor
-  (inherits n/Scope)
+(g/defnode CurveEditor
+  (inherits g/Scope)
   (on :create
       (let [btn (Button.)]
         (.setText btn "Curve Editor WIP!")
@@ -205,9 +203,9 @@
   t/IDisposable
   (dispose [this]))
 
-(n/defnode TextEditor
-  (inherits n/Scope)
-  (inherits n/ResourceNode)
+(g/defnode TextEditor
+  (inherits g/Scope)
+  (inherits g/ResourceNode)
 
   (input text s/Str )
 
@@ -220,9 +218,9 @@
   (dispose [this]
            (println "Dispose TextEditor")))
 
-(n/defnode TextNode
-  (inherits n/Scope)
-  (inherits n/ResourceNode)
+(g/defnode TextNode
+  (inherits g/Scope)
+  (inherits g/ResourceNode)
 
   (property text s/Str)
   (property a-vector t/Vec3 (default [1 2 3]))
@@ -260,8 +258,8 @@
         [path ext] (split-ext f)]
     (ProjectPath. game-project path ext)))
 
-(n/defnode GameProject
-  (inherits n/Scope)
+(g/defnode GameProject
+  (inherits g/Scope)
 
   (property node-types         {s/Str s/Symbol})
   ;TODO: Resource type instead of string?
@@ -336,9 +334,9 @@
     (instance? Menu menu) (doseq [m (.getItems menu)]
                             (.addEventHandler m ActionEvent/ACTION handler))))
 
-(def system nil)
-;(is/stop)
-(def the-system (is/start))
+(ds/initialize {:initial-graph (g/project-graph)})
+
+(def the-system (ds/start))
 (def the-root (atom nil))
 
 (defn load-stage [game-project]
