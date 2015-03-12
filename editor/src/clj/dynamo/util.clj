@@ -8,6 +8,12 @@
 (defn removev [pred coll]
   (filterv (complement pred) coll))
 
+(defn applym
+  "Like apply, but with a map. Flattens the key/value pairs
+into an arglist."
+  [f m]
+  (apply f (mapcat identity m)))
+
 (defn map-keys
   [f m]
   (zipmap
