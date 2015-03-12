@@ -13,6 +13,7 @@
             [camel-snake-kebab :as camel]
             [service.log :as log]
             [editor.atlas :as atlas]
+            [editor.cubemap :as cubemap]
             [editor.jfx :as jfx]
             [editor.image-node :as ein]
             [editor.ui :as ui]
@@ -283,7 +284,8 @@
       (println "Destory GameProject")
       (ds/delete self)))
 
-(def editor-fns {:atlas atlas/construct-atlas-editor})
+(def editor-fns {:atlas atlas/construct-atlas-editor
+                 :cubemap cubemap/construct-cubemap-editor})
 
 (defn- find-editor-fn [file]
   (let [ext (last (.split file "\\."))
@@ -394,9 +396,9 @@
   [message project-node resource-nodes]
   (doseq [resource-node resource-nodes]
     (log/logging-exceptions (str message (:filename resource-node))
-      (when (satisfies? t/MessageTarget resource-node)
-        (ds/in project-node
-          (t/process-one-event resource-node {:type :load :project project-node}))))))
+                            (when (satisfies? t/MessageTarget resource-node)
+                              (ds/in project-node
+                                     (t/process-one-event resource-node {:type :load :project project-node}))))))
 
 (defn load-project
   [^File game-project-file]
@@ -409,7 +411,8 @@
                                                    "clj" clojure/ClojureSourceNode
                                                    "jpg" ein/ImageResourceNode
                                                    "png" ein/ImageResourceNode
-                                                   "atlas" atlas/AtlasNode}
+                                                   "atlas" atlas/AtlasNode
+                                                   "cubemap" cubemap/CubemapNode}
                                       :content-root content-root)))
         resources       (get-project-paths game-project content-root)
         _ (apply post-load "Loading" (load-resource-nodes game-project resources progress-bar))
