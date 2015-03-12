@@ -30,7 +30,7 @@
 (defn tx-nodes [& resources]
   (g/transactional
     (doseq [r resources]
-      (ds/add r))
+      (g/add r))
     resources))
 
 (defn await-world-time

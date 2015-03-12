@@ -196,7 +196,7 @@
 (deftest update-sees-in-transaction-value
   (with-clean-system
     (let [node (g/transactional
-                 (ds/add (n/construct p/Project :name "a project" :int-prop 0)))
+                 (g/add (n/construct p/Project :name "a project" :int-prop 0)))
           after-transaction (g/transactional
                               (g/update-property node :int-prop inc)
                               (g/update-property node :int-prop inc)
@@ -212,7 +212,7 @@
   (testing "project scope message"
     (with-clean-system
       (let [ps-node (g/transactional
-                      (ds/in (ds/add (n/construct p/Project :name "a project"))
-                        (ds/add (n/construct ScopeReceiver))))]
+                      (ds/in (g/add (n/construct p/Project :name "a project"))
+                        (g/add (n/construct ScopeReceiver))))]
         (await-world-time world-ref 3 500)
         (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))

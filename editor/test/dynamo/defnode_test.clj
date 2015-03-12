@@ -359,7 +359,7 @@
 
     (let [node-type-var        (resolve 'dynamo.defnode-test/MutagenicNode)
           node-type            (var-get node-type-var)
-          node-before-mutation (g/transactional (ds/add (n/construct node-type)))
+          node-before-mutation (g/transactional (g/add (n/construct node-type)))
           original-node-id     (:_id node-before-mutation)]
       (binding [*ns* (find-ns 'dynamo.defnode-test)]
         (eval replacement-node-definition))

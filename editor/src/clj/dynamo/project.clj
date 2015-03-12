@@ -59,7 +59,7 @@ behavior."
   [project-node path]
   (g/transactional
     (ds/in project-node
-      (ds/add
+      (g/add
         (new-node-for-path project-node path Placeholder)))))
 
 (g/defnode CannedProperties
@@ -77,8 +77,8 @@ behavior."
 (defn- build-selection-node
   [editor-node selected-nodes]
   (ds/in editor-node
-    (let [selection-node  (ds/add (n/construct selection/Selection))
-          properties-node (ds/add (n/construct CannedProperties :rotation "e to the i pi"))]
+    (let [selection-node  (g/add (n/construct selection/Selection))
+          properties-node (g/add (n/construct CannedProperties :rotation "e to the i pi"))]
       (doseq [node selected-nodes]
         (g/connect node :self selection-node :selected-nodes))
       selection-node)))
@@ -169,7 +169,7 @@ There is no guaranteed ordering of the sequence."
     (new-node-for-path this path Placeholder))
 
   (on :destroy
-    (ds/delete self)))
+    (g/delete self)))
 
 (defn project-root-node
   "Finds and returns the ProjectRoot node starting from any node."
@@ -192,7 +192,7 @@ There is no guaranteed ordering of the sequence."
 (defn load-project
   [root branch]
   (g/transactional
-   (ds/add
+   (g/add
     (n/construct Project
                  :content-root root
                  :branch branch

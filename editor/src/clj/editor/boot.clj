@@ -233,7 +233,7 @@
 (defn on-edit-text
   [project-node text-node]
   (let [editor (n/construct TextEditor)]
-    (ds/in (ds/add editor)
+    (ds/in (g/add editor)
            (g/connect text-node :text editor :text)
            editor)))
 
@@ -280,7 +280,7 @@
 
   (on :destroy
       (println "Destory GameProject")
-      (ds/delete self)))
+      (g/delete self)))
 
 (def editor-fns {:atlas atlas/construct-atlas-editor})
 
@@ -300,7 +300,7 @@
                         (editor-fn game-project resource-node))))
         close-handler (ui/event-handler event
                         (g/transactional
-                          (ds/delete node)))]
+                          (g/delete node)))]
 
     (if (satisfies? t/MessageTarget node)
       (let [tab (Tab. (.getName file))]
@@ -353,7 +353,7 @@
 
     (let [close-handler (ui/event-handler event
                           (g/transactional
-                            (ds/delete game-project))
+                            (g/delete game-project))
                           (disp/dispose-pending (:state (:world the-system))))
           dispose-handler (ui/event-handler event (disp/dispose-pending (:state (:world  the-system))))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
@@ -369,7 +369,7 @@
 (defn- create-view [game-project root place node-type]
   (let [node (g/transactional
                (ds/in game-project
-                      (ds/add
+                      (g/add
                         (n/construct node-type))))]
     (n/dispatch-message node :create :parent (.lookup root place))))
 
@@ -402,7 +402,7 @@
   (let [progress-bar nil
         content-root (.getParentFile game-project-file)
         game-project (g/transactional
-                       (ds/add
+                       (g/add
                          (n/construct GameProject
                                       :node-types {"script" TextNode
                                                    "clj" clojure/ClojureSourceNode

@@ -132,7 +132,7 @@ Messages:
         (when (:context self)
           (texture/unload-all (.. ^GLContext (:context self) getGL)))
 
-        (ds/delete self))
+        (g/delete self))
 
     (on :save
         (n/get-node-value self :saveable))))

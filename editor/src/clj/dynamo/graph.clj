@@ -147,6 +147,17 @@ implement dynamo.types/MessageTarget."
   [label]
   (ds/tx-label label))
 
+(defn add
+  "Add a newly created node to the world. This will attach the node to
+  the current scope."
+  [n]
+  (ds/add n))
+
+(defn delete
+  "Remove a node from the world."
+  [n]
+  (ds/delete n))
+
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied."
