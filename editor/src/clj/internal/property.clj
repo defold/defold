@@ -1,7 +1,5 @@
 (ns internal.property
-  (:require [schema.core :as s]
-            [schema.macros :as sm]
-            [clojure.core.match :refer [match]]
+  (:require [clojure.core.match :refer [match]]
             [dynamo.types :as t]))
 
 (defn- get-default-value [property-type-descriptor]
@@ -20,7 +18,7 @@
 
 (defn- validation-problems
   [property-type-descriptor value]
-  (if (s/check (t/property-value-type property-type-descriptor) value)
+  (if (t/check (t/property-value-type property-type-descriptor) value)
     (list "invalid value type")
     (keep identity
       (reduce

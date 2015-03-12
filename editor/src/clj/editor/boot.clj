@@ -14,7 +14,6 @@
             [editor.ui :as ui]
             [internal.clojure :as clojure]
             [internal.disposal :as disp]
-            [schema.core :as s]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -207,7 +206,7 @@
   (inherits g/Scope)
   (inherits g/ResourceNode)
 
-  (input text s/Str )
+  (input text t/Str )
 
   (on :create
       (let [textarea (TextArea.)]
@@ -222,7 +221,7 @@
   (inherits g/Scope)
   (inherits g/ResourceNode)
 
-  (property text s/Str)
+  (property text t/Str)
   (property a-vector t/Vec3 (default [1 2 3]))
   (property a-color t/Color (default [1 0 0 1]))
 
@@ -261,7 +260,7 @@
 (g/defnode GameProject
   (inherits g/Scope)
 
-  (property node-types         {s/Str s/Symbol})
+  (property node-types         {t/Str t/Symbol})
   ;TODO: Resource type instead of string?
   (property content-root File)
 

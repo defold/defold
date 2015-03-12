@@ -7,8 +7,10 @@
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
             [internal.outline :as outline]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]))
+            [potemkin.namespaces :refer [import-vars]]))
+
+(import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals map-keys map-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
+
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -43,13 +45,13 @@ Example (from [[editors.atlas]]):
 
     (defnode TextureCompiler
       (input    textureset TextureSet)
-      (property texture-filename s/Str (default \"\"))
-      (output   texturec s/Any compile-texturec)))
+      (property texture-filename t/Str (default \"\"))
+      (output   texturec t/Any compile-texturec)))
 
     (defnode TextureSetCompiler
       (input    textureset TextureSet)
-      (property textureset-filename s/Str (default \"\"))
-      (output   texturesetc s/Any compile-texturesetc)))
+      (property textureset-filename t/Str (default \"\"))
+      (output   texturesetc t/Any compile-texturesetc)))
 
     (defnode AtlasCompiler
       (inherit TextureCompiler)
@@ -225,10 +227,10 @@ When a node is added to a Scope, the node's :self output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."
-  (input nodes [s/Any])
+  (input nodes [t/Any])
 
-  (property tag      s/Keyword)
-  (property parent   (s/protocol t/NamingContext))
+  (property tag      t/Keyword)
+  (property parent   (t/protocol t/NamingContext))
 
   (trigger dependency-injection :input-connections #'dn/inject-new-nodes)
   (trigger garbage-collection   :deleted  #'dn/dispose-nodes)
@@ -243,7 +245,7 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   "There should be exactly one RootScope in the graph, with ID 1.
 RootScope has no parent."
   (inherits Scope)
-  (property tag s/Keyword (default :root)))
+  (property tag t/Keyword (default :root)))
 
 (defmethod print-method RootScope__
   [^RootScope__ v ^java.io.Writer w]
@@ -254,13 +256,13 @@ RootScope has no parent."
 this node to indicate that 'Save' is a meaningful action.
 
 Inheritors are required to supply a production function for the :save output."
-  (output save s/Keyword :abstract))
+  (output save t/Keyword :abstract))
 
 (defnode ResourceNode
   "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename (s/protocol t/PathManipulation) (visible false))
+  (property filename (t/protocol t/PathManipulation) (visible false))
 
-  (output content s/Any :abstract))
+  (output content t/Any :abstract))
 
 (defnode AutowireResources
   "Mixin. Nodes with this behavior automatically keep their graph connections
@@ -276,7 +278,7 @@ Inputs:
 Outputs:
 - tree `OutlineItem` - A single value that contains the display info for this node and all its children."
   (output outline-children [t/OutlineItem] (fnk [] []))
-  (output outline-label    s/Str :abstract)
+  (output outline-label    t/Str :abstract)
   (output outline-commands [t/OutlineCommand] (fnk [] []))
   (output outline-tree     t/OutlineItem outline/outline-tree-producer))
 

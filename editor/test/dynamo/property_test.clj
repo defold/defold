@@ -1,50 +1,49 @@
 (ns dynamo.property-test
   (:require [clojure.test :refer :all]
             [dynamo.property :as dp :refer [defproperty]]
-            [dynamo.types :as t]
-            [schema.core :as s])
+            [dynamo.types :as t])
   (:import [dynamo.property DefaultPresenter]))
 
 (defprotocol MyProtocol)
 
 (deftest property-type-definition
-  (let [property-defn (defproperty SomeProperty s/Any)]
+  (let [property-defn (defproperty SomeProperty t/Any)]
     (is (var? property-defn))
     (is (identical? (resolve `SomeProperty) property-defn))
     (is (satisfies? t/PropertyType (var-get property-defn)))
-    (is (= s/Any (-> property-defn var-get :value-type)))
+    (is (= t/Any (-> property-defn var-get :value-type)))
     (is (t/property-visible SomeProperty)))
   (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"\(schema.core/protocol dynamo.property-test/MyProtocol\)"
         (eval '(dynamo.property/defproperty BadProp dynamo.property-test/MyProtocol)))))
 
-(defproperty PropWithDefaultValue s/Num
+(defproperty PropWithDefaultValue t/Num
   (default 42))
 
-(defproperty PropWithDefaultValueNil s/Any
+(defproperty PropWithDefaultValueNil t/Any
   (default nil))
 
-(defproperty PropWithMultipleDefaultValues s/Num
+(defproperty PropWithMultipleDefaultValues t/Num
   (default 1)
   (default 2))
 
-(defproperty PropWithDefaultValueFn s/Num
+(defproperty PropWithDefaultValueFn t/Num
   (default (constantly 23)))
 
 (defn ^:dynamic *default-value* [] -5)
 
-(defproperty PropWithDefaultValueVarAsSymbol s/Num
+(defproperty PropWithDefaultValueVarAsSymbol t/Num
   (default *default-value*))
 
-(defproperty PropWithDefaultValueVarForm s/Num
+(defproperty PropWithDefaultValueVarForm t/Num
   (default #'*default-value*))
 
-(defproperty PropWithTypeKeyword s/Keyword
+(defproperty PropWithTypeKeyword t/Keyword
   (default :some-keyword))
 
-(defproperty PropWithTypeSymbol s/Symbol
+(defproperty PropWithTypeSymbol t/Symbol
   (default 'some-symbol))
 
-(defproperty PropWithoutDefaultValue s/Num)
+(defproperty PropWithoutDefaultValue t/Num)
 
 (deftest property-type-default-value
   (is (= 42 (:default PropWithDefaultValue)))
@@ -64,30 +63,30 @@
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
         (eval '(dynamo.property/defproperty BadProp schema.core/Num (default non-existent-symbol))))))
 
-(defproperty PropWithoutValidation s/Any)
+(defproperty PropWithoutValidation t/Any)
 
-(defproperty PropWithValidationFnInline s/Num
+(defproperty PropWithValidationFnInline t/Num
   (validate pos #(pos? %)))
 
-(defproperty PropWithValidationFnValue s/Num
+(defproperty PropWithValidationFnValue t/Num
   (validate pos (every-pred pos? even?)))
 
-(defproperty PropWithValidationLiteralTrue s/Num
+(defproperty PropWithValidationLiteralTrue t/Num
   (validate any-value true))
 
-(defproperty PropWithValidationLiteralFalse s/Num
+(defproperty PropWithValidationLiteralFalse t/Num
   (validate no-value false))
 
-(defproperty PropWithMultipleValidations s/Num
+(defproperty PropWithMultipleValidations t/Num
   (validate same-label pos?)
   (validate same-label neg?))
 
 (defn ^:dynamic *validation-fn* [v] (= 42 v))
 
-(defproperty PropWithValidationVarAsSymbol s/Num
+(defproperty PropWithValidationVarAsSymbol t/Num
   (validate must-be-the-answer *validation-fn*))
 
-(defproperty PropWithValidationVarForm s/Num
+(defproperty PropWithValidationVarForm t/Num
   (validate must-be-the-answer #'*validation-fn*))
 
 (deftest property-type-validation
@@ -122,28 +121,28 @@
 (defn- make-formatter [s]
   (fn [x] (str x s)))
 
-(defproperty PropWithoutValidationFormatter s/Any
+(defproperty PropWithoutValidationFormatter t/Any
   (validate must-be-even even?))
 
-(defproperty PropWithValidationFormatterFnInline s/Num
+(defproperty PropWithValidationFormatterFnInline t/Num
   (validate must-be-even :message #(str % " is not even") even?))
 
-(defproperty PropWithValidationFormatterFnValue s/Num
+(defproperty PropWithValidationFormatterFnValue t/Num
   (validate must-be-even :message (make-formatter " is not even") even?))
 
-(defproperty PropWithValidationFormatterLiteral s/Num
+(defproperty PropWithValidationFormatterLiteral t/Num
   (validate must-be-even :message "value must be even" even?))
 
-(defproperty PropWithMultipleValidationsAndFormatters s/Num
+(defproperty PropWithMultipleValidationsAndFormatters t/Num
   (validate must-be-even     :message "value must be even" even?)
   (validate must-be-positive :message "value must be positive" pos?))
 
 (defn ^:dynamic *formatter-fn* [x] (str x " is not even"))
 
-(defproperty PropWithValidationFormatterVarAsSymbol s/Num
+(defproperty PropWithValidationFormatterVarAsSymbol t/Num
   (validate must-be-even :message *formatter-fn* even?))
 
-(defproperty PropWithValidationFormatterVarForm s/Num
+(defproperty PropWithValidationFormatterVarForm t/Num
   (validate must-be-even :message #'*formatter-fn* even?))
 
 (deftest property-type-validation-messages
@@ -162,15 +161,15 @@
     (is (= ["5 is odd"]                                  (t/property-validate PropWithValidationFormatterVarAsSymbol 5)))
     (is (= ["5 is odd"]                                  (t/property-validate PropWithValidationFormatterVarForm 5)))))
 
-(defproperty BaseProp s/Num)
+(defproperty BaseProp t/Num)
 
-(defproperty BasePropWithDefault s/Num
+(defproperty BasePropWithDefault t/Num
   (default 42))
 
-(defproperty BasePropWithValidation s/Num
+(defproperty BasePropWithValidation t/Num
   (validate must-be-pos pos?))
 
-(defproperty BasePropWithDefaultAndValidation s/Num
+(defproperty BasePropWithDefaultAndValidation t/Num
   (default 42)
   (validate must-be-pos pos?))
 
@@ -187,10 +186,10 @@
   (validate must-be-pos even?))
 
 (deftest property-type-inheritance
-  (is (= s/Num (:value-type DerivedProp)))
-  (is (= s/Num (:value-type DerivedPropOverrideDefaultInheritValidation)))
-  (is (= s/Num (:value-type DerivedPropInheritDefaultOverrideValidation)))
-  (is (= s/Num (:value-type DerivedPropInheritBothOverrideBoth)))
+  (is (= t/Num (:value-type DerivedProp)))
+  (is (= t/Num (:value-type DerivedPropOverrideDefaultInheritValidation)))
+  (is (= t/Num (:value-type DerivedPropInheritDefaultOverrideValidation)))
+  (is (= t/Num (:value-type DerivedPropInheritBothOverrideBoth)))
   (is (= 23 (t/property-default-value DerivedPropOverrideDefaultInheritValidation)))
   (is (= 42 (t/property-default-value DerivedPropInheritDefaultOverrideValidation)))
   (is (= 23 (t/property-default-value DerivedPropInheritBothOverrideBoth)))
@@ -204,9 +203,9 @@
   (is (false? (t/property-valid-value? DerivedPropInheritBothOverrideBoth 1)))
   (is (true?  (t/property-valid-value? DerivedPropInheritBothOverrideBoth 2))))
 
-(defproperty UntaggedProp s/Keyword)
+(defproperty UntaggedProp t/Keyword)
 
-(defproperty TaggedProp s/Keyword
+(defproperty TaggedProp t/Keyword
   (tag :first))
 
 (defproperty ChildOfTaggedProp TaggedProp)
@@ -235,13 +234,13 @@
     MultipleTags           [:third :second :first])
   (is (vector? (t/property-tags ChildOfTaggedPropWithOverride))))
 
-(defproperty StringProp s/Str)
+(defproperty StringProp t/Str)
 
 (defproperty Vec3Prop t/Vec3)
 
 (defproperty InheritsFromVec3Prop Vec3Prop)
 
-(defproperty UnregisteredProp [s/Keyword s/Str s/Num])
+(defproperty UnregisteredProp [t/Keyword t/Str t/Num])
 
 (defrecord CustomPresenter []
   dp/Presenter)
@@ -265,8 +264,8 @@
             actual-presenter (dp/lookup-presenter registry property-to-look-up)]
         (instance? expected-presenter actual-presenter))
       ;type-to-register    property-to-look-up  expected-presenter
-      {:value-type s/Str}  StringProp           CustomPresenter
-      {:value-type s/Str}  UnregisteredProp     DefaultPresenter
+      {:value-type t/Str}  StringProp           CustomPresenter
+      {:value-type t/Str}  UnregisteredProp     DefaultPresenter
       {:value-type t/Vec3} InheritsFromVec3Prop CustomPresenter
       {:value-type t/Vec3} Vec3Prop             CustomPresenter))
   (testing "presenters with tags"
@@ -275,24 +274,24 @@
             actual-presenter (dp/lookup-presenter registry property-to-look-up)]
         (instance? expected-presenter actual-presenter))
       ;type-to-register                    property-to-look-up  expected-presenter
-      {:value-type s/Keyword}              UntaggedProp         CustomPresenter
-      {:value-type s/Keyword}              TaggedProp           CustomPresenter
-      {:value-type s/Keyword :tag :first}  UntaggedProp         DefaultPresenter
-      {:value-type s/Keyword :tag :first}  TaggedProp           CustomPresenter
-      {:value-type s/Str}                  UntaggedProp         DefaultPresenter
-      {:value-type s/Str     :tag :first}  UntaggedProp         DefaultPresenter
-      {:value-type s/Str     :tag :first}  TaggedProp           DefaultPresenter
-      {:value-type s/Keyword :tag :second} TaggedProp           DefaultPresenter
-      {:value-type s/Keyword :tag :second} TaggedChild          CustomPresenter
-      {:value-type s/Keyword :tag :second} MultipleTags         CustomPresenter
-      {:value-type s/Keyword :tag :third}  TaggedChild          DefaultPresenter
-      {:value-type s/Keyword :tag :third}  MultipleTags         CustomPresenter))
+      {:value-type t/Keyword}              UntaggedProp         CustomPresenter
+      {:value-type t/Keyword}              TaggedProp           CustomPresenter
+      {:value-type t/Keyword :tag :first}  UntaggedProp         DefaultPresenter
+      {:value-type t/Keyword :tag :first}  TaggedProp           CustomPresenter
+      {:value-type t/Str}                  UntaggedProp         DefaultPresenter
+      {:value-type t/Str     :tag :first}  UntaggedProp         DefaultPresenter
+      {:value-type t/Str     :tag :first}  TaggedProp           DefaultPresenter
+      {:value-type t/Keyword :tag :second} TaggedProp           DefaultPresenter
+      {:value-type t/Keyword :tag :second} TaggedChild          CustomPresenter
+      {:value-type t/Keyword :tag :second} MultipleTags         CustomPresenter
+      {:value-type t/Keyword :tag :third}  TaggedChild          DefaultPresenter
+      {:value-type t/Keyword :tag :third}  MultipleTags         CustomPresenter))
   (testing "tag precedence"
     (let [registry (-> {}
-                       (dp/register-presenter {:value-type s/Keyword}              (->CustomPresenter))
-                       (dp/register-presenter {:value-type s/Keyword :tag :first}  (->FirstCustomPresenter))
-                       (dp/register-presenter {:value-type s/Keyword :tag :second} (->SecondCustomPresenter))
-                       (dp/register-presenter {:value-type s/Keyword :tag :third}  (->ThirdCustomPresenter)))]
+                       (dp/register-presenter {:value-type t/Keyword}              (->CustomPresenter))
+                       (dp/register-presenter {:value-type t/Keyword :tag :first}  (->FirstCustomPresenter))
+                       (dp/register-presenter {:value-type t/Keyword :tag :second} (->SecondCustomPresenter))
+                       (dp/register-presenter {:value-type t/Keyword :tag :third}  (->ThirdCustomPresenter)))]
       (are [property-to-look-up expected-presenter] (instance? expected-presenter (dp/lookup-presenter registry property-to-look-up))
         ;property-to-look-up          expected-presenter
         UntaggedProp                  CustomPresenter

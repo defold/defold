@@ -1,8 +1,9 @@
 (ns dynamo.util
-  (:require [clojure.java.io :as io]
+  (:require [camel-snake-kebab :refer :all]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [camel-snake-kebab :refer :all]))
+            [potemkin.namespaces :as namespaces]))
 
 (defn removev [pred coll]
   (filterv (complement pred) coll))

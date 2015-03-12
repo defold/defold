@@ -1,5 +1,5 @@
 (ns internal.value-test
-  (:require [clojure.core.async :as async :refer [chan >!! <! alts!! timeout]]
+  (:require [clojure.core.async :as a]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.node :as n]
@@ -8,10 +8,7 @@
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [internal.graph.dgraph :as dg]
-            [internal.system :as is]
-            [internal.transaction :as it]
-            [plumbing.core :refer [defnk]]
-            [schema.core :as s]))
+            [internal.transaction :as it]))
 
 (def ^:dynamic *calls*)
 
@@ -31,13 +28,13 @@
      ~@body
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
-(defnk produce-simple-value
+(g/defnk produce-simple-value
   [this scalar]
   (tally this 'produce-simple-value)
   scalar)
 
 (g/defnode UncachedOutput
-  (property scalar s/Str)
+  (property scalar t/Str)
   (output uncached-value String produce-simple-value))
 
 (defn compute-expensive-value
@@ -63,12 +60,12 @@
     (fn [node g]
       "this is distinct from the other outputs")))
 
-(defnk compute-derived-value
+(g/defnk compute-derived-value
   [this first-name last-name]
   (tally this 'compute-derived-value)
   (str first-name " " last-name))
 
-(defnk passthrough-first-name
+(g/defnk passthrough-first-name
   [this first-name]
   (tally this 'passthrough-first-name)
   first-name)
@@ -153,29 +150,29 @@
         (is (= "Mark Brandenburg" (g/node-value (:graph @world-ref) cache combiner :derived-value)))))))
 
 
-(defnk compute-disposable-value
+(g/defnk compute-disposable-value
   [this g]
   (tally this 'compute-disposable-value)
   (reify t/IDisposable
     (dispose [v]
       (tally this 'dispose)
-      (>!! (:channel (dg/node g this)) :gone))))
+      (a/>!! (:channel (dg/node g this)) :gone))))
 
 (g/defnode DisposableValueNode
   (output disposable-value 't/IDisposable :cached compute-disposable-value))
 
-(defnk produce-input-from-node
+(g/defnk produce-input-from-node
   [overridden]
   overridden)
 
-(defnk derive-value-from-inputs
+(g/defnk derive-value-from-inputs
   [an-input]
   an-input)
 
 (g/defnode OverrideValueNode
-  (input overridden s/Str)
-  (output output s/Str produce-input-from-node)
-  (output foo    s/Str derive-value-from-inputs))
+  (input overridden t/Str)
+  (output output t/Str produce-input-from-node)
+  (output foo    t/Str derive-value-from-inputs))
 
 (defn build-override-project
   []
