@@ -25,6 +25,7 @@
                      [joda-time/joda-time                         "2.1"]
                      [javafx-wrapper                              "0.1.0"]
                      [commons-io/commons-io                       "2.3"]
+                     [cider/cider-nrepl                           "0.8.2"]
 
                      ;; These are installed in a local repository
                      [javax/vecmath                               "1.5.2"]

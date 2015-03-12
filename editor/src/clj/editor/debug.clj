@@ -1,17 +1,24 @@
 (ns editor.debug
-  (:require [clojure.tools.nrepl.server :as nrepl]))
+  (:require [clojure.tools.nrepl.server :as nrepl]
+            [cider.nrepl :as cider]
+            [dynamo.util :refer [applym]]))
 
-(defonce repl-server (atom nil))
+(defonce ^:private repl-server (agent {:handler cider/cider-nrepl-handler}))
+
+(defn- start-and-print
+  [config]
+  (let [srv (applym nrepl/start-server config)]
+    (println (format "Started REPL at nrepl://127.0.0.1:%s\n" (:port srv)))
+    srv))
 
 (defn start-server
   [port]
-  (let [server (reset! repl-server (if port
-                                     (nrepl/start-server :port port)
-                                     (nrepl/start-server)))]
-    (println (format "Started REPL at nrepl://127.0.0.1:%s\n" (:port server)))))
+  (let [repl-config (cond-> {:handler cider/cider-nrepl-handler}
+                      port
+                      (assoc :port port))]
+      (send repl-server (constantly repl-config))
+      (send repl-server start-and-print)))
 
 (defn stop-server
   []
-  (when-let [server @repl-server]
-    (nrepl/stop-server server)
-    (reset! repl-server nil)))
+  (send repl-server nrepl/stop-server))
