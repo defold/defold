@@ -1,35 +1,29 @@
 (ns dynamo.protobuf-test
   (:require [clojure.test :refer :all]
-            [dynamo.file :as f]
             [dynamo.file.protobuf :refer :all]
             [dynamo.graph :as g]
             [dynamo.image :refer :all]
-            [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system]]
             [dynamo.texture :refer :all]
-            [dynamo.types :refer :all]
-            [internal.transaction :as it]
-            [plumbing.core :refer [fnk]]
-            [schema.core :as s]
-            [schema.macros :as sm])
+            [dynamo.types :as t :refer :all])
   (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [dynamo.types Animation Image]))
 
 (g/defnode AtlasNode
-  (property extrude-borders s/Int)
-  (property margin          s/Int)
+  (property extrude-borders t/Int)
+  (property margin          t/Int)
 
-  (input images     [s/Str])
-  (input animations [s/Str]))
+  (input images     [t/Str])
+  (input animations [t/Str]))
 
 (g/defnode AtlasAnimationNode
-  (property id s/Str)
-  (input  images    [s/Str])
-  (output animation s/Str (fnk [id] (str "Animation " id))))
+  (property id t/Str)
+  (input  images    [t/Str])
+  (output animation t/Str (g/fnk [id] (str "Animation " id))))
 
 (g/defnode AtlasImageNode
-  (property image s/Str))
+  (property image t/Str))
 
 (protocol-buffer-converters
  TestAtlasProto$Atlas

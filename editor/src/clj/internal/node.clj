@@ -14,8 +14,7 @@
             [internal.metrics :as metrics]
             [internal.property :as ip]
             [plumbing.core :refer [fnk defnk]]
-            [plumbing.fnk.pfnk :as pf]
-            [schema.core :as s]))
+            [plumbing.fnk.pfnk :as pf]))
 
 (defn- resource?
   ([property-type]
@@ -110,7 +109,7 @@
      (assoc inputs desired-input-name
             (evaluate-input-internal graph in-production node-id desired-input-name chain-head)))
    {}
-   (dissoc input-schema s/Keyword)))
+   (dissoc input-schema t/Keyword)))
 
 (defn- produce-with-schema
   "Helper function: if the production function has schema information,
@@ -327,7 +326,7 @@ maybe cache the value that was produced, and return it."
   [transform]
   (let [production-fn (-> transform :production-fn)]
     (if (pfnk? production-fn)
-      (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
+      (into #{} (keys (dissoc (pf/input-schema production-fn) t/Keyword :this :g)))
       #{})))
 
 (defn dependency-seq
@@ -707,5 +706,5 @@ for all properties of this node."
       properties-affected)))
 
 (def node-intrinsics
-  [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
+  [(list 'output 'self `t/Any `(fnk [~'this] ~'this))
    (list 'output 'properties `t/Properties `gather-properties)])

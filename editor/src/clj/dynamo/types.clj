@@ -1,12 +1,15 @@
 (ns dynamo.types
   "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."
   (:require [schema.core :as s]
+            [potemkin.namespaces :refer [import-vars]]
             [schema.macros :as sm])
   (:import [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.dynamo.tile.proto Tile$Playback]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
+
+(import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid check enum protocol maybe fn-schema one optional-key validate])
 
 ; ----------------------------------------
 ; Protocols here help avoid circular dependencies

@@ -5,37 +5,35 @@
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [add in]]
             [dynamo.system.test-support :refer :all]
+            [dynamo.types :as t]
             [internal.graph.lgraph :as lg]
-            [internal.node :as in]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]
-            [schema.macros :as sm]))
+            [internal.node :as in]))
 
 (g/defnode Receiver
   (input surname String :inject)
-  (input samples [s/Num] :inject)
-  (input label s/Any :inject))
+  (input samples [t/Num] :inject)
+  (input label t/Any :inject))
 
-(defnk produce-string :- String
+(g/defnk produce-string :- String
   []
   "nachname")
 
 (g/defnode Sender1
   (output surname String produce-string))
 
-(defnk produce-sample :- Integer
+(g/defnk produce-sample :- Integer
   []
   42)
 
 (g/defnode Sampler
   (output sample Integer produce-sample))
 
-(defnk produce-label :- s/Keyword
+(g/defnk produce-label :- t/Keyword
   []
   :a-keyword)
 
 (g/defnode Labeler
-  (output label s/Keyword produce-label))
+  (output label t/Keyword produce-label))
 
 (deftest compatible-inputs-and-outputs
   (let [recv    (n/construct Receiver)
@@ -47,17 +45,17 @@
     (is (= #{[labeler :label   recv :label]}   (in/injection-candidates [recv] [labeler])))))
 
 (g/defnode ValueConsumer
-  (input local-names [s/Str] :inject)
-  (output concatenation s/Str (fnk [local-names] (str/join local-names))))
+  (input local-names [t/Str] :inject)
+  (output concatenation t/Str (g/fnk [local-names] (str/join local-names))))
 
 (g/defnode InjectionScope
   (inherits g/Scope)
-  (input local-name s/Str :inject)
-  (output passthrough s/Str (fnk [local-name] local-name)))
+  (input local-name t/Str :inject)
+  (output passthrough t/Str (g/fnk [local-name] local-name)))
 
 (g/defnode ValueProducer
-  (property value s/Str)
-  (output local-name s/Str (fnk [value] value)))
+  (property value t/Str)
+  (output local-name t/Str (g/fnk [value] value)))
 
 (deftest dependency-injection
   (testing "attach node output to input on scope"
@@ -117,8 +115,8 @@
         (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation)))))))
 
 (g/defnode ReflexiveFeedback
-  (property port s/Keyword (default :no))
-  (input ports [s/Keyword] :inject))
+  (property port t/Keyword (default :no))
+  (input ports [t/Keyword] :inject))
 
 (deftest reflexive-injection
   (testing "don't connect a node's own output to its input"
@@ -128,10 +126,10 @@
 
 (g/defnode OutputProvider
   (inherits g/Scope)
-  (property context s/Int (default 0)))
+  (property context t/Int (default 0)))
 
 (g/defnode InputConsumer
-  (input context s/Int :inject))
+  (input context t/Int :inject))
 
 (defn- create-simulated-project []
   (g/transactional (g/add (n/construct g/Scope :tag :project))))

@@ -8,13 +8,9 @@
             [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.ui :as ui]
             [dynamo.ui.widgets :as widgets]
             [dynamo.util :refer :all]
-            [internal.node :as in]
-            [internal.system :as is]
             [plumbing.core :refer [defnk]]
-            [schema.core :as s]
             [service.log :as log]))
 
 (defrecord ValidationPresenter []
@@ -167,7 +163,7 @@
 
 (g/defnode PropertyView
   (input  properties [t/Properties])
-  (output content s/Any aggregate-properties)
+  (output content t/Any aggregate-properties)
 
   (input  presenter-registry t/Registry :inject)
   (output presenter-registry t/Registry passthrough-presenter-registry)

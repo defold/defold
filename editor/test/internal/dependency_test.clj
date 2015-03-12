@@ -6,10 +6,7 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :as ts]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]
-            [internal.transaction :as it]
-            [plumbing.core :refer [fnk]]
-            [schema.core :as s]))
+            [dynamo.util :refer :all]))
 
 (defn- id [x] (or (:_id x) (:node-id x)))
 
@@ -19,14 +16,14 @@
                           (map-first id (partition 2 pairs))))
 
 (g/defnode SingleOutput
-  (output out-from-inline s/Str (fnk [] "out-from-inline")))
+  (output out-from-inline t/Str (g/fnk [] "out-from-inline")))
 
 (g/defnode InputNoOutput
-  (input unused-input s/Str))
+  (input unused-input t/Str))
 
 (g/defnode InputUsedByOutput
-  (input string-input s/Str)
-  (output out-from-input s/Str (fnk [string-input] string-input)))
+  (input string-input t/Str)
+  (output out-from-input t/Str (g/fnk [string-input] string-input)))
 
 (deftest single-connection
   (testing "results include inputs"
@@ -120,20 +117,20 @@
                  [(id z) :out-from-input]}))))))
 
 (g/defnode MultipleOutputs
-  (output output-1 s/Str (fnk [] "1"))
-  (output output-2 s/Str (fnk [] "2"))
-  (output output-3 s/Str (fnk [] "3"))
-  (output output-4 s/Str (fnk [] "4"))
-  (output output-5 s/Str (fnk [] "5")))
+  (output output-1 t/Str (g/fnk [] "1"))
+  (output output-2 t/Str (g/fnk [] "2"))
+  (output output-3 t/Str (g/fnk [] "3"))
+  (output output-4 t/Str (g/fnk [] "4"))
+  (output output-5 t/Str (g/fnk [] "5")))
 
 (g/defnode MultipleInputsIntoOneOutput
-  (input input-1 s/Str)
-  (input input-2 s/Str)
-  (input input-3 s/Str)
-  (input input-4 s/Str)
-  (input input-5 s/Str)
+  (input input-1 t/Str)
+  (input input-2 t/Str)
+  (input input-3 t/Str)
+  (input input-4 t/Str)
+  (input input-5 t/Str)
 
-  (output input-counter s/Int (fnk [input-1 input-2 input-3 input-4 input-5]
+  (output input-counter t/Int (g/fnk [input-1 input-2 input-3 input-4 input-5]
                                    (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
 
 (deftest one-step-multipath
@@ -172,18 +169,18 @@
                  [(id x) :input-counter]}))))))
 
 (g/defnode SelfDependent
-  (input string-input s/Str)
+  (input string-input t/Str)
 
-  (output uppercased s/Str (fnk [string-input] (str/upper-case string-input)))
-  (output counted    s/Int (fnk [uppercased] (count uppercased))))
+  (output uppercased t/Str (g/fnk [string-input] (str/upper-case string-input)))
+  (output counted    t/Int (g/fnk [uppercased] (count uppercased))))
 
 (g/defnode BadlyWrittenSelfDependent
-  (input string-value s/Str)
-  (output string-value s/Str (fnk [string-value] (str/upper-case string-value))))
+  (input string-value t/Str)
+  (output string-value t/Str (g/fnk [string-value] (str/upper-case string-value))))
 
 (g/defnode PropertyShadowingInput
-  (input string-value s/Str)
-  (property string-value s/Str (default "Hey there!")))
+  (input string-value t/Str)
+  (property string-value t/Str (default "Hey there!")))
 
 (deftest with-self-dependencies
   (testing "dependencies propagate through fnks"
@@ -220,14 +217,14 @@
                #{[(id a) :out-from-inline]}))))))
 
 (g/defnode SingleOutput
-  (output out-from-inline s/Str (fnk [] "out-from-inline")))
+  (output out-from-inline t/Str (g/fnk [] "out-from-inline")))
 
 (g/defnode InputNoOutput
-  (input unused-input s/Str))
+  (input unused-input t/Str))
 
 (g/defnode InputUsedByOutput
-  (input string-input s/Str)
-  (output out-from-input s/Str (fnk [string-input] string-input)))
+  (input string-input t/Str)
+  (output out-from-input t/Str (g/fnk [string-input] string-input)))
 
 (deftest diamond-pattern
   (testing "multipath reaching the same node"
@@ -249,11 +246,11 @@
                  [(id d) :out-from-input]}))))))
 
 (g/defnode TwoIndependentOutputs
-  (input input-1 s/Str)
-  (output output-1 s/Str (fnk [input-1] input-1))
+  (input input-1 t/Str)
+  (output output-1 t/Str (g/fnk [input-1] input-1))
 
-  (input input-2 s/Str)
-  (output output-2 s/Str (fnk [input-2] input-2)))
+  (input input-2 t/Str)
+  (output output-2 t/Str (g/fnk [input-2] input-2)))
 
 (deftest independence-of-outputs
   (testing "output is only marked when its specific inputs are  affected"

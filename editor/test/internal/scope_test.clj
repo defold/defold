@@ -1,23 +1,18 @@
 (ns internal.scope-test
-  (:require [clojure.core.async :as a]
-            [clojure.string :as str]
-            [clojure.test.check.clojure-test :refer [defspec]]
+  (:require [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check :refer :all]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
-            [internal.async :as ia]
-            [internal.node :as in]
-            [plumbing.core :refer [defnk]]
-            [schema.core :as s]
-            [schema.macros :as sm])
-  (:import [dynamo.types Image AABB]))
+            [internal.node :as in]))
+
+(deftype ABACAB [])
+(deftype Image [])
 
 (g/defnode N1)
 (g/defnode N2)
@@ -27,7 +22,7 @@
         n2 (n/construct N2)]
     (are [out-node out out-type in-node in in-type expect-compat why]
       (= expect-compat (in/compatible? [out-node out out-type in-node in in-type]))
-      n1 :image Image    n2 :image  AABB      nil                    "type mismatch"
+      n1 :image Image    n2 :image  ABACAB    nil                    "type mismatch"
       n1 :image Image    n2 :image  Image     [n1 :image n2 :image]  "ok"
       n1 :image Image    n2 :images [Image]   [n1 :image n2 :images] "ok"
       n1 :image Image    n2 :images Image     nil                    "plural name, singular type"
@@ -40,9 +35,9 @@
   (inherits g/Scope))
 
 (g/defnode Emitter
-  (property name s/Str))
+  (property name t/Str))
 (g/defnode Modifier
-  (property name s/Str))
+  (property name t/Str))
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
 

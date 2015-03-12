@@ -4,8 +4,6 @@
             [dynamo.graph :as g]
             [dynamo.property :as dp]
             [dynamo.types :as t]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]
             [schema.macros :as sm])
   (:import [dynamo.types Rect Image]
            [java.awt Color]
@@ -27,15 +25,15 @@
     (java.awt.Color. r g b a)))
 
 (sm/defn make-image :- Image
-  [nm :- s/Any contents :- BufferedImage]
+  [nm :- t/Any contents :- BufferedImage]
   (Image. nm contents (.getWidth contents) (.getHeight contents)))
 
 (sm/defn blank-image :- BufferedImage
   ([space :- Rect]
     (blank-image (.width space) (.height space)))
-  ([width :- s/Int height :- s/Int]
+  ([width :- t/Int height :- t/Int]
     (blank-image width height BufferedImage/TYPE_4BYTE_ABGR))
-  ([width :- s/Int height :- s/Int t :- s/Int]
+  ([width :- t/Int height :- t/Int t :- t/Int]
     (BufferedImage. width height t)))
 
 (sm/defn flood :- BufferedImage
@@ -58,7 +56,7 @@
 (g/defnode ImageSource
   (inherits g/ResourceNode)
 
-  (output content Image :cached :substitute-value placeholder-image (fnk [filename] (load-image filename (t/local-path filename)))))
+  (output content Image :cached :substitute-value placeholder-image (g/fnk [filename] (load-image filename (t/local-path filename)))))
 
 (sm/defn image-color-components :- long
   [src :- BufferedImage]
@@ -73,13 +71,13 @@
       3 BufferedImage/TYPE_3BYTE_BGR
       1 BufferedImage/TYPE_BYTE_GRAY)))
 
-(sm/defn image-type :- s/Int
+(sm/defn image-type :- t/Int
   [src :- BufferedImage]
   (let [t (.getType src)]
     (if (not= 0 t) t (image-infer-type src))))
 
 (sm/defn image-convert-type :- BufferedImage
-  [original :- BufferedImage new-type :- s/Int]
+  [original :- BufferedImage new-type :- t/Int]
   (if (= new-type (image-type original))
     original
     (let [new (blank-image (.getWidth original) (.getHeight original) new-type)]
@@ -100,7 +98,7 @@
     pixels))
 
 (sm/defn image-from-pixels :- BufferedImage
-  [^long width :- s/Int ^long height :- s/Int t :- s/Int pixels :- ints]
+  [^long width :- t/Int ^long height :- t/Int t :- t/Int pixels :- ints]
   (doto (blank-image width height t)
     (.. (getRaster) (setPixels 0 0 width height pixels))))
 
@@ -112,7 +110,7 @@
 with the orig-pixels centered in it. The source pixels on the edges
 will bleed into the surrounding empty space. The pixels in the border
 region will be identical to the nearest pixel of the source image."
-  [extrusion :- s/Int src :- Image]
+  [extrusion :- t/Int src :- Image]
   (if-not (< 0 extrusion)
     src
     (let [src-img        (t/contents src)

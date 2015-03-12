@@ -6,9 +6,7 @@
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.types :as t :refer [min-p max-p]]
-            [internal.render.pass :as pass]
-            [plumbing.core :refer [defnk]]
-            [schema.core :as s])
+            [internal.render.pass :as pass])
   (:import [dynamo.types AABB Camera]
            [javax.media.opengl GL GL2]
            [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
@@ -78,7 +76,7 @@
       (render-grid-sizes dir grids)
       (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
-(defnk grid-renderable :- t/RenderData
+(g/defnk grid-renderable :- t/RenderData
   [this camera grids]
   {pass/transparent
    [{:world-transform geom/Identity4d
@@ -138,7 +136,7 @@
                       (grid-snap-up   (-> aabb max-p .y) grid-size)
                       (grid-snap-up   (-> aabb max-p .z) grid-size))))
 
-(defnk update-grids :- s/Any
+(g/defnk update-grids :- t/Any
   [this g camera]
   (let [frustum-planes   (c/viewproj-frustum-planes camera)
         far-z-plane      (nth frustum-planes 5)
@@ -158,8 +156,8 @@
 (g/defnode Grid
   (input camera Camera)
   (property grid-color t/Color)
-  (property auto-grid  s/Bool)
+  (property auto-grid  t/Bool)
   (property fixed-grid-size dp/NonNegativeInt (default 0))
 
-  (output grids      s/Any :cached update-grids)
+  (output grids      t/Any :cached update-grids)
   (output renderable t/RenderData  grid-renderable))

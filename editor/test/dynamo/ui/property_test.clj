@@ -1,15 +1,14 @@
 (ns dynamo.ui.property-test
   (:require [clojure.test :refer :all]
-            [schema.core :as s]
-            [dynamo.property :as dp :refer [defproperty]]
+            [dynamo.property :refer [defproperty]]
             [dynamo.types :as t]
             [internal.ui.property :as uip]))
 
-(defproperty IntegerProperty            s/Int           (default 0))
+(defproperty IntegerProperty            t/Int           (default 0))
 (defproperty SpecializedIntegerProperty IntegerProperty (default -1))
-(defproperty StringProperty             s/Str           (default ""))
+(defproperty StringProperty             t/Str           (default ""))
 (defproperty SpecializedStringProperty  StringProperty  (default "bork"))
-(defproperty NonvisibleProperty         s/Keyword       (visible false))
+(defproperty NonvisibleProperty         t/Keyword       (visible false))
 
 (defn- pretend-property
   [prop]

@@ -1,6 +1,4 @@
 (ns dynamo.buffers
-  (:require [schema.core :as s]
-            [schema.macros :as sm])
   (:import [java.nio Buffer ByteBuffer ByteOrder IntBuffer]
            [com.google.protobuf ByteString]))
 
