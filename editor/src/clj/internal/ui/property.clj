@@ -213,7 +213,7 @@
   [scope]
   (g/transactional
     (ds/in scope
-      (ds/add (n/construct PropertyView)))))
+      (g/add (n/construct PropertyView)))))
 
 #_(defn get-control
   "This is called by the Java shim GenericPropertySheetPage. Not for other use."

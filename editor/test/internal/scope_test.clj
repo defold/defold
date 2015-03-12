@@ -52,9 +52,9 @@
   (testing "Nodes are registered within a scope by name"
     (with-clean-system
       (g/transactional
-        (ds/in (ds/add (n/construct ParticleEditor :label "view scope"))
-          (ds/add (n/construct Emitter  :name "emitter"))
-          (ds/add (n/construct Modifier :name "vortex"))))
+        (ds/in (g/add (n/construct ParticleEditor :label "view scope"))
+          (g/add (n/construct Emitter  :name "emitter"))
+          (g/add (n/construct Modifier :name "vortex"))))
 
       (let [scope-node (q world-ref [[:label "view scope"]])]
         (are [n] (identical? (t/lookup scope-node n) (q world-ref [[:name n]]))
@@ -74,10 +74,10 @@
 (defspec scope-disposes-contained-nodes
   (prop/for-all [scoped-nodes gen-nodelist]
     (with-clean-system
-      (let [scope          (g/transactional (ds/add (n/construct g/Scope)))
-            disposables    (g/transactional (ds/in scope (doseq [n scoped-nodes] (ds/add n))) scoped-nodes)
+      (let [scope          (g/transactional (g/add (n/construct g/Scope)))
+            disposables    (g/transactional (ds/in scope (doseq [n scoped-nodes] (g/add n))) scoped-nodes)
             disposable-ids (map :_id disposables)]
-        (g/transactional (ds/delete scope))
+        (g/transactional (g/delete scope))
         (yield)
         (let [disposed (take-waiting-to-dispose system)]
           (is (= (sort (conj disposable-ids (:_id scope))) (sort (map :_id disposed)))))))))

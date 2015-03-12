@@ -54,7 +54,7 @@
 
 (deftest event-delivery
   (with-clean-system
-    (let [evented (g/transactional (ds/add (construct NodeWithEvents)))]
+    (let [evented (g/transactional (g/add (construct NodeWithEvents)))]
       (is (= :ok (t/process-one-event evented {:type :mousedown})))
       (is (:message-processed (ds/node world-ref (:_id evented)))))))
 
@@ -113,11 +113,11 @@
     (let [[node] (tx-nodes (construct EmptyNode))]
       (is (identical? node (g/node-value (:graph @world-ref) cache node :self)))))
   (with-clean-system
-    (let [n1       (g/transactional (ds/add (construct SimpleTestNode)))
+    (let [n1       (g/transactional (g/add (construct SimpleTestNode)))
           before   (:graph @world-ref)
           _        (g/transactional (g/set-property n1 :foo "quux"))
           after    (:graph @world-ref)
-          n2       (g/transactional (ds/add (construct SimpleTestNode :foo "bar")))
+          n2       (g/transactional (g/add (construct SimpleTestNode :foo "bar")))
           override (:graph @world-ref)]
       (is (not (identical? before after)))
       (are [expected-value when node]
@@ -130,7 +130,7 @@
 (defn- expect-modified
   [properties f]
   (with-clean-system
-    (let [node (g/transactional (ds/add (construct SimpleTestNode :foo "one")))]
+    (let [node (g/transactional (g/add (construct SimpleTestNode :foo "one")))]
       (g/transactional (f node))
       (let [modified (into #{} (map second (get-in @(:world-ref node) [:last-tx :outputs-modified])))]
         (is (= properties modified))))))
@@ -294,7 +294,7 @@
 
 (deftest node-output-substitute-value
   (with-clean-system
-    (let [n (g/transactional (ds/add (construct SubstituteValueNode)))]
+    (let [n (g/transactional (g/add (construct SubstituteValueNode)))]
       (testing "exceptions from node-value (:graph @world-ref) cache when no substitute value fn"
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defn)))
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk))))
@@ -405,7 +405,7 @@
 
       (g/transactional
         (g/disconnect failure-node :out answer-node :in)
-        (g/connect (ds/add (construct ValueHolderNode :value 42)) :value answer-node :in))
+        (g/connect (g/add (construct ValueHolderNode :value 42)) :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))

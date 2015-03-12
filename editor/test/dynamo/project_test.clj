@@ -15,7 +15,7 @@
 (g/defnode FakeProject
   t/NamingContext
   (lookup [this name]
-    (g/transactional (ds/add (n/construct DummyNode)))))
+    (g/transactional (g/add (n/construct DummyNode)))))
 
 (defrecord ExtensionHolder [ext]
   t/PathManipulation
@@ -28,7 +28,7 @@
   []
   (let [project-node (n/construct FakeProject)]
     (g/transactional
-      (ds/add project-node)
+      (g/add project-node)
       (ds/in project-node
         (p/register-editor "dummy" (constantly :not-a-node))
         project-node))))
@@ -47,8 +47,8 @@
           d3           (n/construct DummyNode :filename (f/native-path "foo.script"))
           d4           (n/construct DummyNode :is-a-file-node? false)
           [project-node d1 d2 d3 d4] (g/transactional
-                                         (ds/in (ds/add (n/construct p/Project))
-                                           [(ds/current-scope) (ds/add d1) (ds/add d2) (ds/add d3) (ds/add d4)]))]
+                                         (ds/in (g/add (n/construct p/Project))
+                                           [(ds/current-scope) (g/add d1) (g/add d2) (g/add d3) (g/add d4)]))]
       (is (= #{d1 d2}    (p/nodes-with-extensions project-node ["png"])))
       (is (= #{d3}       (p/nodes-with-extensions project-node ["script"])))
       (is (= #{d1 d2 d3} (p/nodes-with-extensions project-node ["png" "script"]))))))
