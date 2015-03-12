@@ -1,5 +1,5 @@
 (ns dynamo.property
-  (:require [schema.core :as s]
+  (:require [schema.macros :as sm]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
@@ -8,13 +8,13 @@
 (defmacro defproperty [name value-type & body-forms]
   (apply ip/def-property-type-descriptor name value-type body-forms))
 
-(defproperty NonNegativeInt s/Int
+(defproperty NonNegativeInt t/Int
   (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
 
-(defproperty Resource s/Str (tag ::resource))
+(defproperty Resource t/Str (tag ::resource))
 (defproperty ImageResource Resource (tag ::image))
 
-(defproperty ResourceList [s/Str] (tag ::resource) (default []))
+(defproperty ResourceList [t/Str] (tag ::resource) (default []))
 (defproperty ImageResourceList ResourceList (tag ::image))
 
 (defproperty Vec3 t/Vec3
@@ -55,15 +55,15 @@
 (def default-presenter
   (->DefaultPresenter))
 
-(s/defn register-presenter :- t/Registry
+(sm/defn register-presenter :- t/Registry
   [registry   :- t/Registry
-   type       :- {:value-type s/Any (s/optional-key :tag) s/Keyword}
-   presenter  :- (s/protocol Presenter)]
+   type       :- {:value-type t/Any (t/optional-key :tag) t/Keyword}
+   presenter  :- (t/protocol Presenter)]
   (assoc registry (merge {:tag nil} type) presenter))
 
-(s/defn lookup-presenter :- (s/protocol Presenter)
+(sm/defn lookup-presenter :- (t/protocol Presenter)
   [registry :- t/Registry
-   property :- (s/protocol t/PropertyType)]
+   property :- (t/protocol t/PropertyType)]
   (loop [tags (conj (t/property-tags property) nil)]
     (if (empty? tags)
       default-presenter

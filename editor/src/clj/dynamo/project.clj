@@ -13,8 +13,6 @@ ordinary paths."
             [dynamo.util :refer :all]
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]
             [service.log :as log])
   (:import [java.io File]))
 
@@ -43,9 +41,9 @@ ordinary paths."
   "A Placeholder node represents a file-based asset that doesn't have any specific
 behavior."
   (inherits g/ResourceNode)
-  (output content s/Any (fnk [] nil))
+  (output content t/Any (g/fnk [] nil))
   (inherits g/OutlineNode)
-  (output outline-label s/Str (fnk [filename] (t/local-name filename))))
+  (output outline-label t/Str (g/fnk [filename] (t/local-name filename))))
 
 (defn- new-node-for-path
   [project-node path type-if-not-registered]
@@ -63,10 +61,10 @@ behavior."
         (new-node-for-path project-node path Placeholder)))))
 
 (g/defnode CannedProperties
-  (property rotation     s/Str    (default "twenty degrees starboard"))
-  (property translation  s/Str    (default "Guten abend."))
+  (property rotation     t/Str    (default "twenty degrees starboard"))
+  (property translation  t/Str    (default "Guten abend."))
   (property some-vector  t/Vec3   (default [1 2 3]))
-  (property some-integer s/Int    (default 42))
+  (property some-integer t/Int    (default 42))
   (property background   dp/Color (default [0x4d 0xc0 0xca])))
 
 (defn- build-editor-node
@@ -150,13 +148,13 @@ There is no guaranteed ordering of the sequence."
 
   (trigger notify-content-nodes :input-connections send-project-scope-message)
 
-  (property tag                s/Keyword (default :project))
+  (property tag                t/Keyword (default :project))
   (property content-root       File)
-  (property branch             s/Str)
+  (property branch             t/Str)
   (property presenter-registry t/Registry)
-  (property node-types         {s/Str s/Symbol})
-  (property handlers           {s/Keyword {s/Str s/fn-schema}})
-  (property clipboard s/Any (default (constantly (ref nil))))
+  (property node-types         {t/Str t/Symbol})
+  (property handlers           {t/Keyword {t/Str t/fn-schema}})
+  (property clipboard          t/Any (default (constantly (ref nil))))
 
   ProjectRoot
   t/NamingContext

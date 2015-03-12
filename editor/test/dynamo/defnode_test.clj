@@ -6,30 +6,27 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :as ts]
             [dynamo.types :as t]
-            [internal.graph.dgraph :as dg]
-            [internal.node :as in]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]))
+            [internal.node :as in]))
 
 (deftest nodetype
   (testing "is created from a data structure"
-    (is (satisfies? t/NodeType (in/make-node-type {:inputs {:an-input s/Str}}))))
+    (is (satisfies? t/NodeType (in/make-node-type {:inputs {:an-input t/Str}}))))
   (testing "supports direct inheritance"
-    (let [super-type (in/make-node-type {:inputs {:an-input s/Str}})
+    (let [super-type (in/make-node-type {:inputs {:an-input t/Str}})
           node-type  (in/make-node-type {:supertypes [super-type]})]
       (is (= [super-type] (t/supertypes node-type)))
-      (is (= {:an-input s/Str} (t/inputs' node-type)))))
+      (is (= {:an-input t/Str} (t/inputs' node-type)))))
   (testing "supports multiple inheritance"
-    (let [super-type (in/make-node-type {:inputs {:an-input s/Str}})
-          mixin-type (in/make-node-type {:inputs {:mixin-input s/Str}})
+    (let [super-type (in/make-node-type {:inputs {:an-input t/Str}})
+          mixin-type (in/make-node-type {:inputs {:mixin-input t/Str}})
           node-type  (in/make-node-type {:supertypes [super-type mixin-type]})]
       (is (= [super-type mixin-type] (t/supertypes node-type)))
-      (is (= {:an-input s/Str :mixin-input s/Str} (t/inputs' node-type)))))
+      (is (= {:an-input t/Str :mixin-input t/Str} (t/inputs' node-type)))))
   (testing "supports inheritance hierarchy"
-    (let [grandparent-type (in/make-node-type {:inputs {:grandparent-input s/Str}})
-          parent-type      (in/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input s/Str}})
+    (let [grandparent-type (in/make-node-type {:inputs {:grandparent-input t/Str}})
+          parent-type      (in/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input t/Str}})
           node-type        (in/make-node-type {:supertypes [parent-type]})]
-      (is (= {:parent-input s/Str :grandparent-input s/Str} (t/inputs' node-type))))))
+      (is (= {:parent-input t/Str :grandparent-input t/Str} (t/inputs' node-type))))))
 
 (g/defnode BasicNode)
 
@@ -56,24 +53,24 @@
  (is (= GGChild               (t/node-type (n/construct GGChild)))))
 
 (g/defnode OneInputNode
-  (input an-input s/Str))
+  (input an-input t/Str))
 
 (g/defnode InheritedInputNode
   (inherits OneInputNode))
 
 (g/defnode InjectableInputNode
-  (input for-injection s/Int :inject))
+  (input for-injection t/Int :inject))
 
 (deftest nodes-can-have-inputs
   (testing "labeled input"
     (let [node (n/construct OneInputNode)]
       (is (:an-input (t/inputs' OneInputNode)))
-      (is (= s/Str (:an-input (t/input-types node))))
+      (is (= t/Str (:an-input (t/input-types node))))
       (is (:an-input (t/inputs node)))))
   (testing "inherited input"
     (let [node (n/construct InheritedInputNode)]
       (is (:an-input (t/inputs' InheritedInputNode)))
-      (is (= s/Str (:an-input (t/input-types node))))
+      (is (= t/Str (:an-input (t/input-types node))))
       (is (:an-input (t/inputs node)))))
   (testing "inputs can be flagged for injection"
     (let [node (n/construct InjectableInputNode)]
@@ -98,7 +95,7 @@
 (defn- private-function [x] [x :ok])
 
 (g/defnode OneMethodNode
-  (input an-input s/Str)
+  (input an-input t/Str)
 
   OneMethodInterface
   (oneMethod [this ^Long x] (private-function x)))
@@ -169,15 +166,15 @@
       (is (= [:override-ok 5 10] (protocol-method node 5 10))))))
 
 (g/defnode SinglePropertyNode
-  (property a-property s/Str))
+  (property a-property t/Str))
 
 (g/defnode TwoPropertyNode
- (property a-property s/Str (default "default value"))
- (property another-property s/Int))
+ (property a-property t/Str (default "default value"))
+ (property another-property t/Int))
 
 (g/defnode InheritedPropertyNode
   (inherits TwoPropertyNode)
-  (property another-property s/Int (default -1)))
+  (property another-property t/Int (default -1)))
 
 (deftest nodes-can-include-properties
   (testing "a single property"
@@ -212,38 +209,38 @@
               :a-property #{:properties :a-property}}
             (t/output-dependencies node))))))
 
-(defnk string-production-fnk [this integer-input] "produced string")
-(defnk integer-production-fnk [this g project] 42)
+(g/defnk string-production-fnk [this integer-input] "produced string")
+(g/defnk integer-production-fnk [this g project] 42)
 (defn schemaless-production-fn [this g] "schemaless fn produced string")
 (defn substitute-value-fn [& _] "substitute value")
 
-(dp/defproperty IntegerProperty s/Int (validate positive? (comp not neg?)))
+(dp/defproperty IntegerProperty t/Int (validate positive? (comp not neg?)))
 
 (g/defnode MultipleOutputNode
-  (input integer-input s/Int)
-  (input string-input s/Str)
+  (input integer-input t/Int)
+  (input string-input t/Str)
 
-  (output string-output         s/Str                                                 string-production-fnk)
+  (output string-output         t/Str                                                 string-production-fnk)
   (output integer-output        IntegerProperty                                       integer-production-fnk)
-  (output cached-output         s/Str           :cached                               string-production-fnk)
-  (output inline-string         s/Str                                                 (fnk [string-input] "inline-string"))
-  (output schemaless-production s/Str                                                 schemaless-production-fn)
-  (output with-substitute       s/Str           :substitute-value substitute-value-fn string-production-fnk))
+  (output cached-output         t/Str           :cached                               string-production-fnk)
+  (output inline-string         t/Str                                                 (g/fnk [string-input] "inline-string"))
+  (output schemaless-production t/Str                                                 schemaless-production-fn)
+  (output with-substitute       t/Str           :substitute-value substitute-value-fn string-production-fnk))
 
 (g/defnode AbstractOutputNode
-  (output abstract-output s/Str :abstract))
+  (output abstract-output t/Str :abstract))
 
 (g/defnode InheritedOutputNode
   (inherits MultipleOutputNode)
   (inherits AbstractOutputNode)
 
-  (output abstract-output s/Str string-production-fnk))
+  (output abstract-output t/Str string-production-fnk))
 
 (g/defnode TwoLayerDependencyNode
-  (property a-property s/Str)
+  (property a-property t/Str)
 
-  (output direct-calculation s/Str (fnk [a-property] a-property))
-  (output indirect-calculation s/Str (fnk [direct-calculation] direct-calculation)))
+  (output direct-calculation t/Str (g/fnk [a-property] a-property))
+  (output indirect-calculation t/Str (g/fnk [direct-calculation] direct-calculation)))
 
 (deftest nodes-can-have-outputs
   (testing "basic output definition"
@@ -251,7 +248,7 @@
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute]]
         (is (get (t/outputs' MultipleOutputNode) expected-output))
         (is (get (t/outputs  node)               expected-output)))
-      (doseq [[label expected-schema] {:string-output s/Str :integer-output IntegerProperty :cached-output s/Str :inline-string s/Str :schemaless-production s/Str :with-substitute s/Str}]
+      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :schemaless-production t/Str :with-substitute t/Str}]
         (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
       (is (:cached-output (t/cached-outputs' MultipleOutputNode)))
       (is (:cached-output (t/cached-outputs node)))))
@@ -260,7 +257,7 @@
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute :abstract-output]]
         (is (get (t/outputs' InheritedOutputNode) expected-output))
         (is (get (t/outputs  node)               expected-output)))
-      (doseq [[label expected-schema] {:string-output s/Str :integer-output IntegerProperty :cached-output s/Str :inline-string s/Str :schemaless-production s/Str :with-substitute s/Str :abstract-output s/Str}]
+      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :schemaless-production t/Str :with-substitute t/Str :abstract-output t/Str}]
         (is (= expected-schema (get-in InheritedOutputNode [:transform-types label]))))
       (is (:cached-output (t/cached-outputs' InheritedOutputNode)))
       (is (:cached-output (t/cached-outputs node)))))
@@ -317,7 +314,7 @@
 
 (defn- not-neg? [x] (not (neg? x)))
 
-(dp/defproperty TypedProperty s/Int)
+(dp/defproperty TypedProperty t/Int)
 (dp/defproperty DerivedProperty TypedProperty)
 (dp/defproperty DefaultProperty DerivedProperty
   (default 0))
@@ -330,7 +327,7 @@
   (property default-external DefaultProperty)
   (property validated-external ValidatedProperty)
 
-  (property typed-internal s/Int)
+  (property typed-internal t/Int)
   (property derived-internal TypedProperty)
   (property default-internal TypedProperty
     (default 0))

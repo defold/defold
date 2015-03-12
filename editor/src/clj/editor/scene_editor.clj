@@ -1,25 +1,14 @@
 (ns editor.scene-editor
-  (:require [clojure.java.io :as io]
-            [dynamo.background :as background]
-            [dynamo.file :as f]
-            [dynamo.geom :as geom]
+  (:require [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
-            [dynamo.grid :as grid]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.types :refer [IDisposable dispose]]
             [editor.camera :as c]
             [editor.input :as i]
-            [internal.clojure :as clojure]
-            [internal.disposal :as disp]
             [internal.render.pass :as pass]
-            [internal.system :as is]
-            [internal.transaction :as it]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer Screenshot]
@@ -120,7 +109,7 @@
   [^TextRendererRef v ^java.io.Writer w]
   (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
 
-(defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
+(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
   (when (and drawable (vp-not-empty? viewport))
     (let [^GLContext context (.getContext drawable)]
       (.makeCurrent context)
@@ -148,11 +137,11 @@
   (input renderables [t/RenderData])
   (input drawable GLAutoDrawable)
 
-  (output text-renderer TextRendererRef :cached (fnk [] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
+  (output text-renderer TextRendererRef :cached (g/fnk [] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
   (output frame BufferedImage produce-frame) ; TODO cache when the cache bug is fixed
   )
 
-(defnk produce-drawable [self ^Region viewport]
+(g/defnk produce-drawable [self ^Region viewport]
   (when (vp-not-empty? viewport)
     (let [[w h] (vp-dims viewport)
           profile (GLProfile/getDefault)
@@ -175,14 +164,14 @@
   (property viewport Region (default (t/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
   (property gl-drawable GLAutoDrawable)
-  (property visible s/Bool (default true))
+  (property visible t/Bool (default true))
 
   (input frame BufferedImage)
   (input controller `t/Node)
 
   (output drawable GLAutoDrawable :cached produce-drawable)
-  (output viewport Region (fnk [viewport] viewport))
-  (output frame BufferedImage :cached (fnk [visible frame] (when visible frame)))
+  (output viewport Region (g/fnk [viewport] viewport))
+  (output frame BufferedImage :cached (g/fnk [visible frame] (when visible frame)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))))

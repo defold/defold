@@ -24,10 +24,7 @@
             [editor.image-node :as ein]
             [editor.scene-editor :as sceneed]
             [internal.render.pass :as pass]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [service.log :as log])
+            [schema.macros :as sm])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -69,25 +66,25 @@
 
 (g/defnode AnimationGroupNode
   (inherits g/OutlineNode)
-  (output outline-label s/Str (fnk [id] id))
+  (output outline-label t/Str (g/fnk [id] id))
 
   (property images dp/ImageResourceList)
   (input images-outline-children [OutlineItem])
   (trigger connect-images-outline-children :input-connections (partial connect-outline-children [:images] :images-outline-children))
-  (output outline-children [OutlineItem] (fnk [images-outline-children] images-outline-children))
-  (property id s/Str)
+  (output outline-children [OutlineItem] (g/fnk [images-outline-children] images-outline-children))
+  (property id t/Str)
   (property fps             dp/NonNegativeInt (default 30))
-  (property flip-horizontal s/Bool)
-  (property flip-vertical   s/Bool)
+  (property flip-horizontal t/Bool)
+  (property flip-vertical   t/Bool)
   (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
 
   (input images [ein/ImageResourceNode])
 
   (output animation Animation
-    (fnk [this id images :- [Image] fps flip-horizontal flip-vertical playback]
+    (g/fnk [this id images :- [Image] fps flip-horizontal flip-vertical playback]
       (->Animation id images fps flip-horizontal flip-vertical playback))))
 
-(defnk produce-texture-packing :- TexturePacking
+(g/defnk produce-texture-packing :- TexturePacking
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
   (let [animations (concat animations (map tex/animation-from-image images))
         _          (assert (pos? (count animations)))
@@ -132,7 +129,7 @@
         (assoc :width width :height height :frames frames)
         t/map->TextureSetAnimation)))
 
-(defnk produce-textureset :- TextureSet
+(g/defnk produce-textureset :- TextureSet
   [this texture-packing :- TexturePacking]
   (let [animations (:animations texture-packing)
         textureset-animations (mapv (partial build-textureset-animation texture-packing) animations)]
@@ -153,7 +150,7 @@
             (protobuf/set-if-present :flip-vertical animation)
             (protobuf/set-if-present :playback animation (partial protobuf/val->pb-enum Tile$Playback)))))
 
-(defnk get-text-format :- s/Str
+(g/defnk get-text-format :- t/Str
   "get the text string for this node"
   [this images :- [Image] animations :- [Animation]]
   (pb->str
@@ -164,7 +161,7 @@
              (protobuf/set-if-present :margin this)
              (protobuf/set-if-present :extrude-borders this)))))
 
-(defnk save-atlas-file
+(g/defnk save-atlas-file
   [this filename text-format]
   (file/write-file filename (.getBytes text-format))
   :ok)
@@ -202,7 +199,7 @@
     (shader/set-uniform atlas-shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
 
-(defnk produce-renderable :- RenderData
+(g/defnk produce-renderable :- RenderData
   [this texture-packing vertex-binding gpu-texture]
   {pass/overlay
    [{:world-transform geom/Identity4d
@@ -211,7 +208,7 @@
    [{:world-transform geom/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-texture-packing ctx gl texture-packing vertex-binding gpu-texture))}]})
 
-(defnk produce-renderable-vertex-buffer
+(g/defnk produce-renderable-vertex-buffer
   [[:texture-packing aabb coords]]
   (let [vbuf       (->texture-vtx (* 6 (count coords)))
         x-scale    (/ 1.0 (.width aabb))
@@ -237,7 +234,7 @@
           (conj! [x0 y0 0 1 u0 (- 1 v0)]))))
     (persistent! vbuf)))
 
-(defnk produce-outline-vertex-buffer
+(g/defnk produce-outline-vertex-buffer
   [[:texture-packing aabb coords]]
   (let [vbuf       (->texture-vtx (* 6 (count coords)))
         x-scale    (/ 1.0 (.width aabb))
@@ -261,12 +258,12 @@
     (persistent! vbuf)))
 
 (g/defnode AtlasRender
-  (input gpu-texture s/Any)
-  (input texture-packing s/Any)
+  (input gpu-texture t/Any)
+  (input texture-packing t/Any)
 
-  (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
-  (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
-  (output vertex-binding s/Any        :cached (fnk [vertex-buffer] (vtx/use-with vertex-buffer atlas-shader)))
+  (output vertex-buffer t/Any         :cached produce-renderable-vertex-buffer)
+  (output outline-vertex-buffer t/Any :cached produce-outline-vertex-buffer)
+  (output vertex-binding t/Any        :cached (g/fnk [vertex-buffer] (vtx/use-with vertex-buffer atlas-shader)))
   (output renderable RenderData       produce-renderable))
 
 (defn build-animation
@@ -325,7 +322,7 @@
 
             (.setTileCount             (int 0))))))
 
-(defnk compile-texturesetc :- s/Bool
+(g/defnk compile-texturesetc :- t/Bool
   [this g project textureset :- TextureSet]
   (file/write-file (:textureset-filename this)
     (.toByteArray (texturesetc-protocol-buffer (:texture-name this) textureset)))
@@ -333,7 +330,7 @@
 
 (defn- texturec-protocol-buffer
   [engine-format]
-  (s/validate EngineFormatTexture engine-format)
+  (t/validate EngineFormatTexture engine-format)
   (.build (doto (Graphics$TextureImage/newBuilder)
             (.addAlternatives
               (doto (Graphics$TextureImage$Image/newBuilder)
@@ -348,7 +345,7 @@
             (.setType            (Graphics$TextureImage$Type/TYPE_2D))
             (.setCount           1))))
 
-(defnk compile-texturec :- s/Bool
+(g/defnk compile-texturec :- t/Bool
   [this g project packed-image :- BufferedImage]
   (file/write-file (:texture-filename this)
     (.toByteArray (texturec-protocol-buffer (tex/->engine-format packed-image))))
@@ -358,19 +355,19 @@
   (input textureset   TextureSet)
   (input packed-image BufferedImage)
 
-  (property texture-filename    s/Str (default ""))
-  (property texture-name        s/Str)
-  (property textureset-filename s/Str (default ""))
+  (property texture-filename    t/Str (default ""))
+  (property texture-name        t/Str)
+  (property textureset-filename t/Str (default ""))
 
-  (output   texturec    s/Any compile-texturec)
-  (output   texturesetc s/Any compile-texturesetc))
+  (output   texturec    t/Any compile-texturec)
+  (output   texturesetc t/Any compile-texturesetc))
 
 (defn broadcast-event [this event]
   (doseq [controller (first (g/node-value this :controllers))]
     (t/process-one-event controller event)))
 
 (g/defnode BroadcastController
-  (input controllers [s/Any])
+  (input controllers [t/Any])
   (on :mouse-down (broadcast-event self event))
   (on :mouse-up (broadcast-event self event))
   (on :mouse-double-click (broadcast-event self event))
@@ -390,7 +387,7 @@
                            (str "/" (t/local-path filename)))) all-resource-nodes)]
     (zipmap filenames all-resource-nodes)))
 
-(defnk build-atlas-outline-children
+(g/defnk build-atlas-outline-children
   [images-outline-children animations-outline-children]
   (concat images-outline-children animations-outline-children))
 
@@ -416,7 +413,7 @@
    packed-image `BufferedImage` - BufferedImage instance with the actual pixels.
    textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
   (inherits g/OutlineNode)
-  (output outline-label s/Str (fnk [] "Atlas"))
+  (output outline-label t/Str (g/fnk [] "Atlas"))
   (inherits g/ResourceNode)
   (inherits g/Saveable)
 
@@ -424,7 +421,7 @@
 
   (property margin          dp/NonNegativeInt (default 0) (visible true))
   (property extrude-borders dp/NonNegativeInt (default 0) (visible true))
-  (property filename (s/protocol PathManipulation) (visible false))
+  (property filename (t/protocol PathManipulation) (visible false))
 
   (input animations [Animation])
   (input animations-outline-children [OutlineItem])
@@ -436,12 +433,12 @@
 
   (output outline-children [OutlineItem] build-atlas-outline-children)
 
-  (output aabb            AABB               (fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
-  (output gpu-texture     s/Any      :cached (fnk [packed-image] (texture/image-texture packed-image)))
-  (output save            s/Keyword          save-atlas-file)
-  (output text-format     s/Str              get-text-format)
+  (output aabb            AABB               (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
+  (output gpu-texture     t/Any      :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
+  (output save            t/Keyword          save-atlas-file)
+  (output text-format     t/Str              get-text-format)
   (output texture-packing TexturePacking :cached :substitute-value (tex/blank-texture-packing) produce-texture-packing)
-  (output packed-image    BufferedImage  :cached (fnk [texture-packing] (:packed-image texture-packing)))
+  (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
   (output textureset      TextureSet     :cached produce-textureset)
 
   (on :load

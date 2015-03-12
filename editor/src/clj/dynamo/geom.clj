@@ -1,7 +1,7 @@
 (ns dynamo.geom
   (:require [schema.macros :as sm]
-            [schema.core :as s]
-            [dynamo.types :as dt :refer [min-p max-p]])
+            [dynamo.graph :as g]
+            [dynamo.types :as t :refer [min-p max-p]])
   (:import [dynamo.types Rect AABB]
            [com.defold.util Geometry]
            [javax.vecmath Point3d Point4d Vector4d Vector3d Matrix4d]))
@@ -23,7 +23,7 @@
     (* (double (.width r)) (double (.height r)))
     0))
 
-(sm/defn intersect :- (s/maybe Rect)
+(sm/defn intersect :- (t/maybe Rect)
   ([r :- Rect] r)
   ([r1 :- Rect r2 :- Rect]
     (when (and r1 r2)
@@ -34,7 +34,7 @@
             w (- r l)
             h (- b t)]
         (if (and (< 0 w) (< 0 h))
-          (dt/rect l t w h)
+          (t/rect l t w h)
           nil))))
   ([r1 :- Rect r2 :- Rect & rs :- [Rect]]
     (reduce intersect (intersect r1 r2) rs)))
@@ -48,14 +48,14 @@
       (do
         ;; left slice
         (if (< (.x container) (.x overlap))
-          (conj! new-rects (dt/rect (.x container)
+          (conj! new-rects (t/rect (.x container)
                                  (.y container)
                                  (- (.x overlap) (.x container))
                                  (.height container))))
 
         ;; right slice
         (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
-          (conj! new-rects (dt/rect ""
+          (conj! new-rects (t/rect ""
                                 (+ (.x overlap) (.width overlap))
                                 (.y container)
                                 (- (+ (.x container) (.width container))
@@ -63,7 +63,7 @@
                                 (.height container))))
         ;; bottom slice
         (if (< (.y container) (.y overlap))
-          (conj! new-rects (dt/rect ""
+          (conj! new-rects (t/rect ""
                                  (.x overlap)
                                  (.y container)
                                  (.width overlap)
@@ -71,7 +71,7 @@
 
         ;; top slice
         (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
-          (conj! new-rects (dt/rect ""
+          (conj! new-rects (t/rect ""
                                  (.x overlap)
                                  (+ (.y overlap) (.height overlap))
                                  (.width overlap)
@@ -89,7 +89,7 @@
       (do
          ;; bottom slice
          (if (< (.y container) (.y overlap))
-           (conj! new-rects (dt/rect ""
+           (conj! new-rects (t/rect ""
                                   (.x container)
                                   (.y container)
                                   (.width container)
@@ -97,7 +97,7 @@
 
          ;; top slice
          (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
-           (conj! new-rects (dt/rect ""
+           (conj! new-rects (t/rect ""
                                   (.x container)
                                   (+ (.y overlap) (.height overlap))
                                   (.width container)
@@ -106,7 +106,7 @@
 
          ;; left slice
          (if (< (.x container) (.x overlap))
-           (conj! new-rects (dt/rect ""
+           (conj! new-rects (t/rect ""
                                   (.x container)
                                   (.y overlap)
                                   (- (.x overlap) (.x container))
@@ -114,7 +114,7 @@
 
          ;; right slice
          (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
-           (conj! new-rects (dt/rect ""
+           (conj! new-rects (t/rect ""
                                  (+ (.x overlap) (.width overlap))
                                  (.y overlap)
                                  (- (+ (.x container) (.width container))
@@ -155,7 +155,7 @@
 ; Transformations
 ; -------------------------------------
 
-(sm/defn world-space [node :- {:world-transform Matrix4d s/Any s/Any} point :- Point3d]
+(sm/defn world-space [node :- {:world-transform Matrix4d t/Any t/Any} point :- Point3d]
   (let [p             (Point3d. point)
         tfm ^Matrix4d (:world-transform node)]
     (.transform tfm p)
@@ -216,7 +216,7 @@
 ; -------------------------------------
 (sm/defn null-aabb :- AABB
   []
-  (dt/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
+  (t/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
              (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
 
 (sm/defn aabb-incorporate :- AABB
@@ -224,16 +224,16 @@
     ^Point3d p :- Point3d]
     (aabb-incorporate aabb (.x p) (.y p) (.z p)))
   ([^AABB aabb :- AABB
-    ^double x :- s/Num
-    ^double y :- s/Num
-    ^double z :- s/Num]
+    ^double x :- t/Num
+    ^double y :- t/Num
+    ^double z :- t/Num]
     (let [minx (Math/min (-> aabb min-p .x) x)
           miny (Math/min (-> aabb min-p .y) y)
           minz (Math/min (-> aabb min-p .z) z)
           maxx (Math/max (-> aabb max-p .x) x)
           maxy (Math/max (-> aabb max-p .y) y)
           maxz (Math/max (-> aabb max-p .z) z)]
-      (dt/->AABB (Point3d. minx miny minz)
+      (t/->AABB (Point3d. minx miny minz)
                  (Point3d. maxx maxy maxz)))))
 
 (sm/defn aabb-union :- AABB

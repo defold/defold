@@ -5,8 +5,6 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]
             [schema.macros :as sm])
   (:import [dynamo.types Camera Region AABB]
            [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]))
@@ -106,14 +104,14 @@
 
 (sm/defn make-camera :- Camera
   ([] (make-camera :perspective))
-  ([t :- (s/enum :perspective :orthographic)]
+  ([t :- (t/enum :perspective :orthographic)]
     (let [distance 10000.0
           position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
       (t/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0)))))
 
 (sm/defn set-orthographic :- Camera
-  [camera :- Camera fov :- s/Num aspect :- s/Num z-near :- s/Num z-far :- s/Num]
+  [camera :- Camera fov :- t/Num aspect :- t/Num z-near :- t/Num z-far :- t/Num]
   (assoc camera
          :fov fov
          :aspect aspect
@@ -125,11 +123,11 @@
   (assoc camera :rotation (doto (Quat4d. (t/rotation camera)) (.mul (doto (Quat4d. q) (.normalize))))))
 
 (sm/defn camera-move :- Camera
-  [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
+  [camera :- Camera x :- t/Num y :- t/Num z :- t/Num]
   (assoc camera :position (doto (Point3d. x y z) (.add (t/position camera)))))
 
 (sm/defn camera-set-position :- Camera
-  [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
+  [camera :- Camera x :- t/Num y :- t/Num z :- t/Num]
   (assoc camera :position (Point3d. x y z)))
 
 (sm/defn camera-set-center :- Camera
@@ -177,7 +175,7 @@
                 1.0)))
 
 (sm/defn camera-unproject :- Vector4d
-  [camera :- Camera viewport :- Region win-x :- s/Num win-y :- s/Num win-z :- s/Num]
+  [camera :- Camera viewport :- Region win-x :- t/Num win-y :- t/Num win-z :- t/Num]
   (let [win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
         in       (Vector4d. (scale-to-doubleunit win-x (.left viewport) (.right viewport))
                             (scale-to-doubleunit win-y (.top viewport)  (.bottom viewport))
@@ -281,7 +279,7 @@
       (button-interpretation key :idle))))
 
 
-(sm/defn camera-fov-from-aabb :- s/Num
+(sm/defn camera-fov-from-aabb :- t/Num
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
@@ -304,7 +302,7 @@
     (set-orthographic (camera-fov-from-aabb camera aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
-(defnk produce-camera [self camera viewport]
+(g/defnk produce-camera [self camera viewport]
   (let [w (- (:right viewport) (:left viewport))
        h (- (:bottom viewport) (:top viewport))]
    (if (and (> w 0) (> h 0))
@@ -315,11 +313,11 @@
 (g/defnode CameraController
   (property camera Camera)
 
-  (property ui-state s/Any (default (constantly (atom {:movement :idle}))))
-  (property movements-enabled s/Any (default #{:dolly :track :tumble}))
+  (property ui-state t/Any (default (constantly (atom {:movement :idle}))))
+  (property movements-enabled t/Any (default #{:dolly :track :tumble}))
 
   (input viewport Region)
-  (output viewport Region (fnk [viewport] viewport))
+  (output viewport Region (g/fnk [viewport] viewport))
   (output camera Region produce-camera)
 
   (on :input

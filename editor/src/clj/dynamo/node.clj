@@ -13,9 +13,7 @@ Second, this namespace defines some of the basic node types and mixins."
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
             [internal.outline :as outline]
-            [internal.property :as ip]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]))
+            [internal.property :as ip]))
 
 (defn construct
   "Creates an instance of a node. The node-type must have been
@@ -30,7 +28,7 @@ to place the node in the graph.
 
 Example:
   (defnode GravityModifier
-    (property acceleration s/Int (default 32))
+    (property acceleration t/Int (default 32))
 
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]

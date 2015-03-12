@@ -1,7 +1,6 @@
 (ns editor.atlas-test
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.test.check :as tc]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
@@ -14,9 +13,7 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system tempfile]]
             [dynamo.types :as t]
-            [editor.atlas :as atlas]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s])
+            [editor.atlas :as atlas])
   (:import [dynamo.types Image]
            [javax.imageio ImageIO]))
 
@@ -62,9 +59,9 @@
 
 (g/defnode WildcardImageResourceNode
   (inherits g/OutlineNode)
-  (output outline-label s/Str (fnk [filename] (t/local-name filename)))
-  (property filename (s/protocol t/PathManipulation) (visible false))
-  (output content Image :cached (fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))
+  (output outline-label t/Str (g/fnk [filename] (t/local-name filename)))
+  (property filename (t/protocol t/PathManipulation) (visible false))
+  (output content Image :cached (g/fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))
 
 (defn test-project
   [image-resource-node-type]
