@@ -369,19 +369,6 @@
   (doseq [controller (first (g/node-value this :controllers))]
     (t/process-one-event controller event)))
 
-(n/defnode BroadcastController
-  (input controllers [s/Any])
-  (on :mouse-down (broadcast-event self event))
-  (on :mouse-up (broadcast-event self event))
-  (on :mouse-double-click (broadcast-event self event))
-  (on :mouse-enter (broadcast-event self event))
-  (on :mouse-exit (broadcast-event self event))
-  (on :mouse-hover (broadcast-event self event))
-  (on :mouse-move (broadcast-event self event))
-  (on :mouse-wheel (broadcast-event self event))
-  (on :key-down (broadcast-event self event))
-  (on :key-up (broadcast-event self event)))
-
 (defn find-resource-nodes [project exts]
   (let [all-resource-nodes (filter (fn [node] (let [filename (:filename node)]
                                                 (and filename (contains? exts (t/extension filename))))) (map first (ds/sources-of project :nodes)))
