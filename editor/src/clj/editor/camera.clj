@@ -312,7 +312,7 @@
        (set-orthographic camera (:fov camera) aspect -100000 100000))
      camera)))
 
-(n/defnode CameraController
+(g/defnode CameraController
   (property camera Camera)
 
   (property ui-state s/Any (default (constantly (atom {:movement :idle}))))

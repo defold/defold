@@ -8,7 +8,6 @@
             [dynamo.types :as dt]
             [editor.atlas :as atlas]
             [internal.clojure :as clojure]
-            [internal.system :as is]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s])
   (:import [java.io File]))
@@ -18,8 +17,8 @@
 (def project-path "resources/test_project")
 (def branch "dummy-branch")
 
-(n/defnode DummyEditor
-  (inherits n/Scope)
+(g/defnode DummyEditor
+  (inherits g/Scope)
   (input node s/Any)
   (output node s/Any (fnk [node] node)) ; TODO remove, workaround for not being able to pull on inputs
   )
@@ -76,5 +75,5 @@
               (g/transactional (ds/delete @atlas-node-ref))
               (is (not-nil? @editor-node-ref))
               (is (nil? (g/node-value (:graph @world-ref) cache @editor-node-ref :node)))
-              (is/undo) ; TODO undo should not be in an internal ns
+              (ds/undo)
               (is (not-nil? (g/node-value (:graph @world-ref) cache @editor-node-ref :node)))))))

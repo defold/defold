@@ -12,7 +12,8 @@
 
 (defn clean-system
   []
-  (component/start-system (is/system)))
+  (component/start-system
+   (is/system {:initial-graph (g/project-graph)})))
 
 (defmacro with-clean-system
   [& forms]

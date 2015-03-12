@@ -31,19 +31,19 @@
           node-type        (in/make-node-type {:supertypes [parent-type]})]
       (is (= {:parent-input s/Str :grandparent-input s/Str} (t/inputs' node-type))))))
 
-(n/defnode BasicNode)
+(g/defnode BasicNode)
 
 (deftest basic-node-definition
   (is (satisfies? t/NodeType BasicNode))
   (is (= BasicNode (t/node-type (n/construct BasicNode)))))
 
-(n/defnode IRootNode)
-(n/defnode ChildNode
+(g/defnode IRootNode)
+(g/defnode ChildNode
   (inherits IRootNode))
-(n/defnode GChild
+(g/defnode GChild
   (inherits ChildNode))
-(n/defnode MixinNode)
-(n/defnode GGChild
+(g/defnode MixinNode)
+(g/defnode GGChild
   (inherits ChildNode)
   (inherits MixinNode))
 
@@ -55,13 +55,13 @@
  (is (= [ChildNode MixinNode] (t/supertypes GGChild)))
  (is (= GGChild               (t/node-type (n/construct GGChild)))))
 
-(n/defnode OneInputNode
+(g/defnode OneInputNode
   (input an-input s/Str))
 
-(n/defnode InheritedInputNode
+(g/defnode InheritedInputNode
   (inherits OneInputNode))
 
-(n/defnode InjectableInputNode
+(g/defnode InjectableInputNode
   (input for-injection s/Int :inject))
 
 (deftest nodes-can-have-inputs
@@ -82,14 +82,14 @@
 (definterface MarkerInterface)
 (definterface SecondaryInterface)
 
-(n/defnode MarkerInterfaceNode
+(g/defnode MarkerInterfaceNode
   MarkerInterface)
 
-(n/defnode MarkerAndSecondaryInterfaceNode
+(g/defnode MarkerAndSecondaryInterfaceNode
   MarkerInterface
   SecondaryInterface)
 
-(n/defnode InheritedInterfaceNode
+(g/defnode InheritedInterfaceNode
  (inherits MarkerInterfaceNode))
 
 (definterface OneMethodInterface
@@ -97,16 +97,16 @@
 
 (defn- private-function [x] [x :ok])
 
-(n/defnode OneMethodNode
+(g/defnode OneMethodNode
   (input an-input s/Str)
 
   OneMethodInterface
   (oneMethod [this ^Long x] (private-function x)))
 
-(n/defnode InheritedMethodNode
+(g/defnode InheritedMethodNode
   (inherits OneMethodNode))
 
-(n/defnode OverriddenMethodNode
+(g/defnode OverriddenMethodNode
   (inherits OneMethodNode)
 
   OneMethodInterface
@@ -144,14 +144,14 @@
 (defprotocol LocalProtocol
   (protocol-method [this x y]))
 
-(n/defnode LocalProtocolNode
+(g/defnode LocalProtocolNode
   LocalProtocol
   (protocol-method [this x y] [:ok x y]))
 
-(n/defnode InheritedLocalProtocol
+(g/defnode InheritedLocalProtocol
   (inherits LocalProtocolNode))
 
-(n/defnode InheritedProtocolOverride
+(g/defnode InheritedProtocolOverride
   (inherits LocalProtocolNode)
   (protocol-method [this x y] [:override-ok x y]))
 
@@ -168,14 +168,14 @@
       (is (satisfies? LocalProtocol node))
       (is (= [:override-ok 5 10] (protocol-method node 5 10))))))
 
-(n/defnode SinglePropertyNode
+(g/defnode SinglePropertyNode
   (property a-property s/Str))
 
-(n/defnode TwoPropertyNode
+(g/defnode TwoPropertyNode
  (property a-property s/Str (default "default value"))
  (property another-property s/Int))
 
-(n/defnode InheritedPropertyNode
+(g/defnode InheritedPropertyNode
   (inherits TwoPropertyNode)
   (property another-property s/Int (default -1)))
 
@@ -219,7 +219,7 @@
 
 (dp/defproperty IntegerProperty s/Int (validate positive? (comp not neg?)))
 
-(n/defnode MultipleOutputNode
+(g/defnode MultipleOutputNode
   (input integer-input s/Int)
   (input string-input s/Str)
 
@@ -230,16 +230,16 @@
   (output schemaless-production s/Str                                                 schemaless-production-fn)
   (output with-substitute       s/Str           :substitute-value substitute-value-fn string-production-fnk))
 
-(n/defnode AbstractOutputNode
+(g/defnode AbstractOutputNode
   (output abstract-output s/Str :abstract))
 
-(n/defnode InheritedOutputNode
+(g/defnode InheritedOutputNode
   (inherits MultipleOutputNode)
   (inherits AbstractOutputNode)
 
   (output abstract-output s/Str string-production-fnk))
 
-(n/defnode TwoLayerDependencyNode
+(g/defnode TwoLayerDependencyNode
   (property a-property s/Str)
 
   (output direct-calculation s/Str (fnk [a-property] a-property))
@@ -281,17 +281,17 @@
               :direct-calculation #{:indirect-calculation}}
             (t/output-dependencies node))))))
 
-(n/defnode OneEventNode
+(g/defnode OneEventNode
   (on :an-event
     :ok))
 
-(n/defnode EventlessNode)
+(g/defnode EventlessNode)
 
-(n/defnode MixinEventNode
+(g/defnode MixinEventNode
   (on :mixin-event
     :mixin-ok))
 
-(n/defnode InheritedEventNode
+(g/defnode InheritedEventNode
   (inherits OneEventNode)
   (inherits MixinEventNode)
 
@@ -324,7 +324,7 @@
 (dp/defproperty ValidatedProperty DefaultProperty
   (validate must-be-positive not-neg?))
 
-(n/defnode NodeWithPropertyVariations
+(g/defnode NodeWithPropertyVariations
   (property typed-external TypedProperty)
   (property derived-external DerivedProperty)
   (property default-external DefaultProperty)
@@ -337,16 +337,16 @@
   (property validated-internal DefaultProperty
     (validate always-valid (fn [value] true))))
 
-(n/defnode InheritsPropertyVariations
+(g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
 
 (def original-node-definition
-  '(dynamo.node/defnode MutagenicNode
+  '(dynamo.graph/defnode MutagenicNode
      (property a-property schema.core/Str  (default "a-string"))
      (property b-property schema.core/Bool (default true))))
 
 (def replacement-node-definition
-  '(dynamo.node/defnode MutagenicNode
+  '(dynamo.graph/defnode MutagenicNode
      (property a-property schema.core/Str  (default "Genosha"))
      (property b-property schema.core/Bool (default false))
      (property c-property schema.core/Int  (default 42))
@@ -371,14 +371,14 @@
         (is (= 42         (:c-property node-after-mutation)))
         (is (instance? MarkerInterface node-after-mutation))))))
 
-(n/defnode BaseTriggerNode
+(g/defnode BaseTriggerNode
   (trigger added-trigger        :added             (fn [& _] :ok))
   (trigger multiway-trigger     :added :deleted    (fn [& _] :ok))
   (trigger on-delete            :deleted           (fn [& _] :ok))
   (trigger on-property-touched  :property-touched  (fn [& _] :ok))
   (trigger on-input-connections :input-connections (fn [& _] :ok)))
 
-(n/defnode InheritedTriggerNode
+(g/defnode InheritedTriggerNode
   (inherits BaseTriggerNode)
 
   (trigger extra-added      :added           (fn [& _] :extra))
@@ -405,8 +405,8 @@
 
   (testing "disallows unknown trigger kinds"
     (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
-          (eval '(dynamo.node/defnode NoSuchTriggerNode
+          (eval '(dynamo.graph/defnode NoSuchTriggerNode
                    (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))
     (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
-          (eval '(dynamo.node/defnode NoSuchTriggerNode
+          (eval '(dynamo.graph/defnode NoSuchTriggerNode
                    (trigger nope :modified (fn [& _] :nope))))))))

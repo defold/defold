@@ -141,7 +141,7 @@
               (.release context)
               buf-image))))))
 
-(n/defnode SceneRenderer
+(g/defnode SceneRenderer
 
   (input viewport Region)
   (input camera Camera)
@@ -168,8 +168,8 @@
         (g/transactional (g/set-property self :gl-drawable drawable))
         drawable))))
 
-(n/defnode SceneEditor
-  (inherits n/Scope)
+(g/defnode SceneEditor
+  (inherits g/Scope)
 
   (property image-view ImageView)
   (property viewport Region (default (t/->Region 0 0 0 0)))

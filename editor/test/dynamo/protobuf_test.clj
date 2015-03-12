@@ -16,19 +16,19 @@
   (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [dynamo.types Animation Image]))
 
-(n/defnode AtlasNode
+(g/defnode AtlasNode
   (property extrude-borders s/Int)
   (property margin          s/Int)
 
   (input images     [s/Str])
   (input animations [s/Str]))
 
-(n/defnode AtlasAnimationNode
+(g/defnode AtlasAnimationNode
   (property id s/Str)
   (input  images    [s/Str])
   (output animation s/Str (fnk [id] (str "Animation " id))))
 
-(n/defnode AtlasImageNode
+(g/defnode AtlasImageNode
   (property image s/Str))
 
 (protocol-buffer-converters

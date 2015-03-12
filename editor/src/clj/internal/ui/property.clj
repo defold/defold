@@ -165,7 +165,7 @@
                       {:type :composite
                        :layout {:type :stack}}]]}])
 
-(n/defnode PropertyView
+(g/defnode PropertyView
   (input  properties [t/Properties])
   (output content s/Any aggregate-properties)
 
