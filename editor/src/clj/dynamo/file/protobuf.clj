@@ -88,7 +88,7 @@ it creates. Likewise, it is responsible for making connections as desired."
      (let [~'message-mapper ~(message-mapper class (:basic-properties spec))
            ~'basic-props    (~'message-mapper ~'protobuf)
            ~'this           (apply n/construct ~(:node-type spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
-       (ds/add ~'this)
+       (g/add ~'this)
        ~@(map (partial subordinate-mapper class) (:node-properties spec))
        ~@(map (partial class callback-field-mapper) (:field-mappers spec))
        ~'this)))

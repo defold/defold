@@ -133,14 +133,14 @@
   (testing "runs when node is added"
     (with-clean-system
       (let [tracker      (atom {})
-            counter      (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter      (g/transactional (g/add (n/construct TriggerExecutionCounter :tracking tracker)))
             after-adding @tracker]
         (is (= {:added 1} after-adding)))))
 
   (testing "runs when node is altered in a way that affects an output"
     (with-clean-system
       (let [tracker          (atom {})
-            counter          (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter          (g/transactional (g/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating  @tracker
             _                (g/transactional (g/set-property counter :any-property true))
             after-updating   @tracker]
@@ -178,7 +178,7 @@
   (testing "runs when node is altered in a way that doesn't affect an output"
     (with-clean-system
       (let [tracker          (atom {})
-            counter          (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter          (g/transactional (g/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating  @tracker
             _                (g/transactional (g/set-property counter :dynamic-property true))
             after-updating   @tracker]
@@ -188,9 +188,9 @@
   (testing "runs when node is deleted"
     (with-clean-system
       (let [tracker         (atom {})
-            counter         (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter         (g/transactional (g/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-removing @tracker
-            _               (g/transactional (ds/delete counter))
+            _               (g/transactional (g/delete counter))
             after-removing  @tracker]
         (is (= {:added 1} before-removing))
         (is (= {:added 1 :deleted 1} after-removing)))))
@@ -198,7 +198,7 @@
   (testing "does *not* run when an upstream output changes"
     (with-clean-system
       (let [tracker         (atom {})
-            counter         (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter         (g/transactional (g/add (n/construct TriggerExecutionCounter :tracking tracker)))
             [s r1 r2 r3]    (tx-nodes (n/construct StringSource) (n/construct Relay) (n/construct Relay) (n/construct Relay))
             _               (g/transactional
                               (g/connect s :label r1 :label)
@@ -214,7 +214,7 @@
   (testing "runs on the new node type when a node becomes a new node"
     (with-clean-system
       (let [tracker          (atom {})
-            counter          (g/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            counter          (g/transactional (g/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-transmog  @tracker
             stringer         (g/transactional (ds/become counter (n/construct StringSource)))
             after-transmog   @tracker]
@@ -225,10 +225,10 @@
   (testing "activation is correct even when scopes and injection happen"
     (with-clean-system
       (let [tracker            (atom {})
-            scope              (g/transactional (ds/add (n/construct p/Project)))
-            counter            (g/transactional (ds/in scope (ds/add (n/construct TriggerExecutionCounter :tracking tracker))))
+            scope              (g/transactional (g/add (n/construct p/Project)))
+            counter            (g/transactional (ds/in scope (g/add (n/construct TriggerExecutionCounter :tracking tracker))))
             before-removing    @tracker
-            _                  (g/transactional (ds/delete counter))
+            _                  (g/transactional (g/delete counter))
             after-removing     @tracker]
 
         (is (= {:added 1} before-removing))
@@ -307,7 +307,7 @@
 (deftest event-loops-started-by-transaction
   (with-clean-system
     (let [receiver (g/transactional
-                     (ds/add (n/construct EventReceiver :latch (promise))))]
+                     (g/add (n/construct EventReceiver :latch (promise))))]
       (g/transactional
         (ds/send-after receiver {:type :custom-event}))
       (is (= true (deref (:latch receiver) 500 :timeout))))))
@@ -349,8 +349,8 @@
   (with-clean-system
     (let [node1 (n/construct CachedOutputInvalidation)]
       (g/transactional
-        (ds/add node1)
-        (ds/delete node1))
+        (g/add node1)
+        (g/delete node1))
       (is :ok))))
 
 (g/defnode CachedValueNode
@@ -363,12 +363,12 @@
 ;; TODO - move this to an integration test group
 (deftest values-of-a-deleted-node-are-removed-from-cache
   (with-clean-system
-    (let [node    (g/transactional (ds/add (n/construct CachedValueNode)))
+    (let [node    (g/transactional (g/add (n/construct CachedValueNode)))
           node-id (:_id node)]
       (is (= "an-output-value" (g/node-value (:graph @world-ref) cache node :cached-output)))
       (let [cached-value (cache-peek system node-id :cached-output)]
         (is (= "an-output-value" (e/result cached-value)))
-        (g/transactional (ds/delete node))
+        (g/transactional (g/delete node))
         (is (nil? (cache-peek system node-id :cached-output)))))))
 
 (defrecord DisposableValue [disposed?]
@@ -383,7 +383,7 @@
 
 (deftest cached-values-are-disposed-when-invalidated
   (with-clean-system
-    (let [node   (g/transactional (ds/add (n/construct DisposableCachedValueNode)))
+    (let [node   (g/transactional (g/add (n/construct DisposableCachedValueNode)))
           value1 (g/node-value (:graph @world-ref) cache node :cached-output)
           tx-result (it/transact world-ref [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
       (is (= [value1] (take-waiting-to-dispose system))))))
@@ -398,7 +398,7 @@
 (deftest become-interacts-with-caching
   (testing "newly uncacheable values are disposed"
     (with-clean-system
-      (let [node           (g/transactional (ds/add (n/construct OriginalNode)))
+      (let [node           (g/transactional (g/add (n/construct OriginalNode)))
             node-id        (:_id node)
             expected-value (g/node-value (:graph @world-ref) cache node :original-output)]
         (is (not (nil? expected-value)))
@@ -409,7 +409,7 @@
 
   (testing "newly cacheable values are indeed cached"
     (with-clean-system
-      (let [node         (g/transactional (ds/add (n/construct OriginalNode)))
+      (let [node         (g/transactional (g/add (n/construct OriginalNode)))
             node         (g/transactional (ds/become node (n/construct ReplacementNode)))
             cached-value (g/node-value (:graph @world-ref) cache node :additional-output)]
         (yield)
@@ -437,26 +437,26 @@
   (if (pos? tree-levels)
     (let [[n1 l1] (build-adder-tree output-name (dec tree-levels))
           [n2 l2] (build-adder-tree output-name (dec tree-levels))
-          n (ds/add (n/construct InputAdder))]
+          n (g/add (n/construct InputAdder))]
       (g/connect n1 output-name n :xs)
       (g/connect n2 output-name n :xs)
       [n (vec (concat l1 l2))])
-    (let [n (ds/add (n/construct NumberSource :x 0))]
+    (let [n (g/add (n/construct NumberSource :x 0))]
       [n [n]])))
 
 (deftest output-computation-inconsistencies
   (testing "computing output with stale property value"
     (with-clean-system
-      (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
-            adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+      (let [number-source (g/transactional (g/add (n/construct NumberSource :x 2)))
+            adder-before  (g/transactional (g/add (n/construct InputAndPropertyAdder :y 3)))
             _             (g/transactional (g/connect number-source :x adder-before :x))
             adder-after   (g/transactional (g/update-property adder-before :y inc))]
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-after  :sum)))
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :sum)))))
 
     (with-clean-system
-      (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
-            adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+      (let [number-source (g/transactional (g/add (n/construct NumberSource :x 2)))
+            adder-before  (g/transactional (g/add (n/construct InputAndPropertyAdder :y 3)))
             _             (g/transactional (g/connect number-source :x adder-before :x))
             _             (g/transactional (g/set-property number-source :x 22))
             adder-after   (g/transactional (g/update-property adder-before :y inc))]
@@ -465,8 +465,8 @@
 
   (testing "caching stale output value"
     (with-clean-system
-      (let [number-source (g/transactional (ds/add (n/construct NumberSource :x 2)))
-            adder-before  (g/transactional (ds/add (n/construct InputAndPropertyAdder :y 3)))
+      (let [number-source (g/transactional (g/add (n/construct NumberSource :x 2)))
+            adder-before  (g/transactional (g/add (n/construct InputAndPropertyAdder :y 3)))
             _             (g/transactional (g/connect number-source :x adder-before :x))
             adder-after   (g/transactional (g/update-property adder-before :y inc))]
         (is (= 6 (g/node-value (:graph @world-ref) cache adder-before :cached-sum)))

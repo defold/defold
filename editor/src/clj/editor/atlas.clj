@@ -452,7 +452,7 @@
         (g/set-property self :margin (:margin atlas))
         (g/set-property self :extrude-borders (:extrude-borders atlas))
         (doseq [anim (:animations atlas)
-                :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
+                :let [anim-node (g/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
                       images (mapv :image (:images anim))]]
           (g/set-property anim-node :images images)
           (g/connect anim-node :animation self :animations)
@@ -468,17 +468,17 @@
 
   (on :unload
       (doseq [[animation-group _] (ds/sources-of self :animations)]
-        (ds/delete animation-group))))
+        (g/delete animation-group))))
 
 (defn construct-atlas-editor
   [project-node atlas-node]
   (let [editor (n/construct sceneed/SceneEditor)]
-    (ds/in (ds/add editor)
-           (let [atlas-render (ds/add (n/construct AtlasRender))
-                 renderer     (ds/add (n/construct sceneed/SceneRenderer))
-                 background   (ds/add (n/construct background/Gradient))
-                 grid         (ds/add (n/construct grid/Grid))
-                 camera       (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
+    (ds/in (g/add editor)
+           (let [atlas-render (g/add (n/construct AtlasRender))
+                 renderer     (g/add (n/construct sceneed/SceneRenderer))
+                 background   (g/add (n/construct background/Gradient))
+                 grid         (g/add (n/construct grid/Grid))
+                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
              (g/connect background   :renderable      renderer     :renderables)
              (g/connect grid         :renderable      renderer     :renderables)
              (g/connect camera       :camera          grid         :camera)

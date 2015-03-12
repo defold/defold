@@ -26,7 +26,7 @@
 (defn- create-atlas-editor [project atlas-node]
   (let [editor (n/construct DummyEditor)]
     (ds/in
-      (ds/add editor)
+      (g/add editor)
       (g/connect atlas-node :self editor :node))
     editor))
 
@@ -72,7 +72,7 @@
             (let [project (load-test-project)
                   atlas-node-ref (dt/node-ref (first (p/nodes-with-extensions project ["atlas"])))
                   editor-node-ref (dt/node-ref (p/make-editor project (:filename @atlas-node-ref)))]
-              (g/transactional (ds/delete @atlas-node-ref))
+              (g/transactional (g/delete @atlas-node-ref))
               (is (not-nil? @editor-node-ref))
               (is (nil? (g/node-value (:graph @world-ref) cache @editor-node-ref :node)))
               (ds/undo)
