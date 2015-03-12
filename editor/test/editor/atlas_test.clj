@@ -60,8 +60,8 @@
         (n/dispatch-message atlas :load :project project-node)
         atlas))))
 
-(n/defnode WildcardImageResourceNode
-  (inherits n/OutlineNode)
+(g/defnode WildcardImageResourceNode
+  (inherits g/OutlineNode)
   (output outline-label s/Str (fnk [filename] (t/local-name filename)))
   (property filename (s/protocol t/PathManipulation) (visible false))
   (output content Image :cached (fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))

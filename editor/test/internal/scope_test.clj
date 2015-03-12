@@ -19,8 +19,8 @@
             [schema.macros :as sm])
   (:import [dynamo.types Image AABB]))
 
-(n/defnode N1)
-(n/defnode N2)
+(g/defnode N1)
+(g/defnode N2)
 
 (deftest input-compatibility
   (let [n1 (n/construct N1)
@@ -36,12 +36,12 @@
       n1 :names [String] n2 :names  [String]  [n1 :names n2 :names]  "ok"
       n1 :name  String   n2 :name   [String]  nil                    "singular name, plural type")))
 
-(n/defnode ParticleEditor
-  (inherits n/Scope))
+(g/defnode ParticleEditor
+  (inherits g/Scope))
 
-(n/defnode Emitter
+(g/defnode Emitter
   (property name s/Str))
-(n/defnode Modifier
+(g/defnode Modifier
   (property name s/Str))
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
@@ -61,7 +61,7 @@
                  "emitter"
                  "vortex")))))
 
-(n/defnode DisposableNode
+(g/defnode DisposableNode
   t/IDisposable
   (dispose [this] (deliver (:latch this) true)))
 
@@ -74,7 +74,7 @@
 (defspec scope-disposes-contained-nodes
   (prop/for-all [scoped-nodes gen-nodelist]
     (with-clean-system
-      (let [scope          (g/transactional (ds/add (n/construct n/Scope)))
+      (let [scope          (g/transactional (ds/add (n/construct g/Scope)))
             disposables    (g/transactional (ds/in scope (doseq [n scoped-nodes] (ds/add n))) scoped-nodes)
             disposable-ids (map :_id disposables)]
         (g/transactional (ds/delete scope))

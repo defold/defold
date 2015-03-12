@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.node :as n :refer [defnode construct]]
+            [dynamo.node :as n :refer [construct]]
             [dynamo.project :as p]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
@@ -27,7 +27,7 @@
 
 (defn string-value [] "uff-da")
 
-(defnode WithDefaults
+(g/defnode WithDefaults
   (property default-value                 StringWithDefault)
   (property overridden-literal-value      StringWithDefault (default "ya rly."))
 ;; SAMDISCUSS  (property overridden-function-value     StringWithDefault (default (constantly "vell den.")))
@@ -44,10 +44,10 @@
     "uff-da"      :overridden-indirect-by-var
     'string-value :overridden-indirect-by-symbol))
 
-(defnode SimpleTestNode
+(g/defnode SimpleTestNode
   (property foo s/Str (default "FOO!")))
 
-(defnode NodeWithEvents
+(g/defnode NodeWithEvents
   (on :mousedown
     (g/set-property self :message-processed true)
     :ok))
@@ -64,7 +64,7 @@
 (definterface IInterface
   (allGood []))
 
-(defnode MyNode
+(g/defnode MyNode
   AProtocol
   (complainer [this] :owie)
   IInterface
@@ -82,7 +82,7 @@
 (defnk depends-on-several [this project g an-input a-property] [this project g an-input a-property])
 (defn  depends-on-default-params [this g] [this g])
 
-(defnode DependencyTestNode
+(g/defnode DependencyTestNode
   (input an-input String)
   (input unused-input String)
 
@@ -106,7 +106,7 @@
       (is (not (contains? deps :g)))
       (is (not (contains? deps :unused-input))))))
 
-(defnode EmptyNode)
+(g/defnode EmptyNode)
 
 (deftest node-intrinsics
   (with-clean-system
@@ -144,7 +144,7 @@
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)
 
-(defnode ProductionFunctionTypesNode
+(g/defnode ProductionFunctionTypesNode
   (output inline-fn      s/Keyword (fn [this g] :fn))
   (output defn-as-symbol s/Keyword production-fn)
   (output def-as-symbol  s/Keyword production-val))
@@ -164,7 +164,7 @@
 (defnk production-fnk-in [in] in)
 (defnk production-fnk-in-multi [in-multi] in-multi)
 
-(defnode ProductionFunctionInputsNode
+(g/defnode ProductionFunctionInputsNode
   (input in       s/Keyword)
   (input in-multi [s/Keyword])
   (property prop s/Keyword)
@@ -229,7 +229,7 @@
 (defnk out-from-in [in] in)
 (defnk out-from-in-multi [in-multi] in-multi)
 
-(defnode DependencyNode
+(g/defnode DependencyNode
   (input in s/Any)
   (input in-multi [s/Any])
   (output out-from-self     s/Any out-from-self)
@@ -279,7 +279,7 @@
   (tally this :invocation-count)
   (throw (ex-info "Exception from production function" {})))
 
-(defnode SubstituteValueNode
+(g/defnode SubstituteValueNode
   (output out-defn                     s/Any throw-exception-defn)
   (output out-defnk                    s/Any throw-exception-defnk)
   (output out-defn-with-substitute-fn  s/Any :substitute-value (constantly :substitute) throw-exception-defn)
@@ -323,7 +323,7 @@
           (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk-with-invocation-count)))
           (is (= 1 (get-tally n :invocation-count))))))))
 
-(defnode ValueHolderNode
+(g/defnode ValueHolderNode
   (property value s/Int))
 
 (def ^:dynamic *answer-call-count* (atom 0))
@@ -333,7 +333,7 @@
   (assert (= 42 in))
   in)
 
-(defnode AnswerNode
+(g/defnode AnswerNode
   (input in s/Int)
   (output out                        s/Int                                      the-answer)
   (output out-cached                 s/Int :cached                              the-answer)
@@ -381,7 +381,7 @@
 (defnk always-fail []
   (assert false "I always fail :-("))
 
-(defnode FailureNode
+(g/defnode FailureNode
   (output out s/Any always-fail))
 
 (deftest production-fn-input-failure
@@ -423,7 +423,7 @@
         (is (= 1 @*answer-call-count*))))))
 
 
-(defnode BasicNode
+(g/defnode BasicNode
   (input basic-input s/Int)
   (property string-property s/Str)
   (property property-to-override s/Str)
@@ -433,10 +433,10 @@
 (defproperty predefined-property-type s/Str
   (default "a-default"))
 
-(defnode MultipleInheritance
+(g/defnode MultipleInheritance
   (property property-from-multiple s/Str (default "multiple")))
 
-(defnode InheritsBasicNode
+(g/defnode InheritsBasicNode
   (inherits BasicNode)
   (inherits MultipleInheritance)
   (input another-input [s/Int])
@@ -474,7 +474,7 @@
     (is (:another-cached-output (t/cached-outputs (construct InheritsBasicNode))))
     (is (not (:another-output (t/cached-outputs (construct InheritsBasicNode)))))))
 
-(defnode PropertyValidationNode
+(g/defnode PropertyValidationNode
   (property even-number s/Int
     (default 0)
     (validate must-be-even :message "only even numbers are allowed" even?)))

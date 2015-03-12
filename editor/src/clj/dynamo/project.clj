@@ -39,12 +39,12 @@ ordinary paths."
   (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) "."))
   n)
 
-(n/defnode Placeholder
+(g/defnode Placeholder
   "A Placeholder node represents a file-based asset that doesn't have any specific
 behavior."
-  (inherits n/ResourceNode)
+  (inherits g/ResourceNode)
   (output content s/Any (fnk [] nil))
-  (inherits n/OutlineNode)
+  (inherits g/OutlineNode)
   (output outline-label s/Str (fnk [filename] (t/local-name filename))))
 
 (defn- new-node-for-path
@@ -62,7 +62,7 @@ behavior."
       (ds/add
         (new-node-for-path project-node path Placeholder)))))
 
-(n/defnode CannedProperties
+(g/defnode CannedProperties
   (property rotation     s/Str    (default "twenty degrees starboard"))
   (property translation  s/Str    (default "Guten abend."))
   (property some-vector  t/Vec3   (default [1 2 3]))
@@ -145,8 +145,8 @@ There is no guaranteed ordering of the sequence."
 (defn project-root? [node]
   (satisfies? ProjectRoot node))
 
-(n/defnode Project
-  (inherits n/Scope)
+(g/defnode Project
+  (inherits g/Scope)
 
   (trigger notify-content-nodes :input-connections send-project-scope-message)
 

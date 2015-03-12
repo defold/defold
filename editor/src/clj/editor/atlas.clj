@@ -67,8 +67,8 @@
       (doseq [[n _] children-after]
         (g/connect {:_id n} :outline-tree self input-name)))))
 
-(n/defnode AnimationGroupNode
-  (inherits n/OutlineNode)
+(g/defnode AnimationGroupNode
+  (inherits g/OutlineNode)
   (output outline-label s/Str (fnk [id] id))
 
   (property images dp/ImageResourceList)
@@ -260,7 +260,7 @@
           (conj! [x1 y0 0 1 u1 (- 1 v0)]))))
     (persistent! vbuf)))
 
-(n/defnode AtlasRender
+(g/defnode AtlasRender
   (input gpu-texture s/Any)
   (input texture-packing s/Any)
 
@@ -354,7 +354,7 @@
     (.toByteArray (texturec-protocol-buffer (tex/->engine-format packed-image))))
   :ok)
 
-(n/defnode TextureSave
+(g/defnode TextureSave
   (input textureset   TextureSet)
   (input packed-image BufferedImage)
 
@@ -369,7 +369,7 @@
   (doseq [controller (first (g/node-value this :controllers))]
     (t/process-one-event controller event)))
 
-(n/defnode BroadcastController
+(g/defnode BroadcastController
   (input controllers [s/Any])
   (on :mouse-down (broadcast-event self event))
   (on :mouse-up (broadcast-event self event))
@@ -394,7 +394,7 @@
   [images-outline-children animations-outline-children]
   (concat images-outline-children animations-outline-children))
 
-(n/defnode AtlasNode
+(g/defnode AtlasNode
   "This node represents an actual Atlas. It accepts a collection
    of images and animations. It emits a packed texture-packing.
 
@@ -415,10 +415,10 @@
    texture-packing `dynamo.types/TexturePacking` - A data structure with full access to the original image bounds, their coordinates in the packed image, the BufferedImage, and outline coordinates.
    packed-image `BufferedImage` - BufferedImage instance with the actual pixels.
    textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
-  (inherits n/OutlineNode)
+  (inherits g/OutlineNode)
   (output outline-label s/Str (fnk [] "Atlas"))
-  (inherits n/ResourceNode)
-  (inherits n/Saveable)
+  (inherits g/ResourceNode)
+  (inherits g/Saveable)
 
   (property images dp/ImageResourceList (visible false))
 

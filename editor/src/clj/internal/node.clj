@@ -1,7 +1,5 @@
 (ns internal.node
   (:require [camel-snake-kebab :refer [->kebab-case]]
-            [clojure.core.async :as a]
-            [clojure.core.cache :as cache]
             [clojure.core.match :refer [match]]
             [clojure.set :as set]
             [dynamo.file :as file]

@@ -1,6 +1,7 @@
 (ns dynamo.background
   (:require [plumbing.core :refer [fnk]]
-            [dynamo.geom :as g]
+            [dynamo.geom :as geom]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.types :as t]
             [dynamo.gl :as gl]
@@ -24,5 +25,5 @@
       (gl/gl-vertex-2f x1 y0)
       (gl/gl-vertex-2f x0 y0))))
 
-(n/defnode Gradient
-  (output renderable t/RenderData (fnk [this] {p/background [{:world-transform g/Identity4d :render-fn #'render-gradient}]})))
+(g/defnode Gradient
+  (output renderable t/RenderData (fnk [this] {p/background [{:world-transform geom/Identity4d :render-fn #'render-gradient}]})))

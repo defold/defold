@@ -1,16 +1,16 @@
 (ns dynamo.image
   (:require [clojure.java.io :as io]
             [dynamo.geom :refer :all]
-            [dynamo.node :as n]
+            [dynamo.graph :as g]
             [dynamo.property :as dp]
             [dynamo.types :as t]
             [plumbing.core :refer [defnk fnk]]
             [schema.core :as s]
             [schema.macros :as sm])
-  (:import [java.awt Color]
-           [javax.imageio ImageIO]
+  (:import [dynamo.types Rect Image]
+           [java.awt Color]
            [java.awt.image BufferedImage]
-           [dynamo.types Rect Image]))
+           [javax.imageio ImageIO]))
 
 (defmacro with-graphics
   [binding & body]
@@ -55,8 +55,8 @@
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))
 
 ;; Behavior
-(n/defnode ImageSource
-  (inherits n/ResourceNode)
+(g/defnode ImageSource
+  (inherits g/ResourceNode)
 
   (output content Image :cached :substitute-value placeholder-image (fnk [filename] (load-image filename (t/local-path filename)))))
 
