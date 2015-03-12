@@ -224,6 +224,12 @@ int Push_Register(lua_State* L)
         g_Push.m_Self = LUA_NOREF;
     }
 
+    if (!lua_istable(L, 1)) {
+	assert(top == lua_gettop(L));
+	luaL_error(L, "First argument must be a table of notification types.");
+	return 0;
+    }
+
     UIRemoteNotificationType types = UIRemoteNotificationTypeNone;
     lua_pushnil(L);
     while (lua_next(L, 1) != 0) {
