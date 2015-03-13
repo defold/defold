@@ -67,6 +67,17 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
     return &src;
 }
 
+dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
+{
+    out_data->Init();
+    static float uv_quad[] = {0,1,0,0, 1,0,1,1};
+    out_data->m_TexCoords = &uv_quad[0];
+    out_data->m_End = 1;
+    out_data->m_FPS = 30;
+    out_data->m_FlipHorizontal = 1;
+    return dmGui::FETCH_ANIMATION_OK;
+}
+
 class dmGuiTest : public ::testing::Test
 {
 public:
@@ -99,6 +110,7 @@ public:
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
+        params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         m_Scene = dmGui::NewScene(m_Context, &params);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
@@ -216,13 +228,79 @@ TEST_F(dmGuiTest, Name)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
+TEST_F(dmGuiTest, FlipbookAnim)
+{
+    int t1, ts1;
+    dmGui::Result r;
+
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    uint64_t fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
+
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(dmHashString64("ta1"), fb_id);
+
+    const float* fb_uv = dmGui::GetNodeFlipbookAnimUV(m_Scene, node);
+    ASSERT_NE((const float*) 0, fb_uv);
+    ASSERT_EQ(0, fb_uv[0]);
+    ASSERT_EQ(1, fb_uv[1]);
+    ASSERT_EQ(0, fb_uv[2]);
+    ASSERT_EQ(0, fb_uv[3]);
+    ASSERT_EQ(1, fb_uv[4]);
+    ASSERT_EQ(0, fb_uv[5]);
+    ASSERT_EQ(1, fb_uv[6]);
+    ASSERT_EQ(1, fb_uv[7]);
+
+    bool fb_flipx = false, fb_flipy = false;
+    dmGui::GetNodeFlipbookAnimUVFlip(m_Scene, node, fb_flipx, fb_flipy);
+    ASSERT_EQ(true, fb_flipx);
+    ASSERT_EQ(false, fb_flipy);
+
+    dmGui::CancelNodeFlipbookAnim(m_Scene, node);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(0, fb_id);
+
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(dmHashString64("ta1"), fb_id);
+
+    dmGui::ClearTextures(m_Scene);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(0, fb_id);
+
+    r = dmGui::AddTexture(m_Scene, "t2", (void*) &t1, 0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t2");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
+}
+
 TEST_F(dmGuiTest, TextureFontLayer)
 {
     int t1, t2;
+    int ts1, ts2;
     int f1, f2;
 
-    dmGui::AddTexture(m_Scene, "t1", (void*) &t1);
-    dmGui::AddTexture(m_Scene, "t2", (void*) &t2);
+    dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1);
+    dmGui::AddTexture(m_Scene, "t2", (void*) &t2, (void*) &ts2);
     dmGui::AddFont(m_Scene, "f1", &f1);
     dmGui::AddFont(m_Scene, "f2", &f2);
     dmGui::AddLayer(m_Scene, "l1");
@@ -246,8 +324,9 @@ TEST_F(dmGuiTest, TextureFontLayer)
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::AddTexture(m_Scene, "t2", &t1);
+    dmGui::AddTexture(m_Scene, "t2", (void*) &t1, (void*) &ts1);
     ASSERT_EQ(&t1, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
+    ASSERT_EQ(&ts1, m_Scene->m_Nodes[node & 0xffff].m_Node.m_TextureSet);
 
     dmGui::RemoveTexture(m_Scene, "t2");
     ASSERT_EQ((void*)0, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
@@ -381,12 +460,56 @@ TEST_F(dmGuiTest, DynamicTexture)
     dmGui::RenderScene(m_Scene, rp, &count);
 }
 
+TEST_F(dmGuiTest, ScriptFlipbookAnim)
+{
+    int t1, ts1;
+    dmGui::Result r;
+
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    const char* id = "n";
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id);
+
+    const char* s = "local ref_val = 0\n"
+                    "local frame_count = 0\n"
+                    "\n"
+                    "function flipbook_complete(self, node)\n"
+                    "   ref_val = ref_val + 1\n"
+                    "end\n"
+                    "\n"
+                    "function init(self)\n"
+                    "    local n = gui.get_node(\"n\")\n"
+                    "    gui.set_texture(n, \"t1\")\n"
+                    "    local id = hash(\"ta1\")\n"
+                    "    gui.play_flipbook(n, id)\n"
+                    "    local id2 = gui.get_flipbook(n)\n"
+                    "    assert(id == id2)\n"
+                    "    gui.cancel_flipbook(n)\n"
+                    "    id2 = gui.get_flipbook(n)\n"
+                    "    gui.play_flipbook(n, id, flipbook_complete)\n"
+                    "    assert(id ~= id2)\n"
+                    "end\n"
+                    "\n"
+                    "function update(self, dt)\n"
+                    "    assert(ref_val == frame_count)\n"
+                    "    frame_count = frame_count + 1\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 30.0f));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 30.0f));
+}
+
 TEST_F(dmGuiTest, ScriptTextureFontLayer)
 {
-    int t;
+    int t, ts;
     int f;
 
-    dmGui::AddTexture(m_Scene, "t", (void*) &t);
+    dmGui::AddTexture(m_Scene, "t", (void*) &t, (void*) &ts);
     dmGui::AddFont(m_Scene, "f", &f);
     dmGui::AddLayer(m_Scene, "l");
 
@@ -1854,8 +1977,8 @@ TEST_F(dmGuiTest, Bug352)
 {
     dmGui::AddFont(m_Scene, "big_score", 0);
     dmGui::AddFont(m_Scene, "score", 0);
-    dmGui::AddTexture(m_Scene, "left_hud", 0);
-    dmGui::AddTexture(m_Scene, "right_hud", 0);
+    dmGui::AddTexture(m_Scene, "left_hud", 0,0);
+    dmGui::AddTexture(m_Scene, "right_hud", 0,0);
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));

@@ -39,6 +39,7 @@ namespace dmGui
     const uint32_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
     inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color);
+    static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -225,6 +226,7 @@ namespace dmGui
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NextVersionNumber = 0;
         scene->m_RenderOrder = 0;
+        scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
 
@@ -285,29 +287,40 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, const char* texture_name, void* texture)
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
         uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Put(texture_hash, texture);
+        scene->m_Textures.Put(texture_hash, TextureInfo(texture, textureset));
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
+            {
                 scene->m_Nodes[i].m_Node.m_Texture = texture;
+                scene->m_Nodes[i].m_Node.m_TextureSet = textureset;
+            }
         }
         return RESULT_OK;
     }
 
     void RemoveTexture(HScene scene, const char* texture_name)
     {
-        uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Erase(texture_hash);
+        uint64_t texture_name_hash = dmHashString64(texture_name);
+        scene->m_Textures.Erase(texture_name_hash);
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
-            if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
-                scene->m_Nodes[i].m_Node.m_Texture = 0;
+            Node& node = scene->m_Nodes[i].m_Node;
+            if (node.m_TextureHash == texture_name_hash)
+            {
+                if(node.m_TextureSet)
+                {
+                    node.m_TextureSet = 0;
+                    CancelNodeFlipbookAnim(scene, GetNodeHandle(&scene->m_Nodes[i]));
+                }
+                node.m_Texture = 0;
+            }
         }
     }
 
@@ -316,7 +329,13 @@ namespace dmGui
         scene->m_Textures.Clear();
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
-            scene->m_Nodes[i].m_Node.m_Texture = 0;
+            Node& node = scene->m_Nodes[i].m_Node;
+            if(node.m_TextureSet)
+            {
+                node.m_TextureSet = 0;
+                CancelNodeFlipbookAnim(scene, GetNodeHandle(&scene->m_Nodes[i]));
+            }
+            node.m_Texture = 0;
         }
     }
 
@@ -880,6 +899,7 @@ namespace dmGui
             } else {
                 c->m_StencilScopes.Push(0x0);
             }
+            UpdateTextureSetAnimData(scene, n);
         }
 
         scene->m_ResChanged = 0;
@@ -1412,6 +1432,10 @@ namespace dmGui
             node->m_Node.m_HasResetPoint = false;
             node->m_Node.m_TextureHash = 0;
             node->m_Node.m_Texture = 0;
+            node->m_Node.m_TextureSet = 0;
+            node->m_Node.m_TextureSetAnimDesc.Init();
+            node->m_Node.m_FlipbookAnimHash = 0;
+            node->m_Node.m_FlipbookAnimPosition = 0.0f;
             node->m_Node.m_FontHash = 0;
             node->m_Node.m_Font = 0;
             node->m_Node.m_LayerHash = DEFAULT_LAYER;
@@ -1840,27 +1864,43 @@ namespace dmGui
         return n->m_Node.m_Texture;
     }
 
+    void* GetNodeTextureSet(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_TextureSet;
+    }
+
     dmhash_t GetNodeTextureId(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_TextureHash;
     }
 
+    dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_TextureSet == 0x0 ? 0x0 : n->m_Node.m_FlipbookAnimHash;
+    }
+
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)
     {
-        if (void** texture = scene->m_Textures.Get(texture_id)) {
-            InternalNode* n = GetNode(scene, node);
+        InternalNode* n = GetNode(scene, node);
+        if(n->m_Node.m_TextureSet)
+            CancelNodeFlipbookAnim(scene, node);
+        if (TextureInfo* texture_info = scene->m_Textures.Get(texture_id)) {
             n->m_Node.m_TextureHash = texture_id;
-            n->m_Node.m_Texture = *texture;
+            n->m_Node.m_Texture = texture_info->m_Texture;
+            n->m_Node.m_TextureSet = texture_info->m_TextureSet;
             return RESULT_OK;
         } else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(texture_id)) {
-            InternalNode* n = GetNode(scene, node);
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture->m_Handle;
+            n->m_Node.m_TextureSet = 0x0;
             return RESULT_OK;
-        } else {
-            return RESULT_RESOURCE_NOT_FOUND;
         }
+        n->m_Node.m_Texture = 0;
+        n->m_Node.m_TextureSet = 0;
+        return RESULT_RESOURCE_NOT_FOUND;
     }
 
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id)
@@ -2255,6 +2295,176 @@ namespace dmGui
         } else {
             dmLogError("property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
         }
+    }
+
+    inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value)
+    {
+        uint16_t version = (uint16_t) (node >> 16);
+        uint16_t index = node & 0xffff;
+        InternalNode* n = &scene->m_Nodes[index];
+        assert(n->m_Version == version);
+
+        dmArray<Animation>* animations = &scene->m_Animations;
+        uint32_t n_animations = animations->Size();
+        for (uint32_t i = 0; i < n_animations; ++i)
+        {
+            Animation* anim = &(*animations)[i];
+            if (anim->m_Node == node && anim->m_Value == value)
+                return anim;
+        }
+        return 0;
+    }
+
+    static void CancelAnimationComponent(HScene scene, HNode node, float* value)
+    {
+        Animation* anim = GetComponentAnimation(scene, node, value);
+        if(anim == 0x0)
+            return;
+        anim->m_Cancelled = 1;
+    }
+
+    static inline void AnimateTextureSetAnim(HScene scene, HNode node, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    {
+        InternalNode* n = GetNode(scene, node);
+        TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
+        float anim_frames = (float) (anim_desc.m_End - anim_desc.m_Start);
+        AnimateComponent(
+                scene,
+                node,
+                &n->m_Node.m_FlipbookAnimPosition,
+                1.0f,
+                dmEasing::TYPE_LINEAR,
+                (Playback) anim_desc.m_Playback,
+                anim_frames / (float) anim_desc.m_FPS,
+                0.0f,
+                anim_complete_callback,
+                callback_userdata1,
+                callback_userdata2);
+    }
+
+    static inline FetchTextureSetAnimResult FetchTextureSetAnim(HScene scene, InternalNode* n, dmhash_t anim)
+    {
+        FetchTextureSetAnimCallback fetch_anim_callback = scene->m_FetchTextureSetAnimCallback;
+        if(fetch_anim_callback == 0x0)
+        {
+            dmLogError("PlayNodeFlipbookAnim called with node in scene with no FetchTextureSetAnimCallback set.");
+            return FETCH_ANIMATION_CALLBACK_ERROR;
+        }
+        return fetch_anim_callback(n->m_Node.m_TextureSet, anim, &n->m_Node.m_TextureSetAnimDesc);
+    }
+
+    static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n)
+    {
+        // if we got a textureset (i.e. texture animation), we want to update the animation in case it is reloaded
+        uint64_t anim_hash = n->m_Node.m_FlipbookAnimHash;
+        if(n->m_Node.m_TextureSet == 0 || anim_hash == 0)
+            return;
+
+        // update animationdata, compare state to current and early bail if equal
+        TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
+        uint64_t current_state = anim_desc.m_State;
+        if(FetchTextureSetAnim(scene, n, anim_hash)!=FETCH_ANIMATION_OK)
+        {
+            // general error in retreiving animation. This could be it being deleted or otherwise changed erraneously
+            anim_desc.Init();
+            CancelAnimationComponent(scene, GetNodeHandle(n), &n->m_Node.m_FlipbookAnimPosition);
+            const char* anim_str = (const char*)dmHashReverse64(anim_hash, 0x0);
+            dmLogWarning("Failed to update animation '%s'.", anim_str == 0 ? "<unknown>" : anim_str);
+            return;
+        }
+
+        if(current_state == anim_desc.m_State)
+            return;
+
+        n->m_Node.m_FlipbookAnimPosition = 0.0f;
+        HNode node = GetNodeHandle(n);
+        if(anim_desc.m_Playback == PLAYBACK_NONE)
+        {
+            CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            return;
+        }
+
+        Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        if(anim && (anim->m_Cancelled == 0))
+            AnimateTextureSetAnim(scene, node, anim->m_AnimationComplete, anim->m_Userdata1, anim->m_Userdata2);
+        else
+            AnimateTextureSetAnim(scene, node, 0, 0, 0);
+    }
+
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_FlipbookAnimPosition = 0.0f;
+        n->m_Node.m_FlipbookAnimHash = 0x0;
+
+        if(anim == 0x0)
+        {
+            dmLogError("PlayNodeFlipbookAnim called with invalid anim name.");
+            return RESULT_INVAL_ERROR;
+        }
+        if(n->m_Node.m_TextureSet == 0x0)
+        {
+            dmLogError("PlayNodeFlipbookAnim called with node not containing animation.");
+            return RESULT_INVAL_ERROR;
+        }
+
+        n->m_Node.m_FlipbookAnimHash = anim;
+        FetchTextureSetAnimResult result = FetchTextureSetAnim(scene, n, anim);
+        if(result != FETCH_ANIMATION_OK)
+        {
+            CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            n->m_Node.m_FlipbookAnimHash = 0;
+            n->m_Node.m_TextureSetAnimDesc.Init();
+            const char* anim_str = (const char*)dmHashReverse64(anim, 0x0);
+            if(result == FETCH_ANIMATION_NOT_FOUND)
+            {
+                dmLogWarning("The animation '%s' could not be found.", anim_str == 0 ? "<unknown>" : anim_str);
+            }
+            else
+            {
+                dmLogWarning("Error playing animation '%s' (result %d).", anim_str == 0 ? "<unknown>" : anim_str, (int32_t) result);
+            }
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        if(n->m_Node.m_TextureSetAnimDesc.m_Playback == PLAYBACK_NONE)
+            CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        else
+            AnimateTextureSetAnim(scene, node, anim_complete_callback, callback_userdata1, callback_userdata2);
+        return RESULT_OK;
+    }
+
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    {
+        return PlayNodeFlipbookAnim(scene, node, dmHashString64(anim), anim_complete_callback, callback_userdata1, callback_userdata2);
+    }
+
+    void CancelNodeFlipbookAnim(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        n->m_Node.m_FlipbookAnimHash = 0;
+    }
+
+    const float* GetNodeFlipbookAnimUV(HScene scene, HNode node)
+    {
+        InternalNode* in = GetNode(scene, node);
+        Node& n = in->m_Node;
+        if(n.m_TextureSet == 0x0 || n.m_TextureSetAnimDesc.m_TexCoords == 0x0)
+            return 0;
+        TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
+        int32_t anim_frames = anim_desc->m_End - anim_desc->m_Start;
+        int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
+        anim_frame = dmMath::Clamp(anim_frame, 0, anim_frames-1);
+        const float* frame_uv = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_Start + anim_frame)<<3);
+        return frame_uv;
+    }
+
+    void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical)
+    {
+        InternalNode* n = GetNode(scene, node);
+        flip_horizontal = n->m_Node.m_TextureSetAnimDesc.m_FlipHorizontal;
+        flip_vertical = n->m_Node.m_TextureSetAnimDesc.m_FlipVertical;
     }
 
     bool PickNode(HScene scene, HNode node, float x, float y)
