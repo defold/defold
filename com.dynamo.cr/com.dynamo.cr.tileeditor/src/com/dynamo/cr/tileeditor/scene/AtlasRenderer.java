@@ -129,6 +129,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         case PLAYBACK_ONCE_BACKWARD:
             frame = (nFrames-1) - (frameTime % nFrames);
             break;
+        case PLAYBACK_ONCE_PINGPONG:
         case PLAYBACK_LOOP_PINGPONG:
             // Unwrap to nFrames + (nFrames - 2)
             frame = frameTime % (nFrames * 2 - 2);
