@@ -57,6 +57,18 @@ public class ProtoBuilders {
         return out;
     }
 
+    static String replaceGuiTextureName(String str) {
+        String out = str;
+        if(str.endsWith(".atlas")) {
+            out = BuilderUtil.replaceExt(out, ".atlas", ".texturesetc");
+        } else if(str.endsWith(".tilesource")) {
+            out = BuilderUtil.replaceExt(out, ".tilesource", ".texturesetc");
+        } else {
+            out = replaceTextureName(str);
+        }
+        return out;
+    }
+
     @ProtoParams(messageClass = CollectionProxyDesc.class)
     @BuilderParams(name="CollectionProxy", inExts=".collectionproxy", outExt=".collectionproxyc")
     public static class CollectionProxyBuilder extends ProtoBuilder<CollectionProxyDesc.Builder> {
@@ -157,7 +169,7 @@ public class ProtoBuilders {
                             f.getName()));
                 }
                 textureNames.add(f.getName());
-                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceTextureName(f.getTexture())).build());
+                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceGuiTextureName(f.getTexture())).build());
             }
             messageBuilder.clearTextures();
             messageBuilder.addAllTextures(newTextureList);
@@ -171,8 +183,8 @@ public class ProtoBuilders {
             }
             for (NodeDesc n : messageBuilder.getNodesList()) {
                 if (n.hasTexture() && !n.getTexture().isEmpty()) {
-                    if (!textureNames.contains(n.getTexture())) {
-                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture()));
+                    if (!textureNames.contains(n.getTexture().split("/")[0])) {
+                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture().split("/")[0]));
                     }
                 }
 

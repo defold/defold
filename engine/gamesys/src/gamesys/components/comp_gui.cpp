@@ -29,6 +29,7 @@ extern uint32_t GUI_FPC_SIZE;
 namespace dmGameSystem
 {
     dmRender::HRenderType g_GuiRenderType = dmRender::INVALID_RENDER_TYPE_HANDLE;
+    dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     struct GuiWorld;
     struct GuiRenderNode
@@ -142,10 +143,10 @@ namespace dmGameSystem
             }
         }
 
-        for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
+        for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
-            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) scene_resource->m_Textures[i]);
+            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) scene_resource->m_GuiTextureSets[i].m_Texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -192,11 +193,29 @@ namespace dmGameSystem
                 }
                 if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
                 {
-                    dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, node_desc->m_Texture);
+                    size_t path_str_size = strlen(node_desc->m_Texture)+1;
+                    char texture_str[path_str_size];
+                    dmStrlCpy(texture_str, node_desc->m_Texture, path_str_size);
+
+                    char* texture_anim_name = strstr(texture_str, "/");
+                    if(texture_anim_name)
+                        *texture_anim_name++ = 0;
+
+                    dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_str);
                     if (gui_result != dmGui::RESULT_OK)
                     {
-                        dmLogError("The texture '%s' could not be set for the '%s', result: %d.", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
                         result = false;
+                    }
+
+                    if(texture_anim_name != NULL)
+                    {
+                        gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name);
+                        if (gui_result != dmGui::RESULT_OK)
+                        {
+                            dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                            result = false;
+                        }
                     }
                 }
                 if (node_desc->m_Layer != 0x0 && *node_desc->m_Layer != '\0')
@@ -277,6 +296,7 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
+        scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
 
@@ -574,20 +594,60 @@ namespace dmGameSystem
             // 3 *-*-----*-*
 
             // v are '1-v'
-            xs[0] = ys[0] = us[0] = vs[3] = 0;
-            xs[3] = ys[3] = us[3] = vs[0] = 1;
+            xs[0] = ys[0] = 0;
+            xs[3] = ys[3] = 1;
+            bool uv_rotated;
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+            if(tc)
+            {
+                static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
+                uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+                bool flip_u, flip_v;
+                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+                if(uv_rotated)
+                {
+                    const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
+                    const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
+                    us[uI[0]] = tc[0];
+                    us[uI[1]] = tc[0] + (sv * slice9.getW());
+                    us[uI[2]] = tc[2] - (sv * slice9.getY());
+                    us[uI[3]] = tc[2];
+                    vs[vI[0]] = tc[1];
+                    vs[vI[1]] = tc[1] + (su * slice9.getX());
+                    vs[vI[2]] = tc[5] - (su * slice9.getZ());
+                    vs[vI[3]] = tc[5];
+                }
+                else
+                {
+                    const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
+                    const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
+                    us[uI[0]] = tc[0];
+                    us[uI[1]] = tc[0] + (su * slice9.getX());
+                    us[uI[2]] = tc[4] - (su * slice9.getZ());
+                    us[uI[3]] = tc[4];
+                    vs[vI[0]] = tc[1];
+                    vs[vI[1]] = tc[1] - (sv * slice9.getW());
+                    vs[vI[2]] = tc[3] + (sv * slice9.getY());
+                    vs[vI[3]] = tc[3];
+                }
+            }
+            else
+            {
+                uv_rotated = false;
+                us[0] = 0;
+                us[1] = su * slice9.getX();
+                us[2] = 1 - su * slice9.getZ();
+                us[3] = 1;
+                vs[0] = 1;
+                vs[1] = 1 - sv * slice9.getW();
+                vs[2] = sv * slice9.getY();
+                vs[3] = 0;
+            }
 
             xs[1] = sx * slice9.getX();
             xs[2] = 1 - sx * slice9.getZ();
-
             ys[1] = sy * slice9.getW();
             ys[2] = 1 - sy * slice9.getY();
-
-            us[1] = su * slice9.getX();
-            us[2] = 1 - su * slice9.getZ();
-
-            vs[1] = 1 - sv * slice9.getW();
-            vs[2] = sv * slice9.getY();
 
             const Matrix4* transform = &node_transforms[i];
             Vectormath::Aos::Vector4 pts[4][4];
@@ -599,6 +659,11 @@ namespace dmGameSystem
                 }
             }
 
+            BoxVertex v00, v10, v01, v11;
+            v00.SetColor(bcolor);
+            v10.SetColor(bcolor);
+            v01.SetColor(bcolor);
+            v11.SetColor(bcolor);
             for (int y=0;y<3;y++)
             {
                 for (int x=0;x<3;x++)
@@ -607,13 +672,24 @@ namespace dmGameSystem
                     const int x1 = x+1;
                     const int y0 = y;
                     const int y1 = y+1;
-
-                    // v<x><y>
-                    BoxVertex v00(pts[y0][x0], us[x0], vs[y0], bcolor);
-                    BoxVertex v10(pts[y0][x1], us[x1], vs[y0], bcolor);
-                    BoxVertex v01(pts[y1][x0], us[x0], vs[y1], bcolor);
-                    BoxVertex v11(pts[y1][x1], us[x1], vs[y1], bcolor);
-
+                    v00.SetPosition(pts[y0][x0]);
+                    v10.SetPosition(pts[y0][x1]);
+                    v01.SetPosition(pts[y1][x0]);
+                    v11.SetPosition(pts[y1][x1]);
+                    if(uv_rotated)
+                    {
+                        v00.SetUV(us[y0], vs[x0]);
+                        v10.SetUV(us[y0], vs[x1]);
+                        v01.SetUV(us[y1], vs[x0]);
+                        v11.SetUV(us[y1], vs[x1]);
+                    }
+                    else
+                    {
+                        v00.SetUV(us[x0], vs[y0]);
+                        v10.SetUV(us[x1], vs[y0]);
+                        v01.SetUV(us[x0], vs[y1]);
+                        v11.SetUV(us[x1], vs[y1]);
+                    }
                     gui_world->m_ClientVertexBuffer.Push(v00);
                     gui_world->m_ClientVertexBuffer.Push(v10);
                     gui_world->m_ClientVertexBuffer.Push(v11);
@@ -742,8 +818,47 @@ namespace dmGameSystem
             float nextCorner = 0.25f * PI; // upper right rectangle corner at 45 deg
             bool first = true;
 
-            uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
+            float u0,su,v0,sv;
+            bool uv_rotated;
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+            if(tc)
+            {
+                bool flip_u, flip_v;
+                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+                uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+                if(uv_rotated ? flip_v : flip_u)
+                {
+                    su = -(tc[4] - tc[0]);
+                    u0 = tc[0] - su;
+                }
+                else
+                {
+                    u0 = tc[0];
+                    su = tc[4] - u0;
+                }
+                uint32_t v0i = uv_rotated ? 1 : 3;
+                uint32_t v1i = uv_rotated ? 5 : 1;
+                if(uv_rotated ? flip_u : flip_v)
+                {
+                    sv = -(tc[v1i] - tc[v0i]);
+                    v0 = tc[v0i] - sv;
+                }
+                else
+                {
+                    v0 = tc[v0i];
+                    sv = tc[v1i] - v0;
+                }
+            }
+            else
+            {
+                uv_rotated = false;
+                u0 = 0.0f;
+                su = 1.0f;
+                v0 = 0.0f;
+                sv = 1.0f;
+            }
 
+            uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
             for (int j=0;j!=generate;j++)
             {
                 float a;
@@ -771,7 +886,7 @@ namespace dmGameSystem
                 // make inner vertex
                 float u = 0.5f + innerMultiplier * c;
                 float v = 0.5f + innerMultiplier * s;
-                BoxVertex vInner(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u, 1-v, bcolor);
+                BoxVertex vInner(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), bcolor);
 
                 // make outer vertex
                 float d;
@@ -782,7 +897,7 @@ namespace dmGameSystem
 
                 u = 0.5f + d * c;
                 v = 0.5f + d * s;
-                BoxVertex vOuter(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u, 1-v, bcolor);
+                BoxVertex vOuter(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), bcolor);
 
                 // both inner & outer are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
@@ -958,6 +1073,48 @@ namespace dmGameSystem
         tparams.m_DataSize = dmImage::BytesPerPixel(type) * width * height;
         tparams.m_Format = ToGraphicsFormat(type);
         dmGraphics::SetTexture((dmGraphics::HTexture) texture, tparams);
+    }
+
+    dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
+    {
+        TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
+        dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
+        uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
+        if (anim_index)
+        {
+            if (texture_set_res->m_TextureSet->m_TexCoords.m_Count == 0)
+            {
+                return dmGui::FETCH_ANIMATION_UNKNOWN_ERROR;
+            }
+            dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];
+            uint32_t playback_index = animation->m_Playback;
+            if(playback_index >= dmGui::PLAYBACK_COUNT)
+                return dmGui::FETCH_ANIMATION_INVALID_PLAYBACK;
+
+            out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
+            out_data->m_Start = animation->m_Start;
+            out_data->m_End = animation->m_End;
+            out_data->m_Width = animation->m_Width;
+            out_data->m_Height = animation->m_Height;
+            out_data->m_FPS = animation->m_Fps;
+            out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
+            out_data->m_FlipVertical = animation->m_FlipVertical;
+            static const dmGui::Playback ddf_playback_map[dmGui::PLAYBACK_COUNT] = {
+                    [dmGameSystemDDF::PLAYBACK_NONE]            = dmGui::PLAYBACK_NONE,
+                    [dmGameSystemDDF::PLAYBACK_ONCE_FORWARD]    = dmGui::PLAYBACK_ONCE_FORWARD,
+                    [dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD]   = dmGui::PLAYBACK_ONCE_BACKWARD,
+                    [dmGameSystemDDF::PLAYBACK_LOOP_FORWARD]    = dmGui::PLAYBACK_LOOP_FORWARD,
+                    [dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD]   = dmGui::PLAYBACK_LOOP_BACKWARD,
+                    [dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG]   = dmGui::PLAYBACK_LOOP_PINGPONG,
+                    [dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG
+            };
+            out_data->m_Playback = ddf_playback_map[playback_index];
+            return dmGui::FETCH_ANIMATION_OK;
+        }
+        else
+        {
+            return dmGui::FETCH_ANIMATION_NOT_FOUND;
+        }
     }
 
     dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {

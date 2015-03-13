@@ -7,6 +7,7 @@ import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.guied.core.ClippingNode;
+import com.dynamo.cr.guied.core.GuiTextureNode;
 import com.dynamo.cr.guied.core.PieNode;
 import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
 import com.dynamo.cr.guied.util.Clipping;
@@ -103,8 +104,9 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
         GL2 gl = renderContext.getGL();
 
         Texture texture = null;
-        if (node.getTextureHandle() != null) {
-            texture = node.getTextureHandle().getTexture(gl);
+        GuiTextureNode guiTextureNode = node.getGuiTextureNode();
+        if (guiTextureNode != null) {
+            texture = guiTextureNode.getTextureHandle().getTexture(gl);
         }
 
         boolean clipping = renderData.getUserData() != null;
@@ -238,6 +240,33 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
         }
         gl.glBegin(GL2.GL_TRIANGLE_STRIP);
 
+        double u0,sU,v0,sV;
+        boolean uvRotated;
+        if(node.getGuiTextureNode() != null) {
+            GuiTextureNode.UVTransform uv = node.getGuiTextureNode().getUVTransform();
+            uvRotated = uv.rotated;
+            if((uvRotated ? uv.flipY : uv.flipX)) {
+                u0 = uv.translation.x + uv.scale.x;
+                sU = -uv.scale.x;
+            } else {
+                u0 = uv.translation.x;
+                sU = uv.scale.x;
+            }
+            if((uvRotated ? uv.flipX : uv.flipY)) {
+                v0 = uv.translation.y + uv.scale.y;
+                sV = -uv.scale.y;
+            } else {
+                v0 = uv.translation.y;
+                sV = uv.scale.y;
+            }
+        } else {
+            uvRotated = false;
+            u0 = 0;
+            sU = 1;
+            v0 = 0;
+            sV = 1;
+        }
+
         // Generate strip.
         for (int i=0;i<perimeterVertices;i++)
         {
@@ -245,7 +274,11 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
             double u = 0.5 + 0.5 * innerRadiusMultiplier * c[i];
             double v = 0.5 + 0.5 * innerRadiusMultiplier * s[i];
 
-            gl.glTexCoord2d(u, 1-v);
+            if(uvRotated) {
+                gl.glTexCoord2d(u0 + (v*sU), v0 + (sV*(u)));
+            } else {
+                gl.glTexCoord2d(u0 + (u*sU), v0 + (sV*(1-v)));
+            }
             gl.glVertex2d(x0 + u * (x1 - x0), y0 + v * (y1 - y0));
 
             // Outer vertex
@@ -256,7 +289,11 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
             u = 0.5 + 0.5 * d * c[i];
             v = 0.5 + 0.5 * d * s[i];
 
-            gl.glTexCoord2d(u, 1-v);
+            if(uvRotated) {
+                gl.glTexCoord2d(u0 + (v*sU), v0 + (sV*(u)));
+            } else {
+                gl.glTexCoord2d(u0 + (u*sU), v0 + (sV*(1-v)));
+            }
             gl.glVertex2d(x0 + u * (x1 - x0), y0 + v * (y1 - y0));
         }
 

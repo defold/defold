@@ -15,11 +15,13 @@ public class Activator extends AbstractUIPlugin {
 
 	// The shared instance
 	private static Activator plugin;
-	
+
     // Image ids
     public static final String BOX_NODE_IMAGE_ID = "BOX_NODE_ICON"; //$NON-NLS-1$
     public static final String TEXT_NODE_IMAGE_ID = "TEXT_NODE_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_IMAGE_ID = "TEXTURE_ICON"; //$NON-NLS-1$
+    public static final String TEXTURE_ATLAS_IMAGE_ID = "TEXTURE_ATLAS_ICON"; //$NON-NLS-1$
+    public static final String TEXTURE_TILESOURCE_IMAGE_ID = "TEXTURE_TILESOURCE_ICON"; //$NON-NLS-1$
     public static final String FONT_IMAGE_ID = "FONT_ICON"; //$NON-NLS-1$
     public static final String FOLDER_IMAGE_ID = "FOLDER_ICON"; //$NON-NLS-1$
     public static final String LAYER_IMAGE_ID = "LAYER_ICON"; //$NON-NLS-1$
@@ -63,6 +65,8 @@ public class Activator extends AbstractUIPlugin {
         registerImage(reg, BOX_NODE_IMAGE_ID, "icons/picture.png");
         registerImage(reg, TEXT_NODE_IMAGE_ID, "icons/text_large_cap.png");
         registerImage(reg, TEXTURE_IMAGE_ID, "icons/picture.png");
+        registerImage(reg, TEXTURE_ATLAS_IMAGE_ID, "icons/images.png");
+        registerImage(reg, TEXTURE_TILESOURCE_IMAGE_ID, "icons/tile_set.png");
         registerImage(reg, FONT_IMAGE_ID, "icons/font.png");
         registerImage(reg, FOLDER_IMAGE_ID, "icons/folder.png");
         registerImage(reg, LAYER_IMAGE_ID, "icons/layer.png");
