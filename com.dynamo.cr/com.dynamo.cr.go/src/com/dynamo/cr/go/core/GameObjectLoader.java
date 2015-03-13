@@ -120,7 +120,7 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
                 INodeType nodeType = registry.getNodeTypeClass(componentType.getClass());
                 INodeLoader<Node> loader = nodeType.getLoader();
                 Message message = loader.buildMessage(context, componentType, partProgress.newChild(1));
-                SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1));
+                SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1), false);
                 componentBuilder.setType(nodeType.getExtension());
                 componentBuilder.setData(byteStream.toString());
                 builder.addEmbeddedComponents(componentBuilder);

@@ -86,7 +86,7 @@ public class ScenePresenter implements IPresenter, IModelListener {
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(node.getClass());
         INodeLoader<Node> loader = nodeType.getLoader();
         Message message = loader.buildMessage(this.loaderContext, node, monitor);
-        SceneUtil.saveMessage(message, contents, monitor);
+        SceneUtil.saveMessage(message, contents, monitor, true);
         this.model.clearDirty();
     }
 
