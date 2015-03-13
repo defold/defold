@@ -1145,7 +1145,7 @@ namespace dmGui
     }
 
     /*# gets the node texture
-     * This is currently only useful for box nodes. The texture must be mapped to the gui scene in the gui editor.
+     * This is currently only useful for box or pie nodes. The texture must be mapped to the gui scene in the gui editor.
      *
      * @name gui.get_texture
      * @param node node to get texture from (node)
@@ -1205,6 +1205,110 @@ namespace dmGui
             }
         }
         assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the node flipbook animation
+     * Get node flipbook animation.
+     *
+     * @name gui.get_flipbook
+     * @param node node to get flipbook animation from (node)
+     * @param animation animation id (hash)
+     */
+    static int LuaGetFlipbook(lua_State* L)
+    {
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        dmScript::PushHash(L, dmGui::GetNodeFlipbookAnimId(scene, hnode));
+        return 1;
+    }
+
+    /*# play node flipbook animation
+     * Play flipbook animation on a box or pie node. The current node texture must contain the animation.
+     *
+     * @name gui.play_flipbook
+     * @param node node to set animation for (node)
+     * @param animation animation id (string|hash)
+     * @param [complete_function] function to call when the animation has completed (function)
+     */
+    static int LuaPlayFlipbook(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        int node_ref = LUA_NOREF;
+        int animation_complete_ref = LUA_NOREF;
+        if (lua_isfunction(L, 3))
+        {
+            lua_pushvalue(L, 3);
+            animation_complete_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            lua_pushvalue(L, 1);
+            node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            fflush(stdout);
+        }
+
+        if (lua_isstring(L, 2))
+        {
+            const char* anim_id = luaL_checkstring(L, 2);
+            Result r;
+            if(animation_complete_ref != LUA_NOREF)
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            else
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+            if (r != RESULT_OK)
+            {
+                const char* node_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
+                if(node_id_string != 0x0)
+                    luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id, node_id_string);
+                else
+                    luaL_error(L, "Animation %s invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+            }
+        }
+        else
+        {
+            dmhash_t anim_id = dmScript::CheckHash(L, 2);
+            Result r;
+            if(animation_complete_ref != LUA_NOREF)
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            else
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+            if (r != RESULT_OK)
+            {
+                const char* node_id_string = (const char*)dmHashReverse64(anim_id, 0x0);
+                const char* anim_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
+                if(node_id_string != 0x0 && anim_id_string != 0x0)
+                    luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id_string, node_id_string);
+                else
+                    luaL_error(L, "Animation %llu invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+            }
+        }
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# pause or unpause the node flipbook animation
+     * Pause or unpause the node flipbook animation.
+     *
+     * @name gui.cancel_flipbook
+     * @param node node cancel flipbook animation for (node)
+     */
+    static int LuaCancelFlipbook(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+        Scene* scene = GuiScriptInstance_Check(L);
+        CancelNodeFlipbookAnim(scene, hnode);
         return 0;
     }
 
@@ -1342,7 +1446,7 @@ namespace dmGui
      * <pre>
      * function init(self)
      *      local w = 200
-     *      local h = 300 
+     *      local h = 300
      *
      *      -- Create a dynamic texture, all white.
      *      if gui.new_texture("dynamic_tx", w, h, "rgb", string.rep(string.char(0xff), w * h * 3)) then
@@ -2783,6 +2887,9 @@ namespace dmGui
         {"set_clipping_inverted",LuaSetClippingInverted},
         {"get_texture",     LuaGetTexture},
         {"set_texture",     LuaSetTexture},
+        {"get_flipbook",    LuaGetFlipbook},
+        {"play_flipbook",   LuaPlayFlipbook},
+        {"cancel_flipbook", LuaCancelFlipbook},
         {"new_texture",     LuaNewTexture},
         {"delete_texture",  LuaDeleteTexture},
         {"set_texture_data",LuaSetTextureData},
