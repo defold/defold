@@ -312,6 +312,42 @@
        (set-orthographic camera (:fov camera) aspect -100000 100000))
      camera)))
 
+(defn handle-input [self action]
+  (let [viewport (g/node-value self :viewport)]
+    (case (:type action)
+      :scroll (if (contains? (:movements-enabled self) :dolly)
+                (let [dy (:delta-y action)]
+                  (ds/update-property self :camera dolly (* -0.002 dy))
+                  nil)
+                action)
+      :mouse-pressed (let [movement (get (:movements-enabled self) (camera-movement action) :idle)]
+                       (swap! (:ui-state self) assoc
+                              :last-x (:x action)
+                              :last-y (:y action)
+                              :movement movement)
+                       (if (= movement :idle) action nil))
+      :mouse-released (let [movement (:movement (:ui-state self))]
+                        (swap! (:ui-state self) assoc
+                               :last-x nil
+                               :last-y nil
+                               :movement :idle)
+                        (if (= movement :idle) action nil))
+      :mouse-moved (let [{:keys [movement last-x last-y]} @(:ui-state self)
+                         {:keys [x y]} action]
+                     (if (not (= :idle movement))
+                       (do
+                         (case movement
+                           :dolly  (ds/update-property self :camera dolly (* -0.002 (- y last-y)))
+                           :track  (ds/update-property self :camera track viewport last-x last-y x y)
+                           :tumble (ds/update-property self :camera tumble last-x last-y x y)
+                           nil)
+                         (swap! (:ui-state self) assoc
+                                :last-x x
+                                :last-y y)
+                         nil)
+                       action))
+      action)))
+
 (n/defnode CameraController
   (property camera Camera)
 
@@ -321,32 +357,5 @@
   (input viewport Region)
   (output viewport Region (fnk [viewport] viewport))
   (output camera Region produce-camera)
-
-  (on :input
-      (let [action (:action event)
-            viewport (g/node-value self :viewport)]
-        (case (:type action)
-         :scroll (when (contains? (:movements-enabled self) :dolly)
-                   (let [dy (:delta-y action)]
-                     (ds/update-property self :camera dolly (* -0.002 dy))
-                     ))
-         :mouse-pressed (swap! (:ui-state self) assoc
-                               :last-x (:x action)
-                               :last-y (:y action)
-                               :movement (get (:movements-enabled self) (camera-movement action) :idle))
-         :mouse-released (swap! (:ui-state self) assoc
-                                :last-x nil
-                                :last-y nil
-                                :movement :idle)
-         :mouse-moved (let [{:keys [movement last-x last-y]} @(:ui-state self)
-                            {:keys [x y]} action]
-                        (when (not (= :idle movement))
-                          (case movement
-                            :dolly  (ds/update-property self :camera dolly (* -0.002 (- y last-y)))
-                            :track  (ds/update-property self :camera track viewport last-x last-y x y)
-                            :tumble (ds/update-property self :camera tumble last-x last-y x y)
-                            nil)
-                          (swap! (:ui-state self) assoc
-                                 :last-x x
-                                 :last-y y)))
-         nil))))
+  (output input-handler Runnable (fnk [] handle-input))
+)
