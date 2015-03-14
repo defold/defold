@@ -151,7 +151,7 @@
                  camera       (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
              (ds/connect background   :renderable      renderer     :renderables)
              (ds/connect camera       :camera          renderer     :camera)
-             (ds/connect camera       :self            editor       :controller)
+             (ds/connect camera       :input-handler   editor       :input-handlers)
              (ds/connect editor       :viewport        camera       :viewport)
              (ds/connect editor       :viewport        renderer     :viewport)
              (ds/connect editor       :drawable        renderer     :drawable)
