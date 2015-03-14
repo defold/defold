@@ -108,12 +108,13 @@
                    :render-fn (:render-fn renderable)
                    :message "skipping renderable")))))
 
-(defrecord TextRendererRef [^TextRenderer text-renderer]
+(defrecord TextRendererRef [^TextRenderer text-renderer ^GLContext context]
   clojure.lang.IDeref
   (deref [this] text-renderer)
   IDisposable
   (dispose [this]
     (prn "disposing text-renderer")
+    (when context (.makeCurrent context))
     (.dispose text-renderer)))
 
 (defmethod print-method TextRendererRef
@@ -148,7 +149,7 @@
   (input renderables [t/RenderData])
   (input drawable GLAutoDrawable)
 
-  (output text-renderer TextRendererRef :cached (fnk [] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
+  (output text-renderer TextRendererRef :cached (fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
   (output frame BufferedImage produce-frame) ; TODO cache when the cache bug is fixed
   )
 
