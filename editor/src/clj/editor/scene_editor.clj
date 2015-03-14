@@ -168,6 +168,13 @@
         (ds/transactional (ds/set-property self :gl-drawable drawable))
         drawable))))
 
+(defn dispatch-input [input-handlers action]
+  (ds/transactional
+    (reduce (fn [action input-handler]
+              (let [node (first input-handler)
+                    label (second input-handler)]
+                (when action ((g/node-value node label) node action)))) action input-handlers)))
+
 (n/defnode SceneEditor
   (inherits n/Scope)
 
@@ -178,7 +185,7 @@
   (property visible s/Bool (default true))
 
   (input frame BufferedImage)
-  (input controller `t/Node)
+  (input input-handlers [Runnable])
 
   (output drawable GLAutoDrawable :cached produce-drawable)
   (output viewport Region (fnk [viewport] viewport))
@@ -199,9 +206,8 @@
         (ds/set-property self :image-view image-view)
         (let [self-ref (t/node-ref self)
               event-handler (reify EventHandler (handle [this e]
-                                                  (let [self @self-ref
-                                                        controller (ds/node-feeding-into self :controller)]
-                                                    (n/dispatch-message controller :input :action (i/action-from-jfx e)))))
+                                                  (let [self @self-ref]
+                                                    (dispatch-input (ds/sources-of self :input-handlers) (i/action-from-jfx e)))))
               change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                       (let [self @self-ref
                                                             bb ^BoundingBox new-val
