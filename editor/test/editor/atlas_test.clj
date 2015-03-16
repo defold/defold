@@ -1,7 +1,6 @@
 (ns editor.atlas-test
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.test.check :as tc]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
@@ -14,9 +13,7 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system tempfile]]
             [dynamo.types :as t]
-            [editor.atlas :as atlas]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s])
+            [editor.atlas :as atlas])
   (:import [dynamo.types Image]
            [javax.imageio ImageIO]))
 
@@ -54,36 +51,36 @@
 
 (defn <-text
   [project-node text-format]
-  (ds/transactional
+  (g/transactional
     (ds/in project-node
-      (let [atlas (ds/add (n/construct atlas/AtlasNode :filename (atlas-tempfile text-format)))]
+      (let [atlas (g/add (n/construct atlas/AtlasNode :filename (atlas-tempfile text-format)))]
         (n/dispatch-message atlas :load :project project-node)
         atlas))))
 
-(n/defnode WildcardImageResourceNode
-  (inherits n/OutlineNode)
-  (output outline-label s/Str (fnk [filename] (t/local-name filename)))
-  (property filename (s/protocol t/PathManipulation) (visible false))
-  (output content Image :cached (fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))
+(g/defnode WildcardImageResourceNode
+  (inherits g/OutlineNode)
+  (output outline-label t/Str (g/fnk [filename] (t/local-name filename)))
+  (property filename (t/protocol t/PathManipulation) (visible false))
+  (output content Image :cached (g/fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))
 
 (defn test-project
   [image-resource-node-type]
-  (let [project-node (ds/transactional (ds/add (n/construct p/Project)))]
-    (ds/transactional
+  (let [project-node (g/transactional (g/add (n/construct p/Project)))]
+    (g/transactional
      (ds/in project-node
             (doseq [path #{"images/frame-01.png"
                            "images/frame-02.png"
                            "images/frame-03.png"
                            "images/small.png"
                            "images/large.png"}]
-              (ds/add (n/construct image-resource-node-type :filename (file/make-project-path project-node path))))
+              (g/add (n/construct image-resource-node-type :filename (file/make-project-path project-node path))))
             project-node))))
 
 (defn atlas-from-fixture
   [project-node atlas-text]
-  (ds/transactional
+  (g/transactional
     (ds/in project-node
-      (let [atlas (ds/add (n/construct atlas/AtlasNode :filename (atlas-tempfile atlas-text)))]
+      (let [atlas (g/add (n/construct atlas/AtlasNode :filename (atlas-tempfile atlas-text)))]
         (n/dispatch-message atlas :load :project project-node)
         atlas))))
 
@@ -157,60 +154,60 @@
           outline1     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect image from anim
-          atlas        (ds/transactional (ds/disconnect img-frame-02 :content anim1 :images) atlas)
+          atlas        (g/transactional (g/disconnect img-frame-02 :content anim1 :images) atlas)
           outline2     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect anim
-          atlas        (ds/transactional (ds/disconnect anim1 :animation atlas :animations) atlas)
+          atlas        (g/transactional (g/disconnect anim1 :animation atlas :animations) atlas)
           outline3     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect existing image
-          atlas        (ds/transactional (ds/connect img-frame-01 :content atlas :images) atlas)
+          atlas        (g/transactional (g/connect img-frame-01 :content atlas :images) atlas)
           outline4     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect image
-          atlas        (ds/transactional (ds/disconnect img-frame-01 :content atlas :images) atlas)
+          atlas        (g/transactional (g/disconnect img-frame-01 :content atlas :images) atlas)
           outline5     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; add anim
-          anim2        (ds/transactional (ds/add (n/construct atlas/AnimationGroupNode :id "anim2")))
-          atlas        (ds/transactional (ds/connect anim2 :animation atlas :animations) atlas)
+          anim2        (g/transactional (g/add (n/construct atlas/AnimationGroupNode :id "anim2")))
+          atlas        (g/transactional (g/connect anim2 :animation atlas :animations) atlas)
           outline6     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect image to anim
-          img-small    (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/small.png")))))
-          atlas        (ds/transactional (ds/connect img-small    :content anim2 :images) atlas)
-          atlas        (ds/transactional (ds/connect img-frame-01 :content anim2 :images) atlas)
+          img-small    (g/transactional (ds/in project-node (g/add (t/node-for-path project-node (file/make-project-path project-node "/images/small.png")))))
+          atlas        (g/transactional (g/connect img-small    :content anim2 :images) atlas)
+          atlas        (g/transactional (g/connect img-frame-01 :content anim2 :images) atlas)
           outline7     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect missing (placeholder) image
-          img-missing  (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/missing.png")))))
-          atlas        (ds/transactional (ds/connect img-missing :content anim2 :images) atlas)
+          img-missing  (g/transactional (ds/in project-node (g/add (t/node-for-path project-node (file/make-project-path project-node "/images/missing.png")))))
+          atlas        (g/transactional (g/connect img-missing :content anim2 :images) atlas)
           outline8     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect another missing (placeholder) image
-          img-missing2 (ds/transactional (ds/in project-node (ds/add (t/node-for-path project-node (file/make-project-path project-node "/images/missing2.png")))))
-          atlas        (ds/transactional (ds/connect img-missing2 :content anim2 :images) atlas)
+          img-missing2 (g/transactional (ds/in project-node (g/add (t/node-for-path project-node (file/make-project-path project-node "/images/missing2.png")))))
+          atlas        (g/transactional (g/connect img-missing2 :content anim2 :images) atlas)
           outline9     (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect placeholder
-          atlas        (ds/transactional (ds/disconnect img-missing :content anim2 :images) atlas)
+          atlas        (g/transactional (g/disconnect img-missing :content anim2 :images) atlas)
           outline10    (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect duplicate existing image
-          atlas        (ds/transactional (ds/connect img-frame-01 :content anim2 :images) atlas)
+          atlas        (g/transactional (g/connect img-frame-01 :content anim2 :images) atlas)
           outline11    (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect duplicate existing image
-          atlas        (ds/transactional (ds/disconnect img-frame-01 :content anim2 :images) atlas)
+          atlas        (g/transactional (g/disconnect img-frame-01 :content anim2 :images) atlas)
           outline12    (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; connect duplicate missing (placeholder) image
-          atlas        (ds/transactional (ds/connect img-missing2 :content anim2 :images) atlas)
+          atlas        (g/transactional (g/connect img-missing2 :content anim2 :images) atlas)
           outline13    (g/node-value (:graph @world-ref) cache atlas :outline-tree)
 
           ; disconnect duplicate missing (placeholder) image
-          atlas        (ds/transactional (ds/disconnect img-missing2 :content anim2 :images) atlas)
+          atlas        (g/transactional (g/disconnect img-missing2 :content anim2 :images) atlas)
           outline14    (g/node-value (:graph @world-ref) cache atlas :outline-tree)]
       (are [outline-tree expected] (= expected (simple-outline outline-tree))
         outline1  ["Atlas" [["anim1" [["frame-01.png" []] ["frame-02.png" []] ["frame-03.png" []]]]]]

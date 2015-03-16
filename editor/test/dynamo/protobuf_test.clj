@@ -1,34 +1,29 @@
 (ns dynamo.protobuf-test
   (:require [clojure.test :refer :all]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [plumbing.core :refer [fnk]]
-            [dynamo.file :as f]
             [dynamo.file.protobuf :refer :all]
-            [dynamo.node :as n]
-            [dynamo.types :refer :all]
-            [dynamo.texture :refer :all]
+            [dynamo.graph :as g]
             [dynamo.image :refer :all]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system]]
-            [internal.transaction :as it])
+            [dynamo.texture :refer :all]
+            [dynamo.types :as t :refer :all])
   (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [dynamo.types Animation Image]))
 
-(n/defnode AtlasNode
-  (property extrude-borders s/Int)
-  (property margin          s/Int)
+(g/defnode AtlasNode
+  (property extrude-borders t/Int)
+  (property margin          t/Int)
 
-  (input images     [s/Str])
-  (input animations [s/Str]))
+  (input images     [t/Str])
+  (input animations [t/Str]))
 
-(n/defnode AtlasAnimationNode
-  (property id s/Str)
-  (input  images    [s/Str])
-  (output animation s/Str (fnk [id] (str "Animation " id))))
+(g/defnode AtlasAnimationNode
+  (property id t/Str)
+  (input  images    [t/Str])
+  (output animation t/Str (g/fnk [id] (str "Animation " id))))
 
-(n/defnode AtlasImageNode
-  (property image s/Str))
+(g/defnode AtlasImageNode
+  (property image t/Str))
 
 (protocol-buffer-converters
  TestAtlasProto$Atlas
@@ -56,7 +51,7 @@
   (testing "Children of the atlas node should be created exactly once."
     (with-clean-system
       (let [message    (atlas-with-one-animation "the-animation")
-            atlas-node (ds/transactional (message->node message))
+            atlas-node (g/transactional (message->node message))
             anim-node  (ds/node-feeding-into atlas-node :animations)]
         (is (not (nil? atlas-node)))
         (is (= 7 (:margin atlas-node)))

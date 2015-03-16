@@ -73,3 +73,12 @@
              ~gsym
              (for [~@bindings]
                [~@loop-vars]))))
+
+(defn map-nodes
+  [f g]
+  (update-in g [:nodes]
+             #(persistent!
+               (reduce-kv
+                (fn [nodes id v] (assoc! nodes id (f v)))
+                (transient {})
+                %))))

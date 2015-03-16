@@ -1,4 +1,4 @@
-(ns editor.graph_view
+(ns editor.graph-view
   (:require [clojure.java.io :as io]
             [editor.ui :as ui])
   (:import [java.io File]

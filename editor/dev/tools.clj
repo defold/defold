@@ -17,8 +17,7 @@
             [internal.graph.lgraph :as lg]
             [internal.java :as j]
             [internal.node :as in]
-            [internal.system :as is]
-            [schema.core :as s])
+            [internal.system :as is])
   (:import [java.awt Dimension]
            [javafx.application Platform]
            [javafx.embed.swing JFXPanel]
@@ -34,9 +33,9 @@
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
-(defn the-world       [] (-> is/the-system deref :world))
+(defn the-world       [] (-> ds/the-system deref :world))
 (defn the-world-state [] (-> (the-world) :state deref))
-(defn the-cache       [] (-> is/the-system deref :cache))
+(defn the-cache       [] (-> ds/the-system deref :cache))
 (defn the-graph       [] (-> (the-world-state) :graph))
 (defn nodes           [] (-> (the-graph) :nodes vals))
 

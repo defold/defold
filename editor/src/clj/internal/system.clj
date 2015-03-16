@@ -1,64 +1,44 @@
 (ns internal.system
   (:require [clojure.core.async :as a]
             [com.stuartsierra.component :as component]
-            [dynamo.node :as n]
             [dynamo.types :as t]
-            [dynamo.ui :as ui]
             [dynamo.util :as util]
             [internal.bus :as bus]
             [internal.cache :as c]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
-            [internal.repaint :as repaint]
-            [internal.transaction :as it]
-            [schema.core :as s]
-            [service.log :as log :refer [logging-exceptions]]))
+            [internal.transaction :as it]))
 
 (def ^:private maximum-cached-items     10000)
 (def ^:private maximum-disposal-backlog 2500)
 
-(prefer-method print-method java.util.Map clojure.lang.IDeref)
+(prefer-method print-method java.util.Map               clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
+(prefer-method print-method clojure.lang.IRecord        clojure.lang.IDeref)
 
 (defn graph [world-ref]
   (-> world-ref deref :graph))
 
-(defn- attach-root
-  [g r]
-  (lg/add-labeled-node g (t/inputs r) (t/outputs r) r))
-
 (defn new-world-state
-  [state root repaint-needed disposal-queue]
-  {:graph               (attach-root (dg/empty-graph) root)
+  [initial-graph disposal-queue]
+  {:graph               initial-graph
    :world-time          0
    :message-bus         (bus/make-bus)
-   :disposal-queue      disposal-queue
-   :repaint-needed      repaint-needed})
+   :disposal-queue      disposal-queue})
 
 (defn- new-history
-  [state repaint-needed]
+  [state]
   {:state state
-   :repaint-needed repaint-needed
    :undo-stack []
    :redo-stack []})
 
-(defrecord World [started state history undo-context repaint-needed disposal-queue]
+(defrecord World [state history]
   component/Lifecycle
   (start [this]
-    (if (:started this)
-      this
-      (dosync
-        (let [root (n/construct n/RootScope :world-ref state :_id 1)]
-          (ref-set state (new-world-state state root repaint-needed disposal-queue))
-          (ref-set history (new-history state repaint-needed))
-          (assoc this :started true)))))
+    (assoc this :started? true))
+
   (stop [this]
-    (if (:started this)
-      (dosync
-        (ref-set state nil)
-        (ref-set history nil)
-        (assoc this :started false))
-      this)))
+    (assoc this :started? false)))
 
 (defn- transaction-applied?
   [{old-world-time :world-time} {new-world-time :world-time :as new-world}]
@@ -69,27 +49,14 @@
   (when (transaction-applied? old-world new-world)
     (a/put! report-ch last-tx)))
 
-(defn- nodes-modified
-  [graph last-tx]
-  (map #(dg/node graph (first %)) (:outputs-modified last-tx)))
-
-(defn- schedule-repaints
-  [repaint-needed _ world-ref old-world {last-tx :last-tx graph :graph :as new-world}]
-  (when (transaction-applied? old-world new-world)
-    (repaint/schedule-repaint repaint-needed (keep
-                                               #(when (satisfies? t/Frame %) %)
-                                               (nodes-modified graph last-tx)))))
-
 (def history-size-min 50)
 (def history-size-max 60)
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
 
-#_(declare record-history-operation)
-
 (defn- history-label [world]
   (or (get-in world [:last-tx :label]) (str "World Time: " (:world-time world))))
 
-(defn- push-history [history-ref undo-context _ world-ref old-world new-world]
+(defn- push-history [history-ref  _ world-ref old-world new-world]
   (when (transaction-applied? old-world new-world)
     (dosync
       (assert (= (:state @history-ref) world-ref))
@@ -97,12 +64,7 @@
       (alter history-ref assoc-in  [:redo-stack] []))
     #_(record-history-operation undo-context (history-label new-world))))
 
-(defn- repaint-all [graph repaint-needed]
-  (let [nodes (dg/node-values graph)
-        nodes-to-repaint (keep #(when (satisfies? t/Frame %) %) nodes)]
-    (repaint/schedule-repaint repaint-needed nodes-to-repaint)))
-
-(defn- undo-history [history-ref]
+(defn undo-history [history-ref]
   (dosync
     (let [world-ref (:state @history-ref)
           old-world @world-ref
@@ -110,10 +72,9 @@
       (when new-world
         (ref-set world-ref (dissoc new-world :last-tx))
         (alter history-ref update-in [:undo-stack] pop)
-        (alter history-ref update-in [:redo-stack] conj old-world)
-        (repaint-all (:graph new-world) (:repaint-needed @history-ref))))))
+        (alter history-ref update-in [:redo-stack] conj old-world)))))
 
-(defn- redo-history [history-ref]
+(defn redo-history [history-ref]
   (dosync
     (let [world-ref (:state @history-ref)
           old-world @world-ref
@@ -121,66 +82,35 @@
       (when new-world
         (ref-set world-ref (dissoc new-world :last-tx))
         (alter history-ref update-in [:undo-stack] conj old-world)
-        (alter history-ref update-in [:redo-stack] pop)
-        (repaint-all (:graph new-world) (:repaint-needed @history-ref))))))
+        (alter history-ref update-in [:redo-stack] pop)))))
 
 (defn world
-  [repaint-needed disposal-queue]
-  (let [world-ref    (ref nil)
-        history-ref  (ref nil)
-        undo-context {} #_(UndoContext.)]
-    (add-watch world-ref :schedule-repaints (partial schedule-repaints repaint-needed))
-    (add-watch world-ref :push-history      (partial push-history history-ref undo-context))
-    (->World false world-ref history-ref undo-context repaint-needed disposal-queue)))
+  [initial-graph disposal-queue]
+  (let [world-ref      (ref nil)
+        injected-graph (dg/map-nodes #(assoc % :world-ref world-ref) initial-graph)
+        history-ref    (ref (new-history world-ref))]
+    (dosync (ref-set world-ref (new-world-state injected-graph disposal-queue)))
+    (add-watch world-ref :push-history (partial push-history history-ref))
+    (map->World {:state        world-ref
+                 :history      history-ref})))
 
 (defn system
- []
- (let [repaint-needed (ref #{})
-       disposal-queue (a/chan (a/dropping-buffer maximum-disposal-backlog))]
+ [configuration]
+ (let [disposal-queue (a/chan (a/dropping-buffer maximum-disposal-backlog))]
    (component/map->SystemMap
-    {:world     (world repaint-needed disposal-queue)
-     :repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])
+    {:world     (world (:initial-graph configuration) disposal-queue)
      :cache     (component/using (c/cache-subsystem maximum-cached-items disposal-queue) [:world])})))
 
-(def the-system (atom (system)))
+(defn start-system
+  [sys]
+  (let [system-map (component/start sys)
+        state      (-> system-map :world :state)
+        graph      (-> state deref :graph)
+        root       (dg/node graph 1)]
+    (it/set-world-ref! state)
+    (alter-var-root #'it/*scope* (constantly root))
+    system-map))
 
-(defn system-cache [] (-> @the-system :cache))
-
-(defn world-ref [] (-> @the-system :world :state))
-
-(defn world-graph [] (-> (world-ref) deref :graph))
-
-(defn start
-  ([]    (let [system-map (start the-system)
-               state (-> system-map :world :state)
-               graph (-> state deref :graph)
-               root (dg/node graph 1)]
-           (it/set-world-ref! state)
-           (alter-var-root #'it/*scope* (constantly root))
-           system-map))
-  ([sys] (swap! sys component/start-system)))
-
-(defn stop
-  ([]    (stop the-system))
-  ([sys] (swap! sys component/stop-system)))
-
-(defn undo
-  ([]    (undo the-system))
-  ([sys] (undo-history (-> @sys :world :history))))
-
-(defn redo
-  ([]    (redo the-system))
-  ([sys] (redo-history (-> @sys :world :history))))
-
-(defn undo-context
-  ([]    (undo-context the-system))
-  ([sys] (-> @sys :world :undo-context)))
-
-#_(defn history-operation [undo-context label]
-  (doto (GenericOperation. label undo redo)
-   (.addContext undo-context)))
-
-#_(defn record-history-operation [undo-context label]
-  (comment (let [operation (history-operation undo-context label)
-                history (.. PlatformUI getWorkbench getOperationSupport getOperationHistory)]
-            (.add history operation))))
+(defn stop-system
+  [sys]
+  (component/stop-system sys))

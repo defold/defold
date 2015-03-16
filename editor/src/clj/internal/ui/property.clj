@@ -8,13 +8,9 @@
             [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.ui :as ui]
             [dynamo.ui.widgets :as widgets]
             [dynamo.util :refer :all]
-            [internal.node :as in]
-            [internal.system :as is]
             [plumbing.core :refer [defnk]]
-            [schema.core :as s]
             [service.log :as log]))
 
 (defrecord ValidationPresenter []
@@ -165,9 +161,9 @@
                       {:type :composite
                        :layout {:type :stack}}]]}])
 
-(n/defnode PropertyView
+(g/defnode PropertyView
   (input  properties [t/Properties])
-  (output content s/Any aggregate-properties)
+  (output content t/Any aggregate-properties)
 
   (input  presenter-registry t/Registry :inject)
   (output presenter-registry t/Registry passthrough-presenter-registry)
@@ -178,7 +174,7 @@
           ;;ui-event-listener (ui/make-listener #(n/dispatch-message self :ui-event :ui-event %) [])
           ]
       (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page properties-form)
-      (ds/set-property self
+      (g/set-property self
         :sheet-cache       sheet-cache
         :properties-form   properties-form)))
 
@@ -195,25 +191,25 @@
               result (dp/on-event presenter widget-subtree path presenter-event old-value)]
           (when-let [new-value (:value result)]
             (when (not= new-value old-value)
-              (ds/tx-label (str "Set " (keyword->label prop-name)))
-              (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
+              (g/operation-label (str "Set " (keyword->label prop-name)))
+              (g/set-property {:_id (:node-id prop)} prop-name new-value))))
         (log/warn :message "Expected event from widget on active property page"))))
 
 ;;  ISelectionListener
   #_(selectionChanged [this part selection]
     (let [current-inputs (ds/sources-of this :properties)]
       (when (not= @selection (map (comp :_id first) current-inputs))
-        (ds/transactional
+        (g/transactional
           (doseq [[source-node source-label] current-inputs]
-            (ds/disconnect source-node source-label this :properties))
+            (g/disconnect source-node source-label this :properties))
           (doseq [n @selection]
-            (ds/connect {:_id n} :properties this :properties)))))))
+            (g/connect {:_id n} :properties this :properties)))))))
 
 #_(defn implementation-for
   [scope]
-  (ds/transactional
+  (g/transactional
     (ds/in scope
-      (ds/add (n/construct PropertyView)))))
+      (g/add (n/construct PropertyView)))))
 
 #_(defn get-control
   "This is called by the Java shim GenericPropertySheetPage. Not for other use."
