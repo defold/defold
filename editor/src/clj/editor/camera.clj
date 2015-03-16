@@ -326,7 +326,7 @@
                               :last-y (:y action)
                               :movement movement)
                        (if (= movement :idle) action nil))
-      :mouse-released (let [movement (:movement (:ui-state self))]
+      :mouse-released (let [movement (:movement @(:ui-state self))]
                         (swap! (:ui-state self) assoc
                                :last-x nil
                                :last-y nil
