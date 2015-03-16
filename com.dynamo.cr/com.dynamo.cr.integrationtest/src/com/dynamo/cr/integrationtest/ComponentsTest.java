@@ -28,8 +28,11 @@ import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.GameObjectPresenter;
+import com.dynamo.cr.go.core.RefComponentNode;
+import com.dynamo.cr.go.core.operations.AddComponentOperation;
 import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.tileeditor.scene.SpriteNode;
 
 public class ComponentsTest extends AbstractSceneTest {
 
@@ -121,6 +124,36 @@ public class ComponentsTest extends AbstractSceneTest {
             }
         }
 
+    }
+
+    /**
+     * Test line break modification integrity of google protocol message-buffer IO
+     * @throws Exception
+     */
+    @Test
+    public void testMessageStringLineBreakIntegrity() throws Exception {
+        testLoad();
+
+        final String testString = new String("begin:backslash+strnewline+newline\\\\n\n\"strinstr+newline\"\nbackslash+newline\\\n:end");
+
+        GameObjectNode go = (GameObjectNode)getModel().getRoot();
+        RefComponentNode component = new RefComponentNode(new SpriteNode());
+        component.setId(testString);
+        component.setComponent("sprite");
+        AddComponentOperation op = new AddComponentOperation(go, component, getPresenterContext());
+        getModel().executeOperation(op);
+
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        getPresenter().onSave(stream, null);
+
+        go.removeChild(go.getChildren().get(0));
+
+        ByteArrayInputStream stream_in = new ByteArrayInputStream(stream.toByteArray());
+        getPresenter().onLoad("go", stream_in);
+
+        go = (GameObjectNode) getModel().getRoot();
+        RefComponentNode sgo = (RefComponentNode) go.getChildren().get(0);
+        assertTrue(testString.equals(sgo.getId()));
     }
 
     static private int MapObjectsArrayByType(Map<String, String> map, Object objects[]) {
