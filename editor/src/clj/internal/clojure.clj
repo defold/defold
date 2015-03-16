@@ -1,12 +1,11 @@
 (ns internal.clojure
   (:require [clojure.java.io :as io]
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
-            [plumbing.core :refer [defnk]]
             [dynamo.file :as file]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds]
-            [dynamo.types :as t]
-            [service.log :as log])
+            [dynamo.types :as t])
   (:import [clojure.lang LineNumberingPushbackReader]))
 
 (defn clojure-source?
@@ -28,12 +27,12 @@
       (ds/in project
         (binding [*warn-on-reflection* true]
           (Compiler/load (io/reader path) (t/local-path path) (.getName source-file)))
-        (ds/set-property node :namespace (UnloadableNamespace. ns-decl)))
+        (g/set-property node :namespace (UnloadableNamespace. ns-decl)))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (println compile-error)))))
 
-(n/defnode ClojureSourceNode
-  (inherits n/ResourceNode)
+(g/defnode ClojureSourceNode
+  (inherits g/ResourceNode)
 
   (property namespace UnloadableNamespace)
 

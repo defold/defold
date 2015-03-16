@@ -1,12 +1,10 @@
 (ns editor.image-node
-  (:require [schema.core :as s]
-            [plumbing.core :refer [fnk]]
-            [dynamo.node :as n]
+  (:require [dynamo.graph :as g]
             [dynamo.image :as i]
             [dynamo.types :as t]))
 
-(n/defnode ImageResourceNode
+(g/defnode ImageResourceNode
   "Produces an image on demand. Can be shown in an outline view."
   (inherits i/ImageSource)
-  (inherits n/OutlineNode)
-  (output outline-label s/Str (fnk [filename] (t/local-name filename))))
+  (inherits g/OutlineNode)
+  (output outline-label t/Str (g/fnk [filename] (t/local-name filename))))

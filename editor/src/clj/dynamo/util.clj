@@ -1,11 +1,18 @@
 (ns dynamo.util
-  (:require [clojure.java.io :as io]
+  (:require [camel-snake-kebab :refer :all]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [camel-snake-kebab :refer :all]))
+            [potemkin.namespaces :as namespaces]))
 
 (defn removev [pred coll]
   (filterv (complement pred) coll))
+
+(defn applym
+  "Like apply, but with a map. Flattens the key/value pairs
+into an arglist."
+  [f m]
+  (apply f (mapcat identity m)))
 
 (defn map-keys
   [f m]

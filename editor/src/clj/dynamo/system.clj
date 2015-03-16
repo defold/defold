@@ -9,6 +9,7 @@
             [internal.graph.lgraph :as lg]
             [internal.graph.query :as q]
             [internal.graph.tracing :as gt]
+            [internal.system :as is]
             [internal.transaction :as it :refer [Transaction *transaction*]]))
 
 (defn- n->g
@@ -123,35 +124,25 @@ to distinguish it from a function call."
   []
   it/*scope*)
 
-(defmacro transactional
-  "Executes the body within a project transaction. All actions
-described in the body will happen atomically at the end of the transactional
-block.
-
-Transactional blocks nest nicely. The transaction will happen when the outermost
-block ends."
-  [& forms]
-  `(transactional* (fn [] ~@forms)))
-
-(defn connect
+(defn ^:deprecated connect
   "Make a connection from an output of the source node to an input on the target node.
 Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
   (it/tx-bind *transaction* (it/connect source-node source-label target-node target-label)))
 
-(defn disconnect
+(defn ^:deprecated disconnect
   "Remove a connection from an output of the source node to the input on the target node.
 Note that there might still be connections between the two nodes, from other outputs to other inputs.
 Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
   (it/tx-bind *transaction* (it/disconnect source-node source-label target-node target-label)))
 
-(defn become
+(defn ^:deprecated become
   [source-node new-node]
   (it/tx-bind *transaction* (it/become source-node new-node))
   new-node)
 
-(defn set-property
+(defn ^:deprecated set-property
   "Assign a value to a node's property (or properties) value(s) in a transaction."
   [n & kvs]
   (it/tx-bind *transaction*
@@ -159,7 +150,7 @@ Takes effect when a transaction is applied."
       (it/update-property n p (constantly v) [])))
   n)
 
-(defn update-property
+(defn ^:deprecated update-property
   "Apply a function to a node's property in a transaction. The function f will be
 invoked as if by (apply f current-value args)"
   [n p f & args]
@@ -205,7 +196,7 @@ inherits from dynamo.node/Scope."
        (node world-ref (:_id n))
        n)))
 
-(defn tx-label
+(defn ^:deprecated tx-label
   [label]
   (it/tx-bind *transaction* (it/label label)))
 
@@ -255,3 +246,33 @@ inherits from dynamo.node/Scope."
 (defn parent
   [graph n]
   (first (drop 1 (path-to-root graph n))))
+
+
+;; ---------------------------------------------------------------------------
+;; Boot and initialization
+;; ---------------------------------------------------------------------------
+(def the-system (atom nil))
+
+(defn system-cache [] (-> @the-system :cache))
+(defn world-ref    [] (-> @the-system :world :state))
+(defn ^:deprecated world-graph  [] (-> (world-ref) deref :graph))
+
+(defn initialize
+  [config]
+  (reset! the-system (is/system config)))
+
+(defn start
+  []
+  (swap! the-system is/start-system))
+
+(defn stop
+  []
+  (swap! the-system is/stop-system))
+
+(defn undo
+  []
+  (is/undo-history (-> @the-system :world :history)))
+
+(defn redo
+  []
+  (is/redo-history (-> @the-system :world :history)))

@@ -5,37 +5,35 @@
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [add in]]
             [dynamo.system.test-support :refer :all]
+            [dynamo.types :as t]
             [internal.graph.lgraph :as lg]
-            [internal.node :as in]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]
-            [schema.macros :as sm]))
+            [internal.node :as in]))
 
-(n/defnode Receiver
+(g/defnode Receiver
   (input surname String :inject)
-  (input samples [s/Num] :inject)
-  (input label s/Any :inject))
+  (input samples [t/Num] :inject)
+  (input label t/Any :inject))
 
-(defnk produce-string :- String
+(g/defnk produce-string :- String
   []
   "nachname")
 
-(n/defnode Sender1
+(g/defnode Sender1
   (output surname String produce-string))
 
-(defnk produce-sample :- Integer
+(g/defnk produce-sample :- Integer
   []
   42)
 
-(n/defnode Sampler
+(g/defnode Sampler
   (output sample Integer produce-sample))
 
-(defnk produce-label :- s/Keyword
+(g/defnk produce-label :- t/Keyword
   []
   :a-keyword)
 
-(n/defnode Labeler
-  (output label s/Keyword produce-label))
+(g/defnode Labeler
+  (output label t/Keyword produce-label))
 
 (deftest compatible-inputs-and-outputs
   (let [recv    (n/construct Receiver)
@@ -46,116 +44,116 @@
     (is (= #{[sampler :sample  recv :samples]} (in/injection-candidates [recv] [sampler])))
     (is (= #{[labeler :label   recv :label]}   (in/injection-candidates [recv] [labeler])))))
 
-(n/defnode ValueConsumer
-  (input local-names [s/Str] :inject)
-  (output concatenation s/Str (fnk [local-names] (str/join local-names))))
+(g/defnode ValueConsumer
+  (input local-names [t/Str] :inject)
+  (output concatenation t/Str (g/fnk [local-names] (str/join local-names))))
 
-(n/defnode InjectionScope
-  (inherits n/Scope)
-  (input local-name s/Str :inject)
-  (output passthrough s/Str (fnk [local-name] local-name)))
+(g/defnode InjectionScope
+  (inherits g/Scope)
+  (input local-name t/Str :inject)
+  (output passthrough t/Str (g/fnk [local-name] local-name)))
 
-(n/defnode ValueProducer
-  (property value s/Str)
-  (output local-name s/Str (fnk [value] value)))
+(g/defnode ValueProducer
+  (property value t/Str)
+  (output local-name t/Str (g/fnk [value] value)))
 
 (deftest dependency-injection
   (testing "attach node output to input on scope"
     (with-clean-system
-      (let [scope (ds/transactional
-                    (ds/in (ds/add (n/construct InjectionScope))
-                           (ds/add (n/construct ValueProducer :value "a known value"))
+      (let [scope (g/transactional
+                    (ds/in (g/add (n/construct InjectionScope))
+                           (g/add (n/construct ValueProducer :value "a known value"))
                       (ds/current-scope)))]
         (is (= "a known value" (g/node-value (:graph @world-ref) cache scope :passthrough))))))
 
   (testing "attach one node output to input on another node"
     (with-clean-system
-      (let [consumer (ds/transactional
-                       (ds/in (ds/add (n/construct n/Scope))
-                              (ds/add (n/construct ValueProducer :value "a known value"))
-                              (ds/add (n/construct ValueConsumer))))]
+      (let [consumer (g/transactional
+                       (ds/in (g/add (n/construct g/Scope))
+                              (g/add (n/construct ValueProducer :value "a known value"))
+                              (g/add (n/construct ValueConsumer))))]
         (def con* consumer)
         (def gr* (:graph @world-ref))
         (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation))))))
 
   (testing "attach nodes in different transactions"
     (with-clean-system
-      (let [scope (ds/transactional
-                    (ds/add (n/construct n/Scope)))
-            consumer (ds/transactional
+      (let [scope (g/transactional
+                    (g/add (n/construct g/Scope)))
+            consumer (g/transactional
                        (ds/in scope
-                         (ds/add (n/construct ValueConsumer))))
-            producer (ds/transactional
+                         (g/add (n/construct ValueConsumer))))
+            producer (g/transactional
                        (ds/in scope
-                              (ds/add (n/construct ValueProducer :value "a known value"))))]
+                              (g/add (n/construct ValueProducer :value "a known value"))))]
         (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation))))))
 
   (testing "attach nodes in different transactions and reverse order"
     (with-clean-system
-      (let [scope (ds/transactional
-                    (ds/add (n/construct n/Scope)))
-            producer (ds/transactional
+      (let [scope (g/transactional
+                    (g/add (n/construct g/Scope)))
+            producer (g/transactional
                        (ds/in scope
-                              (ds/add (n/construct ValueProducer :value "a known value"))))
-            consumer (ds/transactional
+                              (g/add (n/construct ValueProducer :value "a known value"))))
+            consumer (g/transactional
                        (ds/in scope
-                         (ds/add (n/construct ValueConsumer))))]
+                         (g/add (n/construct ValueConsumer))))]
         (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation))))))
 
   (testing "explicitly connect nodes, see if injection also happens"
     (with-clean-system
-      (let [scope (ds/transactional
-                    (ds/add (n/construct n/Scope)))
-            producer (ds/transactional
+      (let [scope (g/transactional
+                    (g/add (n/construct g/Scope)))
+            producer (g/transactional
                        (ds/in scope
-                              (ds/add (n/construct ValueProducer :value "a known value"))))
-            consumer (ds/transactional
+                              (g/add (n/construct ValueProducer :value "a known value"))))
+            consumer (g/transactional
                        (ds/in scope
-                         (let [c (ds/add (n/construct ValueConsumer))]
+                         (let [c (g/add (n/construct ValueConsumer))]
                            (ds/connect producer :local-name c :local-names)
                            c)))]
         (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation)))))))
 
-(n/defnode ReflexiveFeedback
-  (property port s/Keyword (default :no))
-  (input ports [s/Keyword] :inject))
+(g/defnode ReflexiveFeedback
+  (property port t/Keyword (default :no))
+  (input ports [t/Keyword] :inject))
 
 (deftest reflexive-injection
   (testing "don't connect a node's own output to its input"
     (with-clean-system
-      (let [node (ds/transactional (ds/add (n/construct ReflexiveFeedback)))]
+      (let [node (g/transactional (g/add (n/construct ReflexiveFeedback)))]
         (is (not (lg/connected? (-> world-ref deref :graph) (:_id node) :port (:_id node) :ports)))))))
 
-(n/defnode OutputProvider
-  (inherits n/Scope)
-  (property context s/Int (default 0)))
+(g/defnode OutputProvider
+  (inherits g/Scope)
+  (property context t/Int (default 0)))
 
-(n/defnode InputConsumer
-  (input context s/Int :inject))
+(g/defnode InputConsumer
+  (input context t/Int :inject))
 
 (defn- create-simulated-project []
-  (ds/transactional (ds/add (n/construct n/Scope :tag :project))))
+  (g/transactional (g/add (n/construct g/Scope :tag :project))))
 
 (deftest adding-nodes-in-nested-scopes
   (testing "one consumer in a nested scope"
     (with-clean-system
      (let [project  (create-simulated-project)
-           provider (ds/transactional
-                      (ds/in (ds/add (n/construct OutputProvider :context 119))
-                        (ds/add (n/construct InputConsumer))
+           provider (g/transactional
+                      (ds/in (g/add (n/construct OutputProvider :context 119))
+                        (g/add (n/construct InputConsumer))
                         (ds/current-scope)))]
        (is (= 1 (count (ds/nodes-consuming provider :context)))))))
 
   (testing "two consumers each in their own nested scope"
     (with-clean-system
      (let [project   (create-simulated-project)
-           provider1 (ds/transactional
-                       (ds/in (ds/add (n/construct OutputProvider :context 119))
-                         (ds/add (n/construct InputConsumer))
+           provider1 (g/transactional
+                       (ds/in (g/add (n/construct OutputProvider :context 119))
+                         (g/add (n/construct InputConsumer))
                          (ds/current-scope)))
-           provider2 (ds/transactional
-                       (ds/in (ds/add (n/construct OutputProvider :context 113))
-                         (ds/add (n/construct InputConsumer))
+           provider2 (g/transactional
+                       (ds/in (g/add (n/construct OutputProvider :context 113))
+                         (g/add (n/construct InputConsumer))
                          (ds/current-scope)))]
        (is (= 1 (count (ds/nodes-consuming provider1 :context))))
        (is (= 1 (count (ds/nodes-consuming provider2 :context))))))))

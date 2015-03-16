@@ -2,6 +2,7 @@
   (:require [clojure.core.async :as a]
             [clojure.java.io :as io]
             [com.stuartsierra.component :as component]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [in]]
             [internal.async :as ia]
@@ -11,7 +12,8 @@
 
 (defn clean-system
   []
-  (component/start-system (is/system)))
+  (component/start-system
+   (is/system {:initial-graph (g/project-graph)})))
 
 (defmacro with-clean-system
   [& forms]
@@ -26,9 +28,9 @@
               ~@forms))))
 
 (defn tx-nodes [& resources]
-  (ds/transactional
+  (g/transactional
     (doseq [r resources]
-      (ds/add r))
+      (g/add r))
     resources))
 
 (defn await-world-time

@@ -3,7 +3,7 @@
 )
 
 (comment
-  (n/defnode Renderer
+  (g/defnode Renderer
     "This node type provides 3D rendering abilities. It should be mixed in to an editor or view node.
 
 Inputs:
@@ -56,9 +56,9 @@ Outputs
                                                   -100000
                                                   100000)
                               (assoc :viewport viewport))]
-          (ds/set-property camera-node :camera new-camera)
+          (g/set-property camera-node :camera new-camera)
           (when (:first-resize self)
-            (ds/set-property self :first-resize false)
+            (g/set-property self :first-resize false)
             (ds/send-after self {:type :reframe}))))
 
     (on :reframe
@@ -66,9 +66,9 @@ Outputs
               camera      (n/get-node-value camera-node :camera)
               aabb        (n/get-node-value self :aabb)]
           (when aabb ;; there exists an aabb to center on
-            (ds/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
+            (g/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
 
-  (n/defnode SceneEditor
+  (g/defnode SceneEditor
     "SceneEditor is the basis for all 2D orthographic and 3D perspective editors.
 It provides rendering behavior (inherited from Renderer). It also acts as a Scope for
 view-local nodes (e.g., view camera, controller, manipulator).
@@ -89,7 +89,7 @@ Messages:
 - :save    - Sent by the GUI when the user wants to save the content
 - :destroy - Clean up
 "
-    (inherits n/Scope)
+    (inherits g/Scope)
     (inherits Renderer)
 
     (input controller `t/Node)
@@ -120,7 +120,7 @@ Messages:
           (iuse/pipe-events-to-node canvas :resize self)
           (iuse/start-event-pump canvas self)
           (texture/initialize gl)
-          (ds/set-property self
+          (g/set-property self
                            ;; :outline-widget-tree (outline/outline-tree-gui)
                            :context context
                            :canvas canvas
@@ -132,7 +132,7 @@ Messages:
         (when (:context self)
           (texture/unload-all (.. ^GLContext (:context self) getGL)))
 
-        (ds/delete self))
+        (g/delete self))
 
     (on :save
         (n/get-node-value self :saveable))))

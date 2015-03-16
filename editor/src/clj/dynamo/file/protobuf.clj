@@ -1,13 +1,14 @@
 (ns dynamo.file.protobuf
-  (:require [clojure.java.io :as io]
+  (:require [camel-snake-kebab :refer :all]
+            [clojure.java.io :as io]
             [clojure.string :as str]
-            [dynamo.node :as n]
             [dynamo.file :as f]
+            [dynamo.graph :as g]
+            [dynamo.node :as n]
             [dynamo.system :as ds]
-            [internal.java :as j]
-            [camel-snake-kebab :refer :all])
-  (:import [java.io Reader]
-           [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]))
+            [internal.java :as j])
+  (:import [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]
+           [java.io Reader]))
 
 (defmacro set-if-present
   "Use this macro to set an optional field on a protocol buffer message.
@@ -68,7 +69,7 @@ it creates. Likewise, it is responsible for making connections as desired."
 
 (defn connection
   [[source-label _ target-label]]
-  (list `ds/connect 'node source-label 'this target-label))
+  (list `g/connect 'node source-label 'this target-label))
 
 (defn subordinate-mapper
   [class [from-property connections]]
@@ -87,7 +88,7 @@ it creates. Likewise, it is responsible for making connections as desired."
      (let [~'message-mapper ~(message-mapper class (:basic-properties spec))
            ~'basic-props    (~'message-mapper ~'protobuf)
            ~'this           (apply n/construct ~(:node-type spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
-       (ds/add ~'this)
+       (g/add ~'this)
        ~@(map (partial subordinate-mapper class) (:node-properties spec))
        ~@(map (partial class callback-field-mapper) (:field-mappers spec))
        ~'this)))
