@@ -15,6 +15,7 @@
             [editor.atlas :as atlas]
             [editor.cubemap :as cubemap]
             [editor.switcher :as switcher]
+            [editor.platformer :as platformer]
             [editor.jfx :as jfx]
             [editor.image-node :as ein]
             [editor.ui :as ui]
@@ -287,7 +288,8 @@
 
 (def editor-fns {:atlas atlas/construct-atlas-editor
                  :cubemap cubemap/construct-cubemap-editor
-                 :switcher switcher/construct-switcher-editor})
+                 :switcher switcher/construct-switcher-editor
+                 :platformer platformer/construct-platformer-editor})
 
 (defn- find-editor-fn [file]
   (let [ext (last (.split file "\\."))
@@ -415,7 +417,8 @@
                                                    "png" ein/ImageResourceNode
                                                    "atlas" atlas/AtlasNode
                                                    "cubemap" cubemap/CubemapNode
-                                                   "switcher" switcher/SwitcherNode}
+                                                   "switcher" switcher/SwitcherNode
+                                                   "platformer" platformer/PlatformerNode}
                                       :content-root content-root)))
         resources       (get-project-paths game-project content-root)
         _ (apply post-load "Loading" (load-resource-nodes game-project resources progress-bar))
