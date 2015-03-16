@@ -1,44 +1,42 @@
 (ns editor.boot
-  (:require [clojure.java.io :as io]
-            [schema.core :as s]
-            [internal.clojure :as clojure]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.java.io :as io]
+            [dynamo.file :as f]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
+            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.file :as f]
-            [dynamo.project :as p]
-            [internal.system :as is]
-            [internal.transaction :as it]
-            [internal.disposal :as disp]
-            [camel-snake-kebab :as camel]
-            [service.log :as log]
             [editor.atlas :as atlas]
             [editor.cubemap :as cubemap]
-            [editor.switcher :as switcher]
-            [editor.platformer :as platformer]
-            [editor.jfx :as jfx]
+            [editor.graph-view :as graph-view]
             [editor.image-node :as ein]
+            [editor.jfx :as jfx]
+            [editor.platformer :as platformer]
+            [editor.switcher :as switcher]
             [editor.ui :as ui]
-            [editor.graph_view :as graph_view])
-  (:import  [com.defold.editor Start UIUtil]
-            [java.io File]
-            [java.nio.file Paths]
-            [java.util.prefs Preferences]
-            [javafx.application Platform]
-            [javafx.fxml FXMLLoader]
-            [javafx.collections FXCollections ObservableList]
-            [javafx.scene Scene Node Parent]
-            [javafx.geometry Insets]
-            [javafx.stage Stage FileChooser]
-            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-            [javafx.scene.input MouseEvent]
-            [javafx.event ActionEvent EventHandler]
-            [javafx.scene.paint Color]
-            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
-            [javafx.embed.swing SwingFXUtils]
-            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-            [com.jogamp.opengl.util.awt Screenshot]))
+            [internal.clojure :as clojure]
+            [internal.disposal :as disp]
+            [service.log :as log])
+  (:import [com.defold.editor Start UIUtil]
+           [com.jogamp.opengl.util.awt Screenshot]
+           [javafx.application Platform]
+           [javafx.collections FXCollections ObservableList]
+           [javafx.embed.swing SwingFXUtils]
+           [javafx.event ActionEvent EventHandler]
+           [javafx.fxml FXMLLoader]
+           [javafx.geometry Insets]
+           [javafx.scene Scene Node Parent]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.image Image ImageView WritableImage PixelWriter]
+           [javafx.scene.input MouseEvent]
+           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
+           [javafx.scene.paint Color]
+           [javafx.stage Stage FileChooser]
+           [java.io File]
+           [java.nio.file Paths]
+           [java.util.prefs Preferences]
+           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
 (defn- split-ext [f]
   (let [n (.getPath f)
@@ -171,8 +169,8 @@
                        (let [old-val (key (ds/refresh node))]
                          (when-not (= new-val old-val)
                            (if (t/property-valid-value? property new-val)
-                             (ds/transactional
-                               (ds/set-property node key new-val)
+                             (g/transactional
+                               (g/set-property node key new-val)
                                (@setter-atom new-val))
                              (@setter-atom old-val)))))
         [control setter] (create-property-control! (t/property-value-type property) on-new-value)]
@@ -197,8 +195,8 @@
     (.add (.getChildren parent) grid)))
 
 ; Editors
-(n/defnode CurveEditor
-  (inherits n/Scope)
+(g/defnode CurveEditor
+  (inherits g/Scope)
   (on :create
       (let [btn (Button.)]
         (.setText btn "Curve Editor WIP!")
@@ -207,11 +205,11 @@
   t/IDisposable
   (dispose [this]))
 
-(n/defnode TextEditor
-  (inherits n/Scope)
-  (inherits n/ResourceNode)
+(g/defnode TextEditor
+  (inherits g/Scope)
+  (inherits g/ResourceNode)
 
-  (input text s/Str )
+  (input text t/Str )
 
   (on :create
       (let [textarea (TextArea.)]
@@ -222,23 +220,23 @@
   (dispose [this]
            (println "Dispose TextEditor")))
 
-(n/defnode TextNode
-  (inherits n/Scope)
-  (inherits n/ResourceNode)
+(g/defnode TextNode
+  (inherits g/Scope)
+  (inherits g/ResourceNode)
 
-  (property text s/Str)
+  (property text t/Str)
   (property a-vector t/Vec3 (default [1 2 3]))
   (property a-color t/Color (default [1 0 0 1]))
 
 
   (on :load
-      (ds/set-property self :text (slurp (:filename self)))))
+      (g/set-property self :text (slurp (:filename self)))))
 
 (defn on-edit-text
   [project-node text-node]
   (let [editor (n/construct TextEditor)]
-    (ds/in (ds/add editor)
-           (ds/connect text-node :text editor :text)
+    (ds/in (g/add editor)
+           (g/connect text-node :text editor :text)
            editor)))
 
 (defrecord ProjectPath [project-ref ^String path ^String ext]
@@ -262,10 +260,10 @@
         [path ext] (split-ext f)]
     (ProjectPath. game-project path ext)))
 
-(n/defnode GameProject
-  (inherits n/Scope)
+(g/defnode GameProject
+  (inherits g/Scope)
 
-  (property node-types         {s/Str s/Symbol})
+  (property node-types         {t/Str t/Symbol})
   ;TODO: Resource type instead of string?
   (property content-root File)
 
@@ -284,7 +282,7 @@
 
   (on :destroy
       (println "Destory GameProject")
-      (ds/delete self)))
+      (g/delete self)))
 
 (def editor-fns {:atlas atlas/construct-atlas-editor
                  :cubemap cubemap/construct-cubemap-editor
@@ -301,13 +299,13 @@
         parent (AnchorPane.)
         path (relative-path (:content-root game-project) file)
         resource-node (t/lookup game-project path)
-        node (ds/transactional
+        node (g/transactional
                (ds/in game-project
                       (let [editor-fn (find-editor-fn (.getName file))]
                         (editor-fn game-project resource-node))))
         close-handler (ui/event-handler event
-                        (ds/transactional
-                          (ds/delete node)))]
+                        (g/transactional
+                          (g/delete node)))]
 
     (if (satisfies? t/MessageTarget node)
       (let [tab (Tab. (.getName file))]
@@ -341,9 +339,9 @@
     (instance? Menu menu) (doseq [m (.getItems menu)]
                             (.addEventHandler m ActionEvent/ACTION handler))))
 
-(def system nil)
-;(is/stop)
-(def the-system (is/start))
+(ds/initialize {:initial-graph (g/project-graph)})
+
+(def the-system (ds/start))
 (def the-root (atom nil))
 
 (defn load-stage [game-project]
@@ -359,30 +357,30 @@
       (bind-menus (.lookup root "#menu-bar") handler))
 
     (let [close-handler (ui/event-handler event
-                          (ds/transactional
-                            (ds/delete game-project))
+                          (g/transactional
+                            (g/delete game-project))
                           (disp/dispose-pending (:state (:world the-system))))
           dispose-handler (ui/event-handler event (disp/dispose-pending (:state (:world  the-system))))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
     (setup-assets-browser game-project root)
-    (graph_view/setup-graph-view root (:world-ref game-project))
+    (graph-view/setup-graph-view root (:world-ref game-project))
     (reset! the-root root)
     root))
 
 ;(.setProgress (.lookup @the-root "#progress-bar") 1.0)
 
 (defn- create-view [game-project root place node-type]
-  (let [node (ds/transactional
+  (let [node (g/transactional
                (ds/in game-project
-                      (ds/add
+                      (g/add
                         (n/construct node-type))))]
     (n/dispatch-message node :create :parent (.lookup root place))))
 
 (defn load-resource-nodes
   [game-project paths ^ProgressBar progress-bar]
-  (ds/transactional
+  (g/transactional
     (ds/in game-project
         [game-project (doall
                         (for [p paths]
@@ -408,8 +406,8 @@
   [^File game-project-file]
   (let [progress-bar nil
         content-root (.getParentFile game-project-file)
-        game-project (ds/transactional
-                       (ds/add
+        game-project (g/transactional
+                       (g/add
                          (n/construct GameProject
                                       :node-types {"script" TextNode
                                                    "clj" clojure/ClojureSourceNode

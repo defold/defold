@@ -1,7 +1,5 @@
 (ns internal.node
   (:require [camel-snake-kebab :refer [->kebab-case]]
-            [clojure.core.async :as a]
-            [clojure.core.cache :as cache]
             [clojure.core.match :refer [match]]
             [clojure.set :as set]
             [dynamo.file :as file]
@@ -16,8 +14,7 @@
             [internal.metrics :as metrics]
             [internal.property :as ip]
             [plumbing.core :refer [fnk defnk]]
-            [plumbing.fnk.pfnk :as pf]
-            [schema.core :as s]))
+            [plumbing.fnk.pfnk :as pf]))
 
 (defn- resource?
   ([property-type]
@@ -112,7 +109,7 @@
      (assoc inputs desired-input-name
             (evaluate-input-internal graph in-production node-id desired-input-name chain-head)))
    {}
-   (dissoc input-schema s/Keyword)))
+   (dissoc input-schema t/Keyword)))
 
 (defn- produce-with-schema
   "Helper function: if the production function has schema information,
@@ -256,8 +253,9 @@
   (fn [graph in-production node-id label chain-head chain-next]
     (assert (= 2 (count chain-next)))
     (let [[consequent alternate & _] chain-next
-          branch?                    (test graph node-id label)]
-      (chain-eval (if branch? consequent alternate) graph in-production node-id label))))
+          branch?                    (test graph node-id label)
+          next-chain                 (if branch? consequent alternate)]
+      ((first next-chain) graph in-production node-id label chain-head (next next-chain)))))
 
 (defn- cacheable?
   "Check the node type to see if the given output should be cached once computed."
@@ -329,7 +327,7 @@ maybe cache the value that was produced, and return it."
   [transform]
   (let [production-fn (-> transform :production-fn)]
     (if (pfnk? production-fn)
-      (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
+      (into #{} (keys (dissoc (pf/input-schema production-fn) t/Keyword :this :g)))
       #{})))
 
 (defn dependency-seq
@@ -507,7 +505,7 @@ build the node type description (map). These are emitted where you invoked
     `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (fnk [~label] ~label))
 
     [(['on label & fn-body] :seq)]
-    `(attach-event-handler ~(keyword label) (fn [~'self ~'event] (dynamo.system/transactional ~@fn-body)))
+    `(attach-event-handler ~(keyword label) (fn [~'self ~'event] (dynamo.graph/transactional ~@fn-body)))
 
     [(['trigger label & rest] :seq)]
     (let [kinds (vec (take-while keyword? rest))
@@ -709,5 +707,5 @@ for all properties of this node."
       properties-affected)))
 
 (def node-intrinsics
-  [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
+  [(list 'output 'self `t/Any `(fnk [~'this] ~'this))
    (list 'output 'properties `t/Properties `gather-properties)])

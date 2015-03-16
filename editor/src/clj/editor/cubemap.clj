@@ -98,7 +98,7 @@
                            (str "/" (t/local-path filename)))) all-resource-nodes)]
     (zipmap filenames all-resource-nodes)))
 
-(n/defnode CubemapRender
+(g/defnode CubemapRender
   (input gpu-texture s/Any)
 
   (input  camera        Camera)
@@ -111,9 +111,9 @@
   [right-img left-img top-img bottom-img front-img back-img]
   (apply texture/image-cubemap-texture (map :contents [right-img left-img top-img bottom-img front-img back-img])))
 
-(n/defnode CubemapNode
-  (inherits n/ResourceNode)
-  (inherits n/OutlineNode)
+(g/defnode CubemapNode
+  (inherits g/ResourceNode)
+  (inherits g/OutlineNode)
 
   (property right  dp/ImageResource)
   (property left   dp/ImageResource)
@@ -145,20 +145,20 @@
   [project-node cubemap-node]
   (let [editor (n/construct sceneed/SceneEditor)]
     (ds/in (ds/add editor)
-           (let [cubemap-render (ds/add (n/construct CubemapRender))
-                 renderer     (ds/add (n/construct sceneed/SceneRenderer))
-                 background   (ds/add (n/construct background/Gradient))
-                 camera       (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
-             (ds/connect background   :renderable      renderer     :renderables)
-             (ds/connect camera       :camera          renderer     :camera)
-             (ds/connect camera       :input-handler   editor       :input-handlers)
-             (ds/connect editor       :viewport        camera       :viewport)
-             (ds/connect editor       :viewport        renderer     :viewport)
-             (ds/connect editor       :drawable        renderer     :drawable)
-             (ds/connect renderer     :frame           editor       :frame)
+           (let [cubemap-render (g/add (n/construct CubemapRender))
+                 renderer     (g/add (n/construct sceneed/SceneRenderer))
+                 background   (g/add (n/construct background/Gradient))
+                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
+             (g/connect background   :renderable      renderer     :renderables)
+             (g/connect camera       :camera          renderer     :camera)
+             (g/connect camera       :input-handler   editor       :input-handlers)
+             (g/connect editor       :viewport        camera       :viewport)
+             (g/connect editor       :viewport        renderer     :viewport)
+             (g/connect editor       :drawable        renderer     :drawable)
+             (g/connect renderer     :frame           editor       :frame)
 
-             (ds/connect cubemap-node   :gpu-texture     cubemap-render :gpu-texture)
-             (ds/connect cubemap-render :renderable      renderer     :renderables)
-             (ds/connect camera       :camera            cubemap-render     :camera)
+             (g/connect cubemap-node   :gpu-texture     cubemap-render :gpu-texture)
+             (g/connect cubemap-render :renderable      renderer     :renderables)
+             (g/connect camera       :camera            cubemap-render     :camera)
              )
            editor)))

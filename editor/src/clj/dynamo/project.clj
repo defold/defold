@@ -2,13 +2,12 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]
-            [dynamo.system :as ds]
             [dynamo.file :as file]
+            [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.selection :as selection]
+            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
@@ -19,15 +18,15 @@ ordinary paths."
 
 (defn register-node-type
   [filetype node-type]
-  (ds/update-property (ds/current-scope) :node-types assoc filetype node-type))
+  (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
 
 (defn register-editor
   [filetype editor-builder]
-  (ds/update-property (ds/current-scope) :handlers assoc-in [:editor filetype] editor-builder))
+  (g/update-property (ds/current-scope) :handlers assoc-in [:editor filetype] editor-builder))
 
 (defn register-presenter
   [property presenter]
-  (ds/update-property (ds/current-scope) :presenter-registry dp/register-presenter property presenter))
+  (g/update-property (ds/current-scope) :presenter-registry dp/register-presenter property presenter))
 
 (defn- editor-for [project-scope ext]
   (or
@@ -38,13 +37,13 @@ ordinary paths."
   (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) "."))
   n)
 
-(n/defnode Placeholder
+(g/defnode Placeholder
   "A Placeholder node represents a file-based asset that doesn't have any specific
 behavior."
-  (inherits n/ResourceNode)
-  (output content s/Any (fnk [] nil))
-  (inherits n/OutlineNode)
-  (output outline-label s/Str (fnk [filename] (t/local-name filename))))
+  (inherits g/ResourceNode)
+  (output content t/Any (g/fnk [] nil))
+  (inherits g/OutlineNode)
+  (output outline-label t/Str (g/fnk [filename] (t/local-name filename))))
 
 (defn- new-node-for-path
   [project-node path type-if-not-registered]
@@ -56,16 +55,16 @@ behavior."
   "Load a resource, usually from file. This will create a node of the appropriate type (as defined by
 `register-node-type` and send it a :load message."
   [project-node path]
-  (ds/transactional
+  (g/transactional
     (ds/in project-node
-      (ds/add
+      (g/add
         (new-node-for-path project-node path Placeholder)))))
 
-(n/defnode CannedProperties
-  (property rotation     s/Str    (default "twenty degrees starboard"))
-  (property translation  s/Str    (default "Guten abend."))
+(g/defnode CannedProperties
+  (property rotation     t/Str    (default "twenty degrees starboard"))
+  (property translation  t/Str    (default "Guten abend."))
   (property some-vector  t/Vec3   (default [1 2 3]))
-  (property some-integer s/Int    (default 42))
+  (property some-integer t/Int    (default 42))
   (property background   dp/Color (default [0x4d 0xc0 0xca])))
 
 (defn- build-editor-node
@@ -76,25 +75,25 @@ behavior."
 (defn- build-selection-node
   [editor-node selected-nodes]
   (ds/in editor-node
-    (let [selection-node  (ds/add (n/construct selection/Selection))
-          properties-node (ds/add (n/construct CannedProperties :rotation "e to the i pi"))]
+    (let [selection-node  (g/add (n/construct selection/Selection))
+          properties-node (g/add (n/construct CannedProperties :rotation "e to the i pi"))]
       (doseq [node selected-nodes]
-        (ds/connect node :self selection-node :selected-nodes))
+        (g/connect node :self selection-node :selected-nodes))
       selection-node)))
 
 (defn make-editor
   [project-node path]
-  (ds/transactional
+  (g/transactional
    (ds/in project-node
           (let [content-node   (t/lookup project-node path)
                 editor-node    (build-editor-node project-node path content-node)
                 selection-node (build-selection-node editor-node [content-node])]
             (when ((t/inputs editor-node) :presenter-registry)
-              (ds/connect project-node :presenter-registry editor-node :presenter-registry))
+              (g/connect project-node :presenter-registry editor-node :presenter-registry))
             (when (and ((t/inputs editor-node) :saveable) ((t/outputs content-node) :save))
-              (ds/connect content-node :save editor-node :saveable))
+              (g/connect content-node :save editor-node :saveable))
             (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
-              (ds/connect content-node :dirty editor-node :dirty))
+              (g/connect content-node :dirty editor-node :dirty))
             editor-node))))
 
 (defn- send-project-scope-message
@@ -144,18 +143,18 @@ There is no guaranteed ordering of the sequence."
 (defn project-root? [node]
   (satisfies? ProjectRoot node))
 
-(n/defnode Project
-  (inherits n/Scope)
+(g/defnode Project
+  (inherits g/Scope)
 
   (trigger notify-content-nodes :input-connections send-project-scope-message)
 
-  (property tag                s/Keyword (default :project))
+  (property tag                t/Keyword (default :project))
   (property content-root       File)
-  (property branch             s/Str)
+  (property branch             t/Str)
   (property presenter-registry t/Registry)
-  (property node-types         {s/Str s/Symbol})
-  (property handlers           {s/Keyword {s/Str s/fn-schema}})
-  (property clipboard s/Any (default (constantly (ref nil))))
+  (property node-types         {t/Str t/Symbol})
+  (property handlers           {t/Keyword {t/Str t/fn-schema}})
+  (property clipboard          t/Any (default (constantly (ref nil))))
 
   ProjectRoot
   t/NamingContext
@@ -168,7 +167,7 @@ There is no guaranteed ordering of the sequence."
     (new-node-for-path this path Placeholder))
 
   (on :destroy
-    (ds/delete self)))
+    (g/delete self)))
 
 (defn project-root-node
   "Finds and returns the ProjectRoot node starting from any node."
@@ -180,7 +179,7 @@ There is no guaranteed ordering of the sequence."
 
 (defn load-resource-nodes
   [project-node resources]
-  (ds/transactional
+  (g/transactional
    (ds/in project-node
           [project-node
            (doall
@@ -190,8 +189,8 @@ There is no guaranteed ordering of the sequence."
 
 (defn load-project
   [root branch]
-  (ds/transactional
-   (ds/add
+  (g/transactional
+   (g/add
     (n/construct Project
                  :content-root root
                  :branch branch
@@ -220,13 +219,13 @@ There is no guaranteed ordering of the sequence."
 
 (defn- unload-nodes
   [nodes]
-  (ds/transactional
+  (g/transactional
     (doseq [n nodes]
       (ds/send-after n {:type :unload}))))
 
 (defn- replace-nodes
   [project-node nodes-to-replace f]
-  (ds/transactional
+  (g/transactional
     (doseq [old nodes-to-replace
             :let [new (f old)]]
       (ds/become old new)

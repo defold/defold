@@ -1,34 +1,21 @@
 (ns editor.switcher
-  (:require [clojure.edn :as edn] 
-            [clojure.set :refer [difference union]]
+  (:require [clojure.edn :as edn]
             [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
-            [dynamo.file :as file]
-            [dynamo.file.protobuf :as protobuf :refer [pb->str]]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
-            [dynamo.gl.texture :as texture]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.grid :as grid]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
-            [dynamo.project :as p]
-            [dynamo.property :as dp]
             [dynamo.system :as ds]
-            [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
-            [editor.image-node :as ein]
             [editor.scene-editor :as sceneed]
-            [internal.render.pass :as pass]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [service.log :as log])
+            [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -204,25 +191,25 @@
 
 ; Node defs
 
-(defnk produce-renderable
+(g/defnk produce-renderable
   [this level gpu-texture palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
-  {pass/overlay [{:world-transform geom/Identity4d 
+  {pass/overlay [{:world-transform geom/Identity4d
                   :render-fn (fn [ctx gl glu text-renderer]
                                (render-palette ctx gl text-renderer gpu-texture palette-vertex-binding palette-layout))}]
-   pass/transparent [{:world-transform geom/Identity4d 
-                   :render-fn (fn [ctx gl glu text-renderer] 
+   pass/transparent [{:world-transform geom/Identity4d
+                   :render-fn (fn [ctx gl glu text-renderer]
                                 (render-level gl level gpu-texture level-vertex-binding level-layout))}]})
 
-(n/defnode SwitcherRender
-  (input level s/Any)
-  (input gpu-texture s/Any)
-  (input textureset s/Any)
-  (input active-brush s/Str)
+(g/defnode SwitcherRender
+  (input level t/Any)
+  (input gpu-texture t/Any)
+  (input textureset t/Any)
+  (input active-brush t/Str)
 
-  (output palette-layout         s/Any :cached (fnk [] (layout-palette palette)))
-  (output level-layout           s/Any :cached (fnk [level] (layout-level level)))
-  (output palette-vertex-binding s/Any :cached (fnk [textureset palette-layout active-brush] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half active-brush) shader)))
-  (output level-vertex-binding   s/Any :cached (fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
+  (output palette-layout         t/Any :cached (g/fnk [] (layout-palette palette)))
+  (output level-layout           t/Any :cached (g/fnk [level] (layout-level level)))
+  (output palette-vertex-binding t/Any :cached (g/fnk [textureset palette-layout active-brush] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half active-brush) shader)))
+  (output level-vertex-binding   t/Any :cached (g/fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
   (output renderable             t/RenderData  produce-renderable))
 
 (defn- hit? [cell pos cell-size-half]
@@ -240,7 +227,7 @@
       :mouse-moved
       (let [pos {:x (:x action) :y (:y action)}
             world-pos-v4 (c/camera-unproject camera viewport (:x action) (:y action) 0)
-            world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)} 
+            world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)}
             level (:level self)
             palette-cells (mapcat :cells (layout-palette palette))
             palette-hit (some #(hit? % pos palette-cell-size-half) palette-cells)
@@ -251,34 +238,34 @@
       :mouse-pressed
       (let [pos {:x (:x action) :y (:y action)}
             world-pos-v4 (c/camera-unproject camera viewport (:x action) (:y action) 0)
-            world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)} 
+            world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)}
             level (:level self)
             palette-cells (mapcat :cells (layout-palette palette))
             palette-hit (some #(hit? % pos palette-cell-size-half) palette-cells)
             level-cells (layout-level level)
             level-hit (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
         (when palette-hit
-          (ds/tx-label "Select Brush")
-          (ds/set-property self :active-brush (:image palette-hit)))
+          (g/operation-label "Select Brush")
+          (g/set-property self :active-brush (:image palette-hit)))
         (when level-hit
-          (ds/tx-label "Paint Cell")
-          (ds/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self))))
+          (g/operation-label "Paint Cell")
+          (g/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self))))
         (if (or palette-hit level-hit) nil action))
       action)))
 
-(n/defnode SwitcherNode
-  (inherits n/OutlineNode)
+(g/defnode SwitcherNode
+  (inherits g/OutlineNode)
 
-  (property level s/Any (visible false))
-  (property width s/Int)
-  (property height s/Int)
-  (property active-brush s/Str (default "red_candy"))  
+  (property level t/Any (visible false))
+  (property width t/Int)
+  (property height t/Int)
+  (property active-brush t/Str (default "red_candy"))
 
-  (input camera s/Any)
+  (input camera t/Any)
   (input viewport Region)
-  
-  (output input-handler Runnable (fnk [] handle-input))
-  (output aabb AABB (fnk [width height]
+
+  (output input-handler Runnable (g/fnk [] handle-input))
+  (output aabb AABB (g/fnk [width height]
      (let [half-width (* 0.5 cell-size width)
            half-height (* 0.5 cell-size height)]
        (t/->AABB (Point3d. (- half-width) (- half-height) 0)
@@ -287,35 +274,35 @@
   (on :load
       (let [project (:project event)
             level (edn/read-string (slurp (:filename self)))]
-        (ds/set-property self :width (:width level))
-        (ds/set-property self :height (:height level))
-        (ds/set-property self :level level))))
+        (g/set-property self :width (:width level))
+        (g/set-property self :height (:height level))
+        (g/set-property self :level level))))
 
 (defn construct-switcher-editor
   [project-node switcher-node]
   (let [editor (n/construct sceneed/SceneEditor)]
-    (ds/in (ds/add editor)
-      (let [switcher-render (ds/add (n/construct SwitcherRender))
-            renderer        (ds/add (n/construct sceneed/SceneRenderer))
-            background      (ds/add (n/construct background/Gradient))
-            camera          (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))
+    (ds/in (g/add editor)
+      (let [switcher-render (g/add (n/construct SwitcherRender))
+            renderer        (g/add (n/construct sceneed/SceneRenderer))
+            background      (g/add (n/construct background/Gradient))
+            camera          (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))
             atlas-node      (t/lookup project-node switcher-atlas-file)]
-        (ds/connect background   :renderable      renderer     :renderables)
-        (ds/connect camera       :camera          renderer     :camera)
-        (ds/connect camera       :input-handler   editor       :input-handlers)
-        (ds/connect editor       :viewport        camera       :viewport)
-        (ds/connect editor       :viewport        renderer     :viewport)
-        (ds/connect editor       :drawable        renderer     :drawable)
-        (ds/connect renderer     :frame           editor       :frame)
+        (g/connect background   :renderable      renderer     :renderables)
+        (g/connect camera       :camera          renderer     :camera)
+        (g/connect camera       :input-handler   editor       :input-handlers)
+        (g/connect editor       :viewport        camera       :viewport)
+        (g/connect editor       :viewport        renderer     :viewport)
+        (g/connect editor       :drawable        renderer     :drawable)
+        (g/connect renderer     :frame           editor       :frame)
 
-        (ds/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
+        (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
-        (ds/connect camera         :camera      switcher-node     :camera)
-        (ds/connect switcher-node  :input-handler editor         :input-handlers)
-        (ds/connect switcher-render :renderable renderer         :renderables)
-        (ds/connect switcher-node  :level       switcher-render   :level)
-        (ds/connect switcher-node  :active-brush switcher-render   :active-brush)
-        (ds/connect editor         :viewport     switcher-node     :viewport)
-        (ds/connect atlas-node     :gpu-texture switcher-render   :gpu-texture)
-        (ds/connect atlas-node     :textureset  switcher-render   :textureset))
+        (g/connect camera         :camera      switcher-node     :camera)
+        (g/connect switcher-node  :input-handler editor         :input-handlers)
+        (g/connect switcher-render :renderable renderer         :renderables)
+        (g/connect switcher-node  :level       switcher-render   :level)
+        (g/connect switcher-node  :active-brush switcher-render   :active-brush)
+        (g/connect editor         :viewport     switcher-node     :viewport)
+        (g/connect atlas-node     :gpu-texture switcher-render   :gpu-texture)
+        (g/connect atlas-node     :textureset  switcher-render   :textureset))
       editor)))

@@ -13,7 +13,7 @@
 (defn outline-tree-zipper [outline-tree]
   (zip/zipper (constantly true) :children nil outline-tree))
 
-(defn outline-tree-content-provider ^ITreeContentProvider []
+#_(defn outline-tree-content-provider ^ITreeContentProvider []
   (reify ITreeContentProvider
     (dispose      [_] nil)
     (inputChanged [_ viewer old-input new-input] nil)
@@ -22,18 +22,18 @@
     (getParent    [_ element] (zip/up element))
     (hasChildren  [_ element] (boolean (seq (zip/children element))))))
 
-(defn outline-tree-label-provider []
+#_(defn outline-tree-label-provider []
   (proxy [ColumnLabelProvider] []
     (getText [element] (->> element zip/node :label str))))
 
-(def outline-tree-selection-listener
+#_(def outline-tree-selection-listener
   (reify SelectionListener
     (widgetSelected [_ event]
       (when-let [command (.getData (.-widget event))]
         (t/apply-if-fn (:command-fn command) (:context command))))
     (widgetDefaultSelected [_ event] nil)))
 
-(defn outline-tree-menu-listener [^Tree tree ^Menu menu]
+#_(defn outline-tree-menu-listener [^Tree tree ^Menu menu]
   (let [listener (reify MenuListener
                    (menuShown  [_ event]
                      ;; based on http://stackoverflow.com/a/18403738
@@ -49,13 +49,13 @@
     (.addMenuListener menu listener)
     listener))
 
-(defn outline-tree-menu ^Menu [^Tree parent]
+#_(defn outline-tree-menu ^Menu [^Tree parent]
   (let [menu (Menu. parent)
         menu-listener (outline-tree-menu-listener parent menu)]
     (.setMenu parent menu)
     menu))
 
-(defn outline-tree-gui []
+#_(defn outline-tree-gui []
   (ui/swt-await
     (let [shell       (ui/shell)
           toolkit     (FormToolkit. (.getDisplay shell))

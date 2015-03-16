@@ -1,11 +1,8 @@
 (ns editor.platformer
-  (:require [clojure.set :refer [difference union]]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
             [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
-            [dynamo.file :as file]
-            [dynamo.file.protobuf :as protobuf :refer [pb->str]]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
@@ -15,20 +12,12 @@
             [dynamo.grid :as grid]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
-            [dynamo.project :as p]
-            [dynamo.property :as dp]
             [dynamo.system :as ds]
-            [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
-            [editor.image-node :as ein]
             [editor.scene-editor :as sceneed]
-            [internal.render.pass :as pass]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [service.log :as log])
+            [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -68,7 +57,7 @@
       (shader/set-uniform platformer-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
 
-(defnk produce-renderable :- RenderData
+(g/defnk produce-renderable :- RenderData
   [this base-texture vertex-buffer]
   (if vertex-buffer
     (let [world (Matrix4d. geom/Identity4d)]
@@ -107,7 +96,7 @@
 (defn filter-cps [control-points]
   (sort-by :x (flatten control-points)))
 
-(defnk produce-vertex-buffer [control-points]
+(g/defnk produce-vertex-buffer [control-points]
   (let [cps (filter-cps control-points)
         quad-count (- (count cps) 1)]
     (when (> quad-count 0)
@@ -117,14 +106,14 @@
           (conj! vbuf v))
         (persistent! vbuf)))))
 
-(n/defnode PlatformerRender
-  #_(input gpu-textures {s/Str s/Any})
-  (input control-points [s/Any])
-  (input base-texture s/Any)
+(g/defnode PlatformerRender
+  #_(input gpu-textures {t/Str t/Any})
+  (input control-points [t/Any])
+  (input base-texture t/Any)
 
-  (output vertex-buffer s/Any      produce-vertex-buffer)
+  (output vertex-buffer t/Any      produce-vertex-buffer)
   (output renderable    RenderData :cached produce-renderable)
-  (output aabb          AABB       :cached (fnk [] geom/unit-bounding-box)))
+  (output aabb          AABB       :cached (g/fnk [] geom/unit-bounding-box)))
 
 (defn- hit? [cp pos camera viewport]
   (let [screen-cp (c/camera-project camera viewport (Point3d. (:x cp) (:y cp) 0))
@@ -154,87 +143,87 @@
     (case (:type action)
       :mouse-moved
       (if active-cp
-        (do (ds/set-property self :control-points (conj inactive-cps world-pos))
+        (do (g/set-property self :control-points (conj inactive-cps world-pos))
           nil)
         action)
       :mouse-pressed
       (let [click-count (get action :click-count 0)]
         (if (= click-count 2)
-          (ds/set-property self :control-points
+          (g/set-property self :control-points
                            (if cp-hit
                              (filter #(not= %1 cp-hit) control-points)
                              (conj control-points world-pos)))
           (do
-            (ds/set-property self :active-cp world-pos)
-            (ds/set-property self :inactive-cps (filter #(not= %1 cp-hit) control-points))))
+            (g/set-property self :active-cp world-pos)
+            (g/set-property self :inactive-cps (filter #(not= %1 cp-hit) control-points))))
         (when (nil? cp-hit) action))
       :mouse-released
       (do
-        (ds/set-property self :active-cp nil)
-        (ds/set-property self :inactive-cps nil)
+        (g/set-property self :active-cp nil)
+        (g/set-property self :inactive-cps nil)
         (when (nil? active-cp) action))
       action)))
 
-(defnk produce-gpu-textures
+(g/defnk produce-gpu-textures
   []
   #_(apply texture/image-texture (map :contents [right-img left-img top-img bottom-img front-img back-img]))
   nil)
 
-(n/defnode PlatformerNode
-  (inherits n/ResourceNode)
-  (inherits n/OutlineNode)
+(g/defnode PlatformerNode
+  (inherits g/ResourceNode)
+  (inherits g/OutlineNode)
 
-  (property control-points  [s/Any])
-  (property base-texture s/Str)
+  (property control-points  [t/Any])
+  (property base-texture t/Str)
 
-  ; TODO temp solution
-  (property active-cp s/Any)
-  (property inactive-cps s/Any)
+                                        ; TODO temp solution
+  (property active-cp t/Any)
+  (property inactive-cps t/Any)
 
-  (input camera s/Any)
+  (input camera t/Any)
   (input viewport Region)
-  (input base-texture-img s/Any)
+  (input base-texture-img t/Any)
 
-  (output input-handler Runnable (fnk [] handle-input))
-  (output base-texture s/Any :cached (fnk [base-texture-img] (texture/image-texture 
-                                                               (:contents base-texture-img)
-                                                               {:min-filter gl/linear-mipmap-linear
-                                                                :mag-filter gl/linear
-                                                                :wrap-s     gl/repeat
-                                                                :wrap-t     gl/repeat})))
+  (output input-handler Runnable (g/fnk [] handle-input))
+  (output base-texture t/Any :cached (g/fnk [base-texture-img] (texture/image-texture
+                                                                (:contents base-texture-img)
+                                                                {:min-filter gl/linear-mipmap-linear
+                                                                 :mag-filter gl/linear
+                                                                 :wrap-s     gl/repeat
+                                                                 :wrap-t     gl/repeat})))
 
   (on :load
       (let [project (:project event)
             level (edn/read-string (slurp (:filename self)))]
-        (ds/set-property self :control-points (:control-points level))
-        (ds/set-property self :base-texture (:base-texture level))
+        (g/set-property self :control-points (:control-points level))
+        (g/set-property self :base-texture (:base-texture level))
         (let [img-node (t/lookup project (:base-texture level))]
-          (ds/connect img-node :content self :base-texture-img)))))
+          (g/connect img-node :content self :base-texture-img)))))
 
 (defn construct-platformer-editor
   [project-node platformer-node]
   (let [editor (n/construct sceneed/SceneEditor)]
-    (ds/in (ds/add editor)
-           (let [platformer-render (ds/add (n/construct PlatformerRender))
-                 renderer     (ds/add (n/construct sceneed/SceneRenderer))
-                 background   (ds/add (n/construct background/Gradient))
-                 grid         (ds/add (n/construct grid/Grid))
-                 camera       (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
-             (ds/connect background   :renderable      renderer     :renderables)
-             (ds/connect grid         :renderable      renderer     :renderables)
-             (ds/connect camera       :camera          grid         :camera)
-             (ds/connect camera       :camera          renderer     :camera)
-             (ds/connect camera       :input-handler   editor       :input-handlers)
-             (ds/connect editor       :viewport        camera       :viewport)
-             (ds/connect editor       :viewport        renderer     :viewport)
-             (ds/connect editor       :drawable        renderer     :drawable)
-             (ds/connect renderer     :frame           editor       :frame)
+    (ds/in (g/add editor)
+           (let [platformer-render (g/add (n/construct PlatformerRender))
+                 renderer     (g/add (n/construct sceneed/SceneRenderer))
+                 background   (g/add (n/construct background/Gradient))
+                 grid         (g/add (n/construct grid/Grid))
+                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
+             (g/connect background   :renderable      renderer     :renderables)
+             (g/connect grid         :renderable      renderer     :renderables)
+             (g/connect camera       :camera          grid         :camera)
+             (g/connect camera       :camera          renderer     :camera)
+             (g/connect camera       :input-handler   editor       :input-handlers)
+             (g/connect editor       :viewport        camera       :viewport)
+             (g/connect editor       :viewport        renderer     :viewport)
+             (g/connect editor       :drawable        renderer     :drawable)
+             (g/connect renderer     :frame           editor       :frame)
 
-             (ds/connect platformer-node   :base-texture     platformer-render :base-texture)
-             (ds/connect camera         :camera      platformer-node     :camera)
-             (ds/connect platformer-node  :input-handler editor         :input-handlers)
-             (ds/connect editor         :viewport     platformer-node     :viewport)
-             (ds/connect platformer-node   :control-points  platformer-render :control-points)
-             (ds/connect platformer-render :renderable      renderer     :renderables)
+             (g/connect platformer-node   :base-texture     platformer-render :base-texture)
+             (g/connect camera         :camera      platformer-node     :camera)
+             (g/connect platformer-node  :input-handler editor         :input-handlers)
+             (g/connect editor         :viewport     platformer-node     :viewport)
+             (g/connect platformer-node   :control-points  platformer-render :control-points)
+             (g/connect platformer-render :renderable      renderer     :renderables)
              )
            editor)))

@@ -1,17 +1,14 @@
 (ns internal.value-test
-  (:require [clojure.core.async :as async :refer [chan >!! <! alts!! timeout]]
+  (:require [clojure.core.async :as a]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.node :as n :refer [Scope]]
+            [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [internal.graph.dgraph :as dg]
-            [internal.system :as is]
-            [internal.transaction :as it]
-            [plumbing.core :refer [defnk]]
-            [schema.core :as s]))
+            [internal.transaction :as it]))
 
 (def ^:dynamic *calls*)
 
@@ -31,13 +28,13 @@
      ~@body
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
-(defnk produce-simple-value
+(g/defnk produce-simple-value
   [this scalar]
   (tally this 'produce-simple-value)
   scalar)
 
-(n/defnode UncachedOutput
-  (property scalar s/Str)
+(g/defnode UncachedOutput
+  (property scalar t/Str)
   (output uncached-value String produce-simple-value))
 
 (defn compute-expensive-value
@@ -45,42 +42,42 @@
   (tally node 'compute-expensive-value)
   "this took a long time to produce")
 
-(n/defnode CachedOutputNoInputs
+(g/defnode CachedOutputNoInputs
   (output expensive-value String :cached
     (fn [node g]
       (tally node 'compute-expensive-value)
       "this took a long time to produce"))
   (input operand String))
 
-(n/defnode UpdatesExpensiveValue
+(g/defnode UpdatesExpensiveValue
   (output expensive-value String :cached
     (fn [node g]
       (tally node 'compute-expensive-value)
       "this took a long time to produce")))
 
-(n/defnode SecondaryCachedValue
+(g/defnode SecondaryCachedValue
   (output another-value String :cached
     (fn [node g]
       "this is distinct from the other outputs")))
 
-(defnk compute-derived-value
+(g/defnk compute-derived-value
   [this first-name last-name]
   (tally this 'compute-derived-value)
   (str first-name " " last-name))
 
-(defnk passthrough-first-name
+(g/defnk passthrough-first-name
   [this first-name]
   (tally this 'passthrough-first-name)
   first-name)
 
-(n/defnode CachedOutputFromInputs
+(g/defnode CachedOutputFromInputs
   (input first-name String)
   (input last-name  String)
 
   (output nickname String :cached passthrough-first-name)
   (output derived-value String :cached compute-derived-value))
 
-(n/defnode CacheTestNode
+(g/defnode CacheTestNode
   (inherits UncachedOutput)
   (inherits CachedOutputNoInputs)
   (inherits CachedOutputFromInputs)
@@ -96,10 +93,10 @@
                   (n/construct CacheTestNode)
                   (n/construct CacheTestNode))
           [name1 name2 combiner expensive]  nodes]
-      (ds/transactional
-        (ds/connect name1 :uncached-value combiner :first-name)
-        (ds/connect name2 :uncached-value combiner :last-name)
-        (ds/connect name1 :uncached-value expensive :operand))
+      (g/transactional
+        (g/connect name1 :uncached-value combiner :first-name)
+        (g/connect name2 :uncached-value combiner :last-name)
+        (g/connect name1 :uncached-value expensive :operand))
       [world-ref cache nodes])))
 
 (defn with-function-counts
@@ -153,29 +150,29 @@
         (is (= "Mark Brandenburg" (g/node-value (:graph @world-ref) cache combiner :derived-value)))))))
 
 
-(defnk compute-disposable-value
+(g/defnk compute-disposable-value
   [this g]
   (tally this 'compute-disposable-value)
   (reify t/IDisposable
     (dispose [v]
       (tally this 'dispose)
-      (>!! (:channel (dg/node g this)) :gone))))
+      (a/>!! (:channel (dg/node g this)) :gone))))
 
-(n/defnode DisposableValueNode
+(g/defnode DisposableValueNode
   (output disposable-value 't/IDisposable :cached compute-disposable-value))
 
-(defnk produce-input-from-node
+(g/defnk produce-input-from-node
   [overridden]
   overridden)
 
-(defnk derive-value-from-inputs
+(g/defnk derive-value-from-inputs
   [an-input]
   an-input)
 
-(n/defnode OverrideValueNode
-  (input overridden s/Str)
-  (output output s/Str produce-input-from-node)
-  (output foo    s/Str derive-value-from-inputs))
+(g/defnode OverrideValueNode
+  (input overridden t/Str)
+  (output output t/Str produce-input-from-node)
+  (output foo    t/Str derive-value-from-inputs))
 
 (defn build-override-project
   []
@@ -183,8 +180,8 @@
                (n/construct OverrideValueNode)
                (n/construct CacheTestNode :scalar "Jane"))
         [override jane]  nodes]
-    (ds/transactional
-     (ds/connect jane :uncached-value override :overridden))
+    (g/transactional
+     (g/connect jane :uncached-value override :overridden))
     nodes))
 
 (deftest invalid-resource-values
@@ -195,24 +192,49 @@
 
 (deftest update-sees-in-transaction-value
   (with-clean-system
-    (let [node (ds/transactional
-                 (ds/add (n/construct p/Project :name "a project" :int-prop 0)))
-          after-transaction (ds/transactional
-                              (ds/update-property node :int-prop inc)
-                              (ds/update-property node :int-prop inc)
-                              (ds/update-property node :int-prop inc)
-                              (ds/update-property node :int-prop inc))]
+    (let [node (g/transactional
+                 (g/add (n/construct p/Project :name "a project" :int-prop 0)))
+          after-transaction (g/transactional
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc))]
       (is (= 4 (:int-prop after-transaction))))))
 
-(n/defnode ScopeReceiver
+(g/defnode ScopeReceiver
   (on :project-scope
-    (ds/set-property self :message-received event)))
+    (g/set-property self :message-received event)))
 
 (deftest node-receives-scope-message
   (testing "project scope message"
     (with-clean-system
-      (let [ps-node (ds/transactional
-                      (ds/in (ds/add (n/construct p/Project :name "a project"))
-                        (ds/add (n/construct ScopeReceiver))))]
+      (let [ps-node (g/transactional
+                      (ds/in (g/add (n/construct p/Project :name "a project"))
+                        (g/add (n/construct ScopeReceiver))))]
         (await-world-time world-ref 3 500)
         (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))
+
+(defn- cache-peek [cache node-id label]
+  (get @(:storage cache) [node-id label]))
+
+(defn- cached? [cache node-id label]
+  (not (nil? (cache-peek cache node-id label))))
+
+(g/defnode SelfCounter
+  (property call-counter t/Int (default 0))
+
+  (output plus-1 t/Int :cached
+          (g/fnk [self call-counter]
+                 (g/transactional (g/update-property self :call-counter inc
+                                                     ))
+                 (inc call-counter))))
+
+(deftest intermediate-uncached-values-are-not-cached
+  (with-clean-system
+    (let [[node]       (tx-nodes (n/construct SelfCounter :first-call true))
+          node-id      (:_id node)]
+      (g/node-value (:graph @world-ref) cache node :plus-1)
+      (def cache* cache)
+      (is (cached? cache node-id :plus-1))
+      (is (not (cached? cache node-id :self)))
+      (is (not (cached? cache node-id :call-counter))))))

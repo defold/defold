@@ -1,25 +1,13 @@
 (ns editor.scene-editor
-  (:require [clojure.java.io :as io]
-            [dynamo.background :as background]
-            [dynamo.file :as f]
-            [dynamo.geom :as geom]
+  (:require [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
-            [dynamo.grid :as grid]
-            [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.types :refer [IDisposable dispose]]
             [editor.camera :as c]
             [editor.input :as i]
-            [internal.clojure :as clojure]
-            [internal.disposal :as disp]
             [internal.render.pass :as pass]
-            [internal.system :as is]
-            [internal.transaction :as it]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer Screenshot]
@@ -121,7 +109,7 @@
   [^TextRendererRef v ^java.io.Writer w]
   (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
 
-(defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
+(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
   (when (and drawable (vp-not-empty? viewport))
     (let [^GLContext context (.getContext drawable)]
       (.makeCurrent context)
@@ -142,18 +130,18 @@
               (.release context)
               buf-image))))))
 
-(n/defnode SceneRenderer
+(g/defnode SceneRenderer
 
   (input viewport Region)
   (input camera Camera)
   (input renderables [t/RenderData])
   (input drawable GLAutoDrawable)
 
-  (output text-renderer TextRendererRef :cached (fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
+  (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
   (output frame BufferedImage produce-frame) ; TODO cache when the cache bug is fixed
   )
 
-(defnk produce-drawable [self ^Region viewport]
+(g/defnk produce-drawable [self ^Region viewport]
   (when (vp-not-empty? viewport)
     (let [[w h] (vp-dims viewport)
           profile (GLProfile/getDefault)
@@ -166,31 +154,31 @@
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (ds/transactional (ds/set-property self :gl-drawable drawable))
+        (g/transactional (g/set-property self :gl-drawable drawable))
         drawable))))
 
 (defn dispatch-input [input-handlers action]
-  (ds/transactional
+  (g/transactional
     (reduce (fn [action input-handler]
               (let [node (first input-handler)
                     label (second input-handler)]
                 (when action ((g/node-value node label) node action)))) action input-handlers)))
 
-(n/defnode SceneEditor
-  (inherits n/Scope)
+(g/defnode SceneEditor
+  (inherits g/Scope)
 
   (property image-view ImageView)
   (property viewport Region (default (t/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
   (property gl-drawable GLAutoDrawable)
-  (property visible s/Bool (default true))
+  (property visible t/Bool (default true))
 
   (input frame BufferedImage)
   (input input-handlers [Runnable])
 
   (output drawable GLAutoDrawable :cached produce-drawable)
-  (output viewport Region (fnk [viewport] viewport))
-  (output frame BufferedImage :cached (fnk [visible frame] (when visible frame)))
+  (output viewport Region (g/fnk [viewport] viewport))
+  (output frame BufferedImage :cached (g/fnk [visible frame] (when visible frame)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))))
@@ -204,7 +192,7 @@
         (AnchorPane/setLeftAnchor image-view 0.0)
         (AnchorPane/setRightAnchor image-view 0.0)
         (.add (.getChildren ^Pane parent) image-view)
-        (ds/set-property self :image-view image-view)
+        (g/set-property self :image-view image-view)
         (let [self-ref (t/node-ref self)
               event-handler (reify EventHandler (handle [this e]
                                                   (let [self @self-ref]
@@ -214,7 +202,7 @@
                                                             bb ^BoundingBox new-val
                                                             w (- (.getMaxX bb) (.getMinX bb))
                                                             h (- (.getMaxY bb) (.getMinY bb))]
-                                                        (ds/transactional (ds/set-property self :viewport (t/->Region 0 w 0 h))))))]
+                                                        (g/transactional (g/set-property self :viewport (t/->Region 0 w 0 h))))))]
           (.setOnMousePressed parent event-handler)
           (.setOnMouseReleased parent event-handler)
           (.setOnMouseClicked parent event-handler)
@@ -230,11 +218,11 @@
                                     visible               (:visible self)]
                                 (when frame
                                   (.setImage image-view (SwingFXUtils/toFXImage frame (.getImage image-view)))))))]
-            (ds/transactional (ds/set-property self :repainter repainter))
+            (g/transactional (g/set-property self :repainter repainter))
             (.start repainter))
           (.addListener (.selectedProperty tab) (reify ChangeListener (changed [this observable old-val new-val]
                                                                         (let [self @self-ref]
-                                                                          (ds/transactional (ds/set-property self :visible new-val))))))
+                                                                          (g/transactional (g/set-property self :visible new-val))))))
           )))
 
   t/IDisposable

@@ -2,17 +2,12 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.node :as n :refer [defnode construct]]
-            [dynamo.project :as p]
-            [dynamo.property :as dp :refer [defproperty]]
+            [dynamo.node :as n]
+            [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system tx-nodes]]
             [dynamo.types :as t]
-            [internal.node :as in]
-            [internal.system :as is]
-            [internal.transaction :as it]
-            [plumbing.core :refer [defnk fnk]]
-            [schema.core :as s]))
+            [internal.system :as is]))
 
 (def ^:dynamic *calls*)
 
@@ -22,12 +17,12 @@
 (defn get-tally [node fn-symbol]
   (get-in @*calls* [(:_id node) fn-symbol] 0))
 
-(defproperty StringWithDefault s/Str
+(dp/defproperty StringWithDefault t/Str
   (default "o rly?"))
 
 (defn string-value [] "uff-da")
 
-(defnode WithDefaults
+(g/defnode WithDefaults
   (property default-value                 StringWithDefault)
   (property overridden-literal-value      StringWithDefault (default "ya rly."))
 ;; SAMDISCUSS  (property overridden-function-value     StringWithDefault (default (constantly "vell den.")))
@@ -36,7 +31,7 @@
   (property overridden-indirect-by-symbol StringWithDefault (default 'string-value)))
 
 (deftest node-property-defaults
-  (are [expected property] (= expected (get (construct WithDefaults) property))
+  (are [expected property] (= expected (get (n/construct WithDefaults) property))
     "o rly?"      :default-value
     "ya rly."     :overridden-literal-value
 ;; SAMDISCUSS    "vell den."   :overridden-function-value
@@ -44,17 +39,17 @@
     "uff-da"      :overridden-indirect-by-var
     'string-value :overridden-indirect-by-symbol))
 
-(defnode SimpleTestNode
-  (property foo s/Str (default "FOO!")))
+(g/defnode SimpleTestNode
+  (property foo t/Str (default "FOO!")))
 
-(defnode NodeWithEvents
+(g/defnode NodeWithEvents
   (on :mousedown
-    (ds/set-property self :message-processed true)
+    (g/set-property self :message-processed true)
     :ok))
 
 (deftest event-delivery
   (with-clean-system
-    (let [evented (ds/transactional (ds/add (construct NodeWithEvents)))]
+    (let [evented (g/transactional (g/add (n/construct NodeWithEvents)))]
       (is (= :ok (t/process-one-event evented {:type :mousedown})))
       (is (:message-processed (ds/node world-ref (:_id evented)))))))
 
@@ -64,7 +59,7 @@
 (definterface IInterface
   (allGood []))
 
-(defnode MyNode
+(g/defnode MyNode
   AProtocol
   (complainer [this] :owie)
   IInterface
@@ -72,31 +67,31 @@
 
 (deftest node-respects-namespaces
   (testing "node can implement protocols not known/visible to internal.node"
-    (is (= :owie (complainer (construct MyNode)))))
+    (is (= :owie (complainer (n/construct MyNode)))))
   (testing "node can implement interface not known/visible to internal.node"
-    (is (= :ok (.allGood (construct MyNode))))))
+    (is (= :ok (.allGood (n/construct MyNode))))))
 
-(defnk depends-on-self [this] this)
-(defnk depends-on-input [an-input] an-input)
-(defnk depends-on-property [a-property] a-property)
-(defnk depends-on-several [this project g an-input a-property] [this project g an-input a-property])
+(g/defnk depends-on-self [this] this)
+(g/defnk depends-on-input [an-input] an-input)
+(g/defnk depends-on-property [a-property] a-property)
+(g/defnk depends-on-several [this project g an-input a-property] [this project g an-input a-property])
 (defn  depends-on-default-params [this g] [this g])
 
-(defnode DependencyTestNode
+(g/defnode DependencyTestNode
   (input an-input String)
   (input unused-input String)
 
-  (property a-property s/Str)
+  (property a-property t/Str)
 
-  (output depends-on-self s/Any depends-on-self)
-  (output depends-on-input s/Any depends-on-input)
-  (output depends-on-property s/Any depends-on-property)
-  (output depends-on-several s/Any depends-on-several)
-  (output depends-on-default-params s/Any depends-on-default-params))
+  (output depends-on-self t/Any depends-on-self)
+  (output depends-on-input t/Any depends-on-input)
+  (output depends-on-property t/Any depends-on-property)
+  (output depends-on-several t/Any depends-on-several)
+  (output depends-on-default-params t/Any depends-on-default-params))
 
 (deftest dependency-mapping
   (testing "node reports its own dependencies"
-    (let [test-node (construct DependencyTestNode)
+    (let [test-node (n/construct DependencyTestNode)
           deps      (t/output-dependencies test-node)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
@@ -106,18 +101,18 @@
       (is (not (contains? deps :g)))
       (is (not (contains? deps :unused-input))))))
 
-(defnode EmptyNode)
+(g/defnode EmptyNode)
 
 (deftest node-intrinsics
   (with-clean-system
-    (let [[node] (tx-nodes (construct EmptyNode))]
+    (let [[node] (tx-nodes (n/construct EmptyNode))]
       (is (identical? node (g/node-value (:graph @world-ref) cache node :self)))))
   (with-clean-system
-    (let [n1       (ds/transactional (ds/add (construct SimpleTestNode)))
+    (let [n1       (g/transactional (g/add (n/construct SimpleTestNode)))
           before   (:graph @world-ref)
-          _        (ds/transactional (ds/set-property n1 :foo "quux"))
+          _        (g/transactional (g/set-property n1 :foo "quux"))
           after    (:graph @world-ref)
-          n2       (ds/transactional (ds/add (construct SimpleTestNode :foo "bar")))
+          n2       (g/transactional (g/add (n/construct SimpleTestNode :foo "bar")))
           override (:graph @world-ref)]
       (is (not (identical? before after)))
       (are [expected-value when node]
@@ -130,68 +125,68 @@
 (defn- expect-modified
   [properties f]
   (with-clean-system
-    (let [node (ds/transactional (ds/add (construct SimpleTestNode :foo "one")))]
-      (ds/transactional (f node))
+    (let [node (g/transactional (g/add (n/construct SimpleTestNode :foo "one")))]
+      (g/transactional (f node))
       (let [modified (into #{} (map second (get-in @(:world-ref node) [:last-tx :outputs-modified])))]
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
-  (expect-modified #{:properties :foo} (fn [node] (ds/set-property    node :foo "two")))
-  (expect-modified #{:properties :foo} (fn [node] (ds/update-property node :foo str/reverse)))
-  (expect-modified #{}                 (fn [node] (ds/set-property    node :foo "one")))
-  (expect-modified #{}                 (fn [node] (ds/update-property node :foo identity))))
+  (expect-modified #{:properties :foo} (fn [node] (g/set-property    node :foo "two")))
+  (expect-modified #{:properties :foo} (fn [node] (g/update-property node :foo str/reverse)))
+  (expect-modified #{}                 (fn [node] (g/set-property    node :foo "one")))
+  (expect-modified #{}                 (fn [node] (g/update-property node :foo identity))))
 
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)
 
-(defnode ProductionFunctionTypesNode
-  (output inline-fn      s/Keyword (fn [this g] :fn))
-  (output defn-as-symbol s/Keyword production-fn)
-  (output def-as-symbol  s/Keyword production-val))
+(g/defnode ProductionFunctionTypesNode
+  (output inline-fn      t/Keyword (fn [this g] :fn))
+  (output defn-as-symbol t/Keyword production-fn)
+  (output def-as-symbol  t/Keyword production-val))
 
 (deftest production-function-types
   (with-clean-system
-    (let [[node] (tx-nodes (construct ProductionFunctionTypesNode))]
+    (let [[node] (tx-nodes (n/construct ProductionFunctionTypesNode))]
       (is (= :fn   (g/node-value (:graph @world-ref) cache node :inline-fn)))
       (is (= :defn (g/node-value (:graph @world-ref) cache node :defn-as-symbol)))
       (is (= :def  (g/node-value (:graph @world-ref) cache node :def-as-symbol))))))
 
 (defn production-fn-this [this g] this)
 (defn production-fn-g [this g] g)
-(defnk production-fnk-this [this] this)
-(defnk production-fnk-g [g] g)
-(defnk production-fnk-prop [prop] prop)
-(defnk production-fnk-in [in] in)
-(defnk production-fnk-in-multi [in-multi] in-multi)
+(g/defnk production-fnk-this [this] this)
+(g/defnk production-fnk-g [g] g)
+(g/defnk production-fnk-prop [prop] prop)
+(g/defnk production-fnk-in [in] in)
+(g/defnk production-fnk-in-multi [in-multi] in-multi)
 
-(defnode ProductionFunctionInputsNode
-  (input in       s/Keyword)
-  (input in-multi [s/Keyword])
-  (property prop s/Keyword)
-  (output out              s/Keyword (fn [this g] :out-val))
-  (output inline-fn-this   s/Any     (fn [this g] this))
-  (output inline-fn-g      s/Any     (fn [this g] g))
-  (output defn-this        s/Any     production-fn-this)
-  (output defn-g           s/Any     production-fn-g)
-  (output defnk-this       s/Any     production-fnk-this)
-  (output defnk-g          s/Any     production-fnk-g)
-  (output defnk-prop       s/Any     production-fnk-prop)
-  (output defnk-in         s/Any     production-fnk-in)
-  (output defnk-in-multi   s/Any     production-fnk-in-multi))
+(g/defnode ProductionFunctionInputsNode
+  (input in       t/Keyword)
+  (input in-multi [t/Keyword])
+  (property prop t/Keyword)
+  (output out              t/Keyword (fn [this g] :out-val))
+  (output inline-fn-this   t/Any     (fn [this g] this))
+  (output inline-fn-g      t/Any     (fn [this g] g))
+  (output defn-this        t/Any     production-fn-this)
+  (output defn-g           t/Any     production-fn-g)
+  (output defnk-this       t/Any     production-fnk-this)
+  (output defnk-g          t/Any     production-fnk-g)
+  (output defnk-prop       t/Any     production-fnk-prop)
+  (output defnk-in         t/Any     production-fnk-in)
+  (output defnk-in-multi   t/Any     production-fnk-in-multi))
 
 (deftest production-function-inputs
   (with-clean-system
     (let [[node0 node1 node2] (tx-nodes
-                               (construct ProductionFunctionInputsNode :prop :node0)
-                               (construct ProductionFunctionInputsNode :prop :node1)
-                               (construct ProductionFunctionInputsNode :prop :node2))
-          _ (ds/transactional
-              (ds/connect node0 :defnk-prop node1 :in)
-              (ds/connect node0 :defnk-prop node2 :in)
-              (ds/connect node1 :defnk-prop node2 :in)
-              (ds/connect node0 :defnk-prop node1 :in-multi)
-              (ds/connect node0 :defnk-prop node2 :in-multi)
-              (ds/connect node1 :defnk-prop node2 :in-multi))
+                               (n/construct ProductionFunctionInputsNode :prop :node0)
+                               (n/construct ProductionFunctionInputsNode :prop :node1)
+                               (n/construct ProductionFunctionInputsNode :prop :node2))
+          _ (g/transactional
+              (g/connect node0 :defnk-prop node1 :in)
+              (g/connect node0 :defnk-prop node2 :in)
+              (g/connect node1 :defnk-prop node2 :in)
+              (g/connect node0 :defnk-prop node1 :in-multi)
+              (g/connect node0 :defnk-prop node2 :in-multi)
+              (g/connect node1 :defnk-prop node2 :in-multi))
           graph (is/graph world-ref)]
       (testing "inline fn parameters"
         (is (identical? node0 (g/node-value (:graph @world-ref) cache node0 :inline-fn-this)))
@@ -216,85 +211,85 @@
   (testing "every property automatically creates an output that produces the property's value"
     (with-clean-system
       (let [[node0 node1] (tx-nodes
-                            (construct ProductionFunctionInputsNode :prop :node0)
-                            (construct ProductionFunctionInputsNode :prop :node1))
-            _ (ds/transactional (ds/connect node0 :prop node1 :in))]
+                            (n/construct ProductionFunctionInputsNode :prop :node0)
+                            (n/construct ProductionFunctionInputsNode :prop :node1))
+            _ (g/transactional (g/connect node0 :prop node1 :in))]
         (is (= :node0 (g/node-value (:graph @world-ref) cache node1 :defnk-in))))))
   (testing "the output has the same type as the property"
-    (is (= s/Keyword
+    (is (= t/Keyword
           (-> ProductionFunctionInputsNode t/transform-types' :prop)
           (-> ProductionFunctionInputsNode t/properties' :prop :value-type)))))
 
-(defnk out-from-self [out-from-self] out-from-self)
-(defnk out-from-in [in] in)
-(defnk out-from-in-multi [in-multi] in-multi)
+(g/defnk out-from-self [out-from-self] out-from-self)
+(g/defnk out-from-in [in] in)
+(g/defnk out-from-in-multi [in-multi] in-multi)
 
-(defnode DependencyNode
-  (input in s/Any)
-  (input in-multi [s/Any])
-  (output out-from-self     s/Any out-from-self)
-  (output out-from-in       s/Any out-from-in)
-  (output out-const         s/Any (fn [this g] :const-val)))
+(g/defnode DependencyNode
+  (input in t/Any)
+  (input in-multi [t/Any])
+  (output out-from-self     t/Any out-from-self)
+  (output out-from-in       t/Any out-from-in)
+  (output out-const         t/Any (fn [this g] :const-val)))
 
 (deftest dependency-loops
   (testing "output dependent on itself"
     (with-clean-system
-      (let [[node] (tx-nodes (construct DependencyNode))]
+      (let [[node] (tx-nodes (n/construct DependencyNode))]
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
     (with-clean-system
-      (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-        (ds/transactional
-         (ds/connect node0 :out-from-self node1 :in))
+      (let [[node0 node1] (tx-nodes (n/construct DependencyNode) (n/construct DependencyNode))]
+        (g/transactional
+         (g/connect node0 :out-from-self node1 :in))
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
-      (let [[node] (tx-nodes (construct DependencyNode))]
-        (is (thrown? Throwable (ds/transactional
-                                (ds/connect node :out-from-in node :in)))))))
+      (let [[node] (tx-nodes (n/construct DependencyNode))]
+        (is (thrown? Throwable (g/transactional
+                                (g/connect node :out-from-in node :in)))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
-      (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-        (is (thrown? Throwable (ds/transactional
-                                (ds/connect node0 :out-from-in node1 :in)
-                                (ds/connect node1 :out-from-in node0 :in)))))))
+      (let [[node0 node1] (tx-nodes (n/construct DependencyNode) (n/construct DependencyNode))]
+        (is (thrown? Throwable (g/transactional
+                                (g/connect node0 :out-from-in node1 :in)
+                                (g/connect node1 :out-from-in node0 :in)))))))
   (testing "cycle of period 2 (multiple transactions)"
     (with-clean-system
-      (let [[node0 node1] (tx-nodes (construct DependencyNode) (construct DependencyNode))]
-        (ds/transactional (ds/connect node0 :out-from-in node1 :in))
-        (is (thrown? Throwable (ds/transactional
-                                (ds/connect node1 :out-from-in node0 :in))))))))
+      (let [[node0 node1] (tx-nodes (n/construct DependencyNode) (n/construct DependencyNode))]
+        (g/transactional (g/connect node0 :out-from-in node1 :in))
+        (is (thrown? Throwable (g/transactional
+                                (g/connect node1 :out-from-in node0 :in))))))))
 
 (defn throw-exception-defn [this g]
   (throw (ex-info "Exception from production function" {})))
 
-(defnk throw-exception-defnk []
+(g/defnk throw-exception-defnk []
   (throw (ex-info "Exception from production function" {})))
 
 (defn production-fn-with-abort [this g]
   (n/abort "Aborting..." {:some-key :some-value})
   :unreachable-code)
 
-(defnk throw-exception-defnk-with-invocation-count [this]
+(g/defnk throw-exception-defnk-with-invocation-count [this]
   (tally this :invocation-count)
   (throw (ex-info "Exception from production function" {})))
 
-(defnode SubstituteValueNode
-  (output out-defn                     s/Any throw-exception-defn)
-  (output out-defnk                    s/Any throw-exception-defnk)
-  (output out-defn-with-substitute-fn  s/Any :substitute-value (constantly :substitute) throw-exception-defn)
-  (output out-defnk-with-substitute-fn s/Any :substitute-value (constantly :substitute) throw-exception-defnk)
-  (output out-defn-with-substitute     s/Any :substitute-value :substitute              throw-exception-defn)
-  (output out-defnk-with-substitute    s/Any :substitute-value :substitute              throw-exception-defnk)
-  (output substitute-value-passthrough s/Any :substitute-value identity                 throw-exception-defn)
-  (output out-abort                    s/Any production-fn-with-abort)
-  (output out-abort-with-substitute    s/Any :substitute-value (constantly :substitute) production-fn-with-abort)
-  (output out-abort-with-substitute-f  s/Any :substitute-value (fn [_] (throw (ex-info "bailed" {}))) production-fn-with-abort)
-  (output out-defnk-with-invocation-count s/Any :cached throw-exception-defnk-with-invocation-count))
+(g/defnode SubstituteValueNode
+  (output out-defn                     t/Any throw-exception-defn)
+  (output out-defnk                    t/Any throw-exception-defnk)
+  (output out-defn-with-substitute-fn  t/Any :substitute-value (constantly :substitute) throw-exception-defn)
+  (output out-defnk-with-substitute-fn t/Any :substitute-value (constantly :substitute) throw-exception-defnk)
+  (output out-defn-with-substitute     t/Any :substitute-value :substitute              throw-exception-defn)
+  (output out-defnk-with-substitute    t/Any :substitute-value :substitute              throw-exception-defnk)
+  (output substitute-value-passthrough t/Any :substitute-value identity                 throw-exception-defn)
+  (output out-abort                    t/Any production-fn-with-abort)
+  (output out-abort-with-substitute    t/Any :substitute-value (constantly :substitute) production-fn-with-abort)
+  (output out-abort-with-substitute-f  t/Any :substitute-value (fn [_] (throw (ex-info "bailed" {}))) production-fn-with-abort)
+  (output out-defnk-with-invocation-count t/Any :cached throw-exception-defnk-with-invocation-count))
 
 (deftest node-output-substitute-value
   (with-clean-system
-    (let [n (ds/transactional (ds/add (construct SubstituteValueNode)))]
+    (let [n (g/transactional (g/add (n/construct SubstituteValueNode)))]
       (testing "exceptions from node-value (:graph @world-ref) cache when no substitute value fn"
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defn)))
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk))))
@@ -323,28 +318,28 @@
           (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk-with-invocation-count)))
           (is (= 1 (get-tally n :invocation-count))))))))
 
-(defnode ValueHolderNode
-  (property value s/Int))
+(g/defnode ValueHolderNode
+  (property value t/Int))
 
 (def ^:dynamic *answer-call-count* (atom 0))
 
-(defnk the-answer [in]
+(g/defnk the-answer [in]
   (swap! *answer-call-count* inc)
   (assert (= 42 in))
   in)
 
-(defnode AnswerNode
-  (input in s/Int)
-  (output out                        s/Int                                      the-answer)
-  (output out-cached                 s/Int :cached                              the-answer)
-  (output out-with-substitute        s/Int         :substitute-value :forty-two the-answer)
-  (output out-cached-with-substitute s/Int :cached :substitute-value :forty-two the-answer))
+(g/defnode AnswerNode
+  (input in t/Int)
+  (output out                        t/Int                                      the-answer)
+  (output out-cached                 t/Int :cached                              the-answer)
+  (output out-with-substitute        t/Int         :substitute-value :forty-two the-answer)
+  (output out-cached-with-substitute t/Int :cached :substitute-value :forty-two the-answer))
 
 (deftest substitute-values-and-cache-invalidation
   (with-clean-system
-    (let [[holder-node answer-node] (tx-nodes (construct ValueHolderNode :value 23) (construct AnswerNode))]
+    (let [[holder-node answer-node] (tx-nodes (n/construct ValueHolderNode :value 23) (n/construct AnswerNode))]
 
-      (ds/transactional (ds/connect holder-node :value answer-node :in))
+      (g/transactional (g/connect holder-node :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
@@ -363,7 +358,7 @@
         (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*)))
 
-      (ds/transactional (ds/set-property holder-node :value 42))
+      (g/transactional (g/set-property holder-node :value 42))
 
       (binding [*answer-call-count* (atom 0)]
         (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))
@@ -378,17 +373,17 @@
         (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*))))))
 
-(defnk always-fail []
+(g/defnk always-fail []
   (assert false "I always fail :-("))
 
-(defnode FailureNode
-  (output out s/Any always-fail))
+(g/defnode FailureNode
+  (output out t/Any always-fail))
 
 (deftest production-fn-input-failure
   (with-clean-system
-    (let [[failure-node answer-node] (tx-nodes (construct FailureNode) (construct AnswerNode))]
+    (let [[failure-node answer-node] (tx-nodes (n/construct FailureNode) (n/construct AnswerNode))]
 
-      (ds/transactional (ds/connect failure-node :out answer-node :in))
+      (g/transactional (g/connect failure-node :out answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
@@ -403,9 +398,9 @@
         (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
         (is (= 0 @*answer-call-count*)))
 
-      (ds/transactional
-        (ds/disconnect failure-node :out answer-node :in)
-        (ds/connect (ds/add (construct ValueHolderNode :value 42)) :value answer-node :in))
+      (g/transactional
+        (g/disconnect failure-node :out answer-node :in)
+        (g/connect (g/add (n/construct ValueHolderNode :value 42)) :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))
@@ -423,59 +418,59 @@
         (is (= 1 @*answer-call-count*))))))
 
 
-(defnode BasicNode
-  (input basic-input s/Int)
-  (property string-property s/Str)
-  (property property-to-override s/Str)
-  (property multi-valued-property [s/Keyword] (default [:basic]))
-  (output basic-output s/Keyword :cached (fn [this g] :keyword)))
+(g/defnode BasicNode
+  (input basic-input t/Int)
+  (property string-property t/Str)
+  (property property-to-override t/Str)
+  (property multi-valued-property [t/Keyword] (default [:basic]))
+  (output basic-output t/Keyword :cached (fn [this g] :keyword)))
 
-(defproperty predefined-property-type s/Str
+(dp/defproperty predefined-property-type t/Str
   (default "a-default"))
 
-(defnode MultipleInheritance
-  (property property-from-multiple s/Str (default "multiple")))
+(g/defnode MultipleInheritance
+  (property property-from-multiple t/Str (default "multiple")))
 
-(defnode InheritsBasicNode
+(g/defnode InheritsBasicNode
   (inherits BasicNode)
   (inherits MultipleInheritance)
-  (input another-input [s/Int])
-  (property property-to-override s/Str (default "override"))
+  (input another-input [t/Int])
+  (property property-to-override t/Str (default "override"))
   (property property-from-type predefined-property-type)
-  (property multi-valued-property [s/Str] (default ["extra" "things"]))
-  (output another-output s/Keyword (fn [this g] :keyword))
-  (output another-cached-output s/Keyword :cached (fn [this g] :keyword)))
+  (property multi-valued-property [t/Str] (default ["extra" "things"]))
+  (output another-output t/Keyword (fn [this g] :keyword))
+  (output another-cached-output t/Keyword :cached (fn [this g] :keyword)))
 
 (deftest inheritance-merges-node-types
   (testing "properties"
-    (is (:string-property (t/properties (construct BasicNode))))
-    (is (:string-property (t/properties (construct InheritsBasicNode))))
-    (is (:property-to-override (t/properties (construct InheritsBasicNode))))
-    (is (= nil         (-> (construct BasicNode)         t/properties :property-to-override   t/property-default-value)))
-    (is (= "override"  (-> (construct InheritsBasicNode) t/properties :property-to-override   t/property-default-value)))
-    (is (= "a-default" (-> (construct InheritsBasicNode) t/properties :property-from-type     t/property-default-value)))
-    (is (= "multiple"  (-> (construct InheritsBasicNode) t/properties :property-from-multiple t/property-default-value))))
+    (is (:string-property (t/properties (n/construct BasicNode))))
+    (is (:string-property (t/properties (n/construct InheritsBasicNode))))
+    (is (:property-to-override (t/properties (n/construct InheritsBasicNode))))
+    (is (= nil         (-> (n/construct BasicNode)         t/properties :property-to-override   t/property-default-value)))
+    (is (= "override"  (-> (n/construct InheritsBasicNode) t/properties :property-to-override   t/property-default-value)))
+    (is (= "a-default" (-> (n/construct InheritsBasicNode) t/properties :property-from-type     t/property-default-value)))
+    (is (= "multiple"  (-> (n/construct InheritsBasicNode) t/properties :property-from-multiple t/property-default-value))))
   (testing "transforms"
-    (is (every? (-> (construct BasicNode) t/outputs)
+    (is (every? (-> (n/construct BasicNode) t/outputs)
                 #{:string-property :property-to-override :multi-valued-property :basic-output}))
-    (is (every? (-> (construct InheritsBasicNode) t/outputs)
+    (is (every? (-> (n/construct InheritsBasicNode) t/outputs)
                 #{:string-property :property-to-override :multi-valued-property :basic-output :property-from-type :another-cached-output})))
   (testing "transform-types"
-    (is (= [s/Keyword] (-> BasicNode t/transform-types' :multi-valued-property)))
-    (is (= [s/Str]     (-> InheritsBasicNode t/transform-types' :multi-valued-property))))
+    (is (= [t/Keyword] (-> BasicNode t/transform-types' :multi-valued-property)))
+    (is (= [t/Str]     (-> InheritsBasicNode t/transform-types' :multi-valued-property))))
   (testing "inputs"
-    (is (every? (-> (construct BasicNode) t/inputs)
+    (is (every? (-> (n/construct BasicNode) t/inputs)
                 #{:basic-input}))
-    (is (every? (-> (construct InheritsBasicNode) t/inputs)
+    (is (every? (-> (n/construct InheritsBasicNode) t/inputs)
                 #{:basic-input :another-input})))
   (testing "cached"
-    (is (:basic-output (t/cached-outputs (construct BasicNode))))
-    (is (:basic-output (t/cached-outputs (construct InheritsBasicNode))))
-    (is (:another-cached-output (t/cached-outputs (construct InheritsBasicNode))))
-    (is (not (:another-output (t/cached-outputs (construct InheritsBasicNode)))))))
+    (is (:basic-output (t/cached-outputs (n/construct BasicNode))))
+    (is (:basic-output (t/cached-outputs (n/construct InheritsBasicNode))))
+    (is (:another-cached-output (t/cached-outputs (n/construct InheritsBasicNode))))
+    (is (not (:another-output (t/cached-outputs (n/construct InheritsBasicNode)))))))
 
-(defnode PropertyValidationNode
-  (property even-number s/Int
+(g/defnode PropertyValidationNode
+  (property even-number t/Int
     (default 0)
     (validate must-be-even :message "only even numbers are allowed" even?)))
 
