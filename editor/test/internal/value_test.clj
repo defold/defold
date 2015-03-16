@@ -238,3 +238,37 @@
       (is (cached? cache node-id :plus-1))
       (is (not (cached? cache node-id :self)))
       (is (not (cached? cache node-id :call-counter))))))
+
+(g/defnode Source
+  (property constant t/Keyword))
+
+(g/defnode ValuePrecedence
+  (property overloaded-output-input-property t/Keyword (default :property))
+  (input    overloaded-output-input-property t/Keyword)
+  (output   overloaded-output-input-property t/Keyword (g/fnk [] :output))
+
+  (input    overloaded-input-property t/Keyword)
+  (output   overloaded-input-property t/Keyword (g/fnk [overloaded-input-property] overloaded-input-property))
+
+  (property the-property t/Keyword (default :property))
+
+  (output   output-using-overloaded-output-input-property t/Keyword (g/fnk [overloaded-output-input-property] overloaded-output-input-property))
+
+  (input    eponymous t/Keyword)
+  (output   eponymous t/Keyword (g/fnk [eponymous] eponymous))
+  )
+
+
+(deftest node-value-precedence
+  (with-clean-system
+    (let [[node s1] (tx-nodes (n/construct ValuePrecedence)
+                              (n/construct Source :constant :input))]
+      (g/transactional
+       (g/connect s1 :constant node :overloaded-output-input-property)
+       (g/connect s1 :constant node :overloaded-input-property)
+       (g/connect s1 :constant node :eponymous))
+      (is (= :output   (g/node-value (:graph @world-ref) cache node :overloaded-output-input-property)))
+      (is (= :input    (g/node-value (:graph @world-ref) cache node :overloaded-input-property)))
+      (is (= :property (g/node-value (:graph @world-ref) cache node :the-property)))
+      (is (= :output   (g/node-value (:graph @world-ref) cache node :output-using-overloaded-output-input-property)))
+      (is (= :input    (g/node-value (:graph @world-ref) cache node :eponymous))))))
