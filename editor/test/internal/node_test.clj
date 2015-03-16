@@ -479,23 +479,3 @@
     (let [[node]     (tx-nodes (n/construct PropertyValidationNode :even-number 1))
           properties (g/node-value (:graph @world-ref) cache node :properties)]
       (is (= ["only even numbers are allowed"] (some-> properties :even-number :validation-problems))))))
-
-(g/defnode SelfCounter
-  (property first-call t/Bool (default true))
-  (property call-counter t/Int (default 0))
-
-  (output update-counter t/Int
-          (g/fnk [self call-counter first-call]
-                 (g/transactional
-                  (g/update-property self :call-counter inc)
-                  (g/set-property self :first-call false))
-                 (inc call-counter))))
-
-(deftest self-fnk-gets-latest-value
-  (with-clean-system
-    (let [[node]       (tx-nodes (n/construct SelfCounter))]
-      (is (= 1 (g/node-value (:graph @world-ref) cache node :update-counter)))
-      (is (= false (g/node-value (:graph @world-ref) cache node :first-call)))
-      (g/transactional (g/set-property node :call-counter 15))
-      (is (= 16 (g/node-value (:graph @world-ref) cache node :update-counter)))
-      (is (= false (g/node-value (:graph @world-ref) cache node :first-call))))))

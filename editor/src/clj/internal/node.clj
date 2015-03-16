@@ -253,8 +253,9 @@
   (fn [graph in-production node-id label chain-head chain-next]
     (assert (= 2 (count chain-next)))
     (let [[consequent alternate & _] chain-next
-          branch?                    (test graph node-id label)]
-      (chain-eval (if branch? consequent alternate) graph in-production node-id label))))
+          branch?                    (test graph node-id label)
+          next-chain                 (if branch? consequent alternate)]
+      ((first next-chain) graph in-production node-id label chain-head (next next-chain)))))
 
 (defn- cacheable?
   "Check the node type to see if the given output should be cached once computed."

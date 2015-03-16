@@ -213,3 +213,28 @@
                         (g/add (n/construct ScopeReceiver))))]
         (await-world-time world-ref 3 500)
         (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))
+
+(defn- cache-peek [cache node-id label]
+  (get @(:storage cache) [node-id label]))
+
+(defn- cached? [cache node-id label]
+  (not (nil? (cache-peek cache node-id label))))
+
+(g/defnode SelfCounter
+  (property call-counter t/Int (default 0))
+
+  (output plus-1 t/Int :cached
+          (g/fnk [self call-counter]
+                 (g/transactional (g/update-property self :call-counter inc
+                                                     ))
+                 (inc call-counter))))
+
+(deftest intermediate-uncached-values-are-not-cached
+  (with-clean-system
+    (let [[node]       (tx-nodes (n/construct SelfCounter :first-call true))
+          node-id      (:_id node)]
+      (g/node-value (:graph @world-ref) cache node :plus-1)
+      (def cache* cache)
+      (is (cached? cache node-id :plus-1))
+      (is (not (cached? cache node-id :self)))
+      (is (not (cached? cache node-id :call-counter))))))
