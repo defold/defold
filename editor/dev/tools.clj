@@ -49,8 +49,7 @@
   (dg/node (the-graph) id))
 
 (defn node-type
-  [id]
-  (-> (node id) t/node-type :name))
+  [id] (-> (node id) g/node-type :name))
 
 (defn nodes-of-type
   [type-name]

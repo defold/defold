@@ -11,6 +11,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals map-keys map-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
+(import-vars [dynamo.types Node node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs output-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' output-dependencies' MessageTarget process-one-event node-ref])
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -107,7 +108,7 @@ to `deftype` or `defrecord`. A node may implement any number of such protocols.
 Every node always implements dynamo.types/Node.
 
 If there are any event handlers defined for the node type, then it will also
-implement dynamo.types/MessageTarget."
+implement MessageTarget."
   [symb & body]
   (let [[symb forms] (ctm/name-with-attributes symb body)
         record-name  (in/classname-for symb)
@@ -116,10 +117,10 @@ implement dynamo.types/MessageTarget."
        (declare ~ctor-name ~symb)
        (let [description#    ~(in/node-type-sexps symb (concat in/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
-                               (when (satisfies? t/NodeType x#) x#))
+                               (when (satisfies? NodeType x#) x#))
              whole-graph#    (some-> (ds/current-scope) :world-ref deref :graph)
              to-be-replaced# (when (and whole-graph# replacing# (ds/current-scope))
-                               (filterv #(= replacing# (t/node-type %)) (dg/node-values whole-graph#)))
+                               (filterv #(= replacing# (node-type %)) (dg/node-values whole-graph#)))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
          (def ~symb (in/make-node-type (assoc description# :dynamo.node/ctor ctor#)))
          (in/define-node-record  '~record-name '~symb ~symb)
@@ -288,4 +289,4 @@ Outputs:
 (defn project-graph
   []
   (let [root (dn/construct RootScope :_id 1)]
-    (lg/add-labeled-node (dg/empty-graph) (t/inputs root) (t/outputs root) root)))
+    (lg/add-labeled-node (dg/empty-graph) (inputs root) (outputs root) root)))

@@ -182,7 +182,7 @@
     (.add (.getChildren grid) control)))
 
 (defn- setup-properties [root node]
-  (let [properties (t/properties node)
+  (let [properties (g/properties node)
         parent (.lookup root "#properties")
         grid (GridPane.)]
     (.clear (.getChildren parent))
@@ -307,7 +307,7 @@
                         (g/transactional
                           (g/delete node)))]
 
-    (if (satisfies? t/MessageTarget node)
+    (if (satisfies? g/MessageTarget node)
       (let [tab (Tab. (.getName file))]
         (setup-properties root resource-node)
 
@@ -398,9 +398,9 @@
   [message project-node resource-nodes]
   (doseq [resource-node resource-nodes]
     (log/logging-exceptions (str message (:filename resource-node))
-                            (when (satisfies? t/MessageTarget resource-node)
+                            (when (satisfies? g/MessageTarget resource-node)
                               (ds/in project-node
-                                     (t/process-one-event resource-node {:type :load :project project-node}))))))
+                                     (g/process-one-event resource-node {:type :load :project project-node}))))))
 
 (defn load-project
   [^File game-project-file]
