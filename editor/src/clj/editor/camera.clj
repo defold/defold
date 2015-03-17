@@ -294,17 +294,29 @@
     (* 1.1 (Math/max y-aspect fov-x-prim))))
 
 (sm/defn camera-orthographic-frame-aabb :- Camera
-  [camera :- Camera ^AABB aabb :- AABB]
+  [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
   (-> camera
-    (set-orthographic (camera-fov-from-aabb camera aabb) (:aspect camera) (:z-near camera) (:z-far camera))
+    (set-orthographic (camera-fov-from-aabb camera viewport aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
-(g/defnk produce-camera [self camera viewport]
+(defn reframe-camera-tx [self camera viewport aabb]
+  (if aabb
+    (let [camera (camera-orthographic-frame-aabb camera viewport aabb)]
+      (g/transactional
+        (g/set-property self :camera camera)
+        (g/set-property self :reframe false))
+      camera)
+    camera))
+
+(g/defnk produce-camera [self camera viewport aabb reframe]
   (let [w (- (:right viewport) (:left viewport))
        h (- (:bottom viewport) (:top viewport))]
    (if (and (> w 0) (> h 0))
-     (let [aspect (/ (double w) h)]
+     (let [camera (if reframe
+                    (reframe-camera-tx self camera viewport aabb)
+                    camera)
+           aspect (/ (double w) h)]
        (set-orthographic camera (:fov camera) aspect -100000 100000))
      camera)))
 
@@ -346,11 +358,13 @@
 
 (g/defnode CameraController
   (property camera Camera)
-
+  (property reframe t/Bool)
   (property ui-state t/Any (default (constantly (atom {:movement :idle}))))
   (property movements-enabled t/Any (default #{:dolly :track :tumble}))
 
   (input viewport Region)
+  (input aabb AABB)
+
   (output viewport Region (g/fnk [viewport] viewport))
   (output camera Region produce-camera)
 

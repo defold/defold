@@ -492,7 +492,7 @@
                  renderer     (g/add (n/construct scene/SceneRenderer))
                  background   (g/add (n/construct background/Gradient))
                  grid         (g/add (n/construct grid/Grid))
-                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
+                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))]
              (g/connect background   :renderable      renderer     :renderables)
              (g/connect grid         :renderable      renderer     :renderables)
              (g/connect camera       :camera          grid         :camera)
@@ -505,5 +505,6 @@
              (g/connect atlas-node   :texture-packing atlas-render :texture-packing)
              (g/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)
              (g/connect atlas-render :renderable      renderer     :renderables)
+             (g/connect atlas-node   :aabb            camera       :aabb)
              )
            view)))
