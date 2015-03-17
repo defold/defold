@@ -4,9 +4,7 @@
             [clojure.set :as set]
             [dynamo.util :refer :all]
             [internal.bus :as bus]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
-            [internal.graph.tracing :as trace]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [service.log :as log]))
 
@@ -165,14 +163,14 @@
 
 (defn- mark-activated
   [{:keys [graph] :as ctx} node-id input-label]
-  (let [dirty-deps (get (gt/output-dependencies (dg/node graph node-id)) input-label)]
+  (let [dirty-deps (get (gt/output-dependencies (ig/node graph node-id)) input-label)]
     (update-in ctx [:nodes-affected node-id] set/union dirty-deps)))
 
 (defn- activate-all-outputs
   [{:keys [graph] :as ctx} node-id node]
   (let [all-labels  (concat (gt/outputs node) (keys (gt/properties node)))
         ctx (update-in ctx [:nodes-affected node-id] set/union all-labels)
-        all-targets (into #{[node-id nil]} (mapcat #(lg/targets graph node-id %) all-labels))]
+        all-targets (into #{[node-id nil]} (mapcat #(ig/targets graph node-id %) all-labels))]
     (reduce
       (fn [ctx [target-id target-label]]
         (mark-activated ctx target-id target-label))
@@ -197,10 +195,10 @@
 (defmethod perform :create-node
   [{:keys [graph tempids triggers-to-fire nodes-affected world-ref new-event-loops nodes-added] :as ctx}
    {:keys [node]}]
-  (let [next-id     (dg/next-node graph)
+  (let [next-id     (ig/next-node graph)
         full-node   (assoc node :_id next-id :world-ref world-ref) ;; TODO: can we remove :world-ref from nodes?
-        graph-after (lg/add-labeled-node graph (gt/inputs node) (gt/outputs node) full-node)
-        full-node   (dg/node graph-after next-id)]
+        graph-after (ig/add-labeled-node graph (gt/inputs node) (gt/outputs node) full-node)
+        full-node   (ig/node graph-after next-id)]
     (assoc ctx
       :graph               graph-after
       :nodes-added         (conj nodes-added next-id)
@@ -219,7 +217,7 @@
                     :target-id    (:_id target-node)
                     :target-label target-label}))
     ctx
-    (lg/sources (:graph ctx) (:_id target-node) target-label)))
+    (ig/sources (:graph ctx) (:_id target-node) target-label)))
 
 (defn- disconnect-outputs
   [ctx source-node source-label]
@@ -231,12 +229,12 @@
                     :target-id    (:_id target-node)
                     :target-label target-label}))
     ctx
-    (lg/targets (:graph ctx) (:_id source-node) source-label)))
+    (ig/targets (:graph ctx) (:_id source-node) source-label)))
 
 (defmethod perform :become
   [{:keys [graph tempids nodes-affected world-ref new-event-loops old-event-loops] :as ctx}
    {:keys [node-id to-node]}]
-  (let [old-node         (dg/node graph node-id)
+  (let [old-node         (ig/node graph node-id)
         to-node-id       (:_id to-node)
         new-node         (merge to-node old-node)
 
@@ -248,7 +246,7 @@
         vanished-outputs (set/difference (gt/outputs old-node) (gt/outputs new-node))
         ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
 
-        graph            (dg/transform-node graph node-id (constantly new-node))
+        graph            (ig/transform-node graph node-id (constantly new-node))
 
         start-loop       (and      (gt/message-target? new-node)  (not (gt/message-target? old-node)))
         end-loop         (and (not (gt/message-target? new-node))      (gt/message-target? old-node))]
@@ -260,13 +258,13 @@
 
 (defmethod perform :delete-node
   [{:keys [graph nodes-deleted old-event-loops nodes-added triggers-to-fire] :as ctx} {:keys [node-id]}]
-  (when-not (dg/node graph (resolve-tempid ctx node-id))
+  (when-not (ig/node graph (resolve-tempid ctx node-id))
     (prn :delete-node "Can't locate node for ID " node-id))
   (let [node-id     (resolve-tempid ctx node-id)
-        node        (dg/node graph node-id)
+        node        (ig/node graph node-id)
         ctx         (activate-all-outputs ctx node-id node)]
     (assoc ctx
-      :graph               (dg/remove-node graph node-id)
+      :graph               (ig/remove-node graph node-id)
       :old-event-loops     (if (gt/message-target? node) (conj old-event-loops node) old-event-loops)
       :nodes-deleted       (assoc nodes-deleted node-id node)
       :nodes-added         (disj nodes-added node-id)
@@ -275,9 +273,9 @@
 (defmethod perform :update-property
   [{:keys [graph triggers-to-fire properties-modified] :as ctx} {:keys [node-id property fn args]}]
   (let [node-id   (resolve-tempid ctx node-id)
-        old-value (get (dg/node graph node-id) property)
-        new-graph (apply dg/transform-node graph node-id update-in [property] fn args)
-        new-value (get (dg/node new-graph node-id) property)]
+        old-value (get (ig/node graph node-id) property)
+        new-graph (apply ig/transform-node graph node-id update-in [property] fn args)
+        new-value (get (ig/node new-graph node-id) property)]
     (if (= old-value new-value)
       ctx
       (-> ctx
@@ -294,7 +292,7 @@
     (-> ctx
       (mark-activated target-id target-label)
       (assoc
-        :graph            (lg/connect graph source-id source-label target-id target-label)
+        :graph            (ig/connect graph source-id source-label target-id target-label)
         :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
 
 (defmethod perform :disconnect
@@ -304,7 +302,7 @@
     (-> ctx
       (mark-activated target-id target-label)
       (assoc
-        :graph            (lg/disconnect graph source-id source-label target-id target-label)
+        :graph            (ig/disconnect graph source-id source-label target-id target-label)
         :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
 
 (defmethod perform :message
@@ -338,7 +336,7 @@
 (defn- last-seen-node
   [{:keys [graph nodes-deleted]} node-id]
   (or
-    (dg/node graph node-id)
+    (ig/node graph node-id)
     (get nodes-deleted node-id)))
 
 (defn- trigger-activations
@@ -433,7 +431,7 @@
 (defn- trace-dependencies
   [{:keys [graph outputs-modified] :as ctx}]
   (update-in ctx [:outputs-modified]
-             #(trace/trace-dependencies graph %)))
+             #(ig/trace-dependencies graph %)))
 
 (defn- transact*
   [world-ref ctx]
@@ -453,10 +451,10 @@
         (when-let [msg (a/<! in)]
           (when (not= ::stop-event-loop (:type msg))
             (try
-              (let [n (dg/node (:graph @world-ref) id)]
+              (let [n (ig/node (:graph @world-ref) id)]
                 (when-not n
                   (log/error :message "Nil node in event loop"  :id id :chan-msg msg)))
-              (gt/process-one-event (dg/node (:graph @world-ref) id) msg)
+              (gt/process-one-event (ig/node (:graph @world-ref) id) msg)
               (catch Exception ex
                 (log/error :message "Error in node event loop" :exception ex)))
             (recur)))))))

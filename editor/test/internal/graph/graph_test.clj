@@ -4,10 +4,8 @@
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
-            [internal.graph.dgraph :refer :all]
-            [internal.graph.lgraph :refer :all]
-            [internal.graph.generator :refer [graph names-with-repeats maybe-with-protocols ProtocolA ProtocolB]]
-            [internal.graph.query :refer :all]))
+            [internal.graph :refer :all]
+            [internal.graph.generator :refer [graph names-with-repeats maybe-with-protocols ProtocolA ProtocolB]]))
 
 (defn occurrences [coll]
   (vals (frequencies coll)))

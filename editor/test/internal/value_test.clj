@@ -7,7 +7,7 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
-            [internal.graph.dgraph :as dg]
+            [internal.graph :as ig]
             [internal.transaction :as it]))
 
 (def ^:dynamic *calls*)
@@ -156,7 +156,7 @@
   (reify t/IDisposable
     (dispose [v]
       (tally this 'dispose)
-      (a/>!! (:channel (dg/node g this)) :gone))))
+      (a/>!! (:channel (ig/node g this)) :gone))))
 
 (g/defnode DisposableValueNode
   (output disposable-value 't/IDisposable :cached compute-disposable-value))
