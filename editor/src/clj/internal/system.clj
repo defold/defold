@@ -44,11 +44,6 @@
   [{old-world-time :world-time} {new-world-time :world-time :as new-world}]
   (and (= :ok (-> new-world :last-tx :status)) (< old-world-time new-world-time)))
 
-(defn- send-tx-reports
-  [report-ch _ _ old-world {last-tx :last-tx :as new-world}]
-  (when (transaction-applied? old-world new-world)
-    (a/put! report-ch last-tx)))
-
 (def history-size-min 50)
 (def history-size-max 60)
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
