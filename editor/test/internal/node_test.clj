@@ -92,7 +92,7 @@
 (deftest dependency-mapping
   (testing "node reports its own dependencies"
     (let [test-node (n/construct DependencyTestNode)
-          deps      (t/output-dependencies test-node)]
+          deps      (g/output-dependencies test-node)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
            :a-property         #{:depends-on-property :depends-on-several :a-property :properties}
@@ -217,8 +217,8 @@
         (is (= :node0 (g/node-value (:graph @world-ref) cache node1 :defnk-in))))))
   (testing "the output has the same type as the property"
     (is (= t/Keyword
-          (-> ProductionFunctionInputsNode t/transform-types' :prop)
-          (-> ProductionFunctionInputsNode t/properties' :prop :value-type)))))
+          (-> ProductionFunctionInputsNode g/transform-types' :prop)
+          (-> ProductionFunctionInputsNode g/properties' :prop :value-type)))))
 
 (g/defnk out-from-self [out-from-self] out-from-self)
 (g/defnk out-from-in [in] in)
@@ -443,31 +443,31 @@
 
 (deftest inheritance-merges-node-types
   (testing "properties"
-    (is (:string-property (t/properties (n/construct BasicNode))))
-    (is (:string-property (t/properties (n/construct InheritsBasicNode))))
-    (is (:property-to-override (t/properties (n/construct InheritsBasicNode))))
-    (is (= nil         (-> (n/construct BasicNode)         t/properties :property-to-override   t/property-default-value)))
-    (is (= "override"  (-> (n/construct InheritsBasicNode) t/properties :property-to-override   t/property-default-value)))
-    (is (= "a-default" (-> (n/construct InheritsBasicNode) t/properties :property-from-type     t/property-default-value)))
-    (is (= "multiple"  (-> (n/construct InheritsBasicNode) t/properties :property-from-multiple t/property-default-value))))
+    (is (:string-property (g/properties (n/construct BasicNode))))
+    (is (:string-property (g/properties (n/construct InheritsBasicNode))))
+    (is (:property-to-override (g/properties (n/construct InheritsBasicNode))))
+    (is (= nil         (-> (n/construct BasicNode)         g/properties :property-to-override   t/property-default-value)))
+    (is (= "override"  (-> (n/construct InheritsBasicNode) g/properties :property-to-override   t/property-default-value)))
+    (is (= "a-default" (-> (n/construct InheritsBasicNode) g/properties :property-from-type     t/property-default-value)))
+    (is (= "multiple"  (-> (n/construct InheritsBasicNode) g/properties :property-from-multiple t/property-default-value))))
   (testing "transforms"
-    (is (every? (-> (n/construct BasicNode) t/outputs)
+    (is (every? (-> (n/construct BasicNode) g/outputs)
                 #{:string-property :property-to-override :multi-valued-property :basic-output}))
-    (is (every? (-> (n/construct InheritsBasicNode) t/outputs)
+    (is (every? (-> (n/construct InheritsBasicNode) g/outputs)
                 #{:string-property :property-to-override :multi-valued-property :basic-output :property-from-type :another-cached-output})))
   (testing "transform-types"
-    (is (= [t/Keyword] (-> BasicNode t/transform-types' :multi-valued-property)))
-    (is (= [t/Str]     (-> InheritsBasicNode t/transform-types' :multi-valued-property))))
+    (is (= [t/Keyword] (-> BasicNode g/transform-types' :multi-valued-property)))
+    (is (= [t/Str]     (-> InheritsBasicNode g/transform-types' :multi-valued-property))))
   (testing "inputs"
-    (is (every? (-> (n/construct BasicNode) t/inputs)
+    (is (every? (-> (n/construct BasicNode) g/inputs)
                 #{:basic-input}))
-    (is (every? (-> (n/construct InheritsBasicNode) t/inputs)
+    (is (every? (-> (n/construct InheritsBasicNode) g/inputs)
                 #{:basic-input :another-input})))
   (testing "cached"
-    (is (:basic-output (t/cached-outputs (n/construct BasicNode))))
-    (is (:basic-output (t/cached-outputs (n/construct InheritsBasicNode))))
-    (is (:another-cached-output (t/cached-outputs (n/construct InheritsBasicNode))))
-    (is (not (:another-output (t/cached-outputs (n/construct InheritsBasicNode)))))))
+    (is (:basic-output (g/cached-outputs (n/construct BasicNode))))
+    (is (:basic-output (g/cached-outputs (n/construct InheritsBasicNode))))
+    (is (:another-cached-output (g/cached-outputs (n/construct InheritsBasicNode))))
+    (is (not (:another-output (g/cached-outputs (n/construct InheritsBasicNode)))))))
 
 (g/defnode PropertyValidationNode
   (property even-number t/Int

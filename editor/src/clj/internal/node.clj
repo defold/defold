@@ -601,14 +601,31 @@ and protocols that the node type requires."
 ;; ---------------------------------------------------------------------------
 ;; Dependency Injection
 ;; ---------------------------------------------------------------------------
+(defn- check-single-type
+  [out in]
+  (or
+   (= t/Any in)
+   (= out in)
+   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
+
+(defn type-compatible?
+  [output-schema input-schema expect-collection?]
+  (let [out-t-pl? (coll? output-schema)
+        in-t-pl?  (coll? input-schema)]
+    (or
+     (= t/Any input-schema)
+     (and expect-collection? (= [t/Any] input-schema))
+     (and expect-collection? in-t-pl? (check-single-type output-schema (first input-schema)))
+     (and (not expect-collection?) (check-single-type output-schema input-schema))
+     (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
 
 (defn compatible?
   [[out-node out-label out-type in-node in-label in-type]]
   (cond
-   (and (= out-label in-label) (t/compatible? out-type in-type false))
+   (and (= out-label in-label) (type-compatible? out-type in-type false))
    [out-node out-label in-node in-label]
 
-   (and (= (plural out-label) in-label) (t/compatible? out-type in-type true))
+   (and (= (plural out-label) in-label) (type-compatible? out-type in-type true))
    [out-node out-label in-node in-label]))
 
 (defn injection-candidates
