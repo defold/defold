@@ -172,6 +172,7 @@ public class Bob {
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles.");
+        options.addOption("k", "keep-unused", false, "Keep unused resources in archived output.");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
