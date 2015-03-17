@@ -92,7 +92,7 @@ Messages:
     (inherits g/Scope)
     (inherits Renderer)
 
-    (input controller `t/Node)
+    (input controller `g/Node)
 
     (input  saveable  s/Keyword)
     (output saveable  s/Keyword (fnk [saveable] saveable))

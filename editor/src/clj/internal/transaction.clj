@@ -2,13 +2,12 @@
   "Internal functions that implement the transactional behavior."
   (:require [clojure.core.async :as a]
             [clojure.set :as set]
-            [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.bus :as bus]
-            [internal.either :as e]
-            [internal.graph.tracing :as gt]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
+            [internal.graph.tracing :as trace]
+            [internal.graph.types :as gt]
             [service.log :as log]))
 
 
@@ -88,6 +87,13 @@
 ; Building transactions
 ; ---------------------------------------------------------------------------
 (defn new-node
+  "*transaction step* - creates a resource in the project. Expects a
+  node. May include an `:_id` key containing a tempid if the resource
+  will be referenced again in the same transaction. If supplied,
+  _input_ and _output_ are sets of input and output labels,
+  respectively.  If not supplied as arguments, the `:input` and
+  `:output` keys in the node may will be assigned as the resource's
+  inputs and outputs."
   [node]
   [{:type :create-node
     :node node}])
@@ -104,7 +110,10 @@
     :node-id (:_id node)}])
 
 (defn update-property
-  [node pr f args]
+  "*transaction step* - Expects a node, a property label, and a
+  function f (with optional args) to be performed on the current value
+  of the property. The node may be a uncommitted, in which case it
+  will have a tempid."  [node pr f args]
   [{:type     :update-property
     :node-id  (:_id node)
     :property pr
@@ -112,6 +121,8 @@
     :args     args}])
 
 (defn connect
+  "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
+(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `connect` may have tempids."
   [from-node from-label to-node to-label]
   [{:type         :connect
     :source-id    (:_id from-node)
@@ -120,6 +131,11 @@
     :target-label to-label}])
 
 (defn disconnect
+  "*transaction step* - The reverse of [[connect]]. Creates a
+  transaction step disconnecting a source node and label
+  (`from-resource from-label`) from a target node and label
+  (`to-resource to-label`). It returns a value suitable for consumption
+  by [[perform]]. Nodes passed to `disconnect` may be tempids."
   [from-node from-label to-node to-label]
   [{:type         :disconnect
     :source-id    (:_id from-node)
@@ -149,12 +165,12 @@
 
 (defn- mark-activated
   [{:keys [graph] :as ctx} node-id input-label]
-  (let [dirty-deps (get (t/output-dependencies (dg/node graph node-id)) input-label)]
+  (let [dirty-deps (get (gt/output-dependencies (dg/node graph node-id)) input-label)]
     (update-in ctx [:nodes-affected node-id] set/union dirty-deps)))
 
 (defn- activate-all-outputs
   [{:keys [graph] :as ctx} node-id node]
-  (let [all-labels  (concat (t/outputs node) (keys (t/properties node)))
+  (let [all-labels  (concat (gt/outputs node) (keys (gt/properties node)))
         ctx (update-in ctx [:nodes-affected node-id] set/union all-labels)
         all-targets (into #{[node-id nil]} (mapcat #(lg/targets graph node-id %) all-labels))]
     (reduce
@@ -163,22 +179,35 @@
       ctx
       all-targets)))
 
-(defmulti perform (fn [ctx m] (:type m)))
+(defmulti perform
+  "A multimethod used for defining methods that perform the individual
+  actions within a transaction. This is for internal use, not intended
+  to be extended by applications.
+
+  Perform takes a transaction context (ctx) and a map (m) containing a
+  value for keyword `:type`, and other keys and values appropriate to
+  the transformation it represents. Callers should regard the map and
+  context as opaque.
+
+  Calls to perform are only executed by [[transact]]. The data
+  required for `perform` calls are constructed in action functions,
+  such as [[connect]] and [[update-property]]."
+  (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
   [{:keys [graph tempids triggers-to-fire nodes-affected world-ref new-event-loops nodes-added] :as ctx}
    {:keys [node]}]
   (let [next-id     (dg/next-node graph)
         full-node   (assoc node :_id next-id :world-ref world-ref) ;; TODO: can we remove :world-ref from nodes?
-        graph-after (lg/add-labeled-node graph (t/inputs node) (t/outputs node) full-node)
+        graph-after (lg/add-labeled-node graph (gt/inputs node) (gt/outputs node) full-node)
         full-node   (dg/node graph-after next-id)]
     (assoc ctx
       :graph               graph-after
       :nodes-added         (conj nodes-added next-id)
       :tempids             (assoc tempids (:_id node) next-id)
-      :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
+      :new-event-loops     (if (satisfies? gt/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
       :triggers-to-fire    (update-in triggers-to-fire [next-id :added] concat [])
-      :nodes-affected      (merge-with set/union nodes-affected {next-id (t/outputs full-node)}))))
+      :nodes-affected      (merge-with set/union nodes-affected {next-id (gt/outputs full-node)}))))
 
 (defn- disconnect-inputs
   [ctx target-node target-label]
@@ -212,17 +241,17 @@
         new-node         (merge to-node old-node)
 
         ;; disconnect inputs that no longer exist
-        vanished-inputs  (set/difference (t/inputs old-node) (t/inputs new-node))
+        vanished-inputs  (set/difference (gt/inputs old-node) (gt/inputs new-node))
         ctx              (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in))  ctx vanished-inputs)
 
         ;; disconnect outputs that no longer exist
-        vanished-outputs (set/difference (t/outputs old-node) (t/outputs new-node))
+        vanished-outputs (set/difference (gt/outputs old-node) (gt/outputs new-node))
         ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
 
         graph            (dg/transform-node graph node-id (constantly new-node))
 
-        start-loop       (and      (satisfies? t/MessageTarget new-node)  (not (satisfies? t/MessageTarget old-node)))
-        end-loop         (and (not (satisfies? t/MessageTarget new-node))      (satisfies? t/MessageTarget old-node))]
+        start-loop       (and      (gt/message-target? new-node)  (not (gt/message-target? old-node)))
+        end-loop         (and (not (gt/message-target? new-node))      (gt/message-target? old-node))]
     (assoc (activate-all-outputs ctx node-id new-node)
       :graph               graph
       :tempids             (if (tempid? to-node-id) (assoc tempids to-node-id node-id) tempids)
@@ -238,7 +267,7 @@
         ctx         (activate-all-outputs ctx node-id node)]
     (assoc ctx
       :graph               (dg/remove-node graph node-id)
-      :old-event-loops     (if (satisfies? t/MessageTarget node) (conj old-event-loops node) old-event-loops)
+      :old-event-loops     (if (gt/message-target? node) (conj old-event-loops node) old-event-loops)
       :nodes-deleted       (assoc nodes-deleted node-id node)
       :nodes-added         (disj nodes-added node-id)
       :triggers-to-fire    (update-in triggers-to-fire [node-id :deleted] concat []))))
@@ -318,7 +347,7 @@
         [kind args] m
         :let [node (last-seen-node ctx node-id)]
         :when node
-        [l tr] (-> node t/node-type t/triggers (get kind) seq)]
+        [l tr] (-> node gt/node-type gt/triggers (get kind) seq)]
     (if (empty? args)
       [tr node l kind]
       [tr node l kind (set args)])))
@@ -404,7 +433,7 @@
 (defn- trace-dependencies
   [{:keys [graph outputs-modified] :as ctx}]
   (update-in ctx [:outputs-modified]
-             #(gt/trace-dependencies graph %)))
+             #(trace/trace-dependencies graph %)))
 
 (defn- transact*
   [world-ref ctx]
@@ -427,7 +456,7 @@
               (let [n (dg/node (:graph @world-ref) id)]
                 (when-not n
                   (log/error :message "Nil node in event loop"  :id id :chan-msg msg)))
-              (t/process-one-event (dg/node (:graph @world-ref) id) msg)
+              (gt/process-one-event (dg/node (:graph @world-ref) id) msg)
               (catch Exception ex
                 (log/error :message "Error in node event loop" :exception ex)))
             (recur)))))))
@@ -437,6 +466,13 @@
   (bus/publish (:message-bus @world-ref) (bus/address-to _id {:type ::stop-event-loop})))
 
 (defn transact
+  "Execute a transaction to create a new version of the world's
+  state. This takes in a ref to the current world state, modifies it
+  according to the transaction steps in txs, and returns a new world.
+
+  The txs must have been created by the transaction step functions in
+  this namespace: [[connect]], [[disconnect]], [[new-node]],
+  and [[update-property]]. The collection of txs can be nested."
   [world-ref txs]
   (let [{:keys [world messages new-event-loops old-event-loops nodes-deleted] :as tx-result} (transact* world-ref (new-transaction-context world-ref txs))]
     (doseq [l old-event-loops]
@@ -448,45 +484,3 @@
         (a/onto-chan (:disposal-queue world) (vals nodes-deleted) false))
       (bus/publish-all (:message-bus world) messages))
     (:last-tx world)))
-
-; ---------------------------------------------------------------------------
-; Documentation
-; ---------------------------------------------------------------------------
-(doseq [[v doc]
-       {#'perform
-        "A multimethod used for defining methods that perform the individual actions within a
-transaction. This is for internal use, not intended to be extended by applications.
-
-Perform takes a transaction context (ctx) and a map (m) containing a value for keyword `:type`, and other keys and
-values appropriate to the transformation it represents. Callers should regard the map and context as opaque.
-
-Calls to perform are only executed by [[transact]]. The data required for `perform` calls are constructed in action functions,
-such as [[connect]] and [[update-property]]."
-
-        #'connect
-        "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
-(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `connect` may have tempids."
-
-        #'disconnect
-        "*transaction step* - The reverse of [[connect]]. Creates a transaction step disconnecting a source node and label
-(`from-resource from-label`) from a target node and label
-(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `disconnect` may be tempids."
-
-        #'new-node
-        "*transaction step* - creates a resource in the project. Expects a node. May include an `:_id` key containing a
-tempid if the resource will be referenced again in the same transaction. If supplied, _input_ and _output_ are sets of input and output labels, respectively.
-If not supplied as arguments, the `:input` and `:output` keys in the node may will be assigned as the resource's inputs and outputs."
-
-        #'update-property
-        "*transaction step* - Expects a node, a property label, and a function f (with optional args) to be performed on the
-current value of the property. The node may be a uncommitted, in which case it will have a tempid."
-
-        #'transact
-        "Execute a transaction to create a new version of the world's state. This takes in
-a ref to the current world state, modifies it according to the transaction steps in txs,
-and returns a new world.
-
-The txs must have been created by the transaction step functions in this namespace: [[connect]],
-[[disconnect]], [[new-node]], and [[update-property]]. The collection of txs can be nested."
-}]
-  (alter-meta! v assoc :doc doc))

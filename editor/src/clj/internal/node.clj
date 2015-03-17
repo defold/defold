@@ -11,6 +11,7 @@
             [internal.either :as e]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
+            [internal.graph.types :as gt]
             [internal.metrics :as metrics]
             [internal.property :as ip]
             [plumbing.core :refer [fnk defnk]]
@@ -20,7 +21,7 @@
   ([property-type]
     (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
   ([node label]
-    (some-> node t/node-type t/properties' label resource?)))
+    (some-> node gt/node-type gt/properties' label resource?)))
 
 (defn- pfnk? [f] (contains? (meta f) :schema))
 
@@ -55,7 +56,7 @@
 (def ^:private multivalued?  vector?)
 (def ^:private exists?       (comp not nil?))
 (def ^:private has-property? contains?)
-(defn- has-output? [node label] (some-> node t/transforms label boolean))
+(defn- has-output? [node label] (some-> node gt/transforms label boolean))
 (def ^:private first-source (comp first lg/sources))
 (defn- currently-producing [in-production node-id label] (= (last in-production) [node-id label]))
 
@@ -70,8 +71,8 @@
   5. It is the special name :g. Use the entire graph as an argument."
   [graph in-production node-id label chain-head]
   (let [node             (dg/node graph node-id)
-        input-schema     (some-> node t/input-types label)
-        output-transform (some-> node t/transforms  label)]
+        input-schema     (some-> node gt/input-types label)
+        output-transform (some-> node gt/transforms  label)]
     (cond
       (and (has-output? node label) (not (currently-producing in-production node-id label)))
       (chain-eval chain-head graph in-production node-id label)
@@ -163,7 +164,7 @@
   gathers the arguments needed for the production function and invokes
   it."
   [graph in-production node-id label chain-head chain-next]
-  (if-let [transform (some->> node-id (dg/node graph) t/transforms label)]
+  (if-let [transform (some->> node-id (dg/node graph) gt/transforms label)]
     (apply-transform-or-substitute graph in-production node-id label chain-head transform)
     (continue graph in-production node-id label chain-head chain-next)))
 
@@ -184,7 +185,7 @@
   with the rest of the chain."
   [graph in-production node-id label chain-head chain-next]
   (let [node             (dg/node graph node-id)
-        input-schema     (some-> node t/input-types label)]
+        input-schema     (some-> node gt/input-types label)]
     (cond
       (multivalued? input-schema)
       (e/bind
@@ -260,7 +261,7 @@
 (defn- cacheable?
   "Check the node type to see if the given output should be cached once computed."
   [graph node-id label]
-  ((t/cached-outputs (dg/node graph node-id)) label))
+  ((gt/cached-outputs (dg/node graph node-id)) label))
 
 (def fork-cacheable (fork cacheable?))
 
@@ -293,7 +294,7 @@ maybe cache the value that was produced, and return it."
 (defrecord NodeTypeImpl
   [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers output-dependencies]
 
-  t/NodeType
+  gt/NodeType
   (supertypes           [_] supertypes)
   (interfaces           [_] interfaces)
   (protocols            [_] protocols)
@@ -362,17 +363,17 @@ This is really meant to be used during macro expansion of `defnode`,
 not called directly."
   [description]
   (-> description
-    (update-in [:inputs]              combine-with merge      {} (from-supertypes description t/inputs'))
-    (update-in [:injectable-inputs]   combine-with set/union #{} (from-supertypes description t/injectable-inputs'))
-    (update-in [:properties]          combine-with merge      {} (from-supertypes description t/properties'))
-    (update-in [:transforms]          combine-with merge      {} (from-supertypes description t/transforms'))
-    (update-in [:transform-types]     combine-with merge      {} (from-supertypes description t/transform-types'))
-    (update-in [:cached-outputs]      combine-with set/union #{} (from-supertypes description t/cached-outputs'))
-    (update-in [:event-handlers]      combine-with set/union #{} (from-supertypes description t/event-handlers'))
-    (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description t/interfaces))
-    (update-in [:protocols]           combine-with set/union #{} (from-supertypes description t/protocols))
-    (update-in [:method-impls]        combine-with merge      {} (from-supertypes description t/method-impls))
-    (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description t/triggers))
+    (update-in [:inputs]              combine-with merge      {} (from-supertypes description gt/inputs'))
+    (update-in [:injectable-inputs]   combine-with set/union #{} (from-supertypes description gt/injectable-inputs'))
+    (update-in [:properties]          combine-with merge      {} (from-supertypes description gt/properties'))
+    (update-in [:transforms]          combine-with merge      {} (from-supertypes description gt/transforms'))
+    (update-in [:transform-types]     combine-with merge      {} (from-supertypes description gt/transform-types'))
+    (update-in [:cached-outputs]      combine-with set/union #{} (from-supertypes description gt/cached-outputs'))
+    (update-in [:event-handlers]      combine-with set/union #{} (from-supertypes description gt/event-handlers'))
+    (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description gt/interfaces))
+    (update-in [:protocols]           combine-with set/union #{} (from-supertypes description gt/protocols))
+    (update-in [:method-impls]        combine-with merge      {} (from-supertypes description gt/method-impls))
+    (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description gt/triggers))
     attach-output-dependencies
     map->NodeTypeImpl))
 
@@ -534,41 +535,41 @@ build the node type description (map). These are emitted where you invoked
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (map-vals t/property-default-value (t/properties' node-type)))
+  (map-vals t/property-default-value (gt/properties' node-type)))
 
 (defn classname-for [prefix] (symbol (str prefix "__")))
 
 (defn- state-vector
   [node-type]
-  (mapv (comp symbol name) (keys (t/properties' node-type))))
+  (mapv (comp symbol name) (keys (gt/properties' node-type))))
 
 (defn- message-processor
   [node-type-name node-type]
-  (when (not-empty (t/event-handlers' node-type))
-    `[t/MessageTarget
-      (dynamo.types/process-one-event
+  (when (not-empty (gt/event-handlers' node-type))
+    `[gt/MessageTarget
+      (gt/process-one-event
        [~'self ~'event]
        (case (:type ~'event)
-         ~@(mapcat (fn [e] [e `((get (t/event-handlers' ~node-type-name) ~e) ~'self ~'event)]) (keys (t/event-handlers' node-type)))
+         ~@(mapcat (fn [e] [e `((get (gt/event-handlers' ~node-type-name) ~e) ~'self ~'event)]) (keys (gt/event-handlers' node-type)))
          nil))]))
 
 (defn- node-record-sexps
   [record-name node-type-name node-type]
   `(defrecord ~record-name ~(state-vector node-type)
-     t/Node
+     gt/Node
      (node-type           [_]    ~node-type-name)
-     (inputs              [_]    (set (keys (t/inputs' ~node-type-name))))
-     (input-types         [_]    (t/inputs' ~node-type-name))
-     (injectable-inputs   [_]    (t/injectable-inputs' ~node-type-name))
-     (outputs             [_]    (t/outputs' ~node-type-name))
-     (transforms          [_]    (t/transforms' ~node-type-name))
-     (transform-types     [_]    (t/transform-types' ~node-type-name))
-     (cached-outputs      [_]    (t/cached-outputs' ~node-type-name))
-     (properties          [_]    (t/properties' ~node-type-name))
-     (output-dependencies [_]    (t/output-dependencies' ~node-type-name))
-     ~@(t/interfaces node-type)
-     ~@(t/protocols node-type)
-     ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (t/method-impls ~node-type-name) '~fname)) ~@argv))) (t/method-impls node-type))
+     (inputs              [_]    (set (keys (gt/inputs' ~node-type-name))))
+     (input-types         [_]    (gt/inputs' ~node-type-name))
+     (injectable-inputs   [_]    (gt/injectable-inputs' ~node-type-name))
+     (outputs             [_]    (gt/outputs' ~node-type-name))
+     (transforms          [_]    (gt/transforms' ~node-type-name))
+     (transform-types     [_]    (gt/transform-types' ~node-type-name))
+     (cached-outputs      [_]    (gt/cached-outputs' ~node-type-name))
+     (properties          [_]    (gt/properties' ~node-type-name))
+     (output-dependencies [_]    (gt/output-dependencies' ~node-type-name))
+     ~@(gt/interfaces node-type)
+     ~@(gt/protocols node-type)
+     ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type))
      ~@(message-processor node-type-name node-type)))
 
 (defn define-node-record
@@ -590,7 +591,7 @@ and protocols that the node type requires."
        (.write
          ^java.io.Writer w#
          (str "#" '~node-type-name "{:_id " (:_id ~node)
-           ~@(interpose-every 3 ", " (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))]) (keys (t/properties' node-type))))
+           ~@(interpose-every 3 ", " (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))]) (keys (gt/properties' node-type))))
            "}")))))
 
 (defn define-print-method
@@ -633,17 +634,17 @@ and protocols that the node type requires."
   (into #{}
      (keep compatible?
         (for [target  targets
-              i       (t/injectable-inputs target)
-              :let    [i-l (get (t/input-types target) i)]
+              i       (gt/injectable-inputs target)
+              :let    [i-l (get (gt/input-types target) i)]
               node    nodes
-              [o o-l] (t/transform-types node)]
+              [o o-l] (gt/transform-types node)]
             [node o o-l target i i-l]))))
 
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
 (defn- gather-property [this prop]
-  (let [type     (-> this t/properties prop)
+  (let [type     (-> this gt/properties prop)
         value    (get this prop)
         problems (t/property-validate type value)]
     {:node-id             (:_id this)
@@ -655,7 +656,7 @@ and protocols that the node type requires."
   "Production function that delivers the definition and value
 for all properties of this node."
   [this]
-  (let [property-names (-> this t/properties keys)]
+  (let [property-names (-> this gt/properties keys)]
     (zipmap property-names (map (partial gather-property this) property-names))))
 
 (defn- ->vec [x] (if (coll? x) (vec x) (if (nil? x) [] [x])))

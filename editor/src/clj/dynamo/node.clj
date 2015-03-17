@@ -11,22 +11,22 @@ Second, this namespace defines some of the basic node types and mixins."
             [dynamo.util :refer :all]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
+            [internal.graph.types :as gt]
             [internal.node :as in]
-            [internal.outline :as outline]
             [internal.property :as ip]))
 
 (defn construct
   "Creates an instance of a node. The node-type must have been
-previously defined via `defnode`.
+  previously defined via `defnode`.
 
-The node's properties will all have their default values. The caller
-may pass key/value pairs to override properties.
+  The node's properties will all have their default values. The caller
+  may pass key/value pairs to override properties.
 
-A node that has been constructed is not connected to anything and it
-doesn't exist in the graph yet. The caller must use `dynamo.system/add`
-to place the node in the graph.
+  A node that has been constructed is not connected to anything and it
+  doesn't exist in the graph yet. The caller must use
+  `dynamo.system/add` to place the node in the graph.
 
-Example:
+  Example:
   (defnode GravityModifier
     (property acceleration t/Int (default 32))
 
@@ -46,7 +46,7 @@ it a message.
 
 This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
-  (process-one-event (ds/refresh node) (assoc body :type type)))
+  (gt/process-one-event (ds/refresh node) (assoc body :type type)))
 
 ; ---------------------------------------------------------------------------
 ; Bootstrapping the core node types
