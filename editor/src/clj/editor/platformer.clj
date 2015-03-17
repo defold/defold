@@ -112,8 +112,7 @@
   (input base-texture t/Any)
 
   (output vertex-buffer t/Any      produce-vertex-buffer)
-  (output renderable    RenderData :cached produce-renderable)
-  (output aabb          AABB       :cached (g/fnk [] geom/unit-bounding-box)))
+  (output renderable    RenderData :cached produce-renderable))
 
 (defn- hit? [cp pos camera viewport]
   (let [screen-cp (c/camera-project camera viewport (Point3d. (:x cp) (:y cp) 0))
@@ -191,6 +190,7 @@
                                                                  :mag-filter gl/linear
                                                                  :wrap-s     gl/repeat
                                                                  :wrap-t     gl/repeat})))
+  (output aabb          AABB       :cached (g/fnk [] geom/unit-bounding-box)) ; TODO fix aabb
 
   (on :load
       (let [project (:project event)
@@ -208,7 +208,7 @@
                  renderer     (g/add (n/construct scene/SceneRenderer))
                  background   (g/add (n/construct background/Gradient))
                  grid         (g/add (n/construct grid/Grid))
-                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
+                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))]
              (g/connect background        :renderable     renderer          :renderables)
              (g/connect grid              :renderable     renderer          :renderables)
              (g/connect camera            :camera         grid              :camera)
@@ -224,5 +224,6 @@
              (g/connect view              :viewport       platformer-node   :viewport)
              (g/connect platformer-node   :control-points platformer-render :control-points)
              (g/connect platformer-render :renderable     renderer          :renderables)
+             (g/connect platformer-node   :aabb           camera            :aabb)
              )
            view)))

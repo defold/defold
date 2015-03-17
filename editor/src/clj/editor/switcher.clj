@@ -285,7 +285,7 @@
       (let [switcher-render (g/add (n/construct SwitcherRender))
             renderer        (g/add (n/construct scene/SceneRenderer))
             background      (g/add (n/construct background/Gradient))
-            camera          (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))
+            camera          (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))
             atlas-node      (t/lookup project-node switcher-atlas-file)]
         (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
@@ -303,5 +303,6 @@
         (g/connect switcher-node   :active-brush  switcher-render :active-brush)
         (g/connect view            :viewport      switcher-node   :viewport)
         (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
-        (g/connect atlas-node      :textureset    switcher-render :textureset))
+        (g/connect atlas-node      :textureset    switcher-render :textureset)
+        (g/connect switcher-node   :aabb          camera          :aabb))
       view)))
