@@ -8,7 +8,8 @@
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.graph.query :as q]
-            [internal.graph.tracing :as gt]
+            [internal.graph.tracing :as trace]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.transaction :as it :refer [Transaction *transaction*]]))
 
@@ -17,9 +18,9 @@
   [node]
   (-> node :world-ref deref :graph))
 
-; ---------------------------------------------------------------------------
-; Interrogating the Graph
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; Interrogating the Graph
+;; ---------------------------------------------------------------------------
 (defn node
   "Get a node, given just a world and an id."
   [world-ref id]
@@ -84,18 +85,16 @@ to distinguish it from a function call."
   Outputs are specified as pairs of [node-id label] for both the
   argument and return value."
   [graph outputs]
-  (gt/trace-dependencies graph outputs))
+  (trace/trace-dependencies graph outputs))
 
-; ---------------------------------------------------------------------------
-; Transactional state
-; ---------------------------------------------------------------------------
-(defn node? [v] (satisfies? t/Node v))
-
+;; ---------------------------------------------------------------------------
+;; Transactional state
+;; ---------------------------------------------------------------------------
 (defn- resolve-return-val
   [tx-outcome val]
   (cond
     (sequential? val)  (map #(resolve-return-val tx-outcome %) val)
-    (node? val)        (or (dg/node (:graph tx-outcome) (it/resolve-tempid tx-outcome (:_id val))) val)
+    (gt/node? val)     (or (dg/node (:graph tx-outcome) (it/resolve-tempid tx-outcome (:_id val))) val)
     :else              val))
 
 (defn transactional*
@@ -116,9 +115,9 @@ to distinguish it from a function call."
   [n]
   (satisfies? t/NamingContext n))
 
-; ---------------------------------------------------------------------------
-; High level Transaction API
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; High level Transaction API
+;; ---------------------------------------------------------------------------
 (defn current-scope
   "Return the node that constitutes the current scope."
   []
@@ -200,9 +199,9 @@ inherits from dynamo.node/Scope."
   [label]
   (it/tx-bind *transaction* (it/label label)))
 
-; ---------------------------------------------------------------------------
-; For use by triggers
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; For use by triggers
+;; ---------------------------------------------------------------------------
 (defn is-modified?
   ([transaction node]
     (boolean (contains? (:outputs-modified transaction) (:_id node))))
@@ -246,7 +245,6 @@ inherits from dynamo.node/Scope."
 (defn parent
   [graph n]
   (first (drop 1 (path-to-root graph n))))
-
 
 ;; ---------------------------------------------------------------------------
 ;; Boot and initialization

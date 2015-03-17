@@ -6,12 +6,12 @@
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
-            [internal.outline :as outline]
             [potemkin.namespaces :refer [import-vars]]))
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals map-keys map-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [dynamo.types Node node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs output-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' output-dependencies' MessageTarget process-one-event node-ref])
+(import-vars [internal.graph.types Node node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs output-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' output-dependencies' MessageTarget process-one-event node-ref])
+
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -281,7 +281,13 @@ Outputs:
   (output outline-children [t/OutlineItem] (fnk [] []))
   (output outline-label    t/Str :abstract)
   (output outline-commands [t/OutlineCommand] (fnk [] []))
-  (output outline-tree     t/OutlineItem outline/outline-tree-producer))
+  (output outline-tree     t/OutlineItem
+          (fnk [this outline-label outline-commands outline-children :- [t/OutlineItem]]
+               {:label outline-label
+                ;; :icon "my type of icon"
+                :node-ref (node-ref this)
+                :commands outline-commands
+                :children outline-children})))
 
 ;; ---------------------------------------------------------------------------
 ;; Bootstrapping
