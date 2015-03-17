@@ -14,7 +14,7 @@
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
-            [editor.scene-editor :as sceneed]
+            [editor.scene :as scene]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -280,29 +280,28 @@
 
 (defn construct-switcher-editor
   [project-node switcher-node]
-  (let [editor (n/construct sceneed/SceneEditor)]
-    (ds/in (g/add editor)
+  (let [view (n/construct scene/SceneView)]
+    (ds/in (g/add view)
       (let [switcher-render (g/add (n/construct SwitcherRender))
-            renderer        (g/add (n/construct sceneed/SceneRenderer))
+            renderer        (g/add (n/construct scene/SceneRenderer))
             background      (g/add (n/construct background/Gradient))
             camera          (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))
             atlas-node      (t/lookup project-node switcher-atlas-file)]
-        (g/connect background   :renderable      renderer     :renderables)
-        (g/connect camera       :camera          renderer     :camera)
-        (g/connect camera       :input-handler   editor       :input-handlers)
-        (g/connect editor       :viewport        camera       :viewport)
-        (g/connect editor       :viewport        renderer     :viewport)
-        (g/connect editor       :drawable        renderer     :drawable)
-        (g/connect renderer     :frame           editor       :frame)
+        (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
-        (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
+        (g/connect background      :renderable    renderer        :renderables)
+        (g/connect camera          :camera        renderer        :camera)
+        (g/connect camera          :input-handler view            :input-handlers)
+        (g/connect view            :viewport      camera          :viewport)
+        (g/connect view            :viewport      renderer        :viewport)
+        (g/connect renderer        :frame         view            :frame)
 
-        (g/connect camera         :camera      switcher-node     :camera)
-        (g/connect switcher-node  :input-handler editor         :input-handlers)
-        (g/connect switcher-render :renderable renderer         :renderables)
-        (g/connect switcher-node  :level       switcher-render   :level)
-        (g/connect switcher-node  :active-brush switcher-render   :active-brush)
-        (g/connect editor         :viewport     switcher-node     :viewport)
-        (g/connect atlas-node     :gpu-texture switcher-render   :gpu-texture)
-        (g/connect atlas-node     :textureset  switcher-render   :textureset))
-      editor)))
+        (g/connect camera          :camera        switcher-node   :camera)
+        (g/connect switcher-node   :input-handler view            :input-handlers)
+        (g/connect switcher-render :renderable    renderer        :renderables)
+        (g/connect switcher-node   :level         switcher-render :level)
+        (g/connect switcher-node   :active-brush  switcher-render :active-brush)
+        (g/connect view            :viewport      switcher-node   :viewport)
+        (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
+        (g/connect atlas-node      :textureset    switcher-render :textureset))
+      view)))
