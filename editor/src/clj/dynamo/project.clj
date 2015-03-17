@@ -34,7 +34,7 @@ ordinary paths."
     (fn [& _] (throw (ex-info (str "No editor has been registered that can handle file type " (pr-str ext)) {})))))
 
 (defn node?! [n kind]
-  (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) "."))
+  (assert (satisfies? g/Node n) (str kind " functions must return a node. Received " (type n) "."))
   n)
 
 (g/defnode Placeholder
@@ -195,7 +195,7 @@ There is no guaranteed ordering of the sequence."
      (str message (:filename resource-node))
      (when (satisfies? g/MessageTarget resource-node)
        (ds/in project-node
-              (t/process-one-event resource-node {:type :load :project project-node}))))))
+              (g/process-one-event resource-node {:type :load :project project-node}))))))
 
 (defn load-project-and-tools
   [root branch]

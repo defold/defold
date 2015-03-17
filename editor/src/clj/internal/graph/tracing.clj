@@ -3,23 +3,22 @@
             [dynamo.types :as t]
             [dynamo.util :as u]
             [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]))
+            [internal.graph.lgraph :as lg]
+            [internal.graph.types :as gt]))
 
-; ---------------------------------------------------------------------------
-; Configuration parameters
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; Configuration parameters
+;; ---------------------------------------------------------------------------
 (def maximum-graph-coloring-recursion 100)
 
-; ---------------------------------------------------------------------------
-; Implementation
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; Implementation
+;; ---------------------------------------------------------------------------
 (defn- pairs [m] (for [[k vs] m v vs] [k v]))
-
-(defn tap [x] (println x) x)
 
 (defn- marked-outputs
   [graph target-node target-label]
-  (get (t/output-dependencies (dg/node graph target-node)) target-label))
+  (get (gt/output-dependencies (dg/node graph target-node)) target-label))
 
 (defn- marked-downstream-nodes
   [graph node-id output-label]
@@ -27,9 +26,9 @@
         affected-outputs           (marked-outputs graph target-node target-input)]
     [target-node affected-outputs]))
 
-; ---------------------------------------------------------------------------
-; API
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; API
+;; ---------------------------------------------------------------------------
 (defn trace-dependencies
   "Follow arcs through the graph, from outputs to the inputs connected
   to them, and from those inputs to the downstream outputs that use

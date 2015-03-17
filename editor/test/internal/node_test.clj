@@ -50,7 +50,7 @@
 (deftest event-delivery
   (with-clean-system
     (let [evented (g/transactional (g/add (n/construct NodeWithEvents)))]
-      (is (= :ok (t/process-one-event evented {:type :mousedown})))
+      (is (= :ok (g/process-one-event evented {:type :mousedown})))
       (is (:message-processed (ds/node world-ref (:_id evented)))))))
 
 (defprotocol AProtocol
