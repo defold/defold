@@ -148,7 +148,7 @@
            (let [cubemap-render (g/add (n/construct CubemapRender))
                  renderer     (g/add (n/construct scene/SceneRenderer))
                  background   (g/add (n/construct background/Gradient))
-                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
+                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))]
              (g/connect background     :renderable    renderer       :renderables)
              (g/connect camera         :camera        renderer       :camera)
              (g/connect camera         :input-handler view           :input-handlers)
@@ -159,5 +159,6 @@
              (g/connect cubemap-node   :gpu-texture   cubemap-render :gpu-texture)
              (g/connect cubemap-render :renderable    renderer       :renderables)
              (g/connect camera         :camera        cubemap-render :camera)
+             (g/connect cubemap-render :aabb          camera         :aabb)
              )
            view)))

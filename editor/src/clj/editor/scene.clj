@@ -179,7 +179,7 @@
   (input input-handlers [Runnable])
 
   (output viewport Region (g/fnk [viewport] viewport))
-  (output image WritableImage :cached (g/fnk [frame image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
+  (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))))
