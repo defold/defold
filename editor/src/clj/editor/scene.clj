@@ -194,7 +194,7 @@
         (AnchorPane/setRightAnchor image-view 0.0)
         (.add (.getChildren ^Pane parent) image-view)
         (g/set-property self :image-view image-view)
-        (let [self-ref (t/node-ref self)
+        (let [self-ref (g/node-ref self)
               event-handler (reify EventHandler (handle [this e]
                                                   (let [self @self-ref]
                                                     (dispatch-input (ds/sources-of self :input-handlers) (i/action-from-jfx e)))))

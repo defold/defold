@@ -60,13 +60,6 @@ behavior."
       (g/add
         (new-node-for-path project-node path Placeholder)))))
 
-(g/defnode CannedProperties
-  (property rotation     t/Str    (default "twenty degrees starboard"))
-  (property translation  t/Str    (default "Guten abend."))
-  (property some-vector  t/Vec3   (default [1 2 3]))
-  (property some-integer t/Int    (default 42))
-  (property background   dp/Color (default [0x4d 0xc0 0xca])))
-
 (defn- build-editor-node
   [project-node path content-node]
   (let [editor-factory (editor-for project-node (t/extension path))]
@@ -75,8 +68,7 @@ behavior."
 (defn- build-selection-node
   [editor-node selected-nodes]
   (ds/in editor-node
-    (let [selection-node  (g/add (n/construct selection/Selection))
-          properties-node (g/add (n/construct CannedProperties :rotation "e to the i pi"))]
+    (let [selection-node  (g/add (n/construct selection/Selection))]
       (doseq [node selected-nodes]
         (g/connect node :self selection-node :selected-nodes))
       selection-node)))
@@ -88,11 +80,11 @@ behavior."
           (let [content-node   (t/lookup project-node path)
                 editor-node    (build-editor-node project-node path content-node)
                 selection-node (build-selection-node editor-node [content-node])]
-            (when ((t/inputs editor-node) :presenter-registry)
+            (when ((g/inputs editor-node) :presenter-registry)
               (g/connect project-node :presenter-registry editor-node :presenter-registry))
-            (when (and ((t/inputs editor-node) :saveable) ((t/outputs content-node) :save))
+            (when (and ((g/inputs editor-node) :saveable) ((g/outputs content-node) :save))
               (g/connect content-node :save editor-node :saveable))
-            (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
+            (when (and ((g/inputs editor-node) :dirty) ((g/outputs content-node) :dirty))
               (g/connect content-node :dirty editor-node :dirty))
             editor-node))))
 
@@ -201,7 +193,7 @@ There is no guaranteed ordering of the sequence."
   (doseq [resource-node resource-nodes]
     (log/logging-exceptions
      (str message (:filename resource-node))
-     (when (satisfies? t/MessageTarget resource-node)
+     (when (satisfies? g/MessageTarget resource-node)
        (ds/in project-node
               (t/process-one-event resource-node {:type :load :project project-node}))))))
 

@@ -106,16 +106,6 @@
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
-(defn apply-if-fn [f & args]
-  (if (fn? f)
-    (apply f args)
-    f))
-
-(defn var-get-recursive [var-or-value]
-  (if (var? var-or-value)
-    (recur (var-get var-or-value))
-    var-or-value))
-
 (defprotocol PropertyType
   (property-value-type    [this]   "Prismatic schema for property value type")
   (property-default-value [this])
@@ -281,31 +271,3 @@
    :node-ref NodeRef
    :commands [OutlineCommand]
    :children [(s/recursive #'OutlineItem)]})
-
-; ----------------------------------------
-; Type compatibility and inference
-; ----------------------------------------
-(defn- check-single-type
-  [out in]
-  (or
-   (= s/Any in)
-   (= out in)
-   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
-
-(defn compatible?
-  [output-schema input-schema expect-collection?]
-  (let [out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
-    (or
-     (= s/Any input-schema)
-     (and expect-collection? (= [s/Any] input-schema))
-     (and expect-collection? in-t-pl? (check-single-type output-schema (first input-schema)))
-     (and (not expect-collection?) (check-single-type output-schema input-schema))
-     (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
-
-(doseq [[v doc]
-       {#'Icon                 "*schema* - schema for the representation of an Icon as s/Str"
-        #'Pass                 "value for a rendering pass"
-        #'selection?           "Replies true when the pass is used during pick render."
-        #'model-transform?     "Replies true when the pass should apply the node transforms to the current model-view matrix. (Will be true in most cases, false for overlays.)"}]
-  (alter-meta! v assoc :doc doc))

@@ -86,7 +86,7 @@
             after       (:graph tx-result)]
         (is (= :ok (:status tx-result)))
         (is (= id1 (it/resolve-tempid tx-result -1)))
-        (is (= Downstream (t/node-type (dg/node after id1))))
+        (is (= Downstream (g/node-type (dg/node after id1))))
         (is (= 99  (:marker (dg/node after id1))))))))
 
 (defn track-trigger-activity

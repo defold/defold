@@ -9,7 +9,46 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
-            [internal.node :as in]))
+            [internal.node :as in]
+            [schema.macros :as sm]))
+
+(sm/defrecord T1 [ident :- String])
+(sm/defrecord T2 [value :- Integer])
+
+(deftest type-compatibility
+  (are [first second allow-collection? compatible?]
+    (= compatible? (in/type-compatible? first second allow-collection?))
+    T1 T1               false    true
+    T1 T1               true     false
+    T1 T2               false    false
+    T1 T2               true     false
+    T1 [T1]             true     true
+    T1 [T1]             false    false
+    T1 [T2]             true     false
+    T1 [T2]             false    false
+    String String       false    true
+    String String       true     false
+    String [String]     false    false
+    String [String]     true     true
+    [String] String     false    false
+    [String] String     true     false
+    [String] [String]   false    true
+    [String] [String]   true     false
+    [String] [[String]] true     true
+    Integer  Number     false    true
+    Integer  t/Num      false    true
+    T1       t/Any      false    true
+    T1       t/Any      true     true
+    T1       [t/Any]    false    false
+    T1       [t/Any]    true     true
+    String   t/Any      false    true
+    String   t/Any      true     true
+    String   [t/Any]    false    false
+    String   [t/Any]    true     true
+    [String] t/Any      false    true
+    [String] t/Any      true     true
+    [String] [t/Any]    false    true
+    [String] [t/Any]    false    true))
 
 (deftype ABACAB [])
 (deftype Image [])
