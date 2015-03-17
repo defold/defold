@@ -1,7 +1,8 @@
-(ns editor.scene-editor
+(ns editor.scene
   (:require [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
+            [dynamo.cache :as cache]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.types :refer [IDisposable dispose]]
@@ -103,11 +104,28 @@
   (dispose [this]
     (prn "disposing text-renderer")
     (when context (.makeCurrent context))
-    (.dispose text-renderer)))
+    (.dispose text-renderer)
+    (when context (.release context))))
 
 (defmethod print-method TextRendererRef
   [^TextRendererRef v ^java.io.Writer w]
   (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
+
+(g/defnk produce-drawable [self ^Region viewport]
+  (when (vp-not-empty? viewport)
+    (let [[w h] (vp-dims viewport)
+          profile (GLProfile/getDefault)
+          factory (GLDrawableFactory/getFactory profile)
+          caps (GLCapabilities. profile)]
+      (.setOnscreen caps false)
+      (.setPBuffer caps true)
+      (.setDoubleBuffered caps false)
+      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable self)
+            drawable (if drawable
+                       (do (.setSize drawable w h) drawable)
+                       (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
+        (g/transactional (g/set-property self :gl-drawable drawable))
+        drawable))))
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
   (when (and drawable (vp-not-empty? viewport))
@@ -131,31 +149,16 @@
               buf-image))))))
 
 (g/defnode SceneRenderer
+  (property gl-drawable GLAutoDrawable)
 
   (input viewport Region)
   (input camera Camera)
   (input renderables [t/RenderData])
-  (input drawable GLAutoDrawable)
 
+  (output drawable GLAutoDrawable :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
-  (output frame BufferedImage produce-frame) ; TODO cache when the cache bug is fixed
+  (output frame BufferedImage :cached produce-frame) ; TODO cache when the cache bug is fixed
   )
-
-(g/defnk produce-drawable [self ^Region viewport]
-  (when (vp-not-empty? viewport)
-    (let [[w h] (vp-dims viewport)
-          profile (GLProfile/getDefault)
-          factory (GLDrawableFactory/getFactory profile)
-          caps (GLCapabilities. profile)]
-      (.setOnscreen caps false)
-      (.setPBuffer caps true)
-      (.setDoubleBuffered caps false)
-      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable self)
-            drawable (if drawable
-                       (do (.setSize drawable w h) drawable)
-                       (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (g/transactional (g/set-property self :gl-drawable drawable))
-        drawable))))
 
 (defn dispatch-input [input-handlers action]
   (g/transactional
@@ -164,21 +167,19 @@
                     label (second input-handler)]
                 (when action ((g/node-value node label) node action)))) action input-handlers)))
 
-(g/defnode SceneEditor
+(g/defnode SceneView
   (inherits g/Scope)
 
   (property image-view ImageView)
   (property viewport Region (default (t/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
-  (property gl-drawable GLAutoDrawable)
   (property visible t/Bool (default true))
 
   (input frame BufferedImage)
   (input input-handlers [Runnable])
 
-  (output drawable GLAutoDrawable :cached produce-drawable)
   (output viewport Region (g/fnk [viewport] viewport))
-  (output frame BufferedImage :cached (g/fnk [visible frame] (when visible frame)))
+  (output image WritableImage :cached (g/fnk [frame image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))))
@@ -214,10 +215,10 @@
                             (handle [now]
                               (let [self                  @self-ref
                                     image-view ^ImageView (:image-view self)
-                                    frame                 (g/node-value self :frame)
                                     visible               (:visible self)]
-                                (when frame
-                                  (.setImage image-view (SwingFXUtils/toFXImage frame (.getImage image-view)))))))]
+                                (when (and visible)
+                                  (let [image (g/node-value self :image)]
+                                    (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
             (g/transactional (g/set-property self :repainter repainter))
             (.start repainter))
           (.addListener (.selectedProperty tab) (reify ChangeListener (changed [this observable old-val new-val]

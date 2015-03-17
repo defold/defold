@@ -16,7 +16,7 @@
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
-            [editor.scene-editor :as sceneed]
+            [editor.scene :as scene]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -202,28 +202,27 @@
 
 (defn construct-platformer-editor
   [project-node platformer-node]
-  (let [editor (n/construct sceneed/SceneEditor)]
-    (ds/in (g/add editor)
+  (let [view (n/construct scene/SceneView)]
+    (ds/in (g/add view)
            (let [platformer-render (g/add (n/construct PlatformerRender))
-                 renderer     (g/add (n/construct sceneed/SceneRenderer))
+                 renderer     (g/add (n/construct scene/SceneRenderer))
                  background   (g/add (n/construct background/Gradient))
                  grid         (g/add (n/construct grid/Grid))
                  camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
-             (g/connect background   :renderable      renderer     :renderables)
-             (g/connect grid         :renderable      renderer     :renderables)
-             (g/connect camera       :camera          grid         :camera)
-             (g/connect camera       :camera          renderer     :camera)
-             (g/connect camera       :input-handler   editor       :input-handlers)
-             (g/connect editor       :viewport        camera       :viewport)
-             (g/connect editor       :viewport        renderer     :viewport)
-             (g/connect editor       :drawable        renderer     :drawable)
-             (g/connect renderer     :frame           editor       :frame)
+             (g/connect background        :renderable     renderer          :renderables)
+             (g/connect grid              :renderable     renderer          :renderables)
+             (g/connect camera            :camera         grid              :camera)
+             (g/connect camera            :camera         renderer          :camera)
+             (g/connect camera            :input-handler  view              :input-handlers)
+             (g/connect view              :viewport       camera            :viewport)
+             (g/connect view              :viewport       renderer          :viewport)
+             (g/connect renderer          :frame          view              :frame)
 
-             (g/connect platformer-node   :base-texture     platformer-render :base-texture)
-             (g/connect camera         :camera      platformer-node     :camera)
-             (g/connect platformer-node  :input-handler editor         :input-handlers)
-             (g/connect editor         :viewport     platformer-node     :viewport)
-             (g/connect platformer-node   :control-points  platformer-render :control-points)
-             (g/connect platformer-render :renderable      renderer     :renderables)
+             (g/connect platformer-node   :base-texture   platformer-render :base-texture)
+             (g/connect camera            :camera         platformer-node   :camera)
+             (g/connect platformer-node   :input-handler  view              :input-handlers)
+             (g/connect view              :viewport       platformer-node   :viewport)
+             (g/connect platformer-node   :control-points platformer-render :control-points)
+             (g/connect platformer-render :renderable     renderer          :renderables)
              )
-           editor)))
+           view)))

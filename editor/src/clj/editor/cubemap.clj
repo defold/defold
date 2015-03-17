@@ -22,7 +22,7 @@
             [dynamo.ui :refer :all]
             [editor.camera :as c]
             [editor.image-node :as ein]
-            [editor.scene-editor :as sceneed]
+            [editor.scene :as scene]
             [internal.render.pass :as pass]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
@@ -143,22 +143,21 @@
 
 (defn construct-cubemap-editor
   [project-node cubemap-node]
-  (let [editor (n/construct sceneed/SceneEditor)]
-    (ds/in (ds/add editor)
+  (let [view (n/construct scene/SceneView)]
+    (ds/in (ds/add view)
            (let [cubemap-render (g/add (n/construct CubemapRender))
-                 renderer     (g/add (n/construct sceneed/SceneRenderer))
+                 renderer     (g/add (n/construct scene/SceneRenderer))
                  background   (g/add (n/construct background/Gradient))
                  camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
-             (g/connect background   :renderable      renderer     :renderables)
-             (g/connect camera       :camera          renderer     :camera)
-             (g/connect camera       :input-handler   editor       :input-handlers)
-             (g/connect editor       :viewport        camera       :viewport)
-             (g/connect editor       :viewport        renderer     :viewport)
-             (g/connect editor       :drawable        renderer     :drawable)
-             (g/connect renderer     :frame           editor       :frame)
+             (g/connect background     :renderable    renderer       :renderables)
+             (g/connect camera         :camera        renderer       :camera)
+             (g/connect camera         :input-handler view           :input-handlers)
+             (g/connect view           :viewport      camera         :viewport)
+             (g/connect view           :viewport      renderer       :viewport)
+             (g/connect renderer       :frame         view           :frame)
 
-             (g/connect cubemap-node   :gpu-texture     cubemap-render :gpu-texture)
-             (g/connect cubemap-render :renderable      renderer     :renderables)
-             (g/connect camera       :camera            cubemap-render     :camera)
+             (g/connect cubemap-node   :gpu-texture   cubemap-render :gpu-texture)
+             (g/connect cubemap-render :renderable    renderer       :renderables)
+             (g/connect camera         :camera        cubemap-render :camera)
              )
-           editor)))
+           view)))
