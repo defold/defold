@@ -9,8 +9,7 @@
             [inflections.core :refer [plural]]
             [internal.cache :as c]
             [internal.either :as e]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.metrics :as metrics]
             [internal.property :as ip]
@@ -57,7 +56,7 @@
 (def ^:private exists?       (comp not nil?))
 (def ^:private has-property? contains?)
 (defn- has-output? [node label] (some-> node gt/transforms label boolean))
-(def ^:private first-source (comp first lg/sources))
+(def ^:private first-source (comp first ig/sources))
 (defn- currently-producing [in-production node-id label] (= (last in-production) [node-id label]))
 
 (defn- evaluate-input-internal
@@ -70,7 +69,7 @@
   4. It is the special name :this. Use the entire node as an argument.
   5. It is the special name :g. Use the entire graph as an argument."
   [graph in-production node-id label chain-head]
-  (let [node             (dg/node graph node-id)
+  (let [node             (ig/node graph node-id)
         input-schema     (some-> node gt/input-types label)
         output-transform (some-> node gt/transforms  label)]
     (cond
@@ -86,7 +85,7 @@
            (e/result
             (chain-eval chain-head graph in-production (first source) (second source))))))
        (e/bind [])
-       (lg/sources graph node-id label))
+       (ig/sources graph node-id label))
 
       (exists? input-schema)
       (if-let [source (first-source graph node-id label)]
@@ -134,7 +133,7 @@
        (produce-with-schema graph in-production node-id label chain-head producer)
 
        (fn? producer)
-       (e/bind (producer (dg/node graph node-id) graph))
+       (e/bind (producer (ig/node graph node-id) graph))
 
        :else
        (e/bind producer))
@@ -164,7 +163,7 @@
   gathers the arguments needed for the production function and invokes
   it."
   [graph in-production node-id label chain-head chain-next]
-  (if-let [transform (some->> node-id (dg/node graph) gt/transforms label)]
+  (if-let [transform (some->> node-id (ig/node graph) gt/transforms label)]
     (apply-transform-or-substitute graph in-production node-id label chain-head transform)
     (continue graph in-production node-id label chain-head chain-next)))
 
@@ -173,7 +172,7 @@
   is no such property, evaluation continues with the rest of the
   chain."
   [graph in-production node-id label chain-head chain-next]
-  (let [node (dg/node graph node-id)]
+  (let [node (ig/node graph node-id)]
     (if (has-property? node label)
       (e/bind (get node label))
       (continue graph in-production node-id label chain-head chain-next))))
@@ -184,7 +183,7 @@
   conjed together. If the input does not exist, evaluation continues
   with the rest of the chain."
   [graph in-production node-id label chain-head chain-next]
-  (let [node             (dg/node graph node-id)
+  (let [node             (ig/node graph node-id)
         input-schema     (some-> node gt/input-types label)]
     (cond
       (multivalued? input-schema)
@@ -196,7 +195,7 @@
            (e/result
             (chain-eval chain-head graph in-production (first source) (second source)))))
         (e/bind [])
-        (lg/sources graph node-id label)))
+        (ig/sources graph node-id label)))
 
       (exists? input-schema)
       (if-let [source (first-source graph node-id label)]
@@ -261,7 +260,7 @@
 (defn- cacheable?
   "Check the node type to see if the given output should be cached once computed."
   [graph node-id label]
-  ((gt/cached-outputs (dg/node graph node-id)) label))
+  ((gt/cached-outputs (ig/node graph node-id)) label))
 
 (def fork-cacheable (fork cacheable?))
 
@@ -286,7 +285,7 @@ maybe cache the value that was produced, and return it."
 
 (defn get-inputs
   [graph node label]
-  (map #(dg/node graph (first %)) (lg/sources graph (:_id node) label)))
+  (map #(ig/node graph (first %)) (ig/sources graph (:_id node) label)))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
@@ -664,7 +663,7 @@ for all properties of this node."
 (defn- resources-connected
   [transaction self prop]
   (let [graph (ds/in-transaction-graph transaction)]
-    (vec (lg/sources graph (:_id self) prop))))
+    (vec (ig/sources graph (:_id self) prop))))
 
 (defn lookup-node-for-filename
   [transaction parent self filename]

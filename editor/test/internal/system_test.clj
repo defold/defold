@@ -2,13 +2,13 @@
   (:require [clojure.test :refer :all]
             [com.stuartsierra.component :as component]
             [dynamo.graph :as g]
-            [internal.graph.dgraph :as dg]
+            [internal.graph :as ig]
             [internal.system :as is]
             [internal.transaction :as txn]))
 
 (defn- started?     [s] (-> s :world :started?))
 (defn- system-graph [s] (-> s :world :state deref :graph))
-(defn- graph-root   [s] (dg/node (system-graph s) 1))
+(defn- graph-root   [s] (ig/node (system-graph s) 1))
 
 (defn fresh-system []  (is/system {:initial-graph (g/project-graph)}))
 

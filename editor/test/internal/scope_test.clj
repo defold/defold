@@ -80,7 +80,7 @@
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
 
-(defn q [w clauses] (solo (ds/query w clauses)))
+(defn q [g clauses] (solo (ds/query g clauses)))
 
 (deftest scope-registration
   (testing "Nodes are registered within a scope by name"
@@ -90,8 +90,8 @@
           (g/add (n/construct Emitter  :name "emitter"))
           (g/add (n/construct Modifier :name "vortex"))))
 
-      (let [scope-node (q world-ref [[:label "view scope"]])]
-        (are [n] (identical? (t/lookup scope-node n) (q world-ref [[:name n]]))
+      (let [scope-node (q (:graph @world-ref) [[:label "view scope"]])]
+        (are [n] (identical? (t/lookup scope-node n) (q (:graph @world-ref) [[:name n]]))
                  "emitter"
                  "vortex")))))
 
