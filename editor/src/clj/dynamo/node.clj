@@ -9,8 +9,7 @@ Second, this namespace defines some of the basic node types and mixins."
             [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [dynamo.util :refer :all]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.property :as ip]))
@@ -67,7 +66,7 @@ This function should not be called directly."
           candidates               (remove (fn [[out out-label in in-label]]
                                              (or
                                               (= (:_id out) (:_id in))
-                                              (lg/connected? graph (:_id out) out-label (:_id in) in-label)))
+                                              (ig/connected? graph (:_id out) out-label (:_id in) in-label)))
                                            candidates)]
       (doseq [connection candidates]
         (apply ds/connect connection)))))

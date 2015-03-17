@@ -3,8 +3,7 @@
             [dynamo.node :as dn]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
+            [internal.graph :as ig]
             [internal.node :as in]
             [potemkin.namespaces :refer [import-vars]]))
 
@@ -120,7 +119,7 @@ implement MessageTarget."
                                (when (satisfies? NodeType x#) x#))
              whole-graph#    (some-> (ds/current-scope) :world-ref deref :graph)
              to-be-replaced# (when (and whole-graph# replacing# (ds/current-scope))
-                               (filterv #(= replacing# (node-type %)) (dg/node-values whole-graph#)))
+                               (filterv #(= replacing# (node-type %)) (ig/node-values whole-graph#)))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
          (def ~symb (in/make-node-type (assoc description# :dynamo.node/ctor ctor#)))
          (in/define-node-record  '~record-name '~symb ~symb)
@@ -219,6 +218,12 @@ implement MessageTarget."
   ([graph cache node label]
    (in/node-value graph cache (:_id node) label)))
 
+(defn node-by-id
+  ([node-id]
+   (node-by-id (ds/world-graph) node-id))
+  ([graph node-id]
+   (ig/node graph node-id)))
+
 ;; ---------------------------------------------------------------------------
 ;; Essential node types (may move to another namespace)
 ;; ---------------------------------------------------------------------------
@@ -295,4 +300,4 @@ Outputs:
 (defn project-graph
   []
   (let [root (dn/construct RootScope :_id 1)]
-    (lg/add-labeled-node (dg/empty-graph) (inputs root) (outputs root) root)))
+    (ig/add-labeled-node (ig/empty-graph) (inputs root) (outputs root) root)))
