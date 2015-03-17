@@ -610,6 +610,10 @@ run:
         this.inputs = new ArrayList<String>(inputs);
     }
 
+    public List<String> getInputs() {
+        return inputs;
+    }
+
     /**
      * Set URLs of libraries to use.
      * @param libUrls list of library URLs
@@ -712,10 +716,10 @@ run:
         else
             return defaultValue;
     }
-    
+
     /**
      * Check if an option exists
-     * @param key option key to check if it exists 
+     * @param key option key to check if it exists
      * @return true if the option exists
      */
     public boolean hasOption(String key) {
@@ -806,5 +810,9 @@ run:
 	public void setTextureProfiles(TextureProfiles textureProfiles) {
 		this.textureProfiles = textureProfiles;
 	}
+
+    public Map<String, Class<? extends Builder<?>>> getExtToBuilder() {
+        return extToBuilder;
+    }
 
 }
