@@ -818,8 +818,4 @@ run:
 		this.textureProfiles = textureProfiles;
 	}
 
-    public Map<String, Class<? extends Builder<?>>> getExtToBuilder() {
-        return extToBuilder;
-    }
-
 }
