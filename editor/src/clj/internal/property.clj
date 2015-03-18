@@ -2,11 +2,21 @@
   (:require [clojure.core.match :refer [match]]
             [dynamo.types :as t]))
 
+(defn- var-get-recursive [var-or-value]
+  (if (var? var-or-value)
+    (recur (var-get var-or-value))
+    var-or-value))
+
+(defn- apply-if-fn [f & args]
+  (if (fn? f)
+    (apply f args)
+    f))
+
 (defn- get-default-value [property-type-descriptor]
   (some-> property-type-descriptor
           :default
-          t/var-get-recursive
-          t/apply-if-fn))
+          var-get-recursive
+          apply-if-fn))
 
 (def ^:private default-validation-fn (constantly true))
 
@@ -24,9 +34,9 @@
       (reduce
         (fn [errs {:keys [fn formatter]}]
           (conj errs
-            (let [valid? (try (t/apply-if-fn (t/var-get-recursive fn) value) (catch Exception e false))]
+            (let [valid? (try (apply-if-fn (var-get-recursive fn) value) (catch Exception e false))]
               (when-not valid?
-                (t/apply-if-fn (t/var-get-recursive formatter) value)))))
+                (apply-if-fn (var-get-recursive formatter) value)))))
         []
         (validations property-type-descriptor)))))
 

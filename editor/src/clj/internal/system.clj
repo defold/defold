@@ -1,12 +1,10 @@
 (ns internal.system
   (:require [clojure.core.async :as a]
             [com.stuartsierra.component :as component]
-            [dynamo.types :as t]
             [dynamo.util :as util]
             [internal.bus :as bus]
             [internal.cache :as c]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
+            [internal.graph :as ig]
             [internal.transaction :as it]))
 
 (def ^:private maximum-cached-items     10000)
@@ -82,7 +80,7 @@
 (defn world
   [initial-graph disposal-queue]
   (let [world-ref      (ref nil)
-        injected-graph (dg/map-nodes #(assoc % :world-ref world-ref) initial-graph)
+        injected-graph (ig/map-nodes #(assoc % :world-ref world-ref) initial-graph)
         history-ref    (ref (new-history world-ref))]
     (dosync (ref-set world-ref (new-world-state injected-graph disposal-queue)))
     (add-watch world-ref :push-history (partial push-history history-ref))
@@ -101,7 +99,7 @@
   (let [system-map (component/start sys)
         state      (-> system-map :world :state)
         graph      (-> state deref :graph)
-        root       (dg/node graph 1)]
+        root       (ig/node graph 1)]
     (it/set-world-ref! state)
     (alter-var-root #'it/*scope* (constantly root))
     system-map))
