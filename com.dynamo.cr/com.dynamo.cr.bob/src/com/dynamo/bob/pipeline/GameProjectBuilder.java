@@ -273,19 +273,10 @@ public class GameProjectBuilder extends Builder<Void> {
 
         if (project.option("keep-unused", "false").equals("true")) {
 
-            // Collect all inputs that we have builders for
-            for (String path : project.getInputs()) {
-                String ext = "." + FilenameUtils.getExtension(path);
-                Class<? extends Builder<?>> builderClass = project.getExtToBuilder().get(ext);
-                if (builderClass != null) {
-                    BuilderParams p1 = builderClass.getAnnotation(BuilderParams.class);
-                    if (!p1.outExt().isEmpty()) {
-                        String compiledPath = BuilderUtil.replaceExt(path, ext, p1.outExt());
-                        findResources(project, project.getResource(compiledPath), resources);
-                    }
-                }
+            // All outputs of the project should be considered resources
+            for (String path : project.getOutputs()) {
+                resources.add(path);
             }
-
 
         } else {
 
@@ -327,6 +318,10 @@ public class GameProjectBuilder extends Builder<Void> {
         try {
             if (project.option("archive", "false").equals("true")) {
                 HashSet<String> resources = findResources(project);
+
+                // Make sure we don't try to archive the .darc or .projectc
+                resources.remove(task.output(0).getAbsPath());
+                resources.remove(task.output(1).getAbsPath());
 
                 File archiveFile = createArchive(resources);
                 is = new FileInputStream(archiveFile);
