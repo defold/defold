@@ -13,8 +13,7 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
+            [internal.graph :as ig]
             [internal.java :as j]
             [internal.node :as in]
             [internal.system :as is])
@@ -46,11 +45,10 @@
 
 (defn node
   [id]
-  (dg/node (the-graph) id))
+  (g/node-by-id id))
 
 (defn node-type
-  [id]
-  (-> (node id) t/node-type :name))
+  [id] (-> (node id) g/node-type :name))
 
 (defn nodes-of-type
   [type-name]
@@ -65,18 +63,18 @@
 (defn inputs-to
   ([id]
     (group-by first
-      (for [a (dg/arcs-to (the-graph) id)]
+      (for [a (ig/arcs-to (the-graph) id)]
         [(get-in a [:target-attributes :label]) (:source a) (get-in a [:source-attributes :label]) ])))
   ([id label]
-    (lg/sources (the-graph) id label)))
+    (ig/sources (the-graph) id label)))
 
 (defn outputs-from
   ([id]
     (group-by first
-      (for [a (dg/arcs-from (the-graph) id)]
+      (for [a (ig/arcs-from (the-graph) id)]
        [(get-in a [:source-attributes :label]) (:target a) (get-in a [:target-attributes :label])])))
   ([id label]
-    (lg/targets (the-graph) id label)))
+    (ig/targets (the-graph) id label)))
 
 (defn get-value
   [id label]

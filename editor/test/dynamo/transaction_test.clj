@@ -11,8 +11,7 @@
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.either :as e]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
+            [internal.graph :as ig]
             [internal.transaction :as it]
             [plumbing.core :refer [defnk fnk]]))
 
@@ -41,15 +40,15 @@
     (with-clean-system
       (let [tx-result (it/transact world-ref (it/new-node (n/construct Resource :_id -5 :a "known value")))]
         (is (= :ok (:status tx-result)))
-        (is (= "known value" (:a (dg/node (:graph tx-result) (it/resolve-tempid tx-result -5))))))))
+        (is (= "known value" (:a (ig/node (:graph tx-result) (it/resolve-tempid tx-result -5))))))))
   (testing "two connected nodes"
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
             after                 (:graph (it/transact world-ref (it/connect resource1 :b resource2 :consumer)))]
-        (is (= [id1 :b]        (first (lg/sources after id2 :consumer))))
-        (is (= [id2 :consumer] (first (lg/targets after id1 :b)))))))
+        (is (= [id1 :b]        (first (ig/sources after id2 :consumer))))
+        (is (= [id2 :consumer] (first (ig/targets after id1 :b)))))))
   (testing "disconnect two singly-connected nodes"
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))
@@ -59,22 +58,22 @@
             tx-result             (it/transact world-ref (it/disconnect resource1 :b resource2 :consumer))
             after                 (:graph tx-result)]
         (is (= :ok (:status tx-result)))
-        (is (= [] (lg/sources after id2 :consumer)))
-        (is (= [] (lg/targets after id1 :b))))))
+        (is (= [] (ig/sources after id2 :consumer)))
+        (is (= [] (ig/targets after id1 :b))))))
   (testing "simple update"
     (with-clean-system
       (let [[resource] (tx-nodes (n/construct Resource :c 0))
             tx-result  (it/transact world-ref (it/update-property resource :c (fnil + 0) [42]))]
         (is (= :ok (:status tx-result)))
-        (is (= 42 (:c (dg/node (:graph tx-result) (:_id resource))))))))
+        (is (= 42 (:c (ig/node (:graph tx-result) (:_id resource))))))))
   (testing "node deletion"
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))]
         (it/transact world-ref (it/connect resource1 :b resource2 :consumer))
         (let [tx-result (it/transact world-ref (it/delete-node resource2))
               after     (:graph tx-result)]
-          (is (nil?   (dg/node    after (:_id resource2))))
-          (is (empty? (lg/targets after (:_id resource1) :b)))
+          (is (nil?   (ig/node    after (:_id resource2))))
+          (is (empty? (ig/targets after (:_id resource1) :b)))
           (is (contains? (:nodes-deleted tx-result) (:_id resource2)))
           (is (empty?    (:nodes-added   tx-result)))))))
   (testing "node transformation"
@@ -86,8 +85,8 @@
             after       (:graph tx-result)]
         (is (= :ok (:status tx-result)))
         (is (= id1 (it/resolve-tempid tx-result -1)))
-        (is (= Downstream (t/node-type (dg/node after id1))))
-        (is (= 99  (:marker (dg/node after id1))))))))
+        (is (= Downstream (g/node-type (ig/node after id1))))
+        (is (= 99  (:marker (ig/node after id1))))))))
 
 (defn track-trigger-activity
   ([transaction graph self label kind]
@@ -313,7 +312,7 @@
 (deftest nodes-are-disposed-after-deletion
   (with-clean-system
     (let [tx-result  (it/transact world-ref (it/new-node (n/construct DisposableNode :_id -1)))
-          disposable (dg/node (:graph tx-result) (it/resolve-tempid tx-result -1))
+          disposable (ig/node (:graph tx-result) (it/resolve-tempid tx-result -1))
           tx-result  (it/transact world-ref (it/delete-node disposable))]
       (yield)
       (is (= disposable (first (take-waiting-to-dispose system)))))))
@@ -328,7 +327,7 @@
   (with-clean-system
     (let [node             (n/construct CachedOutputInvalidation)
           tx-result        (it/transact world-ref [(it/new-node node)])
-          real-node        (dg/node (:graph tx-result) (it/resolve-tempid tx-result (:_id node)))
+          real-node        (ig/node (:graph tx-result) (it/resolve-tempid tx-result (:_id node)))
           real-id          (:_id real-node)
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
