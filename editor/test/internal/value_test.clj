@@ -8,6 +8,7 @@
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [internal.graph :as ig]
+            [internal.node :as in]
             [internal.transaction :as it]))
 
 (def ^:dynamic *calls*)

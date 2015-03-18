@@ -7,7 +7,8 @@
             [dynamo.system.test-support :refer [with-clean-system]]
             [dynamo.types :as t]
             [editor.atlas :as atlas]
-            [internal.clojure :as clojure])
+            [internal.clojure :as clojure]
+            [internal.node :as in])
   (:import [java.io File]))
 
 (def not-nil? (complement nil?))

@@ -9,9 +9,9 @@
       (t/dispose value))))
 
 (defn dispose-pending
-  [world-ref]
+  [queue]
   (logging-exceptions "disposal"
-    (doseq [v (ia/take-all (:disposal-queue @world-ref))]
+    (doseq [v (ia/take-all queue)]
       (dispose-one v))))
 
 (defn disposal-message [v] v)

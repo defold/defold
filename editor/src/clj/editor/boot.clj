@@ -359,8 +359,8 @@
     (let [close-handler (ui/event-handler event
                           (g/transactional
                             (g/delete game-project))
-                          (disp/dispose-pending (:state (:world the-system))))
-          dispose-handler (ui/event-handler event (disp/dispose-pending (:state (:world  the-system))))]
+                          (ds/dispose-pending))
+          dispose-handler (ui/event-handler event (ds/dispose-pending))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
@@ -372,7 +372,7 @@
 ;(.setProgress (.lookup @the-root "#progress-bar") 1.0)
 
 (defn- create-view [game-project root place node-type]
-  (let [node (g/transactional
+  (let [node (g/transactional ()
                (ds/in game-project
                       (g/add
                         (n/construct node-type))))]
