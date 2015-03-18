@@ -18,6 +18,8 @@ public class Messages extends BobNLS {
 
     public static String TileSetBuilder_MISSING_IMAGE_AND_COLLISION;
 
+    public static String CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE;
+
     static {
         // initialize resource bundle
         BobNLS.initializeMessages(BUNDLE_NAME, Messages.class);
