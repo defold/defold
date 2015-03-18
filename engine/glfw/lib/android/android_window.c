@@ -318,12 +318,3 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
-
-//========================================================================
-// Get physical accelerometer
-//========================================================================
-
-int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
-{
-	return 0;
-}
