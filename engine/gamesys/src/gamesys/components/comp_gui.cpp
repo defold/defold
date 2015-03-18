@@ -193,28 +193,37 @@ namespace dmGameSystem
                 }
                 if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
                 {
+                    const size_t path_str_size_max = 512;
                     size_t path_str_size = strlen(node_desc->m_Texture)+1;
-                    char texture_str[path_str_size];
-                    dmStrlCpy(texture_str, node_desc->m_Texture, path_str_size);
-
-                    char* texture_anim_name = strstr(texture_str, "/");
-                    if(texture_anim_name)
-                        *texture_anim_name++ = 0;
-
-                    dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_str);
-                    if (gui_result != dmGui::RESULT_OK)
+                    if(path_str_size > path_str_size_max)
                     {
-                        dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %d characters (max %d).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
                         result = false;
                     }
-
-                    if(texture_anim_name != NULL)
+                    else
                     {
-                        gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name);
+                        char texture_str[path_str_size_max];
+                        dmStrlCpy(texture_str, node_desc->m_Texture, path_str_size);
+
+                        char* texture_anim_name = strstr(texture_str, "/");
+                        if(texture_anim_name)
+                            *texture_anim_name++ = 0;
+
+                        dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_str);
                         if (gui_result != dmGui::RESULT_OK)
                         {
-                            dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                            dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
                             result = false;
+                        }
+
+                        if(texture_anim_name != NULL)
+                        {
+                            gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name);
+                            if (gui_result != dmGui::RESULT_OK)
+                            {
+                                dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                                result = false;
+                            }
                         }
                     }
                 }
@@ -1099,16 +1108,22 @@ namespace dmGameSystem
             out_data->m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
-            static const dmGui::Playback ddf_playback_map[dmGui::PLAYBACK_COUNT] = {
-                    [dmGameSystemDDF::PLAYBACK_NONE]            = dmGui::PLAYBACK_NONE,
-                    [dmGameSystemDDF::PLAYBACK_ONCE_FORWARD]    = dmGui::PLAYBACK_ONCE_FORWARD,
-                    [dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD]   = dmGui::PLAYBACK_ONCE_BACKWARD,
-                    [dmGameSystemDDF::PLAYBACK_LOOP_FORWARD]    = dmGui::PLAYBACK_LOOP_FORWARD,
-                    [dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD]   = dmGui::PLAYBACK_LOOP_BACKWARD,
-                    [dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG]   = dmGui::PLAYBACK_LOOP_PINGPONG,
-                    [dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG
-            };
-            out_data->m_Playback = ddf_playback_map[playback_index];
+
+            static struct PlaybackTranslation
+            {
+                dmGui::Playback m_Table[dmGui::PLAYBACK_COUNT];
+                PlaybackTranslation()
+                {
+                    m_Table[dmGameSystemDDF::PLAYBACK_NONE]            = dmGui::PLAYBACK_NONE;
+                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_FORWARD]    = dmGui::PLAYBACK_ONCE_FORWARD;
+                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD]   = dmGui::PLAYBACK_ONCE_BACKWARD;
+                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_FORWARD]    = dmGui::PLAYBACK_LOOP_FORWARD;
+                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD]   = dmGui::PLAYBACK_LOOP_BACKWARD;
+                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG]   = dmGui::PLAYBACK_LOOP_PINGPONG;
+                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG;
+                }
+            } ddf_playback_map;
+            out_data->m_Playback = ddf_playback_map.m_Table[playback_index];
             return dmGui::FETCH_ANIMATION_OK;
         }
         else
