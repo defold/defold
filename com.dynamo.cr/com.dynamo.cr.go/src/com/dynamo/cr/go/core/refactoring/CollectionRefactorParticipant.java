@@ -32,13 +32,23 @@ public class CollectionRefactorParticipant extends GenericRefactorParticipant {
 
         IContainer contentRoot = context.getContentRoot();
         try {
+            // First use regular reference updating.
+            // Then check all embedded objects.
+            boolean changed = false;
+
+            String newResource = super.updateReferences(context, resource, reference, newPath);
+            if (newResource != null)
+            {
+                resource = newResource;
+                changed = true;
+            }
+
             TextFormat.merge(resource, builder);
             CollectionDesc collection = builder.build();
 
             Builder newBuilder = CollectionDesc.newBuilder(collection);
             newBuilder.clearEmbeddedInstances();
 
-            boolean changed = false;
             List<EmbeddedInstanceDesc> originalList = collection.getEmbeddedInstancesList();
             for (EmbeddedInstanceDesc desc : originalList) {
 
@@ -58,11 +68,9 @@ public class CollectionRefactorParticipant extends GenericRefactorParticipant {
                     newBuilder.addEmbeddedInstances(desc);
                 }
             }
-
             if (changed) {
                 return newBuilder.build().toString();
             }
-
         } catch (ParseException e) {
             throw new CoreException(new Status(IStatus.ERROR, Constants.PLUGIN_ID, e.getMessage()));
         }
