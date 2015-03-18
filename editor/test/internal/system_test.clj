@@ -10,7 +10,7 @@
 (defn- system-graph [s] (-> s :world :state deref :graph))
 (defn- graph-root   [s] (ig/node (system-graph s) 1))
 
-(defn fresh-system []  (is/system {:initial-graph (g/project-graph)}))
+(defn fresh-system []  (is/make-system {:initial-graph (g/project-graph)}))
 
 (deftest lifecycle
   (let [sys (is/start-system (fresh-system))]

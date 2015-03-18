@@ -4,7 +4,6 @@
             [clojure.java.io :refer [file]]
             [clojure.pprint :refer [pprint]]
             [clojure.repl :refer :all]
-            [dynamo.cache :as cache]
             [dynamo.file :as f]
             [dynamo.graph :as g]
             [dynamo.image :refer :all]
@@ -82,13 +81,13 @@
 
 (defn cache-peek
   [id label]
-  (if-let [x (get (cache/cache-snapshot) [id label])]
+  (if-let [x (get (ds/cache-snapshot) [id label])]
     x
     :value-not-cached))
 
 (defn decache
   [id label]
-  (cache/cache-invalidate [[id label]])
+  (ds/cache-invalidate [[id label]])
   :ok)
 
 (defn projects-in-memory

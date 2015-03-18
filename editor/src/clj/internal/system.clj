@@ -87,7 +87,7 @@
     (map->World {:state        world-ref
                  :history      history-ref})))
 
-(defn system
+(defn make-system
  [configuration]
  (let [disposal-queue (a/chan (a/dropping-buffer maximum-disposal-backlog))]
    (component/map->SystemMap
@@ -107,3 +107,9 @@
 (defn stop-system
   [sys]
   (component/stop-system sys))
+
+(defn system-cache   [s] (-> s :cache))
+(defn world-ref      [s] (-> s :world :state))
+(defn history        [s] (-> s :world :history))
+(defn world-graph    [s] (-> (world-ref s) deref :graph))
+(defn disposal-queue [s] (-> (world-ref s) deref :disposal-queue))

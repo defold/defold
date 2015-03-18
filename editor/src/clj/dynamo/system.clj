@@ -5,8 +5,11 @@
             [dynamo.file :as file]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
+            [internal.cache :as c]
+            [internal.disposal :as dispose]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.node :as in]
             [internal.system :as is]
             [internal.transaction :as it :refer [Transaction *transaction*]]))
 
@@ -245,17 +248,13 @@ inherits from dynamo.node/Scope."
   (first (drop 1 (path-to-root graph n))))
 
 ;; ---------------------------------------------------------------------------
-;; Boot and initialization
+;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
 (def the-system (atom nil))
 
-(defn system-cache [] (-> @the-system :cache))
-(defn world-ref    [] (-> @the-system :world :state))
-(defn ^:deprecated world-graph  [] (-> (world-ref) deref :graph))
-
 (defn initialize
   [config]
-  (reset! the-system (is/system config)))
+  (reset! the-system (is/make-system config)))
 
 (defn start
   []
@@ -267,8 +266,53 @@ inherits from dynamo.node/Scope."
 
 (defn undo
   []
-  (is/undo-history (-> @the-system :world :history)))
+  (is/undo-history (is/history @the-system)))
 
 (defn redo
   []
-  (is/redo-history (-> @the-system :world :history)))
+  (is/redo-history (is/history @the-system)))
+
+(defn dispose-pending
+  []
+  (dispose/dispose-pending (is/disposal-queue @the-system)))
+
+(defn cache-invalidate
+  "Uses the system’s Cache component.
+
+  Atomic action to invalidate the given collection of [node-id label]
+  pairs. If nothing is cached for a pair, it is ignored."
+  [pairs]
+  (c/cache-invalidate (is/system-cache @the-system) pairs))
+
+(defn cache-encache
+  "Uses the system’s Cache component.
+
+  Atomic action to record one or more items in cache.
+
+  The collection must contain tuples of [[node-id label] value]."
+  [coll]
+  (c/cache-encache (is/system-cache @the-system) coll))
+
+(defn cache-hit
+  "Uses the system’s Cache component.
+
+  Atomic action to record hits on cached items
+
+  The collection must contain tuples of [node-id label] pairs."
+  [coll]
+  (c/cache-hit (is/system-cache @the-system) coll))
+
+(defn cache-snapshot
+  "Get a value of the cache at a point in time."
+  []
+  (c/cache-snapshot (is/system-cache @the-system)))
+
+(defn node-by-id
+  [node-id]
+  (ig/node (is/world-graph @the-system) node-id))
+
+(defn node-value
+  ([node label]
+   (in/node-value (is/world-graph @the-system) (is/system-cache @the-system) (:_id node) label))
+  ([graph cache node label]
+   (in/node-value graph cache (:_id node) label)))

@@ -7,6 +7,7 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system tx-nodes]]
             [dynamo.types :as t]
+            [internal.node :as in]
             [internal.system :as is]))
 
 (def ^:dynamic *calls*)
@@ -25,7 +26,6 @@
 (g/defnode WithDefaults
   (property default-value                 StringWithDefault)
   (property overridden-literal-value      StringWithDefault (default "ya rly."))
-;; SAMDISCUSS  (property overridden-function-value     StringWithDefault (default (constantly "vell den.")))
   (property overridden-indirect           StringWithDefault (default string-value))
   (property overridden-indirect-by-var    StringWithDefault (default #'string-value))
   (property overridden-indirect-by-symbol StringWithDefault (default 'string-value)))
@@ -34,7 +34,6 @@
   (are [expected property] (= expected (get (n/construct WithDefaults) property))
     "o rly?"      :default-value
     "ya rly."     :overridden-literal-value
-;; SAMDISCUSS    "vell den."   :overridden-function-value
     "uff-da"      :overridden-indirect
     "uff-da"      :overridden-indirect-by-var
     'string-value :overridden-indirect-by-symbol))
@@ -382,6 +381,8 @@
 (deftest production-fn-input-failure
   (with-clean-system
     (let [[failure-node answer-node] (tx-nodes (n/construct FailureNode) (n/construct AnswerNode))]
+
+      (println 'production-fn-input-failure :answer-node (select-keys answer-node (keys answer-node)))
 
       (g/transactional (g/connect failure-node :out answer-node :in))
 

@@ -17,7 +17,7 @@
 
 (deftest type-compatibility
   (are [first second allow-collection? compatible?]
-    (= compatible? (in/type-compatible? first second allow-collection?))
+    (= compatible? (n/type-compatible? first second allow-collection?))
     T1 T1               false    true
     T1 T1               true     false
     T1 T2               false    false
@@ -60,7 +60,7 @@
   (let [n1 (n/construct N1)
         n2 (n/construct N2)]
     (are [out-node out out-type in-node in in-type expect-compat why]
-      (= expect-compat (in/compatible? [out-node out out-type in-node in in-type]))
+      (= expect-compat (n/compatible? [out-node out out-type in-node in in-type]))
       n1 :image Image    n2 :image  ABACAB    nil                    "type mismatch"
       n1 :image Image    n2 :image  Image     [n1 :image n2 :image]  "ok"
       n1 :image Image    n2 :images [Image]   [n1 :image n2 :images] "ok"

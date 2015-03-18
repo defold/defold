@@ -40,9 +40,9 @@
         sender  (n/construct Sender1)
         sampler (n/construct Sampler)
         labeler (n/construct Labeler)]
-    (is (= #{[sender  :surname recv :surname]} (in/injection-candidates [recv] [sender])))
-    (is (= #{[sampler :sample  recv :samples]} (in/injection-candidates [recv] [sampler])))
-    (is (= #{[labeler :label   recv :label]}   (in/injection-candidates [recv] [labeler])))))
+    (is (= #{[sender  :surname recv :surname]} (n/injection-candidates [recv] [sender])))
+    (is (= #{[sampler :sample  recv :samples]} (n/injection-candidates [recv] [sampler])))
+    (is (= #{[labeler :label   recv :label]}   (n/injection-candidates [recv] [labeler])))))
 
 (g/defnode ValueConsumer
   (input local-names [t/Str] :inject)
