@@ -181,7 +181,8 @@
   (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (:repainter self))))
+                                     (.stop ^AnimationTimer (:repainter self))
+                                     nil))
 
   (on :create
       (let [image-view (ImageView.)

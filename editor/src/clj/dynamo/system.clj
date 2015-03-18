@@ -5,13 +5,17 @@
             [dynamo.file :as file]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
+            [internal.bus :as bus]
             [internal.cache :as c]
             [internal.disposal :as dispose]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
-            [internal.transaction :as it :refer [Transaction *transaction*]]))
+            [internal.transaction :as it]
+            [service.log :as log]))
+
+(declare the-system)
 
 (defn- n->g
   "Get the graph this node belongs to."
@@ -88,9 +92,49 @@ to distinguish it from a function call."
   [graph outputs]
   (ig/trace-dependencies graph outputs))
 
+(declare transact)
+
+(defn start-event-loop!
+  [sys id]
+  (let [in (bus/subscribe (is/message-bus sys) id)]
+    (binding [gt/*transaction* (gt/->TransactionSeed (partial transact sys))]
+      (a/go-loop []
+        (when-let [msg (a/<! in)]
+          (when (not= ::stop-event-loop (:type msg))
+            (try
+              (let [n (ig/node (is/world-graph sys) id)]
+                (when n
+                  (gt/process-one-event (ig/node (is/world-graph sys) id) msg)))
+              (catch Exception ex
+                (log/error :message "Error in node event loop" :exception ex)))
+            (recur)))))))
+
+(defn stop-event-loop!
+  [sys {:keys [_id]}]
+  (bus/publish (is/message-bus sys) (bus/address-to _id {:type ::stop-event-loop})))
+
+
 ;; ---------------------------------------------------------------------------
 ;; Transactional state
 ;; ---------------------------------------------------------------------------
+(defn transact
+  ([txs]
+   (transact @the-system txs))
+  ([sys txs]
+   (let [world-ref (is/world-ref sys)
+         {:keys [world messages new-event-loops old-event-loops nodes-deleted] :as tx-result}
+         (it/transact* world-ref (it/new-transaction-context world-ref txs))]
+     (def txr* tx-result)
+     (doseq [l old-event-loops]
+       (stop-event-loop! sys l))
+     (doseq [l new-event-loops]
+       (start-event-loop! sys l))
+     (when (= :ok (-> world :last-tx :status))
+       (when (not (empty? nodes-deleted))
+         (a/onto-chan (is/disposal-queue sys) (vals nodes-deleted) false))
+       (bus/publish-all (is/message-bus sys) messages))
+     (:last-tx world))))
+
 (defn- resolve-return-val
   [tx-outcome val]
   (cond
@@ -100,9 +144,9 @@ to distinguish it from a function call."
 
 (defn transactional*
   [inner]
-  (binding [*transaction* (it/tx-begin *transaction*)]
+  (binding [gt/*transaction* (gt/tx-begin gt/*transaction*)]
     (let [result     (inner)
-          tx-outcome (it/tx-apply *transaction*)]
+          tx-outcome (gt/tx-apply gt/*transaction*)]
       (if (= :ok (:status tx-outcome))
         (resolve-return-val tx-outcome result)
         result))))
@@ -110,7 +154,7 @@ to distinguish it from a function call."
 (defn in-transaction?
   "Returns true if the call occurs within a transactional boundary."
   []
-  (satisfies? Transaction *transaction*))
+  (satisfies? gt/Transaction gt/*transaction*))
 
 (defn- is-scope?
   [n]
@@ -128,24 +172,24 @@ to distinguish it from a function call."
   "Make a connection from an output of the source node to an input on the target node.
 Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
-  (it/tx-bind *transaction* (it/connect source-node source-label target-node target-label)))
+  (gt/tx-bind gt/*transaction* (it/connect source-node source-label target-node target-label)))
 
 (defn ^:deprecated disconnect
   "Remove a connection from an output of the source node to the input on the target node.
 Note that there might still be connections between the two nodes, from other outputs to other inputs.
 Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
-  (it/tx-bind *transaction* (it/disconnect source-node source-label target-node target-label)))
+  (gt/tx-bind gt/*transaction* (it/disconnect source-node source-label target-node target-label)))
 
 (defn ^:deprecated become
   [source-node new-node]
-  (it/tx-bind *transaction* (it/become source-node new-node))
+  (gt/tx-bind gt/*transaction* (it/become source-node new-node))
   new-node)
 
 (defn ^:deprecated set-property
   "Assign a value to a node's property (or properties) value(s) in a transaction."
   [n & kvs]
-  (it/tx-bind *transaction*
+  (gt/tx-bind gt/*transaction*
     (for [[p v] (partition-all 2 kvs)]
       (it/update-property n p (constantly v) [])))
   n)
@@ -154,7 +198,7 @@ Takes effect when a transaction is applied."
   "Apply a function to a node's property in a transaction. The function f will be
 invoked as if by (apply f current-value args)"
   [n p f & args]
-  (it/tx-bind *transaction*
+  (gt/tx-bind gt/*transaction*
     (it/update-property n p f args))
   n)
 
@@ -162,7 +206,7 @@ invoked as if by (apply f current-value args)"
   "Add a newly created node to the world. This will attach the node to the
 current scope."
   [n]
-  (it/tx-bind *transaction* (it/new-node n))
+  (gt/tx-bind gt/*transaction* (it/new-node n))
   (when (current-scope)
     (connect n :self (current-scope) :nodes)
     (if (is-scope? n)
@@ -171,13 +215,13 @@ current scope."
 
 (defn delete
   [n]
-  (it/tx-bind *transaction* (it/delete-node n)))
+  (gt/tx-bind gt/*transaction* (it/delete-node n)))
 
 (defn send-after
   "Spools messages for delivery after the transaction finishes.
 The messages will only be sent if the transaction completes successfully."
   [n args]
-  (it/tx-bind *transaction* (it/send-message n args)))
+  (gt/tx-bind gt/*transaction* (it/send-message n args)))
 
 (defmacro in
   "Execute the forms within the given scope. Scope is a node that
@@ -198,7 +242,7 @@ inherits from dynamo.node/Scope."
 
 (defn ^:deprecated tx-label
   [label]
-  (it/tx-bind *transaction* (it/label label)))
+  (gt/tx-bind gt/*transaction* (it/label label)))
 
 ;; ---------------------------------------------------------------------------
 ;; For use by triggers
@@ -258,7 +302,9 @@ inherits from dynamo.node/Scope."
 
 (defn start
   []
-  (swap! the-system is/start-system))
+  (swap! the-system is/start-system)
+  (alter-var-root #'gt/*transaction* (constantly (gt/->TransactionSeed (partial transact @the-system))))
+  (alter-var-root #'it/*scope* (constantly (ig/node (is/world-graph @the-system) 1))))
 
 (defn stop
   []
