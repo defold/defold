@@ -1,26 +1,19 @@
 (ns internal.node
-  (:require [camel-snake-kebab :refer [->kebab-case]]
-            [clojure.core.match :refer [match]]
+  (:require [clojure.core.match :refer [match]]
             [clojure.set :as set]
-            [dynamo.file :as file]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
-            [inflections.core :refer [plural]]
             [internal.cache :as c]
             [internal.either :as e]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.metrics :as metrics]
             [internal.property :as ip]
-            [plumbing.core :refer [fnk defnk]]
+            [plumbing.core :refer [fnk]]
             [plumbing.fnk.pfnk :as pf]))
 
-(defn- resource?
-  ([property-type]
-    (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
-  ([node label]
-    (some-> node gt/node-type gt/properties' label resource?)))
+(defn resource-property?
+  [property-type]
+  (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
 
 (defn- pfnk? [f] (contains? (meta f) :schema))
 
@@ -269,15 +262,16 @@
 If the value is cacheable and exists in the cache, then return that value. Otherwise,
 produce the value by gathering inputs to call a production function, invoke the function,
 maybe cache the value that was produced, and return it."
-  [graph cache node-id label]
-  (let [hits (atom [])
-        deltas (atom [])
-        evaluators            [fork-cacheable
-                               (list* (partial local-deltas deltas)
-                                      (partial cache-lookup (c/cache-snapshot cache) hits)
-                                      world-evaluation-chain)
-                               world-evaluation-chain]
-        result                (chain-eval evaluators graph [] node-id label)]
+  [graph cache node label]
+  (let [node-id    (if (map? node) (:_id node) node)
+        hits       (atom [])
+        deltas     (atom [])
+        evaluators [fork-cacheable
+                    (list* (partial local-deltas deltas)
+                           (partial cache-lookup (c/cache-snapshot cache) hits)
+                           world-evaluation-chain)
+                    world-evaluation-chain]
+        result     (chain-eval evaluators graph [] node-id label)]
     (do
       (c/cache-hit cache @hits)
       (c/cache-encache cache @deltas))
@@ -420,7 +414,7 @@ not called directly."
   [description label property-type passthrough]
   (cond-> (update-in description [:properties] assoc label property-type)
 
-    (resource? property-type)
+    (resource-property? property-type)
     (assoc-in [:inputs label] property-type)
 
     true
@@ -597,132 +591,3 @@ and protocols that the node type requires."
   "Create a nice print method for a node type. This avoids infinitely recursive output in the REPL."
   [record-name node-type-name node-type]
   (eval (print-method-sexps record-name node-type-name node-type)))
-
-;; ---------------------------------------------------------------------------
-;; Dependency Injection
-;; ---------------------------------------------------------------------------
-(defn- check-single-type
-  [out in]
-  (or
-   (= t/Any in)
-   (= out in)
-   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
-
-(defn type-compatible?
-  [output-schema input-schema expect-collection?]
-  (let [out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
-    (or
-     (= t/Any input-schema)
-     (and expect-collection? (= [t/Any] input-schema))
-     (and expect-collection? in-t-pl? (check-single-type output-schema (first input-schema)))
-     (and (not expect-collection?) (check-single-type output-schema input-schema))
-     (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
-
-(defn compatible?
-  [[out-node out-label out-type in-node in-label in-type]]
-  (cond
-   (and (= out-label in-label) (type-compatible? out-type in-type false))
-   [out-node out-label in-node in-label]
-
-   (and (= (plural out-label) in-label) (type-compatible? out-type in-type true))
-   [out-node out-label in-node in-label]))
-
-(defn injection-candidates
-  [targets nodes]
-  (into #{}
-     (keep compatible?
-        (for [target  targets
-              i       (gt/injectable-inputs target)
-              :let    [i-l (get (gt/input-types target) i)]
-              node    nodes
-              [o o-l] (gt/transform-types node)]
-            [node o o-l target i i-l]))))
-
-;; ---------------------------------------------------------------------------
-;; Intrinsics
-;; ---------------------------------------------------------------------------
-(defn- gather-property [this prop]
-  (let [type     (-> this gt/properties prop)
-        value    (get this prop)
-        problems (t/property-validate type value)]
-    {:node-id             (:_id this)
-     :value               value
-     :type                type
-     :validation-problems problems}))
-
-(defnk gather-properties :- t/Properties
-  "Production function that delivers the definition and value
-for all properties of this node."
-  [this]
-  (let [property-names (-> this gt/properties keys)]
-    (zipmap property-names (map (partial gather-property this) property-names))))
-
-(defn- ->vec [x] (if (coll? x) (vec x) (if (nil? x) [] [x])))
-
-(defn- resources-connected
-  [transaction self prop]
-  (let [graph (ds/in-transaction-graph transaction)]
-    (vec (ig/sources graph (:_id self) prop))))
-
-(defn lookup-node-for-filename
-  [transaction parent self filename]
-  (or
-    (get-in transaction [:filename-index filename])
-    (if-let [added-this-txn (first (filter #(= filename (:filename %)) (ds/transaction-added-nodes transaction)))]
-      added-this-txn
-      (t/lookup parent filename))))
-
-(defn decide-resource-handling
-  [transaction parent self surplus-connections prop project-path]
-  (if-let [existing-node (lookup-node-for-filename transaction parent self project-path)]
-    (if (some #{[(:_id existing-node) :content]} surplus-connections)
-      [:existing-connection existing-node]
-      [:new-connection existing-node])
-    [:new-node nil]))
-
-(defn remove-vestigial-connections
-  [transaction self prop surplus-connections]
-  (doseq [[n l] surplus-connections]
-    (ds/disconnect {:_id n} l self prop))
-  transaction)
-
-(defn- ensure-resources-connected
-  [transaction parent self prop]
-  (loop [transaction         transaction
-         project-paths       (map #(file/make-project-path parent %) (->vec (get self prop)))
-         surplus-connections (resources-connected transaction self prop)]
-    (if-let [project-path (first project-paths)]
-      (let [[handling existing-node] (decide-resource-handling transaction parent self surplus-connections prop project-path)]
-        (cond
-          (= :new-node handling)
-          (let [new-node (ds/in parent (ds/add (t/node-for-path parent project-path)))]
-            (ds/connect new-node :content self prop)
-            (recur
-              (update-in transaction [:filename-index] assoc project-path new-node)
-              (next project-paths)
-              surplus-connections))
-
-          (= :new-connection handling)
-          (do
-            (ds/connect existing-node :content self prop)
-            (recur transaction (next project-paths) surplus-connections))
-
-          (= :existing-connection handling)
-          (recur transaction (next project-paths) (remove #{[(:_id existing-node) :content]} surplus-connections))))
-      (remove-vestigial-connections transaction self prop surplus-connections))))
-
-(defn connect-resource
-  [transaction graph self label kind properties-affected]
-  (let [parent (ds/parent graph self)]
-    (reduce
-      (fn [transaction prop]
-        (when (resource? self prop)
-          (ensure-resources-connected transaction parent self prop))
-        transaction)
-      transaction
-      properties-affected)))
-
-(def node-intrinsics
-  [(list 'output 'self `t/Any `(fnk [~'this] ~'this))
-   (list 'output 'properties `t/Properties `gather-properties)])

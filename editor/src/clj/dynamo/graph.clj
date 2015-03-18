@@ -4,6 +4,7 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.graph :as ig]
+            [internal.system :as is]
             [internal.node :as in]
             [potemkin.namespaces :refer [import-vars]]))
 
@@ -114,7 +115,7 @@ implement MessageTarget."
         ctor-name    (symbol (str 'map-> record-name))]
     `(do
        (declare ~ctor-name ~symb)
-       (let [description#    ~(in/node-type-sexps symb (concat in/node-intrinsics forms))
+       (let [description#    ~(in/node-type-sexps symb (concat dn/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
              whole-graph#    (some-> (ds/current-scope) :world-ref deref :graph)
@@ -214,15 +215,13 @@ implement MessageTarget."
   The label must exist as a defined transform on the node, or an
   AssertionError will result."
   ([node label]
-   (node-value (ds/world-graph) (ds/system-cache) node label))
+   (ds/node-value node label))
   ([graph cache node label]
-   (in/node-value graph cache (:_id node) label)))
+   (ds/node-value graph cache node label)))
 
 (defn node-by-id
-  ([node-id]
-   (node-by-id (ds/world-graph) node-id))
-  ([graph node-id]
-   (ig/node graph node-id)))
+  [node-id]
+  (ds/node-by-id node-id))
 
 ;; ---------------------------------------------------------------------------
 ;; Essential node types (may move to another namespace)
@@ -273,7 +272,7 @@ Inheritors are required to supply a production function for the :save output."
 (defnode AutowireResources
   "Mixin. Nodes with this behavior automatically keep their graph connections
 up to date with their resource properties."
-  (trigger autowire-resources :property-touched #'in/connect-resource))
+  (trigger autowire-resources :property-touched #'dn/connect-resource))
 
 (defnode OutlineNode
   "Mixin. Any OutlineNode can be shown in an outline view.
