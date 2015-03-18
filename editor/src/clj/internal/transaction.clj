@@ -27,59 +27,6 @@
 (defmacro txerrstr [ctx & rest]
   `(str (:txid ~ctx) ":" (:txpass ~ctx) " " ~@(interpose " " rest)))
 
-; ---------------------------------------------------------------------------
-; Transaction protocols
-; ---------------------------------------------------------------------------
-(declare ->TransactionLevel transact)
-
-(defn- make-transaction-level
-  ([receiver]
-    (make-transaction-level receiver 0))
-  ([receiver depth]
-    (->TransactionLevel receiver depth (transient []))))
-
-(defprotocol TransactionStarter
-  (tx-begin [this]      "Create a subordinate transaction scope"))
-
-(defprotocol Transaction
-  (tx-bind  [this work] "Add a unit of work to the transaction")
-  (tx-apply [this]      "Apply the transaction work"))
-
-(defprotocol TransactionReceiver
-  (tx-merge [this work] "Merge the transaction work into yourself."))
-
-(deftype TransactionLevel [receiver depth accumulator]
-  TransactionStarter
-  (tx-begin [this]      (make-transaction-level this (inc depth)))
-
-  Transaction
-  (tx-bind  [this work] (do
-                          (when *tx-debug*
-                            (println "\t\tbinding " work))
-                          (conj! accumulator work)))
-  (tx-apply [this]      (tx-merge receiver (persistent! accumulator)))
-
-  TransactionReceiver
-  (tx-merge [this work] (tx-bind this work)
-                        {:status :pending}))
-
-(deftype TransactionSeed [world-ref]
-  TransactionStarter
-  (tx-begin [this]      (make-transaction-level this))
-
-  TransactionReceiver
-  (tx-merge [this work] (if (< 0 (count work))
-                          (transact world-ref work)
-                          {:status :empty})))
-
-(deftype NullTransaction []
-  TransactionStarter
-  (tx-begin [this]      (assert false "The system is not initialized enough to run transactions yet.")))
-
-(def ^:dynamic *transaction* (->NullTransaction))
-
-(defn set-world-ref! [r]
-  (alter-var-root #'*transaction* (constantly (->TransactionSeed r))))
 
 ; ---------------------------------------------------------------------------
 ; Building transactions
@@ -111,12 +58,17 @@
   "*transaction step* - Expects a node, a property label, and a
   function f (with optional args) to be performed on the current value
   of the property. The node may be a uncommitted, in which case it
-  will have a tempid."  [node pr f args]
+  will have a tempid."
+  [node pr f args]
   [{:type     :update-property
     :node-id  (:_id node)
     :property pr
     :fn       f
     :args     args}])
+
+(defn set-property
+  [node pr v]
+  (update-property node pr (fn [& _] v) []))
 
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
@@ -326,13 +278,6 @@
    ctx
    actions))
 
-(deftype TriggerReceiver [transaction-context]
-  TransactionReceiver
-  (tx-merge [this work]
-    (cond-> transaction-context
-      (seq work)
-      (update-in [:pending] conj work))))
-
 (defn- last-seen-node
   [{:keys [graph nodes-deleted]} node-id]
   (or
@@ -352,24 +297,26 @@
 
 (defn- invoke-trigger
   [csub [tr & args]]
-  (apply tr csub (:graph csub) args)
-  csub)
+  (apply tr csub (:graph csub) args))
 
-(defn debug-invoke-trigger
+(defn- debug-invoke-trigger
   [csub [tr & args :as trvec]]
   (println (txerrstr csub "invoking" tr "on" (:_id (first args)) "with" (rest args)))
   (println (txerrstr csub "nodes triggered" (:nodes-affected csub)))
   (println (txerrstr csub (select-keys csub [:nodes-added :nodes-deleted :outputs-modified :properties-modified])))
   (invoke-trigger csub trvec))
 
+(def ^:private fire-trigger (if *tx-debug* debug-invoke-trigger invoke-trigger))
+
 (defn- process-triggers
   [ctx]
   (when *tx-debug*
     (println (txerrstr ctx "triggers to fire: " (:triggers-to-fire ctx))))
-  (binding [*transaction* (make-transaction-level (->TriggerReceiver ctx))]
-    (reduce (if *tx-debug* debug-invoke-trigger invoke-trigger) ctx (trigger-activations ctx))
-    (let [trigger-ctx (tx-apply *transaction*)]
-      (assoc ctx :pending (:pending trigger-ctx)))))
+  (update-in ctx [:pending]
+             into (remove empty?
+                          (mapv
+                           #(fire-trigger ctx %)
+                           (trigger-activations ctx)))))
 
 (defn- mark-outputs-modified
   [{:keys [graph nodes-affected] :as ctx}]
@@ -389,12 +336,14 @@
 
 (defn- exhaust-actions-and-triggers
   ([ctx]
-    (exhaust-actions-and-triggers ctx maximum-retrigger-count))
+   (exhaust-actions-and-triggers ctx maximum-retrigger-count))
   ([{[current-action & pending-actions] :pending :as ctx} retrigger-count]
-    (assert (< 0 retrigger-count) (txerrstr ctx "Maximum number of trigger executions reached; probable infinite recursion."))
-    (if (empty? current-action)
-      ctx
-      (recur (one-transaction-pass (assoc ctx :pending pending-actions) current-action) (dec retrigger-count)))))
+   (assert (< 0 retrigger-count) (txerrstr ctx "Maximum number of trigger executions reached; probable infinite recursion."))
+   (if (empty? current-action)
+     ctx
+     (recur
+      (one-transaction-pass (assoc ctx :pending pending-actions) current-action)
+      (dec retrigger-count)))))
 
 (def tx-report-keys [:status :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
 
@@ -409,7 +358,7 @@
       :world-time world-time
       :last-tx    (assoc (select-keys ctx tx-report-keys) :status status))))
 
-(defn- new-transaction-context
+(defn new-transaction-context
   [world-ref actions]
   (let [current-world @world-ref]
     {:world-ref           world-ref
@@ -433,7 +382,7 @@
   (update-in ctx [:outputs-modified]
              #(ig/trace-dependencies graph %)))
 
-(defn- transact*
+(defn transact*
   [world-ref ctx]
   (dosync
    (let [txr (-> ctx
@@ -442,43 +391,3 @@
                  finalize-update)]
      (ref-set world-ref (:world txr))
      txr)))
-
-(defn start-event-loop!
-  [world-ref id]
-  (let [in (bus/subscribe (:message-bus @world-ref) id)]
-    (binding [*transaction* (->TransactionSeed world-ref)]
-      (a/go-loop []
-        (when-let [msg (a/<! in)]
-          (when (not= ::stop-event-loop (:type msg))
-            (try
-              (let [n (ig/node (:graph @world-ref) id)]
-                (when-not n
-                  (log/error :message "Nil node in event loop"  :id id :chan-msg msg)))
-              (gt/process-one-event (ig/node (:graph @world-ref) id) msg)
-              (catch Exception ex
-                (log/error :message "Error in node event loop" :exception ex)))
-            (recur)))))))
-
-(defn stop-event-loop!
-  [world-ref {:keys [_id]}]
-  (bus/publish (:message-bus @world-ref) (bus/address-to _id {:type ::stop-event-loop})))
-
-(defn transact
-  "Execute a transaction to create a new version of the world's
-  state. This takes in a ref to the current world state, modifies it
-  according to the transaction steps in txs, and returns a new world.
-
-  The txs must have been created by the transaction step functions in
-  this namespace: [[connect]], [[disconnect]], [[new-node]],
-  and [[update-property]]. The collection of txs can be nested."
-  [world-ref txs]
-  (let [{:keys [world messages new-event-loops old-event-loops nodes-deleted] :as tx-result} (transact* world-ref (new-transaction-context world-ref txs))]
-    (doseq [l old-event-loops]
-      (stop-event-loop! world-ref l))
-    (doseq [l new-event-loops]
-      (start-event-loop! world-ref l))
-    (when (= :ok (-> world :last-tx :status))
-      (when (not (empty? nodes-deleted))
-        (a/onto-chan (:disposal-queue world) (vals nodes-deleted) false))
-      (bus/publish-all (:message-bus world) messages))
-    (:last-tx world)))

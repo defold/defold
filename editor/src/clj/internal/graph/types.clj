@@ -2,6 +2,17 @@
   (:require [schema.core :as s]
             [schema.macros :as sm]))
 
+(defprotocol TransactionStarter
+  (tx-begin [this]      "Create a subordinate transaction scope"))
+
+(defprotocol Transaction
+  (tx-bind  [this work] "Add a unit of work to the transaction")
+  (tx-apply [this]      "Apply the transaction work"))
+
+(defprotocol TransactionReceiver
+  (tx-merge [this work] "Merge the transaction work into yourself."))
+
+
 (defprotocol NodeType
   (supertypes           [this])
   (interfaces           [this])
@@ -46,3 +57,46 @@
   (process-one-event [this event]))
 
 (defn message-target? [v] (satisfies? MessageTarget v))
+
+
+;; ---------------------------------------------------------------------------
+;; Transaction protocols
+;; ---------------------------------------------------------------------------
+
+;; These are here temporarily while I refactor state handling.
+
+(declare ->TransactionLevel)
+
+(defn- make-transaction-level
+  ([receiver]
+    (make-transaction-level receiver 0))
+  ([receiver depth]
+    (->TransactionLevel receiver depth (transient []))))
+
+(deftype TransactionLevel [receiver depth accumulator]
+  TransactionStarter
+  (tx-begin [this]      (make-transaction-level this (inc depth)))
+
+  Transaction
+  (tx-bind  [this work] (conj! accumulator work))
+  (tx-apply [this]      (tx-merge receiver (persistent! accumulator)))
+
+  TransactionReceiver
+  (tx-merge [this work] (tx-bind this work)
+                        {:status :pending}))
+
+(deftype TransactionSeed [tx-fn]
+  TransactionStarter
+  (tx-begin [this]      (make-transaction-level this))
+
+  TransactionReceiver
+  (tx-merge [this work] (if (< 0 (count work))
+                          (tx-fn work)
+                          {:status :empty})))
+
+
+(deftype NullTransaction []
+  TransactionStarter
+  (tx-begin [this]      (assert false "The system is not initialized enough to run transactions yet.")))
+
+(def ^:dynamic *transaction* (->NullTransaction))

@@ -5,7 +5,9 @@
             [internal.bus :as bus]
             [internal.cache :as c]
             [internal.graph :as ig]
-            [internal.transaction :as it]))
+            [internal.graph.types :as gt]
+            [internal.transaction :as it]
+            [service.log :as log]))
 
 (def ^:private maximum-cached-items     10000)
 (def ^:private maximum-disposal-backlog 2500)
@@ -100,8 +102,7 @@
         state      (-> system-map :world :state)
         graph      (-> state deref :graph)
         root       (ig/node graph 1)]
-    (it/set-world-ref! state)
-    (alter-var-root #'it/*scope* (constantly root))
+
     system-map))
 
 (defn stop-system
@@ -112,4 +113,6 @@
 (defn world-ref      [s] (-> s :world :state))
 (defn history        [s] (-> s :world :history))
 (defn world-graph    [s] (-> (world-ref s) deref :graph))
+(defn world-time     [s] (-> (world-ref s) deref :world-time))
 (defn disposal-queue [s] (-> (world-ref s) deref :disposal-queue))
+(defn message-bus    [s] (-> (world-ref s) deref :message-bus))

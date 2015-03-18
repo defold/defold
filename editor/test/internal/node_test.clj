@@ -382,8 +382,6 @@
   (with-clean-system
     (let [[failure-node answer-node] (tx-nodes (n/construct FailureNode) (n/construct AnswerNode))]
 
-      (println 'production-fn-input-failure :answer-node (select-keys answer-node (keys answer-node)))
-
       (g/transactional (g/connect failure-node :out answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
@@ -400,8 +398,8 @@
         (is (= 0 @*answer-call-count*)))
 
       (g/transactional
-        (g/disconnect failure-node :out answer-node :in)
-        (g/connect (g/add (n/construct ValueHolderNode :value 42)) :value answer-node :in))
+       (g/disconnect failure-node :out answer-node :in)
+       (g/connect (g/add (n/construct ValueHolderNode :value 42)) :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))

@@ -21,7 +21,6 @@
                       'dynamo.defnode-test
                       'dynamo.geom-test
                       'dynamo.image-test
-                      'dynamo.project-test
                       'dynamo.property-test
                       'dynamo.protobuf-test
                       'dynamo.transaction-test

@@ -15,6 +15,7 @@ Second, this namespace defines some of the basic node types and mixins."
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.property :as ip]
+            [internal.transaction :as it]
             [plumbing.core :as pc]))
 
 (defn construct
@@ -112,8 +113,8 @@ This function should not be called directly."
                                               (= (:_id out) (:_id in))
                                               (ig/connected? graph (:_id out) out-label (:_id in) in-label)))
                                            candidates)]
-      (doseq [connection candidates]
-        (apply ds/connect connection)))))
+      (for [connection candidates]
+        (apply it/connect connection)))))
 
 (defn dispose-nodes
   "Trigger to dispose nodes from a scope when the scope is destroyed.
@@ -122,8 +123,8 @@ This should not be called directly."
   (when (ds/is-deleted? transaction self)
     (let [graph-before-deletion (-> transaction :world-ref deref :graph)
           nodes-to-delete       (in/get-inputs graph-before-deletion self :nodes)]
-      (doseq [n nodes-to-delete]
-        (ds/delete n)))))
+      (for [n nodes-to-delete]
+        (it/delete-node n)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
@@ -172,46 +173,49 @@ for all properties of this node."
     [:new-node nil]))
 
 (defn remove-vestigial-connections
-  [transaction self prop surplus-connections]
-  (doseq [[n l] surplus-connections]
-    (ds/disconnect {:_id n} l self prop))
-  transaction)
+  [actions self prop surplus-connections]
+  (into actions
+        (for [[n l] surplus-connections]
+          (it/disconnect {:_id n} l self prop))))
 
 (defn- ensure-resources-connected
   [transaction parent self prop]
-  (loop [transaction         transaction
+  (loop [actions             []
          project-paths       (map #(file/make-project-path parent %) (->vec (get self prop)))
          surplus-connections (resources-connected transaction self prop)]
     (if-let [project-path (first project-paths)]
       (let [[handling existing-node] (decide-resource-handling transaction parent self surplus-connections prop project-path)]
         (cond
           (= :new-node handling)
-          (let [new-node (ds/in parent (ds/add (t/node-for-path parent project-path)))]
-            (ds/connect new-node :content self prop)
+          (let [new-node (t/node-for-path parent project-path)]
             (recur
-              (update-in transaction [:filename-index] assoc project-path new-node)
-              (next project-paths)
-              surplus-connections))
+             (concat actions
+                     [(it/new-node new-node)
+                      (it/connect new-node :content self prop)
+                      (it/connect new-node :self parent :nodes)])
+             (next project-paths)
+             surplus-connections))
 
           (= :new-connection handling)
-          (do
-            (ds/connect existing-node :content self prop)
-            (recur transaction (next project-paths) surplus-connections))
+          (recur
+           (conj actions
+                 (it/connect existing-node :content self prop))
+           (next project-paths)
+           surplus-connections)
 
           (= :existing-connection handling)
-          (recur transaction (next project-paths) (remove #{[(:_id existing-node) :content]} surplus-connections))))
-      (remove-vestigial-connections transaction self prop surplus-connections))))
+          (recur actions (next project-paths) (remove #{[(:_id existing-node) :content]} surplus-connections))))
+      (concat actions
+              (remove-vestigial-connections self prop surplus-connections)))))
 
 (defn connect-resource
   [transaction graph self label kind properties-affected]
   (let [parent (ds/parent graph self)]
-    (reduce
-      (fn [transaction prop]
+    (mapcat
+     #(fn [prop]
         (when (resource? self prop)
-          (ensure-resources-connected transaction parent self prop))
-        transaction)
-      transaction
-      properties-affected)))
+          (ensure-resources-connected transaction parent self prop)))
+     properties-affected)))
 
 (def node-intrinsics
   [(list 'output 'self `t/Any `(pc/fnk [~'this] ~'this))
