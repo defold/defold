@@ -11,7 +11,7 @@
 
 (defn mouse-type
   []
-  :three-button)
+  :one-button)
 
 (defn- on-ui-thread?
   []
