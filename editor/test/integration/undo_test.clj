@@ -68,8 +68,8 @@
   (testing "Undoing the deletion of a node reconnects it to its editor"
            (with-clean-system
             (let [project (load-test-project)
-                  atlas-node-ref (t/node-ref (first (p/nodes-with-extensions project ["atlas"])))
-                  editor-node-ref (t/node-ref (p/make-editor project (:filename @atlas-node-ref)))]
+                  atlas-node-ref (g/node-ref (first (p/nodes-with-extensions project ["atlas"])))
+                  editor-node-ref (g/node-ref (p/make-editor project (:filename @atlas-node-ref)))]
               (g/transactional (g/delete @atlas-node-ref))
               (is (not-nil? @editor-node-ref))
               (is (nil? (g/node-value (:graph @world-ref) cache @editor-node-ref :node)))

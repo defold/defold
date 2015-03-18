@@ -6,7 +6,7 @@
             [dynamo.system :as ds :refer [add in]]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
-            [internal.graph.lgraph :as lg]
+            [internal.graph :as ig]
             [internal.node :as in]))
 
 (g/defnode Receiver
@@ -122,7 +122,7 @@
   (testing "don't connect a node's own output to its input"
     (with-clean-system
       (let [node (g/transactional (g/add (n/construct ReflexiveFeedback)))]
-        (is (not (lg/connected? (-> world-ref deref :graph) (:_id node) :port (:_id node) :ports)))))))
+        (is (not (ig/connected? (-> world-ref deref :graph) (:_id node) :port (:_id node) :ports)))))))
 
 (g/defnode OutputProvider
   (inherits g/Scope)

@@ -5,10 +5,8 @@
             [dynamo.file :as file]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
-            [internal.graph.query :as q]
-            [internal.graph.tracing :as gt]
+            [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.transaction :as it :refer [Transaction *transaction*]]))
 
@@ -17,13 +15,13 @@
   [node]
   (-> node :world-ref deref :graph))
 
-; ---------------------------------------------------------------------------
-; Interrogating the Graph
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; Interrogating the Graph
+;; ---------------------------------------------------------------------------
 (defn node
   "Get a node, given just a world and an id."
   [world-ref id]
-  (dg/node (:graph @world-ref) id))
+  (ig/node (:graph @world-ref) id))
 
 (defn node-feeding-into
   "Find the one-and-only node that sources this input on this node.
@@ -31,8 +29,8 @@ Should you use this on an input label with multiple connections, the result
 is undefined."
   [node label]
   (let [graph (n->g node)]
-    (dg/node graph
-      (ffirst (lg/sources graph (:_id node) label)))))
+    (ig/node graph
+      (ffirst (ig/sources graph (:_id node) label)))))
 
 (defn sources-of
   "Find the [node label] pairs for all connections into the given node's input label.
@@ -43,8 +41,8 @@ transacted point in time`."
     (sources-of (n->g node) node label))
   ([graph node label]
     (map
-      (fn [[node-id label]] [(dg/node graph node-id) label])
-      (lg/sources graph (:_id node) label))))
+      (fn [[node-id label]] [(ig/node graph node-id) label])
+      (ig/sources graph (:_id node) label))))
 
 (defn nodes-consuming
   "Find the [node label] pairs for all connections reached from the given node's input label.
@@ -55,8 +53,8 @@ transacted point in time`."
      (nodes-consuming (n->g node) node label))
   ([graph node label]
      (map
-       (fn [[node-id label]] [(dg/node graph node-id) label])
-       (lg/targets graph (:_id node) label))))
+       (fn [[node-id label]] [(ig/node graph node-id) label])
+       (ig/targets graph (:_id node) label))))
 
 (defn node-consuming
   "Like nodes-consuming, but only returns the first result."
@@ -76,26 +74,25 @@ A clause may be one of the following forms:
 
 All the list forms look for symbols in the first position. Be sure to quote the list
 to distinguish it from a function call."
-  [world-ref clauses]
-  (map #(node world-ref %) (q/query (:graph @world-ref) clauses)))
+  [graph clauses]
+  (map #(ig/node graph %)
+       (ig/query graph clauses)))
 
 (defn output-dependencies
   "Find all the outputs that could be affected by a change in the given outputs.
   Outputs are specified as pairs of [node-id label] for both the
   argument and return value."
   [graph outputs]
-  (gt/trace-dependencies graph outputs))
+  (ig/trace-dependencies graph outputs))
 
-; ---------------------------------------------------------------------------
-; Transactional state
-; ---------------------------------------------------------------------------
-(defn node? [v] (satisfies? t/Node v))
-
+;; ---------------------------------------------------------------------------
+;; Transactional state
+;; ---------------------------------------------------------------------------
 (defn- resolve-return-val
   [tx-outcome val]
   (cond
     (sequential? val)  (map #(resolve-return-val tx-outcome %) val)
-    (node? val)        (or (dg/node (:graph tx-outcome) (it/resolve-tempid tx-outcome (:_id val))) val)
+    (gt/node? val)     (or (ig/node (:graph tx-outcome) (it/resolve-tempid tx-outcome (:_id val))) val)
     :else              val))
 
 (defn transactional*
@@ -116,9 +113,9 @@ to distinguish it from a function call."
   [n]
   (satisfies? t/NamingContext n))
 
-; ---------------------------------------------------------------------------
-; High level Transaction API
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; High level Transaction API
+;; ---------------------------------------------------------------------------
 (defn current-scope
   "Return the node that constitutes the current scope."
   []
@@ -200,9 +197,9 @@ inherits from dynamo.node/Scope."
   [label]
   (it/tx-bind *transaction* (it/label label)))
 
-; ---------------------------------------------------------------------------
-; For use by triggers
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; For use by triggers
+;; ---------------------------------------------------------------------------
 (defn is-modified?
   ([transaction node]
     (boolean (contains? (:outputs-modified transaction) (:_id node))))
@@ -241,12 +238,11 @@ inherits from dynamo.node/Scope."
 (defn transaction-added-nodes
   [transaction]
   (let [g (:graph transaction)]
-    (map #(dg/node g %) (:nodes-added transaction))))
+    (map #(ig/node g %) (:nodes-added transaction))))
 
 (defn parent
   [graph n]
   (first (drop 1 (path-to-root graph n))))
-
 
 ;; ---------------------------------------------------------------------------
 ;; Boot and initialization

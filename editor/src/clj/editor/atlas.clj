@@ -394,7 +394,7 @@
 
 (defn broadcast-event [this event]
   (doseq [controller (first (g/node-value this :controllers))]
-    (t/process-one-event controller event)))
+    (g/process-one-event controller event)))
 
 (defn find-resource-nodes [project exts]
   (let [all-resource-nodes (filter (fn [node] (let [filename (:filename node)]

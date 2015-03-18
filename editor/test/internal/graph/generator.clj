@@ -1,8 +1,7 @@
 (ns internal.graph.generator
   "test.check generator to create a randomly populated graph"
   (:require [clojure.test.check.generators :as gen]
-            [internal.graph.dgraph :as g]
-            [internal.graph.lgraph :as lg]))
+            [internal.graph :as ig]))
 
 (def names-with-repeats
   (gen/vector
@@ -38,19 +37,19 @@
 
 (defn graph-endpoints
   [g efn]
-  (for [id    (g/node-ids g)
-        input (efn (g/node g id))]
+  (for [id    (ig/node-ids g)
+        input (efn (ig/node g id))]
     [id input]))
 
 (defn arcs
   [g]
-  (when (or (empty? (graph-endpoints g lg/outputs) ) (empty? (graph-endpoints g lg/inputs)))
+  (when (or (empty? (graph-endpoints g ig/outputs) ) (empty? (graph-endpoints g ig/inputs)))
     (prn "empty collection of endpoints on " g))
-  (pair (graph-endpoints g lg/outputs) (graph-endpoints g lg/inputs)))
+  (pair (graph-endpoints g ig/outputs) (graph-endpoints g ig/inputs)))
 
 (defn selected-nodes
   [g]
-  (gen/not-empty (gen/vector (gen/elements (g/node-ids g)))))
+  (gen/not-empty (gen/vector (gen/elements (ig/node-ids g)))))
 
 (def nodes (gen/fmap (partial apply node)
                      (gen/tuple
@@ -60,28 +59,28 @@
 
 (defn- add-arcs
   [g arcs]
-  (g/for-graph g [a arcs]
-             (apply lg/connect g (flatten a))))
+  (ig/for-graph g [a arcs]
+             (apply ig/connect g (flatten a))))
 
 (defn- remove-arcs
   [g arcs]
-  (g/for-graph g [a arcs]
-             (apply lg/disconnect g (flatten a))))
+  (ig/for-graph g [a arcs]
+             (apply ig/disconnect g (flatten a))))
 
 (defn populate-graph
   [g nodes]
-  (g/for-graph g [n nodes]
-             (lg/add-labeled-node g (:inputs n) (:outputs n) {})))
+  (ig/for-graph g [n nodes]
+             (ig/add-labeled-node g (:inputs n) (:outputs n) {})))
 
 (defn remove-nodes
   [g nodes]
-  (g/for-graph g [n nodes]
-             (g/remove-node g n)))
+  (ig/for-graph g [n nodes]
+             (ig/remove-node g n)))
 
 (def disconnected-graph
   (gen/bind (gen/resize max-node-count gen/s-pos-int)
             (fn [node-count]
-              (gen/fmap #(populate-graph (g/empty-graph) %) (gen/vector nodes min-node-count max-node-count)))))
+              (gen/fmap #(populate-graph (ig/empty-graph) %) (gen/vector nodes min-node-count max-node-count)))))
 
 (def connected-graph
   (gen/bind disconnected-graph
@@ -94,7 +93,7 @@
   (gen/bind connected-graph
             (fn [g]
               (gen/fmap (partial remove-nodes g)
-                        (gen/resize (/ (count (g/node-ids g)) 4) (selected-nodes g))))))
+                        (gen/resize (/ (count (ig/node-ids g)) 4) (selected-nodes g))))))
 
 (def graph
   (gen/bind decimated-graph
