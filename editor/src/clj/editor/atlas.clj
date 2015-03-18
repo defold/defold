@@ -24,6 +24,7 @@
             [editor.image-node :as ein]
             [editor.scene :as scene]
             [internal.render.pass :as pass]
+            [internal.transaction :as it]
             [schema.macros :as sm])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -59,10 +60,11 @@
   (when (some (set input-labels) inputs-touched)
     (let [children-before (input-connections (ds/in-transaction-graph transaction) self input-name)
           children-after  (mapcat #(input-connections graph self %) input-labels)]
-      (doseq [[n l] children-before]
-        (g/disconnect {:_id n} l self input-name))
-      (doseq [[n _] children-after]
-        (g/connect {:_id n} :outline-tree self input-name)))))
+      (concat
+       (for [[n l] children-before]
+         (it/disconnect {:_id n} l self input-name))
+       (for [[n _] children-after]
+         (it/connect {:_id n} :outline-tree self input-name))))))
 
 (g/defnode AnimationGroupNode
   (inherits g/OutlineNode)

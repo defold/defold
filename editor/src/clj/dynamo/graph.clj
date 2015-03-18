@@ -12,37 +12,41 @@
 
 (import-vars [internal.graph.types Node node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs output-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' output-dependencies' MessageTarget process-one-event node-ref])
 
-
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
-and attendant functions.
+   and attendant functions.
 
-Allowed clauses are:
+  Allowed clauses are:
 
-(inherits  _symbol_)
-Compose the behavior from the named node type
+  (inherits _symbol_)
 
-(input    _symbol_ _schema_)
-Define an input with the name, whose values must match the schema.
+  Compose the behavior from the named node type
 
-(property _symbol_ _property-type_ & _options_)
-Define a property with schema and, possibly, default value and constraints.
-Property type and options have the same syntax as for `dynamo.property/defproperty`.
+  (input _symbol_ _schema_)
 
-(output _symbol_ _type_ (:cached)? _producer_)
+  Define an input with the name, whose values must match the schema.
 
-Define an output to produce values of type. The ':cached' flag is
-optional. _producer_ may be a var that names an fn, or fnk.  It may
-also be a function tail as [arglist] + forms.
+  (property _symbol_ _property-type_ & _options_)
 
-Values produced on an output with the :cached flag will be cached in memory until
-the node is affected by some change in inputs or properties. At that time, the
-cached value will be sent for disposal.
+  Define a property with schema and, possibly, default value and
+  constraints.  Property type and options have the same syntax as for
+  `dynamo.property/defproperty`.
 
-Example (from [[editors.atlas]]):
+  (output _symbol_ _type_ (:cached)? _producer_)
+
+  Define an output to produce values of type. The ':cached' flag is
+  optional. _producer_ may be a var that names an fn, or fnk.  It may
+  also be a function tail as [arglist] + forms.
+
+  Values produced on an output with the :cached flag will be cached in
+  memory until the node is affected by some change in inputs or
+  properties. At that time, the cached value will be sent for
+  disposal.
+
+  Example (from [[editors.atlas]]):
 
     (defnode TextureCompiler
       (input    textureset TextureSet)
@@ -58,24 +62,28 @@ Example (from [[editors.atlas]]):
       (inherit TextureCompiler)
       (inherit TextureSetCompiler))
 
-This will produce a record `AtlasCompiler`. `defnode` merges the behaviors appropriately.
+  This will produce a record `AtlasCompiler`. `defnode` merges the
+  behaviors appropriately.
 
-Every node can receive messages. The node declares message handlers with a special syntax:
+  Every node can receive messages. The node declares message handlers
+  with a special syntax:
 
-(trigger _symbol_ _type_ _action_)
+  (trigger _symbol_ _type_ _action_)
 
-A trigger is invoked during transaction execution, when a node of the type is touched by
-the transaction. _symbol_ is a label for the trigger. Triggers are inherited, colliding
-labels are overwritten by the descendant.
+  A trigger is invoked during transaction execution, when a node of
+  the type is touched by the transaction. _symbol_ is a label for the
+  trigger. Triggers are inherited, colliding labels are overwritten by
+  the descendant.
 
-_type_ is a keyword, one of:
+  _type_ is a keyword, one of:
 
     :added             - The node was added in this transaction.
     :input-connections - One or more inputs to the node were connected to or disconnected from
     :property-touched  - One or more properties on the node were changed.
     :deleted           - The node was deleted in this transaction.
 
-For :added and :deleted triggers, _action_ is a function of five arguments:
+  For :added and :deleted triggers, _action_ is a function of five
+  arguments:
 
     1. The current transaction context.
     2. The new graph as it has been modified during the transaction
@@ -83,32 +91,36 @@ For :added and :deleted triggers, _action_ is a function of five arguments:
     4. The label, as a keyword
     5. The trigger type
 
-The :input-connections and :property-touched triggers each have an additional argument, which is
-a collection of labels. For :input-connections, those are the inputs that were affected. For
-:property-touched, those are the properties that were modified.
+  The :input-connections and :property-touched triggers each have an
+  additional argument, which is a collection of
+  labels. For :input-connections, those are the inputs that were
+  affected. For :property-touched, those are the properties that were
+  modified.
 
-The trigger's return value is ignored. The action is allowed to call the `dynamo.system` transaction
-functions to request effects. These effects will be applied within the current transaction.
+  The trigger returns a collection of additional transaction
+  steps. These effects will be applied within the current transaction.
 
-It is allowed for a trigger to cause changes that activate more triggers, up to a limit.
-Triggers should not be used for timed actions or automatic counters. So they will only
-cascade until the limit `internal.transaction/maximum-retrigger-count` is reached.
+  It is allowed for a trigger to cause changes that activate more
+  triggers, up to a limit.  Triggers should not be used for timed
+  actions or automatic counters. So they will only cascade until the
+  limit `internal.transaction/maximum-retrigger-count` is reached.
 
+  (on _message_type_ _form_)
 
-(on _message_type_ _form_)
+  The form will be evaluated inside a transactional body. This means
+  that it can use the special clauses to create nodes, change
+  connections, update properties, and so on.
 
-The form will be evaluated inside a transactional body. This means that it can
-use the special clauses to create nodes, change connections, update properties, and so on.
+  A node definition allows any number of 'on' clauses.
 
-A node definition allows any number of 'on' clauses.
+  A node may also implement protocols or interfaces, using a syntax
+  identical to `deftype` or `defrecord`. A node may implement any
+  number of such protocols.
 
-A node may also implement protocols or interfaces, using a syntax identical
-to `deftype` or `defrecord`. A node may implement any number of such protocols.
+  Every node always implements dynamo.types/Node.
 
-Every node always implements dynamo.types/Node.
-
-If there are any event handlers defined for the node type, then it will also
-implement MessageTarget."
+  If there are any event handlers defined for the node type, then it
+  will also implement MessageTarget."
   [symb & body]
   (let [[symb forms] (ctm/name-with-attributes symb body)
         record-name  (in/classname-for symb)
@@ -130,7 +142,6 @@ implement MessageTarget."
                                 (doseq [r# to-be-replaced#]
                                   (ds/become r# (dn/construct ~symb))))))
          (var ~symb)))))
-
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions

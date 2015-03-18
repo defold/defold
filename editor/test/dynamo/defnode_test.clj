@@ -369,16 +369,16 @@
         (is (instance? MarkerInterface node-after-mutation))))))
 
 (g/defnode BaseTriggerNode
-  (trigger added-trigger        :added             (fn [& _] :ok))
-  (trigger multiway-trigger     :added :deleted    (fn [& _] :ok))
-  (trigger on-delete            :deleted           (fn [& _] :ok))
-  (trigger on-property-touched  :property-touched  (fn [& _] :ok))
-  (trigger on-input-connections :input-connections (fn [& _] :ok)))
+  (trigger added-trigger        :added             (fn [& _] nil))
+  (trigger multiway-trigger     :added :deleted    (fn [& _] nil))
+  (trigger on-delete            :deleted           (fn [& _] nil))
+  (trigger on-property-touched  :property-touched  (fn [& _] nil))
+  (trigger on-input-connections :input-connections (fn [& _] nil)))
 
 (g/defnode InheritedTriggerNode
   (inherits BaseTriggerNode)
 
-  (trigger extra-added      :added           (fn [& _] :extra))
+  (trigger extra-added      :added           (fn [& _] nil))
   (trigger on-delete        :deleted         (fn [& _] :override)))
 
 (deftest nodes-can-have-triggers

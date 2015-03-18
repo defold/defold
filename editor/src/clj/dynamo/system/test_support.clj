@@ -7,6 +7,7 @@
             [dynamo.system :as ds :refer [in]]
             [internal.async :as ia]
             [internal.cache :as c]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.transaction :as it]))
 
@@ -23,7 +24,7 @@
          ~'world-ref   (:state ~'world)
          ~'disposal-ch (get-in ~'system [:cache :dispose-ch])
          ~'root        (ds/node ~'world-ref 1)]
-     (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
+     (binding [gt/*transaction* (gt/->TransactionSeed (partial ds/transact ~'system))]
        (ds/in ~'root
               ~@forms))))
 

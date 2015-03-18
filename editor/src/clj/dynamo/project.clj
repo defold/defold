@@ -12,6 +12,7 @@ ordinary paths."
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [internal.clojure :as clojure]
+            [internal.transaction :as it]
             [internal.ui.dialogs :as dialogs]
             [service.log :as log])
   (:import [java.io File]))
@@ -90,9 +91,9 @@ behavior."
 
 (defn- send-project-scope-message
   [txn graph self label kind inputs-affected]
-  (when (inputs-affected :nodes)
-    (doseq [id (:nodes-added txn)]
-      (ds/send-after {:_id id} {:type :project-scope :scope self}))))
+  (mapcat #(it/send-message {:_id %} {:type :project-scope :scope self})
+          (when (inputs-affected :nodes)
+            (:nodes-added txn))))
 
 (defn project-enclosing
   [node]

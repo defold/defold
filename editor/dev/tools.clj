@@ -8,7 +8,6 @@
             [dynamo.graph :as g]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]

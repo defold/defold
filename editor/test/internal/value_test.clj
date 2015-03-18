@@ -9,6 +9,7 @@
             [dynamo.types :as t]
             [internal.graph :as ig]
             [internal.node :as in]
+            [internal.system :as is]
             [internal.transaction :as it]))
 
 (def ^:dynamic *calls*)
@@ -87,18 +88,17 @@
 
 (defn build-sample-project
   []
-  (with-clean-system
-    (let [nodes (tx-nodes
-                  (n/construct CacheTestNode :scalar "Jane")
-                  (n/construct CacheTestNode :scalar "Doe")
-                  (n/construct CacheTestNode)
-                  (n/construct CacheTestNode))
-          [name1 name2 combiner expensive]  nodes]
-      (g/transactional
-        (g/connect name1 :uncached-value combiner :first-name)
-        (g/connect name2 :uncached-value combiner :last-name)
-        (g/connect name1 :uncached-value expensive :operand))
-      [world-ref cache nodes])))
+  (let [nodes (tx-nodes
+               (n/construct CacheTestNode :scalar "Jane")
+               (n/construct CacheTestNode :scalar "Doe")
+               (n/construct CacheTestNode)
+               (n/construct CacheTestNode))
+        [name1 name2 combiner expensive]  nodes]
+    (g/transactional
+     (g/connect name1 :uncached-value combiner :first-name)
+     (g/connect name2 :uncached-value combiner :last-name)
+     (g/connect name1 :uncached-value expensive :operand))
+    nodes))
 
 (defn with-function-counts
   [f]
@@ -108,47 +108,53 @@
 (use-fixtures :each with-function-counts)
 
 (deftest project-cache
-  (let [[world-ref cache [name1 name2 combiner expensive]] (build-sample-project)]
-    (testing "uncached values are unaffected"
-      (is (= "Jane" (g/node-value (:graph @world-ref) cache name1 :uncached-value))))))
+  (with-clean-system
+    (let [[name1 name2 combiner expensive] (build-sample-project)]
+      (testing "uncached values are unaffected"
+        (is (= "Jane" (g/node-value (is/world-graph system) cache name1 :uncached-value)))))))
 
 (deftest caching-avoids-computation
   (testing "cached values are only computed once"
-    (let [[world-ref cache [name1 name2 combiner expensive]] (build-sample-project)]
-      (is (= "Jane Doe" (g/node-value (:graph @world-ref) cache combiner :derived-value)))
-      (expect-no-call-when combiner 'compute-derived-value
-        (doseq [x (range 100)]
-          (g/node-value (:graph @world-ref) cache combiner :derived-value)))))
+    (with-clean-system
+      (let [[name1 name2 combiner expensive] (build-sample-project)]
+        (is (= "Jane Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))
+        (expect-no-call-when combiner 'compute-derived-value
+                             (doseq [x (range 100)]
+                               (g/node-value (is/world-graph system) cache combiner :derived-value))))))
 
   (testing "modifying inputs invalidates the cached value"
-    (let [[world-ref cache [name1 name2 combiner expensive]] (build-sample-project)]
-      (is (= "Jane Doe" (g/node-value (:graph @world-ref) cache combiner :derived-value)))
-      (expect-call-when combiner 'compute-derived-value
-        (it/transact world-ref [(it/update-property name1 :scalar (constantly "John") [])])
-        (is (= "John Doe" (g/node-value (:graph @world-ref) cache combiner :derived-value))))))
+    (with-clean-system
+      (let [[name1 name2 combiner expensive] (build-sample-project)]
+        (is (= "Jane Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))
+        (expect-call-when combiner 'compute-derived-value
+                          (ds/transact system [(it/update-property name1 :scalar (constantly "John") [])])
+                          (is (= "John Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))))))
 
   (testing "transmogrifying a node invalidates its cached value"
-    (let [[world-ref cache [name1 name2 combiner expensive]] (build-sample-project)]
-      (is (= "Jane Doe" (g/node-value (:graph @world-ref) cache combiner :derived-value)))
-      (expect-call-when combiner 'compute-derived-value
-        (it/transact world-ref [(it/become name1 (n/construct CacheTestNode))])
-        (is (= "Jane Doe" (g/node-value (:graph @world-ref) cache combiner :derived-value))))))
+    (with-clean-system
+      (let [[name1 name2 combiner expensive] (build-sample-project)]
+        (is (= "Jane Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))
+        (expect-call-when combiner 'compute-derived-value
+                          (ds/transact system [(it/become name1 (n/construct CacheTestNode))])
+                          (is (= "Jane Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))))))
 
   (testing "cached values are distinct"
-    (let [[world-ref cache [name1 name2 combiner expensive]] (build-sample-project)]
-      (is (= "this is distinct from the other outputs" (g/node-value (:graph @world-ref) cache combiner :another-value)))
-      (is (not= (g/node-value (:graph @world-ref) cache combiner :another-value) (g/node-value (:graph @world-ref) cache combiner :expensive-value)))))
+    (with-clean-system
+      (let [[name1 name2 combiner expensive] (build-sample-project)]
+        (is (= "this is distinct from the other outputs" (g/node-value (is/world-graph system) cache combiner :another-value)))
+        (is (not= (g/node-value (is/world-graph system) cache combiner :another-value) (g/node-value (is/world-graph system) cache combiner :expensive-value))))))
 
   (testing "cache invalidation only hits dependent outputs"
-    (let [[world-ref cache [name1 name2 combiner expensive]] (build-sample-project)]
-      (is (= "Jane" (g/node-value (:graph @world-ref) cache combiner :nickname)))
-      (expect-call-when combiner 'passthrough-first-name
-        (it/transact world-ref [(it/update-property name1 :scalar (constantly "Mark") [])])
-        (is (= "Mark" (g/node-value (:graph @world-ref) cache combiner :nickname))))
-      (expect-no-call-when combiner 'passthrough-first-name
-        (it/transact world-ref [(it/update-property name2 :scalar (constantly "Brandenburg") [])])
-        (is (= "Mark" (g/node-value (:graph @world-ref) cache combiner :nickname)))
-        (is (= "Mark Brandenburg" (g/node-value (:graph @world-ref) cache combiner :derived-value)))))))
+    (with-clean-system
+      (let [[name1 name2 combiner expensive] (build-sample-project)]
+        (is (= "Jane" (g/node-value (is/world-graph system) cache combiner :nickname)))
+        (expect-call-when combiner 'passthrough-first-name
+                          (ds/transact system [(it/update-property name1 :scalar (constantly "Mark") [])])
+                          (is (= "Mark" (g/node-value (is/world-graph system) cache combiner :nickname))))
+        (expect-no-call-when combiner 'passthrough-first-name
+                             (ds/transact system [(it/update-property name2 :scalar (constantly "Brandenburg") [])])
+                             (is (= "Mark" (g/node-value (is/world-graph system) cache combiner :nickname)))
+                             (is (= "Mark Brandenburg" (g/node-value (is/world-graph system) cache combiner :derived-value))))))))
 
 
 (g/defnk compute-disposable-value
@@ -189,17 +195,17 @@
   (with-clean-system
     (let [[override jane] (build-override-project)]
       (testing "requesting a non-existent label throws"
-        (is (thrown? clojure.lang.ExceptionInfo (g/node-value (:graph @world-ref) cache override :aint-no-thang)))))))
+        (is (thrown? clojure.lang.ExceptionInfo (g/node-value (is/world-graph system) cache override :aint-no-thang)))))))
 
 (deftest update-sees-in-transaction-value
   (with-clean-system
     (let [node (g/transactional
-                 (g/add (n/construct p/Project :name "a project" :int-prop 0)))
+                (g/add (n/construct p/Project :name "a project" :int-prop 0)))
           after-transaction (g/transactional
-                              (g/update-property node :int-prop inc)
-                              (g/update-property node :int-prop inc)
-                              (g/update-property node :int-prop inc)
-                              (g/update-property node :int-prop inc))]
+                             (g/update-property node :int-prop inc)
+                             (g/update-property node :int-prop inc)
+                             (g/update-property node :int-prop inc)
+                             (g/update-property node :int-prop inc))]
       (is (= 4 (:int-prop after-transaction))))))
 
 (g/defnode ScopeReceiver
@@ -234,8 +240,7 @@
   (with-clean-system
     (let [[node]       (tx-nodes (n/construct SelfCounter :first-call true))
           node-id      (:_id node)]
-      (g/node-value (:graph @world-ref) cache node :plus-1)
-      (def cache* cache)
+      (g/node-value (is/world-graph system) cache node :plus-1)
       (is (cached? cache node-id :plus-1))
       (is (not (cached? cache node-id :self)))
       (is (not (cached? cache node-id :call-counter))))))
@@ -256,8 +261,7 @@
   (output   output-using-overloaded-output-input-property t/Keyword (g/fnk [overloaded-output-input-property] overloaded-output-input-property))
 
   (input    eponymous t/Keyword)
-  (output   eponymous t/Keyword (g/fnk [eponymous] eponymous))
-  )
+  (output   eponymous t/Keyword (g/fnk [eponymous] eponymous)))
 
 
 (deftest node-value-precedence
@@ -268,8 +272,8 @@
        (g/connect s1 :constant node :overloaded-output-input-property)
        (g/connect s1 :constant node :overloaded-input-property)
        (g/connect s1 :constant node :eponymous))
-      (is (= :output   (g/node-value (:graph @world-ref) cache node :overloaded-output-input-property)))
-      (is (= :input    (g/node-value (:graph @world-ref) cache node :overloaded-input-property)))
-      (is (= :property (g/node-value (:graph @world-ref) cache node :the-property)))
-      (is (= :output   (g/node-value (:graph @world-ref) cache node :output-using-overloaded-output-input-property)))
-      (is (= :input    (g/node-value (:graph @world-ref) cache node :eponymous))))))
+      (is (= :output   (g/node-value (is/world-graph system) cache node :overloaded-output-input-property)))
+      (is (= :input    (g/node-value (is/world-graph system) cache node :overloaded-input-property)))
+      (is (= :property (g/node-value (is/world-graph system) cache node :the-property)))
+      (is (= :output   (g/node-value (is/world-graph system) cache node :output-using-overloaded-output-input-property)))
+      (is (= :input    (g/node-value (is/world-graph system) cache node :eponymous))))))
