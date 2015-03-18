@@ -56,6 +56,7 @@ public class Project {
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
     private List<String> inputs = new ArrayList<String>();
+    private List<String> outputs = new ArrayList<String>();
     private ArrayList<Task<?>> newTasks;
     private State state;
     private String rootDirectory = ".";
@@ -477,6 +478,12 @@ public class Project {
         }
         newTasks.clear();
 
+        // Keep track of the paths for all outputs
+        outputs = new ArrayList<String>(allOutputs.size());
+        for (IResource res : allOutputs) {
+            outputs.add(res.getAbsPath());
+        }
+
         // This flag is set to true as soon as one task has failed. This will
         // break out of the outer loop after the remaining tasks has been tried once.
         // NOTE The underlying problem is that if a task fails and has dependent
@@ -610,8 +617,8 @@ run:
         this.inputs = new ArrayList<String>(inputs);
     }
 
-    public List<String> getInputs() {
-        return inputs;
+    public List<String> getOutputs() {
+        return outputs;
     }
 
     /**
