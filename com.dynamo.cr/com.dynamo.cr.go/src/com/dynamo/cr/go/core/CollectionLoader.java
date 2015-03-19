@@ -183,7 +183,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                     INodeType nodeType = registry.getNodeTypeClass(GameObjectNode.class);
                     INodeLoader<Node> loader = nodeType.getLoader();
                     Message message = loader.buildMessage(context, instance, partProgress.newChild(1));
-                    SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1));
+                    SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1), false);
                     instanceBuilder.setData(byteStream.toString());
                     for (Node grandChild : child.getChildren()) {
                         if (grandChild instanceof GameObjectInstanceNode) {
