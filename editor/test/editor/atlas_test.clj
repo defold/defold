@@ -9,11 +9,12 @@
             [dynamo.graph :as g]
             [dynamo.image :as image]
             [dynamo.node :as n]
-            [dynamo.project :as p]
+            [editor.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system tempfile]]
             [dynamo.types :as t]
-            [editor.atlas :as atlas])
+            [editor.atlas :as atlas]
+            [editor.core :as core])
   (:import [dynamo.types Image]
            [javax.imageio ImageIO]))
 
@@ -58,7 +59,7 @@
         atlas))))
 
 (g/defnode WildcardImageResourceNode
-  (inherits g/OutlineNode)
+  (inherits core/OutlineNode)
   (output outline-label t/Str (g/fnk [filename] (t/local-name filename)))
   (property filename (t/protocol t/PathManipulation) (visible false))
   (output content Image :cached (g/fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))

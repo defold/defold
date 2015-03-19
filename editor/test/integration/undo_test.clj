@@ -2,11 +2,12 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system]]
             [dynamo.types :as t]
             [editor.atlas :as atlas]
+            [editor.core :as core]
+            [editor.project :as p]
             [internal.clojure :as clojure]
             [internal.node :as in])
   (:import [java.io File]))
@@ -17,7 +18,7 @@
 (def branch "dummy-branch")
 
 (g/defnode DummyEditor
-  (inherits g/Scope)
+  (inherits core/Scope)
   (input node t/Any)
   (output node t/Any (g/fnk [node] node)) ; TODO remove, workaround for not being able to pull on inputs
   )

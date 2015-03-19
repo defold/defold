@@ -136,10 +136,10 @@
 (defn system-cache   [s] (-> s :cache))
 (defn world-ref      [s] (-> s :world :state))
 (defn history        [s] (-> s :world :history))
-(defn world-graph    [s] (-> (world-ref s) deref :graph))
-(defn world-time     [s] (-> (world-ref s) deref :world-time))
-(defn disposal-queue [s] (-> :world :disposal-queue))
-(defn message-bus    [s] (-> :world :message-bus))
+(defn world-graph    [s] (some-> (world-ref s) deref :graph))
+(defn world-time     [s] (some-> (world-ref s) deref :world-time))
+(defn disposal-queue [s] (-> s :world :disposal-queue))
+(defn message-bus    [s] (-> s :world :message-bus))
 
 (defn start-event-loop!
   [sys id]

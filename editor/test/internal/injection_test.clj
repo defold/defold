@@ -6,8 +6,11 @@
             [dynamo.system :as ds :refer [add in]]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
+            [editor.core :as core]
             [internal.graph :as ig]
             [internal.node :as in]))
+
+;; TODO - move this to editor. It's no longer an inherent part of the graph.
 
 (g/defnode Receiver
   (input surname String :inject)
@@ -49,7 +52,7 @@
   (output concatenation t/Str (g/fnk [local-names] (str/join local-names))))
 
 (g/defnode InjectionScope
-  (inherits g/Scope)
+  (inherits core/Scope)
   (input local-name t/Str :inject)
   (output passthrough t/Str (g/fnk [local-name] local-name)))
 
@@ -69,7 +72,7 @@
   (testing "attach one node output to input on another node"
     (with-clean-system
       (let [consumer (g/transactional
-                       (ds/in (g/add (n/construct g/Scope))
+                       (ds/in (g/add (n/construct core/Scope))
                               (g/add (n/construct ValueProducer :value "a known value"))
                               (g/add (n/construct ValueConsumer))))]
         (def con* consumer)
@@ -79,7 +82,7 @@
   (testing "attach nodes in different transactions"
     (with-clean-system
       (let [scope (g/transactional
-                    (g/add (n/construct g/Scope)))
+                    (g/add (n/construct core/Scope)))
             consumer (g/transactional
                        (ds/in scope
                          (g/add (n/construct ValueConsumer))))
@@ -91,7 +94,7 @@
   (testing "attach nodes in different transactions and reverse order"
     (with-clean-system
       (let [scope (g/transactional
-                    (g/add (n/construct g/Scope)))
+                    (g/add (n/construct core/Scope)))
             producer (g/transactional
                        (ds/in scope
                               (g/add (n/construct ValueProducer :value "a known value"))))
@@ -103,7 +106,7 @@
   (testing "explicitly connect nodes, see if injection also happens"
     (with-clean-system
       (let [scope (g/transactional
-                    (g/add (n/construct g/Scope)))
+                    (g/add (n/construct core/Scope)))
             producer (g/transactional
                        (ds/in scope
                               (g/add (n/construct ValueProducer :value "a known value"))))
@@ -125,14 +128,14 @@
         (is (not (ig/connected? (-> world-ref deref :graph) (:_id node) :port (:_id node) :ports)))))))
 
 (g/defnode OutputProvider
-  (inherits g/Scope)
+  (inherits core/Scope)
   (property context t/Int (default 0)))
 
 (g/defnode InputConsumer
   (input context t/Int :inject))
 
 (defn- create-simulated-project []
-  (g/transactional (g/add (n/construct g/Scope :tag :project))))
+  (g/transactional (g/add (n/construct core/Scope :tag :project))))
 
 (deftest adding-nodes-in-nested-scopes
   (testing "one consumer in a nested scope"

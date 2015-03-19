@@ -3,7 +3,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
@@ -200,7 +199,7 @@
 (deftest update-sees-in-transaction-value
   (with-clean-system
     (let [node (g/transactional
-                (g/add (n/construct p/Project :name "a project" :int-prop 0)))
+                (g/add (n/construct OverrideValueNode :name "a project" :int-prop 0)))
           after-transaction (g/transactional
                              (g/update-property node :int-prop inc)
                              (g/update-property node :int-prop inc)

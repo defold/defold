@@ -16,6 +16,7 @@
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
+            [editor.core :as core]
             [editor.scene :as scene]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -169,8 +170,8 @@
   nil)
 
 (g/defnode PlatformerNode
-  (inherits g/ResourceNode)
-  (inherits g/OutlineNode)
+  (inherits core/ResourceNode)
+  (inherits core/OutlineNode)
 
   (property control-points  [t/Any])
   (property base-texture t/Str)

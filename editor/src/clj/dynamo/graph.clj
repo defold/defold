@@ -4,9 +4,9 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.graph :as ig]
-            [internal.system :as is]
             [internal.node :as in]
-            [potemkin.namespaces :refer [import-vars]]))
+            [potemkin.namespaces :refer [import-vars]]
+            [internal.system :as is]))
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals map-keys map-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
@@ -130,14 +130,14 @@
        (let [description#    ~(in/node-type-sexps symb (concat dn/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
-             whole-graph#    (some-> (ds/current-scope) :world-ref deref :graph)
-             to-be-replaced# (when (and whole-graph# replacing# (ds/current-scope))
+             whole-graph#    (is/world-graph @ds/the-system)
+             to-be-replaced# (when (and whole-graph# replacing#)
                                (filterv #(= replacing# (node-type %)) (ig/node-values whole-graph#)))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
          (def ~symb (in/make-node-type (assoc description# :dynamo.node/ctor ctor#)))
          (in/define-node-record  '~record-name '~symb ~symb)
          (in/define-print-method '~record-name '~symb ~symb)
-         (when (and replacing# (ds/current-scope))
+         (when (< 0 (count to-be-replaced#))
            (ds/transactional* (fn []
                                 (doseq [r# to-be-replaced#]
                                   (ds/become r# (dn/construct ~symb))))))
@@ -234,80 +234,14 @@
   [node-id]
   (ds/node-by-id node-id))
 
-;; ---------------------------------------------------------------------------
-;; Essential node types (may move to another namespace)
-;; ---------------------------------------------------------------------------
-(defnode Scope
-  "Scope provides a level of grouping for nodes. Scopes nest.
-When a node is added to a Scope, the node's :self output will be
-connected to the Scope's :nodes input.
-
-When a Scope is deleted, all nodes within that scope will also be deleted."
-  (input nodes [t/Any])
-
-  (property tag      t/Keyword)
-  (property parent   (t/protocol t/NamingContext))
-
-  (trigger dependency-injection :input-connections #'dn/inject-new-nodes)
-  (trigger garbage-collection   :deleted  #'dn/dispose-nodes)
-
-  t/NamingContext
-  (lookup
-   [this nm]
-   (let [nodes (in/get-inputs (-> this :world-ref deref :graph) this :nodes)]
-     (first (filter #(= nm (:name %)) nodes)))))
-
-(defnode RootScope
-  "There should be exactly one RootScope in the graph, with ID 1.
-RootScope has no parent."
-  (inherits Scope)
-  (property tag t/Keyword (default :root)))
-
-(defmethod print-method RootScope__
-  [^RootScope__ v ^java.io.Writer w]
-  (.write w (str "<RootScope{:_id " (:_id v) "}>")))
-
-(defnode Saveable
-  "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
-this node to indicate that 'Save' is a meaningful action.
-
-Inheritors are required to supply a production function for the :save output."
-  (output save t/Keyword :abstract))
-
-(defnode ResourceNode
-  "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename (t/protocol t/PathManipulation) (visible false))
-
-  (output content t/Any :abstract))
-
-(defnode AutowireResources
-  "Mixin. Nodes with this behavior automatically keep their graph connections
-up to date with their resource properties."
-  (trigger autowire-resources :property-touched #'dn/connect-resource))
-
-(defnode OutlineNode
-  "Mixin. Any OutlineNode can be shown in an outline view.
-
-Inputs:
-- children `[OutlineItem]` - Input values that will be nested beneath this node.
-
-Outputs:
-- tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (output outline-children [t/OutlineItem] (fnk [] []))
-  (output outline-label    t/Str :abstract)
-  (output outline-commands [t/OutlineCommand] (fnk [] []))
-  (output outline-tree     t/OutlineItem
-          (fnk [this outline-label outline-commands outline-children :- [t/OutlineItem]]
-               {:label outline-label
-                ;; :icon "my type of icon"
-                :node-ref (node-ref this)
-                :commands outline-commands
-                :children outline-children})))
-
-;; ---------------------------------------------------------------------------
-;; Bootstrapping
-;; ---------------------------------------------------------------------------
-(defn project-graph
-  []
-  (let [root (dn/construct RootScope :_id 1)]
-    (ig/add-labeled-node (ig/empty-graph) (inputs root) (outputs root) root)))
+(defn make-graph
+  [nodes]
+  (loop [g  (ig/empty-graph)
+         i  1
+         ns nodes]
+    (if-let [n (first ns)]
+      (recur
+       (ig/add-labeled-node g (inputs n) (outputs n) (assoc n :_id i))
+       (inc i)
+       (rest ns))
+      g)))
