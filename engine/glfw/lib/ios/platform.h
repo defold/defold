@@ -200,6 +200,9 @@ GLFWGLOBAL struct {
 
     float AccX, AccY, AccZ;
 
+    // which touch is used for mouse emu.
+    void *MouseEmulationTouch;
+
 } _glfwInput;
 
 //------------------------------------------------------------------------
