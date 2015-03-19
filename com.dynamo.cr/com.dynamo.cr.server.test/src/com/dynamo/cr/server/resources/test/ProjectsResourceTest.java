@@ -44,7 +44,7 @@ import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectStatus;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfoList;
-import com.dynamo.cr.server.auth.AuthCookie;
+import com.dynamo.cr.server.auth.AuthToken;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
@@ -534,7 +534,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     private static IGit openIDGit(TestUser testUser) {
         IGit git = GitFactory.create(GitFactory.Type.CGIT);
         git.setUsername(testUser.email);
-        git.setPassword(AuthCookie.login(testUser.email));
+        git.setPassword(AuthToken.login(testUser.email));
         git.setHost("localhost");
         return git;
     }

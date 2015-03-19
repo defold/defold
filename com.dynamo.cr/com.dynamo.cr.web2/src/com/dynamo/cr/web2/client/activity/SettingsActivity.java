@@ -29,7 +29,7 @@ public class SettingsActivity extends AbstractActivity implements SettingsView.P
                             Request request, Response response) {
                         if (response.getStatusCode() < 400 && status != null) {
                             settingsView.setSubscriptionStatus(status.trim().equals("true"));
-                            settingsView.setAuthCookie(Defold.getCookie("auth"));
+                            settingsView.setAuthToken(Defold.getCookie("auth"));
                             settingsView.setVisible(true);
                         } else {
                             defold.showErrorMessage("Subscription status could not be loaded.");

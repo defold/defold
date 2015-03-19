@@ -4,11 +4,11 @@ import com.google.gwt.place.shared.Place;
 import com.google.gwt.place.shared.PlaceTokenizer;
 import com.google.gwt.place.shared.Prefix;
 
-public class OpenIDPlace extends Place {
+public class OAuthPlace extends Place {
     private String loginToken;
     private String mode;
 
-    public OpenIDPlace(String loginToken, String mode) {
+    public OAuthPlace(String loginToken, String mode) {
         this.loginToken = loginToken;
         this.mode = mode;
     }
@@ -21,17 +21,17 @@ public class OpenIDPlace extends Place {
         return mode;
     }
 
-    @Prefix("openid")
-    public static class Tokenizer implements PlaceTokenizer<OpenIDPlace> {
+    @Prefix("oauth")
+    public static class Tokenizer implements PlaceTokenizer<OAuthPlace> {
         @Override
-        public String getToken(OpenIDPlace place) {
+        public String getToken(OAuthPlace place) {
             return place.getLoginToken();
         }
 
         @Override
-        public OpenIDPlace getPlace(String token) {
+        public OAuthPlace getPlace(String token) {
             int i = token.indexOf('_');
-            return new OpenIDPlace(token.substring(0, i), token.substring(i+1));
+            return new OAuthPlace(token.substring(0, i), token.substring(i+1));
         }
     }
 }

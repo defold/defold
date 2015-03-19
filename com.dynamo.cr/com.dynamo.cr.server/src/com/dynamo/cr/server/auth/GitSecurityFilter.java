@@ -75,7 +75,7 @@ public class GitSecurityFilter implements Filter {
 
         User user = ModelUtil.findUserByEmail(em, username);
         // NOTE: Not X-Auth and X-Email headers. See comment above.
-        if (user != null && AuthCookie.auth(username, password)) {
+        if (user != null && AuthToken.auth(username, password)) {
             return user;
         }
 
