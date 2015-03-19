@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,6 +39,7 @@ public class BundlerTest {
 
     private String contentRoot;
     private String outputDir;
+    private String contentRootUnused;
     private Platform platform;
 
     @Parameters
@@ -56,6 +58,9 @@ public class BundlerTest {
         outputDir = Files.createTempDirectory(null).toFile().getAbsolutePath();
         createFile(contentRoot, "game.project", "[display]\nwidth=640\nheight=480\n");
 
+        contentRootUnused = Files.createTempDirectory(null).toFile().getAbsolutePath();
+        createFile(contentRootUnused, "game.project", "[display]\nwidth=640\nheight=480\n[bootstrap]\nmain_collection = /main.collectionc\n");
+
         // Avoid hang when running unit-test on Mac OSX
         // Related to SWT and threads?
         if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
@@ -70,6 +75,7 @@ public class BundlerTest {
     public void tearDown() throws IOException {
         FileUtils.deleteDirectory(new File(contentRoot));
         FileUtils.deleteDirectory(new File(outputDir));
+        FileUtils.deleteDirectory(new File(contentRootUnused));
     }
 
     void build() throws IOException, CompileExceptionError {
@@ -89,6 +95,49 @@ public class BundlerTest {
         }
     }
 
+    void buildWithUnused() throws IOException, CompileExceptionError {
+
+        Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
+
+        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        project.setOption("platform", platform.getPair());
+        project.setOption("keep-unused", "true");
+        project.setOption("archive", "true");
+        project.findSources(contentRootUnused, new HashSet<String>());
+        List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
+        for (TaskResult taskResult : result) {
+            assertTrue(taskResult.toString(), taskResult.isOk());
+        }
+
+        // Read the path entries in the resulting archive
+        RandomAccessFile darcFile = new RandomAccessFile(contentRootUnused + "/build/game.darc", "r");
+        darcFile.readInt();  // Version
+        darcFile.readInt();  // Pad
+        darcFile.readLong(); // Userdata
+        int stringPoolOffset = darcFile.readInt();
+        int stringPoolSize = darcFile.readInt();
+
+        // Seek to path entries
+        HashSet<String> entries = new HashSet<String>();
+        darcFile.seek(stringPoolOffset);
+        while (darcFile.getFilePointer() < stringPoolOffset + stringPoolSize) {
+            String path = "";
+            byte[] b = {0};
+            while((b[0] = darcFile.readByte()) != 0) {
+                path = path + new String(b);
+            }
+            entries.add(path);
+        }
+        darcFile.close();
+
+        assertTrue(entries.contains("/main.collectionc"));
+        assertTrue(entries.contains("/unused.collectionc"));
+
+    }
+
     @Test
     public void testBundle() throws IOException, ConfigurationException, CompileExceptionError {
         createFile(contentRoot, "test.icns", "test_icon");
@@ -100,6 +149,13 @@ public class BundlerTest {
         file.deleteOnExit();
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
+    }
+
+    @Test
+    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError {
+        createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
+        createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
+        buildWithUnused();
     }
 
 }
