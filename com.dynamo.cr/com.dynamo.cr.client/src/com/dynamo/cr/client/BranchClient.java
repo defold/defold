@@ -4,8 +4,6 @@ import java.net.URI;
 
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
-import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
@@ -231,73 +229,6 @@ public class BranchClient extends BaseClient implements IBranchClient {
         catch (ClientHandlerException e) {
             ClientUtils.throwRespositoryException(e);
         }
-    }
-
-    @Override
-    public BuildDesc build(boolean rebuild) throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("builds").queryParam("rebuild", rebuild ? "true" : "false")
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .post(ClientResponse.class);
-            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                ClientUtils.throwRespositoryException(resp);
-            }
-            return resp.getEntity(BuildDesc.class);
-        }
-        catch (ClientHandlerException e) {
-            ClientUtils.throwRespositoryException(e);
-            return null; // Never reached
-        }
-    }
-
-    @Override
-    public BuildDesc getBuildStatus(int id) throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id))
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .get(ClientResponse.class);
-            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                ClientUtils.throwRespositoryException(resp);
-            }
-            return resp.getEntity(BuildDesc.class);
-        }
-        catch (ClientHandlerException e) {
-            ClientUtils.throwRespositoryException(e);
-            return null; // Never reached
-        }
-    }
-
-    @Override
-    public void cancelBuild(int id) throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("builds").queryParam("id", Integer.toString(id))
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .delete(ClientResponse.class);
-            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                ClientUtils.throwRespositoryException(resp);
-            }
-        }
-        catch (ClientHandlerException e) {
-            ClientUtils.throwRespositoryException(e);
-        }
-    }
-
-    @Override
-    public BuildLog getBuildLogs(int id) throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("builds/log").queryParam("id", Integer.toString(id))
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .get(ClientResponse.class);
-            if (resp.getStatus() != 200 && resp.getStatus() != 204) {
-                ClientUtils.throwRespositoryException(resp);
-            }
-            return resp.getEntity(BuildLog.class);
-        }
-        catch (ClientHandlerException e) {
-            ClientUtils.throwRespositoryException(e);
-            return null; // Never reached
-        }
-
     }
 
 }

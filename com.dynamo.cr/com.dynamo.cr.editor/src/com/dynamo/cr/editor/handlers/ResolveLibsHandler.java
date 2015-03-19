@@ -41,7 +41,7 @@ public class ResolveLibsHandler extends AbstractHandler {
         IProject project = EditorUtil.getProject();
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         final String email = store.getString(PreferenceConstants.P_EMAIL);
-        final String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+        final String authToken = store.getString(PreferenceConstants.P_AUTH_TOKEN);
         if (project != null) {
             final IFolder contentRoot = EditorUtil.getContentRoot(project);
             try {
@@ -52,7 +52,7 @@ public class ResolveLibsHandler extends AbstractHandler {
                             InterruptedException {
                         try {
                             monitor.beginTask("Fetch Libraries", IProgressMonitor.UNKNOWN);
-                            BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
+                            BobUtil.resolveLibs(contentRoot, email, authToken, monitor);
                         } catch (OperationCanceledException e) {
                             // Normal, pass through
                         } catch (Throwable e) {

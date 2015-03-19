@@ -14,6 +14,8 @@ import java.util.List;
 import javax.persistence.EntityManager;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.NewCookie;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
@@ -26,7 +28,6 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.JsonProviders;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.proto.Config.BillingProduct;
@@ -48,12 +49,62 @@ import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.model.UserSubscription.State;
 import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientHandlerException;
+import com.sun.jersey.api.client.ClientRequest;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.ClientResponse.Status;
 import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
+import com.sun.jersey.api.client.filter.ClientFilter;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+
+class DefoldAuthFilter extends ClientFilter {
+
+    private String authToken;
+    private String email;
+    private String password;
+
+    public DefoldAuthFilter(String email, String authToken, String password) {
+        this.email = email;
+        this.authToken = authToken;
+        this.password = password;
+    }
+
+    @Override
+    public ClientResponse handle(ClientRequest cr) throws ClientHandlerException {
+        MultivaluedMap<String, Object> headers = cr.getHeaders();
+        if (this.authToken != null) {
+            headers.add("X-Auth", this.authToken);
+        }
+
+        headers.add("X-Email", this.email);
+
+        // Send only password if password is set and authToken is not set.
+        if (this.password != null && authToken == null) {
+            headers.add("X-Password", this.password);
+        }
+
+        ClientResponse response = getNext().handle(cr);
+        List<NewCookie> cookies = response.getCookies();
+        for (NewCookie newCookie : cookies) {
+            if (newCookie.getName().equals("auth")) {
+                // Snoop auth-cookie
+                this.authToken = newCookie.getValue();
+            }
+        }
+        return response;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public void setAuthToken(String authToken) {
+        this.authToken = authToken;
+    }
+
+}
 
 public class UsersResourceTest extends AbstractResourceTest {
 

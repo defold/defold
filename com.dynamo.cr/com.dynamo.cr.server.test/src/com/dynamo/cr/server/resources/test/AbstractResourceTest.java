@@ -133,9 +133,6 @@ public class AbstractResourceTest {
             }
         }).when(billingProvider).getSubscription(Mockito.anyLong());
         server.setBillingProvider(billingProvider);
-
-        server.setCleanupBuildsInterval(10 * 1000);
-        server.setKeepBuildDescFor(100 * 1000);
     }
 
     static class Module extends AbstractModule {
