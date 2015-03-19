@@ -3,7 +3,6 @@
             [com.stuartsierra.component :as component]
             [dynamo.util :as util]
             [dynamo.util :refer :all]
-            [internal.bus :as bus]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
@@ -16,6 +15,31 @@
 (prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IRecord        clojure.lang.IDeref)
 
+(defn- subscriber-id [n] (if (number? n) n (:_id n)))
+
+(defn address-to
+  [node body]
+  (assoc body ::node-id (subscriber-id node)))
+
+(defn publish
+  [{publish-to :publish-to} msg]
+  (a/put! publish-to msg))
+
+(defn publish-all
+  [bus msgs]
+  (doseq [s msgs]
+    (publish bus s)))
+
+(defn subscribe
+  [{subscribe-to :subscribe-to} node]
+  (a/sub subscribe-to (subscriber-id node) (a/chan 100)))
+
+(defn make-bus
+  []
+  (let [pubch (a/chan 100)]
+    {:publish-to   pubch
+     :subscribe-to (a/pub pubch ::node-id (fn [_] (a/dropping-buffer 100)))}))
+
 (defn graph [world-ref]
   (-> world-ref deref :graph))
 
@@ -23,7 +47,7 @@
   [initial-graph disposal-queue]
   {:graph               initial-graph
    :world-time          0
-   :message-bus         (bus/make-bus)
+   :message-bus         (make-bus)
    :disposal-queue      disposal-queue})
 
 (defn- new-history
@@ -119,7 +143,7 @@
 
 (defn start-event-loop!
   [sys id]
-  (let [in (bus/subscribe (message-bus sys) id)]
+  (let [in (subscribe (message-bus sys) id)]
     (a/go-loop []
       (when-let [msg (a/<! in)]
         (when (not= ::stop-event-loop (:type msg))
@@ -130,7 +154,7 @@
 
 (defn stop-event-loop!
   [sys {:keys [_id]}]
-  (bus/publish (message-bus sys) (bus/address-to _id {:type ::stop-event-loop})))
+  (publish (message-bus sys) (address-to _id {:type ::stop-event-loop})))
 
 (defn dispose!
   [sys node]
