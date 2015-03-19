@@ -132,10 +132,9 @@ public class Bob {
         }
     }
 
-    public static String getLib(String name) throws IOException {
+    public static String getLib(Platform platform, String name) throws IOException {
         init();
 
-        Platform platform = Platform.getJavaPlatform();
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         URL url = Bob.class.getResource("/lib/" + libName);
         if (url == null) {
