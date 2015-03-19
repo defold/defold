@@ -22,7 +22,7 @@
          ~'world       (:world ~'system)
          ~'cache       (:cache ~'system)
          ~'world-ref   (:state ~'world)
-         ~'disposal-ch (get-in ~'system [:cache :dispose-ch])
+         ~'disposal-ch (is/disposal-queue ~'system)
          ~'root        (ds/node ~'world-ref 1)]
      (binding [gt/*transaction* (gt/->TransactionSeed (partial ds/transact ~'system))]
        (ds/in ~'root
@@ -36,7 +36,7 @@
 
 (defn take-waiting-to-dispose
   [system]
-  (ia/take-all (get-in system [:cache :dispose-ch])))
+  (ia/take-all (is/disposal-queue system)))
 
 (defn tempfile
   ^java.io.File [prefix suffix auto-delete?]

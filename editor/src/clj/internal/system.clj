@@ -44,10 +44,9 @@
   (-> world-ref deref :graph))
 
 (defn new-world-state
-  [initial-graph disposal-queue]
+  [initial-graph]
   {:graph               initial-graph
-   :world-time          0
-   :disposal-queue      disposal-queue})
+   :world-time          0})
 
 (defn- new-history
   [state]
@@ -107,11 +106,12 @@
   (let [world-ref      (ref nil)
         injected-graph (ig/map-nodes #(assoc % :world-ref world-ref) initial-graph)
         history-ref    (ref (new-history world-ref))]
-    (dosync (ref-set world-ref (new-world-state injected-graph disposal-queue)))
+    (dosync (ref-set world-ref (new-world-state injected-graph)))
     (add-watch world-ref :push-history (partial push-history history-ref))
-    (map->World {:state        world-ref
-                 :message-bus  (make-bus)
-                 :history      history-ref})))
+    (map->World {:state          world-ref
+                 :message-bus    (make-bus)
+                 :disposal-queue disposal-queue
+                 :history        history-ref})))
 
 (defn make-system
  [configuration]
@@ -138,7 +138,7 @@
 (defn history        [s] (-> s :world :history))
 (defn world-graph    [s] (-> (world-ref s) deref :graph))
 (defn world-time     [s] (-> (world-ref s) deref :world-time))
-(defn disposal-queue [s] (-> (world-ref s) deref :disposal-queue))
+(defn disposal-queue [s] (-> :world :disposal-queue))
 (defn message-bus    [s] (-> :world :message-bus))
 
 (defn start-event-loop!
