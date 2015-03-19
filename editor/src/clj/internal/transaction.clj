@@ -3,7 +3,6 @@
   (:require [clojure.core.async :as a]
             [clojure.set :as set]
             [dynamo.util :refer :all]
-            [internal.bus :as bus]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [service.log :as log]))
