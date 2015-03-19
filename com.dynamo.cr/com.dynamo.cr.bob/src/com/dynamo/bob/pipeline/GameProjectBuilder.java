@@ -271,12 +271,23 @@ public class GameProjectBuilder extends Builder<Void> {
     public static HashSet<String> findResources(Project project) throws CompileExceptionError {
         HashSet<String> resources = new HashSet<String>();
 
-        // Root nodes to follow
-        for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}}) {
-            String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
-            if (path != null) {
-                findResources(project, project.getResource(path), resources);
+        if (project.option("keep-unused", "false").equals("true")) {
+
+            // All outputs of the project should be considered resources
+            for (String path : project.getOutputs()) {
+                resources.add(path);
             }
+
+        } else {
+
+            // Root nodes to follow
+            for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}}) {
+                String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
+                if (path != null) {
+                    findResources(project, project.getResource(path), resources);
+                }
+            }
+
         }
 
         // Custom resources
@@ -307,6 +318,10 @@ public class GameProjectBuilder extends Builder<Void> {
         try {
             if (project.option("archive", "false").equals("true")) {
                 HashSet<String> resources = findResources(project);
+
+                // Make sure we don't try to archive the .darc or .projectc
+                resources.remove(task.output(0).getAbsPath());
+                resources.remove(task.output(1).getAbsPath());
 
                 File archiveFile = createArchive(resources);
                 is = new FileInputStream(archiveFile);
