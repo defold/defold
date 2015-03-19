@@ -1113,8 +1113,14 @@ namespace dmParticle
         }
     }
 
+
+    extern "C" void particle_apply_drag(Particle* particles, int32_t particle_count, Property *modifier_properties, bool use_direction, const Quat& rotation, float emitter_t, float dt);
+
     void ApplyDrag(dmArray<Particle>& particles, Property* modifier_properties, dmParticleDDF::Modifier* modifier_ddf, const Quat& rotation, float emitter_t, float dt)
     {
+        particle_apply_drag(particles.Begin(), particles.Size(), modifier_properties, modifier_ddf->m_UseDirection != 0, rotation, emitter_t, dt);
+
+        /*
         uint32_t particle_count = particles.Size();
         Vector3 direction = rotate(rotation, DRAG_LOCAL_DIR);
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
@@ -1132,6 +1138,7 @@ namespace dmParticle
             float applied_drag = dmMath::Min((magnitude + mag_spread * particle->GetSpreadFactor()) * dt, 1.0f);
             particle->SetVelocity(particle->GetVelocity() - v * applied_drag);
         }
+        */
     }
 
     static Vector3 GetParticleDir(Particle* particle)
