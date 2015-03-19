@@ -26,6 +26,7 @@ public class ResourceConfig extends DefaultResourceConfig {
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ProjectsResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.UsersResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.LoginResource"));
+            classes.add(cl.loadClass("com.dynamo.cr.server.resources.LoginOAuthResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ProspectsResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ProductsResource"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.ChargifyResource"));
@@ -36,7 +37,6 @@ public class ResourceConfig extends DefaultResourceConfig {
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.RollbackExceptionMapper"));
             classes.add(cl.loadClass("com.dynamo.cr.server.resources.WebApplicationExceptionMapper"));
             classes.add(cl.loadClass("com.dynamo.cr.server.ServerExceptionMapper"));
-            classes.add(cl.loadClass("com.dynamo.cr.server.BranchRepositoryExceptionMapper"));
             classes.add(cl.loadClass("com.dynamo.cr.server.auth.AuthenticationExceptionMapper"));
             classes.add(cl.loadClass("com.dynamo.cr.server.auth.AuthorizationExceptionMapper"));
 

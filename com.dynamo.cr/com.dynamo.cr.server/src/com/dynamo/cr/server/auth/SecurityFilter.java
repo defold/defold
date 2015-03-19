@@ -3,7 +3,6 @@ package com.dynamo.cr.server.auth;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.security.Principal;
-import java.util.List;
 
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
@@ -28,10 +27,6 @@ import com.sun.jersey.spi.container.ContainerRequestFilter;
 
 public class SecurityFilter implements ContainerRequestFilter {
 
-    // TODO: This injection doesn't work. We need something like for passwd database
-    //@Context
-    //protected IResourceRepository repository;
-
     protected static Logger logger = LoggerFactory.getLogger(SecurityFilter.class);
 
     @Context
@@ -48,8 +43,10 @@ public class SecurityFilter implements ContainerRequestFilter {
         String path = request.getAbsolutePath().getPath();
         if (!path.equals("/login")
                 && !path.startsWith("/login/openid/google")
+                && !path.startsWith("/login/oauth/google")
                 && !path.startsWith("/login/openid/yahoo")
                 && !path.startsWith("/login/openid/exchange") && !path.startsWith("/login/openid/register")
+                && !path.startsWith("/login/oauth/exchange") && !path.startsWith("/login/oauth/register")
                 && !path.startsWith("/prospects")) {
             // Only authenticate users for paths != /login or != /login/openid or != /prospects
             User user = authenticate(request);
@@ -63,7 +60,7 @@ public class SecurityFilter implements ContainerRequestFilter {
     }
 
     private User authenticate(ContainerRequest request) {
-        String authCookie = request.getHeaderValue("X-Auth");
+        String authToken = request.getHeaderValue("X-Auth");
         String email = request.getHeaderValue("X-Email");
 
         if (request.getMethod().equals("OPTIONS")) {
@@ -76,11 +73,11 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         EntityManager em = emf.createEntityManager();
 
-        if (authCookie != null && email != null) {
+        if (authToken != null && email != null) {
             try {
                 email = URLDecoder.decode(email, "UTF-8");
                 User user = ModelUtil.findUserByEmail(em, email);
-                if (user != null && AuthCookie.auth(email, authCookie)) {
+                if (user != null && AuthToken.auth(email, authToken)) {
                     return user;
                 } else {
                     throw new MappableContainerException(new AuthenticationException("Invalid username or password", null));
@@ -122,7 +119,7 @@ public class SecurityFilter implements ContainerRequestFilter {
             User user = ModelUtil.findUserByEmail(em, username);
             if (user != null && user.authenticate(password)) {
                 return user;
-            } else if (user != null && AuthCookie.auth(username, password)) {
+            } else if (user != null && AuthToken.auth(username, password)) {
                 // NOTE: This is rather messy. We also support
                 // auth-cookie login using http basic auth.
                 // Should perhaps deprecate X-Auth and use basic auth for
@@ -138,7 +135,7 @@ public class SecurityFilter implements ContainerRequestFilter {
         } else {
             /*
              * This experimental. Return an anonymous user if not
-             * authCookie/email header is set. We could perhaps get rid of
+             * authToken/email header is set. We could perhaps get rid of
              * !path.startsWith("..") above?
              * The first test is to allow anonymous download of the engine using
              * a provided secret key in the url

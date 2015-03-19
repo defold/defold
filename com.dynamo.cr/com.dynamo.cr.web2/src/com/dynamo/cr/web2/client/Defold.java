@@ -376,7 +376,7 @@ public class Defold implements EntryPoint {
         }
     }
 
-    public void loginOk(String firstName, String lastName, String email, String authCookie, int userId) {
+    public void loginOk(String firstName, String lastName, String email, String authToken, int userId) {
         Date expires = new Date();
         long nowLong = expires.getTime();
         nowLong = nowLong + (1000 * 60 * 60 * 24 * 7);
@@ -386,7 +386,7 @@ public class Defold implements EntryPoint {
         setCookie("last_name", lastName, expires);
         setCookie("user_id", Integer.toString(userId), expires);
         setCookie("email", email, expires);
-        setCookie("auth", authCookie, expires);
+        setCookie("auth", authToken, expires);
 
         logout.setText("Logout (" + email + ")");
         logout.setVisible(true);

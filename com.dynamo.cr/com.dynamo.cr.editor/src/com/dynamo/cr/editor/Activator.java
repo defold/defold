@@ -323,11 +323,11 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
         IPreferenceStore store = getPreferenceStore();
         String email = store.getString(PreferenceConstants.P_EMAIL);
-        String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+        String authToken = store.getString(PreferenceConstants.P_AUTH_TOKEN);
         String baseUriString = store.getString(PreferenceConstants.P_SERVER_URI);
         String usersUriString = String.format("%s/users", baseUriString);
 
-        DefoldAuthFilter authFilter = new DefoldAuthFilter(email, authCookie, null);
+        DefoldAuthFilter authFilter = new DefoldAuthFilter(email, authToken, null);
         Client client = Client.create(cc);
         client.addFilter(authFilter);
         BranchLocation branchLocation;
@@ -343,41 +343,41 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         } else {
             branchLocation = BranchLocation.REMOTE;
         }
-        factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authCookie));
+        factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authToken));
         RepositoryFileSystemPlugin.setClientFactory(factory);
 
-        boolean validAuthCookie = false;
-        if (email != null && !email.isEmpty() && authCookie != null && !authCookie.isEmpty()) {
+        boolean validAuthToken = false;
+        if (email != null && !email.isEmpty() && authToken != null && !authToken.isEmpty()) {
             // Try to validate auth-cookie
             IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
 
             try {
                 @SuppressWarnings("unused")
                 UserInfo userInfo = usersClient.getUserInfo(email);
-                validAuthCookie = true;
+                validAuthToken = true;
             } catch (RepositoryException e) {
-                validAuthCookie = false;
+                validAuthToken = false;
             }
         }
 
         Shell shell = Display.getDefault().getActiveShell();
-        if (!validAuthCookie) {
+        if (!validAuthToken) {
             OpenIDLoginDialog openIDdialog = new OpenIDLoginDialog(shell, baseUriString);
             int ret = openIDdialog.open();
             if (ret == Dialog.CANCEL) {
                 return false;
             }
             email = openIDdialog.getEmail();
-            authCookie = openIDdialog.getAuthCookie();
+            authToken = openIDdialog.getAuthToken();
             authFilter.setEmail(email);
-            authFilter.setAuthCookie(authCookie);
+            authFilter.setauthToken(authToken);
 
             // Recreate factory since we now have credentials
-            factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authCookie));
+            factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authToken));
             RepositoryFileSystemPlugin.setClientFactory(factory);
 
             store.setValue(PreferenceConstants.P_EMAIL, email);
-            store.setValue(PreferenceConstants.P_AUTH_COOKIE, authCookie);
+            store.setValue(PreferenceConstants.P_AUTH_TOKEN, authToken);
         }
 
         IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
@@ -501,7 +501,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
         IPreferenceStore store = getPreferenceStore();
         final String email = store.getString(PreferenceConstants.P_EMAIL);
-        final String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+        final String authToken = store.getString(PreferenceConstants.P_AUTH_TOKEN);
         final boolean useLocalBranches = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
@@ -536,7 +536,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                             internal.create(true, true, monitor);
                         }
                         try {
-                            BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
+                            BobUtil.resolveLibs(contentRoot, email, authToken, monitor);
                         } catch (CoreException e) {
                             showError("Error occurred when fetching libraries", e);
                         }
