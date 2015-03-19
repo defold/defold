@@ -30,7 +30,7 @@ import com.dynamo.cr.protocol.proto.Protocol.LoginInfo;
 import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo;
 import com.dynamo.cr.protocol.proto.Protocol.TokenExchangeInfo.Type;
 import com.dynamo.cr.server.ServerException;
-import com.dynamo.cr.server.auth.AuthCookie;
+import com.dynamo.cr.server.auth.AuthToken;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.model.Invitation;
 import com.dynamo.cr.server.model.InvitationAccount;
@@ -175,7 +175,7 @@ public class LoginResource extends BaseResource {
         if (user != null) {
 
             tokenExchangeInfoBuilder.setType(Type.LOGIN);
-            tokenExchangeInfoBuilder.setAuthCookie(authenticator.getAuthCookie());
+            tokenExchangeInfoBuilder.setAuthToken(authenticator.getAuthToken());
             tokenExchangeInfoBuilder.setUserId(user.getId());
 
         } else {
@@ -261,12 +261,12 @@ public class LoginResource extends BaseResource {
 
         logger.info("New user registred: {}", user.getEmail());
 
-        String cookie = AuthCookie.login(user.getEmail());
+        String cookie = AuthToken.login(user.getEmail());
 
         LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
             .setEmail(user.getEmail())
             .setUserId(user.getId())
-            .setAuthCookie(cookie)
+            .setAuthToken(cookie)
             .setFirstName(user.getFirstName())
             .setLastName(user.getLastName());
 
@@ -292,7 +292,7 @@ public class LoginResource extends BaseResource {
         User user = ModelUtil.findUserByEmail(em, email);
         if (user != null && user.authenticate(password)) {
 
-            String cookie = AuthCookie.login(email);
+            String cookie = AuthToken.login(email);
 
             MediaType type;
             List<MediaType> acceptableMediaTypes = headers.getAcceptableMediaTypes();
@@ -310,7 +310,7 @@ public class LoginResource extends BaseResource {
             LoginInfo.Builder loginInfoBuilder = LoginInfo.newBuilder()
                 .setEmail(email)
                 .setUserId(user.getId())
-                .setAuthCookie(cookie)
+                .setAuthToken(cookie)
                 .setFirstName(user.getFirstName())
                 .setLastName(user.getLastName());
 
