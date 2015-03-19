@@ -34,16 +34,6 @@
       (g/add r))
     resources))
 
-(defn await-world-time
-  [world-ref desired-time clock-time]
-  (let [valch (a/chan 1)
-        timer (a/timeout clock-time)]
-    (add-watch world-ref :world-time
-      (fn [_ _ o n]
-        (if (>= (:world-time n) desired-time)
-          (a/put! valch n))))
-    (first (a/alts!! [valch timer]))))
-
 (defn take-waiting-to-dispose
   [system]
   (ia/take-all (get-in system [:cache :dispose-ch])))
