@@ -9,7 +9,7 @@ import com.sun.jna.Pointer;
 public class TexcLibrary {
     static {
         try {
-            File lib = new File(Bob.getLib("texc_shared"));
+            File lib = new File(Bob.getLib(Platform.getJavaPlatform(), "texc_shared"));
             System.setProperty("jna.library.path", lib.getParent());
             Bob.verbose("Added '%s' to 'jna.library.path'", lib.getParent());
             Native.register("texc_shared");
