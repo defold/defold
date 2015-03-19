@@ -89,12 +89,6 @@ behavior."
               (g/connect content-node :dirty editor-node :dirty))
             editor-node))))
 
-(defn- send-project-scope-message
-  [txn graph self label kind inputs-affected]
-  (mapcat #(it/send-message {:_id %} {:type :project-scope :scope self})
-          (when (inputs-affected :nodes)
-            (:nodes-added txn))))
-
 (defn project-enclosing
   [node]
   (first (ds/query (:graph @(:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)]))))
@@ -138,8 +132,6 @@ There is no guaranteed ordering of the sequence."
 
 (g/defnode Project
   (inherits g/Scope)
-
-  (trigger notify-content-nodes :input-connections send-project-scope-message)
 
   (property tag                t/Keyword (default :project))
   (property content-root       File)

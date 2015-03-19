@@ -1,19 +1,14 @@
 (ns dynamo.system
   "Functions for performing transactional changes to the system graph."
-  (:require [clojure.core.async :as a]
-            [clojure.core.cache :as cache]
-            [dynamo.file :as file]
-            [dynamo.types :as t]
+  (:require [dynamo.types :as t]
             [dynamo.util :refer :all]
-            [internal.bus :as bus]
             [internal.cache :as c]
             [internal.disposal :as dispose]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
-            [internal.transaction :as it]
-            [service.log :as log]))
+            [internal.transaction :as it]))
 
 (declare the-system)
 
@@ -94,26 +89,6 @@ to distinguish it from a function call."
 
 (declare transact)
 
-(defn start-event-loop!
-  [sys id]
-  (let [in (bus/subscribe (is/message-bus sys) id)]
-    (binding [gt/*transaction* (gt/->TransactionSeed (partial transact sys))]
-      (a/go-loop []
-        (when-let [msg (a/<! in)]
-          (when (not= ::stop-event-loop (:type msg))
-            (try
-              (let [n (ig/node (is/world-graph sys) id)]
-                (when n
-                  (gt/process-one-event (ig/node (is/world-graph sys) id) msg)))
-              (catch Exception ex
-                (log/error :message "Error in node event loop" :exception ex)))
-            (recur)))))))
-
-(defn stop-event-loop!
-  [sys {:keys [_id]}]
-  (bus/publish (is/message-bus sys) (bus/address-to _id {:type ::stop-event-loop})))
-
-
 ;; ---------------------------------------------------------------------------
 ;; Transactional state
 ;; ---------------------------------------------------------------------------
@@ -122,18 +97,12 @@ to distinguish it from a function call."
    (transact @the-system txs))
   ([sys txs]
    (let [world-ref (is/world-ref sys)
-         {:keys [world messages new-event-loops old-event-loops nodes-deleted] :as tx-result}
-         (it/transact* world-ref (it/new-transaction-context world-ref txs))]
-     (def txr* tx-result)
-     (doseq [l old-event-loops]
-       (stop-event-loop! sys l))
-     (doseq [l new-event-loops]
-       (start-event-loop! sys l))
-     (when (= :ok (-> world :last-tx :status))
-       (when (not (empty? nodes-deleted))
-         (a/onto-chan (is/disposal-queue sys) (vals nodes-deleted) false))
-       (bus/publish-all (is/message-bus sys) messages))
-     (:last-tx world))))
+         tx-result (it/transact* world-ref (it/new-transaction-context world-ref txs))
+         last-tx   (-> tx-result :world :last-tx)]
+     (doseq [l (:old-event-loops tx-result)]      (is/stop-event-loop! sys l))
+     (doseq [l (:new-event-loops tx-result)]      (is/start-event-loop! sys l))
+     (doseq [d (vals (:nodes-deleted tx-result))] (is/dispose! sys d))
+     last-tx)))
 
 (defn- resolve-return-val
   [tx-outcome val]
@@ -216,12 +185,6 @@ current scope."
 (defn delete
   [n]
   (gt/tx-bind gt/*transaction* (it/delete-node n)))
-
-(defn send-after
-  "Spools messages for delivery after the transaction finishes.
-The messages will only be sent if the transaction completes successfully."
-  [n args]
-  (gt/tx-bind gt/*transaction* (it/send-message n args)))
 
 (defmacro in
   "Execute the forms within the given scope. Scope is a node that

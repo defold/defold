@@ -2,11 +2,11 @@
   (:require [clojure.core.async :as a]
             [com.stuartsierra.component :as component]
             [dynamo.util :as util]
+            [dynamo.util :refer :all]
             [internal.bus :as bus]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.transaction :as it]
             [service.log :as log]))
 
 (def ^:private maximum-cached-items     10000)
@@ -116,3 +116,22 @@
 (defn world-time     [s] (-> (world-ref s) deref :world-time))
 (defn disposal-queue [s] (-> (world-ref s) deref :disposal-queue))
 (defn message-bus    [s] (-> (world-ref s) deref :message-bus))
+
+(defn start-event-loop!
+  [sys id]
+  (let [in (bus/subscribe (message-bus sys) id)]
+    (a/go-loop []
+      (when-let [msg (a/<! in)]
+        (when (not= ::stop-event-loop (:type msg))
+          (when-let [n (ig/node (world-graph sys) id)]
+            (log/logging-exceptions (str "Node " id "event loop")
+                                    (gt/process-one-event n msg))
+            (recur)))))))
+
+(defn stop-event-loop!
+  [sys {:keys [_id]}]
+  (bus/publish (message-bus sys) (bus/address-to _id {:type ::stop-event-loop})))
+
+(defn dispose!
+  [sys node]
+  (a/>!! (disposal-queue sys) node))

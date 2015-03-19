@@ -31,7 +31,7 @@
           world-ref (is/world-ref sys)
           root      (graph-root sys)
           before    (is/world-time sys)
-          tx-report (ds/transact sys [(it/send-message root {:type :noop})])
+          tx-report (ds/transact sys [(it/set-property (graph-root sys) :updated true)])
           after     (is/world-time sys)]
       (is (= :ok (:status tx-report)))
       (is (< before after))))

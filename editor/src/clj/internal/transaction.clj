@@ -93,12 +93,6 @@
     :target-id    (:_id to-node)
     :target-label to-label}])
 
-(defn send-message
-  [to-node body]
-  [{:type    :message
-    :to-node (:_id to-node)
-    :body    body}])
-
 (defn label
   [label]
   [{:type  :label
@@ -257,11 +251,6 @@
         :graph            (ig/disconnect graph source-id source-label target-id target-label)
         :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
 
-(defmethod perform :message
-  [ctx {:keys [to-node body]}]
-  (let [target-id (resolve-tempid ctx to-node)]
-    (update-in ctx [:messages] conj (bus/address-to target-id body))))
-
 (defmethod perform :label
   [ctx {:keys [label]}]
   (assoc ctx :label label))
@@ -371,7 +360,6 @@
      :nodes-added         #{}
      :nodes-modified      #{}
      :nodes-deleted       {}
-     :messages            []
      :pending             [actions]
      :completed           []
      :txid                (new-txid)

@@ -208,19 +208,6 @@
                              (g/update-property node :int-prop inc))]
       (is (= 4 (:int-prop after-transaction))))))
 
-(g/defnode ScopeReceiver
-  (on :project-scope
-    (g/set-property self :message-received event)))
-
-(deftest node-receives-scope-message
-  (testing "project scope message"
-    (with-clean-system
-      (let [ps-node (g/transactional
-                      (ds/in (g/add (n/construct p/Project :name "a project"))
-                        (g/add (n/construct ScopeReceiver))))]
-        (await-world-time world-ref 3 500)
-        (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))
-
 (defn- cache-peek [cache node-id label]
   (get @(:storage cache) [node-id label]))
 
@@ -232,8 +219,7 @@
 
   (output plus-1 t/Int :cached
           (g/fnk [self call-counter]
-                 (g/transactional (g/update-property self :call-counter inc
-                                                     ))
+                 (g/transactional (g/update-property self :call-counter inc))
                  (inc call-counter))))
 
 (deftest intermediate-uncached-values-are-not-cached
