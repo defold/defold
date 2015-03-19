@@ -2,6 +2,9 @@
 
 #include <assert.h>
 #include <string.h>
+extern "C" {
+#include <sol/runtime.h>
+}
 
 namespace dmArrayUtil
 {
@@ -16,7 +19,7 @@ namespace dmArrayUtil
         uint8_t *new_storage;
         if (capacity)
         {
-            new_storage = new uint8_t[capacity * type_size];
+            new_storage = (uint8_t *)runtime_alloc_array(type_size, capacity);
             assert (new_storage != 0 && "SetCapacity could not allocate memory");
         }
         else
@@ -32,7 +35,7 @@ namespace dmArrayUtil
         if (old_capacity)
         {
             memcpy(new_storage, (void *)*first, (size_t)(type_size * (size_t)new_size));
-            delete[] (uint8_t*) *first;
+            runtime_release_array((void *)*first);
         }
 
         *first = (uintptr_t)new_storage;

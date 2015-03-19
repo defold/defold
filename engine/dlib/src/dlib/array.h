@@ -4,6 +4,11 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
+#include <dlib/array.h>
+
+extern "C" {
+#include <sol/runtime.h>
+}
 
 /**
  * Utility functions
@@ -200,7 +205,7 @@ dmArray<T>::~dmArray()
 {
     if (!m_UserAllocated && m_Front)
     {
-        delete[] (uint8_t*) m_Front;
+        runtime_release_array((void *)m_Front);
     }
 }
 
