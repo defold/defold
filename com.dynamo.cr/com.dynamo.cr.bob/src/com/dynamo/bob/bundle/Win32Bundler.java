@@ -36,8 +36,8 @@ public class Win32Bundler implements IBundler {
         }
 
         // Touch both OpenAL32.dll and wrap_oal.dll so they get included in the step below
-        Bob.getLib("OpenAL32");
-        Bob.getLib("wrap_oal");
+        Bob.getLib(Platform.X86Win32, "OpenAL32");
+        Bob.getLib(Platform.X86Win32, "wrap_oal");
 
         // Copy Executable and DLL:s
         File exeOut = new File(appDir, String.format("%s.exe", title));
