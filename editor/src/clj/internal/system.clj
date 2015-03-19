@@ -47,7 +47,6 @@
   [initial-graph disposal-queue]
   {:graph               initial-graph
    :world-time          0
-   :message-bus         (make-bus)
    :disposal-queue      disposal-queue})
 
 (defn- new-history
@@ -56,7 +55,7 @@
    :undo-stack []
    :redo-stack []})
 
-(defrecord World [state history]
+(defrecord World [state history message-bus]
   component/Lifecycle
   (start [this]
     (assoc this :started? true))
@@ -111,6 +110,7 @@
     (dosync (ref-set world-ref (new-world-state injected-graph disposal-queue)))
     (add-watch world-ref :push-history (partial push-history history-ref))
     (map->World {:state        world-ref
+                 :message-bus  (make-bus)
                  :history      history-ref})))
 
 (defn make-system
@@ -139,7 +139,7 @@
 (defn world-graph    [s] (-> (world-ref s) deref :graph))
 (defn world-time     [s] (-> (world-ref s) deref :world-time))
 (defn disposal-queue [s] (-> (world-ref s) deref :disposal-queue))
-(defn message-bus    [s] (-> (world-ref s) deref :message-bus))
+(defn message-bus    [s] (-> :world :message-bus))
 
 (defn start-event-loop!
   [sys id]
