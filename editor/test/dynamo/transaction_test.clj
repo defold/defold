@@ -306,9 +306,8 @@
 (deftest event-loops-started-by-transaction
   (with-clean-system
     (let [receiver (g/transactional
-                     (g/add (n/construct EventReceiver :latch (promise))))]
-      (g/transactional
-        (ds/send-after receiver {:type :custom-event}))
+                    (g/add (n/construct EventReceiver :latch (promise))))]
+      (n/dispatch-message receiver :custom-event)
       (is (= true (deref (:latch receiver) 500 :timeout))))))
 
 (g/defnode DisposableNode
