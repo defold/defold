@@ -212,17 +212,14 @@ There is no guaranteed ordering of the sequence."
 
 (defn- unload-nodes
   [nodes]
-  (g/transactional
-    (doseq [n nodes]
-      (ds/send-after n {:type :unload}))))
+  (doseq [n nodes]
+    (n/dispatch-message n :unload)))
 
 (defn- replace-nodes
   [project-node nodes-to-replace f]
-  (g/transactional
-    (doseq [old nodes-to-replace
-            :let [new (f old)]]
-      (ds/become old new)
-      (ds/send-after old {:type :load :project project-node}))))
+  (doseq [old nodes-to-replace
+          :let [new (g/transactional (ds/become (f old)))]]
+    (n/dispatch-message new :load :project project-node)))
 
 (defn- add-or-replace?
   [project-node resource]
