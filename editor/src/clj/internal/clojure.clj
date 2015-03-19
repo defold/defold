@@ -5,8 +5,11 @@
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds]
-            [dynamo.types :as t])
+            [dynamo.types :as t]
+            [editor.core :as core])
   (:import [clojure.lang LineNumberingPushbackReader]))
+
+;; TODO - move this into editor
 
 (defn clojure-source?
   [f]
@@ -32,7 +35,7 @@
         (println compile-error)))))
 
 (g/defnode ClojureSourceNode
-  (inherits g/ResourceNode)
+  (inherits core/ResourceNode)
 
   (property namespace UnloadableNamespace)
 

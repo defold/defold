@@ -1,18 +1,16 @@
-(ns dynamo.project
+(ns editor.project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
-  (:require [clojure.java.io :as io]
-            [dynamo.file :as file]
+  (:require [dynamo.file :as file]
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.selection :as selection]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.ui :as ui]
             [dynamo.util :refer :all]
+            [editor.core :as core]
             [internal.clojure :as clojure]
-            [internal.transaction :as it]
             [internal.ui.dialogs :as dialogs]
             [service.log :as log])
   (:import [java.io File]))
@@ -41,9 +39,9 @@ ordinary paths."
 (g/defnode Placeholder
   "A Placeholder node represents a file-based asset that doesn't have any specific
 behavior."
-  (inherits g/ResourceNode)
+  (inherits core/ResourceNode)
   (output content t/Any (g/fnk [] nil))
-  (inherits g/OutlineNode)
+  (inherits core/OutlineNode)
   (output outline-label t/Str (g/fnk [filename] (t/local-name filename))))
 
 (defn- new-node-for-path
@@ -131,7 +129,7 @@ There is no guaranteed ordering of the sequence."
   (satisfies? ProjectRoot node))
 
 (g/defnode Project
-  (inherits g/Scope)
+  (inherits core/Scope)
 
   (property tag                t/Keyword (default :project))
   (property content-root       File)
@@ -251,13 +249,16 @@ There is no guaranteed ordering of the sequence."
     (update-deleted-resources changeset)
     (update-changed-resources changeset)))
 
-; ---------------------------------------------------------------------------
-; Lifecycle, Called during connectToBranch
-; ---------------------------------------------------------------------------
 (defn open-project
-  "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function directly."
   [root branch]
   (let [project-node (load-project-and-tools root branch)
         ;listener     (resources/listen-for-change #(update-resources project-node %))
         ]
     #_(resources/listen-for-close project-node listener)))
+
+(g/defnode ProjectRoot
+  (inherits core/Scope))
+
+(defn project-graph
+  []
+  (g/make-graph [(n/construct ProjectRoot)]))

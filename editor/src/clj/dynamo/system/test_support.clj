@@ -1,20 +1,15 @@
 (ns dynamo.system.test-support
-  (:require [clojure.core.async :as a]
-            [clojure.java.io :as io]
-            [com.stuartsierra.component :as component]
+  (:require [com.stuartsierra.component :as component]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
             [dynamo.system :as ds :refer [in]]
             [internal.async :as ia]
-            [internal.cache :as c]
             [internal.graph.types :as gt]
-            [internal.system :as is]
-            [internal.transaction :as it]))
+            [internal.system :as is]))
 
 (defn clean-system
   []
   (component/start-system
-   (is/make-system {:initial-graph (g/project-graph)})))
+   (is/make-system {:initial-graph (g/make-graph [])})))
 
 (defmacro with-clean-system
   [& forms]
@@ -22,11 +17,11 @@
          ~'world       (:world ~'system)
          ~'cache       (:cache ~'system)
          ~'world-ref   (:state ~'world)
-         ~'disposal-ch (is/disposal-queue ~'system)
-         ~'root        (ds/node ~'world-ref 1)]
-     (binding [gt/*transaction* (gt/->TransactionSeed (partial ds/transact ~'system))]
-       (ds/in ~'root
-              ~@forms))))
+         ~'disposal-ch (is/disposal-queue ~'system)]
+     (binding [ds/the-system (atom ~'system)
+               gt/*transaction* (gt/->TransactionSeed (partial ds/transact ~'system))
+               internal.transaction/*scope*       nil]
+       ~@forms)))
 
 (defn tx-nodes [& resources]
   (g/transactional

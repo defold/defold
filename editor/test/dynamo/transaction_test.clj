@@ -109,9 +109,6 @@
 
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity))
 
-(g/defnode Project
-  (inherits g/Scope))
-
 (g/defnode PropertySync
   (property source t/Int (default 0))
   (property sink   t/Int (default -1))
@@ -219,19 +216,7 @@
             after-transmog   @tracker]
         (is (identical? (:tracking counter) (:tracking stringer)))
         (is (= {:added 1} before-transmog))
-        (is (= {:added 1} after-transmog)))))
-
-  (testing "activation is correct even when scopes and injection happen"
-    (with-clean-system
-      (let [tracker            (atom {})
-            scope              (g/transactional (g/add (n/construct Project)))
-            counter            (g/transactional (ds/in scope (g/add (n/construct TriggerExecutionCounter :tracking tracker))))
-            before-removing    @tracker
-            _                  (g/transactional (g/delete counter))
-            after-removing     @tracker]
-
-        (is (= {:added 1} before-removing))
-        (is (= {:added 1 :deleted 1} after-removing))))))
+        (is (= {:added 1} after-transmog))))))
 
 (g/defnode NamedThing
   (property name t/Str))

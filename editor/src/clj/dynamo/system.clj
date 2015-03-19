@@ -257,7 +257,8 @@ inherits from dynamo.node/Scope."
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
-(def the-system (atom nil))
+; Only marked dynamic so tests can rebind. Should never be rebound "for real".
+(def ^:dynamic the-system (atom nil))
 
 (defn initialize
   [config]
@@ -267,7 +268,7 @@ inherits from dynamo.node/Scope."
   []
   (swap! the-system is/start-system)
   (alter-var-root #'gt/*transaction* (constantly (gt/->TransactionSeed (partial transact @the-system))))
-  (alter-var-root #'it/*scope* (constantly (ig/node (is/world-graph @the-system) 1))))
+  (alter-var-root #'it/*scope* (constantly nil)))
 
 (defn stop
   []

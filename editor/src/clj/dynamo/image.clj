@@ -4,11 +4,14 @@
             [dynamo.graph :as g]
             [dynamo.property :as dp]
             [dynamo.types :as t]
+            [editor.core :as core]
             [schema.macros :as sm])
   (:import [dynamo.types Rect Image]
            [java.awt Color]
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
+
+;; TODO - move this into editor
 
 (defmacro with-graphics
   [binding & body]
@@ -54,7 +57,7 @@
 
 ;; Behavior
 (g/defnode ImageSource
-  (inherits g/ResourceNode)
+  (inherits core/ResourceNode)
 
   (output content Image :cached :substitute-value placeholder-image (g/fnk [filename] (load-image filename (t/local-path filename)))))
 

@@ -1,6 +1,5 @@
 (ns editor.atlas
-  (:require [clojure.set :refer [difference union]]
-            [dynamo.background :as background]
+  (:require [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.file :as file]
@@ -14,13 +13,13 @@
             [dynamo.grid :as grid]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
+            [editor.core :as core]
             [editor.image-node :as ein]
             [editor.scene :as scene]
             [internal.render.pass :as pass]
@@ -67,7 +66,7 @@
          (it/connect {:_id n} :outline-tree self input-name))))))
 
 (g/defnode AnimationGroupNode
-  (inherits g/OutlineNode)
+  (inherits core/OutlineNode)
   (output outline-label t/Str (g/fnk [id] id))
 
   (property images dp/ImageResourceList)
@@ -431,10 +430,10 @@
    texture-packing `dynamo.types/TexturePacking` - A data structure with full access to the original image bounds, their coordinates in the packed image, the BufferedImage, and outline coordinates.
    packed-image `BufferedImage` - BufferedImage instance with the actual pixels.
    textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
-  (inherits g/OutlineNode)
+  (inherits core/OutlineNode)
   (output outline-label t/Str (g/fnk [] "Atlas"))
-  (inherits g/ResourceNode)
-  (inherits g/Saveable)
+  (inherits core/ResourceNode)
+  (inherits core/Saveable)
 
   (property images dp/ImageResourceList (visible false))
 

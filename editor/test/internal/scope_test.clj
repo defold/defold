@@ -10,7 +10,10 @@
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [internal.node :as in]
-            [schema.macros :as sm]))
+            [schema.macros :as sm]
+            [editor.core :as core]))
+
+;; TODO - move this to editor. It's no longer an inherent part of the graph.
 
 (sm/defrecord T1 [ident :- String])
 (sm/defrecord T2 [value :- Integer])
@@ -71,7 +74,7 @@
       n1 :name  String   n2 :name   [String]  nil                    "singular name, plural type")))
 
 (g/defnode ParticleEditor
-  (inherits g/Scope))
+  (inherits core/Scope))
 
 (g/defnode Emitter
   (property name t/Str))
@@ -108,7 +111,7 @@
 (defspec scope-disposes-contained-nodes
   (prop/for-all [scoped-nodes gen-nodelist]
     (with-clean-system
-      (let [scope          (g/transactional (g/add (n/construct g/Scope)))
+      (let [scope          (g/transactional (g/add (n/construct core/Scope)))
             disposables    (g/transactional (ds/in scope (doseq [n scoped-nodes] (g/add n))) scoped-nodes)
             disposable-ids (map :_id disposables)]
         (g/transactional (g/delete scope))

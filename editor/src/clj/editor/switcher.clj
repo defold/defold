@@ -14,6 +14,7 @@
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
+            [editor.core :as core]
             [editor.scene :as scene]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -254,7 +255,7 @@
       action)))
 
 (g/defnode SwitcherNode
-  (inherits g/OutlineNode)
+  (inherits core/OutlineNode)
 
   (property level t/Any (visible false))
   (property width t/Int)
