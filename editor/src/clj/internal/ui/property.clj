@@ -4,7 +4,7 @@
             [dynamo.graph :as g]
             [dynamo.messages :as msg]
             [dynamo.node :as n]
-            [dynamo.project :as p]
+            [editor.project :as p]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.types :as t]

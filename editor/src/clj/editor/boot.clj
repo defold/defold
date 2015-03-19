@@ -4,19 +4,21 @@
             [dynamo.file :as f]
             [dynamo.graph :as g]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [editor.atlas :as atlas]
+            [editor.core :as core]
             [editor.cubemap :as cubemap]
             [editor.graph-view :as graph-view]
             [editor.image-node :as ein]
             [editor.jfx :as jfx]
             [editor.platformer :as platformer]
+            [editor.project :as p]
             [editor.switcher :as switcher]
             [editor.ui :as ui]
             [internal.clojure :as clojure]
             [internal.disposal :as disp]
+            [internal.graph.types :as gt]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -196,7 +198,7 @@
 
 ; Editors
 (g/defnode CurveEditor
-  (inherits g/Scope)
+  (inherits core/Scope)
   (on :create
       (let [btn (Button.)]
         (.setText btn "Curve Editor WIP!")
@@ -206,10 +208,10 @@
   (dispose [this]))
 
 (g/defnode TextEditor
-  (inherits g/Scope)
-  (inherits g/ResourceNode)
+  (inherits core/Scope)
+  (inherits core/ResourceNode)
 
-  (input text t/Str )
+  (input text t/Str)
 
   (on :create
       (let [textarea (TextArea.)]
@@ -221,8 +223,8 @@
            (println "Dispose TextEditor")))
 
 (g/defnode TextNode
-  (inherits g/Scope)
-  (inherits g/ResourceNode)
+  (inherits core/Scope)
+  (inherits core/ResourceNode)
 
   (property text t/Str)
   (property a-vector t/Vec3 (default [1 2 3]))
@@ -261,7 +263,7 @@
     (ProjectPath. game-project path ext)))
 
 (g/defnode GameProject
-  (inherits g/Scope)
+  (inherits core/Scope)
 
   (property node-types         {t/Str t/Symbol})
   ;TODO: Resource type instead of string?
@@ -339,7 +341,7 @@
     (instance? Menu menu) (doseq [m (.getItems menu)]
                             (.addEventHandler m ActionEvent/ACTION handler))))
 
-(ds/initialize {:initial-graph (g/project-graph)})
+(ds/initialize {:initial-graph (p/project-graph)})
 
 (def the-system (ds/start))
 (def the-root (atom nil))

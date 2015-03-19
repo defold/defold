@@ -1,34 +1,33 @@
 (ns suite
   (:require [clojure.java.io :as io]
             [clojure.test :as test]
-            [dynamo.messages :as m])
- (:import [clojure.lang Compiler]))
-
-(def test-namespaces ['internal.cache-test
-                      'internal.dependency-test
-                      'internal.either-test
-                      'internal.injection-test
-                      'internal.math-test
-                      'internal.node-test
-                      'internal.packing-test
-                      'internal.scope-test
-                      'internal.system-test
-                      'internal.type-test
-                      'internal.value-test
-                      'internal.graph.graph-test
-                      'dynamo.buffers-test
-                      'dynamo.camera-test
-                      'dynamo.defnode-test
-                      'dynamo.geom-test
-                      'dynamo.image-test
-                      'dynamo.property-test
-                      'dynamo.protobuf-test
-                      'dynamo.transaction-test
-                      'dynamo.ui.property-test
-                      'dynamo.util-test
-                      'dynamo.gl.translate-test
-                      'dynamo.gl.vertex-test
-                      'editor.atlas-test])
+            [dynamo.buffers-test]
+            [dynamo.camera-test]
+            [dynamo.defnode-test]
+            [dynamo.geom-test]
+            [dynamo.gl.translate-test]
+            [dynamo.gl.vertex-test]
+            [dynamo.image-test]
+            [dynamo.messages :as m]
+            [dynamo.property-test]
+            [dynamo.protobuf-test]
+            [dynamo.transaction-test]
+            [dynamo.ui.property-test]
+            [dynamo.util-test]
+            [editor.atlas-test]
+            [internal.cache-test]
+            [internal.dependency-test]
+            [internal.either-test]
+            [internal.graph.graph-test]
+            [internal.injection-test]
+            [internal.math-test]
+            [internal.node-test]
+            [internal.packing-test]
+            [internal.scope-test]
+            [internal.system-test]
+            [internal.type-test]
+            [internal.value-test])
+  (:import [clojure.lang Compiler]))
 
 (def builtin-basedir (io/file "../com.dynamo.cr/com.dynamo.cr.builtins"))
 
@@ -45,9 +44,4 @@
     (Compiler/loadFile (str f))))
 
 (defn suite []
-  (doseq [test-ns test-namespaces]
-    (require test-ns))
-
-  #_(compile-files (clojure-sources builtin-basedir))
-
-  (apply test/run-tests test-namespaces))
+  (test/run-all-tests))

@@ -6,6 +6,7 @@
             [dynamo.types :as t]
             [dynamo.types :refer [IDisposable dispose]]
             [editor.camera :as c]
+            [editor.core :as core]
             [editor.input :as i]
             [internal.render.pass :as pass]
             [service.log :as log])
@@ -167,7 +168,7 @@
                 (when action ((g/node-value node label) node action)))) action input-handlers)))
 
 (g/defnode SceneView
-  (inherits g/Scope)
+  (inherits core/Scope)
 
   (property image-view ImageView)
   (property viewport Region (default (t/->Region 0 0 0 0)))

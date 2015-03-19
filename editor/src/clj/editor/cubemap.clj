@@ -14,13 +14,14 @@
             [dynamo.grid :as grid]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
-            [dynamo.project :as p]
+            [editor.project :as p]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
+            [editor.core :as core]
             [editor.image-node :as ein]
             [editor.scene :as scene]
             [internal.render.pass :as pass]
@@ -112,8 +113,8 @@
   (apply texture/image-cubemap-texture (map :contents [right-img left-img top-img bottom-img front-img back-img])))
 
 (g/defnode CubemapNode
-  (inherits g/ResourceNode)
-  (inherits g/OutlineNode)
+  (inherits core/ResourceNode)
+  (inherits core/OutlineNode)
 
   (property right  dp/ImageResource)
   (property left   dp/ImageResource)

@@ -1,10 +1,10 @@
-(ns dynamo.project-test
+(ns editor.project-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.file :as f]
             [dynamo.graph :as g]
             [dynamo.node :as n]
-            [dynamo.project :as p]
+            [editor.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system tx-nodes]]
             [dynamo.types :as t])

@@ -1,6 +1,6 @@
 (ns dynamo.ui.widgets
   (:require [clojure.tools.macro :refer [name-with-attributes]]
-            [dynamo.project :as p]
+            [editor.project :as p]
             [dynamo.ui :as ui]
             [javafx-wrapper :refer [apply-properties]]
             [javafx.scene.control :refer [button color-picker hyperlink label scroll-pane]]
