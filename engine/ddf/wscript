@@ -34,6 +34,7 @@ def configure(conf):
     conf.write_config_header('config.h')
 
     conf.check_tool('waf_dynamo')
+    conf.check_tool('waf_sol')
 
     conf.sub_config('src')
 

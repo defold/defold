@@ -20,11 +20,7 @@ def sol_hook(self,node):
 def detect(conf):
     conf.check_tool('java')
     # TODO: Hardcoded path
-    conf.find_file('compiler.jar', var='SOL_COMPILER', mandatory = True, path_list = [os.path.abspath("../../../sol/compiler/build/libs/")])
-    # TODO: Hardcoded path
-    conf.env.append_value('LIBPATH', os.path.abspath("../../../sol/build/default"))
-    # TODO: Hardcoded path
-    conf.env.append_value('LIBPATH', os.path.abspath("../../../sol/compiler/build/default"))
+    conf.find_file('solc.jar', var='SOL_COMPILER', mandatory = True, path_list = [os.path.abspath(conf.env["DYNAMO_HOME"] + "/share/java")])
     conf.env['STATICLIB_SOL_RUNTIME'] = 'sol-runtime'
     conf.env['STATICLIB_SOL'] = 'sol'
 
@@ -34,5 +30,5 @@ def set_options(opt):
 @feature('sol')
 @before('apply_core')
 def apply_sol(self):
-    Utils.def_attrs(self, sol_options = "--verbose --keep-tmp --no-emit-transitive -O3")
+    Utils.def_attrs(self, sol_options = "--no-emit-transitive -O3")
     self.env['SOL_OPTIONS'] = self.sol_options

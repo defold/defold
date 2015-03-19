@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 def build(bld):
-    libs = 'GTEST PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA'
+    libs = 'GTEST PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA SOL_RUNTIME SOL'
     test_render = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_render.cpp',
                                     uselib = libs,

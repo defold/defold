@@ -10,7 +10,7 @@ def build(bld):
 
     test_extension = bld.new_task_gen(features = 'cxx cprogram embed test',
                                       includes = '../../../src .',
-                                      uselib = 'GTEST DLIB LUA',
+                                      uselib = 'GTEST DLIB LUA SOL_RUNTIME SOL',
                                       uselib_local = 'extension test_extension_lib',
                                       exported_symbols = ["TestExt"],
                                       target = 'test_extension',

@@ -114,7 +114,7 @@ def build(bld):
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 embed_source = '../data/profiler.html',
-                                uselib = 'UUID PLATFORM_SOCKET')
+                                uselib = 'UUID PLATFORM_SOCKET SOL_RUNTIME SOL')
         dlib.find_sources_in_dirs(source_dirs)
         if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
             # NOTE: See comment above

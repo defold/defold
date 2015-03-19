@@ -9,7 +9,7 @@ def build(bld):
 
     test_record = bld.new_task_gen(features='cxx cprogram test',
                                    includes='../../../src .',
-                                   uselib='GTEST DLIB %s' % vpx,
+                                   uselib='GTEST DLIB SOL_RUNTIME SOL %s' % vpx,
                                    uselib_local=record,
                                    proto_gen_py=True,
                                    target='test_record',
