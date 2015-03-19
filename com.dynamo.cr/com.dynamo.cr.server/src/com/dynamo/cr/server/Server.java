@@ -1,52 +1,32 @@
 package com.dynamo.cr.server;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.lang.management.ManagementFactory;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URLDecoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.inject.Inject;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Query;
 import javax.persistence.TypedQuery;
 import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.eclipse.jetty.http.HttpHeaders;
-import org.eclipse.jetty.http.HttpStatus;
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.bio.SocketConnector;
-import org.eclipse.jetty.server.handler.HandlerList;
-import org.eclipse.jetty.server.handler.ResourceHandler;
-import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.glassfish.grizzly.PortRange;
@@ -64,18 +44,13 @@ import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.branchrepo.BranchRepository;
-import com.dynamo.cr.common.cache.ETagCache;
 import com.dynamo.cr.proto.Config.BillingProduct;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.proto.Config.EMailTemplate;
 import com.dynamo.cr.proto.Config.InvitationCountEntry;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
-import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
-import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.server.auth.GitSecurityFilter;
+import com.dynamo.cr.server.auth.OAuthAuthenticator;
 import com.dynamo.cr.server.auth.OpenIDAuthenticator;
 import com.dynamo.cr.server.auth.SecurityFilter;
 import com.dynamo.cr.server.billing.IBillingProvider;
@@ -89,6 +64,7 @@ import com.dynamo.cr.server.model.Prospect;
 import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.model.User.Role;
 import com.dynamo.cr.server.openid.OpenID;
+import com.dynamo.cr.server.resources.LoginOAuthResource;
 import com.dynamo.cr.server.resources.LoginResource;
 import com.dynamo.cr.server.resources.NewsListResource;
 import com.dynamo.cr.server.resources.ProductsResource;
@@ -112,7 +88,7 @@ import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.guice.spi.container.servlet.GuiceContainer;
 import com.sun.jersey.spi.container.servlet.ServletContainer;
 
-public class Server implements ServerMBean {
+public class Server {
 
     protected static Logger logger = LoggerFactory.getLogger(Server.class);
 
@@ -121,23 +97,13 @@ public class Server implements ServerMBean {
     private Pattern[] filterPatterns;
     private Configuration configuration;
     private EntityManagerFactory emf;
-    private org.eclipse.jetty.server.Server jettyServer;
-    private ETagCache etagCache = new ETagCache(10000);
     private static final int MAX_ACTIVE_LOGINS = 1024;
     private OpenID openID = new OpenID();
     private OpenIDAuthenticator openIDAuthentication = new OpenIDAuthenticator(MAX_ACTIVE_LOGINS);
     private SecureRandom secureRandom;
-    private BranchRepository branchRepository;
 
     private IMailProcessor mailProcessor;
     private IBillingProvider billingProvider;
-
-    private int cleanupBuildsInterval = 10 * 1000; // 10 seconds
-    private int keepBuildDescFor = 100 * 1000; // 100 seconds
-    private int nextBuildNumber = 0;
-    private Map<Integer, RuntimeBuildDesc> builds = new HashMap<Integer, RuntimeBuildDesc>();
-
-    private CleanBuildsThread cleanupThread;
 
     private ExecutorService executorService;
 
@@ -146,60 +112,6 @@ public class Server implements ServerMBean {
     private int openRegistrationMaxUsers;
 
     private GitServer gitServer;
-
-    class CleanBuildsThread extends Thread {
-        private boolean quit = false;
-
-        public CleanBuildsThread() {
-            setName("Cleanup builds thread");
-        }
-
-        @Override
-        public void run() {
-            while (!quit) {
-                try {
-                    Thread.sleep(cleanupBuildsInterval);
-
-                    Set<Integer> toRemove = new HashSet<Integer>();
-                    synchronized (builds) {
-                        for (Integer id : builds.keySet()) {
-                            RuntimeBuildDesc buildDesc = builds.get(id);
-                            long time = System.currentTimeMillis();
-                            if (buildDesc.activity == Activity.IDLE && time > (buildDesc.buildCompleted + keepBuildDescFor)) {
-                                toRemove.add(id);
-                            }
-                        }
-                        for (Integer id : toRemove) {
-                            logger.info("Removing build {}", id);
-                            builds.remove(id);
-                        }
-                    }
-                } catch (InterruptedException e) {
-                }
-            }
-        }
-
-        public void quit() {
-            this.quit = true;
-        }
-    }
-
-    /**
-     * Clean up for old builds thread wake-up interval
-     * @param cleanupBuildsInterval interval in ms
-     */
-    public void setCleanupBuildsInterval(int cleanupBuildsInterval) {
-        this.cleanupBuildsInterval = cleanupBuildsInterval;
-        this.cleanupThread.interrupt();
-    }
-
-    /**
-     * Set time to keep old builds
-     * @param keepBuildDescFor time to keep completed builds for in ms
-     */
-    public void setKeepBuildDescFor(int keepBuildDescFor) {
-        this.keepBuildDescFor = keepBuildDescFor;
-    }
 
     public static class Config extends GuiceServletContextListener {
 
@@ -219,7 +131,7 @@ public class Server implements ServerMBean {
                     install(new JpaPersistModule(server.getConfiguration().getPersistenceUnitName()).properties(props));
 
                     bind(Server.class).toInstance(server);
-                    bind(BranchRepository.class).toInstance(server.branchRepository);
+                    bind(OAuthAuthenticator.class).toInstance(new OAuthAuthenticator(MAX_ACTIVE_LOGINS));
 
                     bind(RepositoryResource.class);
                     bind(ProjectResource.class);
@@ -227,6 +139,7 @@ public class Server implements ServerMBean {
                     bind(UsersResource.class);
                     bind(NewsListResource.class);
                     bind(LoginResource.class);
+                    bind(LoginOAuthResource.class);
                     bind(ProspectsResource.class);
                     bind(ProductsResource.class);
 
@@ -353,9 +266,6 @@ public class Server implements ServerMBean {
             throw new RuntimeException(e1);
         }
 
-        this.cleanupThread = new CleanBuildsThread();
-        this.cleanupThread.start();
-
         filterPatterns = new Pattern[configuration.getFiltersCount()];
         int i = 0;
         for (String f : configuration.getFiltersList()) {
@@ -364,11 +274,6 @@ public class Server implements ServerMBean {
         bootStrapUsers();
         migrateNewsSubscriptions();
         updateRegistrationDate();
-
-        String builtinsDirectory = null;
-        if (configuration.hasBuiltinsDirectory())
-            builtinsDirectory = configuration.getBuiltinsDirectory();
-        branchRepository = new RemoteBranchRepository(this, configuration.getBranchRoot(), configuration.getRepositoryRoot(), builtinsDirectory, filterPatterns);
 
         baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
 
@@ -422,32 +327,11 @@ public class Server implements ServerMBean {
             httpServer.getServerConfiguration().addHttpHandler(gitHandler, baseUri);
         }
 
-        /*
-        if (!GitFactory.create(Type.CGIT).checkGitVersion()) {
-            // TODO: Hmm, exception...
-            throw new RuntimeException("Invalid version of git or not found");
-        }*/
-
-        if (configuration.getDataServerEnabled() != 0) {
-            initDataServer();
-        }
-
         addRedirectHandler();
 
         this.mailProcessor.start();
 
         this.executorService = Executors.newSingleThreadExecutor();
-
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        ObjectName name;
-        try {
-            name = new ObjectName("com.dynamo:type=Server");
-            if (!mbs.isRegistered(name)) {
-                mbs.registerMBean(this, name);
-            }
-        } catch (Throwable e) {
-            logger.error(e.getMessage(), e);
-        }
     }
 
     static class RedirectHandler extends HttpHandler {
@@ -488,118 +372,6 @@ public class Server implements ServerMBean {
         return executorService;
     }
 
-    public void initDataServer() throws IOException {
-        jettyServer = new org.eclipse.jetty.server.Server();
-
-        SocketConnector connector = new SocketConnector();
-        connector.setPort(configuration.getBuildDataPort());
-        jettyServer.addConnector(connector);
-        HandlerList handlerList = new HandlerList();
-        ResourceHandler resourceHandler = new ResourceHandler() {
-
-            @Override
-            public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
-                if (baseRequest.isHandled())
-                    return;
-
-                if (target.equals("/__verify_etags__")) {
-                    baseRequest.setHandled(true);
-
-                    if (!request.getMethod().equals("POST")) {
-                        response.setStatus(HttpServletResponse.SC_BAD_REQUEST );
-                        return;
-                    }
-
-                    StringBuffer responseBuffer = new StringBuffer();
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(request.getInputStream()));
-
-                    try {
-                        String line = reader.readLine();
-                        while (line != null) {
-                            int i = line.indexOf(' ');
-                            URI uri;
-                            try {
-                                uri = new URI(URLDecoder.decode(line.substring(0, i), "UTF-8"));
-                                uri = uri.normalize(); // http://foo.com//a -> http://foo.com/a
-                            } catch (URISyntaxException e) {
-                                logger.warn(e.getMessage(), e);
-                                continue;
-                            }
-
-                            String etag = line.substring(i + 1);
-                            Resource resource = getResource(uri.getPath());
-                            if (resource != null && resource.exists() && resource.getFile() != null) {
-                                String thisEtag = etagCache.getETag(resource.getFile());
-                                if (etag.equals(thisEtag)) {
-                                    responseBuffer.append(line.substring(0, i));
-                                    responseBuffer.append('\n');
-                                }
-                            }
-                            else {
-                                logger.warn("File doesn't exists {}", uri.getPath());
-                            }
-
-                            line = reader.readLine();
-                        }
-                    } finally {
-                        reader.close();
-                    }
-
-                    response.getWriter().print(responseBuffer);
-                    response.setStatus(HttpServletResponse.SC_OK);
-                    return;
-                }
-
-                String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
-                if (ifNoneMatch != null) {
-                    Resource resource = getResource(request);
-                    if (resource != null && resource.exists()) {
-                        File file = resource.getFile();
-                        if (file != null) {
-                            String thisEtag = etagCache.getETag(file);
-                            if (thisEtag != null && ifNoneMatch.equals(thisEtag)) {
-                                baseRequest.setHandled(true);
-                                response.setHeader(HttpHeaders.ETAG, thisEtag);
-                                response.setStatus(HttpStatus.NOT_MODIFIED_304);
-                                return;
-                            }
-                        }
-                    }
-                }
-
-                super.handle(target, baseRequest, request, response);
-            }
-
-            @Override
-            protected void doResponseHeaders(HttpServletResponse response,
-                    Resource resource,
-                    String mimeType) {
-                super.doResponseHeaders(response, resource, mimeType);
-                try {
-                    File file = resource.getFile();
-                    if (file != null) {
-                        String etag = etagCache.getETag(file);
-                        if (etag != null) {
-                            response.setHeader(HttpHeaders.ETAG, etag);
-                        }
-                    }
-                }
-                catch(IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
-        resourceHandler.setResourceBase(configuration.getBranchRoot());
-        handlerList.addHandler(resourceHandler);
-        jettyServer.setHandler(handlerList);
-
-        try {
-            jettyServer.start();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public IMailProcessor getMailProcessor() {
         return mailProcessor;
     }
@@ -622,26 +394,6 @@ public class Server implements ServerMBean {
 
     public OpenIDAuthenticator getOpenIDAuthentication() {
         return openIDAuthentication;
-    }
-
-    @Override
-    public int getETagCacheHits() {
-        return etagCache.getCacheHits();
-    }
-
-    @Override
-    public int getETagCacheMisses() {
-        return etagCache.getCacheMisses();
-    }
-
-    @Override
-    public int getResourceDataRequests() {
-        return branchRepository.getResourceDataRequests();
-    }
-
-    @Override
-    public int getResourceInfoRequests() {
-        return branchRepository.getResourceInfoRequests();
     }
 
     private void bootStrapUsers() {
@@ -728,24 +480,7 @@ public class Server implements ServerMBean {
     public void stop() {
         mailProcessor.stop();
 
-        if (this.cleanupThread != null) {
-            this.cleanupThread.quit();
-            this.cleanupThread.interrupt();
-            try {
-                this.cleanupThread.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
         httpServer.stop();
-        if (jettyServer != null) {
-            try {
-                jettyServer.stop();
-            } catch (Exception e) {
-                logger.error(e.getMessage(), e);
-            }
-        }
         if (getConfiguration().getGoGitSrv()) {
             gitServer.stop();
         }
@@ -828,304 +563,12 @@ public class Server implements ServerMBean {
         return git.log(sourcePath, maxCount);
     }
 
-    static class BuildRunnable implements IBuildRunnable {
-
-        private int id;
-        private Server server;
-        private String branchRoot;
-        private String project;
-        private String user;
-        private String branch;
-        private Pattern workPattern;
-		private boolean rebuild;
-        private Configuration configuration;
-        private StringBuffer stdOut;
-        private StringBuffer stdErr;
-        private boolean cancel = false;
-
-        public BuildRunnable(Server server, int id, String branch_root, String project, String user, String branch, boolean rebuild) {
-            this.id = id;
-            this.server = server;
-            this.branchRoot = branch_root;
-            this.project = project;
-            this.user = user;
-            this.branch = branch;
-            this.rebuild = rebuild;
-            this.configuration = server.configuration;
-            workPattern = Pattern.compile(server.configuration.getProgressRe());
-        }
-
-        private void substitute(String[] args) {
-            String cwd = System.getProperty("user.dir");
-            for (int i = 0; i < args.length; ++i) {
-                args[i] = args[i].replace("{cwd}", cwd);
-            }
-        }
-
-        private int execCommand(String working_dir, String[] command) throws IOException {
-            this.stdOut = new StringBuffer();
-            this.stdErr = new StringBuffer();
-
-            ProcessBuilder pb = new ProcessBuilder(command);
-            if (working_dir != null)
-                pb.directory(new File(working_dir));
-
-            Process process = pb.start();
-            InputStream std = process.getInputStream();
-            InputStream err = process.getErrorStream();
-
-            int exitValue = 0;
-
-            boolean done = false;
-            while (!done) {
-                if (cancel) {
-                    process.destroy();
-                    return 1;
-                }
-
-                try {
-                    exitValue = process.exitValue();
-                    done = true;
-                } catch (IllegalThreadStateException e) {
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException e1) {
-                        logger.error(e.getMessage(), e);
-                    }
-                }
-
-                while (std.available() > 0) {
-                    byte[] tmp = new byte[std.available()];
-                    std.read(tmp);
-                    stdOut.append(new String(tmp));
-                }
-
-                while (err.available() > 0) {
-                    byte[] tmp = new byte[err.available()];
-                    err.read(tmp);
-                    stdErr.append(new String(tmp));
-                    updateProgressStatus();
-                }
-            }
-
-            std.close();
-            err.close();
-            try {
-                exitValue = process.waitFor();
-            } catch (InterruptedException e) {
-                logger.error(e.getMessage(), e);
-            }
-
-            return exitValue;
-        }
-
-        @Override
-        public void cancel() {
-            this.cancel = true;
-        }
-
-        @Override
-        public void run() {
-            try {
-                doRun();
-            } catch (Throwable e) {
-                this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, "", "Internal error");
-                logger.error("Unexpected excetion caught", e);
-            }
-        }
-
-        public void doRun() {
-            String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
-            try {
-                String[] args = new String[configuration.getConfigureCommand().getArgsCount()];
-
-                configuration.getConfigureCommand().getArgsList().toArray(args);
-                substitute(args);
-
-                int exitValue = execCommand(p, args);
-                if (exitValue != 0) {
-                    this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, stdOut.toString(), stdErr.toString());
-                    return;
-                }
-
-                if (rebuild) {
-                    args = new String[configuration.getRebuildCommand().getArgsCount()];
-                    configuration.getRebuildCommand().getArgsList().toArray(args);
-                    substitute(args);
-                } else {
-                    args = new String[configuration.getBuildCommand().getArgsCount()];
-                    configuration.getBuildCommand().getArgsList().toArray(args);
-                    substitute(args);
-                }
-                exitValue = execCommand(p, args);
-                if (exitValue != 0) {
-                    this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.ERROR, stdOut.toString(), stdErr.toString());
-                    return;
-                }
-
-                this.server.updateBuild(id, Activity.IDLE, BuildDesc.Result.OK, stdOut.toString(), stdErr.toString());
-            } catch (IOException e) {
-                logger.warn(e.getMessage(), e);
-            }
-        }
-
-        public void updateProgressStatus() {
-            Matcher m = workPattern.matcher(stdErr.toString());
-
-            int progress = -1;
-            int workAmount = -1;
-            while (m.find()) {
-                progress = Integer.valueOf(m.group(1));
-                workAmount = Integer.valueOf(m.group(2));
-            }
-
-            if (progress != -1) {
-                server.updateBuildProgress(id, progress, workAmount);
-            }
-        }
-    }
-
-    public BuildDesc build(String project, String user, String branch, boolean rebuild) throws ServerException {
-        int build_number;
-        synchronized(this) {
-
-            for (Integer id : builds.keySet()) {
-                RuntimeBuildDesc rtbd = builds.get(id);
-                if (rtbd.project.equals(project) && rtbd.user.equals(user) && rtbd.branch.equals(branch) && rtbd.activity == Activity.BUILDING) {
-                    // Build in progress
-                    throw new ServerException("Build already in progress", Status.CONFLICT);
-                }
-            }
-
-            build_number = nextBuildNumber++;
-        }
-
-        BuildDesc bd = BuildDesc.newBuilder()
-            .setId(build_number)
-            .setBuildActivity(Activity.BUILDING)
-            .setBuildResult(BuildDesc.Result.OK)
-            .setProgress(-1)
-            .setWorkAmount(-1)
-            .build();
-
-        RuntimeBuildDesc rtbd = new RuntimeBuildDesc();
-        rtbd.id = build_number;
-        rtbd.project = project;
-        rtbd.user = user;
-        rtbd.branch = branch;
-
-        rtbd.activity = Activity.BUILDING;
-        rtbd.buildResult = BuildDesc.Result.OK;
-        synchronized (builds) {
-            builds.put(build_number, rtbd);
-        }
-
-        rtbd.buildRunnable = new BuildRunnable(this, build_number, branchRepository.getBranchRoot(), project, user, branch, rebuild);
-        rtbd.buildThread = new Thread(rtbd.buildRunnable);
-        rtbd.buildThread.start();
-
-        return bd;
-    }
-
-    public synchronized void updateBuild(int id, Activity activity, BuildDesc.Result result, String std_out, String std_err) {
-        RuntimeBuildDesc rtbd;
-        synchronized (builds) {
-             rtbd = builds.get(id);
-        }
-
-        if (activity == Activity.BUILDING && rtbd.activity == Activity.IDLE) {
-            throw new RuntimeException("Invalid transiation, IDLE to BUILDING");
-        }
-
-        rtbd.activity = activity;
-        rtbd.buildResult = result;
-        rtbd.stdOut = std_out;
-        rtbd.stdErr = std_err;
-        if (activity == Activity.IDLE) {
-            rtbd.buildCompleted = System.currentTimeMillis();
-        }
-    }
-
-    private synchronized void updateBuildProgress(int id, int progress, int workAmount) {
-        RuntimeBuildDesc rtbd;
-        synchronized (builds) {
-            rtbd = builds.get(id);
-        }
-        rtbd.progress = progress;
-        rtbd.workAmount = workAmount;
-    }
-
-    public BuildDesc buildStatus(String project, String user, String branch, int id) throws ServerException {
-        RuntimeBuildDesc rtbd;
-        synchronized (builds) {
-            rtbd = builds.get(id);
-        }
-
-        if (rtbd == null) {
-            throw new ServerException(String.format("Build %d not found", id), Status.NOT_FOUND);
-        }
-
-        BuildDesc bd = BuildDesc.newBuilder()
-            .setId(rtbd.id)
-            .setBuildActivity(rtbd.activity)
-            .setBuildResult(rtbd.buildResult)
-            .setProgress(rtbd.progress)
-            .setWorkAmount(rtbd.workAmount)
-            .build();
-
-        return bd;
-    }
-
-    public void cancelBuild(String project, String user, String branch, int id) throws ServerException {
-        RuntimeBuildDesc rtbd;
-        synchronized (builds) {
-            rtbd = builds.get(id);
-        }
-
-        if (rtbd == null) {
-            throw new ServerException(String.format("Build %d not found", id), Status.NOT_FOUND);
-        } else {
-            rtbd.buildRunnable.cancel();
-            try {
-                rtbd.buildThread.join(5000);
-            } catch (InterruptedException e) {
-                logger.error("Unexpected interrupted exception", e);
-            }
-        }
-    }
-
-    public BuildLog buildLog(String project, String user, String branch, int id) {
-        RuntimeBuildDesc rtbd;
-        synchronized (builds) {
-            rtbd = builds.get(id);
-        }
-        return BuildLog.newBuilder()
-            .setStdOut(rtbd.stdOut)
-            .setStdErr(rtbd.stdErr).build();
-    }
-
-    public LaunchInfo getLaunchInfo(EntityManager em, String project) throws ServerException {
-        // We check that the project really exists here
-        getProject(em, project);
-
-        LaunchInfo.Builder b = LaunchInfo.newBuilder();
-        for (String s : configuration.getExeCommand().getArgsList()) {
-            b.addArgs(s);
-        }
-
-        return b.build();
-    }
-
     public EntityManagerFactory getEntityManagerFactory() {
         return emf;
     }
 
     public Configuration getConfiguration() {
         return configuration;
-    }
-
-    public String getBranchRoot() {
-        return branchRepository.getBranchRoot();
     }
 
     public static File getEngineFile(Configuration configuration, String projectId, String platform) {

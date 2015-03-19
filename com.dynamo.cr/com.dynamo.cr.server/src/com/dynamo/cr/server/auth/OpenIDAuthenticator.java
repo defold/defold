@@ -27,16 +27,16 @@ public class OpenIDAuthenticator {
     private LRUCache<String, Authenticator> authenticationsInProgress;
 
     public static class Authenticator {
-        private String authCookie;
+        private String authToken;
         private OpenIDIdentity identity;
 
-        public Authenticator(String authCookie, OpenIDIdentity identity) {
-            this.authCookie = authCookie;
+        public Authenticator(String authToken, OpenIDIdentity identity) {
+            this.authToken = authToken;
             this.identity = identity;
         }
 
-        public String getAuthCookie() {
-            return authCookie;
+        public String getAuthToken() {
+            return authToken;
         }
 
         public OpenIDIdentity getIdentity() {
@@ -85,7 +85,7 @@ public class OpenIDAuthenticator {
         }
 
         OpenIDIdentity identity = openID.verify(uri);
-        String authentication = AuthCookie.login(identity.getEmail());
+        String authentication = AuthToken.login(identity.getEmail());
         authenticationsInProgress.put(loginToken, new Authenticator(authentication, identity));
         return identity;
     }
