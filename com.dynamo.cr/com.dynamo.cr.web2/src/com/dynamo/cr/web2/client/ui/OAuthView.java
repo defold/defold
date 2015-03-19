@@ -16,7 +16,7 @@ import com.google.gwt.user.client.ui.InlineLabel;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
 
-public class OpenIDView extends Composite {
+public class OAuthView extends Composite {
 
     public interface Presenter {
         void register(String registrationKey);
@@ -33,12 +33,12 @@ public class OpenIDView extends Composite {
     @UiField HTMLPanel eula;
     @UiField Image loader;
 
-    private OpenIDView.Presenter listener;
+    private OAuthView.Presenter listener;
 
-    interface Binder extends UiBinder<Widget, OpenIDView> {
+    interface Binder extends UiBinder<Widget, OAuthView> {
     }
 
-    public OpenIDView() {
+    public OAuthView() {
         initWidget(binder.createAndBindUi(this));
     }
 
@@ -56,7 +56,7 @@ public class OpenIDView extends Composite {
        deckPanel.setVisible(false);
     }
 
-    public void setPresenter(OpenIDView.Presenter listener) {
+    public void setPresenter(OAuthView.Presenter listener) {
         this.listener = listener;
         hideDeckPanel();
         firstNameLabel.setText("");

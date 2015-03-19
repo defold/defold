@@ -7,6 +7,5 @@ Bundle-Vendor: DYNAMO
 Fragment-Host: com.dynamo.cr.server;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Require-Bundle: org.junit;bundle-version="4.8.1",
- com.dynamo.cr.client;bundle-version="1.0.0",
  org.mockito;bundle-version="1.8.5"
 JPA-PersistenceUnits: unit-test

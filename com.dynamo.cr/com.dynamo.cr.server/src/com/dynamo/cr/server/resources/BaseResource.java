@@ -8,7 +8,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
 
-import com.dynamo.cr.branchrepo.BranchRepository;
 import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.auth.UserPrincipal;
 import com.dynamo.cr.server.model.User;
@@ -16,9 +15,6 @@ import com.dynamo.cr.server.model.User;
 public class BaseResource {
     @Inject
     protected Server server;
-
-    @Inject
-    protected BranchRepository branchRepository;
 
     @Context
     protected SecurityContext securityContext;

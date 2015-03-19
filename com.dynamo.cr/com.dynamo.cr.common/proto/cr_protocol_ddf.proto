@@ -63,14 +63,14 @@ message TokenExchangeInfo {
     required string login_token = 4;
     required Type type = 5;
     // Only set if type == LOGIN
-    optional string auth_cookie = 6;
+    optional string auth_token = 6;
     optional int64 user_id = 7;
 }
 
 message LoginInfo {
     required string email = 1;
     required int64 user_id = 2;
-    required string auth_cookie = 3;
+    required string auth_token = 3;
     optional string first_name = 4;
     optional string last_name = 5;
 }
@@ -124,16 +124,6 @@ message ProjectInfoList {
     repeated ProjectInfo projects = 1;
 }
 
-message ApplicationInfo {
-    required string name = 1;
-    required string version = 2;
-    required int32 size = 3;
-}
-
-message LaunchInfo {
-    repeated string args = 1;
-}
-
 message ProjectList {
     repeated ProjectInfo projects = 1;
 }
@@ -176,33 +166,6 @@ message BranchStatus
 message BranchList
 {
     repeated string branches = 1;
-}
-
-message BuildDesc
-{
-    enum Activity
-    {
-        IDLE = 0;
-        BUILDING = 1;
-    }
-
-    enum Result
-    {
-        OK = 0;
-        ERROR = 1;
-    }
-
-    required int32 id = 1;
-    required Activity build_activity = 2;
-    required Result build_result = 3;
-    required int32 progress = 4;
-    required int32 work_amount = 5;
-}
-
-message BuildLog
-{
-    required string std_out = 1;
-    required string std_err = 2;
 }
 
 enum ResolveStage
