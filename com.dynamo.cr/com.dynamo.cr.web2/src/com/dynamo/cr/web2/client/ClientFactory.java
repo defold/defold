@@ -5,7 +5,7 @@ import com.dynamo.cr.web2.client.ui.DownloadsView;
 import com.dynamo.cr.web2.client.ui.InviteView;
 import com.dynamo.cr.web2.client.ui.LoginView;
 import com.dynamo.cr.web2.client.ui.NewProjectView;
-import com.dynamo.cr.web2.client.ui.OpenIDView;
+import com.dynamo.cr.web2.client.ui.OAuthView;
 import com.dynamo.cr.web2.client.ui.ProjectView;
 import com.dynamo.cr.web2.client.ui.SettingsView;
 import com.dynamo.cr.web2.client.ui.SubscriptionView;
@@ -22,7 +22,7 @@ public interface ClientFactory
     DashboardView getDashboardView();
     ProjectView getProjectView();
     NewProjectView getNewProjectView();
-    OpenIDView getOpenIDView();
+    OAuthView getOAuthView();
     InviteView getInviteView();
     DownloadsView getDownloadsView();
     SubscriptionView getSubscriptionView();

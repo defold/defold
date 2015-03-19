@@ -553,14 +553,14 @@ public class SyncDialog extends TitleAreaDialog {
             IProject project = EditorUtil.getProject();
             IPreferenceStore store = Activator.getDefault().getPreferenceStore();
             final String email = store.getString(PreferenceConstants.P_EMAIL);
-            final String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+            final String authToken = store.getString(PreferenceConstants.P_AUTH_TOKEN);
             final IFolder contentRoot = EditorUtil.getContentRoot(project);
 
             Job job = new Job("Resolve Libraries") {
                 protected IStatus run(IProgressMonitor monitor) {
                     IStatus ret = org.eclipse.core.runtime.Status.OK_STATUS;
                     try {
-                        BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
+                        BobUtil.resolveLibs(contentRoot, email, authToken, monitor);
                     } catch (OperationCanceledException e) {
                         // Normal, pass through
                     } catch (Throwable e) {

@@ -74,7 +74,7 @@ public class SignoutHandler extends AbstractHandler {
         LoginDialog loginDialog = new LoginDialog(HandlerUtil.getActiveShell(event), url);
         loginDialog.open();
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
-        store.setValue(PreferenceConstants.P_AUTH_COOKIE, "");
+        store.setValue(PreferenceConstants.P_AUTH_TOKEN, "");
         return null;
     }
 

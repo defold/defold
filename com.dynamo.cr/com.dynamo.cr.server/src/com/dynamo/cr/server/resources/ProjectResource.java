@@ -1,24 +1,18 @@
 package com.dynamo.cr.server.resources;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
-import java.util.List;
-import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.security.RolesAllowed;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
-import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.HEAD;
 import javax.ws.rs.HeaderParam;
@@ -58,20 +52,9 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.branchrepo.BranchRepositoryException;
-import com.dynamo.cr.proto.Config.Application;
 import com.dynamo.cr.proto.Config.Configuration;
-import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
-import com.dynamo.cr.protocol.proto.Protocol.BranchList;
-import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
-import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
-import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
-import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
-import com.dynamo.cr.protocol.proto.Protocol.ResolveStage;
-import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
 import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.ServerException;
 import com.dynamo.cr.server.model.ModelUtil;
@@ -334,73 +317,6 @@ public class ProjectResource extends BaseResource {
                 .build();
     }
 
-    @GET
-    @Path("/launch_info")
-    public LaunchInfo getLaunchInfo(@PathParam("project") String project) {
-        LaunchInfo ret = server.getLaunchInfo(em, project);
-        return ret;
-    }
-
-    @GET
-    @Path("/application_data")
-    public byte[] getApplicationData(@PathParam("project") String project,
-                                     @QueryParam("platform") String platform) throws IOException {
-        Configuration config = server.getConfiguration();
-
-        List<Application> applications = config.getApplicationsList();
-        for (Application application : applications) {
-            if (application.getPlatform().equals(platform)) {
-                File f = new File(application.getPath());
-                byte[] buffer = new byte[(int) f.length()];
-                FileInputStream is = new FileInputStream(f);
-                is.read(buffer);
-                is.close();
-                return buffer;
-            }
-        }
-        throw new NotFoundException(String.format("Application for platform %s not found", platform));
-    }
-
-    @GET
-    @Path("/application_info")
-    public ApplicationInfo getApplicationInfo(@PathParam("project") String project,
-                                              @QueryParam("platform") String platform) throws IOException {
-        Configuration config = server.getConfiguration();
-        List<Application> applications = config.getApplicationsList();
-        for (Application application : applications) {
-            if (application.getPlatform().equals(platform)) {
-                File f = new File(application.getPath());
-                byte[] buffer = new byte[(int) f.length()];
-
-                MessageDigest md = null;
-                try {
-                    md = MessageDigest.getInstance("SHA-1");
-                } catch (NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
-                }
-
-                FileInputStream is = new FileInputStream(f);
-                is.read(buffer);
-                md.update(buffer);
-                byte[] digest = md.digest();
-                StringBuffer hexDigest = new StringBuffer();
-                for (byte b : digest) {
-                    hexDigest.append(Integer.toHexString(0xFF & b));
-                }
-
-                is.close();
-
-                ApplicationInfo ret = ApplicationInfo.newBuilder()
-                    .setName(application.getName())
-                    .setVersion(hexDigest.toString())
-                    .setSize((int) f.length())
-                    .build();
-                return ret;
-            }
-        }
-        throw new NotFoundException(String.format("Application for platform %s not found", platform));
-    }
-
     @POST
     @Path("/members")
     @RolesAllowed(value = { "member" })
@@ -487,18 +403,6 @@ public class ProjectResource extends BaseResource {
     @Transactional
     public void deleteProject(@PathParam("project") String projectId)  {
         Project project = server.getProject(em, projectId);
-        Set<User> members = project.getMembers();
-        // Remove branches
-        for (User member : members) {
-            String memberId = member.getId().toString();
-            for (String branch : branchRepository.getBranchNames(projectId, memberId)) {
-                try {
-                    branchRepository.deleteBranch(projectId, memberId, branch);
-                } catch (BranchRepositoryException e) {
-                    throwWebApplicationException(Status.INTERNAL_SERVER_ERROR, e.getMessage());
-                }
-            }
-        }
         // Delete git repo
         Configuration configuration = server.getConfiguration();
         String repositoryRoot = configuration.getRepositoryRoot();
@@ -583,233 +487,6 @@ public class ProjectResource extends BaseResource {
         URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId).path("engine").path(platform).path(key).build();
         String manifestPrim = manifest.replace("${URL}", engineUri.toString());
         return manifestPrim;
-    }
-
-    /*
-     * Branch
-     */
-
-    @GET
-    @Path("/branches/")
-    public BranchList getBranchList(@PathParam("project") String project) {
-        String user = Long.toString(getUser().getId());
-        return branchRepository.getBranchList(project, user);
-    }
-
-    @GET
-    @Path("/branches/{branch}")
-    public BranchStatus getBranchStatus(@PathParam("project") String project,
-                                        @PathParam("branch") String branch) throws IOException, ServerException, BranchRepositoryException {
-        String user = Long.toString(getUser().getId());
-        BranchStatus ret = branchRepository.getBranchStatus(project, user, branch, true);
-        return ret;
-    }
-
-    @PUT
-    @Path("/branches/{branch}")
-    public void createBranch(@PathParam("project") String project,
-                             @PathParam("branch") String branch) throws IOException, BranchRepositoryException {
-        String user = Long.toString(getUser().getId());
-        branchRepository.createBranch(project, user, branch);
-    }
-
-    @DELETE
-    @Path("/branches/{branch}")
-    public void deleteBranch(@PathParam("project") String project,
-                             @PathParam("branch") String branch) throws ServerException, BranchRepositoryException {
-        String user = Long.toString(getUser().getId());
-        branchRepository.deleteBranch(project, user, branch);
-    }
-
-    @POST
-    @Path("/branches/{branch}/update")
-    public BranchStatus updateBranch(@PathParam("project") String project,
-                               @PathParam("branch") String branch) throws IOException, BranchRepositoryException {
-
-        String user = Long.toString(getUser().getId());
-        branchRepository.updateBranch(project, user, branch);
-        BranchStatus ret = getBranchStatus(project, branch);
-        return ret;
-    }
-
-    @POST
-    @Path("/branches/{branch}/commit")
-    public CommitDesc commitBranch(@PathParam("project") String project,
-                             @PathParam("branch") String branch,
-                             @QueryParam("all") boolean all,
-                             String message) throws IOException, BranchRepositoryException {
-
-        String user = Long.toString(getUser().getId());
-        CommitDesc commit;
-        if (all)
-            commit = branchRepository.commitBranch(project, user, branch, message);
-        else
-            commit = branchRepository.commitMergeBranch(project, user, branch, message);
-        return commit;
-    }
-
-    @POST
-    @Path("/branches/{branch}/publish")
-    public void publishBranch(@PathParam("project") String project,
-                              @PathParam("branch") String branch) throws IOException, BranchRepositoryException {
-        String user = Long.toString(getUser().getId());
-        branchRepository.publishBranch(project, user, branch);
-    }
-
-    @POST
-    @Path("/branches/{branch}/resolve")
-    public void resolve(@PathParam("project") String project,
-                        @PathParam("branch") String branch,
-                        @QueryParam("path") String path,
-                        @QueryParam("stage") String stage) throws IOException, BranchRepositoryException {
-        String user = Long.toString(getUser().getId());
-        ResolveStage s;
-        if (stage.equals("base"))
-            s = ResolveStage.BASE;
-        else if (stage.equals("yours"))
-            s = ResolveStage.YOURS;
-        else if (stage.equals("theirs"))
-            s = ResolveStage.THEIRS;
-        else
-            throw new ServerException(String.format("Unknown stage: %s", stage));
-
-        branchRepository.resolveResource(project, user, branch, path, s);
-    }
-
-    /*
-     * Resource
-     */
-
-    @GET
-    @Path("/branches/{branch}/resources/info")
-    public ResourceInfo getResourceInfo(@PathParam("project") String project,
-                                          @PathParam("branch") String branch,
-                                          @QueryParam("path") String path) throws IOException, BranchRepositoryException {
-
-        String user = Long.toString(getUser().getId());
-        ResourceInfo ret = branchRepository.getResourceInfo(project, user, branch, path);
-        return ret;
-    }
-
-    @DELETE
-    @Path("/branches/{branch}/resources/info")
-    public void deleteResource(@PathParam("project") String project,
-                               @PathParam("branch") String branch,
-                               @QueryParam("path") String path) throws IOException, BranchRepositoryException {
-
-        String user = Long.toString(getUser().getId());
-        branchRepository.deleteResource(project, user, branch, path);
-    }
-
-    @POST
-    @Path("/branches/{branch}/resources/rename")
-    public void renameResource(@PathParam("project") String project,
-                               @PathParam("branch") String branch,
-                               @QueryParam("source") String source,
-                               @QueryParam("destination") String destination) throws IOException, ServerException, BranchRepositoryException {
-
-        String user = Long.toString(getUser().getId());
-        branchRepository.renameResource(project, user, branch, source, destination);
-    }
-
-    @PUT
-    @Path("/branches/{branch}/resources/revert")
-    public void revertResource(@PathParam("project") String project,
-                               @PathParam("branch") String branch,
-                               @QueryParam("path") String path) throws IOException, BranchRepositoryException {
-
-        String user = Long.toString(getUser().getId());
-        branchRepository.revertResource(project, user, branch, path);
-    }
-
-    @GET
-    @Path("/branches/{branch}/resources/data")
-    public byte[] getResourceData(@PathParam("project") String project,
-                                  @PathParam("branch") String branch,
-                                  @QueryParam("path") String path,
-                                  @QueryParam("revision") String revision) throws IOException, BranchRepositoryException {
-
-        String user = Long.toString(getUser().getId());
-        byte[] ret = branchRepository.getResourceData(project, user, branch, path, revision);
-        return ret;
-    }
-
-    @PUT
-    @Path("/branches/{branch}/resources/data")
-    public void putResourceData(@PathParam("project") String project,
-                                @PathParam("branch") String branch,
-                                @QueryParam("path") String path,
-                                @DefaultValue("false") @QueryParam("directory") boolean directory,
-                                byte[] data) throws IOException, BranchRepositoryException  {
-        String user = Long.toString(getUser().getId());
-        if (directory) {
-            branchRepository.mkdir(project, user, branch, path);
-        }
-        else {
-            branchRepository.putResourceData(project, user, branch, path, data);
-        }
-    }
-
-    @POST
-    @Path("/branches/{branch}/reset")
-    public void reset(@PathParam("project") String project,
-                                @PathParam("branch") String branch,
-                                @DefaultValue("mixed") @QueryParam("mode") String mode,
-                                @QueryParam("target") String target) throws IOException, BranchRepositoryException  {
-        String user = Long.toString(getUser().getId());
-        branchRepository.reset(project, user, branch, mode, target);
-    }
-
-    @GET
-    @Path("/branches/{branch}/log")
-    public Log logBranch(@PathParam("project") String project,
-                              @PathParam("branch") String branch,
-                              @QueryParam("max_count") int maxCount) throws IOException, BranchRepositoryException {
-        String user = Long.toString(getUser().getId());
-        return branchRepository.logBranch(project, user, branch, maxCount);
-    }
-
-    /*
-     * Builds
-     */
-
-    @POST
-    @Path("/branches/{branch}/builds")
-    public BuildDesc build(@PathParam("project") String project,
-                           @PathParam("branch") String branch,
-                           @DefaultValue("false") @QueryParam("rebuild") boolean rebuild) {
-
-        String user = Long.toString(getUser().getId());
-        return server.build(project, user, branch, rebuild);
-    }
-
-    @GET
-    @Path("/branches/{branch}/builds")
-    public BuildDesc buildsStatus(@PathParam("project") String project,
-                                  @PathParam("branch") String branch,
-                                  @QueryParam("id") int id) {
-        String user = Long.toString(getUser().getId());
-        return server.buildStatus(project, user, branch, id);
-    }
-
-    @DELETE
-    @Path("/branches/{branch}/builds")
-    public void cancelBuild(@PathParam("project") String project,
-                                 @PathParam("branch") String branch,
-                                 @QueryParam("id") int id) {
-
-        String user = Long.toString(getUser().getId());
-        server.cancelBuild(project, user, branch, id);
-    }
-
-    @GET
-    @Path("/branches/{branch}/builds/log")
-    public BuildLog buildLog(@PathParam("project") String project,
-                              @PathParam("branch") String branch,
-                              @QueryParam("id") int id) {
-
-        String user = Long.toString(getUser().getId());
-        return server.buildLog(project, user, branch, id);
     }
 
 }

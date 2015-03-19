@@ -21,7 +21,7 @@
                 <g:CheckBox ui:field="subscriptionStatus" text="Subscribe to news letter"></g:CheckBox>
                 <p>
 
-                Access token: <i><g:InlineLabel ui:field="authCookie"></g:InlineLabel></i>
+                Access token: <i><g:InlineLabel ui:field="authToken"></g:InlineLabel></i>
                 </p>
             </g:HTMLPanel>
         </div>
