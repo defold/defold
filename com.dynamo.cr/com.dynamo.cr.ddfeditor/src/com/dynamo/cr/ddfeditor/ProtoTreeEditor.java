@@ -336,6 +336,13 @@ public class ProtoTreeEditor implements Listener {
         this.treeViewer.getTree().setMenu(menu);
 
         this.listeners = new ArrayList<IProtoListener>();
+
+        /* Workaround for DEF-939
+         * Call pack() on the table for it to recalc it's size,
+         * otherwise the header bar will cover the first row on OS X Yosemite.
+         * See: https://bugs.eclipse.org/bugs/show_bug.cgi?id=446534
+         */
+        treeViewer.getTree().pack();
     }
 
     public TreeViewer getTreeViewer() {
