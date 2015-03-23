@@ -23,10 +23,16 @@ import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
 public class SceneUtil {
-    public static void saveMessage(Message message, OutputStream contents, IProgressMonitor monitor) throws IOException, CoreException {
+    public static void saveMessage(Message message, OutputStream contents, IProgressMonitor monitor, boolean newLineFormatOutput) throws IOException, CoreException {
         OutputStreamWriter writer = new OutputStreamWriter(contents);
         try {
-            TextFormat.print(message, writer);
+            if (newLineFormatOutput) {
+                // insert newline in output text file on textual newline (\n) occurrences
+                // (google protocol buffers accepts double-quote + LR + double-quote newline scopes)
+                writer.append(TextFormat.printToString(message).replace("\\n", "\\n\"\n  \""));
+            } else {
+                TextFormat.print(message, writer);
+            }
             writer.flush();
         } finally {
             writer.close();

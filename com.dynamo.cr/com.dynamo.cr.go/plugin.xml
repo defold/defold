@@ -157,6 +157,7 @@
    <extension
          point="com.dynamo.cr.resourcetypes">
       <resource-type
+            embeddable="true"
             file-extension="go"
             id="com.dynamo.cr.go.core.resourcetypes.gameObject"
             name="Game Object"

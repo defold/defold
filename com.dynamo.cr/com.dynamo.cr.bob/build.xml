@@ -77,7 +77,6 @@
                          to the final name. Only files that are matched by either glob below are included in
                          the copy -->
                     <globmapper from="*/luajit-2.0.3" to="*/luajit"/>
-                    <globmapper from="*/luajit.exe" to="*/luajit.exe"/>
 
                     <!-- NOTE:
                          The follow are required to map unqualied paths to qualified
