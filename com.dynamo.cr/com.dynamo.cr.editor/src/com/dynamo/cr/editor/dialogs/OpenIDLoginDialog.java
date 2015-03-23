@@ -111,7 +111,7 @@ public class OpenIDLoginDialog extends Dialog {
                 }
 
                 Client client = Client.create(cc);
-                URI uri = UriBuilder.fromUri(crServerUri).port(9998).build();
+                URI uri = UriBuilder.fromUri(crServerUri).build();
                 WebResource webResource = client.resource(uri);
                 TokenExchangeInfo exchangeInfo;
                 try {

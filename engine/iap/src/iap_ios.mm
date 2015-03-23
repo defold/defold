@@ -372,7 +372,6 @@ int IAP_List(lua_State* L)
  *
  * @name iap.buy
  * @param id product to buy (identifier)
- * @param callback result callback
  * @examples
  *
  * <pre>

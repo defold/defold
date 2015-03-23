@@ -36,6 +36,7 @@ import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
 import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
+import com.dynamo.physics.proto.Physics.CollisionShape.Type;
 import com.dynamo.physics.proto.Physics.ConvexShape;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
@@ -53,6 +54,18 @@ public class ProtoBuilders {
         String out = str;
         for (String srcExt : textureSrcExts) {
             out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
+        }
+        return out;
+    }
+
+    static String replaceGuiTextureName(String str) {
+        String out = str;
+        if(str.endsWith(".atlas")) {
+            out = BuilderUtil.replaceExt(out, ".atlas", ".texturesetc");
+        } else if(str.endsWith(".tilesource")) {
+            out = BuilderUtil.replaceExt(out, ".tilesource", ".texturesetc");
+        } else {
+            out = replaceTextureName(str);
         }
         return out;
     }
@@ -96,6 +109,17 @@ public class ProtoBuilders {
     @BuilderParams(name="CollisionObjectDesc", inExts=".collisionobject", outExt=".collisionobjectc")
     public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
 
+        private void ValidateShapeTypes(List<Shape> shapeList, IResource resource) throws IOException, CompileExceptionError {
+            String physicsTypeStr = this.project.getProjectProperties().getStringValue("physics", "type", "2D").toUpperCase();
+            for(Shape shape : shapeList) {
+                if(shape.getShapeType() == Type.TYPE_CAPSULE) {
+                    if(physicsTypeStr.contains("2D")) {
+                        throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.CollisionObjectBuilder_MISMATCHING_SHAPE_PHYSICS_TYPE, "Capsule", physicsTypeStr ));
+                    }
+                }
+            }
+        }
+
         @Override
         protected CollisionObjectDesc.Builder transform(Task<Void> task, IResource resource, CollisionObjectDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
             if (messageBuilder.getEmbeddedCollisionShape().getShapesCount() == 0) {
@@ -103,11 +127,15 @@ public class ProtoBuilders {
             }
             // Merge convex shape resource with collision object
             // NOTE: Special case for tilegrid resources. They are left as is
+            if(messageBuilder.hasEmbeddedCollisionShape()) {
+                ValidateShapeTypes(messageBuilder.getEmbeddedCollisionShape().getShapesList(), resource);
+            }
             if (messageBuilder.hasCollisionShape() && !messageBuilder.getCollisionShape().isEmpty() && !(messageBuilder.getCollisionShape().endsWith(".tilegrid") || messageBuilder.getCollisionShape().endsWith(".tilemap"))) {
                 IResource shapeResource = project.getResource(messageBuilder.getCollisionShape().substring(1));
                 ConvexShape.Builder cb = ConvexShape.newBuilder();
                 ProtoUtil.merge(shapeResource, cb);
                 CollisionShape.Builder eb = CollisionShape.newBuilder().mergeFrom(messageBuilder.getEmbeddedCollisionShape());
+                ValidateShapeTypes(eb.getShapesList(), shapeResource);
                 Shape.Builder sb = Shape.newBuilder()
                         .setShapeType(CollisionShape.Type.valueOf(cb.getShapeType().getNumber()))
                         .setPosition(Point3.newBuilder())
@@ -157,7 +185,7 @@ public class ProtoBuilders {
                             f.getName()));
                 }
                 textureNames.add(f.getName());
-                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceTextureName(f.getTexture())).build());
+                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceGuiTextureName(f.getTexture())).build());
             }
             messageBuilder.clearTextures();
             messageBuilder.addAllTextures(newTextureList);
@@ -171,8 +199,8 @@ public class ProtoBuilders {
             }
             for (NodeDesc n : messageBuilder.getNodesList()) {
                 if (n.hasTexture() && !n.getTexture().isEmpty()) {
-                    if (!textureNames.contains(n.getTexture())) {
-                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture()));
+                    if (!textureNames.contains(n.getTexture().split("/")[0])) {
+                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture().split("/")[0]));
                     }
                 }
 

@@ -7,15 +7,22 @@
 #include <render/font_renderer.h>
 #include <gui/gui.h>
 #include "../proto/gui_ddf.h"
+#include "res_textureset.h"
 
 namespace dmGameSystem
 {
+    struct GuiSceneTextureSetResource
+    {
+        TextureSetResource*  m_TextureSet;
+        dmGraphics::HTexture m_Texture;
+    };
+
     struct GuiSceneResource
     {
         dmGuiDDF::SceneDesc*            m_SceneDesc;
         dmGui::HScript                  m_Script;
         dmArray<dmRender::HFontMap>     m_FontMaps;
-        dmArray<dmGraphics::HTexture>   m_Textures;
+        dmArray<GuiSceneTextureSetResource> m_GuiTextureSets;
         const char*                     m_Path;
         dmGui::HContext                 m_GuiContext;
         dmRender::HMaterial             m_Material;
