@@ -44,6 +44,73 @@ namespace dmGui
      */
     const dmhash_t DEFAULT_LAYER = dmHashString64("");
 
+    /**
+     * Animation
+     */
+    enum Playback
+    {
+        PLAYBACK_ONCE_FORWARD  = 0,
+        PLAYBACK_ONCE_BACKWARD = 1,
+        PLAYBACK_ONCE_PINGPONG = 2,
+        PLAYBACK_LOOP_FORWARD  = 3,
+        PLAYBACK_LOOP_BACKWARD = 4,
+        PLAYBACK_LOOP_PINGPONG = 5,
+        PLAYBACK_NONE = 6,
+        PLAYBACK_COUNT = 7,
+    };
+
+    /**
+     * Textureset animation
+     */
+    struct TextureSetAnimDesc
+    {
+        inline void Init()
+        {
+            m_State = 0;
+            m_Playback = PLAYBACK_ONCE_FORWARD;
+            m_TexCoords = 0;
+            m_FlipHorizontal = 0;
+            m_FlipVertical = 0;
+        }
+
+        union
+        {
+            struct
+            {
+                uint64_t m_Start : 13;
+                uint64_t m_End : 13;
+                uint64_t m_Width : 13;
+                uint64_t m_Height : 13;
+                uint64_t m_FPS : 8;
+                uint64_t m_Playback : 4;
+            };
+            uint64_t m_State;
+        };
+
+        const float* m_TexCoords;
+        uint32_t m_FlipHorizontal : 1;
+        uint32_t m_FlipVertical : 1;
+        uint32_t m_Padding : 14;
+    };
+
+    enum FetchTextureSetAnimResult
+    {
+        FETCH_ANIMATION_OK = 0,
+        FETCH_ANIMATION_NOT_FOUND = -1,
+        FETCH_ANIMATION_CALLBACK_ERROR = -2,
+        FETCH_ANIMATION_INVALID_PLAYBACK = -3,
+        FETCH_ANIMATION_UNKNOWN_ERROR = -1000
+    };
+
+    /**
+     * Callback to fetch textureset animation info from a textureset source
+     */
+    typedef FetchTextureSetAnimResult (*FetchTextureSetAnimCallback)(void* texture_set_ptr, dmhash_t anim, TextureSetAnimDesc* out_data);
+
+
+    /**
+     * Scene creation
+     */
     struct NewSceneParams;
     void SetDefaultNewSceneParams(NewSceneParams* params);
 
@@ -55,6 +122,7 @@ namespace dmGui
         uint32_t m_MaxFonts;
         uint32_t m_MaxLayers;
         void*    m_UserData;
+        FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
 
         NewSceneParams()
         {
@@ -123,6 +191,7 @@ namespace dmGui
         uint32_t                m_PhysicalWidth;
         uint32_t                m_PhysicalHeight;
         dmHID::HContext         m_HidContext;
+        dmResource::HFactory    m_Factory;
 
         NewContextParams()
         {
@@ -157,17 +226,6 @@ namespace dmGui
         PROPERTY_RESERVED   = 9,
 
         PROPERTY_COUNT      = 10,
-    };
-
-    enum Playback
-    {
-        PLAYBACK_ONCE_FORWARD  = 0,
-        PLAYBACK_ONCE_BACKWARD = 1,
-        PLAYBACK_ONCE_PINGPONG = 2,
-        PLAYBACK_LOOP_FORWARD  = 3,
-        PLAYBACK_LOOP_BACKWARD = 4,
-        PLAYBACK_LOOP_PINGPONG = 5,
-        PLAYBACK_COUNT = 6,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -368,26 +426,26 @@ namespace dmGui
     void* GetSceneUserData(HScene scene);
 
     /**
-     * Adds a texture with the specified name to the scene.
-     * @note Any nodes connected to the same texture_name will also be connected to the new texture. This makes this function O(n), where n is #nodes.
-     * @param scene Scene to add the texture to
+     * Adds a texture and optional textureset with the specified name to the scene.
+     * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add the texture/textureset to
      * @param texture_name Name of the texture that will be used in the gui scripts
      * @param texture The texture to add
+     * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset);
 
     /**
      * Removes a texture with the specified name from the scene.
-     * @note Any nodes connected to the same texture_name will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
+     * @note Any nodes connected to the same texture will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
      * @param scene Scene to remove texture from
-     * @param texture_name Name of the texture that will be used in the gui scripts
+     * @param texture_name Name of the texture as it is used by the gui scripts
      */
     void RemoveTexture(HScene scene, const char* texture_name);
 
     /**
-     * Remove all static textures from the scene.
-     * @note User created textures are not removed
+     * Remove all textures from the scene.
      * @note Every node will also be disconnected from the texture they are already connected to, if any. This makes this function O(n), where n is #nodes.
      * @param scene Scene to clear from textures
      */
@@ -634,6 +692,13 @@ namespace dmGui
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
+
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    void CancelNodeFlipbookAnim(HScene scene, HNode node);
+    dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
+    const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);
+    void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical);
 
     void* GetNodeFont(HScene scene, HNode node);
     dmhash_t GetNodeFontId(HScene scene, HNode node);

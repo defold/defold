@@ -132,10 +132,9 @@ public class Bob {
         }
     }
 
-    public static String getLib(String name) throws IOException {
+    public static String getLib(Platform platform, String name) throws IOException {
         init();
 
-        Platform platform = Platform.getJavaPlatform();
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         URL url = Bob.class.getResource("/lib/" + libName);
         if (url == null) {
@@ -172,6 +171,7 @@ public class Bob {
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles.");
+        options.addOption("k", "keep-unused", false, "Keep unused resources in archived output.");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;

@@ -121,8 +121,15 @@ namespace dmGui
 
         bool        m_HasResetPoint;
         const char* m_Text;
+
         uint64_t    m_TextureHash;
         void*       m_Texture;
+        void*       m_TextureSet;
+
+        TextureSetAnimDesc m_TextureSetAnimDesc;
+        uint64_t    m_FlipbookAnimHash;
+        float       m_FlipbookAnimPosition;
+
         uint64_t    m_FontHash;
         void*       m_Font;
         dmhash_t    m_LayerHash;
@@ -180,6 +187,13 @@ namespace dmGui
         int         m_InstanceReference;
     };
 
+    struct TextureInfo
+    {
+        TextureInfo(void* texture, void *textureset) : m_Texture(texture), m_TextureSet(textureset) {}
+        void*   m_Texture;
+        void*   m_TextureSet;
+    };
+
     struct DynamicTexture
     {
         DynamicTexture(void* handle)
@@ -206,8 +220,8 @@ namespace dmGui
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
         dmArray<Animation>      m_Animations;
-        dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;
+        dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
         void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
@@ -220,6 +234,7 @@ namespace dmGui
         uint16_t                m_RenderOrder; // For the render-key
         uint16_t                m_NextLayerIndex;
         uint16_t                m_ResChanged : 1;
+        FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
