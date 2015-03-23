@@ -333,26 +333,23 @@
       (one-transaction-pass (assoc ctx :pending pending-actions) current-action)
       (dec retrigger-count)))))
 
-(def tx-report-keys [:status :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
+(def tx-report-keys [:tx-id :new-event-loops :tempids :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
-  [{:keys [graph world-time] :as ctx}]
-  (let [empty-tx?  (empty? (:completed ctx))
-        status     (if empty-tx? :empty :ok)
-        world-time (if empty-tx? world-time (inc world-time))]
-    (update-in ctx [:world] assoc
-      :graph      graph
-      :world-time world-time
-      :last-tx    (assoc (select-keys ctx tx-report-keys) :status status))))
+  [{:keys [graph tx-id] :as ctx}]
+  (let [empty-tx? (empty? (:completed ctx))
+        graph     (assoc graph :tx-id tx-id)]
+    (assoc (select-keys ctx tx-report-keys)
+           :graph  graph
+           :status (if empty-tx? :empty :ok))))
 
 (defn new-transaction-context
   [world-ref actions]
   (let [current-world @world-ref]
     {:world-ref           world-ref
      :world               current-world
-     :graph               (:graph current-world)
-     :world-time          (:world-time current-world)
+     :graph               current-world
      :tempids             {}
      :new-event-loops     #{}
      :old-event-loops     #{}
@@ -361,7 +358,7 @@
      :nodes-deleted       {}
      :pending             [actions]
      :completed           []
-     :txid                (new-txid)
+     :tx-id               (new-txid)
      :txpass              0}))
 
 (defn- trace-dependencies
@@ -371,10 +368,7 @@
 
 (defn transact*
   [world-ref ctx]
-  (dosync
-   (let [txr (-> ctx
-                 exhaust-actions-and-triggers
-                 trace-dependencies
-                 finalize-update)]
-     (ref-set world-ref (:world txr))
-     txr)))
+  (-> ctx
+      exhaust-actions-and-triggers
+      trace-dependencies
+      finalize-update))

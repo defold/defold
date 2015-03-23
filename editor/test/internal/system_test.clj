@@ -23,7 +23,7 @@
           sys (is/start-system sys)]
       (is (not (nil? (is/world-graph sys)))))))
 
-(deftest world-time
+(deftest tx-id
   (testing "world time advances with transactions"
     (let [sys (fresh-system)
           world-ref (is/world-ref sys)

@@ -17,36 +17,32 @@
 
 (defn- subscriber-id [n] (if (number? n) n (:_id n)))
 
-(defn address-to
+(defn- address-to
   [node body]
   (assoc body ::node-id (subscriber-id node)))
 
-(defn publish
+(defn- publish
   [{publish-to :publish-to} msg]
   (a/put! publish-to msg))
 
-(defn publish-all
+(defn- publish-all
   [bus msgs]
   (doseq [s msgs]
     (publish bus s)))
 
-(defn subscribe
+(defn- subscribe
   [{subscribe-to :subscribe-to} node]
   (a/sub subscribe-to (subscriber-id node) (a/chan 100)))
 
-(defn make-bus
+(defn- make-bus
   []
   (let [pubch (a/chan 100)]
     {:publish-to   pubch
      :subscribe-to (a/pub pubch ::node-id (fn [_] (a/dropping-buffer 100)))}))
 
-(defn graph [world-ref]
-  (-> world-ref deref :graph))
-
-(defn new-world-state
+(defn- new-world-state
   [initial-graph]
-  {:graph               initial-graph
-   :world-time          0})
+  (assoc initial-graph :tx-id 0))
 
 (defn- new-history
   [state]
@@ -54,7 +50,7 @@
    :undo-stack []
    :redo-stack []})
 
-(defrecord World [state history message-bus]
+(defrecord World [state history]
   component/Lifecycle
   (start [this]
     (assoc this :started? true))
@@ -63,7 +59,7 @@
     (assoc this :started? false)))
 
 (defn- transaction-applied?
-  [{old-world-time :world-time} {new-world-time :world-time :as new-world}]
+  [{old-world-time :tx-id} {new-world-time :tx-id :as new-world}]
   (and (= :ok (-> new-world :last-tx :status)) (< old-world-time new-world-time)))
 
 (def history-size-min 50)
@@ -71,7 +67,7 @@
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
 
 (defn- history-label [world]
-  (or (get-in world [:last-tx :label]) (str "World Time: " (:world-time world))))
+  (or (get-in world [:last-tx :label]) (str "World Time: " (:tx-id world))))
 
 (defn- push-history [history-ref  _ world-ref old-world new-world]
   (when (transaction-applied? old-world new-world)
@@ -102,32 +98,29 @@
         (alter history-ref update-in [:redo-stack] pop)))))
 
 (defn world
-  [initial-graph disposal-queue]
+  [initial-graph]
   (let [world-ref      (ref nil)
         injected-graph (ig/map-nodes #(assoc % :world-ref world-ref) initial-graph)
         history-ref    (ref (new-history world-ref))]
     (dosync (ref-set world-ref (new-world-state injected-graph)))
     (add-watch world-ref :push-history (partial push-history history-ref))
-    (map->World {:state          world-ref
-                 :message-bus    (make-bus)
-                 :disposal-queue disposal-queue
-                 :history        history-ref})))
+    (map->World {:state   world-ref
+                 :history history-ref})))
 
 (defn make-system
  [configuration]
- (let [disposal-queue (a/chan (a/dropping-buffer maximum-disposal-backlog))]
+ (let [disposal-queue (a/chan (a/dropping-buffer maximum-disposal-backlog))
+       message-bus    (make-bus)
+       initial-graph  (:initial-graph configuration (ig/empty-graph))]
    (component/map->SystemMap
-    {:world     (world (:initial-graph configuration) disposal-queue)
-     :cache     (component/using (c/cache-subsystem maximum-cached-items disposal-queue) [:world])})))
+    {:message-bus    message-bus
+     :disposal-queue disposal-queue
+     :world          (world initial-graph)
+     :cache          (component/using (c/cache-subsystem maximum-cached-items disposal-queue) [:world])})))
 
 (defn start-system
   [sys]
-  (let [system-map (component/start sys)
-        state      (-> system-map :world :state)
-        graph      (-> state deref :graph)
-        root       (ig/node graph 1)]
-
-    system-map))
+  (component/start-system sys))
 
 (defn stop-system
   [sys]
@@ -136,10 +129,10 @@
 (defn system-cache   [s] (-> s :cache))
 (defn world-ref      [s] (-> s :world :state))
 (defn history        [s] (-> s :world :history))
-(defn world-graph    [s] (some-> (world-ref s) deref :graph))
-(defn world-time     [s] (some-> (world-ref s) deref :world-time))
-(defn disposal-queue [s] (-> s :world :disposal-queue))
-(defn message-bus    [s] (-> s :world :message-bus))
+(defn world-graph    [s] (some-> (world-ref s) deref))
+(defn world-time     [s] (some-> (world-graph s) :tx-id))
+(defn disposal-queue [s] (-> s :disposal-queue))
+(defn message-bus    [s] (-> s :message-bus))
 
 (defn start-event-loop!
   [sys id]
