@@ -18,8 +18,8 @@
          ~'cache       (:cache ~'system)
          ~'world-ref   (:state ~'world)
          ~'disposal-ch (is/disposal-queue ~'system)]
-     (binding [ds/the-system (atom ~'system)
-               gt/*transaction* (gt/->TransactionSeed (partial ds/transact ~'system))
+     (binding [ds/*the-system* (atom ~'system)
+               gt/*transaction* (gt/->TransactionSeed (partial ds/transact (atom ~'system)))
                internal.transaction/*scope*       nil]
        ~@forms)))
 

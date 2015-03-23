@@ -10,7 +10,9 @@
             [internal.system :as is]
             [internal.transaction :as it]))
 
-(declare the-system)
+;; Only marked dynamic so tests can rebind. Should never be rebound "for real".
+(def ^:dynamic *the-system* (atom nil))
+
 
 (defn- n->g
   "Get the graph this node belongs to."
@@ -92,16 +94,16 @@ to distinguish it from a function call."
 ;; ---------------------------------------------------------------------------
 (defn transact
   ([txs]
-   (transact @the-system txs))
-  ([sys txs]
-   (let [world-ref (is/world-ref sys)
+   (transact *the-system* txs))
+  ([sys-ref txs]
+   (let [world-ref (is/world-ref @sys-ref)
          tx-result (it/transact* world-ref (it/new-transaction-context world-ref txs))]
      (when (= :ok (:status tx-result))
        (dosync (ref-set world-ref (assoc (:graph tx-result)
                                          :last-tx (dissoc tx-result :graph))))
-       (doseq [l (:old-event-loops tx-result)]      (is/stop-event-loop! sys l))
-       (doseq [l (:new-event-loops tx-result)]      (is/start-event-loop! sys l))
-       (doseq [d (vals (:nodes-deleted tx-result))] (is/dispose! sys d)))
+       (doseq [l (:old-event-loops tx-result)]      (is/stop-event-loop! @sys-ref l))
+       (doseq [l (:new-event-loops tx-result)]      (is/start-event-loop! @sys-ref l))
+       (doseq [d (vals (:nodes-deleted tx-result))] (is/dispose! @sys-ref d)))
      tx-result)))
 
 (defn- resolve-return-val
@@ -257,34 +259,32 @@ inherits from dynamo.node/Scope."
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
-; Only marked dynamic so tests can rebind. Should never be rebound "for real".
-(def ^:dynamic the-system (atom nil))
 
 (defn initialize
   [config]
-  (reset! the-system (is/make-system config)))
+  (reset! *the-system* (is/make-system config)))
 
 (defn start
   []
-  (swap! the-system is/start-system)
-  (alter-var-root #'gt/*transaction* (constantly (gt/->TransactionSeed (partial transact @the-system))))
+  (swap! *the-system* is/start-system)
+  (alter-var-root #'gt/*transaction* (constantly (gt/->TransactionSeed (partial transact *the-system*))))
   (alter-var-root #'it/*scope* (constantly nil)))
 
 (defn stop
   []
-  (swap! the-system is/stop-system))
+  (swap! *the-system* is/stop-system))
 
 (defn undo
   []
-  (is/undo-history (is/history @the-system)))
+  (is/undo-history (is/history @*the-system*)))
 
 (defn redo
   []
-  (is/redo-history (is/history @the-system)))
+  (is/redo-history (is/history @*the-system*)))
 
 (defn dispose-pending
   []
-  (dispose/dispose-pending (is/disposal-queue @the-system)))
+  (dispose/dispose-pending (is/disposal-queue @*the-system*)))
 
 (defn cache-invalidate
   "Uses the system’s Cache component.
@@ -292,7 +292,7 @@ inherits from dynamo.node/Scope."
   Atomic action to invalidate the given collection of [node-id label]
   pairs. If nothing is cached for a pair, it is ignored."
   [pairs]
-  (c/cache-invalidate (is/system-cache @the-system) pairs))
+  (c/cache-invalidate (is/system-cache @*the-system*) pairs))
 
 (defn cache-encache
   "Uses the system’s Cache component.
@@ -301,7 +301,7 @@ inherits from dynamo.node/Scope."
 
   The collection must contain tuples of [[node-id label] value]."
   [coll]
-  (c/cache-encache (is/system-cache @the-system) coll))
+  (c/cache-encache (is/system-cache @*the-system*) coll))
 
 (defn cache-hit
   "Uses the system’s Cache component.
@@ -310,19 +310,17 @@ inherits from dynamo.node/Scope."
 
   The collection must contain tuples of [node-id label] pairs."
   [coll]
-  (c/cache-hit (is/system-cache @the-system) coll))
+  (c/cache-hit (is/system-cache @*the-system*) coll))
 
 (defn cache-snapshot
   "Get a value of the cache at a point in time."
   []
-  (c/cache-snapshot (is/system-cache @the-system)))
+  (c/cache-snapshot (is/system-cache @*the-system*)))
 
 (defn node-by-id
   [node-id]
-  (ig/node (is/world-graph @the-system) node-id))
+  (ig/node (is/world-graph @*the-system*) node-id))
 
 (defn node-value
-  ([node label]
-   (in/node-value (is/world-graph @the-system) (is/system-cache @the-system) (:_id node) label))
-  ([graph cache node label]
-   (in/node-value graph cache (:_id node) label)))
+  [node label]
+  (in/node-value (is/world-graph @*the-system*) (is/system-cache @*the-system*) (:_id node) label))

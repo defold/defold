@@ -54,7 +54,7 @@
                  (is (> (count atlas-nodes) 0))
                  (let [atlas-node (first atlas-nodes)
                        editor-node (p/make-editor project (:filename atlas-node))]
-                   (is (= atlas-node (g/node-value (is/world-graph system) cache editor-node :node)))))))))
+                   (is (= atlas-node (g/node-value editor-node :node)))))))))
 
 (deftest open-editor
   (testing "Opening editor does not alter undo history"
@@ -75,6 +75,6 @@
                   editor-node-ref (g/node-ref (p/make-editor project (:filename @atlas-node-ref)))]
               (g/transactional (g/delete @atlas-node-ref))
               (is (not-nil? @editor-node-ref))
-              (is (nil? (g/node-value (is/world-graph system) cache @editor-node-ref :node)))
+              (is (nil? (g/node-value @editor-node-ref :node)))
               (ds/undo)
-              (is (not-nil? (g/node-value (is/world-graph system) cache @editor-node-ref :node)))))))
+              (is (not-nil? (g/node-value @editor-node-ref :node)))))))
