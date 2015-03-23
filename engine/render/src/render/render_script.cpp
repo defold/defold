@@ -313,7 +313,7 @@ namespace dmRender
      *   <li><code>render.STATE_DEPTH_TEST</code></li>
      *   <li><code>render.STATE_STENCIL_TEST</code></li>
      *   <li><code>render.STATE_BLEND</code></li>
-     *   <li><code>render.STATE_ALPHA_TEST</code>No available on iOS/Android</li>
+     *   <li><code>render.STATE_ALPHA_TEST</code> (not available on iOS and Android)</li>
      *   <li><code>render.STATE_CULL_FACE</code></li>
      *   <li><code>render.STATE_POLYGON_OFFSET_FILL</code></li>
      * </ul>
@@ -723,7 +723,8 @@ namespace dmRender
      *
      * @name render.enable_texture
      * @param unit texture unit to enable texture for (number)
-     * @param render_target render target for which to enable the specified texture unit (render_target)
+     * @param render_target render target from which to enable the specified texture unit (render_target)
+     * @param buffer_type buffer type from which to enable the texture (constant)
      */
     int RenderScript_EnableTexture(lua_State* L)
     {
@@ -747,7 +748,7 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(unit, render_target) called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "%s.enable_texture(unit, render_target, buffer_type) called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
         }
     }
 
