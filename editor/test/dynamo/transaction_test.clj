@@ -38,7 +38,7 @@
 (deftest low-level-transactions
   (testing "one node with tempid"
     (with-clean-system
-      (let [tx-result (ds/transact system (it/new-node (n/construct Resource :_id -5 :a "known value")))]
+      (let [tx-result (ds/transact (atom system) (it/new-node (n/construct Resource :_id -5 :a "known value")))]
         (is (= :ok (:status tx-result)))
         (is (= "known value" (:a (ig/node (:graph tx-result) (it/resolve-tempid tx-result -5))))))))
   (testing "two connected nodes"
@@ -46,7 +46,7 @@
       (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
-            after                 (:graph (ds/transact system (it/connect resource1 :b resource2 :consumer)))]
+            after                 (:graph (ds/transact (atom system) (it/connect resource1 :b resource2 :consumer)))]
         (is (= [id1 :b]        (first (ig/sources after id2 :consumer))))
         (is (= [id2 :consumer] (first (ig/targets after id1 :b)))))))
   (testing "disconnect two singly-connected nodes"
@@ -54,8 +54,8 @@
       (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
-            tx-result             (ds/transact system (it/connect    resource1 :b resource2 :consumer))
-            tx-result             (ds/transact system (it/disconnect resource1 :b resource2 :consumer))
+            tx-result             (ds/transact (atom system) (it/connect    resource1 :b resource2 :consumer))
+            tx-result             (ds/transact (atom system) (it/disconnect resource1 :b resource2 :consumer))
             after                 (:graph tx-result)]
         (is (= :ok (:status tx-result)))
         (is (= [] (ig/sources after id2 :consumer)))
@@ -63,14 +63,14 @@
   (testing "simple update"
     (with-clean-system
       (let [[resource] (tx-nodes (n/construct Resource :c 0))
-            tx-result  (ds/transact system (it/update-property resource :c (fnil + 0) [42]))]
+            tx-result  (ds/transact (atom system) (it/update-property resource :c (fnil + 0) [42]))]
         (is (= :ok (:status tx-result)))
         (is (= 42 (:c (ig/node (:graph tx-result) (:_id resource))))))))
   (testing "node deletion"
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))]
-        (ds/transact system (it/connect resource1 :b resource2 :consumer))
-        (let [tx-result (ds/transact system (it/delete-node resource2))
+        (ds/transact (atom system) (it/connect resource1 :b resource2 :consumer))
+        (let [tx-result (ds/transact (atom system) (it/delete-node resource2))
               after     (:graph tx-result)]
           (is (nil?   (ig/node    after (:_id resource2))))
           (is (empty? (ig/targets after (:_id resource1) :b)))
@@ -81,7 +81,7 @@
       (let [[resource1] (tx-nodes (n/construct Resource :marker 99))
             id1         (:_id resource1)
             resource2   (n/construct Downstream :_id -1)
-            tx-result   (ds/transact system (it/become resource1 resource2))
+            tx-result   (ds/transact (atom system) (it/become resource1 resource2))
             after       (:graph tx-result)]
         (is (= :ok (:status tx-result)))
         (is (= id1 (it/resolve-tempid tx-result -1)))
@@ -301,9 +301,9 @@
 
 (deftest nodes-are-disposed-after-deletion
   (with-clean-system
-    (let [tx-result  (ds/transact system [(it/new-node (n/construct DisposableNode :_id -1))])
+    (let [tx-result  (ds/transact (atom system) [(it/new-node (n/construct DisposableNode :_id -1))])
           disposable (ig/node (:graph tx-result) (it/resolve-tempid tx-result -1))
-          tx-result  (ds/transact system [(it/delete-node disposable)])]
+          tx-result  (ds/transact (atom system) [(it/delete-node disposable)])]
       (yield)
       (is (= disposable (first (take-waiting-to-dispose system)))))))
 
@@ -316,14 +316,14 @@
 (deftest invalidated-properties-noted-by-transaction
   (with-clean-system
     (let [node             (n/construct CachedOutputInvalidation)
-          tx-result        (ds/transact system [(it/new-node node)])
+          tx-result        (ds/transact (atom system) [(it/new-node node)])
           real-node        (ig/node (:graph tx-result) (it/resolve-tempid tx-result (:_id node)))
           real-id          (:_id real-node)
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
       (is (= #{:properties :self :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-node :a-property (constantly "new-value") [])]
-            tx-result        (ds/transact system tx-data)
+            tx-result        (ds/transact (atom system) tx-data)
             outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map first outputs-modified)))
         (is (= #{:properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
@@ -348,7 +348,7 @@
   (with-clean-system
     (let [node    (g/transactional (g/add (n/construct CachedValueNode)))
           node-id (:_id node)]
-      (is (= "an-output-value" (g/node-value (is/world-graph system) cache node :cached-output)))
+      (is (= "an-output-value" (g/node-value node :cached-output)))
       (let [cached-value (cache-peek system node-id :cached-output)]
         (is (= "an-output-value" (e/result cached-value)))
         (g/transactional (g/delete node))
@@ -367,8 +367,8 @@
 (deftest cached-values-are-disposed-when-invalidated
   (with-clean-system
     (let [node   (g/transactional (g/add (n/construct DisposableCachedValueNode)))
-          value1 (g/node-value (is/world-graph system) cache node :cached-output)
-          tx-result (ds/transact system [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
+          value1 (g/node-value node :cached-output)
+          tx-result (ds/transact (atom system) [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
       (is (= [value1] (take-waiting-to-dispose system))))))
 
 (g/defnode OriginalNode
@@ -383,7 +383,7 @@
     (with-clean-system
       (let [node           (g/transactional (g/add (n/construct OriginalNode)))
             node-id        (:_id node)
-            expected-value (g/node-value (is/world-graph system) cache node :original-output)]
+            expected-value (g/node-value node :original-output)]
         (is (not (nil? expected-value)))
         (is (= expected-value (e/result (cache-peek system node-id :original-output))))
         (let [node (g/transactional (ds/become node (n/construct ReplacementNode)))]
@@ -394,7 +394,7 @@
     (with-clean-system
       (let [node         (g/transactional (g/add (n/construct OriginalNode)))
             node         (g/transactional (ds/become node (n/construct ReplacementNode)))
-            cached-value (g/node-value (is/world-graph system) cache node :additional-output)]
+            cached-value (g/node-value node :additional-output)]
         (yield)
         (is (= cached-value (e/result (cache-peek system (:_id node) :additional-output))))))))
 
@@ -434,8 +434,8 @@
             adder-before  (g/transactional (g/add (n/construct InputAndPropertyAdder :y 3)))
             _             (g/transactional (g/connect number-source :x adder-before :x))
             adder-after   (g/transactional (g/update-property adder-before :y inc))]
-        (is (= 6 (g/node-value (is/world-graph system) cache adder-after  :sum)))
-        (is (= 6 (g/node-value (is/world-graph system) cache adder-before :sum)))))
+        (is (= 6 (g/node-value adder-after  :sum)))
+        (is (= 6 (g/node-value adder-before :sum)))))
 
     (with-clean-system
       (let [number-source (g/transactional (g/add (n/construct NumberSource :x 2)))
@@ -443,8 +443,8 @@
             _             (g/transactional (g/connect number-source :x adder-before :x))
             _             (g/transactional (g/set-property number-source :x 22))
             adder-after   (g/transactional (g/update-property adder-before :y inc))]
-        (is (= 26 (g/node-value (is/world-graph system) cache adder-after  :sum)))
-        (is (= 26 (g/node-value (is/world-graph system) cache adder-before :sum))))))
+        (is (= 26 (g/node-value adder-after  :sum)))
+        (is (= 26 (g/node-value adder-before :sum))))))
 
   (testing "caching stale output value"
     (with-clean-system
@@ -452,23 +452,23 @@
             adder-before  (g/transactional (g/add (n/construct InputAndPropertyAdder :y 3)))
             _             (g/transactional (g/connect number-source :x adder-before :x))
             adder-after   (g/transactional (g/update-property adder-before :y inc))]
-        (is (= 6 (g/node-value (is/world-graph system) cache adder-before :cached-sum)))
-        (is (= 6 (g/node-value (is/world-graph system) cache adder-before :sum)))
-        (is (= 6 (g/node-value (is/world-graph system) cache adder-after  :cached-sum)))
-        (is (= 6 (g/node-value (is/world-graph system) cache adder-after  :sum))))))
+        (is (= 6 (g/node-value adder-before :cached-sum)))
+        (is (= 6 (g/node-value adder-before :sum)))
+        (is (= 6 (g/node-value adder-after  :cached-sum)))
+        (is (= 6 (g/node-value adder-after  :sum))))))
 
   (testing "computation with inconsistent world"
     (with-clean-system
       (let [tree-levels            5
             iterations             100
             [adder number-sources] (g/transactional (build-adder-tree :sum tree-levels))]
-        (is (= 0 (g/node-value (is/world-graph system) cache adder :sum)))
+        (is (= 0 (g/node-value adder :sum)))
         (dotimes [i iterations]
-          (let [f1 (future (g/node-value (is/world-graph system) cache adder :sum))
+          (let [f1 (future (g/node-value adder :sum))
                 f2 (future (g/transactional (doseq [n number-sources] (g/update-property n :x inc))))]
             (is (zero? (mod @f1 (count number-sources))))
             @f2))
-        (is (= (* iterations (count number-sources)) (g/node-value (is/world-graph system) cache adder :sum))))))
+        (is (= (* iterations (count number-sources)) (g/node-value adder :sum))))))
 
   ;; This is nondeterministic because there's no guarantee that the last cache invalidation
   ;; gets executed after the last transaction, but the test assumes that it always would.
@@ -479,16 +479,16 @@
       (let [tree-levels            5
             iterations             250
             [adder number-sources] (g/transactional (build-adder-tree :sum tree-levels))]
-        (is (= 0 (g/node-value (is/world-graph system) cache adder :cached-sum)))
+        (is (= 0 (g/node-value adder :cached-sum)))
         (loop [i iterations]
           (when (pos? i)
-            (let [f1 (future (g/node-value (is/world-graph system) cache adder :cached-sum))
+            (let [f1 (future (g/node-value adder :cached-sum))
                   f2 (future (g/transactional (doseq [n number-sources] (g/update-property n :x inc))))]
               @f2
               @f1
               (recur (dec i)))))
-        (let [sum        (g/node-value (is/world-graph system) cache adder :sum)
-              cached-sum (g/node-value (is/world-graph system) cache adder :cached-sum)]
+        (let [sum        (g/node-value adder :sum)
+              cached-sum (g/node-value adder :cached-sum)]
           (is (= sum cached-sum))))))
 
   (testing "recursively computed values are cached"
@@ -498,6 +498,6 @@
         (g/transactional (doseq [n number-sources] (g/update-property n :x inc)))
         (is (nil? (cache-peek system (:_id adder) :cached-sum)))
         (is (nil? (cache-peek system (:_id (first number-sources)) :cached-sum)))
-        (g/node-value (is/world-graph system) cache adder :cached-sum)
+        (g/node-value adder :cached-sum)
         (is (= (count number-sources) (some-> (cache-peek system (:_id adder) :cached-sum)  e/result)))
         (is (= 1                      (some-> (cache-peek system (:_id (first number-sources)) :cached-sum) e/result)))))))

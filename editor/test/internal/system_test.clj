@@ -29,7 +29,7 @@
           world-ref (is/world-ref sys)
           root      (n/construct Root)
           before    (is/world-time sys)
-          tx-report (ds/transact sys [(it/new-node root)])
+          tx-report (ds/transact (atom sys) [(it/new-node root)])
           after     (is/world-time sys)]
       (is (= :ok (:status tx-report)))
       (is (< before after))))
@@ -38,7 +38,7 @@
     (let [sys (fresh-system)
           world-ref (is/world-ref sys)
           before    (is/world-time sys)
-          tx-report (ds/transact sys [])
+          tx-report (ds/transact (atom sys) [])
           after     (is/world-time sys)]
       (is (= :empty (:status tx-report)))
       (is (= before after)))))

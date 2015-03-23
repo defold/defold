@@ -30,8 +30,8 @@
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
-(defn the-world       [] (-> ds/the-system deref :world))
-(defn the-cache       [] (-> ds/the-system deref :cache))
+(defn the-world       [] (-> ds/*the-system* deref :world))
+(defn the-cache       [] (-> ds/*the-system* deref :cache))
 (defn the-graph       [] (-> (the-world) :state deref))
 (defn nodes           [] (-> (the-graph) :nodes vals))
 

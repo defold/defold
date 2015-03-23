@@ -130,7 +130,7 @@
        (let [description#    ~(in/node-type-sexps symb (concat dn/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
-             whole-graph#    (is/world-graph @ds/the-system)
+             whole-graph#    (is/world-graph @ds/*the-system*)
              to-be-replaced# (when (and whole-graph# replacing#)
                                (filterv #(= replacing# (node-type %)) (ig/node-values whole-graph#)))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
@@ -225,10 +225,8 @@
 
   The label must exist as a defined transform on the node, or an
   AssertionError will result."
-  ([node label]
-   (ds/node-value node label))
-  ([graph cache node label]
-   (ds/node-value graph cache node label)))
+  [node label]
+  (ds/node-value node label))
 
 (defn node-by-id
   [node-id]
