@@ -273,7 +273,7 @@
    t/NamingContext
   (lookup [this name]
     (let [path (if (instance? ProjectPath name) name (make-project-path this name))]
-      (->> (:nodes (:graph @(:world-ref this)))
+      (->> (:nodes @(:world-ref this))
         (vals)
         (filter #(= path (:filename %)))
         (first))))

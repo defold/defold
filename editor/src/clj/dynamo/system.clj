@@ -15,7 +15,7 @@
 (defn- n->g
   "Get the graph this node belongs to."
   [node]
-  (-> node :world-ref deref :graph))
+  (-> node :world-ref deref))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
@@ -23,7 +23,7 @@
 (defn node
   "Get a node, given just a world and an id."
   [world-ref id]
-  (ig/node (:graph @world-ref) id))
+  (ig/node @world-ref id))
 
 (defn node-feeding-into
   "Find the one-and-only node that sources this input on this node.
@@ -87,8 +87,6 @@ to distinguish it from a function call."
   [graph outputs]
   (ig/trace-dependencies graph outputs))
 
-(declare transact)
-
 ;; ---------------------------------------------------------------------------
 ;; Transactional state
 ;; ---------------------------------------------------------------------------
@@ -97,12 +95,14 @@ to distinguish it from a function call."
    (transact @the-system txs))
   ([sys txs]
    (let [world-ref (is/world-ref sys)
-         tx-result (it/transact* world-ref (it/new-transaction-context world-ref txs))
-         last-tx   (-> tx-result :world :last-tx)]
-     (doseq [l (:old-event-loops tx-result)]      (is/stop-event-loop! sys l))
-     (doseq [l (:new-event-loops tx-result)]      (is/start-event-loop! sys l))
-     (doseq [d (vals (:nodes-deleted tx-result))] (is/dispose! sys d))
-     last-tx)))
+         tx-result (it/transact* world-ref (it/new-transaction-context world-ref txs))]
+     (when (= :ok (:status tx-result))
+       (dosync (ref-set world-ref (assoc (:graph tx-result)
+                                         :last-tx (dissoc tx-result :graph))))
+       (doseq [l (:old-event-loops tx-result)]      (is/stop-event-loop! sys l))
+       (doseq [l (:new-event-loops tx-result)]      (is/start-event-loop! sys l))
+       (doseq [d (vals (:nodes-deleted tx-result))] (is/dispose! sys d)))
+     tx-result)))
 
 (defn- resolve-return-val
   [tx-outcome val]
@@ -228,7 +228,7 @@ inherits from dynamo.node/Scope."
 
 (defn pre-transaction-graph
   [transaction]
-  (-> transaction :world-ref deref :graph))
+  (-> transaction :world-ref deref))
 
 (defn in-transaction-graph
   [transaction]
