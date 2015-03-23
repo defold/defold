@@ -121,7 +121,7 @@ This function should not be called directly."
 This should not be called directly."
   [transaction graph self label kind]
   (when (ds/is-deleted? transaction self)
-    (let [graph-before-deletion (-> transaction :world-ref deref :graph)
+    (let [graph-before-deletion (-> transaction :world-ref deref)
           nodes-to-delete       (in/get-inputs graph-before-deletion self :nodes)]
       (for [n nodes-to-delete]
         (it/delete-node n)))))

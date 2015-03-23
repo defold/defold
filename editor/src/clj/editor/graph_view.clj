@@ -85,5 +85,5 @@
 
 (defn setup-graph-view [root world-ref]
   (let [button (.lookup root "#graph-refresh")
-        handler (ui/event-handler event (update-graph-view root (:graph @world-ref)))]
+        handler (ui/event-handler event (update-graph-view root @world-ref))]
     (.setOnAction button handler)))

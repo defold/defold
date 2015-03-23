@@ -24,7 +24,7 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   t/NamingContext
   (lookup
    [this nm]
-   (let [nodes (in/get-inputs (-> this :world-ref deref :graph) this :nodes)]
+   (let [nodes (in/get-inputs (-> this :world-ref deref) this :nodes)]
      (first (filter #(= nm (:name %)) nodes)))))
 
 

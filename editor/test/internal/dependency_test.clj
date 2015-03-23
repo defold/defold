@@ -6,13 +6,14 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :as ts]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]))
+            [dynamo.util :refer :all]
+            [internal.system :as is]))
 
 (defn- id [x] (or (:_id x) (:node-id x)))
 
 (defn- dependencies
   [world-ref & pairs]
-  (ds/output-dependencies (:graph @world-ref)
+  (ds/output-dependencies @world-ref
                           (map-first id (partition 2 pairs))))
 
 (g/defnode SingleOutput
@@ -263,7 +264,6 @@
                      (g/connect b :out-from-inline x :input-2))
             a-deps  (dependencies world-ref a :out-from-inline)
             b-deps  (dependencies world-ref b :out-from-inline)]
-        (def gr* (:graph @world-ref))
         (is (= a-deps
                #{[(id a) :out-from-inline]
                  [(id x) :output-1]}))

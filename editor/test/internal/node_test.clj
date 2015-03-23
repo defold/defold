@@ -105,14 +105,14 @@
 (deftest node-intrinsics
   (with-clean-system
     (let [[node] (tx-nodes (n/construct EmptyNode))]
-      (is (identical? node (g/node-value (:graph @world-ref) cache node :self)))))
+      (is (identical? node (g/node-value (is/world-graph system) cache node :self)))))
   (with-clean-system
     (let [n1       (g/transactional (g/add (n/construct SimpleTestNode)))
-          before   (:graph @world-ref)
+          before   (is/world-graph system)
           _        (g/transactional (g/set-property n1 :foo "quux"))
-          after    (:graph @world-ref)
+          after    (is/world-graph system)
           n2       (g/transactional (g/add (n/construct SimpleTestNode :foo "bar")))
-          override (:graph @world-ref)]
+          override (is/world-graph system)]
       (is (not (identical? before after)))
       (are [expected-value when node]
         (= expected-value (-> (g/node-value when cache node :properties) :foo :value))
@@ -146,9 +146,9 @@
 (deftest production-function-types
   (with-clean-system
     (let [[node] (tx-nodes (n/construct ProductionFunctionTypesNode))]
-      (is (= :fn   (g/node-value (:graph @world-ref) cache node :inline-fn)))
-      (is (= :defn (g/node-value (:graph @world-ref) cache node :defn-as-symbol)))
-      (is (= :def  (g/node-value (:graph @world-ref) cache node :def-as-symbol))))))
+      (is (= :fn   (g/node-value (is/world-graph system) cache node :inline-fn)))
+      (is (= :defn (g/node-value (is/world-graph system) cache node :defn-as-symbol)))
+      (is (= :def  (g/node-value (is/world-graph system) cache node :def-as-symbol))))))
 
 (defn production-fn-this [this g] this)
 (defn production-fn-g [this g] g)
@@ -186,25 +186,25 @@
               (g/connect node0 :defnk-prop node1 :in-multi)
               (g/connect node0 :defnk-prop node2 :in-multi)
               (g/connect node1 :defnk-prop node2 :in-multi))
-          graph (is/graph world-ref)]
+          graph (is/world-graph system)]
       (testing "inline fn parameters"
-        (is (identical? node0 (g/node-value (:graph @world-ref) cache node0 :inline-fn-this)))
-        (is (identical? graph (g/node-value (:graph @world-ref) cache node0 :inline-fn-g))))
+        (is (identical? node0 (g/node-value (is/world-graph system) cache node0 :inline-fn-this)))
+        (is (identical? graph (g/node-value (is/world-graph system) cache node0 :inline-fn-g))))
       (testing "standard defn parameters"
-        (is (identical? node0 (g/node-value (:graph @world-ref) cache node0 :defn-this)))
-        (is (identical? graph (g/node-value (:graph @world-ref) cache node0 :defn-g))))
+        (is (identical? node0 (g/node-value (is/world-graph system) cache node0 :defn-this)))
+        (is (identical? graph (g/node-value (is/world-graph system) cache node0 :defn-g))))
       (testing "'special' defnk inputs"
-        (is (identical? node0     (g/node-value (:graph @world-ref) cache node0 :defnk-this)))
-        (is (identical? graph     (g/node-value (:graph @world-ref) cache node0 :defnk-g))))
+        (is (identical? node0     (g/node-value (is/world-graph system) cache node0 :defnk-this)))
+        (is (identical? graph     (g/node-value (is/world-graph system) cache node0 :defnk-g))))
       (testing "defnk inputs from node properties"
-        (is (= :node0 (g/node-value (:graph @world-ref) cache node0 :defnk-prop))))
+        (is (= :node0 (g/node-value (is/world-graph system) cache node0 :defnk-prop))))
       (testing "defnk inputs from node inputs"
-        (is (nil?              (g/node-value (:graph @world-ref) cache node0 :defnk-in)))
-        (is (= :node0          (g/node-value (:graph @world-ref) cache node1 :defnk-in)))
-        (is (#{:node0 :node1}  (g/node-value (:graph @world-ref) cache node2 :defnk-in)))
-        (is (= []              (g/node-value (:graph @world-ref) cache node0 :defnk-in-multi)))
-        (is (= [:node0]        (g/node-value (:graph @world-ref) cache node1 :defnk-in-multi)))
-        (is (= [:node0 :node1] (g/node-value (:graph @world-ref) cache node2 :defnk-in-multi)))))))
+        (is (nil?              (g/node-value (is/world-graph system) cache node0 :defnk-in)))
+        (is (= :node0          (g/node-value (is/world-graph system) cache node1 :defnk-in)))
+        (is (#{:node0 :node1}  (g/node-value (is/world-graph system) cache node2 :defnk-in)))
+        (is (= []              (g/node-value (is/world-graph system) cache node0 :defnk-in-multi)))
+        (is (= [:node0]        (g/node-value (is/world-graph system) cache node1 :defnk-in-multi)))
+        (is (= [:node0 :node1] (g/node-value (is/world-graph system) cache node2 :defnk-in-multi)))))))
 
 (deftest node-properties-as-node-outputs
   (testing "every property automatically creates an output that produces the property's value"
@@ -213,7 +213,7 @@
                             (n/construct ProductionFunctionInputsNode :prop :node0)
                             (n/construct ProductionFunctionInputsNode :prop :node1))
             _ (g/transactional (g/connect node0 :prop node1 :in))]
-        (is (= :node0 (g/node-value (:graph @world-ref) cache node1 :defnk-in))))))
+        (is (= :node0 (g/node-value (is/world-graph system) cache node1 :defnk-in))))))
   (testing "the output has the same type as the property"
     (is (= t/Keyword
           (-> ProductionFunctionInputsNode g/transform-types' :prop)
@@ -234,13 +234,13 @@
   (testing "output dependent on itself"
     (with-clean-system
       (let [[node] (tx-nodes (n/construct DependencyNode))]
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache node :out-from-self))))))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (n/construct DependencyNode) (n/construct DependencyNode))]
         (g/transactional
          (g/connect node0 :out-from-self node1 :in))
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache node1 :out-from-in))))))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
       (let [[node] (tx-nodes (n/construct DependencyNode))]
@@ -289,32 +289,32 @@
 (deftest node-output-substitute-value
   (with-clean-system
     (let [n (g/transactional (g/add (n/construct SubstituteValueNode)))]
-      (testing "exceptions from node-value (:graph @world-ref) cache when no substitute value fn"
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defn)))
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk))))
+      (testing "exceptions from node-value (is/world-graph system) cache when no substitute value fn"
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache n :out-defn)))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache n :out-defnk))))
       (testing "substitute value replacement"
-        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-defn-with-substitute-fn)))
-        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-defnk-with-substitute-fn)))
-        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-defn-with-substitute)))
-        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-defnk-with-substitute))))
+        (is (= :substitute (g/node-value (is/world-graph system) cache n :out-defn-with-substitute-fn)))
+        (is (= :substitute (g/node-value (is/world-graph system) cache n :out-defnk-with-substitute-fn)))
+        (is (= :substitute (g/node-value (is/world-graph system) cache n :out-defn-with-substitute)))
+        (is (= :substitute (g/node-value (is/world-graph system) cache n :out-defnk-with-substitute))))
       (testing "parameters to substitute value fn"
-        (is (= (:_id n) (:node-id (g/node-value (:graph @world-ref) cache n :substitute-value-passthrough)))))
+        (is (= (:_id n) (:node-id (g/node-value (is/world-graph system) cache n :substitute-value-passthrough)))))
       (testing "exception from substitute value fn"
-        (is (thrown-with-msg? Throwable #"bailed" (g/node-value (:graph @world-ref) cache n :out-abort-with-substitute-f))))
+        (is (thrown-with-msg? Throwable #"bailed" (g/node-value (is/world-graph system) cache n :out-abort-with-substitute-f))))
       (testing "abort"
-        (is (thrown-with-msg? Throwable #"Aborting\.\.\." (g/node-value (:graph @world-ref) cache n :out-abort)))
+        (is (thrown-with-msg? Throwable #"Aborting\.\.\." (g/node-value (is/world-graph system) cache n :out-abort)))
         (try
-          (g/node-value (:graph @world-ref) cache n :out-abort)
-          (is false "Expected node-value (:graph @world-ref) cache to throw an exception")
+          (g/node-value (is/world-graph system) cache n :out-abort)
+          (is false "Expected node-value (is/world-graph system) cache to throw an exception")
           (catch Throwable e
             (is (= {:some-key :some-value} (ex-data e)))))
-        (is (= :substitute (g/node-value (:graph @world-ref) cache n :out-abort-with-substitute))))
+        (is (= :substitute (g/node-value (is/world-graph system) cache n :out-abort-with-substitute))))
       (testing "interaction with cache"
         (binding [*calls* (atom {})]
           (is (= 0 (get-tally n :invocation-count)))
-          (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk-with-invocation-count)))
+          (is (thrown? Throwable (g/node-value (is/world-graph system) cache n :out-defnk-with-invocation-count)))
           (is (= 1 (get-tally n :invocation-count)))
-          (is (thrown? Throwable (g/node-value (:graph @world-ref) cache n :out-defnk-with-invocation-count)))
+          (is (thrown? Throwable (g/node-value (is/world-graph system) cache n :out-defnk-with-invocation-count)))
           (is (= 1 (get-tally n :invocation-count))))))))
 
 (g/defnode ValueHolderNode
@@ -341,35 +341,35 @@
       (g/transactional (g/connect holder-node :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache answer-node :out)))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache answer-node :out)))
         (is (= 2 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache answer-node :out-cached)))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache answer-node :out-cached)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
-        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
+        (is (= :forty-two (g/node-value (is/world-graph system) cache answer-node :out-with-substitute)))
+        (is (= :forty-two (g/node-value (is/world-graph system) cache answer-node :out-with-substitute)))
         (is (= 2 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
-        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
+        (is (= :forty-two (g/node-value (is/world-graph system) cache answer-node :out-cached-with-substitute)))
+        (is (= :forty-two (g/node-value (is/world-graph system) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*)))
 
       (g/transactional (g/set-property holder-node :value 42))
 
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out-cached)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out-with-substitute)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*))))))
 
 (g/defnk always-fail []
@@ -385,16 +385,16 @@
       (g/transactional (g/connect failure-node :out answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out)))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache answer-node :out)))
         (is (= 0 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (thrown? Throwable (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
+        (is (thrown? Throwable (g/node-value (is/world-graph system) cache answer-node :out-cached)))
         (is (= 0 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
+        (is (= :forty-two (g/node-value (is/world-graph system) cache answer-node :out-with-substitute)))
         (is (= 0 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= :forty-two (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
+        (is (= :forty-two (g/node-value (is/world-graph system) cache answer-node :out-cached-with-substitute)))
         (is (= 0 @*answer-call-count*)))
 
       (g/transactional
@@ -402,18 +402,18 @@
        (g/connect (g/add (n/construct ValueHolderNode :value 42)) :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out-cached)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out-cached)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-with-substitute)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out-with-substitute)))
         (is (= 1 @*answer-call-count*)))
       (binding [*answer-call-count* (atom 0)]
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
-        (is (= 42 (g/node-value (:graph @world-ref) cache answer-node :out-cached-with-substitute)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out-cached-with-substitute)))
+        (is (= 42 (g/node-value (is/world-graph system) cache answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*))))))
 
 
@@ -476,5 +476,5 @@
 (deftest validation-errors-delivered-in-properties-output
   (with-clean-system
     (let [[node]     (tx-nodes (n/construct PropertyValidationNode :even-number 1))
-          properties (g/node-value (:graph @world-ref) cache node :properties)]
+          properties (g/node-value (is/world-graph system) cache node :properties)]
       (is (= ["only even numbers are allowed"] (some-> properties :even-number :validation-problems))))))

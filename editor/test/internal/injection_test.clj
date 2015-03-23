@@ -8,7 +8,8 @@
             [dynamo.types :as t]
             [editor.core :as core]
             [internal.graph :as ig]
-            [internal.node :as in]))
+            [internal.node :as in]
+            [internal.system :as is]))
 
 ;; TODO - move this to editor. It's no longer an inherent part of the graph.
 
@@ -67,7 +68,7 @@
                     (ds/in (g/add (n/construct InjectionScope))
                            (g/add (n/construct ValueProducer :value "a known value"))
                       (ds/current-scope)))]
-        (is (= "a known value" (g/node-value (:graph @world-ref) cache scope :passthrough))))))
+        (is (= "a known value" (g/node-value (is/world-graph system) cache scope :passthrough))))))
 
   (testing "attach one node output to input on another node"
     (with-clean-system
@@ -76,8 +77,8 @@
                               (g/add (n/construct ValueProducer :value "a known value"))
                               (g/add (n/construct ValueConsumer))))]
         (def con* consumer)
-        (def gr* (:graph @world-ref))
-        (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation))))))
+        (def gr* (is/world-graph system))
+        (is (= "a known value" (g/node-value (is/world-graph system) cache consumer :concatenation))))))
 
   (testing "attach nodes in different transactions"
     (with-clean-system
@@ -89,7 +90,7 @@
             producer (g/transactional
                        (ds/in scope
                               (g/add (n/construct ValueProducer :value "a known value"))))]
-        (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation))))))
+        (is (= "a known value" (g/node-value (is/world-graph system) cache consumer :concatenation))))))
 
   (testing "attach nodes in different transactions and reverse order"
     (with-clean-system
@@ -101,7 +102,7 @@
             consumer (g/transactional
                        (ds/in scope
                          (g/add (n/construct ValueConsumer))))]
-        (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation))))))
+        (is (= "a known value" (g/node-value (is/world-graph system) cache consumer :concatenation))))))
 
   (testing "explicitly connect nodes, see if injection also happens"
     (with-clean-system
@@ -115,7 +116,7 @@
                          (let [c (g/add (n/construct ValueConsumer))]
                            (ds/connect producer :local-name c :local-names)
                            c)))]
-        (is (= "a known value" (g/node-value (:graph @world-ref) cache consumer :concatenation)))))))
+        (is (= "a known value" (g/node-value (is/world-graph system) cache consumer :concatenation)))))))
 
 (g/defnode ReflexiveFeedback
   (property port t/Keyword (default :no))
@@ -125,7 +126,7 @@
   (testing "don't connect a node's own output to its input"
     (with-clean-system
       (let [node (g/transactional (g/add (n/construct ReflexiveFeedback)))]
-        (is (not (ig/connected? (-> world-ref deref :graph) (:_id node) :port (:_id node) :ports)))))))
+        (is (not (ig/connected? @world-ref (:_id node) :port (:_id node) :ports)))))))
 
 (g/defnode OutputProvider
   (inherits core/Scope)

@@ -31,7 +31,7 @@
 
 (s/defrecord NodeRef [world-ref node-id]
   clojure.lang.IDeref
-  (deref [this] (get-in (:graph @world-ref) [:nodes node-id])))
+  (deref [this] (get-in @world-ref [:nodes node-id])))
 
 (defmethod print-method NodeRef
   [^NodeRef v ^java.io.Writer w]
