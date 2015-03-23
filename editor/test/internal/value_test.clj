@@ -110,50 +110,50 @@
   (with-clean-system
     (let [[name1 name2 combiner expensive] (build-sample-project)]
       (testing "uncached values are unaffected"
-        (is (= "Jane" (g/node-value (is/world-graph system) cache name1 :uncached-value)))))))
+        (is (= "Jane" (g/node-value name1 :uncached-value)))))))
 
 (deftest caching-avoids-computation
   (testing "cached values are only computed once"
     (with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project)]
-        (is (= "Jane Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))
+        (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-no-call-when combiner 'compute-derived-value
                              (doseq [x (range 100)]
-                               (g/node-value (is/world-graph system) cache combiner :derived-value))))))
+                               (g/node-value combiner :derived-value))))))
 
   (testing "modifying inputs invalidates the cached value"
     (with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project)]
-        (is (= "Jane Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))
+        (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (ds/transact system [(it/update-property name1 :scalar (constantly "John") [])])
-                          (is (= "John Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))))))
+                          (ds/transact (atom system) [(it/update-property name1 :scalar (constantly "John") [])])
+                          (is (= "John Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "transmogrifying a node invalidates its cached value"
     (with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project)]
-        (is (= "Jane Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))
+        (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (ds/transact system [(it/become name1 (n/construct CacheTestNode))])
-                          (is (= "Jane Doe" (g/node-value (is/world-graph system) cache combiner :derived-value)))))))
+                          (ds/transact (atom system) [(it/become name1 (n/construct CacheTestNode))])
+                          (is (= "Jane Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"
     (with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project)]
-        (is (= "this is distinct from the other outputs" (g/node-value (is/world-graph system) cache combiner :another-value)))
-        (is (not= (g/node-value (is/world-graph system) cache combiner :another-value) (g/node-value (is/world-graph system) cache combiner :expensive-value))))))
+        (is (= "this is distinct from the other outputs" (g/node-value combiner :another-value)))
+        (is (not= (g/node-value combiner :another-value) (g/node-value combiner :expensive-value))))))
 
   (testing "cache invalidation only hits dependent outputs"
     (with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project)]
-        (is (= "Jane" (g/node-value (is/world-graph system) cache combiner :nickname)))
+        (is (= "Jane" (g/node-value combiner :nickname)))
         (expect-call-when combiner 'passthrough-first-name
-                          (ds/transact system [(it/update-property name1 :scalar (constantly "Mark") [])])
-                          (is (= "Mark" (g/node-value (is/world-graph system) cache combiner :nickname))))
+                          (ds/transact (atom system) [(it/update-property name1 :scalar (constantly "Mark") [])])
+                          (is (= "Mark" (g/node-value combiner :nickname))))
         (expect-no-call-when combiner 'passthrough-first-name
-                             (ds/transact system [(it/update-property name2 :scalar (constantly "Brandenburg") [])])
-                             (is (= "Mark" (g/node-value (is/world-graph system) cache combiner :nickname)))
-                             (is (= "Mark Brandenburg" (g/node-value (is/world-graph system) cache combiner :derived-value))))))))
+                             (ds/transact (atom system) [(it/update-property name2 :scalar (constantly "Brandenburg") [])])
+                             (is (= "Mark" (g/node-value combiner :nickname)))
+                             (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
 
 
 (g/defnk compute-disposable-value
@@ -194,7 +194,7 @@
   (with-clean-system
     (let [[override jane] (build-override-project)]
       (testing "requesting a non-existent label throws"
-        (is (thrown? clojure.lang.ExceptionInfo (g/node-value (is/world-graph system) cache override :aint-no-thang)))))))
+        (is (thrown? clojure.lang.ExceptionInfo (g/node-value override :aint-no-thang)))))))
 
 (deftest update-sees-in-transaction-value
   (with-clean-system
@@ -225,7 +225,7 @@
   (with-clean-system
     (let [[node]       (tx-nodes (n/construct SelfCounter :first-call true))
           node-id      (:_id node)]
-      (g/node-value (is/world-graph system) cache node :plus-1)
+      (g/node-value node :plus-1)
       (is (cached? cache node-id :plus-1))
       (is (not (cached? cache node-id :self)))
       (is (not (cached? cache node-id :call-counter))))))
@@ -257,8 +257,8 @@
        (g/connect s1 :constant node :overloaded-output-input-property)
        (g/connect s1 :constant node :overloaded-input-property)
        (g/connect s1 :constant node :eponymous))
-      (is (= :output   (g/node-value (is/world-graph system) cache node :overloaded-output-input-property)))
-      (is (= :input    (g/node-value (is/world-graph system) cache node :overloaded-input-property)))
-      (is (= :property (g/node-value (is/world-graph system) cache node :the-property)))
-      (is (= :output   (g/node-value (is/world-graph system) cache node :output-using-overloaded-output-input-property)))
-      (is (= :input    (g/node-value (is/world-graph system) cache node :eponymous))))))
+      (is (= :output   (g/node-value node :overloaded-output-input-property)))
+      (is (= :input    (g/node-value node :overloaded-input-property)))
+      (is (= :property (g/node-value node :the-property)))
+      (is (= :output   (g/node-value node :output-using-overloaded-output-input-property)))
+      (is (= :input    (g/node-value node :eponymous))))))

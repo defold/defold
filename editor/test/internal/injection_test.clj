@@ -68,7 +68,7 @@
                     (ds/in (g/add (n/construct InjectionScope))
                            (g/add (n/construct ValueProducer :value "a known value"))
                       (ds/current-scope)))]
-        (is (= "a known value" (g/node-value (is/world-graph system) cache scope :passthrough))))))
+        (is (= "a known value" (g/node-value scope :passthrough))))))
 
   (testing "attach one node output to input on another node"
     (with-clean-system
@@ -78,7 +78,7 @@
                               (g/add (n/construct ValueConsumer))))]
         (def con* consumer)
         (def gr* (is/world-graph system))
-        (is (= "a known value" (g/node-value (is/world-graph system) cache consumer :concatenation))))))
+        (is (= "a known value" (g/node-value consumer :concatenation))))))
 
   (testing "attach nodes in different transactions"
     (with-clean-system
@@ -90,7 +90,7 @@
             producer (g/transactional
                        (ds/in scope
                               (g/add (n/construct ValueProducer :value "a known value"))))]
-        (is (= "a known value" (g/node-value (is/world-graph system) cache consumer :concatenation))))))
+        (is (= "a known value" (g/node-value consumer :concatenation))))))
 
   (testing "attach nodes in different transactions and reverse order"
     (with-clean-system
@@ -102,7 +102,7 @@
             consumer (g/transactional
                        (ds/in scope
                          (g/add (n/construct ValueConsumer))))]
-        (is (= "a known value" (g/node-value (is/world-graph system) cache consumer :concatenation))))))
+        (is (= "a known value" (g/node-value consumer :concatenation))))))
 
   (testing "explicitly connect nodes, see if injection also happens"
     (with-clean-system
@@ -116,7 +116,7 @@
                          (let [c (g/add (n/construct ValueConsumer))]
                            (ds/connect producer :local-name c :local-names)
                            c)))]
-        (is (= "a known value" (g/node-value (is/world-graph system) cache consumer :concatenation)))))))
+        (is (= "a known value" (g/node-value consumer :concatenation)))))))
 
 (g/defnode ReflexiveFeedback
   (property port t/Keyword (default :no))

@@ -94,7 +94,6 @@
                           (tx-fn work)
                           {:status :empty})))
 
-
 (deftype NullTransaction []
   TransactionStarter
   (tx-begin [this]      (assert false "The system is not initialized enough to run transactions yet.")))
