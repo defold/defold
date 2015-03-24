@@ -265,25 +265,25 @@
 (g/defnode GameProject
   (inherits core/Scope)
 
-  (property node-types         {t/Str t/Symbol})
-  ;TODO: Resource type instead of string?
+  (property node-types   {t/Str t/Symbol})
+  ;; TODO: Resource type instead of string?
   (property content-root File)
 
-  ; TODO: Couldn't get ds/query to work
-   t/NamingContext
-  (lookup [this name]
-    (let [path (if (instance? ProjectPath name) name (make-project-path this name))]
-      (->> (:nodes @(:world-ref this))
-        (vals)
-        (filter #(= path (:filename %)))
-        (first))))
+  ;; TODO: Couldn't get ds/query to work
+  t/NamingContext
+  (lookup
+   [this name]
+   (let [path  (if (instance? ProjectPath name) name (make-project-path this name))
+         nodes (g/node-value this :nodes)]
+     (first (filter #(= path (:filename %)) nodes))))
 
   t/IDisposable
-  (dispose [this]
-           (println "Dispose GameProject"))
+  (dispose
+   [this]
+   (println "Dispose GameProject"))
 
   (on :destroy
-      (println "Destory GameProject")
+      (println "Destroy GameProject")
       (g/delete self)))
 
 (def editor-fns {:atlas atlas/construct-atlas-editor
@@ -367,7 +367,7 @@
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
     (setup-assets-browser game-project root)
-    (graph-view/setup-graph-view root (:world-ref game-project))
+    (graph-view/setup-graph-view root)
     (reset! the-root root)
     root))
 

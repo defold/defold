@@ -123,7 +123,7 @@
   (with-clean-system
     (let [node (g/transactional (g/add (n/construct SimpleTestNode :foo "one")))]
       (g/transactional (f node))
-      (let [modified (into #{} (map second (get-in @(:world-ref node) [:last-tx :outputs-modified])))]
+      (let [modified (into #{} (map second (get-in @world-ref [:last-tx :outputs-modified])))]
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output

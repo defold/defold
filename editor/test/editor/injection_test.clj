@@ -1,4 +1,4 @@
-(ns internal.injection-test
+(ns editor.injection-test
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -10,8 +10,6 @@
             [internal.graph :as ig]
             [internal.node :as in]
             [internal.system :as is]))
-
-;; TODO - move this to editor. It's no longer an inherent part of the graph.
 
 (g/defnode Receiver
   (input surname String :inject)
@@ -44,9 +42,9 @@
         sender  (n/construct Sender1)
         sampler (n/construct Sampler)
         labeler (n/construct Labeler)]
-    (is (= #{[sender  :surname recv :surname]} (n/injection-candidates [recv] [sender])))
-    (is (= #{[sampler :sample  recv :samples]} (n/injection-candidates [recv] [sampler])))
-    (is (= #{[labeler :label   recv :label]}   (n/injection-candidates [recv] [labeler])))))
+    (is (= #{[sender  :surname recv :surname]} (core/injection-candidates [recv] [sender])))
+    (is (= #{[sampler :sample  recv :samples]} (core/injection-candidates [recv] [sampler])))
+    (is (= #{[labeler :label   recv :label]}   (core/injection-candidates [recv] [labeler])))))
 
 (g/defnode ValueConsumer
   (input local-names [t/Str] :inject)

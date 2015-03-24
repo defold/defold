@@ -8,9 +8,10 @@
 ;; ----------------------------------------
 (defn empty-graph
   []
-  {:nodes {}
+  {:nodes     {}
    :last-node 0
-   :arcs []})
+   :arcs      []
+   :tx-id     0})
 
 ;;; Published API
 (defn node-ids    [g] (keys (:nodes g)))

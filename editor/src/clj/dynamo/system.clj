@@ -8,11 +8,13 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
-            [internal.transaction :as it]))
+            [internal.transaction :as it]
+            [potemkin.namespaces :refer [import-vars]]))
 
 ;; Only marked dynamic so tests can rebind. Should never be rebound "for real".
 (def ^:dynamic *the-system* (atom nil))
 
+(import-vars [internal.system system-cache history world-graph world-time disposal-queue])
 
 (defn- n->g
   "Get the graph this node belongs to."
@@ -78,9 +80,9 @@ A clause may be one of the following forms:
 
 All the list forms look for symbols in the first position. Be sure to quote the list
 to distinguish it from a function call."
-  [graph clauses]
-  (map #(ig/node graph %)
-       (ig/query graph clauses)))
+  [clauses]
+  (map #(ig/node (is/world-graph @*the-system*) %)
+       (ig/query (is/world-graph @*the-system*) clauses)))
 
 (defn output-dependencies
   "Find all the outputs that could be affected by a change in the given outputs.
@@ -287,7 +289,7 @@ inherits from dynamo.node/Scope."
   (dispose/dispose-pending (is/disposal-queue @*the-system*)))
 
 (defn cache-invalidate
-  "Uses the system’s Cache component.
+  "Uses the system’s cache.
 
   Atomic action to invalidate the given collection of [node-id label]
   pairs. If nothing is cached for a pair, it is ignored."
@@ -295,7 +297,7 @@ inherits from dynamo.node/Scope."
   (c/cache-invalidate (is/system-cache @*the-system*) pairs))
 
 (defn cache-encache
-  "Uses the system’s Cache component.
+  "Uses the system’s cache.
 
   Atomic action to record one or more items in cache.
 
@@ -304,7 +306,7 @@ inherits from dynamo.node/Scope."
   (c/cache-encache (is/system-cache @*the-system*) coll))
 
 (defn cache-hit
-  "Uses the system’s Cache component.
+  "Uses the system’s cache.
 
   Atomic action to record hits on cached items
 

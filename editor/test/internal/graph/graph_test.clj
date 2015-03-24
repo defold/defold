@@ -4,21 +4,21 @@
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
-            [internal.graph :refer :all]
+            [internal.graph :as ig]
             [internal.graph.generator :refer [graph names-with-repeats maybe-with-protocols ProtocolA ProtocolB]]))
 
 (defn occurrences [coll]
   (vals (frequencies coll)))
 
 (defn with-nodes [g vs]
-  (for-graph g [v vs]
-             (add-node g v)))
+  (ig/for-graph g [v vs]
+             (ig/add-node g v)))
 
 (defn with-extra-names [g ns]
   (with-nodes g (map (fn [n] {:name n}) ns)))
 
 (defn times-found [g q]
-   (count (query g q)))
+   (count (ig/query g q)))
 
 (defn times-expected [hist n]
   (get hist n 0))
@@ -30,30 +30,30 @@
 (defspec no-duplicate-node-ids
   100
   (prop/for-all [g graph]
-                (= 1 (apply max (occurrences (node-ids g))))))
+                (= 1 (apply max (occurrences (ig/node-ids g))))))
 
 (defspec no-dangling-arcs
   50
   (prop/for-all [g graph]
-                (every? #(and (node g (:source %))
-                              (node g (:target %)))
-                        (arcs g))))
+                (every? #(and (ig/node g (:source %))
+                              (ig/node g (:target %)))
+                        (ig/arcs g))))
 
-;- Instantiate node
+;- Instantiate ig/node
 
 (deftest adding-node
-  (let [v "Any node value at all"
-        g  (add-node (random-graph) v)
-        id (last-node g)]
-    (is (= v (node g id)))))
+  (let [v "Any ig/node value at all"
+        g  (ig/add-node (random-graph) v)
+        id (ig/last-node g)]
+    (is (= v (ig/node g id)))))
 
 (deftest removing-node
-  (let [v "Any node value"
-        g (add-node (random-graph) v)
-        id (last-node g)
-        g (remove-node g id)]
-    (is (nil? (node g id)))
-    (is (empty? (filter #(= "Any node value" %) (node-values g))))))
+  (let [v "Any ig/node value"
+        g (ig/add-node (random-graph) v)
+        id (ig/last-node g)
+        g (ig/remove-node g id)]
+    (is (nil? (ig/node g id)))
+    (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 
 (defspec query-by-name
   100
@@ -85,15 +85,15 @@
 (defn- arcs-are-reflexive
   [g]
   (and (every? #(= true %)
-               (for [source       (node-ids g)
-                     source-label (outputs source)
-                     [target target-label] (targets g source source-label)]
-                 (some #(= % [source source-label]) (sources g target target-label))))
+               (for [source       (ig/node-ids g)
+                     source-label (ig/outputs source)
+                     [target target-label] (ig/targets g source source-label)]
+                 (some #(= % [source source-label]) (ig/sources g target target-label))))
        (every? #(= true %)
-               (for [target       (node-ids g)
-                     target-label (inputs target)
-                     [source source-label] (sources g target target-label)]
-                 (some #(= % [target target-label]) (targets g source source-label))))))
+               (for [target       (ig/node-ids g)
+                     target-label (ig/inputs target)
+                     [source source-label] (ig/sources g target target-label)]
+                 (some #(= % [target target-label]) (ig/targets g source source-label))))))
 
 
 (defspec reflexivity
@@ -101,115 +101,115 @@
                 (arcs-are-reflexive g)))
 
 (deftest transformable
-  (let [g  (add-node (random-graph) {:number 0})
-        n  (last-node g)
-        g' (transform-node g n update-in [:number] inc)]
+  (let [g  (ig/add-node (random-graph) {:number 0})
+        n  (ig/last-node g)
+        g' (ig/transform-node g n update-in [:number] inc)]
     (is (not= g g'))
-    (is (= 1 (:number (node g' n))))
-    (is (= 0 (:number (node g n))))))
+    (is (= 1 (:number (ig/node g' n))))
+    (is (= 0 (:number (ig/node g n))))))
 
 (defn- add-child
   [g pnode cld-val]
-  (let [g' (add-labeled-node g #{} #{:parent} cld-val)]
-    (connect g' (last-node g') :parent pnode :children)))
+  (let [g' (ig/add-labeled-node g #{} #{:parent} cld-val)]
+    (ig/connect g' (ig/last-node g') :parent pnode :children)))
 
 (deftest query-by-arc-label
   (let [vs      #{"image1" "image2" "image3"}
-        g       (add-labeled-node (empty-graph) #{:children} #{:textureset} {:name "Atlas"})
-        p       (last-node g)
-        g       (for-graph g [n vs] (add-child g p {:name n}))
-        kids    (query g '[[:name "Atlas"] (input :children)])
-        parent  (query g '[[:name "image1"] (output :parent)])]
-    (is (= vs (into #{} (map #(:name (node g %)) kids))))
+        g       (ig/add-labeled-node (ig/empty-graph) #{:children} #{:textureset} {:name "Atlas"})
+        p       (ig/last-node g)
+        g       (ig/for-graph g [n vs] (add-child g p {:name n}))
+        kids    (ig/query g '[[:name "Atlas"] (input :children)])
+        parent  (ig/query g '[[:name "image1"] (output :parent)])]
+    (is (= vs (into #{} (map #(:name (ig/node g %)) kids))))
     (is (= #{p} parent))))
 
 (deftest arcs-is-non-lazy
   (testing "empty"
-    (is (vector? (arcs (empty-graph)))))
-  (testing "after add node"
-    (is (vector? (arcs (-> (empty-graph) (add-node :node1)))))
-    (is (vector? (arcs (-> (empty-graph) (add-node :node1) (add-node :node2))))))
-  (testing "after remove node"
-    (let [g (add-node (empty-graph) :node1)]
-      (is (vector? (arcs (remove-node g (last-node g)))))
-      (is (vector? (arcs (remove-node g (next-node g)))))))
+    (is (vector? (ig/arcs (ig/empty-graph)))))
+  (testing "after add ig/node"
+    (is (vector? (ig/arcs (-> (ig/empty-graph) (ig/add-node :node1)))))
+    (is (vector? (ig/arcs (-> (ig/empty-graph) (ig/add-node :node1) (ig/add-node :node2))))))
+  (testing "after remove ig/node"
+    (let [g (ig/add-node (ig/empty-graph) :node1)]
+      (is (vector? (ig/arcs (ig/remove-node g (ig/last-node g)))))
+      (is (vector? (ig/arcs (ig/remove-node g (ig/next-node g)))))))
   (testing "after add arc"
-    (let [g     (empty-graph)
-          g     (add-node g :node1)
-          node1 (last-node g)
-          g     (add-node g :node2)
-          node2 (last-node g)]
-      (is (vector? (arcs (-> g (add-arc node1 :from  node1 :to)))))
-      (is (vector? (arcs (-> g (add-arc node1 :from  node2 :to)))))
-      (is (vector? (arcs (-> g (add-arc node1 :from  node2 :to)
-                               (add-arc node1 :from  node2 :to)))))
-      (is (vector? (arcs (-> g (add-arc node1 :from1 node2 :to1)
-                               (add-arc node1 :from2 node2 :to2)))))))
+    (let [g     (ig/empty-graph)
+          g     (ig/add-node g :node1)
+          node1 (ig/last-node g)
+          g     (ig/add-node g :node2)
+          node2 (ig/last-node g)]
+      (is (vector? (ig/arcs (-> g (ig/add-arc node1 :from  node1 :to)))))
+      (is (vector? (ig/arcs (-> g (ig/add-arc node1 :from  node2 :to)))))
+      (is (vector? (ig/arcs (-> g (ig/add-arc node1 :from  node2 :to)
+                               (ig/add-arc node1 :from  node2 :to)))))
+      (is (vector? (ig/arcs (-> g (ig/add-arc node1 :from1 node2 :to1)
+                               (ig/add-arc node1 :from2 node2 :to2)))))))
   (testing "after remove arc"
-    (let [g     (empty-graph)
-          g     (add-node g :node1)
-          node1 (last-node g)
-          g     (add-node g :node2)
-          node2 (last-node g)
-          g     (add-arc g node1 :from node1 :to)
-          g     (add-arc g node1 :from node2 :to)]
-      (is (vector? (arcs (remove-arc g node1         :from     node1         :to))))
-      (is (vector? (arcs (remove-arc g node1         :from     node2         :to))))
-      (is (vector? (arcs (remove-arc g node1         :not-from node2         :to))))
-      (is (vector? (arcs (remove-arc g node1         :from     node2         :not-to))))
-      (is (vector? (arcs (remove-arc g node1         :from     (next-node g) :to))))
-      (is (vector? (arcs (remove-arc g (next-node g) :from     node1         :to))))
-      (is (vector? (arcs (remove-arc g (next-node g) :from     (next-node g) :to))))))
-  (testing "after remove node with arcs"
-    (let [g     (empty-graph)
-          g     (add-node g :node1)
-          node1 (last-node g)
-          g     (add-node g :node2)
-          node2 (last-node g)
-          g     (add-arc g node1 :from node1 :to)
-          g     (add-arc g node1 :from node2 :to)]
-      (is (vector? (arcs (remove-node g node1))))
-      (is (vector? (arcs (remove-node g node2)))))))
+    (let [g     (ig/empty-graph)
+          g     (ig/add-node g :node1)
+          node1 (ig/last-node g)
+          g     (ig/add-node g :node2)
+          node2 (ig/last-node g)
+          g     (ig/add-arc g node1 :from node1 :to)
+          g     (ig/add-arc g node1 :from node2 :to)]
+      (is (vector? (ig/arcs (ig/remove-arc g node1         :from     node1         :to))))
+      (is (vector? (ig/arcs (ig/remove-arc g node1         :from     node2         :to))))
+      (is (vector? (ig/arcs (ig/remove-arc g node1         :not-from node2         :to))))
+      (is (vector? (ig/arcs (ig/remove-arc g node1         :from     node2         :not-to))))
+      (is (vector? (ig/arcs (ig/remove-arc g node1         :from     (ig/next-node g) :to))))
+      (is (vector? (ig/arcs (ig/remove-arc g (ig/next-node g) :from     node1         :to))))
+      (is (vector? (ig/arcs (ig/remove-arc g (ig/next-node g) :from     (ig/next-node g) :to))))))
+  (testing "after remove ig/node with ig/arcs"
+    (let [g     (ig/empty-graph)
+          g     (ig/add-node g :node1)
+          node1 (ig/last-node g)
+          g     (ig/add-node g :node2)
+          node2 (ig/last-node g)
+          g     (ig/add-arc g node1 :from node1 :to)
+          g     (ig/add-arc g node1 :from node2 :to)]
+      (is (vector? (ig/arcs (ig/remove-node g node1))))
+      (is (vector? (ig/arcs (ig/remove-node g node2)))))))
 
 (deftest checking-arcs
-  (let [g           (empty-graph)
-        g           (add-labeled-node g #{:textureset} #{:datafile} {:name "AtlasSaver"})
-        grandparent (last-node g)
-        g           (add-labeled-node g #{:children} #{:textureset} {:name "Atlas"})
-        parent      (last-node g)
-        g           (connect g parent :textureset grandparent :textureset)
-        g           (add-labeled-node g #{} #{:parent} {:name "image1"})
-        img1        (last-node g)
-        g           (connect g img1 :parent parent :children)
-        g           (add-labeled-node g #{} #{:parent} {:name "image2"})
-        img2        (last-node g)
-        g           (connect g img2 :parent parent :children)
-        g           (add-labeled-node g #{} #{:parent} {:name "image3"})
-        img3        (last-node g)
-        g           (connect g img3 :parent parent :children)
-        g           (add-labeled-node g #{:image} #{} {:name "sprite"})
-        sprite      (last-node g)
-        g           (connect g img3 :parent sprite :image)]
+  (let [g           (ig/empty-graph)
+        g           (ig/add-labeled-node g #{:textureset} #{:datafile} {:name "AtlasSaver"})
+        grandparent (ig/last-node g)
+        g           (ig/add-labeled-node g #{:children} #{:textureset} {:name "Atlas"})
+        parent      (ig/last-node g)
+        g           (ig/connect g parent :textureset grandparent :textureset)
+        g           (ig/add-labeled-node g #{} #{:parent} {:name "image1"})
+        img1        (ig/last-node g)
+        g           (ig/connect g img1 :parent parent :children)
+        g           (ig/add-labeled-node g #{} #{:parent} {:name "image2"})
+        img2        (ig/last-node g)
+        g           (ig/connect g img2 :parent parent :children)
+        g           (ig/add-labeled-node g #{} #{:parent} {:name "image3"})
+        img3        (ig/last-node g)
+        g           (ig/connect g img3 :parent parent :children)
+        g           (ig/add-labeled-node g #{:image} #{} {:name "sprite"})
+        sprite      (ig/last-node g)
+        g           (ig/connect g img3 :parent sprite :image)]
     (is (= [{:source parent :source-attributes {:label :textureset}
              :target grandparent :target-attributes {:label :textureset}}]
-           (arcs-from-to g parent grandparent)))))
+           (ig/arcs-from-to g parent grandparent)))))
 
 (deftest multiple-arcs
-  (let [g    (empty-graph)
-        g    (add-node g :anim)
-        anim (last-node g)
-        g    (add-node g :img1)
-        img1 (last-node g)
-        g    (add-node g :img2)
-        img2 (last-node g)
-        ops  [#(add-arc    % img1 :out anim :in)
-              #(add-arc    % img2 :out anim :in)
-              #(add-arc    % img1 :out anim :in)
-              #(remove-arc % img1 :out anim :in)
-              #(remove-arc % img1 :out anim :in)
-              #(remove-arc % img1 :out anim :in)]
+  (let [g    (ig/empty-graph)
+        g    (ig/add-node g :anim)
+        anim (ig/last-node g)
+        g    (ig/add-node g :img1)
+        img1 (ig/last-node g)
+        g    (ig/add-node g :img2)
+        img2 (ig/last-node g)
+        ops  [#(ig/add-arc    % img1 :out anim :in)
+              #(ig/add-arc    % img2 :out anim :in)
+              #(ig/add-arc    % img1 :out anim :in)
+              #(ig/remove-arc % img1 :out anim :in)
+              #(ig/remove-arc % img1 :out anim :in)
+              #(ig/remove-arc % img1 :out anim :in)]
         gs   (reductions (fn [g op] (op g)) g ops)
-        arcs (->> gs (map #(arcs-to % anim)) (map #(map :source %)))]
+        arcs (->> gs (map #(ig/arcs-to % anim)) (map #(map :source %)))]
     (is (= [[]
             [img1]
             [img1 img2]
