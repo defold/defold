@@ -15,18 +15,21 @@
             [dynamo.ui.property-test]
             [dynamo.util-test]
             [editor.atlas-test]
+            [editor.injection-test]
+            [editor.project-test]
+            [editor.scope-test]
             [internal.cache-test]
             [internal.dependency-test]
             [internal.either-test]
             [internal.graph.graph-test]
-            [internal.injection-test]
             [internal.math-test]
             [internal.node-test]
             [internal.packing-test]
-            [internal.scope-test]
             [internal.system-test]
             [internal.type-test]
-            [internal.value-test])
+            [internal.value-test]
+            [potemkin.imports-test]
+            [potemkin.namespaces-test])
   (:import [clojure.lang Compiler]))
 
 (def builtin-basedir (io/file "../com.dynamo.cr/com.dynamo.cr.builtins"))

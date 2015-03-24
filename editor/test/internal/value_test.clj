@@ -208,7 +208,7 @@
       (is (= 4 (:int-prop after-transaction))))))
 
 (defn- cache-peek [cache node-id label]
-  (get @(:storage cache) [node-id label]))
+  (get @cache [node-id label]))
 
 (defn- cached? [cache node-id label]
   (not (nil? (cache-peek cache node-id label))))

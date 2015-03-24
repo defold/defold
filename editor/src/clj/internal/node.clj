@@ -70,15 +70,15 @@
       (chain-eval chain-head graph in-production node-id label)
 
       (multivalued? input-schema)
-      (reduce
-       (fn [input-vals source]
-         (e/bind
+      (e/bind
+       (reduce
+        (fn [input-vals source]
           (conj
-           (e/result input-vals)
+           input-vals
            (e/result
-            (chain-eval chain-head graph in-production (first source) (second source))))))
-       (e/bind [])
-       (ig/sources graph node-id label))
+            (chain-eval chain-head graph in-production (first source) (second source)))))
+        []
+        (ig/sources graph node-id label)))
 
       (exists? input-schema)
       (if-let [source (first-source graph node-id label)]
@@ -184,10 +184,10 @@
        (reduce
         (fn [input-vals source]
           (conj
-           (e/result input-vals)
+           input-vals
            (e/result
             (chain-eval chain-head graph in-production (first source) (second source)))))
-        (e/bind [])
+        []
         (ig/sources graph node-id label)))
 
       (exists? input-schema)

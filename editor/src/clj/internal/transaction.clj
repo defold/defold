@@ -8,15 +8,15 @@
             [service.log :as log]))
 
 
-; ---------------------------------------------------------------------------
-; Configuration parameters
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; Configuration parameters
+;; ---------------------------------------------------------------------------
 (def maximum-retrigger-count 100)
 (def maximum-graph-coloring-recursion 1000)
 
-; ---------------------------------------------------------------------------
-; Internal state
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; Internal state
+;; ---------------------------------------------------------------------------
 (def ^:dynamic *tx-debug* nil)
 (def ^:dynamic *scope* nil)
 
@@ -27,9 +27,9 @@
   `(str (:txid ~ctx) ":" (:txpass ~ctx) " " ~@(interpose " " rest)))
 
 
-; ---------------------------------------------------------------------------
-; Building transactions
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; Building transactions
+;; ---------------------------------------------------------------------------
 (defn new-node
   "*transaction step* - creates a resource in the project. Expects a
   node. May include an `:_id` key containing a tempid if the resource
@@ -101,9 +101,9 @@
 (defn has-tempid? [n] (and (:_id n) (tempid? (:_id n))))
 (defn resolve-tempid [ctx x] (when x (if (pos? x) x (get (:tempids ctx) x))))
 
-; ---------------------------------------------------------------------------
-; Executing transactions
-; ---------------------------------------------------------------------------
+;; ---------------------------------------------------------------------------
+;; Executing transactions
+;; ---------------------------------------------------------------------------
 (defn- pairs [m] (for [[k vs] m v vs] [k v]))
 
 (defn- mark-activated
@@ -348,7 +348,6 @@
   [world-ref actions]
   (let [current-world @world-ref]
     {:world-ref           world-ref
-     :world               current-world
      :graph               current-world
      :tempids             {}
      :new-event-loops     #{}

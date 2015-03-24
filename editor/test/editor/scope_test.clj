@@ -1,4 +1,4 @@
-(ns internal.scope-test
+(ns editor.scope-test
   (:require [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
@@ -9,19 +9,15 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
-            [internal.node :as in]
-            [schema.macros :as sm]
             [editor.core :as core]
-            [internal.system :as is]))
-
-;; TODO - move this to editor. It's no longer an inherent part of the graph.
+            [schema.macros :as sm]))
 
 (sm/defrecord T1 [ident :- String])
 (sm/defrecord T2 [value :- Integer])
 
 (deftest type-compatibility
   (are [first second allow-collection? compatible?]
-    (= compatible? (n/type-compatible? first second allow-collection?))
+    (= compatible? (core/type-compatible? first second allow-collection?))
     T1 T1               false    true
     T1 T1               true     false
     T1 T2               false    false
@@ -64,7 +60,7 @@
   (let [n1 (n/construct N1)
         n2 (n/construct N2)]
     (are [out-node out out-type in-node in in-type expect-compat why]
-      (= expect-compat (n/compatible? [out-node out out-type in-node in in-type]))
+      (= expect-compat (core/compatible? [out-node out out-type in-node in in-type]))
       n1 :image Image    n2 :image  ABACAB    nil                    "type mismatch"
       n1 :image Image    n2 :image  Image     [n1 :image n2 :image]  "ok"
       n1 :image Image    n2 :images [Image]   [n1 :image n2 :images] "ok"
@@ -84,7 +80,7 @@
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
 
-(defn q [g clauses] (solo (ds/query g clauses)))
+(defn q [clauses] (solo (ds/query clauses)))
 
 (deftest scope-registration
   (testing "Nodes are registered within a scope by name"
@@ -94,8 +90,8 @@
           (g/add (n/construct Emitter  :name "emitter"))
           (g/add (n/construct Modifier :name "vortex"))))
 
-      (let [scope-node (q (is/world-graph system) [[:label "view scope"]])]
-        (are [n] (identical? (t/lookup scope-node n) (q (is/world-graph system) [[:name n]]))
+      (let [scope-node (q [[:label "view scope"]])]
+        (are [n] (identical? (t/lookup scope-node n) (q [[:name n]]))
                  "emitter"
                  "vortex")))))
 
