@@ -1,7 +1,6 @@
 (ns internal.cache
   (:require [clojure.core.async :as a]
             [clojure.core.cache :as cc]
-            [com.stuartsierra.component :as component]
             [internal.either :as e]))
 
 (defn- build-leastness-queue
@@ -89,11 +88,6 @@
          (map? base)]}
   (clojure.core.cache/seed (LRUCache. {} (clojure.data.priority-map/priority-map) 0 threshold dispose-ch) base))
 
-(defn make-cache
-  "DEPRECATED. Remove once internal.system is updated for the new component."
-  []
-  (cc/lru-cache-factory {} :threshold 1000))
-
 (defn- encache
   [c kvs]
   (reduce
@@ -108,37 +102,9 @@
      (cc/hit c k))
    c ks))
 
-(defn- evict [cache ks] (reduce cc/evict cache ks))
-
-(defn- evict! [storage ks]
-  (swap! storage evict ks))
-
-(defn- evict-obsoletes
-  [storage _ world-state _ new-world-state]
-  (let [obsoletes (-> new-world-state :last-tx :outputs-modified)]
-    (evict! storage obsoletes)))
-
-(defrecord CacheLifecycle [limit dispose-ch storage]
-  component/Lifecycle
-  (start [this]
-    (if storage
-      this
-      (do
-        (assert (:world this) "A world component is required.")
-        (let [storage (atom (lru-cache-factory {} :threshold limit :dispose-ch dispose-ch))]
-          (add-watch (-> this :world :state) ::decache (partial evict-obsoletes storage))
-          (assoc this :storage storage)))))
-
-  (stop [this]
-    (if storage
-      (do
-        (remove-watch (-> this :world :state) ::decache)
-        (assoc this :storage nil))
-      this))
-
-  clojure.lang.IDeref
-  (deref [this]
-    (when storage @storage)))
+(defn- evict
+  [cache ks]
+  (reduce cc/evict cache ks))
 
 ;; ----------------------------------------
 ;; Interface
@@ -149,20 +115,20 @@
   ([]
    (cache-subsystem default-cache-limit (a/chan (a/dropping-buffer 1))))
   ([limit dispose-ch]
-   (map->CacheLifecycle {:limit limit :dispose-ch dispose-ch})))
+   (atom (lru-cache-factory {} :threshold limit :dispose-ch dispose-ch))))
 
 (defn cache-snapshot
-  [ccomp]
-  @ccomp)
+  [cache]
+  @cache)
 
 (defn cache-hit
-  [ccomp ks]
-  (swap! (:storage ccomp) hits ks))
+  [cache ks]
+  (swap! cache hits ks))
 
 (defn cache-encache
-  [ccomp kvs]
-  (swap! (:storage ccomp) encache kvs))
+  [cache kvs]
+  (swap! cache encache kvs))
 
 (defn cache-invalidate
-  [ccomp ks]
-  (evict! (:storage ccomp) ks))
+  [cache ks]
+  (swap! cache evict ks))

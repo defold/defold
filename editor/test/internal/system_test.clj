@@ -1,6 +1,5 @@
 (ns internal.system-test
   (:require [clojure.test :refer :all]
-            [com.stuartsierra.component :as component]
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds]
@@ -11,13 +10,10 @@
 
 (g/defnode Root)
 
-(defn- started?     [s] (-> s :world :started?))
-
-(defn fresh-system [] (ts/clean-system))
+(defn fresh-system [] (ts/clean-system {}))
 
 (deftest lifecycle
   (let [sys (fresh-system)]
-    (is (started? sys))
     (is (not (nil? (is/world-graph sys))))
     (let [sys (is/stop-system sys)
           sys (is/start-system sys)]

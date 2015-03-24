@@ -1,9 +1,10 @@
 (ns editor.graph-view
   (:require [clojure.java.io :as io]
+            [dynamo.system :as ds]
             [editor.ui :as ui])
-  (:import [java.io File]
-           [javafx.application Platform]
-           [javafx.scene.image Image]))
+  (:import [javafx.application Platform]
+           [javafx.scene.image Image]
+           [java.io File]))
 
 (defn- node-label [node]
   (.getSimpleName (.getClass node)))
@@ -50,26 +51,27 @@
            (.write w "\"];\n")))
 
       (doseq [a dot-arcs]
-        (let [source (:source a)
-              target (:target a)
+        (let [source       (:source a)
+              target       (:target a)
               source-label (name (:source-label a))
               target-label (name (:target-label a))]
           (.write w (format "%s:\"%s\" -> %s:\"%s\";\n" (:_id source) source-label (:_id target) target-label))))
       (.write w "}\n"))
     dot-file))
 
-(defn- update-graph-view [root graph]
-  (let [dot-file (write-dot-graph graph)
+(defn- update-graph-view [root]
+  (let [graph     (ds/world-graph)
+        dot-file  (write-dot-graph graph)
         dot-image (File/createTempFile "graph" ".png")
-        process (.exec (Runtime/getRuntime) (format "dot %s -Tpng -o%s" dot-file dot-image))]
+        process   (.exec (Runtime/getRuntime) (format "dot %s -Tpng -o%s" dot-file dot-image))]
     (.waitFor process)
     (Platform/runLater
       (fn []
-        (let [image-view (.lookup root "#graph-image")
+        (let [image-view  (.lookup root "#graph-image")
               scroll-pane (.getParent image-view)
-              image (Image. (format "file://%s" (.getAbsolutePath dot-image)))
-              width (.getWidth image)
-              height (.getHeight image)]
+              image       (Image. (format "file://%s" (.getAbsolutePath dot-image)))
+              width       (.getWidth image)
+              height      (.getHeight image)]
           (.setOnMousePressed scroll-pane
             (ui/event-handler event
                 	           (if (= width (.getFitWidth image-view))
@@ -83,7 +85,7 @@
           (.setFitHeight image-view height)
           (.setImage image-view image))))))
 
-(defn setup-graph-view [root world-ref]
-  (let [button (.lookup root "#graph-refresh")
-        handler (ui/event-handler event (update-graph-view root @world-ref))]
+(defn setup-graph-view [root]
+  (let [button  (.lookup root "#graph-refresh")
+        handler (ui/event-handler event (update-graph-view root))]
     (.setOnAction button handler)))

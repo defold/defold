@@ -1,27 +1,30 @@
 (ns dynamo.system.test-support
-  (:require [com.stuartsierra.component :as component]
-            [dynamo.graph :as g]
-            [dynamo.system :as ds :refer [in]]
+  (:require [dynamo.graph :as g]
+            [dynamo.system :as ds]
             [internal.async :as ia]
             [internal.graph.types :as gt]
-            [internal.system :as is]))
+            [internal.system :as is]
+            [internal.transaction :as it]))
 
 (defn clean-system
-  []
-  (component/start-system
-   (is/make-system {:initial-graph (g/make-graph [])})))
+  [configuration]
+  (let [configuration (if (:initial-graph configuration)
+                        configuration
+                        (assoc configuration :initial-graph (g/make-graph [])))]
+    (is/start-system (is/make-system configuration))))
 
 (defmacro with-clean-system
   [& forms]
-  `(let [~'system      (clean-system)
-         ~'world       (:world ~'system)
-         ~'cache       (:cache ~'system)
-         ~'world-ref   (:state ~'world)
-         ~'disposal-ch (is/disposal-queue ~'system)]
-     (binding [ds/*the-system* (atom ~'system)
-               gt/*transaction* (gt/->TransactionSeed (partial ds/transact (atom ~'system)))
-               internal.transaction/*scope*       nil]
-       ~@forms)))
+  (let [configuration  (if (map? (first forms)) (first forms) {})
+        forms          (if (map? (first forms)) (next forms)  forms)]
+    `(let [~'system      (clean-system ~configuration)
+           ~'world-ref   (:world ~'system)
+           ~'cache       (:cache ~'system)
+           ~'disposal-ch (is/disposal-queue ~'system)]
+       (binding [ds/*the-system* (atom ~'system)
+                 gt/*transaction* (gt/->TransactionSeed (partial ds/transact (atom ~'system)))
+                 it/*scope*       nil]
+         ~@forms))))
 
 (defn tx-nodes [& resources]
   (g/transactional

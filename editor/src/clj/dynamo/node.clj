@@ -10,7 +10,6 @@ Second, this namespace defines some of the basic node types and mixins."
             [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [dynamo.util :refer :all]
-            [inflections.core :refer [plural]]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
@@ -50,81 +49,6 @@ it a message.
 This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
   (gt/process-one-event (ds/refresh node) (assoc body :type type)))
-
-;; ---------------------------------------------------------------------------
-;; Dependency Injection
-;; ---------------------------------------------------------------------------
-(defn- check-single-type
-  [out in]
-  (or
-   (= t/Any in)
-   (= out in)
-   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
-
-(defn type-compatible?
-  [output-schema input-schema expect-collection?]
-  (let [out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
-    (or
-     (= t/Any input-schema)
-     (and expect-collection? (= [t/Any] input-schema))
-     (and expect-collection? in-t-pl? (check-single-type output-schema (first input-schema)))
-     (and (not expect-collection?) (check-single-type output-schema input-schema))
-     (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
-
-(defn compatible?
-  [[out-node out-label out-type in-node in-label in-type]]
-  (cond
-   (and (= out-label in-label) (type-compatible? out-type in-type false))
-   [out-node out-label in-node in-label]
-
-   (and (= (plural out-label) in-label) (type-compatible? out-type in-type true))
-   [out-node out-label in-node in-label]))
-
-(defn injection-candidates
-  [targets nodes]
-  (into #{}
-     (keep compatible?
-        (for [target  targets
-              i       (gt/injectable-inputs target)
-              :let    [i-l (get (gt/input-types target) i)]
-              node    nodes
-              [o o-l] (gt/transform-types node)]
-            [node o o-l target i i-l]))))
-
-; ---------------------------------------------------------------------------
-; Bootstrapping the core node types
-; ---------------------------------------------------------------------------
-(defn inject-new-nodes
-  "Implementation function that performs dependency injection for nodes.
-This function should not be called directly."
-  [transaction graph self label kind inputs-affected]
-  (when (inputs-affected :nodes)
-    (let [nodes-before-txn         (cons self (in/get-inputs (ds/pre-transaction-graph transaction) self :nodes))
-          nodes-after-txn          (in/get-inputs (ds/in-transaction-graph transaction) self :nodes)
-          nodes-before-txn-ids     (into #{} (map :_id nodes-before-txn))
-          new-nodes-in-scope       (remove nodes-before-txn-ids nodes-after-txn)
-          out-from-new-connections (injection-candidates nodes-before-txn new-nodes-in-scope)
-          in-to-new-connections    (injection-candidates new-nodes-in-scope nodes-before-txn)
-          between-new-nodes        (injection-candidates new-nodes-in-scope new-nodes-in-scope)
-          candidates               (set/union out-from-new-connections in-to-new-connections between-new-nodes)
-          candidates               (remove (fn [[out out-label in in-label]]
-                                             (or
-                                              (= (:_id out) (:_id in))
-                                              (ig/connected? graph (:_id out) out-label (:_id in) in-label)))
-                                           candidates)]
-      (for [connection candidates]
-        (apply it/connect connection)))))
-
-(defn dispose-nodes
-  "Trigger to dispose nodes from a scope when the scope is destroyed.
-This should not be called directly."
-  [transaction graph self label kind]
-  (when (ds/is-deleted? transaction self)
-    (let [graph-before-deletion (-> transaction :world-ref deref)
-          nodes-to-delete       (in/get-inputs graph-before-deletion self :nodes)]
-      (for [n nodes-to-delete]
-        (it/delete-node n)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
