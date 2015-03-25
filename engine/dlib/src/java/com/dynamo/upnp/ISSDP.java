@@ -5,6 +5,7 @@ import java.io.IOException;
 public interface ISSDP {
 
     public boolean update(boolean search) throws IOException;
+    public boolean update(boolean search, long deviceExpireTimeOffset) throws IOException;
 
     public DeviceInfo getDeviceInfo(String usn);
 
