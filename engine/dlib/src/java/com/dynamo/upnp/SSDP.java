@@ -34,6 +34,7 @@ public class SSDP implements ISSDP {
     private byte[] buffer;
     private Map<String, DeviceInfo> discoveredDevices = new HashMap<String, DeviceInfo>();
     private int changeCount = 0;
+    private long timeOutThreshold = 0;
 
     private static final String M_SEARCH_PAYLOAD =
               "M-SEARCH * HTTP/1.1\r\n"
@@ -88,8 +89,8 @@ public class SSDP implements ISSDP {
         }
     }
 
-    private void expireDiscovered() {
-        long now = System.currentTimeMillis();
+    private void expireDiscovered(long timeOffset) {
+        long now = System.currentTimeMillis() + timeOffset;
         Set<String> toExpire = new HashSet<String>();
         for (Entry<String, DeviceInfo> e : discoveredDevices.entrySet()) {
             DeviceInfo dev = e.getValue();
@@ -105,12 +106,17 @@ public class SSDP implements ISSDP {
 
     @Override
     public boolean update(boolean search) throws IOException {
+        return update(search, 0);
+    }
+
+    @Override
+    public boolean update(boolean search, long deviceExpireTimeOffset) throws IOException {
         int oldChangeCount = changeCount;
         if (search) {
             sendSearch();
         }
 
-        expireDiscovered();
+        expireDiscovered(deviceExpireTimeOffset);
 
         boolean cont = true;
         do {
