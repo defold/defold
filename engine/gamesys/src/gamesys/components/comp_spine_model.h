@@ -12,17 +12,6 @@ namespace dmGameSystem
     using namespace Vectormath::Aos;
     using namespace dmGameSystemDDF;
 
-    union SortKeySpine
-    {
-        struct
-        {
-            uint64_t m_Index : 16;  // Index is used to ensure stable sort
-            uint64_t m_MixedHash : 32;
-            uint64_t m_Z : 16; // Quantified relative z
-        };
-        uint64_t     m_Key;
-    };
-
     struct SpinePlayer
     {
         /// Currently playing animation
@@ -50,9 +39,6 @@ namespace dmGameSystem
         dmGameObject::HInstance     m_Instance;
         dmTransform::Transform      m_Transform;
         Matrix4                     m_World;
-        SortKeySpine                m_SortKey;
-        // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
-        // See GenerateKeys
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
         SpineModelResource*         m_Resource;
@@ -72,6 +58,7 @@ namespace dmGameSystem
         uint8_t                     m_ComponentIndex;
         /// Component enablement
         uint8_t                     m_Enabled : 1;
+        uint8_t                     m_DoRender : 1;
         /// Current player index
         uint8_t                     m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not
@@ -100,13 +87,9 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration      m_VertexDeclaration;
         dmGraphics::HVertexBuffer           m_VertexBuffer;
         dmArray<SpineModelVertex>           m_VertexBufferData;
-
-        dmArray<uint32_t>                   m_RenderSortBuffer;
         dmArray<uint32_t>                   m_DrawOrderToMesh;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance>    m_ScratchInstances;
-        float                               m_MinZ;
-        float                               m_MaxZ;
     };
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);
@@ -120,6 +103,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
     dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params);
+
+    dmGameObject::UpdateResult CompSpineModelRender(const dmGameObject::ComponentsRenderParams& params);
 
     dmGameObject::UpdateResult CompSpineModelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
