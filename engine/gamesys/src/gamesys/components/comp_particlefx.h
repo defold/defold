@@ -21,6 +21,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
+    dmGameObject::UpdateResult CompParticleFXRender(const dmGameObject::ComponentsRenderParams& params);
+
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params);

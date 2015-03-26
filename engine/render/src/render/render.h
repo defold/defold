@@ -65,28 +65,6 @@ namespace dmRender
         uint32_t m_TagCount;
     };
 
-    struct RenderKey
-    {
-        RenderKey()
-        {
-            m_Key = 0;
-        }
-
-        union
-        {
-            struct
-            {
-                uint64_t    m_Depth:32;
-                // NOTE: The order-range is hard-coded in gui_script.cpp
-                // Any changes here must be reflected in dmGui
-                uint64_t    m_Order:3;
-                uint64_t    m_Translucency:1;
-                uint64_t    m_MaterialId:28;
-            };
-            uint64_t        m_Key;
-        };
-    };
-
     struct Constant
     {
         Vectormath::Aos::Vector4                m_Value;
@@ -130,7 +108,6 @@ namespace dmRender
 
         static const uint32_t MAX_TEXTURE_COUNT = 32;
         static const uint32_t MAX_CONSTANT_COUNT = 4;
-        RenderKey                       m_RenderKey;
         Constant                        m_Constants[MAX_CONSTANT_COUNT];
         Matrix4                         m_WorldTransform;
         Matrix4                         m_TextureTransform;
@@ -174,12 +151,56 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
+    enum RenderOrder
+    {
+        RENDER_ORDER_BEFORE_WORLD = 0,
+        RENDER_ORDER_WORLD        = 1,
+        RENDER_ORDER_AFTER_WORLD  = 2,
+    };
+
+    typedef uint8_t HRenderListDispatch;
+
+    struct RenderListEntry
+    {
+        Point3 m_WorldPosition;
+        uint32_t m_Order;
+        uint32_t m_BatchKey;
+        uintptr_t m_UserData;
+        uint32_t m_MajorOrder:2;
+        uint32_t m_Dispatch:8;
+    };
+
+    enum RenderListOperation
+    {
+        RENDER_LIST_OPERATION_BEGIN,
+        RENDER_LIST_OPERATION_BATCH,
+        RENDER_LIST_OPERATION_END
+    };
+
+    struct RenderListDispatchParams
+    {
+        HRenderContext m_Context;
+        void* m_UserData;
+        RenderListOperation m_Operation;
+        RenderListEntry* m_Buf;
+        uint32_t* m_Begin;
+        uint32_t* m_End;
+    };
+
+    typedef void (*RenderListDispatchFn)(RenderListDispatchParams const &params);
+
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
+
+    void RenderListBegin(HRenderContext render_context);
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn fn, void *user_data);
+    RenderListEntry* RenderListAlloc(HRenderContext render_context, uint32_t entries);
+    void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end);
+    void RenderListEnd(HRenderContext render_context);
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map);
 
@@ -194,6 +215,10 @@ namespace dmRender
 
     Result AddToRender(HRenderContext context, RenderObject* ro);
     Result ClearRenderObjects(HRenderContext context);
+
+    // Takes the contents of the render list, sorts by view and inserts all the objects in the
+    // render list, unless they already are in place from a previous call.
+    Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
 
     Result Draw(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context);
