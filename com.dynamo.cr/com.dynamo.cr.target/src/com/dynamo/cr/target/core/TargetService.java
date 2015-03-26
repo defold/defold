@@ -141,7 +141,6 @@ public class TargetService implements ITargetService, Runnable {
 
     @Override
     public void run() {
-        long serviceTimeDelay = 0;
         while (!stopped) {
             try {
                 try {
@@ -157,8 +156,7 @@ public class TargetService implements ITargetService, Runnable {
                         search = true;
                     }
                     // we deduct the processing time for other tasks in this thread to get a fair base for device time expiration
-                    boolean changed = ssdp.update(search, serviceTimeDelay - current);
-                    serviceTimeDelay = System.currentTimeMillis();
+                    boolean changed = ssdp.update(search);
 
                     /*
                      * NOTE: We can't just rely on the "changed" variable

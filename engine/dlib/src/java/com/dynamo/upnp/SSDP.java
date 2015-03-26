@@ -89,8 +89,8 @@ public class SSDP implements ISSDP {
         }
     }
 
-    private void expireDiscovered(long timeOffset) {
-        long now = System.currentTimeMillis() + timeOffset;
+    private void expireDiscovered() {
+        long now = System.currentTimeMillis();
         Set<String> toExpire = new HashSet<String>();
         for (Entry<String, DeviceInfo> e : discoveredDevices.entrySet()) {
             DeviceInfo dev = e.getValue();
@@ -106,17 +106,12 @@ public class SSDP implements ISSDP {
 
     @Override
     public boolean update(boolean search) throws IOException {
-        return update(search, 0);
-    }
-
-    @Override
-    public boolean update(boolean search, long deviceExpireTimeOffset) throws IOException {
         int oldChangeCount = changeCount;
         if (search) {
             sendSearch();
         }
 
-        expireDiscovered(deviceExpireTimeOffset);
+        expireDiscovered();
 
         boolean cont = true;
         do {

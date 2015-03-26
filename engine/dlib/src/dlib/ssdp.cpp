@@ -106,6 +106,9 @@ namespace dmSSDP
         // True if announce messages should be sent
         uint32_t                m_Announce : 1;
 
+        // Time interval for annouce messages (if m_Announce is set). Typically m_MaxAge / 2
+        uint32_t                m_AnnounceInterval;
+
         // True if reconnection should be performed in next update
         uint32_t                m_Reconnect : 1;
 
@@ -417,6 +420,12 @@ bail:
         dmHttpServer::NewParams http_params;
         dmHttpServer::Result hsr;
 
+        if(params->m_AnnounceInterval > params->m_MaxAge)
+        {
+            dmLogError("SSDP announceinterval must be less than maxage");
+            return RESULT_NETWORK_ERROR;
+        }
+
         ssdp = new SSDP();
         Result r = Connect(ssdp);
         if (r != RESULT_OK) goto bail;
@@ -424,6 +433,7 @@ bail:
         ssdp->m_MaxAge = params->m_MaxAge;
         DM_SNPRINTF(ssdp->m_MaxAgeText, sizeof(ssdp->m_MaxAgeText), "%u", params->m_MaxAge);
         ssdp->m_Announce = params->m_Announce;
+        ssdp->m_AnnounceInterval = params->m_AnnounceInterval;
         ssdp->m_AddressExpires = dmTime::GetTime() + SSDP_LOCAL_ADDRESS_EXPIRATION * uint64_t(1000000U);
 
         *hssdp = ssdp;
@@ -862,7 +872,7 @@ bail:
         if (now >= (*device)->m_Expires)
         {
             SendAnnounce(ssdp, *device);
-            (*device)->m_Expires = now + ssdp->m_MaxAge * 1000000;
+            (*device)->m_Expires = now + ssdp->m_AnnounceInterval * 1000000;
         }
     }
 
