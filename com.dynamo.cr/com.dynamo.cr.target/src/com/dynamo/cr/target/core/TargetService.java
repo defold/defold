@@ -155,6 +155,7 @@ public class TargetService implements ITargetService, Runnable {
                         lastSearch = current;
                         search = true;
                     }
+                    // we deduct the processing time for other tasks in this thread to get a fair base for device time expiration
                     boolean changed = ssdp.update(search);
 
                     /*
