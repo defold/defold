@@ -18,6 +18,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
+    dmGameObject::UpdateResult CompSpriteRender(const dmGameObject::ComponentsRenderParams& params);
+
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params);
