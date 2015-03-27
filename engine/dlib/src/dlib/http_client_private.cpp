@@ -49,6 +49,10 @@ namespace dmHttpClientPrivate
                 return PARSE_RESULT_SYNTAX_ERROR;
 
             char* value = colon + 2;
+            while (*value == ' ') {
+                value++;
+            }
+
             int c = *colon;
             *colon = '\0';
             header(user_data, tok, value);

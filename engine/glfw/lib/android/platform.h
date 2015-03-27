@@ -131,6 +131,7 @@ struct _GLFWwin_struct {
     struct android_app* app;
     // pipe used to go from java thread to native (JNI)
     int m_Pipefd[2];
+    int paused;
 };
 
 GLFWGLOBAL _GLFWwin _glfwWin;
@@ -164,6 +165,7 @@ GLFWGLOBAL struct {
 
     // Platform specific internal variables
     int  MouseMoved, CursorPosX, CursorPosY;
+    float AccX, AccY, AccZ;
 
 } _glfwInput;
 
