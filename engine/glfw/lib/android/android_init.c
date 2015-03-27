@@ -166,6 +166,21 @@ static const char* GetCmdName(int32_t cmd)
 
 #undef CASE_RETURN
 
+static void computeIconifiedState()
+{
+    // We do not cancel iconified status when RESUME is received, as we can
+    // see the following order of commands when returning from a locked state:
+    // RESUME, TERM_WINDOW, INIT_WINDOW, GAINED_FOCUS
+    // We can also encounter this order of commands:
+    // RESUME, GAINED_FOCUS
+    // Between RESUME and INIT_WINDOW, the application could attempt to perform
+    // operations without a current GL context.
+    //
+    // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
+    // Iconified unless opened, active and resumed (not paused)
+    return !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused);
+}
+
 static void handleCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand: %s", GetCmdName(cmd));
     switch (cmd)
@@ -178,6 +193,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             create_gl_surface(&_glfwWin);
         }
         _glfwWin.opened = 1;
+        computeIconifiedState();
         break;
     case APP_CMD_TERM_WINDOW:
         if (!_glfwInitialized) {
@@ -192,41 +208,37 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         destroy_gl_surface(&_glfwWin);
         break;
     case APP_CMD_GAINED_FOCUS:
-        // We do not cancel iconified status when RESUME is received, as we can
-        // see the following order of commands when returning from a locked state:
-        // RESUME, TERM_WINDOW, INIT_WINDOW, GAINED_FOCUS
-        // We can also encounter this order of commands:
-        // RESUME, GAINED_FOCUS
-        // Between RESUME and INIT_WINDOW, the application could attempt to perform
-        // operations without a current GL context.
-        _glfwWin.iconified = 0;
         _glfwWin.active = 1;
+        computeIconifiedState();
         break;
     case APP_CMD_LOST_FOCUS:
         if (g_KeyboardActive) {
             _glfwShowKeyboard(0, 0, 0);
         }
         _glfwWin.active = 0;
+        computeIconifiedState();
         break;
     case APP_CMD_START:
         break;
     case APP_CMD_STOP:
         break;
     case APP_CMD_RESUME:
+        _glfwWin.paused = 0;
         if (g_sensorEventQueue && g_accelerometer) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         }
+        computeIconifiedState();
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
         // See _glfwPlatformSwapBuffers for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
-        _glfwWin.iconified = 1;
-
+        _glfwWin.paused = 1;
         if (g_sensorEventQueue && g_accelerometer) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
         }
+        computeIconifiedState();
         break;
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
@@ -549,6 +561,7 @@ int _glfwPlatformInit( void )
     _glfwWin.context = EGL_NO_CONTEXT;
     _glfwWin.surface = EGL_NO_SURFACE;
     _glfwWin.iconified = 1;
+    _glfwWin.paused = 1;
     _glfwWin.app = g_AndroidApp;
 
     int result = pipe(_glfwWin.m_Pipefd);
