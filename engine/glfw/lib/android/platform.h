@@ -164,6 +164,7 @@ GLFWGLOBAL struct {
 
     // Platform specific internal variables
     int  MouseMoved, CursorPosX, CursorPosY;
+    float AccX, AccY, AccZ;
 
 } _glfwInput;
 
