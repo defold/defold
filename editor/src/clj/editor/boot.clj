@@ -8,6 +8,7 @@
             [editor.atlas :as atlas]
             [editor.core :as core]
             [editor.cubemap :as cubemap]
+            [editor.outline-view :as outline-view]
             [editor.properties-view :as properties-view]
             [editor.graph-view :as graph-view]
             [editor.jfx :as jfx]
@@ -123,6 +124,7 @@
         (.setGraphic tab (get-image-view "cog.png"))
         (.select (.getSelectionModel tab-pane) tab)
         (g/transactional (setup-rendering-fn resource-node view))
+        (outline-view/setup (.lookup root "#outline") resource-node)
         (properties-view/setup (.lookup root "#properties") resource-node)))))
 
 (declare tree-item)
