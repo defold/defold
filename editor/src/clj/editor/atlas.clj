@@ -1,5 +1,6 @@
 (ns editor.atlas
-  (:require [dynamo.background :as background]
+  (:require [clojure.string :as str]
+            [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.file :as file]
@@ -19,9 +20,9 @@
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
-            [editor.core :as core]
-            [editor.image-node :as ein]
+            [editor.project :as project]
             [editor.scene :as scene]
+            [editor.workspace :as workspace]
             [internal.render.pass :as pass]
             [internal.transaction :as it]
             [schema.macros :as sm])
@@ -47,52 +48,9 @@
 (vtx/defvertex uv-only
   (vec2 uv))
 
-(declare tex-outline-vertices)
-
-(defn- input-connections
-  [graph node input-label]
-  (mapv (fn [[source-node output-label]] [(:_id source-node) output-label])
-    (ds/sources-of graph node input-label)))
-
-(defn connect-outline-children
-  [input-labels input-name transaction graph self label kind inputs-touched]
-  (when (some (set input-labels) inputs-touched)
-    (let [children-before (input-connections (ds/in-transaction-graph transaction) self input-name)
-          children-after  (mapcat #(input-connections graph self %) input-labels)]
-      (concat
-       (for [[n l] children-before]
-         (it/disconnect {:_id n} l self input-name))
-       (for [[n _] children-after]
-         (it/connect {:_id n} :outline-tree self input-name))))))
-
-(g/defnode AnimationGroupNode
-  (inherits core/OutlineNode)
-  (output outline-label t/Str (g/fnk [id] id))
-
-  (property images dp/ImageResourceList)
-  (input images-outline-children [OutlineItem])
-  (trigger connect-images-outline-children :input-connections (partial connect-outline-children [:images] :images-outline-children))
-  (output outline-children [OutlineItem] (g/fnk [images-outline-children] images-outline-children))
-  (property id t/Str)
-  (property fps             dp/NonNegativeInt (default 30))
-  (property flip-horizontal t/Bool)
-  (property flip-vertical   t/Bool)
-  (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
-
-  (input images [ein/ImageResourceNode])
-
-  (output animation Animation
-    (g/fnk [this id images :- [Image] fps flip-horizontal flip-vertical playback]
-      (->Animation id images fps flip-horizontal flip-vertical playback))))
-
 (g/defnk produce-texture-packing :- TexturePacking
-  [this images :- [Image] animations :- [Animation] margin extrude-borders]
-  (let [animations (concat animations (map tex/animation-from-image images))
-        _          (assert (pos? (count animations)))
-        images     (seq (into #{} (mapcat :images animations)))
-        _          (assert (pos? (count images)))
-        texture-packing (tex/pack-textures margin extrude-borders images)]
-    (assoc texture-packing :animations animations)))
+  [images :- [Image] margin extrude-borders]
+  (tex/pack-textures margin extrude-borders images))
 
 (defn summarize-frame-data [key vbuf-factory-fn frame-data]
   (let [counts (map #(count (get % key)) frame-data)
@@ -108,8 +66,6 @@
 (defn animation-frame-data
   [^TexturePacking texture-packing image]
   (let [coords (filter #(= (:path image) (:path %)) (:coords texture-packing))
-        ; TODO: may fail due to #87253110 "Atlas texture should not contain multiple instances of the same image"
-        ;_ (assert (= 1 (count coords)))
         ^Rect coord (first coords)
         packed-image ^BufferedImage (.packed-image texture-packing)
         x-scale (/ 1.0 (.getWidth  packed-image))
@@ -141,9 +97,8 @@
         t/map->TextureSetAnimation)))
 
 (g/defnk produce-textureset :- TextureSet
-  [this texture-packing :- TexturePacking]
-  (let [animations             (sort-by :id (:animations texture-packing))
-        animations             (remove #(empty? (:images %)) animations)
+  [texture-packing :- TexturePacking animations]
+  (let [animations             (remove #(empty? (:images %)) animations)
         animations-images      (for [a animations i (:images a)] [a i])
         images                 (mapcat :images animations)
         frame-data             (map (partial animation-frame-data texture-packing) images)
@@ -165,37 +120,6 @@
                         :vertices         (:vbuf vertex-summary)
                         :outline-vertices (:vbuf outline-vertex-summary)
                         :tex-coords       (:vbuf tex-coord-summary)})))
-
-(sm/defn build-atlas-image :- AtlasProto$AtlasImage
-  [image :- Image]
-  (.build (doto (AtlasProto$AtlasImage/newBuilder)
-            (.setImage (str "/" (:path image))))))
-
-(sm/defn build-atlas-animation :- AtlasProto$AtlasAnimation
-  [animation :- Animation]
-  (.build (doto (AtlasProto$AtlasAnimation/newBuilder)
-            (.addAllImages           (map build-atlas-image (.images animation)))
-            (.setId                  (.id animation))
-            (.setFps                 (.fps animation))
-            (protobuf/set-if-present :flip-horizontal animation)
-            (protobuf/set-if-present :flip-vertical animation)
-            (protobuf/set-if-present :playback animation (partial protobuf/val->pb-enum Tile$Playback)))))
-
-(g/defnk get-text-format :- t/Str
-  "get the text string for this node"
-  [this images :- [Image] animations :- [Animation]]
-  (pb->str
-    (.build
-         (doto (AtlasProto$Atlas/newBuilder)
-             (.addAllImages           (map build-atlas-image images))
-             (.addAllAnimations       (map build-atlas-animation animations))
-             (protobuf/set-if-present :margin this)
-             (protobuf/set-if-present :extrude-borders this)))))
-
-(g/defnk save-atlas-file
-  [this filename text-format]
-  (file/write-file filename (.getBytes text-format))
-  :ok)
 
 (defn render-overlay
   [ctx ^GL2 gl ^TextRenderer text-renderer texture-packing]
@@ -297,215 +221,99 @@
   (output vertex-binding t/Any        :cached (g/fnk [vertex-buffer] (vtx/use-with vertex-buffer atlas-shader)))
   (output renderable RenderData       produce-renderable))
 
-(defn build-animation
-  [anim begin]
-  (let [start begin
-        end   (+ begin (count (:frames anim)))]
-    (.build
-      (doto (TextureSetProto$TextureSetAnimation/newBuilder)
-         (.setId                  (:id anim))
-         (.setWidth               (int (:width  anim)))
-         (.setHeight              (int (:height anim)))
-         (.setStart               (int start))
-         (.setEnd                 (int end))
-         (protobuf/set-if-present :playback anim (partial protobuf/val->pb-enum Tile$Playback))
-         (protobuf/set-if-present :fps anim)
-         (protobuf/set-if-present :flip-horizontal anim)
-         (protobuf/set-if-present :flip-vertical anim)
-         (protobuf/set-if-present :is-animation anim)))))
+(defn- path->id [path]
+  (-> path
+      (str/split #"/")
+      last
+      (str/split #"\.(?=[^\.]+$)")
+      first))
 
-(defn build-animations
-  [start-idx animations]
-  (let [frame-counts     (map #(count (:frames %)) animations)
-        animation-starts (butlast (reductions + start-idx frame-counts))]
-    (map build-animation animations animation-starts)))
+(defn image->animation [image]
+  (map->Animation {:id              (path->id (:path image))
+                   :images          [image]
+                   :fps             30
+                   :flip-horizontal 0
+                   :flip-vertical   0
+                   :playback        :PLAYBACK_ONCE_FORWARD}))
 
-(defn summarize-frames [key vbuf-factory-fn frames]
-  (let [counts (map #(count (get % key)) frames)
-        starts (reductions + 0 counts)
-        total  (last starts)
-        starts (butlast starts)
-        vbuf   (vbuf-factory-fn total)]
-    (doseq [frame frames
-            vtx (get frame key)]
-      (conj! vbuf vtx))
-    {:starts (map int starts) :counts (map int counts) :vbuf (persistent! vbuf)}))
+(g/defnode AtlasImage
+  (property path t/Str)
+  (input src-image BufferedImage)
+  (output image Image (g/fnk [path src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
+  (output animation Animation (g/fnk [image] (image->animation image))))
 
-(defn texturesetc-protocol-buffer
-  [texture-name textureset]
-  (let [animations             (remove #(empty? (:frames %)) (:animations textureset))
-        frames                 (mapcat :frames animations)
-        vertex-summary         (summarize-frames :vertices         ->engine-format-texture frames)
-        outline-vertex-summary (summarize-frames :outline-vertices ->engine-format-texture frames)
-        tex-coord-summary      (summarize-frames :tex-coords       ->uv-only               frames)]
-    (.build (doto (TextureSetProto$TextureSet/newBuilder)
-            (.setTexture               texture-name)
-            (.setTexCoords             (byte-pack (:vbuf tex-coord-summary)))
-            (.addAllAnimations         (build-animations 0 animations))
-
-            (.addAllVertexStart        (:starts vertex-summary))
-            (.addAllVertexCount        (:counts vertex-summary))
-            (.setVertices              (byte-pack (:vbuf vertex-summary)))
-
-            (.addAllOutlineVertexStart (:starts outline-vertex-summary))
-            (.addAllOutlineVertexCount (:counts outline-vertex-summary))
-            (.setOutlineVertices       (byte-pack (:vbuf outline-vertex-summary)))
-
-            (.setTileCount             (int 0))))))
-
-(g/defnk compile-texturesetc :- t/Bool
-  [this g project textureset :- TextureSet]
-  (file/write-file (:textureset-filename this)
-    (.toByteArray (texturesetc-protocol-buffer (:texture-name this) textureset)))
-  :ok)
-
-(defn- texturec-protocol-buffer
-  [engine-format]
-  (t/validate EngineFormatTexture engine-format)
-  (.build (doto (Graphics$TextureImage/newBuilder)
-            (.addAlternatives
-              (doto (Graphics$TextureImage$Image/newBuilder)
-                (.setWidth           (.width engine-format))
-                (.setHeight          (.height engine-format))
-                (.setOriginalWidth   (.original-width engine-format))
-                (.setOriginalHeight  (.original-height engine-format))
-                (.setFormat          (.format engine-format))
-                (.setData            (byte-pack (.data engine-format)))
-                (.addAllMipMapOffset (.mipmap-offsets engine-format))
-                (.addAllMipMapSize   (.mipmap-sizes engine-format))))
-            (.setType            (Graphics$TextureImage$Type/TYPE_2D))
-            (.setCount           1))))
-
-(g/defnk compile-texturec :- t/Bool
-  [this g project packed-image :- BufferedImage]
-  (file/write-file (:texture-filename this)
-    (.toByteArray (texturec-protocol-buffer (tex/->engine-format packed-image))))
-  :ok)
-
-(g/defnode TextureSave
-  (input textureset   TextureSet)
-  (input packed-image BufferedImage)
-
-  (property texture-filename    t/Str (default ""))
-  (property texture-name        t/Str)
-  (property textureset-filename t/Str (default ""))
-
-  (output   texturec    t/Any compile-texturec)
-  (output   texturesetc t/Any compile-texturesetc))
-
-(defn broadcast-event [this event]
-  (doseq [controller (first (g/node-value this :controllers))]
-    (g/process-one-event controller event)))
-
-(defn find-resource-nodes [project exts]
-  (let [all-resource-nodes (filter (fn [node] (let [filename (:filename node)]
-                                                (and filename (contains? exts (t/extension filename))))) (map first (ds/sources-of project :nodes)))
-        filenames (map (fn [node]
-                         (let [filename (:filename node)]
-                           (str "/" (t/local-path filename)))) all-resource-nodes)]
-    (zipmap filenames all-resource-nodes)))
-
-(g/defnk build-atlas-outline-children
-  [images-outline-children animations-outline-children]
-  (concat images-outline-children animations-outline-children))
+(g/defnode AtlasAnimation
+  (property id t/Str)
+  (property fps             dp/NonNegativeInt (default 30))
+  (property flip-horizontal t/Bool)
+  (property flip-vertical   t/Bool)
+  (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
+  (input frames [Image])
+  (output animation Animation (g/fnk [this id frames :- [Image] fps flip-horizontal flip-vertical playback]
+                                     (->Animation id frames fps flip-horizontal flip-vertical playback))))
 
 (g/defnode AtlasNode
-  "This node represents an actual Atlas. It accepts a collection
-   of images and animations. It emits a packed texture-packing.
+  (inherits project/ResourceNode)
 
-   Inputs:
-   images `[dynamo.types/Image]` - A collection of images that will be packed into the atlas.
-   animations `[dynamo.types/Animation]` - A collection of animations that will be packed into the atlas.
-
-   Properties:
-   margin - Integer, must be zero or greater. The number of pixels of transparent space to leave between textures.
-   extrude-borders - Integer, must be zero or greater. The number of pixels for which the outer edge of each texture will be duplicated.
-
-   The margin fits outside the extruded border.
-
-   Outputs
-   aabb `dynamo.types.AABB` - The AABB of the packed texture, in pixel space.
-   gpu-texture `Texture` - A wrapper for the BufferedImage with the actual pixels. Conforms to the right protocols so you can directly use this in rendering.
-   text-format `String` - A saveable representation of the atlas, its animations, and images. Built as a text-formatted protocol buffer.
-   texture-packing `dynamo.types/TexturePacking` - A data structure with full access to the original image bounds, their coordinates in the packed image, the BufferedImage, and outline coordinates.
-   packed-image `BufferedImage` - BufferedImage instance with the actual pixels.
-   textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
-  (inherits core/OutlineNode)
-  (output outline-label t/Str (g/fnk [] "Atlas"))
-  (inherits core/ResourceNode)
-  (inherits core/Saveable)
-
-  (property images dp/ImageResourceList (visible false))
-
-  (property margin          dp/NonNegativeInt (default 0) (visible true))
-  (property extrude-borders dp/NonNegativeInt (default 0) (visible true))
-  (property filename (t/protocol PathManipulation) (visible false))
+  (property margin          dp/NonNegativeInt (default 0))
+  (property extrude-borders dp/NonNegativeInt (default 0))
 
   (input animations [Animation])
-  (input animations-outline-children [OutlineItem])
-  (trigger connect-animations-outline-children :input-connections (partial connect-outline-children [:animations] :animations-outline-children))
 
-  (input images [ein/ImageResourceNode])
-  (input images-outline-children [OutlineItem])
-  (trigger connect-images-outline-children :input-connections (partial connect-outline-children [:images] :images-outline-children))
-
-  (output outline-children [OutlineItem] build-atlas-outline-children)
-
+  (output images [Image] (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
   (output aabb            AABB               (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
   (output gpu-texture     t/Any      :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
-  (output save            t/Keyword          save-atlas-file)
-  (output text-format     t/Str              get-text-format)
   (output texture-packing TexturePacking :cached :substitute-value (tex/blank-texture-packing) produce-texture-packing)
   (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
-  (output textureset      TextureSet     :cached produce-textureset)
+  (output textureset      TextureSet     :cached produce-textureset))
 
-  (on :load
-      (let [project (:project event)
-            input (:filename self)
-            atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
-            img-nodes (find-resource-nodes project #{"png" "jpg"})]
-        (g/set-property self :margin (:margin atlas))
-        (g/set-property self :extrude-borders (:extrude-borders atlas))
-        (doseq [anim (:animations atlas)
-                :let [anim-node (g/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
-                      images (mapv :image (:images anim))]]
-          (g/set-property anim-node :images images)
-          (g/connect anim-node :animation self :animations)
-          (doseq [image images]
-            (when-let [img-node (get img-nodes image)]
-              (g/connect img-node :content anim-node :images))))
-        (let [images (mapv :image (:images atlas))]
-          (g/set-property self :images images)
-          (doseq [image images]
-            (when-let [img-node (get img-nodes image)]
-              (g/connect img-node :content self :images))))
-        self))
+(defn load-atlas [project self input]
+  (let [atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
+        img-resources (project/find-resources project "**.{png,jpg}")
+        img-nodes (into {} (map (fn [[resource node]] [(workspace/path resource) node]) img-resources))]
+    ; TODO Bug, protobuf defaults should be preserved
+    (g/set-property self :margin (get atlas :margin 0))
+    (g/set-property self :extrude-borders (get atlas :extrude-borders 0))
+    (doseq [anim (:animations atlas)
+            :let [atlas-anim (g/add (apply n/construct AtlasAnimation (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
+                  images (mapv :image (:images anim))]]
+      (g/connect atlas-anim :animation self :animations)
+      (doseq [image (map (fn [img] (subs img 1)) images)
+              :let [atlas-image (g/add (n/construct AtlasImage :path image))
+                    img-node (get img-nodes image)]]
+        ; TODO - fix placeholder image
+        (when img-node
+          (g/connect img-node :content atlas-image :src-image)
+          (g/connect atlas-image :image atlas-anim :frames))
+        ))
+    (let [images (mapv :image (:images atlas))]
+      (doseq [image (map (fn [img] (subs img 1)) images)
+              :let [atlas-image (g/add (n/construct AtlasImage :path image))
+                    img-node (get img-nodes image)]]
+        (g/connect img-node :content atlas-image :src-image)
+        (g/connect atlas-image :animation self :animations)))
+    self))
 
-  (on :unload
-      (doseq [[animation-group _] (ds/sources-of self :animations)]
-        (g/delete animation-group))))
+(defn setup-rendering [self view]
+  (let [atlas-render (g/add (n/construct AtlasRender))
+        renderer     (g/add (n/construct scene/SceneRenderer))
+        background   (g/add (n/construct background/Gradient))
+        grid         (g/add (n/construct grid/Grid))
+        camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))]
+    (g/connect background   :renderable      renderer     :renderables)
+    (g/connect grid         :renderable      renderer     :renderables)
+    (g/connect camera       :camera          grid         :camera)
+    (g/connect camera       :camera          renderer     :camera)
+    (g/connect camera       :input-handler   view         :input-handlers)
+    (g/connect view         :viewport        camera       :viewport)
+    (g/connect view         :viewport        renderer     :viewport)
+    (g/connect renderer     :frame           view         :frame)
+    
+    (g/connect self         :texture-packing atlas-render :texture-packing)
+    (g/connect self         :gpu-texture     atlas-render :gpu-texture)
+    (g/connect atlas-render :renderable      renderer     :renderables)
+    (g/connect self         :aabb            camera       :aabb)
+    ))
 
-(defn construct-atlas-editor
-  [project-node atlas-node]
-  (let [view (n/construct scene/SceneView)]
-    (ds/in (g/add view)
-           (let [atlas-render (g/add (n/construct AtlasRender))
-                 renderer     (g/add (n/construct scene/SceneRenderer))
-                 background   (g/add (n/construct background/Gradient))
-                 grid         (g/add (n/construct grid/Grid))
-                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))]
-             (g/connect background   :renderable      renderer     :renderables)
-             (g/connect grid         :renderable      renderer     :renderables)
-             (g/connect camera       :camera          grid         :camera)
-             (g/connect camera       :camera          renderer     :camera)
-             (g/connect camera       :input-handler   view         :input-handlers)
-             (g/connect view         :viewport        camera       :viewport)
-             (g/connect view         :viewport        renderer     :viewport)
-             (g/connect renderer     :frame           view         :frame)
-
-             (g/connect atlas-node   :texture-packing atlas-render :texture-packing)
-             (g/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)
-             (g/connect atlas-render :renderable      renderer     :renderables)
-             (g/connect atlas-node   :aabb            camera       :aabb)
-             )
-           view)))
+(defn register-resource-types [workspace]
+  (workspace/register-resource-type workspace :ext "atlas" :node-type AtlasNode :load-fn load-atlas :setup-rendering-fn setup-rendering))

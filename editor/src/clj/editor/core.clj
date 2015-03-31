@@ -157,3 +157,17 @@ Outputs:
                 :node-ref (g/node-ref this)
                 :commands outline-commands
                 :children outline-children})))
+
+(g/defnode RootScope
+  "There should be exactly one RootScope in the graph, with ID 1.
+RootScope has no parent."
+  (inherits Scope)
+  (property tag t/Keyword (default :root)))
+
+(defmethod print-method RootScope__
+  [^RootScope__ v ^java.io.Writer w]
+  (.write w (str "<RootScope{:_id " (:_id v) "}>")))
+
+(defn make-graph []
+  (let [root (dn/construct RootScope :_id 1)]
+    (ig/add-labeled-node (ig/empty-graph) (ig/inputs root) (ig/outputs root) root)))
