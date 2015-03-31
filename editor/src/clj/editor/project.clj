@@ -22,7 +22,7 @@ ordinary paths."
 
 (g/defnode ResourceNode
   (inherits core/Scope)
-  (property resource (t/protocol workspace/Resource)))
+  (property resource (t/protocol workspace/Resource) (visible false)))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))

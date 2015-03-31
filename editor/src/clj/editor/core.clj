@@ -105,8 +105,8 @@ connected to the Scope's :nodes input.
 When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes [t/Any])
 
-  (property tag      t/Keyword)
-  (property parent   (t/protocol t/NamingContext))
+  (property tag      t/Keyword (visible false))
+  (property parent   (t/protocol t/NamingContext) (visible false))
 
   (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted           #'dispose-nodes)
