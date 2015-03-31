@@ -1,7 +1,6 @@
 (ns editor.boot
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
-            [dynamo.file :as f]
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds]
@@ -10,17 +9,20 @@
             [editor.core :as core]
             [editor.cubemap :as cubemap]
             [editor.graph-view :as graph-view]
-            [editor.image-node :as ein]
             [editor.jfx :as jfx]
+            [editor.image :as image]
             [editor.platformer :as platformer]
             [editor.project :as p]
             [editor.switcher :as switcher]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
+            [editor.project :as project]
+            [editor.scene :as scene]
             [internal.clojure :as clojure]
             [internal.disposal :as disp]
             [internal.graph.types :as gt]
             [service.log :as log])
-  (:import [com.defold.editor Start UIUtil]
+  (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
@@ -29,27 +31,17 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
+           [javafx.util Callback]
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
-
-(defn- split-ext [f]
-  (let [n (.getPath f)
-        i (.lastIndexOf n ".")]
-    (if (== i -1)
-      [n nil]
-      [(.substring n 0 i)
-       (.substring n (inc i))])))
-
-(defn- relative-path [f1 f2]
-  (.toString (.relativize (.toPath f1) (.toPath f2))))
 
 (defn- fill-control [control]
   (AnchorPane/setTopAnchor control 0.0)
@@ -69,28 +61,6 @@
     image-view
     (let [image-view (load-image-view name)]
       ((swap! cached-image-views assoc name image-view) name))))
-
-(declare tree-item)
-
-; TreeItem creator
-(defn- list-children [parent]
-  (if (.isDirectory parent)
-    (doto (FXCollections/observableArrayList)
-      (.addAll (map tree-item (.listFiles parent))))
-    (FXCollections/emptyObservableList)))
-
-; NOTE: Without caching stack-overflow... WHY?
-(defn tree-item [parent]
-  (let [cached (atom false)]
-    (proxy [TreeItem] [parent]
-    (isLeaf []
-      (.isFile (.getValue this)))
-    (getChildren []
-      (let [children (proxy-super getChildren)]
-        (when-not @cached
-          (reset! cached true)
-          (.setAll children (list-children (.getValue this))))
-        children)))))
 
 (defn- setup-console [root]
   (.appendText (.lookup root "#console") "Hello Console"))
@@ -241,99 +211,61 @@
            (g/connect text-node :text editor :text)
            editor)))
 
-(defrecord ProjectPath [project-ref ^String path ^String ext]
-  t/PathManipulation
-  (extension         [this]         ext)
-  (replace-extension [this new-ext] (ProjectPath. project-ref path new-ext))
-  (local-path        [this]         (if ext (str path "." ext) path))
-  (local-name        [this]         (str (last (clojure.string/split path (java.util.regex.Pattern/compile java.io.File/separator))) "." ext))
-
-  f/ProjectRelative
-  (project-file          [this]      (io/file (str (:content-root project-ref) "/" (t/local-path this))))
-
-  io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (f/project-file this) opts))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (io/make-output-stream (f/project-file this) opts))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
-
-(defn- make-project-path [game-project name]
-  (let [f (io/file name)
-        [path ext] (split-ext f)]
-    (ProjectPath. game-project path ext)))
-
-(g/defnode GameProject
-  (inherits core/Scope)
-
-  (property node-types   {t/Str t/Symbol})
-  ;; TODO: Resource type instead of string?
-  (property content-root File)
-
-  ;; TODO: Couldn't get ds/query to work
-  t/NamingContext
-  (lookup
-   [this name]
-   (let [path  (if (instance? ProjectPath name) name (make-project-path this name))
-         nodes (g/node-value this :nodes)]
-     (first (filter #(= path (:filename %)) nodes))))
-
-  t/IDisposable
-  (dispose
-   [this]
-   (println "Dispose GameProject"))
-
-  (on :destroy
-      (println "Destroy GameProject")
-      (g/delete self)))
-
-(def editor-fns {:atlas atlas/construct-atlas-editor
-                 :cubemap cubemap/construct-cubemap-editor
-                 :switcher switcher/construct-switcher-editor
-                 :platformer platformer/construct-platformer-editor})
-
-(defn- find-editor-fn [file]
-  (let [ext (last (.split file "\\."))
-        editor-fn (if ext ((keyword ext) editor-fns) nil)]
-    (or editor-fn on-edit-text)))
-
-(defn- create-editor [game-project file root]
-  (let [tab-pane (.lookup root "#editor-tabs")
-        parent (AnchorPane.)
-        path (relative-path (:content-root game-project) file)
-        resource-node (t/lookup game-project path)
-        node (g/transactional
-               (ds/in game-project
-                      (let [editor-fn (find-editor-fn (.getName file))]
-                        (editor-fn game-project resource-node))))
-        close-handler (ui/event-handler event
-                        (g/transactional
-                          (g/delete node)))]
-
-    (if (satisfies? g/MessageTarget node)
-      (let [tab (Tab. (.getName file))]
-        (setup-properties root resource-node)
-
-        (.setOnClosed tab close-handler)
+(defn- create-editor [workspace project resource root]
+  (let [resource-node (project/get-resource-node project resource)
+        resource-type (project/get-resource-type resource-node)]
+    (when-let [setup-rendering-fn (and resource-type (:setup-rendering-fn resource-type))]
+      (let [tab-pane (.lookup root "#editor-tabs")
+            parent (AnchorPane.)
+            tab (doto (Tab. (workspace/resource-name resource)) (.setContent parent))
+            tabs (doto (.getTabs tab-pane) (.add tab))
+            view (scene/make-scene-view parent tab)]
         (.setGraphic tab (get-image-view "cog.png"))
-        (.add (.getTabs tab-pane) tab)
-        (.setContent tab parent)
-        (n/dispatch-message node :create :parent parent :file file :tab tab)
-        (.select (.getSelectionModel tab-pane) tab))
-      (println "No editor for " node))))
+        (.select (.getSelectionModel tab-pane) tab)
+        (g/transactional (setup-rendering-fn resource-node view))
+        (setup-properties root resource-node)))))
 
-(defn- setup-assets-browser [game-project root]
+(declare tree-item)
+
+; TreeItem creator
+(defn- list-children [parent]
+  (let [children (:children parent)]
+    (if (empty? children)
+      (FXCollections/emptyObservableList)
+      (doto (FXCollections/observableArrayList)
+        (.addAll (map tree-item children))))))
+
+; NOTE: Without caching stack-overflow... WHY?
+(defn tree-item [parent]
+  (let [cached (atom false)]
+    (proxy [TreeItem] [parent]
+      (isLeaf []
+        (not= :folder (workspace/source-type (.getValue this))))
+      (getChildren []
+        (let [children (proxy-super getChildren)]
+          (when-not @cached
+            (reset! cached true)
+            (.setAll children (list-children (.getValue this))))
+          children)))))
+
+(defn- setup-asset-browser [workspace project root]
   (let [tree (.lookup root "#assets")
         tab-pane (.lookup root "#editor-tabs")
         handler (reify EventHandler
                   (handle [this e]
                     (when (= 2 (.getClickCount e))
                       (let [item (-> tree (.getSelectionModel) (.getSelectedItem))
-                            file (.getValue item)]
-                        (when (.isFile file)
-                          (create-editor game-project file root))))))]
+                            resource (.getValue item)]
+                        (when (= :file (workspace/source-type resource))
+                          (create-editor workspace project resource root))))))]
     (.setOnMouseClicked tree handler)
-    (.setCellFactory tree (UIUtil/newFileCellFactory))
-    (.setRoot tree (tree-item (:content-root game-project)))))
+    (.setCellFactory tree (reify Callback (call ^TreeCell [this view]
+                                            (proxy [TreeCell] []
+                                              (updateItem [resource empty]
+                                                (proxy-super updateItem resource empty)
+                                                (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
+                                                  (proxy-super setText name)))))))
+    (.setRoot tree (tree-item (g/node-value workspace :resource-tree)))))
 
 (defn- bind-menus [menu handler]
   (cond
@@ -341,37 +273,35 @@
     (instance? Menu menu) (doseq [m (.getItems menu)]
                             (.addEventHandler m ActionEvent/ACTION handler))))
 
-(ds/initialize {:initial-graph (p/project-graph)})
+(ds/initialize {:initial-graph (core/make-graph)})
+(ds/start)
 
-(def the-system (ds/start))
 (def the-root (atom nil))
 
-(defn load-stage [game-project]
+(defn load-stage [workspace project]
   (let [root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
     (.setUseSystemMenuBar (.lookup root "#menu-bar") true)
     (.setTitle stage "Defold Editor 2.0!")
     (.setScene stage scene)
-
+    
     (.show stage)
     (let [handler (ui/event-handler event (println event))]
       (bind-menus (.lookup root "#menu-bar") handler))
-
+    
     (let [close-handler (ui/event-handler event
-                          (g/transactional
-                            (g/delete game-project))
-                          (ds/dispose-pending))
+                                          (g/transactional
+                                            (g/delete project))
+                                          (ds/dispose-pending))
           dispose-handler (ui/event-handler event (ds/dispose-pending))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
-    (setup-assets-browser game-project root)
+    (setup-asset-browser workspace project root)
     (graph-view/setup-graph-view root)
     (reset! the-root root)
     root))
-
-;(.setProgress (.lookup @the-root "#progress-bar") 1.0)
 
 (defn- create-view [game-project root place node-type]
   (let [node (g/transactional ()
@@ -380,50 +310,28 @@
                         (n/construct node-type))))]
     (n/dispatch-message node :create :parent (.lookup root place))))
 
-(defn load-resource-nodes
-  [game-project paths ^ProgressBar progress-bar]
+(defn setup-workspace [project-path]
   (g/transactional
-    (ds/in game-project
-        [game-project (doall
-                        (for [p paths]
-                          (p/load-resource game-project p)))])))
+    (let [workspace (g/add (n/construct workspace/Workspace :root project-path))]
+      (cubemap/register-resource-types workspace)
+      (image/register-resource-types workspace)
+      (atlas/register-resource-types workspace)
+      (platformer/register-resource-types workspace)
+      (switcher/register-resource-types workspace)
+      workspace)))
 
-(defn get-project-paths [game-project content-root]
-  (->> (file-seq content-root)
-    (filter #(.isFile %))
-    (map #(io/file (relative-path content-root %)))
-    (remove #(.startsWith (.getPath %) "."))
-    (remove #(.startsWith (.getPath %) "build"))
-    (map (fn [f] (make-project-path game-project (.getPath f))))))
-
-(defn- post-load
-  [message project-node resource-nodes]
-  (doseq [resource-node resource-nodes]
-    (log/logging-exceptions (str message (:filename resource-node))
-                            (when (satisfies? g/MessageTarget resource-node)
-                              (ds/in project-node
-                                     (g/process-one-event resource-node {:type :load :project project-node}))))))
-
-(defn load-project
+(defn open-project
   [^File game-project-file]
   (let [progress-bar nil
-        content-root (.getParentFile game-project-file)
-        game-project (g/transactional
-                       (g/add
-                         (n/construct GameProject
-                                      :node-types {"script" TextNode
-                                                   "clj" clojure/ClojureSourceNode
-                                                   "jpg" ein/ImageResourceNode
-                                                   "png" ein/ImageResourceNode
-                                                   "atlas" atlas/AtlasNode
-                                                   "cubemap" cubemap/CubemapNode
-                                                   "switcher" switcher/SwitcherNode
-                                                   "platformer" platformer/PlatformerNode}
-                                      :content-root content-root)))
-        resources       (get-project-paths game-project content-root)
-        _ (apply post-load "Loading" (load-resource-nodes game-project resources progress-bar))
-        root (load-stage game-project)
-        curve (create-view game-project root "#curve-editor-container" CurveEditor)]))
+        project-path (.getPath (.getParentFile game-project-file))
+        workspace (setup-workspace project-path)
+        project (g/transactional (let [project (g/add (n/construct project/Project))]
+                                   (g/connect workspace :resource-list project :resources)
+                                   project))
+        resources (g/node-value workspace :resource-list)
+        project (project/load-project project resources)
+        root (load-stage workspace project)
+        curve (create-view project root "#curve-editor-container" CurveEditor)]))
 
 (defn get-preference [key]
   (let [prefs (.node (Preferences/userRoot) "defold")]
@@ -439,4 +347,4 @@
           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
       (when project-file
         (set-preference pref-key project-file)
-        (load-project (io/file project-file))))))
+        (open-project (io/file project-file))))))

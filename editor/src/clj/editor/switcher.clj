@@ -1,5 +1,6 @@
 (ns editor.switcher
   (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
@@ -8,7 +9,7 @@
             [dynamo.gl.shader :as shader]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.image :refer :all]
+            #_[dynamo.image :refer :all]
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
@@ -16,6 +17,8 @@
             [editor.camera :as c]
             [editor.core :as core]
             [editor.scene :as scene]
+            [editor.workspace :as workspace]
+            [editor.project :as project]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -23,7 +26,8 @@
            [java.awt.image BufferedImage]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]))
+           [javax.vecmath Matrix4d Point3d]
+           [java.io PushbackReader]))
 
 ; Config
 
@@ -70,6 +74,7 @@
   (varying vec4 var_color)
   (defn void main []
     (setq gl_FragColor (* var_color (texture2D texture var_texcoord0.xy)))
+    #_(setq gl_FragColor (vec4 var_texcoord0.xy 0 1))
     ))
 
 (def shader (shader/make-shader vertex-shader fragment-shader))
@@ -255,7 +260,7 @@
       action)))
 
 (g/defnode SwitcherNode
-  (inherits core/OutlineNode)
+  (inherits project/ResourceNode)
 
   (property level t/Any (visible false))
   (property width t/Int)
@@ -307,3 +312,40 @@
         (g/connect atlas-node      :textureset    switcher-render :textureset)
         (g/connect switcher-node   :aabb          camera          :aabb))
       view)))
+
+(defn load-level [project self input]
+  (with-open [reader (PushbackReader. (io/reader (:resource self)))]
+    (let [level (edn/read reader)]
+      (g/set-property self :width (:width level))
+      (g/set-property self :height (:height level))
+      (g/set-property self :level level))))
+
+(defn setup-rendering [self view]
+  (let [switcher-render (g/add (n/construct SwitcherRender))
+        renderer        (g/add (n/construct scene/SceneRenderer))
+        background      (g/add (n/construct background/Gradient))
+        camera          (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))
+        ; TODO - resource nodes should be able to lookup other resource nodes
+        project-node    (:parent self)
+        atlas-node      (second (first (project/find-resources project-node switcher-atlas-file)))]
+    (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
+    
+    (g/connect background      :renderable    renderer        :renderables)
+    (g/connect camera          :camera        renderer        :camera)
+    (g/connect camera          :input-handler view            :input-handlers)
+    (g/connect view            :viewport      camera          :viewport)
+    (g/connect view            :viewport      renderer        :viewport)
+    (g/connect renderer        :frame         view            :frame)
+    
+    (g/connect camera          :camera        self            :camera)
+    (g/connect self            :input-handler view            :input-handlers)
+    (g/connect switcher-render :renderable    renderer        :renderables)
+    (g/connect self            :level         switcher-render :level)
+    (g/connect self            :active-brush  switcher-render :active-brush)
+    (g/connect view            :viewport      self            :viewport)
+    (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
+    (g/connect atlas-node      :textureset    switcher-render :textureset)
+    (g/connect self            :aabb          camera          :aabb)))
+
+(defn register-resource-types [workspace]
+  (workspace/register-resource-type workspace :ext "switcher" :node-type SwitcherNode :load-fn load-level :setup-rendering-fn setup-rendering))
