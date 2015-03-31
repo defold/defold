@@ -234,7 +234,7 @@
       (let [pos {:x (:x action) :y (:y action)}
             world-pos-v4 (c/camera-unproject camera viewport (:x action) (:y action) 0)
             world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)}
-            level (:level self)
+            level (g/node-value self :level)
             palette-cells (mapcat :cells (layout-palette palette))
             palette-hit (some #(hit? % pos palette-cell-size-half) palette-cells)
             level-cells (layout-level level)
@@ -245,7 +245,7 @@
       (let [pos {:x (:x action) :y (:y action)}
             world-pos-v4 (c/camera-unproject camera viewport (:x action) (:y action) 0)
             world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)}
-            level (:level self)
+            level (g/node-value self :level)
             palette-cells (mapcat :cells (layout-palette palette))
             palette-hit (some #(hit? % pos palette-cell-size-half) palette-cells)
             level-cells (layout-level level)
@@ -262,7 +262,7 @@
 (g/defnode SwitcherNode
   (inherits project/ResourceNode)
 
-  (property level t/Any (visible false))
+  (property blocks t/Any (visible false))
   (property width t/Int)
   (property height t/Int)
   (property active-brush t/Str (default "red_candy"))
@@ -270,55 +270,20 @@
   (input camera t/Any)
   (input viewport Region)
 
+  (output level t/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
   (output input-handler Runnable (g/fnk [] handle-input))
   (output aabb AABB (g/fnk [width height]
      (let [half-width (* 0.5 cell-size width)
            half-height (* 0.5 cell-size height)]
        (t/->AABB (Point3d. (- half-width) (- half-height) 0)
-                 (Point3d. half-width half-height 0)))))
-
-  (on :load
-      (let [project (:project event)
-            level (edn/read-string (slurp (:filename self)))]
-        (g/set-property self :width (:width level))
-        (g/set-property self :height (:height level))
-        (g/set-property self :level level))))
-
-(defn construct-switcher-editor
-  [project-node switcher-node]
-  (let [view (n/construct scene/SceneView)]
-    (ds/in (g/add view)
-      (let [switcher-render (g/add (n/construct SwitcherRender))
-            renderer        (g/add (n/construct scene/SceneRenderer))
-            background      (g/add (n/construct background/Gradient))
-            camera          (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))
-            atlas-node      (t/lookup project-node switcher-atlas-file)]
-        (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
-
-        (g/connect background      :renderable    renderer        :renderables)
-        (g/connect camera          :camera        renderer        :camera)
-        (g/connect camera          :input-handler view            :input-handlers)
-        (g/connect view            :viewport      camera          :viewport)
-        (g/connect view            :viewport      renderer        :viewport)
-        (g/connect renderer        :frame         view            :frame)
-
-        (g/connect camera          :camera        switcher-node   :camera)
-        (g/connect switcher-node   :input-handler view            :input-handlers)
-        (g/connect switcher-render :renderable    renderer        :renderables)
-        (g/connect switcher-node   :level         switcher-render :level)
-        (g/connect switcher-node   :active-brush  switcher-render :active-brush)
-        (g/connect view            :viewport      switcher-node   :viewport)
-        (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
-        (g/connect atlas-node      :textureset    switcher-render :textureset)
-        (g/connect switcher-node   :aabb          camera          :aabb))
-      view)))
+                 (Point3d. half-width half-height 0))))))
 
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
     (let [level (edn/read reader)]
       (g/set-property self :width (:width level))
       (g/set-property self :height (:height level))
-      (g/set-property self :level level))))
+      (g/set-property self :blocks (:blocks level)))))
 
 (defn setup-rendering [self view]
   (let [switcher-render (g/add (n/construct SwitcherRender))
