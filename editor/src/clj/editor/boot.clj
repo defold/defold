@@ -40,6 +40,9 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
+(def ^:dynamic *project-graph* nil)
+(def ^:dynamic *game-project*  nil)
+
 (defn- split-ext [f]
   (let [n (.getPath f)
         i (.lastIndexOf n ".")]
@@ -236,10 +239,10 @@
 
 (defn on-edit-text
   [project-node text-node]
-  (let [editor (n/construct TextEditor)]
-    (ds/in (g/add editor)
-           (g/connect text-node :text editor :text)
-           editor)))
+  (g/graph-with-nodes
+   10
+   [editor TextEditor]
+   (g/connect text-node :text editor :text)))
 
 (defrecord ProjectPath [project-ref ^String path ^String ext]
   t/PathManipulation
@@ -284,30 +287,30 @@
 
   (on :destroy
       (println "Destroy GameProject")
-      (g/delete self)))
+      (g/transact
+       (g/delete-node self))))
 
-(def editor-fns {:atlas atlas/construct-atlas-editor
-                 :cubemap cubemap/construct-cubemap-editor
-                 :switcher switcher/construct-switcher-editor
+(def editor-fns {:atlas      atlas/construct-atlas-editor
+                 :cubemap    cubemap/construct-cubemap-editor
+                 :switcher   switcher/construct-switcher-editor
                  :platformer platformer/construct-platformer-editor})
 
-(defn- find-editor-fn [file]
+(defn- find-editor-fn
+  [file]
   (let [ext (last (.split file "\\."))
         editor-fn (if ext ((keyword ext) editor-fns) nil)]
     (or editor-fn on-edit-text)))
 
-(defn- create-editor [game-project file root]
-  (let [tab-pane (.lookup root "#editor-tabs")
-        parent (AnchorPane.)
-        path (relative-path (:content-root game-project) file)
+(defn- create-editor
+  [game-project file root]
+  (let [tab-pane      (.lookup root "#editor-tabs")
+        parent        (AnchorPane.)
+        path          (relative-path (:content-root game-project) file)
         resource-node (t/lookup game-project path)
-        node (g/transactional
-               (ds/in game-project
-                      (let [editor-fn (find-editor-fn (.getName file))]
-                        (editor-fn game-project resource-node))))
+        node          (g/transact
+                       ((find-editor-fn game-project (.getName file)) game-project resource-node))
         close-handler (ui/event-handler event
-                        (g/transactional
-                          (g/delete node)))]
+                                        (g/transact (g/delete-node node)))]
 
     (if (satisfies? g/MessageTarget node)
       (let [tab (Tab. (.getName file))]
@@ -343,7 +346,6 @@
 
 (ds/initialize {:initial-graph (p/project-graph)})
 
-(def the-system (ds/start))
 (def the-root (atom nil))
 
 (defn load-stage [game-project]
@@ -359,8 +361,8 @@
       (bind-menus (.lookup root "#menu-bar") handler))
 
     (let [close-handler (ui/event-handler event
-                          (g/transactional
-                            (g/delete game-project))
+                          (g/transact
+                            (g/delete-node game-project))
                           (ds/dispose-pending))
           dispose-handler (ui/event-handler event (ds/dispose-pending))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
@@ -374,19 +376,14 @@
 ;(.setProgress (.lookup @the-root "#progress-bar") 1.0)
 
 (defn- create-view [game-project root place node-type]
-  (let [node (g/transactional ()
-               (ds/in game-project
-                      (g/add
-                        (n/construct node-type))))]
+  (let [node (g/transact
+              (g/make-node (:_gid game-project) node-type))]
     (n/dispatch-message node :create :parent (.lookup root place))))
 
-(defn load-resource-nodes
-  [game-project paths ^ProgressBar progress-bar]
-  (g/transactional
-    (ds/in game-project
-        [game-project (doall
-                        (for [p paths]
-                          (p/load-resource game-project p)))])))
+(defn resource-nodes
+  [project-graph game-project paths ^ProgressBar progress-bar]
+  (for [p paths]
+    (p/load-resource project-graph game-project p)))
 
 (defn get-project-paths [game-project content-root]
   (->> (file-seq content-root)
@@ -399,31 +396,35 @@
 (defn- post-load
   [message project-node resource-nodes]
   (doseq [resource-node resource-nodes]
-    (log/logging-exceptions (str message (:filename resource-node))
-                            (when (satisfies? g/MessageTarget resource-node)
-                              (ds/in project-node
-                                     (g/process-one-event resource-node {:type :load :project project-node}))))))
+    (log/logging-exceptions
+     (str message (:filename resource-node))
+     (when (satisfies? g/MessageTarget resource-node)
+       (g/process-one-event resource-node {:type :load :project project-node})))))
 
 (defn load-project
   [^File game-project-file]
-  (let [progress-bar nil
-        content-root (.getParentFile game-project-file)
-        game-project (g/transactional
-                       (g/add
-                         (n/construct GameProject
-                                      :node-types {"script" TextNode
-                                                   "clj" clojure/ClojureSourceNode
-                                                   "jpg" ein/ImageResourceNode
-                                                   "png" ein/ImageResourceNode
-                                                   "atlas" atlas/AtlasNode
-                                                   "cubemap" cubemap/CubemapNode
-                                                   "switcher" switcher/SwitcherNode
+  (let [progress-bar    nil
+        project-graph   (ds/attach-graph-with-history (g/make-graph :volatility 10))
+        content-root    (.getParentFile game-project-file)
+        game-project-tx (ds/transact
+                         (g/make-node project-graph GameProject
+                                      :node-types {"script"     TextNode
+                                                   "clj"        clojure/ClojureSourceNode
+                                                   "jpg"        ein/ImageResourceNode
+                                                   "png"        ein/ImageResourceNode
+                                                   "atlas"      atlas/AtlasNode
+                                                   "cubemap"    cubemap/CubemapNode
+                                                   "switcher"   switcher/SwitcherNode
                                                    "platformer" platformer/PlatformerNode}
-                                      :content-root content-root)))
+                                      :content-root content-root))
+        game-project    (first (ds/tx-nodes-added game-project-tx))
         resources       (get-project-paths game-project content-root)
-        _ (apply post-load "Loading" (load-resource-nodes game-project resources progress-bar))
-        root (load-stage game-project)
-        curve (create-view game-project root "#curve-editor-container" CurveEditor)]))
+        tx-result       (ds/transact (resource-nodes project-graph game-project resources progress-bar))
+        resource-nodes  (ds/tx-nodes-added tx-result)]
+    (post-load "Loading" project-graph resource-nodes)
+    (load-stage game-project)
+    (create-view game-project root "#curve-editor-container" CurveEditor)
+    [project-graph game-project]))
 
 (defn get-preference [key]
   (let [prefs (.node (Preferences/userRoot) "defold")]
@@ -439,4 +440,6 @@
           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
       (when project-file
         (set-preference pref-key project-file)
-        (load-project (io/file project-file))))))
+        (let [[project-graph game-project] (load-project (io/file project-file))]
+          (alter-var-root! #'*project-graph* project-graph)
+          (alter-var-root! #'*game-project*  game-project))))))

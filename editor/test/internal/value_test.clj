@@ -14,10 +14,10 @@
 (def ^:dynamic *calls*)
 
 (defn tally [node fn-symbol]
-  (swap! *calls* update-in [(:_id node) fn-symbol] (fnil inc 0)))
+  (swap! *calls* update-in [(g/node-id node) fn-symbol] (fnil inc 0)))
 
 (defn get-tally [node fn-symbol]
-  (get-in @*calls* [(:_id node) fn-symbol] 0))
+  (get-in @*calls* [(g/node-id node) fn-symbol] 0))
 
 (defmacro expect-call-when [node fn-symbol & body]
   `(let [calls-before# (get-tally ~node ~fn-symbol)]
@@ -86,17 +86,18 @@
   (inherits SecondaryCachedValue))
 
 (defn build-sample-project
-  []
+  [world]
   (let [nodes (tx-nodes
-               (n/construct CacheTestNode :scalar "Jane")
-               (n/construct CacheTestNode :scalar "Doe")
-               (n/construct CacheTestNode)
-               (n/construct CacheTestNode))
+               (g/make-node world CacheTestNode :scalar "Jane")
+               (g/make-node world CacheTestNode :scalar "Doe")
+               (g/make-node world CacheTestNode)
+               (g/make-node world CacheTestNode))
         [name1 name2 combiner expensive]  nodes]
-    (g/transactional
-     (g/connect name1 :uncached-value combiner :first-name)
-     (g/connect name2 :uncached-value combiner :last-name)
-     (g/connect name1 :uncached-value expensive :operand))
+    (ds/transact
+     (concat
+      (g/connect name1 :uncached-value combiner :first-name)
+      (g/connect name2 :uncached-value combiner :last-name)
+      (g/connect name1 :uncached-value expensive :operand)))
     nodes))
 
 (defn with-function-counts
@@ -108,14 +109,14 @@
 
 (deftest project-cache
   (with-clean-system
-    (let [[name1 name2 combiner expensive] (build-sample-project)]
+    (let [[name1 name2 combiner expensive] (build-sample-project world)]
       (testing "uncached values are unaffected"
         (is (= "Jane" (g/node-value name1 :uncached-value)))))))
 
 (deftest caching-avoids-computation
   (testing "cached values are only computed once"
     (with-clean-system
-      (let [[name1 name2 combiner expensive] (build-sample-project)]
+      (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-no-call-when combiner 'compute-derived-value
                              (doseq [x (range 100)]
@@ -123,49 +124,37 @@
 
   (testing "modifying inputs invalidates the cached value"
     (with-clean-system
-      (let [[name1 name2 combiner expensive] (build-sample-project)]
+      (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (ds/transact (atom system) [(it/update-property name1 :scalar (constantly "John") [])])
+                          (ds/transact (it/update-property name1 :scalar (constantly "John") []))
                           (is (= "John Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "transmogrifying a node invalidates its cached value"
     (with-clean-system
-      (let [[name1 name2 combiner expensive] (build-sample-project)]
+      (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (ds/transact (atom system) [(it/become name1 (n/construct CacheTestNode))])
+                          (ds/transact (it/become name1 (n/construct CacheTestNode)))
                           (is (= "Jane Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"
     (with-clean-system
-      (let [[name1 name2 combiner expensive] (build-sample-project)]
+      (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "this is distinct from the other outputs" (g/node-value combiner :another-value)))
         (is (not= (g/node-value combiner :another-value) (g/node-value combiner :expensive-value))))))
 
   (testing "cache invalidation only hits dependent outputs"
     (with-clean-system
-      (let [[name1 name2 combiner expensive] (build-sample-project)]
+      (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane" (g/node-value combiner :nickname)))
         (expect-call-when combiner 'passthrough-first-name
-                          (ds/transact (atom system) [(it/update-property name1 :scalar (constantly "Mark") [])])
+                          (ds/transact (it/update-property name1 :scalar (constantly "Mark") []))
                           (is (= "Mark" (g/node-value combiner :nickname))))
         (expect-no-call-when combiner 'passthrough-first-name
-                             (ds/transact (atom system) [(it/update-property name2 :scalar (constantly "Brandenburg") [])])
+                             (ds/transact (it/update-property name2 :scalar (constantly "Brandenburg") []))
                              (is (= "Mark" (g/node-value combiner :nickname)))
                              (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
-
-
-(g/defnk compute-disposable-value
-  [this g]
-  (tally this 'compute-disposable-value)
-  (reify t/IDisposable
-    (dispose [v]
-      (tally this 'dispose)
-      (a/>!! (:channel (ig/node g this)) :gone))))
-
-(g/defnode DisposableValueNode
-  (output disposable-value 't/IDisposable :cached compute-disposable-value))
 
 (g/defnk produce-input-from-node
   [overridden]
@@ -181,31 +170,31 @@
   (output foo    t/Str derive-value-from-inputs))
 
 (defn build-override-project
-  []
+  [world]
   (let [nodes (tx-nodes
-               (n/construct OverrideValueNode)
-               (n/construct CacheTestNode :scalar "Jane"))
+               (g/make-node world OverrideValueNode)
+               (g/make-node world CacheTestNode :scalar "Jane"))
         [override jane]  nodes]
-    (g/transactional
+    (ds/transact
      (g/connect jane :uncached-value override :overridden))
     nodes))
 
 (deftest invalid-resource-values
   (with-clean-system
-    (let [[override jane] (build-override-project)]
+    (let [[override jane] (build-override-project world)]
       (testing "requesting a non-existent label throws"
         (is (thrown? clojure.lang.ExceptionInfo (g/node-value override :aint-no-thang)))))))
 
 (deftest update-sees-in-transaction-value
   (with-clean-system
-    (let [node (g/transactional
-                (g/add (n/construct OverrideValueNode :name "a project" :int-prop 0)))
-          after-transaction (g/transactional
-                             (g/update-property node :int-prop inc)
-                             (g/update-property node :int-prop inc)
-                             (g/update-property node :int-prop inc)
-                             (g/update-property node :int-prop inc))]
-      (is (= 4 (:int-prop after-transaction))))))
+    (let [[node]            (tx-nodes (g/make-node world OverrideValueNode :name "a project" :int-prop 0))
+          after-transaction (ds/transact
+                             (concat
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc)
+                              (g/update-property node :int-prop inc)))]
+      (is (= 4 (:int-prop (g/refresh node)))))))
 
 (defn- cache-peek [cache node-id label]
   (get @cache [node-id label]))
@@ -218,12 +207,12 @@
 
   (output plus-1 t/Int :cached
           (g/fnk [self call-counter]
-                 (g/transactional (g/update-property self :call-counter inc))
+                 (ds/transact (g/update-property self :call-counter inc))
                  (inc call-counter))))
 
 (deftest intermediate-uncached-values-are-not-cached
   (with-clean-system
-    (let [[node]       (tx-nodes (n/construct SelfCounter :first-call true))
+    (let [[node]       (tx-nodes (g/make-node world SelfCounter :first-call true))
           node-id      (:_id node)]
       (g/node-value node :plus-1)
       (is (cached? cache node-id :plus-1))
@@ -251,12 +240,13 @@
 
 (deftest node-value-precedence
   (with-clean-system
-    (let [[node s1] (tx-nodes (n/construct ValuePrecedence)
-                              (n/construct Source :constant :input))]
-      (g/transactional
-       (g/connect s1 :constant node :overloaded-output-input-property)
-       (g/connect s1 :constant node :overloaded-input-property)
-       (g/connect s1 :constant node :eponymous))
+    (let [[node s1] (tx-nodes (g/make-node world ValuePrecedence)
+                              (g/make-node world Source :constant :input))]
+      (ds/transact
+       (concat
+        (g/connect s1 :constant node :overloaded-output-input-property)
+        (g/connect s1 :constant node :overloaded-input-property)
+        (g/connect s1 :constant node :eponymous)))
       (is (= :output   (g/node-value node :overloaded-output-input-property)))
       (is (= :input    (g/node-value node :overloaded-input-property)))
       (is (= :property (g/node-value node :the-property)))

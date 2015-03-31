@@ -50,6 +50,10 @@ so it has the corresponding `make-reader`, `make-writer`, `make-input-stream` an
   (let [[path ext] (split-ext (io/file name))]
     (ProjectPath. game-project path ext)))
 
+(defmethod print-method dynamo.file.ProjectPath
+  [^ProjectPath v ^java.io.Writer w]
+  (.write w (str "P<" (t/local-name v) ">")))
+
 (defn- ensure-parents
   [path]
   (-> path

@@ -20,7 +20,7 @@
   [n]
   (if (number? n)
     n
-    (:_id n)))
+    (gt/node-id n)))
 
 (defn- address-to
   [node body]
@@ -39,17 +39,6 @@
   [{subscribe-to :subscribe-to} node]
   (a/sub subscribe-to (subscriber-id node) (a/chan 100)))
 
-(defn- make-bus
-  []
-  (let [pubch (a/chan 100)]
-    {:publish-to   pubch
-     :subscribe-to (a/pub pubch ::node-id (fn [_] (a/dropping-buffer 100)))}))
-
-(defn evict-obsoletes
-  [cache _ world-state _ new-world-state]
-  (let [obsoletes (-> new-world-state :last-tx :outputs-modified)]
-    (c/cache-invalidate cache obsoletes)))
-
 (defn- new-history
   [state]
   {:state state
@@ -57,21 +46,22 @@
    :redo-stack []})
 
 (defn- transaction-applied?
-  [{old-world-time :tx-id} {new-world-time :tx-id :as new-world}]
-  (and (= :ok (-> new-world :last-tx :status)) (< old-world-time new-world-time)))
+  [{old-time :tx-id :or {old-time 0}}
+   {new-time :tx-id :or {new-time 0} :as new-graph}]
+  (< old-time new-time))
 
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
 
 (defn- history-label [world]
   (or (get-in world [:last-tx :label]) (str "World Time: " (:tx-id world))))
 
-(defn- push-history [history-ref  _ world-ref old-world new-world]
-  (when (transaction-applied? old-world new-world)
+(defn- push-history [history-ref  _ gref old-graph new-graph]
+  (when (transaction-applied? old-graph new-graph)
     (dosync
-      (assert (= (:state @history-ref) world-ref))
-      (alter history-ref update-in [:undo-stack] conj-undo-stack old-world)
+      (assert (= (:state @history-ref) gref))
+      (alter history-ref update-in [:undo-stack] conj-undo-stack old-graph)
       (alter history-ref assoc-in  [:redo-stack] []))
-    #_(record-history-operation undo-context (history-label new-world))))
+    #_(record-history-operation undo-context (history-label new-graph))))
 
 (defn undo-history [history-ref]
   (dosync
@@ -93,51 +83,77 @@
         (alter history-ref update-in [:undo-stack] conj old-world)
         (alter history-ref update-in [:redo-stack] pop)))))
 
+(defn system-cache   [s]     (-> s :cache))
+(defn history        [s]     (-> s :history))
+(defn disposal-queue [s]     (-> s :disposal-queue))
+(defn graphs         [s]     (-> s :graphs))
+(defn graph-ref      [s gid] (-> s :graphs (get gid)))
+(defn graph          [s gid] (some-> s (graph-ref gid) deref))
+(defn graph-time     [s gid] (-> s (graph gid) :tx-id))
+(defn graph-history  [s gid] (-> s (graph gid) :history))
+(defn basis          [s]     (ig/multigraph-basis (map-vals deref (graphs s))))
+
+(defn history-states
+  [href]
+  (let [h @href]
+    (concat (:undo-stack h) (:redo-stack h))))
+
 (defn- make-disposal-queue
   [{queue :disposal-queue :or {queue (a/chan (a/dropping-buffer maximum-disposal-backlog))}}]
   queue)
 
 (defn- make-initial-graph
-  [{graph :initial-graph :or {graph (ig/empty-graph)}}]
+  [{graph :initial-graph :or {graph (assoc (ig/empty-graph) :_gid 0)}}]
   graph)
 
 (defn- make-cache
   [{cache-size :cache-size :or {cache-size maximum-cached-items}} disposal-queue]
   (c/cache-subsystem cache-size disposal-queue))
 
+(defn next-available-gid
+  [s]
+  (let [used (into #{} (keys (graphs s)))]
+    (first (drop-while used (range 0 gt/MAX-GROUP-ID)))))
+
+(defn- attach-graph*
+  [s gref]
+  (let [gid (next-available-gid s)]
+    (dosync (alter gref assoc :_gid gid))
+    (-> s
+        (assoc :last-graph gid)
+        (update-in [:graphs] assoc gid gref))))
+
+(defn attach-graph
+  [s g]
+  (attach-graph* s (ref g)))
+
+(defn attach-graph-with-history
+  [s g]
+  (let [gref (ref g)
+        href (ref (new-history gref))]
+    (dosync (alter gref assoc :history href))
+    (let [s (attach-graph* s gref)]
+      (add-watch gref ::push-history (partial push-history href))
+      s)))
+
+(defn detach-graph
+  [s g]
+  (let [gid (:_gid g)]
+    (update-in s [:graphs] dissoc gid)))
+
 (defn make-system
   [configuration]
   (let [disposal-queue (make-disposal-queue configuration)
         initial-graph  (make-initial-graph configuration)
-        cache          (make-cache configuration disposal-queue)
-        world-ref      (ref nil)]
-    (dosync
-     (ref-set world-ref
-              (ig/map-nodes #(assoc % :world-ref world-ref) initial-graph)))
-    (merge (make-bus)
-           {:disposal-queue disposal-queue
-            :history        (ref (new-history world-ref))
-            :world          world-ref
-            :cache          cache})))
-
-(defn system-cache   [s] (-> s :cache))
-(defn world-ref      [s] (-> s :world))
-(defn history        [s] (-> s :history))
-(defn world-graph    [s] (some-> (world-ref s) deref))
-(defn world-time     [s] (some-> (world-graph s) :tx-id))
-(defn disposal-queue [s] (-> s :disposal-queue))
-
-(defn start-system
-  [sys]
-  (add-watch (world-ref sys) ::decache      (partial evict-obsoletes (system-cache sys)))
-  (add-watch (world-ref sys) ::push-history (partial push-history (history sys)))
-  sys)
-
-(defn stop-system
-  [sys]
-  (remove-watch (world-ref sys) ::push-history)
-  (remove-watch (world-ref sys) ::decache)
-  sys)
+        pubch          (a/chan 100)
+        subch          (a/pub pubch ::node-id (fn [_] (a/dropping-buffer 100)))
+        cache          (make-cache configuration disposal-queue)]
+    (-> {:disposal-queue disposal-queue
+         :graphs         {}
+         :cache          cache
+         :publish-to     pubch
+         :subscribe-to   subch}
+        (attach-graph initial-graph))))
 
 (defn start-event-loop!
   [sys id]
@@ -145,7 +161,7 @@
     (a/go-loop []
       (when-let [msg (a/<! in)]
         (when (not= ::stop-event-loop (:type msg))
-          (when-let [n (ig/node (world-graph sys) id)]
+          (when-let [n ()]
             (log/logging-exceptions
              (str "Node " id "event loop")
              (gt/process-one-event n msg))

@@ -1,5 +1,6 @@
 (ns editor.graph-view
   (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [dynamo.system :as ds]
             [editor.ui :as ui])
   (:import [javafx.application Platform]
@@ -46,7 +47,7 @@
 
       (doseq [n included-nodes]
         (let [props (map name (node-sockets n))]
-           (.write w (format "%s [shape=record, label=\"<%s> %s|" (:_id n) (node-label n) (node-label n)) )
+           (.write w (format "%s [shape=record, label=\"<%s> %s|" (g/node-id n) (node-label n) (node-label n)) )
            (.write w (clojure.string/join "|" (map (fn [x] (format "<%s> %s" x x)) props)))
            (.write w "\"];\n")))
 
@@ -55,7 +56,7 @@
               target       (:target a)
               source-label (name (:source-label a))
               target-label (name (:target-label a))]
-          (.write w (format "%s:\"%s\" -> %s:\"%s\";\n" (:_id source) source-label (:_id target) target-label))))
+          (.write w (format "%s:\"%s\" -> %s:\"%s\";\n" (g/node-id source) source-label (g/node-id target) target-label))))
       (.write w "}\n"))
     dot-file))
 

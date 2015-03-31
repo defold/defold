@@ -1,16 +1,21 @@
 (ns dynamo.graph
-  (:require [clojure.tools.macro :as ctm]
+  (:require [clojure.set :as set]
+            [clojure.tools.macro :as ctm]
             [dynamo.node :as dn]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.graph :as ig]
             [internal.node :as in]
-            [potemkin.namespaces :refer [import-vars]]
-            [internal.system :as is]))
+            [internal.system :as is]
+            [internal.transaction :as it]
+            [potemkin.namespaces :refer [import-vars]]))
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals map-keys map-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types Node node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs output-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' output-dependencies' MessageTarget process-one-event node-ref])
+(import-vars [internal.graph.types tempid nref->gid nref->nid node-by-id node-by-property sources targets connected? query Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
+
+(let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
+  (defn next-graph-id [] (.getAndIncrement gid)))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -130,53 +135,83 @@
        (let [description#    ~(in/node-type-sexps symb (concat dn/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
-             whole-graph#    (is/world-graph @ds/*the-system*)
-             to-be-replaced# (when (and whole-graph# replacing#)
-                               (filterv #(= replacing# (node-type %)) (ig/node-values whole-graph#)))
+             all-graphs#     (map-vals deref (is/graphs @ds/*the-system*))
+             to-be-replaced# (when (and all-graphs# replacing#)
+                               (filterv #(= replacing# (node-type %)) (mapcat ig/node-values (vals all-graphs#))))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
          (def ~symb (in/make-node-type (assoc description# :dynamo.node/ctor ctor#)))
          (in/define-node-record  '~record-name '~symb ~symb)
          (in/define-print-method '~record-name '~symb ~symb)
          (when (< 0 (count to-be-replaced#))
-           (ds/transactional* (fn []
-                                (doseq [r# to-be-replaced#]
-                                  (ds/become r# (dn/construct ~symb))))))
+           (ds/transact
+            (mapcat (fn [r#]
+                      (let [new# (dn/construct ~symb)]
+                        (g/become r# new#)))
+                    to-be-replaced#)))
          (var ~symb)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
 ;; ---------------------------------------------------------------------------
-(defmacro transactional
-  "Executes the body within a project transaction. All actions
-  described in the body will happen atomically at the end of the
-  transactional block.
+(defmacro make-nodes
+  "Create a number of nodes in a graph, binding them to local names
+   to wire up connections. The resulting code will return a collection
+   of transaction steps, including the steps to construct nodes from the
+   bindings.
 
-  Transactional blocks nest nicely. The transaction will happen when
-  the outermost block ends."
-  [& forms]
-  `(ds/transactional* (fn [] ~@forms)))
+   If the right side of the binding is a node type, it is used directly. If it
+   is a vector, it is treated as a node type followed by initial property values.
+
+  Example:
+
+  (make-nodes view [render     AtlasRender
+                   scene      scene/SceneRenderer
+                   background background/Gradient
+                   camera     [c/CameraController :camera (c/make-orthographic)]]
+     (g/connect background   :renderable scene :renderables)
+     (g/connect atlas-render :renderable scene :renderables))"
+  [gid binding-expr & body-exprs]
+  (assert (vector? binding-expr) "make-nodes requires a vector for its binding")
+  (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
+  (let [locals (take-nth 2 binding-expr)
+        ctors  (take-nth 2 (next binding-expr))
+        ids    (repeat (count locals) `(tempid ~gid))]
+    `(let [~@(interleave locals ids)]
+       (concat
+        ~@(map
+           (fn [ctor id]
+             (if (sequential? ctor)
+               `(g/make-node ~gid ~@ctor :_id ~id)
+               `(g/make-node ~gid ~ctor :_id ~id)))
+           ctors locals)
+        ~@body-exprs))))
+
+(defmacro graph-with-nodes
+  [volatility binding-expr & body-exprs]
+  `(let [g# (ds/attach-graph (g/make-graph :volatility ~volatility))]
+     (ds/transact
+      (make-nodes g# ~binding-expr ~@body-exprs))
+     g#))
 
 (defn operation-label
   "Set a human-readable label to describe the current transaction."
   [label]
-  (ds/tx-label label))
+  (it/label label))
 
-(defn add
-  "Add a newly created node to the world. This will attach the node to
-  the current scope."
-  [n]
-  (ds/add n))
+(defn make-node
+  [gid node-type & args]
+  (it/new-node (apply dn/construct node-type :_id (tempid gid) args)))
 
-(defn delete
+(defn delete-node
   "Remove a node from the world."
   [n]
-  (ds/delete n))
+  (it/delete-node n))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
-  (ds/connect source-node source-label target-node target-label))
+  (it/connect source-node source-label target-node target-label))
 
 (defn disconnect
   "Remove a connection from an output of the source node to the input on the target node.
@@ -184,7 +219,7 @@
   from other outputs to other inputs.  Takes effect when a transaction
   is applied."
   [source-node source-label target-node target-label]
-  (ds/disconnect source-node source-label target-node target-label))
+  (it/disconnect source-node source-label target-node target-label))
 
 (defn become
   "Turn one kind of node into another, in a transaction. All properties and their values
@@ -196,24 +231,35 @@
   labels that don't exist on new-node will be disconnected in the same
   transaction."
   [source-node new-node]
-  (ds/become source-node new-node))
+  (it/become source-node new-node))
 
 (defn set-property
   "Assign a value to a node's property (or properties) value(s) in a
   transaction."
   [n & kvs]
-  (apply ds/set-property n kvs))
+  (mapcat
+   (fn [[p v]]
+     (it/update-property n p (constantly v) []))
+   (partition-all 2 kvs)))
 
 (defn update-property
   "Apply a function to a node's property in a transaction. The
   function f will be invoked as if by (apply f current-value args)"
   [n p f & args]
-  (apply ds/update-property n p f args))
-
+  (it/update-property n p f args))
 
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
+(defn node
+  "Get a node, given a node ID."
+  [node-id]
+  (node-by-id (ds/now) node-id))
+
+(defn refresh
+  [n]
+  (node-by-id (ds/now) (node-id n)))
+
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
   The value may be cached or it may be computed on demand. This is
@@ -225,21 +271,59 @@
 
   The label must exist as a defined transform on the node, or an
   AssertionError will result."
-  [node label]
-  (ds/node-value node label))
+  ([node label]
+   (in/node-value (ds/now) (ds/cache) node label))
+  ([basis node label]
+   (in/node-value basis (ds/cache) node label))
+  ([basis cache node label]
+   (in/node-value basis cache node label)))
 
-(defn node-by-id
-  [node-id]
-  (ds/node-by-id node-id))
+(defn graph-id
+  [g]
+  (:_gid g))
 
 (defn make-graph
-  [nodes]
-  (loop [g  (ig/empty-graph)
-         i  1
-         ns nodes]
-    (if-let [n (first ns)]
-      (recur
-       (ig/add-labeled-node g (inputs n) (outputs n) (assoc n :_id i))
-       (inc i)
-       (rest ns))
-      g)))
+  [& {:as options}]
+  (let [volatility (:volatility options 0)]
+    (assoc (ig/empty-graph) :_volatility volatility)))
+
+;; ---------------------------------------------------------------------------
+;; Interrogating the Graph
+;; ---------------------------------------------------------------------------
+(defn node-feeding-into
+  "Find the one-and-only node that sources this input on this node.
+   Should you use this on an input label with multiple connections,
+   the result is undefined."
+  [basis node label]
+  (node basis
+        (ffirst (sources basis (node-id node) label))))
+
+(defn sources-of
+  "Find the [node label] pairs for all connections into the given
+  node's input label. The result is a sequence of pairs."
+  [basis node label]
+  (map
+   (fn [[node-id label]]
+     [(node basis node-id) label])
+   (sources basis (node-id node) label)))
+
+(defn nodes-consuming
+  "Find the [node label] pairs for all connections reached from the
+  given node's input label.  The result is a sequence of pairs."
+  [basis node label]
+  (map
+   (fn [[node-id label]]
+     [(node-by-id basis node-id) label])
+   (targets basis (node-id node) label)))
+
+(defn node-consuming
+  "Like nodes-consuming, but only returns the first result."
+  [basis node label]
+  (ffirst (nodes-consuming basis node label)))
+
+(defn output-dependencies
+  "Find all the outputs that could be affected by a change in the
+   given outputs.  Outputs are specified as pairs of [node-id label]
+   for both the argument and return value."
+  [basis outputs]
+  (ig/trace-dependencies basis outputs))

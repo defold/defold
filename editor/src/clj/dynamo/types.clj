@@ -6,7 +6,6 @@
             [schema.macros :as sm])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.dynamo.tile.proto Tile$Playback]
-           [internal.graph.types NodeRef]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
@@ -78,13 +77,6 @@
 (defn property-type? [x] (satisfies? PropertyType x))
 
 (def Properties {Keyword {:value Any :type (protocol PropertyType)}})
-
-(defprotocol Marker
-  "Annotates a location with extra information."
-  (marker-kind     [this] "Keyword denoting the marker's intent")
-  (marker-status   [this] "Keyword denoting the status. Predefined statuses are :error, :information, :ok")
-  (marker-location [this] "Map that must include :node-ref, may include other keys added by the marker's creator.")
-  (marker-message  [this] "Human readable string"))
 
 (def Int32   (pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    Str)
@@ -229,6 +221,6 @@
 (def OutlineItem
   {:label    Str
    :icon     Icon
-   :node-ref NodeRef
+   :node-ref Long
    :commands [OutlineCommand]
    :children [(recursive #'OutlineItem)]})

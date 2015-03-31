@@ -41,15 +41,16 @@
     (sort (map (fn [n v] [n (class v)]) (keys gnodes) (vals gnodes)))))
 
 (defn node
-  [id]
-  (g/node-by-id id))
+  [g id]
+  (g/node-by-id g id))
 
 (defn node-type
-  [id] (-> (node id) g/node-type :name))
+  [id]
+  (-> (node id) g/node-type :name))
 
 (defn nodes-of-type
   [type-name]
-  (filter #(= type-name (node-type (:_id %))) (nodes)))
+  (filter #(= type-name (:name (g/node-type %))) (nodes)))
 
 (def image-nodes (partial nodes-of-type "ImageResourceNode"))
 

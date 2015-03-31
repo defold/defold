@@ -10,7 +10,6 @@
             [dynamo.image-test]
             [dynamo.messages :as m]
             [dynamo.property-test]
-            [dynamo.protobuf-test]
             [dynamo.transaction-test]
             [dynamo.ui.property-test]
             [dynamo.util-test]

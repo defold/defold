@@ -50,20 +50,23 @@
 (declare tex-outline-vertices)
 
 (defn- input-connections
-  [graph node input-label]
-  (mapv (fn [[source-node output-label]] [(:_id source-node) output-label])
-    (ds/sources-of graph node input-label)))
+  [basis node input-label]
+  (g/sources basis node input-label))
 
+;; TODO - MTN 2015/03/26 - I think this is too complicated.
+;; It would be simpler for each content node to define a production
+;; function for its outline data & use the already-existing connections
+;; instead of creating new connections for the outline values
 (defn connect-outline-children
   [input-labels input-name transaction graph self label kind inputs-touched]
   (when (some (set input-labels) inputs-touched)
-    (let [children-before (input-connections (ds/in-transaction-graph transaction) self input-name)
+    (let [children-before (input-connections transaction self input-name)
           children-after  (mapcat #(input-connections graph self %) input-labels)]
       (concat
        (for [[n l] children-before]
-         (it/disconnect {:_id n} l self input-name))
+         (g/disconnect n l self input-name))
        (for [[n _] children-after]
-         (it/connect {:_id n} :outline-tree self input-name))))))
+         (g/connect n :outline-tree self input-name))))))
 
 (g/defnode AnimationGroupNode
   (inherits core/OutlineNode)
@@ -399,7 +402,7 @@
 
 (defn find-resource-nodes [project exts]
   (let [all-resource-nodes (filter (fn [node] (let [filename (:filename node)]
-                                                (and filename (contains? exts (t/extension filename))))) (map first (ds/sources-of project :nodes)))
+                                                (and filename (contains? exts (t/extension filename))))) (map first (g/sources-of project :nodes)))
         filenames (map (fn [node]
                          (let [filename (:filename node)]
                            (str "/" (t/local-path filename)))) all-resource-nodes)]
@@ -460,52 +463,50 @@
   (output textureset      TextureSet     :cached produce-textureset)
 
   (on :load
-      (let [project (:project event)
-            input (:filename self)
-            atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
+      (let [project   (:project event)
+            pgid      (g/nref->gid (g/node-id project))
+            input     (:filename self)
+            atlas     (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
             img-nodes (find-resource-nodes project #{"png" "jpg"})]
-        (g/set-property self :margin (:margin atlas))
-        (g/set-property self :extrude-borders (:extrude-borders atlas))
-        (doseq [anim (:animations atlas)
-                :let [anim-node (g/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
-                      images (mapv :image (:images anim))]]
-          (g/set-property anim-node :images images)
-          (g/connect anim-node :animation self :animations)
-          (doseq [image images]
-            (when-let [img-node (get img-nodes image)]
-              (g/connect img-node :content anim-node :images))))
-        (let [images (mapv :image (:images atlas))]
-          (g/set-property self :images images)
-          (doseq [image images]
-            (when-let [img-node (get img-nodes image)]
-              (g/connect img-node :content self :images))))
-        self))
+        (ds/transact
+         (concat
+          (g/set-property self :margin (:margin atlas))
+          (g/set-property self :extrude-borders (:extrude-borders atlas))
+          (map
+           (fn [anim]
+             (let [id (g/tempid pgid)]
+               (concat (apply g/make-node pgid AnimationGroupNode :_id id
+                              (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id])))
+                       (g/set-property id :images (mapv :image (:images anim)))
+                       (g/connect      id :animation self :animations))))
+           (:animations atlas))
+          (let [images (mapv :image (:images atlas))]
+            (g/set-property self :images images))))))
 
   (on :unload
-      (doseq [[animation-group _] (ds/sources-of self :animations)]
-        (g/delete animation-group))))
+      (ds/transact
+       (for [[animation-group _] (g/sources-of (ds/now) self :animations)]
+         (g/delete-node animation-group)))))
 
 (defn construct-atlas-editor
-  [project-node atlas-node]
-  (let [view (n/construct scene/SceneView)]
-    (ds/in (g/add view)
-           (let [atlas-render (g/add (n/construct AtlasRender))
-                 renderer     (g/add (n/construct scene/SceneRenderer))
-                 background   (g/add (n/construct background/Gradient))
-                 grid         (g/add (n/construct grid/Grid))
-                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))]
-             (g/connect background   :renderable      renderer     :renderables)
-             (g/connect grid         :renderable      renderer     :renderables)
-             (g/connect camera       :camera          grid         :camera)
-             (g/connect camera       :camera          renderer     :camera)
-             (g/connect camera       :input-handler   view         :input-handlers)
-             (g/connect view         :viewport        camera       :viewport)
-             (g/connect view         :viewport        renderer     :viewport)
-             (g/connect renderer     :frame           view         :frame)
+  [project-node atlas-node view-graph]
+  (g/make-nodes
+   view-graph [view         scene/SceneView
+               atlas-render AtlasRender
+               renderer     scene/SceneRenderer
+               background   background/Gradient
+               grid         grid/Grid
+               camera       [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
+   (g/connect background   :renderable      renderer     :renderables)
+   (g/connect grid         :renderable      renderer     :renderables)
+   (g/connect camera       :camera          grid         :camera)
+   (g/connect camera       :camera          renderer     :camera)
+   (g/connect camera       :input-handler   view         :input-handlers)
+   (g/connect view         :viewport        camera       :viewport)
+   (g/connect view         :viewport        renderer     :viewport)
+   (g/connect renderer     :frame           view         :frame)
 
-             (g/connect atlas-node   :texture-packing atlas-render :texture-packing)
-             (g/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)
-             (g/connect atlas-render :renderable      renderer     :renderables)
-             (g/connect atlas-node   :aabb            camera       :aabb)
-             )
-           view)))
+   (g/connect atlas-node   :texture-packing atlas-render :texture-packing)
+   (g/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)
+   (g/connect atlas-render :renderable      renderer     :renderables)
+   (g/connect atlas-node   :aabb            camera       :aabb)))

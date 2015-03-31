@@ -9,18 +9,14 @@
             [internal.graph.types :as gt]
             [internal.property :as ip]
             [plumbing.core :refer [fnk]]
-            [plumbing.fnk.pfnk :as pf]))
+            [plumbing.fnk.pfnk :as pf])
+  (:import [internal.graph.types IBasis]))
 
 (defn resource-property?
   [property-type]
   (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
 
 (defn- pfnk? [f] (contains? (meta f) :schema))
-
-(def ^:private ^java.util.concurrent.atomic.AtomicInteger
-     nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
-
-(defn tempid [] (- (.getAndIncrement nextid)))
 
 ;; ---------------------------------------------------------------------------
 ;; New evaluation
@@ -35,21 +31,21 @@
 
 (defn- chain-eval
   "Start a chain of evaluators"
-  [evaluators graph in-production node-id label]
+  [evaluators ^IBasis basis in-production node-id label]
   (let [chain-head    (first evaluators)
         chain-tail    (next evaluators)]
-    (chain-head graph in-production node-id label evaluators chain-tail)))
+    (chain-head basis in-production node-id label evaluators chain-tail)))
 
 (defn- continue
   "Continue evaluation with the next link in the chain."
-  [graph in-production node-id label chain-head chain-next]
-  ((first chain-next) graph in-production node-id label chain-head (next chain-next)))
+  [^IBasis basis in-production node-id label chain-head chain-next]
+  ((first chain-next) basis in-production node-id label chain-head (next chain-next)))
 
 (def ^:private multivalued?  vector?)
 (def ^:private exists?       (comp not nil?))
 (def ^:private has-property? contains?)
 (defn- has-output? [node label] (some-> node gt/transforms label boolean))
-(def ^:private first-source (comp first ig/sources))
+(def ^:private first-source (comp first gt/sources))
 (defn- currently-producing [in-production node-id label] (= (last in-production) [node-id label]))
 
 (defn- evaluate-input-internal
@@ -58,16 +54,16 @@
 
   1. It names an input label. Evaluate the sources to get their values.
   2. It names a property of the node itself. Return the value of the property.
-  3. It names another output of the same node. (The node has functions that depend on other outputs of the same node.) Evaluate that output first, then use its value.
-  4. It is the special name :this. Use the entire node as an argument.
-  5. It is the special name :g. Use the entire graph as an argument."
-  [graph in-production node-id label chain-head]
-  (let [node             (ig/node graph node-id)
+  3. It names another output of the same node. (The node has functions that depend on other
+     outputs of the same node.) Evaluate that output first, then use its value.
+  4. It is the special name :this. Use the entire node as an argument."
+  [basis in-production node-id label chain-head]
+  (let [node             (gt/node-by-id basis node-id)
         input-schema     (some-> node gt/input-types label)
         output-transform (some-> node gt/transforms  label)]
     (cond
       (and (has-output? node label) (not (currently-producing in-production node-id label)))
-      (chain-eval chain-head graph in-production node-id label)
+      (chain-eval chain-head basis in-production node-id label)
 
       (multivalued? input-schema)
       (e/bind
@@ -76,64 +72,61 @@
           (conj
            input-vals
            (e/result
-            (chain-eval chain-head graph in-production (first source) (second source)))))
+            (chain-eval chain-head basis in-production (first source) (second source)))))
         []
-        (ig/sources graph node-id label)))
+        (gt/sources basis node-id label)))
 
       (exists? input-schema)
-      (if-let [source (first-source graph node-id label)]
-        (chain-eval chain-head graph in-production (first source) (second source))
+      (if-let [source (first-source basis node-id label)]
+        (chain-eval chain-head basis in-production (first source) (second source))
         (e/bind nil))
 
       (has-property? node label)
       (e/bind (get node label))
-
-      (= :g label)
-      (e/bind graph)
 
       (= :this label)
       (e/bind node))))
 
 (defn- collect-inputs
   "Return a map of all inputs needed for the input-schema."
-  [graph in-production node-id label chain-head input-schema]
+  [^IBasis basis in-production node-id label chain-head input-schema]
   (reduce-kv
    (fn [inputs desired-input-name desired-input-schema]
      (assoc inputs desired-input-name
-            (evaluate-input-internal graph in-production node-id desired-input-name chain-head)))
+            (evaluate-input-internal basis in-production node-id desired-input-name chain-head)))
    {}
    (dissoc input-schema t/Keyword)))
 
 (defn- produce-with-schema
   "Helper function: if the production function has schema information,
   use it to collect the required arguments."
-  [graph in-production node-id label chain-head production-fn]
-  (let [input-schema (pf/input-schema production-fn)]
-    (e/bind
-     (production-fn
-      (map-vals e/result
-                (collect-inputs graph in-production node-id label chain-head input-schema))))))
+  [^IBasis basis in-production node-id label chain-head production-fn]
+  (e/bind
+   (production-fn
+    (map-vals e/result
+              (collect-inputs basis in-production node-id label chain-head
+                              (pf/input-schema production-fn))))))
 
 (defn apply-transform-or-substitute
   "Attempt to invoke the production function for an output. If it
   fails, call the transform's substitute value function."
-  [graph in-production node-id label chain-head transform]
+  [^IBasis basis in-production node-id label chain-head transform]
   (let [producer (:production-fn transform)
         fallback (:substitute-value-fn transform)]
     (e/or-else
      (cond
        (pfnk? producer)
-       (produce-with-schema graph in-production node-id label chain-head producer)
+       (produce-with-schema basis in-production node-id label chain-head producer)
 
        (fn? producer)
-       (e/bind (producer (ig/node graph node-id) graph))
+       (e/bind (producer (gt/node-by-id basis node-id) basis))
 
        :else
        (e/bind producer))
      (fn [e]
        (cond
          (fn? fallback)
-         (fallback {:exception e :node-id node-id :label label :graph graph})
+         (fallback {:exception e :node-id node-id :label label})
 
          fallback
          fallback
@@ -145,38 +138,38 @@
   "This evaluation function checks whether the requested value is
   already being computed. If so, it means there is a cycle in the
   graph somewhere, so we must abort."
-  [graph in-production node-id label chain-head chain-next]
+  [^IBasis basis in-production node-id label chain-head chain-next]
   (if (some #{[node-id label]} in-production)
-    (cycle-detected graph in-production node-id label)
-    (continue graph (conj in-production [node-id label]) node-id label chain-head chain-next)))
+    (cycle-detected basis in-production node-id label)
+    (continue basis (conj in-production [node-id label]) node-id label chain-head chain-next)))
 
 (defn evaluate-production-function
   "This evaluation function looks for a production function to create
   the output on the node. If there is a production function, it
   gathers the arguments needed for the production function and invokes
   it."
-  [graph in-production node-id label chain-head chain-next]
-  (if-let [transform (some->> node-id (ig/node graph) gt/transforms label)]
-    (apply-transform-or-substitute graph in-production node-id label chain-head transform)
-    (continue graph in-production node-id label chain-head chain-next)))
+  [^IBasis basis in-production node-id label chain-head chain-next]
+  (if-let [transform (some->> node-id (gt/node-by-id basis) gt/transforms label)]
+    (apply-transform-or-substitute basis in-production node-id label chain-head transform)
+    (continue basis in-production node-id label chain-head chain-next)))
 
 (defn lookup-property
   "This evaluation function looks for a property on the node. If there
   is no such property, evaluation continues with the rest of the
   chain."
-  [graph in-production node-id label chain-head chain-next]
-  (let [node (ig/node graph node-id)]
+  [^IBasis basis in-production node-id label chain-head chain-next]
+  (let [node (gt/node-by-id basis node-id)]
     (if (has-property? node label)
       (e/bind (get node label))
-      (continue graph in-production node-id label chain-head chain-next))))
+      (continue basis in-production node-id label chain-head chain-next))))
 
 (defn read-input
   "This evaluation function looks for an input to the node. If the
   input exists and is multivalued, then all the incoming values are
   conjed together. If the input does not exist, evaluation continues
   with the rest of the chain."
-  [graph in-production node-id label chain-head chain-next]
-  (let [node             (ig/node graph node-id)
+  [^IBasis basis in-production node-id label chain-head chain-next]
+  (let [node             (gt/node-by-id basis node-id)
         input-schema     (some-> node gt/input-types label)]
     (cond
       (multivalued? input-schema)
@@ -186,17 +179,17 @@
           (conj
            input-vals
            (e/result
-            (chain-eval chain-head graph in-production (first source) (second source)))))
+            (chain-eval chain-head basis in-production (first source) (second source)))))
         []
-        (ig/sources graph node-id label)))
+        (gt/sources basis node-id label)))
 
       (exists? input-schema)
-      (if-let [source (first-source graph node-id label)]
-        (chain-eval chain-head graph in-production (first source) (second source))
+      (if-let [source (first-source basis node-id label)]
+        (chain-eval chain-head basis in-production (first source) (second source))
         (e/bind nil))
 
       :else
-      (continue graph in-production node-id label chain-head chain-next))))
+      (continue basis in-production node-id label chain-head chain-next))))
 
 (def world-evaluation-chain
   [mark-in-production
@@ -216,11 +209,11 @@
   If no local delta is found, the evaluator continues the
   chain. Whatever the chain returns gets recorded as a local delta for
   possible use during the remainder of the evaluation."
-  [deltas graph in-production node-id label chain-head chain-next]
+  [deltas ^IBasis basis in-production node-id label chain-head chain-next]
   (if-some [r (local deltas node-id label)]
     r
     (delta deltas node-id label
-           (continue graph in-production node-id label chain-head chain-next))))
+           (continue basis in-production node-id label chain-head chain-next))))
 
 (defn- hit [hits node-id label v] (swap! hits conj [node-id label]) v)
 
@@ -229,63 +222,65 @@
 
   The evaluator collects records of values that were 'hits' in the
   atom of the same name."
-  [snapshot hits graph in-production node-id label chain-head chain-next]
+  [snapshot hits ^IBasis basis in-production node-id label chain-head chain-next]
   (if-some [v (get snapshot [node-id label])]
     (hit hits node-id label v)
-    (continue graph in-production node-id label chain-head chain-next)))
+    (continue basis in-production node-id label chain-head chain-next)))
 
 (defn fork
-  "Return a thunk for an evaluation chain. When invoked during evaluation,
-  it will call `test` with 6 arguments: the graph, the in-production
-  set, the node-id and label, the head of the evaluation chain and the
-  rest of the current chain.
+  "Return a thunk for an evaluation chain. When invoked during
+  evaluation, it will call `test` with 6 arguments: the basis, the
+  in-production set, the node-id and label, the head of the evaluation
+  chain and the rest of the current chain.
 
-  The rest of the current chain should be 2 items
-  long. Each one is a nested sequence of evaluators."
+  The rest of the current chain should be 2 items long. Each one is a
+  nested sequence of evaluators."
   [test]
-  (fn [graph in-production node-id label chain-head chain-next]
+  (fn [^IBasis basis in-production node-id label chain-head chain-next]
     (assert (= 2 (count chain-next)))
     (let [[consequent alternate & _] chain-next
-          branch?                    (test graph node-id label)
+          branch?                    (test basis node-id label)
           next-chain                 (if branch? consequent alternate)]
-      ((first next-chain) graph in-production node-id label chain-head (next next-chain)))))
+      ((first next-chain) basis in-production node-id label chain-head (next next-chain)))))
 
 (defn- cacheable?
-  "Check the node type to see if the given output should be cached once computed."
-  [graph node-id label]
-  ((gt/cached-outputs (ig/node graph node-id)) label))
+  "Check the node type to see if the given output should be cached
+  once computed."
+  [^IBasis basis node-id label]
+  (if-let [node (gt/node-by-id basis node-id)]
+    ((gt/cached-outputs node) label)
+    false))
 
 (def fork-cacheable (fork cacheable?))
 
 (defn node-value
-  "Get a value, possibly cached, from a node. This is the entry point to the \"plumbing\".
-If the value is cacheable and exists in the cache, then return that value. Otherwise,
-produce the value by gathering inputs to call a production function, invoke the function,
-maybe cache the value that was produced, and return it."
-  [graph cache node label]
-  (let [node-id    (if (map? node) (:_id node) node)
+  "Get a value, possibly cached, from a node. This is the entry point
+  to the \"plumbing\". If the value is cacheable and exists in the
+  cache, then return that value. Otherwise, produce the value by
+  gathering inputs to call a production function, invoke the function,
+  maybe cache the value that was produced, and return it."
+  [^IBasis basis cache node label]
+  (let [node-id    (if (gt/node? node) (gt/node-id node) node)
         hits       (atom [])
         deltas     (atom [])
-        evaluators [fork-cacheable
-                    (list* (partial local-deltas deltas)
-                           (partial cache-lookup (c/cache-snapshot cache) hits)
-                           world-evaluation-chain)
-                    world-evaluation-chain]
-        result     (chain-eval evaluators graph [] node-id label)]
-    (do
+        evaluators (if cache
+                     [fork-cacheable
+                      (list* (partial local-deltas deltas)
+                             (partial cache-lookup (c/cache-snapshot cache) hits)
+                             world-evaluation-chain)
+                      world-evaluation-chain]
+                     world-evaluation-chain)
+        result     (chain-eval evaluators basis [] node-id label)]
+    (when cache
       (c/cache-hit cache @hits)
       (c/cache-encache cache @deltas))
     (e/result result)))
-
-(defn get-inputs
-  [graph node label]
-  (map #(ig/node graph (first %)) (ig/sources graph (:_id node) label)))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-  [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers output-dependencies]
+  [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies]
 
   gt/NodeType
   (supertypes           [_] supertypes)
@@ -301,7 +296,7 @@ maybe cache the value that was produced, and return it."
   (outputs'             [_] (set (keys transforms)))
   (cached-outputs'      [_] cached-outputs)
   (event-handlers'      [_] event-handlers)
-  (output-dependencies' [_] output-dependencies))
+  (input-dependencies'  [_] input-dependencies))
 
 (defmethod print-method NodeTypeImpl
   [^NodeTypeImpl v ^java.io.Writer w]
@@ -337,16 +332,16 @@ maybe cache the value that was produced, and return it."
           seen))
       inputs)))
 
-(defn description->output-dependencies
+(defn description->input-dependencies
    [{:keys [transforms properties] :as description}]
    (let [outs (dissoc transforms :self)
          outs (zipmap (keys outs) (map #(dependency-seq description (inputs-for %)) (vals outs)))
          outs (assoc outs :properties (set (keys properties)))]
      (invert-map outs)))
 
-(defn attach-output-dependencies
+(defn attach-input-dependencies
   [description]
-  (assoc description :output-dependencies (description->output-dependencies description)))
+  (assoc description :input-dependencies (description->input-dependencies description)))
 
 (def ^:private map-merge (partial merge-with merge))
 
@@ -367,7 +362,7 @@ not called directly."
     (update-in [:protocols]           combine-with set/union #{} (from-supertypes description gt/protocols))
     (update-in [:method-impls]        combine-with merge      {} (from-supertypes description gt/method-impls))
     (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description gt/triggers))
-    attach-output-dependencies
+    attach-input-dependencies
     map->NodeTypeImpl))
 
 (defn attach-supertype
@@ -386,10 +381,10 @@ not called directly."
 
 (defn- abstract-function
   [label type]
-  (fn [this g]
+  (fn [this & _]
     (throw (AssertionError.
              (format "Node %d does not supply a production function for the abstract '%s' output. Add (output %s %s your-function) to the definition of %s"
-               (:_id this) label
+               (gt/node-id this) label
                label type this)))))
 
 (defn attach-output
@@ -499,7 +494,7 @@ build the node type description (map). These are emitted where you invoked
     `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (fnk [~label] ~label))
 
     [(['on label & fn-body] :seq)]
-    `(attach-event-handler ~(keyword label) (fn [~'self ~'event] (dynamo.graph/transactional ~@fn-body)))
+    `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
 
     [(['trigger label & rest] :seq)]
     (let [kinds (vec (take-while keyword? rest))
@@ -534,7 +529,7 @@ build the node type description (map). These are emitted where you invoked
 
 (defn- state-vector
   [node-type]
-  (mapv (comp symbol name) (keys (gt/properties' node-type))))
+  (conj (mapv (comp symbol name) (keys (gt/properties' node-type))) '_id ))
 
 (defn- message-processor
   [node-type-name node-type]
@@ -550,6 +545,7 @@ build the node type description (map). These are emitted where you invoked
   [record-name node-type-name node-type]
   `(defrecord ~record-name ~(state-vector node-type)
      gt/Node
+     (node-id             [this#] (:_id this#))
      (node-type           [_]    ~node-type-name)
      (inputs              [_]    (set (keys (gt/inputs' ~node-type-name))))
      (input-types         [_]    (gt/inputs' ~node-type-name))
@@ -559,7 +555,7 @@ build the node type description (map). These are emitted where you invoked
      (transform-types     [_]    (gt/transform-types' ~node-type-name))
      (cached-outputs      [_]    (gt/cached-outputs' ~node-type-name))
      (properties          [_]    (gt/properties' ~node-type-name))
-     (output-dependencies [_]    (gt/output-dependencies' ~node-type-name))
+     (input-dependencies  [_]    (gt/input-dependencies' ~node-type-name))
      ~@(gt/interfaces node-type)
      ~@(gt/protocols node-type)
      ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type))
@@ -582,10 +578,12 @@ and protocols that the node type requires."
     `(defmethod print-method ~record-name
        [~node w#]
        (.write
-         ^java.io.Writer w#
-         (str "#" '~node-type-name "{:_id " (:_id ~node)
-           ~@(interpose-every 3 ", " (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))]) (keys (gt/properties' node-type))))
-           "}")))))
+        ^java.io.Writer w#
+        (str "#" '~node-type-name "{" (gt/nref->gid (:_id ~node)) ":" (gt/nref->nid (:_id ~node))
+             ~@(interpose-every 3 ", "
+                                (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))])
+                                        (keys (gt/properties' node-type))))
+             "}")))))
 
 (defn define-print-method
   "Create a nice print method for a node type. This avoids infinitely recursive output in the REPL."
