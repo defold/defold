@@ -251,7 +251,15 @@ namespace dmGameObject
             // member in a hidden context. Reported in DEF-54
             if (regist->m_Collections[i] == collection)
             {
-                regist->m_Collections.EraseSwap(i);
+                // Resize m_Collections manually here instead of using EraseSwap.
+                // This is to keep m_Collections in their spawn order, otherwise we run the risk
+                // of deleting proxy collections before their parent/spawning which in turn is
+                // problematic since the "parent" are going to delete the proxy collections they spawned.
+                for (uint32_t j = i; j < regist->m_Collections.Size() - 1; ++j)
+                {
+                    regist->m_Collections[j] = regist->m_Collections[j+1];
+                }
+                regist->m_Collections.SetSize(regist->m_Collections.Size() - 1);
                 found = true;
                 break;
             }
