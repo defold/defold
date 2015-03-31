@@ -167,12 +167,12 @@
 (g/defnode PlatformerNode
   (inherits project/ResourceNode)
 
-  (property control-points  [t/Any])
+  (property control-points  [t/Any] (visible false))
   (property base-texture t/Str)
 
-                                        ; TODO temp solution
-  (property active-cp t/Any)
-  (property inactive-cps t/Any)
+  ; TODO temp solution
+  (property active-cp t/Any (visible false))
+  (property inactive-cps t/Any (visible false))
 
   (input camera t/Any)
   (input viewport Region)
