@@ -1,23 +1,89 @@
 (ns editor.project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
-  (:require [dynamo.file :as file]
+  (:require [clojure.java.io :as io]
+            [schema.core :as schema]
+            [dynamo.file :as file]
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.selection :as selection]
             [dynamo.system :as ds]
             [dynamo.types :as t]
+            [dynamo.ui :as ui]
             [dynamo.util :refer :all]
+            [editor.workspace :as workspace]
             [editor.core :as core]
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
             [service.log :as log])
-  (:import [java.io File]))
+  (:import [java.io File]
+           [java.nio.file FileSystem FileSystems PathMatcher]))
 
-(defn register-node-type
-  [filetype node-type]
-  (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
+(g/defnode ResourceNode
+  (inherits core/Scope)
+  (property resource (t/protocol workspace/Resource)))
+
+(g/defnode PlaceholderResourceNode
+  (inherits ResourceNode))
+
+(defn- make-nodes
+  [project resources]
+  (ds/in project
+         (g/transactional
+           (let [resources (filter (fn [[resource-type resources]] (boolean resource-type)) (group-by workspace/resource-type resources))]
+             (doall (map (fn [[resource-type resources]]
+                           (let [node-type (get resource-type :node-type PlaceholderResourceNode)]
+                             [resource-type (doall (map (fn [resource] (g/add (n/construct node-type :resource resource :parent project))) resources))])) resources))))))
+
+(defn- load-nodes [project nodes]
+  (g/transactional
+    (doseq [[resource-type nodes] nodes]
+      (let [load-fn (:load-fn resource-type)]
+        (when load-fn
+          (doseq [node nodes]
+            (ds/in node (load-fn project node (io/reader (:resource node)))))
+          )
+        )
+      )))
+
+(defn load-project [project resources]
+  (let [nodes (make-nodes project resources)]
+    (load-nodes (ds/refresh project) nodes)
+    (ds/refresh project)))
+
+(defn nodes-in-project
+  "Return a lazy sequence of all nodes in this project. There is no
+guaranteed ordering of the sequence."
+  [project-node]
+  (ds/query [[:_id (:_id project-node)] '(input :nodes)]))
+
+(g/defnode Project
+  (inherits core/Scope)
+  
+  (input resources t/Any))
+
+(defn get-resource-type [resource-node]
+  (when resource-node (workspace/resource-type (:resource resource-node))))
+
+(defn filter-resources [resources query]
+  (let [file-system ^FileSystem (FileSystems/getDefault)
+        matcher (.getPathMatcher file-system (str "glob:" query))]
+    (filter (fn [r] (let [path (.getPath file-system (workspace/path r) (into-array String []))] (.matches matcher path))) resources)))
+
+(defn find-resources [project query]
+  (let [nodes (nodes-in-project project)
+        resource-to-node (into {} (map (fn [n] [(:resource n) n]) nodes))
+        resources (filter-resources (g/node-value project :resources) query)]
+    (map (fn [r] [r (get resource-to-node r)]) resources)))
+
+(defn get-resource-node [project resource]
+  (let [nodes (nodes-in-project project)]
+    (first (filter (fn [n] (= resource (:resource n))) nodes))))
+
+#_((defn register-node-type
+   [filetype node-type]
+   (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
 
 (defn register-editor
   [filetype editor-builder]
@@ -39,9 +105,9 @@ ordinary paths."
 (g/defnode Placeholder
   "A Placeholder node represents a file-based asset that doesn't have any specific
 behavior."
-  (inherits core/ResourceNode)
+  (inherits g/ResourceNode)
   (output content t/Any (g/fnk [] nil))
-  (inherits core/OutlineNode)
+  (inherits g/OutlineNode)
   (output outline-label t/Str (g/fnk [filename] (t/local-name filename))))
 
 (defn- new-node-for-path
@@ -87,25 +153,31 @@ behavior."
               (g/connect content-node :dirty editor-node :dirty))
             editor-node))))
 
+(defn- send-project-scope-message
+  [txn graph self label kind inputs-affected]
+  (when (inputs-affected :nodes)
+    (doseq [id (:nodes-added txn)]
+      (ds/send-after {:_id id} {:type :project-scope :scope self}))))
+
 (defn project-enclosing
   [node]
-  (first (ds/query [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
+  (first (ds/query (:graph @(:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)]))))
 
 (defn scope-enclosing
   [node]
-  (first (ds/query [[:_id (:_id node)] '(output :self) (list 'protocol `t/NamingContext)])))
+  (first (ds/query (:graph @(:world-ref node)) [[:_id (:_id node)] '(output :self) (list 'protocol `t/NamingContext)])))
 
 (defn nodes-in-project
   "Return a lazy sequence of all nodes in this project. There is no
 guaranteed ordering of the sequence."
   [project-node]
-  (ds/query [[:_id (:_id project-node)] '(input :nodes)]))
+  (ds/query (:graph @(:world-ref project-node)) [[:_id (:_id project-node)] '(input :nodes)]))
 
 (defn nodes-with-filename
   "Return a lazy sequence of all nodes in the project that match this filename.
 There is no guaranteed ordering of the sequence."
   [project-node path]
-  (ds/query [[:_id (:_id project-node)] '(input :nodes) [:filename path]]))
+  (ds/query (:graph @(:world-ref project-node)) [[:_id (:_id project-node)] '(input :nodes) [:filename path]]))
 
 (defn nodes-with-extensions
   [project-node extensions]
@@ -129,7 +201,9 @@ There is no guaranteed ordering of the sequence."
   (satisfies? ProjectRoot node))
 
 (g/defnode Project
-  (inherits core/Scope)
+  (inherits g/Scope)
+
+  (trigger notify-content-nodes :input-connections send-project-scope-message)
 
   (property tag                t/Keyword (default :project))
   (property content-root       File)
@@ -143,7 +217,7 @@ There is no guaranteed ordering of the sequence."
   t/NamingContext
   (lookup [this name]
     (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
-      (first (ds/query [[:_id (:_id this)] '(input :nodes) [:filename path]]))))
+      (first (ds/query (:graph @(:world-ref this)) [[:_id (:_id this)] '(input :nodes) [:filename path]]))))
 
   t/FileContainer
   (node-for-path [this path]
@@ -202,14 +276,17 @@ There is no guaranteed ordering of the sequence."
 
 (defn- unload-nodes
   [nodes]
-  (doseq [n nodes]
-    (n/dispatch-message n :unload)))
+  (g/transactional
+    (doseq [n nodes]
+      (ds/send-after n {:type :unload}))))
 
 (defn- replace-nodes
   [project-node nodes-to-replace f]
-  (doseq [old nodes-to-replace
-          :let [new (g/transactional (ds/become (f old)))]]
-    (n/dispatch-message new :load :project project-node)))
+  (g/transactional
+    (doseq [old nodes-to-replace
+            :let [new (f old)]]
+      (ds/become old new)
+      (ds/send-after old {:type :load :project project-node}))))
 
 (defn- add-or-replace?
   [project-node resource]
@@ -249,16 +326,14 @@ There is no guaranteed ordering of the sequence."
     (update-deleted-resources changeset)
     (update-changed-resources changeset)))
 
+; ---------------------------------------------------------------------------
+; Lifecycle, Called during connectToBranch
+; ---------------------------------------------------------------------------
 (defn open-project
+  "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function directly."
   [root branch]
   (let [project-node (load-project-and-tools root branch)
         ;listener     (resources/listen-for-change #(update-resources project-node %))
         ]
     #_(resources/listen-for-close project-node listener)))
-
-(g/defnode ProjectRoot
-  (inherits core/Scope))
-
-(defn project-graph
-  []
-  (g/make-graph [(n/construct ProjectRoot)]))
+)

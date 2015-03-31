@@ -1,0 +1,49 @@
+name: "car_paint"
+tags: "model"
+vertex_program: "/car/car_paint.vp"
+fragment_program: "/car/car_paint.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+vertex_constants {
+  name: "world"
+  type: CONSTANT_TYPE_WORLD
+}
+vertex_constants {
+  name: "normal_transform"
+  type: CONSTANT_TYPE_NORMAL
+}
+vertex_constants {
+  name: "viewMatrix"
+  type: CONSTANT_TYPE_VIEW
+}
+vertex_constants {
+  name: "world_view"
+  type: CONSTANT_TYPE_WORLDVIEW
+}
+vertex_constants {
+  name: "cameraPosition"
+  type: CONSTANT_TYPE_USER
+}
+fragment_constants {
+  name: "tint"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+}
+fragment_constants {
+  name: "viewMatrix"
+  type: CONSTANT_TYPE_VIEW
+  value {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 30.0
+  }
+}
+textures: "envMap"
