@@ -1,6 +1,7 @@
 (ns editor.camera
   (:require [dynamo.geom :as geom]
             [dynamo.graph :as g]
+            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [schema.macros :as sm])
@@ -303,7 +304,7 @@
 (defn reframe-camera-tx [self camera viewport aabb]
   (if aabb
     (let [camera (camera-orthographic-frame-aabb camera viewport aabb)]
-      (g/transactional
+      (ds/transact
         (g/set-property self :camera camera)
         (g/set-property self :reframe false))
       camera)

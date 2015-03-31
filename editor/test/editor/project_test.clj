@@ -12,43 +12,22 @@
 
 (g/defnode DummyNode)
 
-(g/defnode FakeProject
-  t/NamingContext
-  (lookup [this name]
-    (g/transactional (g/add (n/construct DummyNode)))))
-
-(defrecord ExtensionHolder [ext]
-  t/PathManipulation
-  (extension [this] ext)
-
-  io/IOFactory
-  (make-reader [this opts] (StringReader. "")))
-
-#_(defn- build-dummy-project
-  []
-  (let [project-node (n/construct FakeProject)]
-    (g/transactional
-      (g/add project-node)
-      (ds/in project-node
-        (p/register-editor "dummy" (constantly :not-a-node))
-        project-node))))
-
-#_(deftest make-editor
-  (testing "throws if return value is not a node"
-    (with-clean-system
-      (let [project-node (build-dummy-project)]
-        (is (thrown-with-msg? AssertionError #"must return a node"
-              (p/make-editor project-node (ExtensionHolder. "dummy") nil)))))))
-
-(deftest find-nodes-by-extension
+#_(deftest find-nodes-by-extension
   (with-clean-system
-    (let [d1           (n/construct DummyNode :filename (f/native-path "foo.png"))
-          d2           (n/construct DummyNode :filename (f/native-path "/var/tmp/foo.png"))
-          d3           (n/construct DummyNode :filename (f/native-path "foo.script"))
-          d4           (n/construct DummyNode :is-a-file-node? false)
-          [project-node d1 d2 d3 d4] (g/transactional
-                                         (ds/in (g/add (n/construct p/Project))
-                                           [(ds/current-scope) (g/add d1) (g/add d2) (g/add d3) (g/add d4)]))]
+    (let [[project-node d1 d2 d3 d4]
+          (ds/tx-nodes-added
+           (ds/transact
+            (g/make-nodes
+             world
+             [project-node p/Project
+              d1           [DummyNode :filename (f/native-path "foo.png")]
+              d2           [DummyNode :filename (f/native-path "/var/tmp/foo.png")]
+              d3           [DummyNode :filename (f/native-path "foo.script")]
+              d4           [DummyNode :is-a-file-node? false]]
+             (g/connect d1 :self project-node :nodes)
+             (g/connect d2 :self project-node :nodes)
+             (g/connect d3 :self project-node :nodes)
+             (g/connect d4 :self project-node :nodes))))]
       (is (= #{d1 d2}    (p/nodes-with-extensions project-node ["png"])))
       (is (= #{d3}       (p/nodes-with-extensions project-node ["script"])))
       (is (= #{d1 d2 d3} (p/nodes-with-extensions project-node ["png" "script"]))))))

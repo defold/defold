@@ -7,7 +7,7 @@
             [internal.system :as is]))
 
 (defn- mock-system [cache-size ch]
-  (is/start-system (is/make-system {:cache-size cache-size :disposal-queue ch})))
+  (is/make-system {:cache-size cache-size :disposal-queue ch}))
 
 (defn- as-map [c] (select-keys c (keys c)))
 

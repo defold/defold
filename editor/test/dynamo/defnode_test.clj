@@ -4,7 +4,7 @@
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :as ts]
+            [dynamo.system.test-support :as ts :refer [tx-nodes with-clean-system]]
             [dynamo.types :as t]
             [internal.node :as in]))
 
@@ -207,11 +207,11 @@
     (let [node (n/construct InheritedPropertyNode)]
       (is (= {:another-property #{:properties :another-property}
               :a-property #{:properties :a-property}}
-            (g/output-dependencies node))))))
+            (g/input-dependencies node))))))
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
-(g/defnk integer-production-fnk [this g project] 42)
-(defn schemaless-production-fn [this g] "schemaless fn produced string")
+(g/defnk integer-production-fnk [this project] 42)
+(defn schemaless-production-fn [this & _] "schemaless fn produced string")
 (defn substitute-value-fn [& _] "substitute value")
 
 (dp/defproperty IntegerProperty t/Int (validate positive? (comp not neg?)))
@@ -266,17 +266,17 @@
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
               :integer-input #{:string-output :cached-output :with-substitute}}
-            (g/output-dependencies node))))
+            (g/input-dependencies node))))
     (let [node (n/construct InheritedOutputNode)]
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
               :integer-input #{:string-output :abstract-output :cached-output :with-substitute}}
-            (g/output-dependencies node)))))
+            (g/input-dependencies node)))))
   (testing "output dependencies are the transitive closure of their inputs"
     (let [node (n/construct TwoLayerDependencyNode)]
       (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property}
               :direct-calculation #{:indirect-calculation}}
-            (g/output-dependencies node))))))
+            (g/input-dependencies node))))))
 
 (g/defnode OneEventNode
   (on :an-event
@@ -296,21 +296,21 @@
     :another-ok))
 
 (deftest nodes-can-handle-events
-  (ts/with-clean-system
+  (with-clean-system
     (testing "nodes with event handlers implement MessageTarget"
-      (let [node (n/construct OneEventNode)]
+      (let [[node] (tx-nodes (g/make-node world OneEventNode))]
         (is (:an-event (g/event-handlers' OneEventNode)))
         (is (satisfies? g/MessageTarget node))
-        (is (= :ok (n/dispatch-message node :an-event)))))
+        (is (= :ok (n/dispatch-message (ds/now) node :an-event)))))
     (testing "nodes without event handlers do not implement MessageTarget"
-      (let [node (n/construct EventlessNode)]
+      (let [[node] (tx-nodes (g/make-node world EventlessNode))]
         (is (not (satisfies? g/MessageTarget node)))))
     (testing "nodes can inherit handlers from their supertypes"
-      (let [node (n/construct InheritedEventNode)]
+      (let [[node] (tx-nodes (g/make-node world InheritedEventNode))]
         (is ((every-pred :an-event :mixin-event :another-event) (g/event-handlers' InheritedEventNode)))
-        (is (= :ok         (n/dispatch-message node :an-event)))
-        (is (= :mixin-ok   (n/dispatch-message node :mixin-event)))
-        (is (= :another-ok (n/dispatch-message node :another-event)))))))
+        (is (= :ok         (n/dispatch-message (ds/now) node :an-event)))
+        (is (= :mixin-ok   (n/dispatch-message (ds/now) node :mixin-event)))
+        (is (= :another-ok (n/dispatch-message (ds/now) node :another-event)))))))
 
 (defn- not-neg? [x] (not (neg? x)))
 
@@ -350,19 +350,18 @@
      dynamo.defnode_test.MarkerInterface))
 
 (deftest redefining-nodes-updates-existing-world-instances
-  (ts/with-clean-system
+  (with-clean-system
     (binding [*ns* (find-ns 'dynamo.defnode-test)]
       (eval original-node-definition))
 
-    (let [node-type-var        (resolve 'dynamo.defnode-test/MutagenicNode)
-          node-type            (var-get node-type-var)
-          node-before-mutation (g/transactional (g/add (n/construct node-type)))
-          original-node-id     (:_id node-before-mutation)]
+    (let [node-type-var          (resolve 'dynamo.defnode-test/MutagenicNode)
+          node-type              (var-get node-type-var)
+          [node-before-mutation] (tx-nodes (g/make-node world node-type))
+          original-node-id       (:_id node-before-mutation)]
       (binding [*ns* (find-ns 'dynamo.defnode-test)]
         (eval replacement-node-definition))
 
-      (let [node-after-mutation (ds/refresh node-before-mutation)]
-        (def n* node-after-mutation)
+      (let [node-after-mutation (g/refresh node-before-mutation)]
         (is (not (instance? MarkerInterface node-before-mutation)))
         (is (= "a-string" (:a-property node-after-mutation)))
         (is (= true       (:b-property node-after-mutation)))

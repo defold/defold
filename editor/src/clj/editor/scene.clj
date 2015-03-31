@@ -21,17 +21,13 @@
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent EventHandler]
-           [javafx.fxml FXMLLoader]
            [javafx.geometry BoundingBox]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Tab]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane StackPane Pane HBox Priority]
-           [javafx.stage Stage FileChooser]
-           [java.io File]
-           [java.lang Runnable System]
-           [java.nio.file Paths]
+           [javafx.scene.layout AnchorPane Pane]
+           [java.lang Runnable]
            [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]))
@@ -113,10 +109,10 @@
 
 (g/defnk produce-drawable [self ^Region viewport]
   (when (vp-not-empty? viewport)
-    (let [[w h] (vp-dims viewport)
+    (let [[w h]   (vp-dims viewport)
           profile (GLProfile/getDefault)
           factory (GLDrawableFactory/getFactory profile)
-          caps (GLCapabilities. profile)]
+          caps    (GLCapabilities. profile)]
       (.setOnscreen caps false)
       (.setPBuffer caps true)
       (.setDoubleBuffered caps false)
@@ -124,7 +120,7 @@
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (g/transactional (g/set-property self :gl-drawable drawable))
+        (ds/transact (g/set-property self :gl-drawable drawable))
         drawable))))
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
@@ -161,11 +157,12 @@
   )
 
 (defn dispatch-input [input-handlers action]
-  (g/transactional
-    (reduce (fn [action input-handler]
-              (let [node (first input-handler)
-                    label (second input-handler)]
-                (when action ((g/node-value node label) node action)))) action input-handlers)))
+  (reduce (fn [action input-handler]
+            (let [node (first input-handler)
+                  label (second input-handler)]
+              (when action
+                ((g/node-value node label) node action))))
+          action input-handlers))
 
 (g/defnode SceneView
   (inherits core/Scope)
@@ -178,7 +175,7 @@
   (input frame BufferedImage)
   (input input-handlers [Runnable])
 
-  (output viewport Region (g/fnk [viewport] viewport))
+;;  (output viewport Region (g/fnk [viewport] viewport))
   (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
@@ -194,17 +191,25 @@
         (AnchorPane/setLeftAnchor image-view 0.0)
         (AnchorPane/setRightAnchor image-view 0.0)
         (.add (.getChildren ^Pane parent) image-view)
-        (g/set-property self :image-view image-view)
-        (let [self-ref (g/node-ref self)
-              event-handler (reify EventHandler (handle [this e]
-                                                  (let [self @self-ref]
-                                                    (dispatch-input (ds/sources-of self :input-handlers) (i/action-from-jfx e)))))
-              change-listener (reify ChangeListener (changed [this observable old-val new-val]
-                                                      (let [self @self-ref
-                                                            bb ^BoundingBox new-val
-                                                            w (- (.getMaxX bb) (.getMinX bb))
-                                                            h (- (.getMaxY bb) (.getMinY bb))]
-                                                        (g/transactional (g/set-property self :viewport (t/->Region 0 w 0 h))))))]
+        (let [event-handler   (reify EventHandler
+                                (handle [this e]
+                                  (let [self (g/refresh self)]
+                                    (dispatch-input (g/sources-of self :input-handlers) (i/action-from-jfx e)))))
+              change-listener (reify ChangeListener
+                                (changed [this observable old-val new-val]
+                                  (let [self (g/refresh self)
+                                        bb ^BoundingBox new-val
+                                        w (- (.getMaxX bb) (.getMinX bb))
+                                        h (- (.getMaxY bb) (.getMinY bb))]
+                                    (ds/transact (g/set-property self :viewport (t/->Region 0 w 0 h))))))
+              repainter       (proxy [AnimationTimer] []
+                                (handle [now]
+                                  (let [self                  (g/refresh self)
+                                        image-view ^ImageView (:image-view self)
+                                        visible               (:visible self)]
+                                    (when (and visible)
+                                      (let [image (g/node-value self :image)]
+                                        (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
           (.setOnMousePressed parent event-handler)
           (.setOnMouseReleased parent event-handler)
           (.setOnMouseClicked parent event-handler)
@@ -212,24 +217,19 @@
           (.setOnMouseDragged parent event-handler)
           (.setOnScroll parent event-handler)
           (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
-          (let [repainter (proxy [AnimationTimer] []
-                            (handle [now]
-                              (let [self                  @self-ref
-                                    image-view ^ImageView (:image-view self)
-                                    visible               (:visible self)]
-                                (when (and visible)
-                                  (let [image (g/node-value self :image)]
-                                    (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
-            (g/transactional (g/set-property self :repainter repainter))
-            (.start repainter))
-          (.addListener (.selectedProperty tab) (reify ChangeListener (changed [this observable old-val new-val]
-                                                                        (let [self @self-ref]
-                                                                          (g/transactional (g/set-property self :visible new-val))))))
-          )))
+          (ds/transact
+           (g/set-property self :image-view image-view)
+           (g/set-property self :repainter  repainter))
+          (.start repainter)
+          (.addListener (.selectedProperty tab)
+                        (reify ChangeListener
+                          (changed [this observable old-val new-val]
+                            (let [self (g/refresh self)]
+                              (ds/transact
+                               (g/set-property self :visible new-val)))))))))
 
   t/IDisposable
   (dispose [self]
            (prn "Disposing SceneEditor")
            (when-let [^GLAutoDrawable drawable (:gl-drawable self)]
-             (.destroy drawable))
-           ))
+             (.destroy drawable))))

@@ -133,33 +133,32 @@
   (output gpu-texture   s/Any  :cached produce-gpu-texture)
 
   (on :load
-    (let [project (:project event)
-          input (:filename self)
-          cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))
-          img-nodes (find-resource-nodes project #{"png" "jpg"})]
-      (doseq [[side input] cubemap-message]
-        (ds/set-property self side input)
-        (when-let [img-node (get img-nodes input)]
-          (ds/connect img-node :content self (keyword (subs (str side "-img") 1))))))))
+      (let [project (:project event)
+            input (:filename self)
+            cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))
+            img-nodes (find-resource-nodes project #{"png" "jpg"})]
+        (ds/transact
+         (for [[side input] cubemap-message]
+           (if-let [img-node (get img-nodes input)]
+             [(ds/connect img-node :content self (keyword (subs (str side "-img") 1)))
+              (ds/set-property self side input)]
+             (ds/set-property self side input)))))))
 
 (defn construct-cubemap-editor
-  [project-node cubemap-node]
-  (let [view (n/construct scene/SceneView)]
-    (ds/in (ds/add view)
-           (let [cubemap-render (g/add (n/construct CubemapRender))
-                 renderer     (g/add (n/construct scene/SceneRenderer))
-                 background   (g/add (n/construct background/Gradient))
-                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))]
-             (g/connect background     :renderable    renderer       :renderables)
-             (g/connect camera         :camera        renderer       :camera)
-             (g/connect camera         :input-handler view           :input-handlers)
-             (g/connect view           :viewport      camera         :viewport)
-             (g/connect view           :viewport      renderer       :viewport)
-             (g/connect renderer       :frame         view           :frame)
+  [project-node cubemap-node view-graph]
+  (g/make-nodes
+   view-graph [cubemap-render CubemapRender
+               renderer       scene/SceneRenderer
+               background     background/Gradient
+               camera         [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
+   (g/connect background     :renderable    renderer       :renderables)
+   (g/connect camera         :camera        renderer       :camera)
+   (g/connect camera         :input-handler view           :input-handlers)
+   (g/connect view           :viewport      camera         :viewport)
+   (g/connect view           :viewport      renderer       :viewport)
+   (g/connect renderer       :frame         view           :frame)
 
-             (g/connect cubemap-node   :gpu-texture   cubemap-render :gpu-texture)
-             (g/connect cubemap-render :renderable    renderer       :renderables)
-             (g/connect camera         :camera        cubemap-render :camera)
-             (g/connect cubemap-render :aabb          camera         :aabb)
-             )
-           view)))
+   (g/connect cubemap-node   :gpu-texture   cubemap-render :gpu-texture)
+   (g/connect cubemap-render :renderable    renderer       :renderables)
+   (g/connect camera         :camera        cubemap-render :camera)
+   (g/connect cubemap-render :aabb          camera         :aabb)))

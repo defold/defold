@@ -20,7 +20,7 @@
 (defn last-node   [g] (:last-node g))
 
 (defn next-node   [g] (inc (last-node g)))
-(defn- claim-node [g] (assoc-in g [:last-node] (next-node g)))
+(defn claim-node  [g] (assoc-in g [:last-node] (next-node g)))
 
 (defn node        [g id] (get-in g [:nodes id]))
 
@@ -41,6 +41,10 @@
   (if-let [node (get-in g [:nodes n])]
     (assoc-in g [:nodes n] (apply f node args))
     g))
+
+(defn replace-node
+  [g n r]
+  (assoc-in g [:nodes n] r))
 
 (defn add-arc
   [g source source-attributes target target-attributes]
@@ -224,20 +228,118 @@
 ;; ---------------------------------------------------------------------------
 (def maximum-graph-coloring-recursion 100)
 
-;; ---------------------------------------------------------------------------
-;; Implementation
-;; ---------------------------------------------------------------------------
 (defn- pairs [m] (for [[k vs] m v vs] [k v]))
 
 (defn- marked-outputs
-  [graph target-node target-label]
-  (get (gt/output-dependencies (node graph target-node)) target-label))
+  [basis target-node target-label]
+  (get (gt/input-dependencies (gt/node-by-id basis target-node)) target-label))
 
 (defn- marked-downstream-nodes
-  [graph node-id output-label]
-  (for [[target-node target-input] (targets graph node-id output-label)
-        affected-outputs           (marked-outputs graph target-node target-input)]
+  [basis node-id output-label]
+  (for [[target-node target-input] (gt/targets basis node-id output-label)
+        affected-outputs           (marked-outputs basis target-node target-input)]
     [target-node affected-outputs]))
+
+;; ---------------------------------------------------------------------------
+;; Support for transactions
+;; ---------------------------------------------------------------------------
+(definline nref->graph  [gs node-id] `(get ~gs (gt/nref->gid ~node-id)))
+
+(declare multigraph-basis)
+
+(defrecord MultigraphBasis [graphs]
+  gt/IBasis
+  (node-by-id
+    [_ node-id]
+    (node (nref->graph graphs node-id) (gt/nref->nid node-id)))
+  (node-by-property
+    [_ label value]
+    (filter #(= value (get % label)) (mapcat vals graphs)))
+  (sources
+    [_ node-id label]
+    (sources (nref->graph graphs node-id) (gt/nref->nid node-id) label))
+  (targets
+    [_ node-id label]
+    (targets (nref->graph graphs node-id) (gt/nref->nid node-id) label))
+  (add-node
+    [this tempid value]
+    (let [gid     (gt/nref->gid tempid)
+          graph   (get graphs gid)
+          nid     (inc (last-node graph))
+          node-id (gt/make-nref gid nid)
+          node    (assoc value :_id node-id)
+          graph   (add-labeled-node graph (gt/inputs node) (gt/outputs node) node)]
+      [(update-in this [:graphs] assoc gid graph)
+       node-id
+       node]))
+  (delete-node
+    [this node-id]
+    (let [node (gt/node-by-id this node-id)
+          gid  (gt/nref->gid node-id)
+          nid  (gt/nref->nid node-id)
+          graph (remove-node (nref->graph graphs node-id) nid)]
+      [(update-in this [:graphs] assoc gid graph)
+       node]))
+  (replace-node
+    [this node-id new-node]
+    (let [gid   (gt/nref->gid node-id)
+          nid   (gt/nref->nid node-id)
+          graph (replace-node (nref->graph graphs node-id) nid (assoc new-node :_id node-id))
+          node  (node graph nid)]
+      [(update-in this [:graphs] assoc gid graph)
+       node]))
+  (update-property
+    [this node-id property f args]
+    (let [gid   (gt/nref->gid node-id)
+          nid   (gt/nref->nid node-id)
+          graph (apply transform-node (nref->graph graphs node-id) nid update-in [property] f args)
+          node  (node graph nid)]
+      [(update-in this [:graphs] assoc gid graph)
+       node]))
+  (connect
+    [this src-id src-label tgt-id tgt-label]
+    (let [src-gid   (gt/nref->gid src-id)
+          src-nid   (gt/nref->nid src-id)
+          src-graph (get graphs src-gid)
+          tgt-gid   (gt/nref->gid tgt-id)
+          tgt-nid   (gt/nref->nid tgt-id)
+          tgt-graph (get graphs tgt-gid)]
+      (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
+      (update-in this [:graphs] assoc
+                 tgt-gid (if (= src-gid tgt-gid)
+                           tgt-graph
+                           (connect tgt-graph src-nid src-label tgt-nid tgt-label))
+                 src-gid (connect src-graph src-nid src-label tgt-nid tgt-label))))
+  (disconnect
+    [this src-id src-label tgt-id tgt-label]
+    (let [src-gid   (gt/nref->gid src-id)
+          src-nid   (gt/nref->nid src-id)
+          src-graph (get graphs src-gid)
+          tgt-gid   (gt/nref->gid tgt-id)
+          tgt-nid   (gt/nref->nid tgt-id)
+          tgt-graph (get graphs tgt-gid)]
+      (update-in this [:graphs] assoc
+                 tgt-gid (if (= src-gid tgt-gid)
+                           tgt-graph
+                           (disconnect tgt-graph src-nid src-label tgt-nid tgt-label))
+                 src-gid (disconnect src-graph src-nid src-label tgt-nid tgt-label))))
+  (connected?
+    [this src-id src-label tgt-id tgt-label]
+    (let [src-nid   (gt/nref->nid src-id)
+          src-graph (nref->graph graphs src-id)
+          tgt-nid   (gt/nref->nid tgt-id)
+          tgt-graph (nref->graph graphs tgt-id)]
+      (or (connected? src-graph src-nid src-label tgt-nid tgt-label)
+          (connected? tgt-graph src-nid src-label tgt-nid tgt-label))))
+  (query
+    [this clauses]
+    (let [fan-out (map #(query % clauses) (vals graphs))
+          uniq    (distinct (apply concat fan-out))]
+      (map #(gt/node-by-id this %) uniq))))
+
+(defn multigraph-basis
+  [graphs]
+  (MultigraphBasis. graphs))
 
 ;; ---------------------------------------------------------------------------
 ;; API
@@ -248,12 +350,12 @@
   them, and so on. Continue following links until all reachable
   outputs are found.
 
-  Returns a collection of [node-ref output-label] pairs."
-  ([graph to-be-marked]
-   (trace-dependencies graph #{} to-be-marked maximum-graph-coloring-recursion))
-  ([graph already-marked to-be-marked iterations-remaining]
+  Returns a collection of [node-id output-label] pairs."
+  ([basis to-be-marked]
+   (trace-dependencies basis #{} to-be-marked maximum-graph-coloring-recursion))
+  ([basis already-marked to-be-marked iterations-remaining]
    (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
    (if (empty? to-be-marked)
      already-marked
-     (let [next-wave (mapcat #(apply marked-downstream-nodes graph %)  to-be-marked)]
-       (recur graph (into already-marked to-be-marked) next-wave (dec iterations-remaining))))))
+     (let [next-wave (mapcat #(apply marked-downstream-nodes basis %)  to-be-marked)]
+       (recur basis (into already-marked to-be-marked) next-wave (dec iterations-remaining))))))

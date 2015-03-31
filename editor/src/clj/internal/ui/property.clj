@@ -204,17 +204,3 @@
             (g/disconnect source-node source-label this :properties))
           (doseq [n @selection]
             (g/connect {:_id n} :properties this :properties)))))))
-
-#_(defn implementation-for
-  [scope]
-  (g/transactional
-    (ds/in scope
-      (g/add (n/construct PropertyView)))))
-
-#_(defn get-control
-  "This is called by the Java shim GenericPropertySheetPage. Not for other use."
-  [property-view-node]
-  (-> property-view-node
-      ds/refresh
-      :properties-form
-      (widgets/widget [:form])))

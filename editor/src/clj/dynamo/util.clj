@@ -114,3 +114,5 @@ into an arglist."
     name
     ->Camel_Snake_Case_String
     (str/replace "_" " ")))
+
+(def safe-inc (fnil inc 0))
