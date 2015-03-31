@@ -126,7 +126,11 @@
                                        <children>
                                           <TitledPane animated="false" collapsible="false" layoutX="24.0" layoutY="60.0" text="Outline" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                             <content>
-                                              <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" />
+                                                <ScrollPane hbarPolicy="NEVER" prefViewportHeight="325.0" prefViewportWidth="269.0">
+                                                   <content>
+                                                      <TreeView id="outline" prefHeight="326.0" prefWidth="269.0" />
+                                                   </content>
+                                                </ScrollPane>
                                             </content>
                                           </TitledPane>
                                        </children>
