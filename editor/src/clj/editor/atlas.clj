@@ -240,7 +240,8 @@
   (property path t/Str)
   (input src-image BufferedImage)
   (output image Image (g/fnk [path src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
-  (output animation Animation (g/fnk [image] (image->animation image))))
+  (output animation Animation (g/fnk [image] (image->animation image)))
+  (output outline t/Any (g/fnk [self path] {:self self :label (path->id path)})))
 
 (g/defnode AtlasAnimation
   (property id t/Str)
@@ -248,9 +249,13 @@
   (property flip-horizontal t/Bool)
   (property flip-vertical   t/Bool)
   (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
+
   (input frames [Image])
+  (input outline [t/Any])
+
   (output animation Animation (g/fnk [this id frames :- [Image] fps flip-horizontal flip-vertical playback]
-                                     (->Animation id frames fps flip-horizontal flip-vertical playback))))
+                                     (->Animation id frames fps flip-horizontal flip-vertical playback)))
+  (output outline t/Any (g/fnk [self id outline] {:self self :label id :children outline})))
 
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
@@ -259,13 +264,15 @@
   (property extrude-borders dp/NonNegativeInt (default 0))
 
   (input animations [Animation])
+  (input outline [t/Any])
 
   (output images [Image] (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
   (output aabb            AABB               (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
   (output gpu-texture     t/Any      :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
   (output texture-packing TexturePacking :cached :substitute-value (tex/blank-texture-packing) produce-texture-packing)
   (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
-  (output textureset      TextureSet     :cached produce-textureset))
+  (output textureset      TextureSet     :cached produce-textureset)
+  (output outline         t/Any          :cached (g/fnk [self outline] {:self self :label "Atlas" :children outline})))
 
 (defn load-atlas [project self input]
   (let [atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
@@ -278,20 +285,23 @@
             :let [atlas-anim (g/add (apply n/construct AtlasAnimation (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))
                   images (mapv :image (:images anim))]]
       (g/connect atlas-anim :animation self :animations)
+      (g/connect atlas-anim :outline self :outline)
       (doseq [image (map (fn [img] (subs img 1)) images)
               :let [atlas-image (g/add (n/construct AtlasImage :path image))
                     img-node (get img-nodes image)]]
         ; TODO - fix placeholder image
         (when img-node
           (g/connect img-node :content atlas-image :src-image)
-          (g/connect atlas-image :image atlas-anim :frames))
+          (g/connect atlas-image :image atlas-anim :frames)
+          (g/connect atlas-image :outline atlas-anim :outline))
         ))
     (let [images (mapv :image (:images atlas))]
       (doseq [image (map (fn [img] (subs img 1)) images)
               :let [atlas-image (g/add (n/construct AtlasImage :path image))
                     img-node (get img-nodes image)]]
         (g/connect img-node :content atlas-image :src-image)
-        (g/connect atlas-image :animation self :animations)))
+        (g/connect atlas-image :animation self :animations)
+        (g/connect atlas-image :outline self :outline)))
     self))
 
 (defn setup-rendering [self view]

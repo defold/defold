@@ -146,7 +146,6 @@
 (defn setup [parent node]
   (let [properties (g/properties node)
         grid (GridPane.)]
-    (prn "props" properties)
     (.clear (.getChildren parent))
     (.setPadding grid (Insets. 10 10 10 10))
     (.setHgap grid 4)
