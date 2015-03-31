@@ -27,10 +27,9 @@
   (let [ns-decl     (read-file-ns-decl path)
         source-file (file/project-file path)]
     (try
-      (ds/in project
-        (binding [*warn-on-reflection* true]
-          (Compiler/load (io/reader path) (t/local-path path) (.getName source-file)))
-        (g/set-property node :namespace (UnloadableNamespace. ns-decl)))
+      (binding [*warn-on-reflection* true]
+        (Compiler/load (io/reader path) (t/local-path path) (.getName source-file)))
+      (g/set-property node :namespace (UnloadableNamespace. ns-decl))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (println compile-error)))))
 
@@ -40,4 +39,5 @@
   (property namespace UnloadableNamespace)
 
   (on :load
-    (compile-source-node self (:project event) (:filename self))))
+      (ds/transact
+       [(compile-source-node self (:project event) (:filename self))])))

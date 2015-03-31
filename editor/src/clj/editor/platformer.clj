@@ -203,28 +203,26 @@
 
 (defn construct-platformer-editor
   [project-node platformer-node]
-  (let [view (n/construct scene/SceneView)]
-    (ds/in (g/add view)
-           (let [platformer-render (g/add (n/construct PlatformerRender))
-                 renderer     (g/add (n/construct scene/SceneRenderer))
-                 background   (g/add (n/construct background/Gradient))
-                 grid         (g/add (n/construct grid/Grid))
-                 camera       (g/add (n/construct c/CameraController :camera (c/make-camera :orthographic) :reframe true))]
-             (g/connect background        :renderable     renderer          :renderables)
-             (g/connect grid              :renderable     renderer          :renderables)
-             (g/connect camera            :camera         grid              :camera)
-             (g/connect camera            :camera         renderer          :camera)
-             (g/connect camera            :input-handler  view              :input-handlers)
-             (g/connect view              :viewport       camera            :viewport)
-             (g/connect view              :viewport       renderer          :viewport)
-             (g/connect renderer          :frame          view              :frame)
+  (g/graph-with-nodes
+   10
+   [platformer-render PlatformerRender
+    renderer          scene/SceneRenderer
+    background        background/Gradient
+    grid              grid/Grid
+    camera            [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
+   (g/connect background        :renderable     renderer          :renderables)
+   (g/connect grid              :renderable     renderer          :renderables)
+   (g/connect camera            :camera         grid              :camera)
+   (g/connect camera            :camera         renderer          :camera)
+   (g/connect camera            :input-handler  view              :input-handlers)
+   (g/connect view              :viewport       camera            :viewport)
+   (g/connect view              :viewport       renderer          :viewport)
+   (g/connect renderer          :frame          view              :frame)
 
-             (g/connect platformer-node   :base-texture   platformer-render :base-texture)
-             (g/connect camera            :camera         platformer-node   :camera)
-             (g/connect platformer-node   :input-handler  view              :input-handlers)
-             (g/connect view              :viewport       platformer-node   :viewport)
-             (g/connect platformer-node   :control-points platformer-render :control-points)
-             (g/connect platformer-render :renderable     renderer          :renderables)
-             (g/connect platformer-node   :aabb           camera            :aabb)
-             )
-           view)))
+   (g/connect platformer-node   :base-texture   platformer-render :base-texture)
+   (g/connect camera            :camera         platformer-node   :camera)
+   (g/connect platformer-node   :input-handler  view              :input-handlers)
+   (g/connect view              :viewport       platformer-node   :viewport)
+   (g/connect platformer-node   :control-points platformer-render :control-points)
+   (g/connect platformer-render :renderable     renderer          :renderables)
+   (g/connect platformer-node   :aabb           camera            :aabb)))

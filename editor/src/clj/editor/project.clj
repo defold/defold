@@ -16,20 +16,20 @@ ordinary paths."
   (:import [java.io File]))
 
 (defn register-node-type
-  [filetype node-type]
-  (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
+  [project-node filetype node-type]
+  (g/update-property project-node :node-types assoc filetype node-type))
 
 (defn register-editor
-  [filetype editor-builder]
-  (g/update-property (ds/current-scope) :handlers assoc-in [:editor filetype] editor-builder))
+  [project-node filetype editor-builder]
+  (g/update-property project-node :handlers assoc-in [:editor filetype] editor-builder))
 
 (defn register-presenter
-  [property presenter]
-  (g/update-property (ds/current-scope) :presenter-registry dp/register-presenter property presenter))
+  [project-node property presenter]
+  (g/update-property project-node :presenter-registry dp/register-presenter property presenter))
 
-(defn- editor-for [project-scope ext]
+(defn- editor-for [project-node ext]
   (or
-    (get-in project-scope [:handlers :editor ext])
+    (get-in project-node [:handlers :editor ext])
     (fn [& _] (throw (ex-info (str "No editor has been registered that can handle file type " (pr-str ext)) {})))))
 
 (defn node?! [n kind]
@@ -46,72 +46,52 @@ behavior."
 
 (defn- new-node-for-path
   [project-node path type-if-not-registered]
-  (n/construct
-    (get-in project-node [:node-types (t/extension path)] type-if-not-registered)
-    :filename path))
+  (let [type          (get-in project-node [:node-types (t/extension path)] type-if-not-registered)
+        project-graph (g/nref->gid (g/node-id project-node))
+        temp          (g/tempid project-graph)]
+    [(g/make-node project-graph type :filename path :_id temp)
+     (g/connect temp :self project-node :nodes)]))
 
 (defn load-resource
-  "Load a resource, usually from file. This will create a node of the appropriate type (as defined by
-`register-node-type` and send it a :load message."
+  "Load a resource, usually from file."
   [project-node path]
-  (g/transactional
-    (ds/in project-node
-      (g/add
-        (new-node-for-path project-node path Placeholder)))))
+  (new-node-for-path project-node path Placeholder))
 
 (defn- build-editor-node
-  [project-node path content-node]
-  (let [editor-factory (editor-for project-node (t/extension path))]
-    (node?! (editor-factory project-node content-node) "Editor")))
-
-(defn- build-selection-node
-  [editor-node selected-nodes]
-  (ds/in editor-node
-    (let [selection-node  (g/add (n/construct selection/Selection))]
-      (doseq [node selected-nodes]
-        (g/connect node :self selection-node :selected-nodes))
-      selection-node)))
+  [project-node path content-node view-graph]
+  ((editor-for project-node (t/extension path)) project-node content-node view-graph))
 
 (defn make-editor
   [project-node path]
-  (g/transactional
-   (ds/in project-node
-          (let [content-node   (t/lookup project-node path)
-                editor-node    (build-editor-node project-node path content-node)
-                selection-node (build-selection-node editor-node [content-node])]
-            (when ((g/inputs editor-node) :presenter-registry)
-              (g/connect project-node :presenter-registry editor-node :presenter-registry))
-            (when (and ((g/inputs editor-node) :saveable) ((g/outputs content-node) :save))
-              (g/connect content-node :save editor-node :saveable))
-            (when (and ((g/inputs editor-node) :dirty) ((g/outputs content-node) :dirty))
-              (g/connect content-node :dirty editor-node :dirty))
-            editor-node))))
+  (let [view-graph   (ds/attach-graph (g/make-graph :volatility 100))
+        content-node (t/lookup project-node path)]
+    (build-editor-node project-node path content-node view-graph)))
 
 (defn project-enclosing
   [node]
-  (first (ds/query [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
+  (first (g/query (ds/now) [[:_id (g/node-id node)] '(output :self) (list 'protocol `ProjectRoot)])))
 
 (defn scope-enclosing
   [node]
-  (first (ds/query [[:_id (:_id node)] '(output :self) (list 'protocol `t/NamingContext)])))
+  (first (g/query (ds/now) [[:_id (g/node-id node)] '(output :self) (list 'protocol `t/NamingContext)])))
 
 (defn nodes-in-project
   "Return a lazy sequence of all nodes in this project. There is no
-guaranteed ordering of the sequence."
+  guaranteed ordering of the sequence."
   [project-node]
-  (ds/query [[:_id (:_id project-node)] '(input :nodes)]))
+  (g/query (ds/now) [[:_id (g/node-id project-node)] '(input :nodes)]))
 
 (defn nodes-with-filename
-  "Return a lazy sequence of all nodes in the project that match this filename.
-There is no guaranteed ordering of the sequence."
+  "Return a lazy sequence of all nodes in the project that match this
+  filename. There is no guaranteed ordering of the sequence."
   [project-node path]
-  (ds/query [[:_id (:_id project-node)] '(input :nodes) [:filename path]]))
+  (g/query (ds/now) [[:_id (g/node-id project-node)] '(input :nodes) [:filename path]]))
 
 (defn nodes-with-extensions
   [project-node extensions]
   (let [extensions (into #{} extensions)
-        pred (fn [node] (and (:filename node)
-                          (some #{(t/extension (:filename node))} extensions)))]
+        pred       (fn [node] (and (:filename node)
+                                   (some #{(t/extension (:filename node))} extensions)))]
     (into #{}
       (filter pred (nodes-in-project project-node)))))
 
@@ -142,15 +122,16 @@ There is no guaranteed ordering of the sequence."
   ProjectRoot
   t/NamingContext
   (lookup [this name]
-    (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
-      (first (ds/query [[:_id (:_id this)] '(input :nodes) [:filename path]]))))
+          (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
+            (first (g/query (ds/now) [[:_id (g/node-id this)] '(input :nodes) [:filename path]]))))
 
   t/FileContainer
   (node-for-path [this path]
-    (new-node-for-path this path Placeholder))
+                 (new-node-for-path this path Placeholder))
 
   (on :destroy
-    (g/delete self)))
+      (ds/transact
+       (g/delete-node self))))
 
 (defn project-root-node
   "Finds and returns the ProjectRoot node starting from any node."
@@ -162,22 +143,21 @@ There is no guaranteed ordering of the sequence."
 
 (defn load-resource-nodes
   [project-node resources]
-  (g/transactional
-   (ds/in project-node
-          [project-node
-           (doall
-            (for [resource resources
-                  :let [p (file/make-project-path project-node resource)]]
-              (load-resource project-node p)))])))
+  (let [project-node (g/refresh project-node)]
+    (ds/transact
+     (for [resource resources]
+       (load-resource project-node
+                      (file/make-project-path project-node resource))))))
 
 (defn load-project
-  [root branch]
-  (g/transactional
-   (g/add
-    (n/construct Project
-                 :content-root root
-                 :branch branch
-                 :node-types {"clj" clojure/ClojureSourceNode}))))
+  [graph root branch]
+  (first
+   (ds/tx-nodes-added
+    (ds/transact
+     (g/make-node graph Project
+                  :content-root root
+                  :branch       branch
+                  :node-types   {"clj" clojure/ClojureSourceNode})))))
 
 (defn- post-load
   [message project-node resource-nodes]
@@ -185,19 +165,19 @@ There is no guaranteed ordering of the sequence."
     (log/logging-exceptions
      (str message (:filename resource-node))
      (when (satisfies? g/MessageTarget resource-node)
-       (ds/in project-node
-              (g/process-one-event resource-node {:type :load :project project-node}))))))
+       (g/process-one-event resource-node {:type :load :project project-node})))))
 
 (defn load-project-and-tools
   [root branch]
-  (let [project-node    (load-project root branch)
+  (let [project-node    (some-> (load-project root branch) ds/transact ds/tx-nodes-added first)
         resources       (group-by clojure/clojure-source? (remove #(.isDirectory ^File %) (file-seq root)))
         clojure-sources (get resources true)
         non-sources     (get resources false)]
+    ;; TODO - it's possible for project-node to be nil, if the transaction failed.
     (apply post-load "Compiling"
-           (load-resource-nodes (ds/refresh project-node) clojure-sources))
+           (load-resource-nodes project-node clojure-sources))
     (apply post-load "Loading asset from"
-           (load-resource-nodes (ds/refresh project-node) non-sources))
+           (load-resource-nodes project-node non-sources))
     project-node))
 
 (defn- unload-nodes
@@ -207,9 +187,10 @@ There is no guaranteed ordering of the sequence."
 
 (defn- replace-nodes
   [project-node nodes-to-replace f]
-  (doseq [old nodes-to-replace
-          :let [new (g/transactional (ds/become (f old)))]]
-    (n/dispatch-message new :load :project project-node)))
+  (ds/transact
+   (for [old nodes-to-replace]
+     (g/become (f old))))
+  )
 
 (defn- add-or-replace?
   [project-node resource]
@@ -225,8 +206,8 @@ There is no guaranteed ordering of the sequence."
         replacements      (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) (:replace-existing with-placeholders))]
     (unload-nodes replacements)
     (replace-nodes project-node replacements #(t/node-for-path project-node (:filename %)))
-    (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) (:load-clojure with-placeholders) nil))
-    (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) (:load-other   with-placeholders) nil))
+    (apply post-load "Compiling"          (load-resource-nodes (g/refresh project-node) (:load-clojure with-placeholders) nil))
+    (apply post-load "Loading asset from" (load-resource-nodes (g/refresh project-node) (:load-other   with-placeholders) nil))
     project-node))
 
 (defn- update-deleted-resources
@@ -244,7 +225,7 @@ There is no guaranteed ordering of the sequence."
 
 (defn- update-resources
   [project-node changeset]
-  (-> (ds/refresh project-node)
+  (-> (g/refresh project-node)
     (update-added-resources changeset)
     (update-deleted-resources changeset)
     (update-changed-resources changeset)))
@@ -261,4 +242,4 @@ There is no guaranteed ordering of the sequence."
 
 (defn project-graph
   []
-  (g/make-graph [(n/construct ProjectRoot)]))
+  (g/make-graph :volatility 0))

@@ -5,10 +5,7 @@
             [dynamo.node :as dn]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [inflections.core :as inflect]
-            [internal.graph :as ig]
-            [internal.node :as in]
-            [internal.transaction :as it]))
+            [inflections.core :as inflect]))
 
 ;; ---------------------------------------------------------------------------
 ;; Dependency Injection
@@ -57,39 +54,40 @@
 (defn inject-new-nodes
   "Implementation function that performs dependency injection for nodes.
 This function should not be called directly."
-  [transaction graph self label kind inputs-affected]
+  [transaction basis self label kind inputs-affected]
   (when (inputs-affected :nodes)
-    (let [nodes-before-txn         (cons self (in/get-inputs (ds/pre-transaction-graph transaction) self :nodes))
-          nodes-after-txn          (in/get-inputs (ds/in-transaction-graph transaction) self :nodes)
-          nodes-before-txn-ids     (into #{} (map :_id nodes-before-txn))
+    (let [nodes-before-txn         (cons self (if-let [original-self (g/refresh self)]
+                                                (g/node-value original-self :nodes)
+                                                []))
+          nodes-after-txn          (g/node-value basis self :nodes)
+          nodes-before-txn-ids     (into #{} (map g/node-id nodes-before-txn))
           new-nodes-in-scope       (remove nodes-before-txn-ids nodes-after-txn)
           out-from-new-connections (injection-candidates nodes-before-txn new-nodes-in-scope)
           in-to-new-connections    (injection-candidates new-nodes-in-scope nodes-before-txn)
           between-new-nodes        (injection-candidates new-nodes-in-scope new-nodes-in-scope)
           candidates               (set/union out-from-new-connections in-to-new-connections between-new-nodes)
-          candidates               (remove (fn [[out out-label in in-label]]
-                                             (or
-                                              (= (:_id out) (:_id in))
-                                              (ig/connected? graph (:_id out) out-label (:_id in) in-label)))
-                                           candidates)]
+          candidates               (remove
+                                    (fn [[out out-label in in-label]]
+                                      (or
+                                       (= (g/node-id out) (g/node-id in))
+                                       (g/connected? (ds/transaction-basis transaction)
+                                                     (g/node-id out) out-label
+                                                     (g/node-id in)  in-label)))
+                                    candidates)]
       (for [connection candidates]
-        (apply it/connect connection)))))
+        (apply g/connect connection)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Cascading delete
 ;; ---------------------------------------------------------------------------
 
-;; TODO - dispose-nodes should not require any internal namespaces.
-
 (defn dispose-nodes
-  "Trigger to dispose nodes from a scope when the scope is destroyed.
-This should not be called directly."
+  "Trigger to dispose nodes from a scope when the scope is
+  destroyed. This should not be called directly."
   [transaction graph self label kind]
   (when (ds/is-deleted? transaction self)
-    (let [graph-before-deletion (ds/pre-transaction-graph transaction)
-          nodes-to-delete       (in/get-inputs graph-before-deletion self :nodes)]
-      (for [n nodes-to-delete]
-        (it/delete-node n)))))
+    (for [node-to-delete (g/node-value self :nodes)]
+      (g/delete-node node-to-delete))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bootstrapping the core node types
@@ -133,7 +131,7 @@ Inheritors are required to supply a production function for the :save output."
   (output content t/Any :abstract))
 
 
-(g/defnode AutowireResources
+#_(g/defnode AutowireResources
   "Mixin. Nodes with this behavior automatically keep their graph connections
 up to date with their resource properties."
   (trigger autowire-resources :property-touched #'dn/connect-resource))
@@ -154,6 +152,6 @@ Outputs:
           (g/fnk [this outline-label outline-commands outline-children :- [t/OutlineItem]]
                {:label outline-label
                 ;; :icon "my type of icon"
-                :node-ref (g/node-ref this)
+                :node-ref (g/node-id this)
                 :commands outline-commands
                 :children outline-children})))

@@ -80,38 +80,38 @@
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
 
-(defn q [clauses] (solo (ds/query clauses)))
+(defn q [clauses] (solo (g/query (ds/now) clauses)))
 
 (deftest scope-registration
   (testing "Nodes are registered within a scope by name"
     (with-clean-system
-      (g/transactional
-        (ds/in (g/add (n/construct ParticleEditor :label "view scope"))
-          (g/add (n/construct Emitter  :name "emitter"))
-          (g/add (n/construct Modifier :name "vortex"))))
-
+      (ds/transact
+       (g/make-nodes
+        world
+        [view     [ParticleEditor :label "view scope"]
+         emitter  [Emitter  :name "emitter"]
+         modifier [Modifier :name "vortex"]]
+        (g/connect emitter  :self view :nodes)
+        (g/connect modifier :self view :nodes)))
       (let [scope-node (q [[:label "view scope"]])]
         (are [n] (identical? (t/lookup scope-node n) (q [[:name n]]))
-                 "emitter"
-                 "vortex")))))
+             "emitter"
+             "vortex")))))
 
 (g/defnode DisposableNode
   t/IDisposable
   (dispose [this] (deliver (:latch this) true)))
 
-(def gen-disposable-node
-  (gen/fmap (fn [_] (n/construct DisposableNode)) (gen/return 1)))
-
-(def gen-nodelist
-  (gen/vector gen-disposable-node))
-
 (defspec scope-disposes-contained-nodes
-  (prop/for-all [scoped-nodes gen-nodelist]
+  (prop/for-all [node-count gen/pos-int]
     (with-clean-system
-      (let [scope          (g/transactional (g/add (n/construct core/Scope)))
-            disposables    (g/transactional (ds/in scope (doseq [n scoped-nodes] (g/add n))) scoped-nodes)
+      (let [[scope]        (tx-nodes (g/make-node world core/Scope))
+            disposables    (ds/tx-nodes-added
+                            (ds/transact
+                             (for [n (range node-count)]
+                               (g/make-node world DisposableNode))))
             disposable-ids (map :_id disposables)]
-        (g/transactional (g/delete scope))
+        (ds/transact (g/delete-node scope))
         (yield)
         (let [disposed (take-waiting-to-dispose system)]
           (is (= (sort (conj disposable-ids (:_id scope))) (sort (map :_id disposed)))))))))
