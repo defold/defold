@@ -12,18 +12,17 @@
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
             [dynamo.grid :as grid]
-            [dynamo.image :refer :all]
             [dynamo.node :as n]
-            [editor.project :as p]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
-            [editor.core :as core]
-            [editor.image-node :as ein]
+            [editor.image :as image]
             [editor.scene :as scene]
+            [editor.workspace :as workspace]
+            [editor.project :as project]
             [internal.render.pass :as pass]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
@@ -91,14 +90,6 @@
      [{:world-transform world
        :render-fn       (fn [ctx gl glu text-renderer] (render-cubemap gl world camera gpu-texture vertex-binding))}]}))
 
-(defn find-resource-nodes [project exts]
-  (let [all-resource-nodes (filter (fn [node] (let [filename (:filename node)]
-                                                (and filename (contains? exts (t/extension filename))))) (map first (ds/sources-of project :nodes)))
-        filenames (map (fn [node]
-                         (let [filename (:filename node)]
-                           (str "/" (t/local-path filename)))) all-resource-nodes)]
-    (zipmap filenames all-resource-nodes)))
-
 (g/defnode CubemapRender
   (input gpu-texture s/Any)
 
@@ -109,12 +100,11 @@
   (output aabb          AABB       :cached (fnk [] geom/unit-bounding-box)))
 
 (defnk produce-gpu-texture
-  [right-img left-img top-img bottom-img front-img back-img]
-  (apply texture/image-cubemap-texture (map :contents [right-img left-img top-img bottom-img front-img back-img])))
+  [self right-img left-img top-img bottom-img front-img back-img]
+  (apply texture/image-cubemap-texture [right-img left-img top-img bottom-img front-img back-img]))
 
 (g/defnode CubemapNode
-  (inherits core/ResourceNode)
-  (inherits core/OutlineNode)
+  (inherits project/ResourceNode)
 
   (property right  dp/ImageResource)
   (property left   dp/ImageResource)
@@ -130,27 +120,25 @@
   (input front-img  BufferedImage)
   (input back-img   BufferedImage)
 
-  (output gpu-texture   s/Any  :cached produce-gpu-texture)
+  (output gpu-texture   s/Any  produce-gpu-texture))
 
-  (on :load
-      (let [project (:project event)
-            input (:filename self)
-            cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))
-            img-nodes (find-resource-nodes project #{"png" "jpg"})]
-        (ds/transact
-         (for [[side input] cubemap-message]
-           (if-let [img-node (get img-nodes input)]
-             [(ds/connect img-node :content self (keyword (subs (str side "-img") 1)))
-              (ds/set-property self side input)]
-             (ds/set-property self side input)))))))
+(defn load-cubemap [project self input]
+  (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))
+        img-resources (project/find-resources project "**.{jpg,png}")
+        img-nodes (into {} (map (fn [[resource node]] [(workspace/path resource) node]) img-resources))]
+    (for [[side input] cubemap-message]
+      (if-let [img-node (get img-nodes (subs input 1))]
+        [(g/connect img-node :content self (keyword (subs (str side "-img") 1)))
+         (g/set-property self side input)]
+        (g/set-property self side input)))))
 
-(defn construct-cubemap-editor
-  [project-node cubemap-node view-graph]
+(defn setup-rendering [self view]
   (g/make-nodes
-   view-graph [cubemap-render CubemapRender
-               renderer       scene/SceneRenderer
-               background     background/Gradient
-               camera         [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
+   (g/nref->gid view)
+   [cubemap-render CubemapRender
+    renderer       scene/SceneRenderer
+    background     background/Gradient
+    camera         [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
    (g/connect background     :renderable    renderer       :renderables)
    (g/connect camera         :camera        renderer       :camera)
    (g/connect camera         :input-handler view           :input-handlers)
@@ -158,7 +146,10 @@
    (g/connect view           :viewport      renderer       :viewport)
    (g/connect renderer       :frame         view           :frame)
 
-   (g/connect cubemap-node   :gpu-texture   cubemap-render :gpu-texture)
+   (g/connect self           :gpu-texture   cubemap-render :gpu-texture)
    (g/connect cubemap-render :renderable    renderer       :renderables)
    (g/connect camera         :camera        cubemap-render :camera)
    (g/connect cubemap-render :aabb          camera         :aabb)))
+
+(defn register-resource-types [workspace]
+  (workspace/register-resource-type workspace :ext "cubemap" :node-type CubemapNode :load-fn load-cubemap :setup-rendering-fn setup-rendering))

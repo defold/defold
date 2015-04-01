@@ -1,5 +1,6 @@
 (ns editor.platformer
-  (:require [clojure.edn :as edn]
+  (:require [clojure.java.io :as io]
+            [clojure.edn :as edn]
             [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
@@ -10,7 +11,6 @@
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
             [dynamo.grid :as grid]
-            [dynamo.image :refer :all]
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
@@ -18,6 +18,8 @@
             [editor.camera :as c]
             [editor.core :as core]
             [editor.scene :as scene]
+            [editor.workspace :as workspace]
+            [editor.project :as project]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -25,7 +27,8 @@
            [java.awt.image BufferedImage]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Point3d Matrix4d]))
+           [javax.vecmath Point3d Matrix4d]
+           [java.io PushbackReader]))
 
 (def cp-trigger 5)
 
@@ -67,14 +70,6 @@
          :render-fn       (fn [ctx gl glu text-renderer] (render-platformer gl base-texture vertex-buffer))}]})
     {})
   )
-
-(defn find-resource-nodes [project exts]
-  (let [all-resource-nodes (filter (fn [node] (let [filename (:filename node)]
-                                                (and filename (contains? exts (t/extension filename))))) (map first (ds/sources-of project :nodes)))
-        filenames (map (fn [node]
-                         (let [filename (:filename node)]
-                           (str "/" (t/local-path filename)))) all-resource-nodes)]
-    (zipmap filenames all-resource-nodes)))
 
 (defn gen-mesh [control-points]
   (let [min-y (reduce #(min %1 (:y %2)) 0 control-points)
@@ -170,59 +165,62 @@
   nil)
 
 (g/defnode PlatformerNode
-  (inherits core/ResourceNode)
-  (inherits core/OutlineNode)
+  (inherits project/ResourceNode)
 
-  (property control-points  [t/Any])
+  (property control-points  [t/Any] (visible false))
   (property base-texture t/Str)
 
-                                        ; TODO temp solution
-  (property active-cp t/Any)
-  (property inactive-cps t/Any)
+  ; TODO temp solution
+  (property active-cp t/Any (visible false))
+  (property inactive-cps t/Any (visible false))
 
   (input camera t/Any)
   (input viewport Region)
-  (input base-texture-img t/Any)
+  (input base-texture-img BufferedImage)
 
   (output input-handler Runnable (g/fnk [] handle-input))
   (output base-texture t/Any :cached (g/fnk [base-texture-img] (texture/image-texture
-                                                                (:contents base-texture-img)
+                                                                base-texture-img
                                                                 {:min-filter gl/linear-mipmap-linear
                                                                  :mag-filter gl/linear
                                                                  :wrap-s     gl/repeat
                                                                  :wrap-t     gl/repeat})))
-  (output aabb          AABB       :cached (g/fnk [] geom/unit-bounding-box)) ; TODO fix aabb
+  (output aabb          AABB       :cached (g/fnk [control-points] (reduce (fn [aabb cp] (geom/aabb-incorporate aabb (:x cp) (:y cp) 0)) (geom/null-aabb) control-points))))
 
-  (on :load
-      (let [project (:project event)
-            level (edn/read-string (slurp (:filename self)))]
-        (g/set-property self :control-points (:control-points level))
-        (g/set-property self :base-texture (:base-texture level))
-        (let [img-node (t/lookup project (:base-texture level))]
-          (g/connect img-node :content self :base-texture-img)))))
+(defn load-level [project self input]
+  (with-open [reader (PushbackReader. (io/reader (:resource self)))]
+    (let [level (edn/read reader)]
+      (concat
+       (g/set-property self :control-points (:control-points level))
+       (g/set-property self :base-texture (:base-texture level))
+       (let [results (project/find-resources project (:base-texture level))
+             img-node (second (first results))]
+         (g/connect img-node :content self :base-texture-img))))))
 
-(defn construct-platformer-editor
-  [project-node platformer-node]
-  (g/graph-with-nodes
-   10
+(defn setup-rendering [self view]
+  (g/make-nodes
+   (g/nref->gid view)
    [platformer-render PlatformerRender
     renderer          scene/SceneRenderer
     background        background/Gradient
     grid              grid/Grid
     camera            [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
-   (g/connect background        :renderable     renderer          :renderables)
-   (g/connect grid              :renderable     renderer          :renderables)
-   (g/connect camera            :camera         grid              :camera)
-   (g/connect camera            :camera         renderer          :camera)
-   (g/connect camera            :input-handler  view              :input-handlers)
-   (g/connect view              :viewport       camera            :viewport)
-   (g/connect view              :viewport       renderer          :viewport)
-   (g/connect renderer          :frame          view              :frame)
+    (g/connect background        :renderable     renderer          :renderables)
+    (g/connect grid              :renderable     renderer          :renderables)
+    (g/connect camera            :camera         grid              :camera)
+    (g/connect camera            :camera         renderer          :camera)
+    (g/connect camera            :input-handler  view              :input-handlers)
+    (g/connect view              :viewport       camera            :viewport)
+    (g/connect view              :viewport       renderer          :viewport)
+    (g/connect renderer          :frame          view              :frame)
 
-   (g/connect platformer-node   :base-texture   platformer-render :base-texture)
-   (g/connect camera            :camera         platformer-node   :camera)
-   (g/connect platformer-node   :input-handler  view              :input-handlers)
-   (g/connect view              :viewport       platformer-node   :viewport)
-   (g/connect platformer-node   :control-points platformer-render :control-points)
-   (g/connect platformer-render :renderable     renderer          :renderables)
-   (g/connect platformer-node   :aabb           camera            :aabb)))
+    (g/connect self              :base-texture   platformer-render :base-texture)
+    (g/connect camera            :camera         self              :camera)
+    (g/connect self              :input-handler  view              :input-handlers)
+    (g/connect view              :viewport       self              :viewport)
+    (g/connect self              :control-points platformer-render :control-points)
+    (g/connect platformer-render :renderable     renderer          :renderables)
+    (g/connect self              :aabb           camera            :aabb)))
+
+(defn register-resource-types [workspace]
+  (workspace/register-resource-type workspace :ext "platformer" :node-type PlatformerNode :load-fn load-level :setup-rendering-fn setup-rendering))

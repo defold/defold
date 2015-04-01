@@ -2,6 +2,7 @@
   (:require [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
+            [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.types :refer [IDisposable dispose]]
@@ -181,55 +182,62 @@
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
                                      nil))
-
-  (on :create
-      (let [image-view (ImageView.)
-            parent ^Parent (:parent event)
-            tab ^Tab (:tab event)]
-        (AnchorPane/setTopAnchor image-view 0.0)
-        (AnchorPane/setBottomAnchor image-view 0.0)
-        (AnchorPane/setLeftAnchor image-view 0.0)
-        (AnchorPane/setRightAnchor image-view 0.0)
-        (.add (.getChildren ^Pane parent) image-view)
-        (let [event-handler   (reify EventHandler
-                                (handle [this e]
-                                  (let [self (g/refresh self)]
-                                    (dispatch-input (g/sources-of self :input-handlers) (i/action-from-jfx e)))))
-              change-listener (reify ChangeListener
-                                (changed [this observable old-val new-val]
-                                  (let [self (g/refresh self)
-                                        bb ^BoundingBox new-val
-                                        w (- (.getMaxX bb) (.getMinX bb))
-                                        h (- (.getMaxY bb) (.getMinY bb))]
-                                    (ds/transact (g/set-property self :viewport (t/->Region 0 w 0 h))))))
-              repainter       (proxy [AnimationTimer] []
-                                (handle [now]
-                                  (let [self                  (g/refresh self)
-                                        image-view ^ImageView (:image-view self)
-                                        visible               (:visible self)]
-                                    (when (and visible)
-                                      (let [image (g/node-value self :image)]
-                                        (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
-          (.setOnMousePressed parent event-handler)
-          (.setOnMouseReleased parent event-handler)
-          (.setOnMouseClicked parent event-handler)
-          (.setOnMouseMoved parent event-handler)
-          (.setOnMouseDragged parent event-handler)
-          (.setOnScroll parent event-handler)
-          (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
-          (ds/transact
-           (g/set-property self :image-view image-view)
-           (g/set-property self :repainter  repainter))
-          (.start repainter)
-          (.addListener (.selectedProperty tab)
-                        (reify ChangeListener
-                          (changed [this observable old-val new-val]
-                            (let [self (g/refresh self)]
-                              (ds/transact
-                               (g/set-property self :visible new-val)))))))))
-
   t/IDisposable
   (dispose [self]
            (prn "Disposing SceneEditor")
            (when-let [^GLAutoDrawable drawable (:gl-drawable self)]
-             (.destroy drawable))))
+             (.destroy drawable))
+           ))
+
+(defn make-scene-view [scene-graph ^Parent parent ^Tab tab]
+  (let [image-view (ImageView.)]
+    (AnchorPane/setTopAnchor image-view 0.0)
+    (AnchorPane/setBottomAnchor image-view 0.0)
+    (AnchorPane/setLeftAnchor image-view 0.0)
+    (AnchorPane/setRightAnchor image-view 0.0)
+    (.add (.getChildren ^Pane parent) image-view)
+    (let [view (ds/transact (g/make-node scene-graph SceneView :image-view image-view))]
+      (let [self-ref (g/node-id view)
+            event-handler (reify EventHandler (handle [this e]
+                                                (let [now (ds/now)
+                                                      self (g/node-by-id now self-ref)]
+                                                  (dispatch-input (g/sources-of now self :input-handlers) (i/action-from-jfx e)))))
+            change-listener (reify ChangeListener (changed [this observable old-val new-val]
+                                                    (let [bb ^BoundingBox new-val
+                                                          w (- (.getMaxX bb) (.getMinX bb))
+                                                          h (- (.getMaxY bb) (.getMinY bb))]
+                                                      (ds/transact (g/set-property self-ref :viewport (t/->Region 0 w 0 h))))))]
+        (.setOnMousePressed parent event-handler)
+        (.setOnMouseReleased parent event-handler)
+        (.setOnMouseClicked parent event-handler)
+        (.setOnMouseMoved parent event-handler)
+        (.setOnMouseDragged parent event-handler)
+        (.setOnScroll parent event-handler)
+        (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
+        (let [repainter (proxy [AnimationTimer] []
+                          (handle [now]
+                            (let [self                  (g/node-by-id (ds/now) self-ref)
+                                  image-view ^ImageView (:image-view self)
+                                  visible               (:visible self)]
+                              (when (and visible)
+                                (let [image (g/node-value self :image)]
+                                  (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
+          (ds/transact (g/set-property view :repainter repainter))
+          (.start repainter))
+        (.addListener (.selectedProperty tab) (reify ChangeListener (changed [this observable old-val new-val]
+                                                                      (let [self (g/node-by-id (ds/now) self-ref)]
+                                                                        (ds/transact
+                                                                         (g/set-property self :visible new-val))))))
+        )
+      view)))
+
+(g/defnode PreviewView
+  (property width t/Num)
+  (property height t/Num)
+  (input frame BufferedImage)
+  (input input-handlers [Runnable])
+  (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
+  (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
+
+(defn make-preview-view [graph width height]
+  (g/make-node graph PreviewView :width width :height height))
