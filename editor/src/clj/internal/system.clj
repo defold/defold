@@ -83,6 +83,7 @@
         (alter history-ref update-in [:undo-stack] conj old-world)
         (alter history-ref update-in [:redo-stack] pop)))))
 
+(defn last-graph     [s]     (-> s :last-graph))
 (defn system-cache   [s]     (-> s :cache))
 (defn history        [s]     (-> s :history))
 (defn disposal-queue [s]     (-> s :disposal-queue))

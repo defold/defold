@@ -1,19 +1,86 @@
 (ns editor.project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
-  (:require [dynamo.file :as file]
+  (:require [clojure.java.io :as io]
+            [schema.core :as schema]
+            [dynamo.file :as file]
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.selection :as selection]
             [dynamo.system :as ds]
             [dynamo.types :as t]
+            [dynamo.ui :as ui]
             [dynamo.util :refer :all]
+            [editor.workspace :as workspace]
             [editor.core :as core]
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
             [service.log :as log])
-  (:import [java.io File]))
+  (:import [java.io File]
+           [java.nio.file FileSystem FileSystems PathMatcher]))
+
+(g/defnode ResourceNode
+  (inherits core/Scope)
+  (property resource (t/protocol workspace/Resource) (visible false)))
+
+(g/defnode PlaceholderResourceNode
+  (inherits ResourceNode))
+
+(defn- make-nodes
+  [project resources]
+  (let [project-graph (g/nref->gid (g/node-id project))]
+    (ds/tx-nodes-added
+     (ds/transact
+      (for [[resource-type resources] (group-by workspace/resource-type resources)
+            :when    (boolean resource-type)
+            :let     [node-type (:node-type resource-type PlaceholderResourceNode)]
+            resource resources]
+        (g/make-nodes
+         project-graph
+         [new-resource [node-type :resource resource :parent project :resource-type resource-type]]
+         (g/connect new-resource :self project :nodes)))))))
+
+
+(defn- load-nodes [project nodes]
+  (ds/transact
+   (for [node nodes
+         :when (get-in node [:resource-type :load-fn])]
+     ((get-in node [:resource-type :load-fn]) project node (io/reader (:resource node))))))
+
+(defn load-project [project resources]
+  (let [nodes (make-nodes project resources)]
+    (load-nodes (g/refresh project) nodes)
+    (g/refresh project)))
+
+(defn nodes-in-project
+  "Return a lazy sequence of all nodes in this project. There is no
+guaranteed ordering of the sequence."
+  [project-node]
+  (g/query (ds/now) [[:_id (:_id project-node)] '(input :nodes)]))
+
+(g/defnode Project
+  (inherits core/Scope)
+
+  (input resources t/Any))
+
+(defn get-resource-type [resource-node]
+  (when resource-node (workspace/resource-type (:resource resource-node))))
+
+(defn filter-resources [resources query]
+  (let [file-system ^FileSystem (FileSystems/getDefault)
+        matcher (.getPathMatcher file-system (str "glob:" query))]
+    (filter (fn [r] (let [path (.getPath file-system (workspace/path r) (into-array String []))] (.matches matcher path))) resources)))
+
+(defn find-resources [project query]
+  (let [nodes            (nodes-in-project project)
+        resource-to-node (into {} (map (fn [n] [(:resource n) n]) nodes))
+        resources        (filter-resources (g/node-value project :resources) query)]
+    (map (fn [r] [r (get resource-to-node r)]) resources)))
+
+(defn get-resource-node [project resource]
+  (let [nodes (nodes-in-project project)]
+    (first (filter (fn [n] (= resource (:resource n))) nodes))))
 
 (defn register-node-type
   [project-node filetype node-type]
@@ -108,7 +175,7 @@ behavior."
 (defn project-root? [node]
   (satisfies? ProjectRoot node))
 
-(g/defnode Project
+#_(g/defnode Project
   (inherits core/Scope)
 
   (property tag                t/Keyword (default :project))
@@ -149,16 +216,6 @@ behavior."
        (load-resource project-node
                       (file/make-project-path project-node resource))))))
 
-(defn load-project
-  [graph root branch]
-  (first
-   (ds/tx-nodes-added
-    (ds/transact
-     (g/make-node graph Project
-                  :content-root root
-                  :branch       branch
-                  :node-types   {"clj" clojure/ClojureSourceNode})))))
-
 (defn- post-load
   [message project-node resource-nodes]
   (doseq [resource-node resource-nodes]
@@ -180,57 +237,11 @@ behavior."
            (load-resource-nodes project-node non-sources))
     project-node))
 
-(defn- unload-nodes
-  [nodes]
-  (doseq [n nodes]
-    (n/dispatch-message n :unload)))
-
-(defn- replace-nodes
-  [project-node nodes-to-replace f]
-  (ds/transact
-   (for [old nodes-to-replace]
-     (g/become (f old))))
-  )
-
-(defn- add-or-replace?
-  [project-node resource]
-  (let [[node] (nodes-with-filename project-node (file/make-project-path project-node resource))]
-    (cond
-      (not (nil? node))                   :replace-existing
-      (clojure/clojure-source? resource)  :load-clojure
-      :else                               :load-other)))
-
-(defn- update-added-resources
-  [project-node {:keys [added]}]
-  (let [with-placeholders (group-by #(add-or-replace? project-node %) added)
-        replacements      (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) (:replace-existing with-placeholders))]
-    (unload-nodes replacements)
-    (replace-nodes project-node replacements #(t/node-for-path project-node (:filename %)))
-    (apply post-load "Compiling"          (load-resource-nodes (g/refresh project-node) (:load-clojure with-placeholders) nil))
-    (apply post-load "Loading asset from" (load-resource-nodes (g/refresh project-node) (:load-other   with-placeholders) nil))
-    project-node))
-
-(defn- update-deleted-resources
-  [project-node {:keys [deleted]}]
-  (let [nodes-to-delete (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) deleted)]
-    (unload-nodes nodes-to-delete)
-    (replace-nodes project-node nodes-to-delete #(new-node-for-path project-node (:filename %) Placeholder)))
-  project-node)
-
-(defn- update-changed-resources
-  [project-node {:keys [changed]}]
-  (let [nodes-to-replace (map #(first (nodes-with-filename project-node (file/make-project-path project-node %))) changed)]
-    (unload-nodes nodes-to-replace)
-    (replace-nodes project-node nodes-to-replace #(new-node-for-path project-node (:filename %) Placeholder))))
-
-(defn- update-resources
-  [project-node changeset]
-  (-> (g/refresh project-node)
-    (update-added-resources changeset)
-    (update-deleted-resources changeset)
-    (update-changed-resources changeset)))
-
+; ---------------------------------------------------------------------------
+; Lifecycle, Called during connectToBranch
+; ---------------------------------------------------------------------------
 (defn open-project
+  "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function directly."
   [root branch]
   (let [project-node (load-project-and-tools root branch)
         ;listener     (resources/listen-for-change #(update-resources project-node %))

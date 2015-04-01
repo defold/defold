@@ -1,0 +1,59 @@
+images {
+  image: "/switcher/images/blue_fish.png"
+}
+images {
+  image: "/switcher/images/blue_striped_fish.png"
+}
+images {
+  image: "/switcher/images/blue_wrapped_fish.png"
+}
+images {
+  image: "/switcher/images/green_fish.png"
+}
+images {
+  image: "/switcher/images/green_striped_fish.png"
+}
+images {
+  image: "/switcher/images/green_wrapped_fish.png"
+}
+images {
+  image: "/switcher/images/orange_fish.png"
+}
+images {
+  image: "/switcher/images/orange_striped_fish.png"
+}
+images {
+  image: "/switcher/images/orange_wrapped_fish.png"
+}
+images {
+  image: "/switcher/images/purple_fish.png"
+}
+images {
+  image: "/switcher/images/purple_striped_fish.png"
+}
+images {
+  image: "/switcher/images/purple_wrapped_fish.png"
+}
+images {
+  image: "/switcher/images/red_fish.png"
+}
+images {
+  image: "/switcher/images/red_striped_fish.png"
+}
+images {
+  image: "/switcher/images/red_wrapped_fish.png"
+}
+images {
+  image: "/switcher/images/yellow_fish.png"
+}
+images {
+  image: "/switcher/images/yellow_striped_fish.png"
+}
+images {
+  image: "/switcher/images/yellow_wrapped_fish.png"
+}
+images {
+  image: "/switcher/images/fish_colorbomb.png"
+}
+margin: 1
+extrude_borders: 0
