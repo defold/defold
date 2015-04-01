@@ -305,8 +305,9 @@
   (if aabb
     (let [camera (camera-orthographic-frame-aabb camera viewport aabb)]
       (ds/transact
+       (concat
         (g/set-property self :camera camera)
-        (g/set-property self :reframe false))
+        (g/set-property self :reframe false)))
       camera)
     camera))
 

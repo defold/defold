@@ -156,5 +156,9 @@
 
 (defn attach-graph-with-history
   [graph]
-  (let [s (swap! *the-system* is/attach-graph-with-history graph graph)]
+  (let [s (swap! *the-system* is/attach-graph-with-history graph)]
     (some-> s :graphs (get (:last-graph s)) deref :_gid)))
+
+(defn last-graph-added
+  []
+  (is/last-graph @*the-system*))

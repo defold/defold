@@ -103,7 +103,7 @@
   [^IBasis basis in-production node-id label chain-head production-fn]
   (e/bind
    (production-fn
-    (map-vals e/result
+    (map-vals #(when % (e/result %))
               (collect-inputs basis in-production node-id label chain-head
                               (pf/input-schema production-fn))))))
 

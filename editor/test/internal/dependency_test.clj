@@ -207,17 +207,7 @@
             deps  (dependencies system a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
-                 [(id x) :string-value]})))))
-
-  #_(testing "properties are not confused with inputs"
-    (ts/with-clean-system
-      (let [[a x] (ts/tx-nodes (g/make-node world SingleOutput)
-                               (g/make-node world PropertyShadowingInput))
-            _     (g/transactional
-                   (g/connect a :out-from-inline x :string-value))
-            deps  (dependencies system a :out-from-inline)]
-        (is (= deps
-               #{[(id a) :out-from-inline]}))))))
+                 [(id x) :string-value]}))))))
 
 (g/defnode SingleOutput
   (output out-from-inline t/Str (g/fnk [] "out-from-inline")))
