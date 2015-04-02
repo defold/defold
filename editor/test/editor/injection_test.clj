@@ -145,7 +145,7 @@
   (testing "don't connect a node's own output to its input"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world ReflexiveFeedback))]
-        (is (not (ig/connected? (ds/now) (g/node-id node) :port (g/node-id node) :ports)))))))
+        (is (not (g/connected? (ds/now) (g/node-id node) :port (g/node-id node) :ports)))))))
 
 (g/defnode OutputProvider
   (inherits core/Scope)

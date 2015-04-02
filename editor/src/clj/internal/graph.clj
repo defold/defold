@@ -1,40 +1,61 @@
 (ns internal.graph
-  (:require [clojure.set :as set]
-            [dynamo.util :refer [removev]]
+  (:require [dynamo.util :refer [removev]]
             [internal.graph.types :as gt]))
 
-;; ----------------------------------------
-;; Directed graph
-;; ----------------------------------------
+(deftype ArcBase [source target sourceLabel targetLabel]
+  gt/Arc
+  (head [_] [source sourceLabel])
+  (tail [_] [target targetLabel])
+
+  Object
+  (toString [_]
+    (str "[[" source sourceLabel "] -> [" target targetLabel "]]"))
+  (equals [this that]
+    (and (satisfies? gt/Arc that)
+         (= source      (.source that))
+         (= target      (.target that))
+         (= sourceLabel (.sourceLabel that))
+         (= targetLabel (.targetLabel that))))
+  (hashCode [this]
+    (+ (.hashCode source)      (mod (* 13 (.hashCode target)) 7)
+       (.hashCode sourceLabel) (mod (* 19 (.hashCode targetLabel)) 23))))
+
+(definline ^:private arc
+  [source target source-label target-label]
+  `(ArcBase. ~source ~target ~source-label ~target-label))
+
 (defn empty-graph
   []
-  {:nodes     {}
-   :last-node 0
-   :arcs      []
-   :tx-id     0})
+  {:nodes   {}
+   :last-id 0
+   :sarcs   []
+   :tarcs   []
+   :tx-id   0})
 
-;;; Published API
+(defn- remove-arc
+  [g key arc]
+  (assoc g key (removev #(= arc %) (get g key))))
+
 (defn node-ids    [g] (keys (:nodes g)))
 (defn node-values [g] (vals (:nodes g)))
-(defn arcs        [g] (:arcs g))
-(defn last-node   [g] (:last-node g))
 
-(defn next-node   [g] (inc (last-node g)))
-(defn claim-node  [g] (assoc-in g [:last-node] (next-node g)))
+(defn- last-id     [g] (:last-id g))
+(defn- next-id     [g] (inc (last-id g)))
 
-(defn node        [g id] (get-in g [:nodes id]))
+(defn claim-id
+  [g]
+  (let [id (next-id g)]
+    [(assoc-in g [:last-id] (next-id g)) id]))
 
-(defn add-node
-  [g v]
-  (let [g' (claim-node g)]
-    (assoc-in g' [:nodes (last-node g')] v)))
+(defn node        [g id]   (get-in g [:nodes id]))
+(defn add-node    [g id n] (assoc-in g [:nodes id] n))
 
 (defn remove-node
   [g n]
   (-> g
-    (update-in [:nodes] dissoc n)
-    (update-in [:arcs] (fn [arcs] (removev #(or (= n (:source %))
-                                                (= n (:target %))) arcs)))))
+      (update :nodes dissoc n)
+      (update :sarcs (fn [s] (removev #(or (= n (.source %)) (= n (.target %))) s)))
+      (update :tarcs (fn [s] (removev #(or (= n (.source %)) (= n (.target %))) s)))))
 
 (defn transform-node
   [g n f & args]
@@ -46,28 +67,48 @@
   [g n r]
   (assoc-in g [:nodes n] r))
 
-(defn add-arc
-  [g source source-attributes target target-attributes]
-  (assert (node g source) (str source " does not exist in graph"))
-  (assert (node g target) (str target " does not exist in graph"))
-  (update-in g [:arcs] conj {:source source :source-attributes source-attributes :target target :target-attributes target-attributes}))
+(defn targets
+  [g node label]
+  (for [arc (:sarcs g)
+        :when (= [node label] (gt/head arc))]
+    (gt/tail arc)))
 
-(defn remove-arc
-  [g source source-attributes target target-attributes]
-  (update-in g [:arcs]
-    (fn [arcs]
-      (if-let [last-index (->> arcs (keep-indexed (fn [i a] (when (= {:source source :source-attributes source-attributes :target target :target-attributes target-attributes} a) i))) last)]
-        (let [[n m] (split-at last-index arcs)] (into (vec n) (rest m)))
-        arcs))))
+(defn connect-source
+  [g source source-label target target-label]
+  (let [from (node g source)]
+    (assert (not (nil? from)) (str "Attempt to connect " (pr-str source source-label target target-label)))
+    (assert (some #{source-label} (gt/outputs from)) (str "No label " source-label " exists on node " from))
+    (update g :sarcs conj (arc source target source-label target-label))))
 
-(defn arcs-from-to [g source target]
-  (filter #(and (= source (:source %)) (= target (:target %))) (:arcs g)))
+(defn source-connected?
+  [g source source-label target target-label]
+  (some #{[target target-label]} (targets g source source-label)))
 
-(defn arcs-from [g node]
-  (filter #(= node (:source %)) (:arcs g)))
+(defn disconnect-source
+  [g source source-label target target-label]
+  (remove-arc g :sarcs (arc source target source-label target-label)))
 
-(defn arcs-to [g node]
-  (filter #(= node (:target %)) (:arcs g)))
+(defn sources
+  [g node label]
+  (for [arc   (:tarcs g)
+        :when (= [node label] (gt/tail arc))]
+    (gt/head arc)))
+
+(defn connect-target
+  [g source source-label target target-label]
+  (let [to (node g target)]
+    (assert (not (nil? to)) (str "Attempt to connect " (pr-str source source-label target target-label)))
+    (assert (some #{target-label} (gt/inputs to))    (str "No label " target-label " exists on node " to))
+    (update g :tarcs conj (arc source target source-label target-label))))
+
+(defn target-connected?
+  [g source source-label target target-label]
+  (some #{[source source-label]} (sources g target target-label)))
+
+(defn disconnect-target
+  [g source source-label target target-label]
+  (remove-arc g :tarcs (arc source target source-label target-label)))
+
 
 (defmacro for-graph
   [gsym bindings & body]
@@ -77,61 +118,6 @@
              ~gsym
              (for [~@bindings]
                [~@loop-vars]))))
-
-(defn map-nodes
-  [f g]
-  (update-in g [:nodes]
-             #(persistent!
-               (reduce-kv
-                (fn [nodes id v] (assoc! nodes id (f v)))
-                (transient {})
-                %))))
-
-;; ----------------------------------------
-;; Labeled graph
-;; ----------------------------------------
-(defn add-labeled-node
-  [g inputs outputs ^clojure.lang.Associative v]
-  (add-node g (assoc v ::inputs inputs ::outputs outputs)))
-
-(defn inputs [node]  (::inputs node))
-(defn outputs [node] (::outputs node))
-
-(defn targets [g node label]
-  (for [a     (arcs-from g node)
-        :when (= label (get-in a [:source-attributes :label]))]
-    [(:target a) (get-in a [:target-attributes :label])]))
-
-(defn sources [g node label]
-  (for [a     (arcs-to g node)
-        :when (= label (get-in a [:target-attributes :label]))]
-    [(:source a) (get-in a [:source-attributes :label])]))
-
-(defn source-labels [g target-node label source-node]
-  (map second (filter #(= source-node (first %)) (sources g target-node label))))
-
-(defn connect
-  [g source source-label target target-label]
-  (let [from (node g source)
-        to   (node g target)]
-    (assert (not (nil? from)) (str "Attempt to connect " (pr-str source source-label target target-label)))
-    (assert (not (nil? to)) (str "Attempt to connect " (pr-str source source-label target target-label)))
-    (assert (some #{source-label} (outputs from)) (str "No label " source-label " exists on node " from))
-    (assert (some #{target-label} (inputs to))    (str "No label " target-label " exists on node " to))
-    (add-arc g source {:label source-label} target {:label target-label})))
-
-(defn disconnect
-  [g source source-label target target-label]
-  (remove-arc g source {:label source-label} target {:label target-label}))
-
-(defn connected?
-  [g source source-label target target-label]
-  (not
-   (empty?
-    (filter
-     #(and (= source-label (-> % :source-attributes :label))
-           (= target-label (-> % :target-attributes :label)))
-     (arcs-from-to g source target)))))
 
 ;; ----------------------------------------
 ;; Simplistic query engine
@@ -172,9 +158,10 @@
   Clause
   (bind [this next graph candidates]
     (let [rfn (fn [matches candidate-id]
-                (->> (dir-fn graph candidate-id label)
-                  (map first)
-                  (into matches)))]
+                (->> label
+                     (dir-fn graph candidate-id)
+                     (map first)
+                     (into matches)))]
       #(next graph (reduce rfn #{} candidates)))))
 
 (defn- bomb
@@ -251,24 +238,23 @@
   gt/IBasis
   (node-by-id
     [_ node-id]
-    (node (nref->graph graphs node-id) (gt/nref->nid node-id)))
+    (node (nref->graph graphs node-id) node-id))
   (node-by-property
     [_ label value]
     (filter #(= value (get % label)) (mapcat vals graphs)))
   (sources
     [_ node-id label]
-    (sources (nref->graph graphs node-id) (gt/nref->nid node-id) label))
+    (sources (nref->graph graphs node-id) node-id label))
   (targets
     [_ node-id label]
-    (targets (nref->graph graphs node-id) (gt/nref->nid node-id) label))
+    (targets (nref->graph graphs node-id) node-id label))
   (add-node
     [this tempid value]
-    (let [gid     (gt/nref->gid tempid)
-          graph   (get graphs gid)
-          nid     (inc (last-node graph))
-          node-id (gt/make-nref gid nid)
-          node    (assoc value :_id node-id)
-          graph   (add-labeled-node graph (gt/inputs node) (gt/outputs node) node)]
+    (let [gid         (gt/nref->gid tempid)
+          [graph nid] (claim-id (get graphs gid))
+          node-id     (gt/make-nref gid nid)
+          node        (assoc value :_id node-id)
+          graph       (add-node graph node-id node)]
       [(update-in this [:graphs] assoc gid graph)
        node-id
        node]))
@@ -276,61 +262,58 @@
     [this node-id]
     (let [node (gt/node-by-id this node-id)
           gid  (gt/nref->gid node-id)
-          nid  (gt/nref->nid node-id)
-          graph (remove-node (nref->graph graphs node-id) nid)]
+          graph (remove-node (nref->graph graphs node-id) node-id)]
       [(update-in this [:graphs] assoc gid graph)
        node]))
   (replace-node
     [this node-id new-node]
     (let [gid   (gt/nref->gid node-id)
-          nid   (gt/nref->nid node-id)
-          graph (replace-node (nref->graph graphs node-id) nid (assoc new-node :_id node-id))
-          node  (node graph nid)]
+          graph (replace-node (nref->graph graphs node-id) node-id (assoc new-node :_id node-id))
+          node  (node graph node-id)]
       [(update-in this [:graphs] assoc gid graph)
        node]))
   (update-property
     [this node-id property f args]
     (let [gid   (gt/nref->gid node-id)
-          nid   (gt/nref->nid node-id)
-          graph (apply transform-node (nref->graph graphs node-id) nid update-in [property] f args)
-          node  (node graph nid)]
+          graph (apply transform-node (nref->graph graphs node-id) node-id update-in [property] f args)
+          node  (node graph node-id)]
       [(update-in this [:graphs] assoc gid graph)
        node]))
   (connect
     [this src-id src-label tgt-id tgt-label]
     (let [src-gid   (gt/nref->gid src-id)
-          src-nid   (gt/nref->nid src-id)
           src-graph (get graphs src-gid)
           tgt-gid   (gt/nref->gid tgt-id)
-          tgt-nid   (gt/nref->nid tgt-id)
           tgt-graph (get graphs tgt-gid)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
-      (update-in this [:graphs] assoc
-                 tgt-gid (if (= src-gid tgt-gid)
-                           tgt-graph
-                           (connect tgt-graph src-nid src-label tgt-nid tgt-label))
-                 src-gid (connect src-graph src-nid src-label tgt-nid tgt-label))))
+      (if (= src-gid tgt-gid)
+        (update this :graphs assoc src-gid
+                (-> src-graph
+                    (connect-target src-id src-label tgt-id tgt-label)
+                    (connect-source src-id src-label tgt-id tgt-label)))
+        (update this :graphs assoc
+                tgt-gid (connect-target tgt-graph src-id src-label tgt-id tgt-label)
+                src-gid (connect-source src-graph src-id src-label tgt-id tgt-label)))))
   (disconnect
     [this src-id src-label tgt-id tgt-label]
     (let [src-gid   (gt/nref->gid src-id)
-          src-nid   (gt/nref->nid src-id)
           src-graph (get graphs src-gid)
           tgt-gid   (gt/nref->gid tgt-id)
-          tgt-nid   (gt/nref->nid tgt-id)
           tgt-graph (get graphs tgt-gid)]
-      (update-in this [:graphs] assoc
-                 tgt-gid (if (= src-gid tgt-gid)
-                           tgt-graph
-                           (disconnect tgt-graph src-nid src-label tgt-nid tgt-label))
-                 src-gid (disconnect src-graph src-nid src-label tgt-nid tgt-label))))
+      (if (= src-gid tgt-gid)
+        (update this :graphs assoc src-gid
+                (-> src-graph
+                    (disconnect-target src-id src-label tgt-id tgt-label)
+                    (disconnect-source src-id src-label tgt-id tgt-label)))
+        (update this :graphs assoc
+                tgt-gid (disconnect-target tgt-graph src-id src-label tgt-id tgt-label)
+                src-gid (disconnect-source src-graph src-id src-label tgt-id tgt-label)))))
   (connected?
     [this src-id src-label tgt-id tgt-label]
-    (let [src-nid   (gt/nref->nid src-id)
-          src-graph (nref->graph graphs src-id)
-          tgt-nid   (gt/nref->nid tgt-id)
+    (let [src-graph (nref->graph graphs src-id)
           tgt-graph (nref->graph graphs tgt-id)]
-      (or (connected? src-graph src-nid src-label tgt-nid tgt-label)
-          (connected? tgt-graph src-nid src-label tgt-nid tgt-label))))
+      (or (source-connected? src-graph src-id src-label tgt-id tgt-label)
+          (target-connected? tgt-graph src-id src-label tgt-id tgt-label))))
   (query
     [this clauses]
     (let [fan-out (map #(query % clauses) (vals graphs))

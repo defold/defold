@@ -1,6 +1,10 @@
 (ns internal.graph.types
   (:require [schema.core :as s]))
 
+(defprotocol Arc
+  (head [this] "returns [source-node source-label]")
+  (tail [this] "returns [target-node target-label]"))
+
 (defprotocol NodeType
   (supertypes           [this])
   (interfaces           [this])

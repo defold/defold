@@ -1,105 +1,123 @@
 (ns internal.graph.generator
   "test.check generator to create a randomly populated graph"
-  (:require [clojure.test.check.generators :as gen]
-            [internal.graph :as ig]))
+  (:require [clojure.test.check :as tc]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
+            [clojure.test :refer :all]
+            [internal.graph :as g]
+            [internal.graph.types :as gt]))
 
-(def names-with-repeats
-  (gen/vector
-    (gen/frequency [[9 (gen/not-empty gen/string-alpha-numeric)]
-                    [1 (gen/return "A common name")]])))
-
-(defprotocol ProtocolA)
-(defprotocol ProtocolB)
-
-(deftype TypeA [] ProtocolA)
-(deftype TypeB [] ProtocolB)
-(deftype TypeAB [] ProtocolA ProtocolB)
-
-(def maybe-with-protocols
-  (gen/vector
-    (gen/frequency [[1 (gen/return {})]
-                    [1 (gen/return (TypeA.))]
-                    [1 (gen/return (TypeB.))]
-                    [1 (gen/return (TypeAB.))]])))
-
-(def min-node-count 20)
-(def max-node-count 80)
+(def min-node-count 80)
+(def max-node-count 100)
+(def node-deletion-factor 5)
 (def min-arc-count  10)
 (def max-arc-count  50)
+(def arc-deletion-factor 5)
 
 (def labels (gen/elements [:t :u :v :w :x :y :z]))
 
-(defn node [id a b] {:_id id :inputs a :outputs b})
+(defrecord FakeNode [_id ins outs]
+  gt/Node
+  (node-id [this] _id)
+  (inputs  [this] ins)
+  (outputs [this] outs))
+
+(defn node [ins outs] (FakeNode. nil ins outs))
 
 (defn pair
   [m n]
   (gen/tuple (gen/elements m) (gen/elements n)))
 
-(defn graph-endpoints
-  [g efn]
-  (for [id    (ig/node-ids g)
-        input (efn (ig/node g id))]
-    [id input]))
+(defn map-nodes
+  [f nodes]
+  (for [[idsym n] nodes
+        l         (f n)]
+    [idsym l]))
 
-(defn arcs
-  [g]
-  (when (or (empty? (graph-endpoints g ig/outputs) ) (empty? (graph-endpoints g ig/inputs)))
-    (prn "empty collection of endpoints on " g))
-  (pair (graph-endpoints g ig/outputs) (graph-endpoints g ig/inputs)))
+(defn gen-arcs
+  [nodes]
+  (pair (map-nodes gt/outputs nodes) (map-nodes gt/inputs nodes)))
 
-(defn selected-nodes
-  [g]
-  (gen/not-empty (gen/vector (gen/elements (ig/node-ids g)))))
+(def gen-label
+  (gen/not-empty
+   (gen/vector labels)))
 
-(def nodes (gen/fmap (partial apply node)
-                     (gen/tuple
-                       gen/neg-int
-                       (gen/not-empty (gen/vector labels))
-                       (gen/not-empty (gen/vector labels)))))
+(defn gen-nodes
+  [max-id]
+  (gen/fmap (fn [[in out]] (node (into #{} in) (into #{} out)))
+            (gen/tuple
+             gen-label
+             gen-label)))
 
-(defn- add-arcs
-  [g arcs]
-  (ig/for-graph g [a arcs]
-             (apply ig/connect g (flatten a))))
-
-(defn- remove-arcs
-  [g arcs]
-  (ig/for-graph g [a arcs]
-             (apply ig/disconnect g (flatten a))))
-
-(defn populate-graph
-  [g nodes]
-  (ig/for-graph g [n nodes]
-             (ig/add-labeled-node g (:inputs n) (:outputs n) {})))
+(defn node-bindings
+  [gsym nodes]
+  (into []
+        (mapcat
+         (fn [[sym node]]
+           `[[~gsym ~sym] (g/claim-id ~gsym)
+             ~gsym        (g/add-node ~gsym ~sym (assoc ~node :_id ~sym))])
+         nodes)))
 
 (defn remove-nodes
-  [g nodes]
-  (ig/for-graph g [n nodes]
-             (ig/remove-node g n)))
+  [dead-nodes]
+  (for [n dead-nodes]
+    `(g/remove-node ~n)))
 
-(def disconnected-graph
-  (gen/bind (gen/resize max-node-count gen/s-pos-int)
-            (fn [node-count]
-              (gen/fmap #(populate-graph (ig/empty-graph) %) (gen/vector nodes min-node-count max-node-count)))))
+(defn- populate-arcs
+  [new-arcs]
+  (mapcat (fn [a]
+            [`(g/connect-source ~@(flatten a))
+             `(g/connect-target ~@(flatten a))])
+          new-arcs))
 
-(def connected-graph
-  (gen/bind disconnected-graph
-            (fn [g]
-              (gen/fmap (partial add-arcs g)
-                        (gen/vector (arcs g) min-arc-count max-arc-count)))))
+(defn- remove-arcs
+  [dead-arcs]
+  (mapcat (fn [a]
+            [`(g/disconnect-source ~@(flatten a))
+             `(g/disconnect-target ~@(flatten a))])
+          dead-arcs))
+
+(defn subselect
+  [coll fraction]
+  (gen/not-empty
+   (gen/vector
+    (gen/elements coll)
+    (/ (count coll) fraction))))
+
+(defn s
+  [g]
+  (first (gen/sample g 1)))
+
+(defn random-graph-sexps
+  []
+  (let [nodes      (s (gen/vector (gen-nodes max-node-count) min-node-count max-node-count))
+        nodes      (zipmap (repeatedly (count nodes) gensym) nodes)
+        dead-nodes (s (subselect (keys nodes) node-deletion-factor))
+        arcs       (s (gen/vector (gen-arcs nodes) min-arc-count max-arc-count))
+        dead-arcs  (s (subselect arcs arc-deletion-factor))]
+    `(fn []
+       (let [~'g (g/empty-graph)]
+         (let [~@(node-bindings 'g nodes)]
+           (-> ~'g
+               ~@(populate-arcs  arcs)
+               ~@(remove-nodes   dead-nodes)
+               ~@(remove-arcs    dead-arcs)))))))
+
+(defn make-random-graph-builder
+  []
+  (eval (random-graph-sexps)))
 
 
-(def decimated-graph
-  (gen/bind connected-graph
-            (fn [g]
-              (gen/fmap (partial remove-nodes g)
-                        (gen/resize (/ (count (ig/node-ids g)) 4) (selected-nodes g))))))
+(comment
 
-(def graph
-  (gen/bind decimated-graph
-            (fn [g]
-              (gen/fmap (partial remove-arcs g)
-                        (gen/vector (arcs g) min-arc-count (/ max-arc-count 2))))))
+  (def builder (make-random-graph-builder))
 
-;(first (gen/sample (gen/resize 100 graph) 1))
-;(gen/sample (selected-nodes (first (gen/sample (gen/resize 50 connected-graph) 1))) 10)
+  (builder)
+
+  (= (builder) (builder))
+  ;; => true
+
+  (= ((make-random-graph-builder)) ((make-random-graph-builder)))
+  ;; => false
+)

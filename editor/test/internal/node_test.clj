@@ -174,15 +174,15 @@
                                (g/make-node world ProductionFunctionInputsNode :prop :node0)
                                (g/make-node world ProductionFunctionInputsNode :prop :node1)
                                (g/make-node world ProductionFunctionInputsNode :prop :node2))
-          _ (ds/transact
-             (concat
-              (g/connect node0 :defnk-prop node1 :in)
-              (g/connect node0 :defnk-prop node2 :in)
-              (g/connect node1 :defnk-prop node2 :in)
-              (g/connect node0 :defnk-prop node1 :in-multi)
-              (g/connect node0 :defnk-prop node2 :in-multi)
-              (g/connect node1 :defnk-prop node2 :in-multi)))
-          graph (is/basis system)]
+          _                   (ds/transact
+                               (concat
+                                (g/connect node0 :defnk-prop node1 :in)
+                                (g/connect node0 :defnk-prop node2 :in)
+                                (g/connect node1 :defnk-prop node2 :in)
+                                (g/connect node0 :defnk-prop node1 :in-multi)
+                                (g/connect node0 :defnk-prop node2 :in-multi)
+                                (g/connect node1 :defnk-prop node2 :in-multi)))
+          graph               (is/basis system)]
       (testing "inline fn parameters"
         (is (identical? node0 (g/node-value node0 :inline-fn-this))))
       (testing "standard defn parameters"
@@ -212,15 +212,11 @@
           (-> ProductionFunctionInputsNode g/transform-types' :prop)
           (-> ProductionFunctionInputsNode g/properties' :prop :value-type)))))
 
-(g/defnk out-from-self [out-from-self] out-from-self)
-(g/defnk out-from-in [in] in)
-(g/defnk out-from-in-multi [in-multi] in-multi)
-
 (g/defnode DependencyNode
   (input in t/Any)
   (input in-multi [t/Any])
-  (output out-from-self     t/Any out-from-self)
-  (output out-from-in       t/Any out-from-in)
+  (output out-from-self     t/Any (g/fnk [out-from-self] out-from-self))
+  (output out-from-in       t/Any (g/fnk [in]            in))
   (output out-const         t/Any (fn [this & _] :const-val)))
 
 (deftest dependency-loops
