@@ -46,7 +46,7 @@
 (def ^:private has-property? contains?)
 (defn- has-output? [node label] (some-> node gt/transforms label boolean))
 (def ^:private first-source (comp first gt/sources))
-(defn- currently-producing [in-production node-id label] (= (last in-production) [node-id label]))
+(defn- currently-producing [in-production node-id label] (= [node-id label] (last in-production)))
 
 (defn- evaluate-input-internal
   "Gather an named argument for a production function. Depending on
@@ -85,7 +85,10 @@
       (e/bind (get node label))
 
       (= :this label)
-      (e/bind node))))
+      (e/bind node)
+
+      (has-output? node label)
+      (chain-eval chain-head basis in-production node-id label))))
 
 (defn- collect-inputs
   "Return a map of all inputs needed for the input-schema."
