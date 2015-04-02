@@ -116,13 +116,13 @@
   (let [resource-node (project/get-resource-node project resource)
         resource-type (project/get-resource-type resource-node)]
     (when-let [setup-rendering-fn (and resource-type (:setup-rendering-fn resource-type))]
-      (let [tab-pane (.lookup root "#editor-tabs")
-            parent (AnchorPane.)
-            tab (doto (Tab. (workspace/resource-name resource)) (.setContent parent))
-            tabs (doto (.getTabs tab-pane) (.add tab))
+      (let [tab-pane   (.lookup root "#editor-tabs")
+            parent     (AnchorPane.)
+            tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent))
+            tabs       (doto (.getTabs tab-pane) (.add tab))
             ;; TODO Delete this graph when the tab is closed.
             view-graph (ds/attach-graph (g/make-graph :volatility 100))
-            view (scene/make-scene-view view-graph parent tab)]
+            view       (scene/make-scene-view view-graph parent tab)]
         (.setGraphic tab (get-image-view "cog.png"))
         (.select (.getSelectionModel tab-pane) tab)
         (ds/transact (setup-rendering-fn resource-node view))
@@ -195,22 +195,24 @@
       (bind-menus (.lookup root "#menu-bar") handler))
 
     (let [close-handler (ui/event-handler event
-                          (g/transact
-                            (g/delete-node game-project))
+                          (ds/transact
+                            (g/delete-node project))
                           (ds/dispose-pending))
           dispose-handler (ui/event-handler event (ds/dispose-pending))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
     (setup-asset-browser workspace project root)
-    (graph-view/setup-graph-view root)
+    (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
 
 (defn- create-view [game-project root place node-type]
-  (let [node (ds/transact
-              (g/make-node (:_gid game-project) node-type))]
-    (n/dispatch-message node :create :parent (.lookup root place))))
+  (let [node (first
+              (ds/tx-nodes-added
+               (ds/transact
+                (g/make-node (g/nref->gid (g/node-id game-project)) node-type))))]
+    (n/dispatch-message (ds/now) node :create :parent (.lookup root place))))
 
 (defn setup-workspace [project-path]
   (first
@@ -254,8 +256,8 @@
   (fn []
     (when (nil? @the-root)
       (ds/initialize {:initial-graph (workspace/workspace-graph)})
-      (alter-var-root! #'*workspace-graph* (ds/last-graph-added))
-      (alter-var-root! #'*project-graph*   (ds/attach-graph-with-history (g/make-graph :volatility 1))))
+      (alter-var-root #'*workspace-graph* (fn [_] (ds/last-graph-added)))
+      (alter-var-root #'*project-graph*   (fn [_] (ds/attach-graph-with-history (g/make-graph :volatility 1)))))
     (let [pref-key "default-project-file"
           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
       (when project-file

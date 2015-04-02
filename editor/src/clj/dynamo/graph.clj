@@ -304,7 +304,7 @@
   [basis node label]
   (map
    (fn [[node-id label]]
-     [(node basis node-id) label])
+     [(node-by-id basis node-id) label])
    (sources basis (node-id node) label)))
 
 (defn nodes-consuming

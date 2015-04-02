@@ -128,7 +128,7 @@
           ; TODO: Possible to solve mutual references without an atom here?
           setter-atom (atom nil)
           on-new-value (fn [new-val]
-                         (let [old-val (key (ds/refresh node))]
+                         (let [old-val (key (g/refresh node))]
                            (when-not (= new-val old-val)
                              (if (t/property-valid-value? property new-val)
                                (do
