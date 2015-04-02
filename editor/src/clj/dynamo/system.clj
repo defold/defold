@@ -98,6 +98,8 @@
 ;; ---------------------------------------------------------------------------
 (defn cache [] (is/system-cache @*the-system*))
 
+(defn graph [gid] (is/graph @*the-system* gid))
+
 (defn initialize
   [config]
   (reset! *the-system* (is/make-system config)))
