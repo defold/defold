@@ -169,11 +169,14 @@ TEST_F(AnimTest, Playback)
 
     dmGameObject::SetPosition(go, Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_LOOP_PINGPONG);
-    ASSERT_FRAME(2.5f);
     ASSERT_FRAME(5.0f);
-    ASSERT_FRAME(7.5f);
     ASSERT_FRAME(10.0f);
-    ASSERT_FRAME(7.5f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(0.0f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(10.0f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(0.0f);
 
     ASSERT_EQ(3u, this->m_FinishCount);
     ASSERT_EQ(3u, this->m_CancelCount);
