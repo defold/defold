@@ -24,6 +24,26 @@
 (def project-path "resources/test_project")
 (def branch "dummy-branch")
 
+(g/defnode DummyNode
+  (input content-node t/Any)
+  (output node (g/fnk [content-node] content-node)))
+
+(defn- setup-phony-rendering
+  [content-node view]
+  (g/make-nodes
+   (g/nref->gid view)
+   [dummy DummyNode]
+   (g/connect content-node :self dummy :content-node)))
+
+(defn- register-phony-setup
+  [workspace]
+  (workspace/register-resource-type
+   workspace
+   :ext                "atlas"
+   :node-type          atlas/AtlasNode
+   :load-fn            atlas/load-atlas
+   :setup-rendering-fn setup-phony-rendering))
+
 (defn- load-test-workspace [world]
   (first
    (ds/tx-nodes-added
@@ -31,13 +51,15 @@
      (g/make-nodes
       world
       [workspace [workspace/Workspace :root project-path]]
-      (cubemap/register-resource-types workspace)
-      (image/register-resource-types workspace)
-      (atlas/register-resource-types workspace)
-      (platformer/register-resource-types workspace)
-      (switcher/register-resource-types workspace))))))
+      (register-phony-setup workspace))))))
 
-(defn- load-test-project [workspace project-graph]
+(defn- load-test-project
+  [workspace project-graph]
+  (println 'load-test-project workspace)
+  (println 'load-test-project :txes                    (g/make-nodes
+                    project-graph
+                    [project p/Project]
+                    (g/connect workspace :resource-list project :resources)))
   (let [project (first
                  (ds/tx-nodes-added
                   (ds/transact
@@ -55,7 +77,8 @@
     (when-let [setup-rendering-fn (and resource-type (:setup-rendering-fn resource-type))]
       (let [view-graph (ds/attach-graph (g/make-graph :volatility 100))
             view       (scene/make-scene-view view-graph nil nil)]
-        (ds/transact (setup-rendering-fn resource-node view))))))
+        (ds/transact (setup-rendering-fn resource-node view))
+        view))))
 
 (defn- history-count [system world]
   (count (is/history-states (is/graph-history system world))))
