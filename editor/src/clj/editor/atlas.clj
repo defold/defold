@@ -310,7 +310,7 @@
 
 (defn setup-rendering [self view]
   (g/make-nodes
-   (g/nref->gid view)
+   (g/nref->gid (g/node-id view))
    [atlas-render AtlasRender
     renderer     scene/SceneRenderer
     background   background/Gradient

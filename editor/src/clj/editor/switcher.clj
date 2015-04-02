@@ -298,7 +298,7 @@
   (let [project-node (:parent self)
         atlas-node   (second (first (project/find-resources project-node switcher-atlas-file)))]
     (g/make-nodes
-     (g/nref->gid view)
+     (g/nref->gid (g/node-id view))
      [switcher-render SwitcherRender
       renderer        scene/SceneRenderer
       background      background/Gradient

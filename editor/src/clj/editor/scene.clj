@@ -196,7 +196,7 @@
     (AnchorPane/setLeftAnchor image-view 0.0)
     (AnchorPane/setRightAnchor image-view 0.0)
     (.add (.getChildren ^Pane parent) image-view)
-    (let [view (ds/transact (g/make-node scene-graph SceneView :image-view image-view))]
+    (let [view (first (ds/tx-nodes-added (ds/transact (g/make-node scene-graph SceneView :image-view image-view))))]
       (let [self-ref (g/node-id view)
             event-handler (reify EventHandler (handle [this e]
                                                 (let [now (ds/now)

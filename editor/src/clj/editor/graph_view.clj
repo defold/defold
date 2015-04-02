@@ -60,8 +60,8 @@
       (.write w "}\n"))
     dot-file))
 
-(defn- update-graph-view [root]
-  (let [graph     (ds/world-graph)
+(defn- update-graph-view [root graph-id]
+  (let [graph     (ds/graph graph-id)
         dot-file  (write-dot-graph graph)
         dot-image (File/createTempFile "graph" ".png")
         process   (.exec (Runtime/getRuntime) (format "dot %s -Tpng -o%s" dot-file dot-image))]
@@ -86,7 +86,7 @@
           (.setFitHeight image-view height)
           (.setImage image-view image))))))
 
-(defn setup-graph-view [root]
+(defn setup-graph-view [root graph-id]
   (let [button  (.lookup root "#graph-refresh")
-        handler (ui/event-handler event (update-graph-view root))]
+        handler (ui/event-handler event (update-graph-view root graph-id))]
     (.setOnAction button handler)))
