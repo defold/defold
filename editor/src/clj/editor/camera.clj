@@ -327,7 +327,7 @@
     (case (:type action)
       :scroll (if (contains? (:movements-enabled self) :dolly)
                 (let [dy (:delta-y action)]
-                  (g/update-property self :camera dolly (* -0.002 dy))
+                  (ds/transact (g/update-property self :camera dolly (* -0.002 dy)))
                   nil)
                 action)
       :mouse-pressed (let [movement (get (:movements-enabled self) (camera-movement action) :idle)]
@@ -345,7 +345,7 @@
       :mouse-moved (let [{:keys [movement last-x last-y]} @(:ui-state self)
                          {:keys [x y]} action]
                      (if (not (= :idle movement))
-                       (do
+                       (ds/transact
                          (case movement
                            :dolly  (g/update-property self :camera dolly (* -0.002 (- y last-y)))
                            :track  (g/update-property self :camera track viewport last-x last-y x y)
