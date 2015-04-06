@@ -5,6 +5,7 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-system]]
             [dynamo.types :as t]
+            [editor.core :as core]
             [editor.workspace :as workspace]
             [editor.project :as project]
             [editor.collection :as collection]
@@ -19,11 +20,25 @@
             [internal.clojure :as clojure]
             [internal.node :as in]
             [internal.system :as is])
-  (:import [java.io File]))
+  (:import [java.io File]
+           [java.awt.image BufferedImage]
+           [dynamo.types Region]))
 
 (def not-nil? (complement nil?))
 
 (def project-path "resources/test_project")
+
+(g/defnode DummySceneView
+  (inherits core/Scope)
+
+  (property width t/Num)
+  (property height t/Num)
+  (input frame BufferedImage)
+  (input input-handlers [Runnable])
+  (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
+
+(defn make-dummy-view [graph width height]
+  (first (ds/tx-nodes-added (ds/transact (g/make-node graph DummySceneView :width width :height height)))))
 
 (defn- load-test-workspace [graph]
   (first
@@ -53,20 +68,21 @@
                             (g/connect workspace :resource-types project :resource-types)))))]
     (project/load-project project (g/node-value workspace :resource-list))))
 
-(defn- headless-create-editor
+(defn- headless-create-view
   "Duplicates editor.boot/create-editor, except it doesn't build any GUI."
-  [workspace project resource]
-  (let [resource-node (project/get-resource-node project resource)
-        resource-type (project/get-resource-type resource-node)]
-    (when-let [setup-rendering-fn (and resource-type (:setup-rendering-fn resource-type))]
-      (let [view-graph (ds/attach-graph (g/make-graph :volatility 100))
-            view       (scene/make-scene-view view-graph nil nil)]
-        (ds/transact (setup-rendering-fn resource-node view))
-        view))))
+  [workspace project resource-node]
+  (let [resource-type (project/get-resource-type resource-node)]
+    (when (and resource-type (:setup-view-fn resource-type))
+      (let [setup-view-fn (:setup-view-fn resource-type)
+            setup-rendering-fn (:setup-rendering-fn resource-type)]
+        (let [view-graph (ds/attach-graph (g/make-graph :volatility 100))
+              view       (scene/make-preview-view view-graph 128 128)]
+          (ds/transact (setup-view-fn resource-node view))
+          (ds/transact (setup-rendering-fn resource-node (g/refresh view)))
+          (g/refresh view))))))
 
 (defn- has-undo? [graph]
-  ; TODO - report if undo is available
-  false)
+  (ds/has-undo? graph))
 
 (deftest preconditions
   (testing "Verify preconditions for remaining tests"
@@ -78,26 +94,32 @@
         (let [atlas-nodes (project/find-resources project "**/*.atlas")]
           (is (> (count atlas-nodes) 0)))))))
 
-#_(deftest open-editor
-   (testing "Opening editor does not alter undo history"
-     (with-clean-system
-       (let [project       (load-test-project world)
-             atlas-node    (first (project/find-resources project "**/*.atlas"))
-             #_editor-node   #_(p/make-editor project (:filename atlas-node))
-             history-count 0  ; TODO retrieve actual undo-history count
-             ]
-         (prn atlas-node)
-         #_(is (not-nil? editor-node))
-         #_(is (= history-count 0))))))
+(deftest open-editor
+  (testing "Opening editor does not alter undo history"
+           (with-clean-system
+             (let [workspace     (load-test-workspace world)
+                   project-graph (ds/attach-graph-with-history (g/make-graph :volatility 1))
+                   project       (load-test-project workspace project-graph)]
+               (let [atlas-nodes (project/find-resources project "**/*.atlas")
+                     atlas-node (second (first atlas-nodes))
+                     view (headless-create-view workspace project atlas-node)]
+                 (is (not-nil? (g/node-value view :frame)))
+                 (is (not (has-undo? project-graph))))))))
 
-#_(deftest undo-node-deletion-reconnects-editor
-   (testing "Undoing the deletion of a node reconnects it to its editor"
-            (with-clean-system
-              (let [project   (load-test-project world)
-                    atlas-id  (g/node-id (first (p/nodes-with-extensions project ["atlas"])))
-                    editor-id (g/node-id (p/make-editor project (:filename @atlas-id)))]
-               (ds/transact (g/delete-node atlas-id))
-               (is (not-nil? (g/node-by-id (ds/now) editor-id)))
-               (is (nil? (g/node-value editor-id :node)))
-               (ds/undo)
-               (is (not-nil? (g/node-value editor-id :node)))))))
+(deftest undo-node-deletion-reconnects-editor
+  (testing "Undoing the deletion of a node reconnects it to its editor"
+           (with-clean-system
+             (let [workspace     (load-test-workspace world)
+                   project-graph (ds/attach-graph-with-history (g/make-graph :volatility 1))
+                   project       (load-test-project workspace project-graph)]
+               (let [atlas-nodes (project/find-resources project "**/*.atlas")
+                     atlas-node (second (first atlas-nodes))
+                     view (headless-create-view workspace project atlas-node)
+                     camera (t/lookup view :camera)]
+                 (is (not-nil? (g/node-value camera :aabb)))
+                 (ds/transact (g/delete-node (g/node-id atlas-node)))
+                 (is (nil? (g/node-value camera :aabb)))
+                 (ds/undo project-graph)
+                 (is (not-nil? (g/node-value camera :aabb))))))))
+
+(undo-node-deletion-reconnects-editor)
