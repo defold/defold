@@ -70,7 +70,7 @@ guaranteed ordering of the sequence."
 
 (g/defnode Project
   (inherits core/Scope)
-  
+
   (property workspace t/Any)
 
   (input resources t/Any)
@@ -101,7 +101,7 @@ guaranteed ordering of the sequence."
 
 #_((defn register-node-type
    [filetype node-type]
-   (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
+   (g/update-property (ds/current-scope) :node-types assoc filetype node-type)))
 
 (defn register-editor
   [project-node filetype editor-builder]
@@ -270,4 +270,4 @@ behavior."
 
 (defn project-graph
   []
-  (g/make-graph :volatility 0)))
+  (g/make-graph :volatility 0))
