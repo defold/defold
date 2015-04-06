@@ -2,6 +2,7 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
+            [clojure.pprint :refer [pprint]]
             [schema.core :as schema]
             [dynamo.file :as file]
             [dynamo.graph :as g]
@@ -27,9 +28,12 @@ ordinary paths."
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
 
+(defn graph [project]
+  (g/nref->gid (g/node-id project)))
+
 (defn- make-nodes
   [project resources]
-  (let [project-graph (g/nref->gid (g/node-id project))]
+  (let [project-graph (graph project)]
     (ds/tx-nodes-added
      (ds/transact
       (for [[resource-type resources] (group-by workspace/resource-type resources)
@@ -41,17 +45,22 @@ ordinary paths."
          [new-resource [node-type :resource resource :parent project :resource-type resource-type]]
          (g/connect new-resource :self project :nodes)))))))
 
-
 (defn- load-nodes [project nodes]
-  (ds/transact
-   (for [node nodes
-         :when (get-in node [:resource-type :load-fn])]
-     ((get-in node [:resource-type :load-fn]) project node (io/reader (:resource node))))))
+  (let [new-nodes (ds/tx-nodes-added (ds/transact
+                                       (for [node nodes
+                                             :when (get-in node [:resource-type :load-fn])]
+                                         ((get-in node [:resource-type :load-fn]) project node (io/reader (:resource node))))))]
+    (when (not (empty? new-nodes))
+      (load-nodes project new-nodes))))
 
 (defn load-project [project resources]
   (let [nodes (make-nodes project resources)]
     (load-nodes (g/refresh project) nodes)
     (g/refresh project)))
+
+(defn make-embedded-resource [project type data]
+  (when-let [resource-type (get (g/node-value project :resource-types) type)]
+    (workspace/make-memory-resource (:workspace project) resource-type data)))
 
 (defn nodes-in-project
   "Return a lazy sequence of all nodes in this project. There is no
@@ -61,8 +70,11 @@ guaranteed ordering of the sequence."
 
 (g/defnode Project
   (inherits core/Scope)
+  
+  (property workspace t/Any)
 
-  (input resources t/Any))
+  (input resources t/Any)
+  (input resource-types t/Any))
 
 (defn get-resource-type [resource-node]
   (when resource-node (workspace/resource-type (:resource resource-node))))
@@ -82,9 +94,14 @@ guaranteed ordering of the sequence."
   (let [nodes (nodes-in-project project)]
     (first (filter (fn [n] (= resource (:resource n))) nodes))))
 
-(defn register-node-type
-  [project-node filetype node-type]
-  (g/update-property project-node :node-types assoc filetype node-type))
+(defn resolve-resource-node [base-resource-node path]
+  (let [project (:parent base-resource-node)
+        resource (workspace/resolve-resource (:resource base-resource-node) path)]
+    (get-resource-node project resource)))
+
+#_((defn register-node-type
+   [filetype node-type]
+   (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
 
 (defn register-editor
   [project-node filetype editor-builder]
@@ -253,4 +270,4 @@ behavior."
 
 (defn project-graph
   []
-  (g/make-graph :volatility 0))
+  (g/make-graph :volatility 0)))

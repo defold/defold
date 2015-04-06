@@ -29,6 +29,8 @@
            [javax.vecmath Matrix4d Point3d]
            [java.io PushbackReader]))
 
+(def switcher-icon "icons/board_game.png")
+
 ; Config
 
 (def palette-columns 2)
@@ -198,11 +200,8 @@
 ; Node defs
 
 (g/defnk produce-renderable
-  [this level gpu-texture palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
-  {pass/overlay [{:world-transform geom/Identity4d
-                  :render-fn (fn [ctx gl glu text-renderer]
-                               (render-palette ctx gl text-renderer gpu-texture palette-vertex-binding palette-layout))}]
-   pass/transparent [{:world-transform geom/Identity4d
+  [this level gpu-texture level-vertex-binding active-brush level-layout]
+  {pass/transparent [{:world-transform geom/Identity4d
                    :render-fn (fn [ctx gl glu text-renderer]
                                 (render-level gl level gpu-texture level-vertex-binding level-layout))}]})
 
@@ -212,11 +211,18 @@
   (input textureset t/Any)
   (input active-brush t/Str)
 
-  (output palette-layout         t/Any :cached (g/fnk [] (layout-palette palette)))
   (output level-layout           t/Any :cached (g/fnk [level] (layout-level level)))
-  (output palette-vertex-binding t/Any :cached (g/fnk [textureset palette-layout active-brush] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half active-brush) shader)))
   (output level-vertex-binding   t/Any :cached (g/fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
   (output renderable             t/RenderData  produce-renderable))
+
+(g/defnk produce-controller-renderable
+  [this level gpu-texture palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
+  {pass/overlay [{:world-transform geom/Identity4d
+                  :render-fn (fn [ctx gl glu text-renderer]
+                               (render-palette ctx gl text-renderer gpu-texture palette-vertex-binding palette-layout))}]
+   pass/transparent [{:world-transform geom/Identity4d
+                   :render-fn (fn [ctx gl glu text-renderer]
+                                (render-level gl level gpu-texture level-vertex-binding level-layout))}]})
 
 (defn- hit? [cell pos cell-size-half]
   (let [xc (:x cell)
@@ -226,46 +232,52 @@
                (<= (- yc d) (:y pos) (+ yc d)))
       cell)))
 
-(defn handle-input [self action]
-  (let [camera   (g/node-value self :camera)
-        viewport (g/node-value self :viewport)]
-    (case (:type action)
-      :mouse-moved
-      (let [pos           {:x (:x action) :y (:y action)}
-            world-pos-v4  (c/camera-unproject camera viewport (:x action) (:y action) 0)
-            world-pos     {:x (.x world-pos-v4) :y (.y world-pos-v4)}
-            level         (g/node-value self :level)
-            palette-cells (mapcat :cells (layout-palette palette))
-            palette-hit   (some #(hit? % pos palette-cell-size-half) palette-cells)
-            level-cells   (layout-level level)
-            level-hit     (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
-        (reset! active-cell level-hit)
-        (when-not active-cell
-          action))
-      :mouse-pressed
-      (let [pos           {:x (:x action) :y (:y action)}
-            world-pos-v4  (c/camera-unproject camera viewport (:x action) (:y action) 0)
-            world-pos     {:x (.x world-pos-v4) :y (.y world-pos-v4)}
-            level         (g/node-value self :level)
-            palette-cells (mapcat :cells (layout-palette palette))
-            palette-hit   (some #(hit? % pos palette-cell-size-half) palette-cells)
-            level-cells   (layout-level level)
-            level-hit     (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
-        (cond
-          palette-hit
-          (ds/transact
-           [(g/operation-label "Select Brush")
-            (g/set-property self :active-brush (:image palette-hit))])
+(defn handle-input [self action source camera viewport]
+  (case (:type action)
+    :mouse-moved
+    (let [pos           {:x (:x action) :y (:y action)}
+          world-pos-v4  (c/camera-unproject camera viewport (:x action) (:y action) 0)
+          world-pos     {:x (.x world-pos-v4) :y (.y world-pos-v4)}
+          level         (g/node-value self :level)
+          palette-cells (mapcat :cells (layout-palette palette))
+          palette-hit   (some #(hit? % pos palette-cell-size-half) palette-cells)
+          level-cells   (layout-level level)
+          level-hit     (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
+      (reset! active-cell level-hit)
+      (when-not active-cell
+        action))
+    :mouse-pressed
+    (let [pos           {:x (:x action) :y (:y action)}
+          world-pos-v4  (c/camera-unproject camera viewport (:x action) (:y action) 0)
+          world-pos     {:x (.x world-pos-v4) :y (.y world-pos-v4)}
+          level         (g/node-value self :level)
+          palette-cells (mapcat :cells (layout-palette palette))
+          palette-hit   (some #(hit? % pos palette-cell-size-half) palette-cells)
+          level-cells   (layout-level level)
+          level-hit     (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
+      (cond
+        palette-hit
+        (ds/transact
+         [(g/operation-label "Select Brush")
+          (g/set-property self :active-brush (:image palette-hit))])
 
-          level-hit
-          (ds/transact
-           [(g/operation-label "Paint Cell")
-            (g/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))])
+        level-hit
+        (ds/transact
+         [(g/operation-label "Paint Cell")
+          (g/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))])
+        :default
+        action))
+    action))
 
-          :default
-          action))
-      ;; TODO - what is the intent here? This always returns action and ignores the result of the case function.
-      action)))
+(g/defnode SwitcherController
+ (property active-brush t/Str (default "red_candy"))
+
+ (input source   t/Any)
+ (input camera   t/Any)
+ (input viewport Region)
+ 
+ (output input-handler Runnable     (g/fnk [source camera viewport] (fn [self action] (handle-input self action source camera viewport))))
+ (output renderable    t/RenderData produce-controller-renderable))
 
 (g/defnode SwitcherNode
   (inherits project/ResourceNode)
@@ -273,54 +285,60 @@
   (property blocks       t/Any (visible false))
   (property width        t/Int (default 1))
   (property height       t/Int (default 1))
-  (property active-brush t/Str (default "red_candy"))
-
-  (input camera   t/Any)
-  (input viewport Region)
-
+ 
   (output level t/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
-  (output input-handler Runnable (g/fnk [] handle-input))
   (output aabb AABB (g/fnk [width height]
-     (let [half-width (* 0.5 cell-size width)
-           half-height (* 0.5 cell-size height)]
-       (t/->AABB (Point3d. (- half-width) (- half-height) 0)
-                 (Point3d. half-width half-height 0))))))
+                           (let [half-width (* 0.5 cell-size width)
+                                 half-height (* 0.5 cell-size height)]
+                             (t/->AABB (Point3d. (- half-width) (- half-height) 0)
+                                       (Point3d. half-width half-height 0))))))
 
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
     (let [level (edn/read reader)]
-      (g/set-property self :width (:width level))
-      (g/set-property self :height (:height level))
-      (g/set-property self :blocks (:blocks level)))))
+      [(g/set-property self :width (:width level))
+       (g/set-property self :height (:height level))
+       (g/set-property self :blocks (:blocks level))])))
 
 (defn setup-rendering [self view]
   ;; TODO - resource nodes should be able to lookup other resource nodes
-  (let [project-node (:parent self)
-        atlas-node   (second (first (project/find-resources project-node switcher-atlas-file)))]
+  (let [renderer        (t/lookup view :renderer)
+        camera          (t/lookup view :camera)
+        ; TODO - resource nodes should be able to lookup other resource nodes
+        project-node    (:parent self)
+        atlas-node      (second (first (project/find-resources project-node switcher-atlas-file)))]
     (g/make-nodes
-     (g/nref->gid (g/node-id view))
-     [switcher-render SwitcherRender
-      renderer        scene/SceneRenderer
-      background      background/Gradient
-      camera          [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
-     ;; TODO - pass in to constructor
-     (g/update-property camera  :movements-enabled disj :tumble)
-     (g/connect background      :renderable    renderer        :renderables)
-     (g/connect camera          :camera        renderer        :camera)
-     (g/connect camera          :input-handler view            :input-handlers)
-     (g/connect view            :viewport      camera          :viewport)
-     (g/connect view            :viewport      renderer        :viewport)
-     (g/connect renderer        :frame         view            :frame)
+      (g/nref->gid (g/node-id view))
+      [switcher-render SwitcherRender]
+      (g/connect switcher-render :renderable    renderer        :renderables)
+      (g/connect self            :level         switcher-render :level)
+      (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
+      (g/connect atlas-node      :textureset    switcher-render :textureset)
+      (g/connect self            :aabb          camera          :aabb))))
 
-     (g/connect camera          :camera        self            :camera)
-     (g/connect self            :input-handler view            :input-handlers)
-     (g/connect switcher-render :renderable    renderer        :renderables)
-     (g/connect self            :level         switcher-render :level)
-     (g/connect self            :active-brush  switcher-render :active-brush)
-     (g/connect view            :viewport      self            :viewport)
-     (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
-     (g/connect atlas-node      :textureset    switcher-render :textureset)
-     (g/connect self            :aabb          camera          :aabb))))
+(defn setup-editing [self view]
+  ;; TODO - resource nodes should be able to lookup other resource nodes
+  (let [renderer        (t/lookup view :renderer)
+        camera          (t/lookup view :camera)
+        ; TODO - resource nodes should be able to lookup other resource nodes
+        project-node    (:parent self)
+        atlas-node      (second (first (project/find-resources project-node switcher-atlas-file)))]
+    (g/make-nodes
+      (g/nref->gid (g/node-id view))
+      [controller SwitcherController]
+      (g/connect view            :viewport      controller      :viewport)
+      (g/connect camera          :camera        controller      :camera)
+      (g/connect controller      :input-handler view            :input-handlers)
+      (g/connect controller      :renderable    renderer        :renderables)
+      (g/connect atlas-node      :gpu-texture   controller      :gpu-texture)
+      (g/connect atlas-node      :textureset    controller      :textureset)
+      (g/connect self            :aabb          camera          :aabb))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace :ext "switcher" :node-type SwitcherNode :load-fn load-level :setup-rendering-fn setup-rendering))
+  (workspace/register-resource-type workspace
+                                    :ext "switcher"
+                                    :node-type SwitcherNode
+                                    :load-fn load-level
+                                    :setup-view-fn (fn [self view] (scene/setup-view view))
+                                    :setup-rendering-fn setup-rendering
+                                    :icon switcher-icon))

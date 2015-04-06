@@ -1,0 +1,3 @@
+tile_set: "/switcher/switcher.atlas"
+default_animation: "blue_candy"
+material: "/sprite/sprite.material"
