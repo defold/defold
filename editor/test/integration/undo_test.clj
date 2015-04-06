@@ -65,8 +65,10 @@
                             proj-graph
                             [project [project/Project :workspace workspace]]
                             (g/connect workspace :resource-list project :resources)
-                            (g/connect workspace :resource-types project :resource-types)))))]
-    (project/load-project project (g/node-value workspace :resource-list))))
+                            (g/connect workspace :resource-types project :resource-types)))))
+        project (project/load-project project (g/node-value workspace :resource-list))]
+    (ds/reset-undo! proj-graph)
+    project))
 
 (defn- headless-create-view
   "Duplicates editor.boot/create-editor, except it doesn't build any GUI."
@@ -121,5 +123,3 @@
                  (is (nil? (g/node-value camera :aabb)))
                  (ds/undo project-graph)
                  (is (not-nil? (g/node-value camera :aabb))))))))
-
-(undo-node-deletion-reconnects-editor)
