@@ -23,7 +23,7 @@
 ;; ---------------------------------------------------------------------------
 (defn abort
   [why _ in-production node-id label & _]
-  (throw (ex-info (str why " Trying to produce " node-id ", " label)
+  (throw (ex-info (str why " Trying to produce [" (gt/nref->gid node-id) ":" (gt/nref->nid node-id) label "]")
                   {:node-id node-id :label label :in-production in-production})))
 
 (def not-found (partial abort "No such property, input or output."))
