@@ -41,7 +41,7 @@
 
 (defn- new-history
   [state]
-  {:state state
+  {:state      state
    :undo-stack []
    :redo-stack []})
 
@@ -52,40 +52,48 @@
 
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
 
-(defn- history-label [world]
-  (or (get-in world [:last-tx :label]) (str "World Time: " (:tx-id world))))
+(def ^:private undo-op-keys [:label])
+(def ^:private graph-label :tx-label)
 
-(defn- push-history [history-ref  _ gref old-graph new-graph]
+(defn- history-state [l g] [l g])
+(def   history-state-label first)
+(def   history-state-graph second)
+
+(defn- push-history [history-ref _ gref old-graph new-graph]
   (when (transaction-applied? old-graph new-graph)
     (dosync
       (assert (= (:state @history-ref) gref))
-      (alter history-ref update-in [:undo-stack] conj-undo-stack old-graph)
-      (alter history-ref assoc-in  [:redo-stack] []))
-    #_(record-history-operation undo-context (history-label new-graph))))
+      (alter history-ref update-in [:undo-stack] conj-undo-stack (history-state (graph-label new-graph) old-graph))
+      (alter history-ref assoc-in  [:redo-stack] []))))
+
+(defn undo-stack [history-ref]
+  (mapv (fn [state] {:label (history-state-label state)}) (:undo-stack @history-ref)))
 
 (defn undo-history [history-ref]
   (dosync
-    (let [world-ref (:state @history-ref)
-          old-world @world-ref
-          new-world (peek (:undo-stack @history-ref))]
-      (when new-world
-        (ref-set world-ref (dissoc new-world :last-tx))
+   (let [gref          (:state @history-ref)
+         old-graph     @gref
+         history-state (peek (:undo-stack @history-ref))]
+      (when history-state
+        (ref-set gref (dissoc (history-state-graph history-state) :last-tx))
         (alter history-ref update-in [:undo-stack] pop)
-        (alter history-ref update-in [:redo-stack] conj old-world)))))
+        (alter history-ref update-in [:redo-stack] conj history-state)))))
+
+(defn redo-stack [history-ref]
+  (mapv (fn [state] {:label (history-state-label state)}) (:redo-stack @history-ref)))
 
 (defn redo-history [history-ref]
   (dosync
-    (let [world-ref (:state @history-ref)
-          old-world @world-ref
-          new-world (peek (:redo-stack @history-ref))]
-      (when new-world
-        (ref-set world-ref (dissoc new-world :last-tx))
-        (alter history-ref update-in [:undo-stack] conj old-world)
+   (let [gref          (:state @history-ref)
+         old-graph     @gref
+         history-state (peek (:redo-stack @history-ref))]
+      (when history-state
+        (ref-set gref (dissoc (history-state-graph history-state) :last-tx))
+        (alter history-ref update-in [:undo-stack] conj history-state)
         (alter history-ref update-in [:redo-stack] pop)))))
 
 (defn last-graph     [s]     (-> s :last-graph))
 (defn system-cache   [s]     (-> s :cache))
-(defn history        [s]     (-> s :history))
 (defn disposal-queue [s]     (-> s :disposal-queue))
 (defn graphs         [s]     (-> s :graphs))
 (defn graph-ref      [s gid] (-> s :graphs (get gid)))
