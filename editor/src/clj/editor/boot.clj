@@ -5,21 +5,23 @@
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [editor.atlas :as atlas]
             [editor.core :as core]
-            [editor.cubemap :as cubemap]
+            [editor.ui :as ui]
+            [editor.jfx :as jfx]
+            [editor.workspace :as workspace]
+            [editor.project :as project]
             [editor.outline-view :as outline-view]
             [editor.properties-view :as properties-view]
             [editor.graph-view :as graph-view]
-            [editor.jfx :as jfx]
-            [editor.image :as image]
-            [editor.platformer :as platformer]
-            [editor.project :as p]
-            [editor.switcher :as switcher]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [editor.project :as project]
             [editor.scene :as scene]
+            [editor.image :as image]
+            [editor.collection :as collection]
+            [editor.game-object :as game-object]
+            [editor.atlas :as atlas]
+            [editor.cubemap :as cubemap]
+            [editor.platformer :as platformer]
+            [editor.switcher :as switcher]
+            [editor.sprite :as sprite]
             [internal.clojure :as clojure]
             [internal.disposal :as disp]
             [internal.graph.types :as gt]
@@ -50,19 +52,6 @@
   (AnchorPane/setBottomAnchor control 0.0)
   (AnchorPane/setLeftAnchor control 0.0)
   (AnchorPane/setRightAnchor control 0.0))
-
-; ImageView cache
-(defonce cached-image-views (atom {}))
-(defn- load-image-view [name]
-  (if-let [url (io/resource (str "icons/" name))]
-    (ImageView. (Image. (str url)))
-    (ImageView.)))
-
-(defn- get-image-view [name]
-  (if-let [image-view (:name @cached-image-views)]
-    image-view
-    (let [image-view (load-image-view name)]
-      ((swap! cached-image-views assoc name image-view) name))))
 
 (defn- setup-console [root]
   (.appendText (.lookup root "#console") "Hello Console"))
@@ -115,17 +104,21 @@
 (defn- create-editor [workspace project resource root]
   (let [resource-node (project/get-resource-node project resource)
         resource-type (project/get-resource-type resource-node)]
-    (when-let [setup-rendering-fn (and resource-type (:setup-rendering-fn resource-type))]
-      (let [tab-pane   (.lookup root "#editor-tabs")
+    (when (and resource-type (:setup-rendering-fn resource-type))
+      (let [setup-view-fn (:setup-view-fn resource-type)
+            setup-rendering-fn (:setup-rendering-fn resource-type)
+            tab-pane   (.lookup root "#editor-tabs")
             parent     (AnchorPane.)
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             ;; TODO Delete this graph when the tab is closed.
             view-graph (ds/attach-graph (g/make-graph :volatility 100))
             view       (scene/make-scene-view view-graph parent tab)]
-        (.setGraphic tab (get-image-view "cog.png"))
+        (.setGraphic tab (jfx/get-image-view "cog.png"))
         (.select (.getSelectionModel tab-pane) tab)
-        (ds/transact (setup-rendering-fn resource-node view))
+        (ds/transact (setup-view-fn resource-node view))
+        (let [view (g/refresh view)]
+          (ds/transact (setup-rendering-fn resource-node view)))
         (outline-view/setup (.lookup root "#outline") resource-node)
         (properties-view/setup (.lookup root "#properties") resource-node)))))
 
@@ -168,7 +161,8 @@
                                               (updateItem [resource empty]
                                                 (proxy-super updateItem resource empty)
                                                 (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
-                                                  (proxy-super setText name)))))))
+                                                  (proxy-super setText name))
+                                                (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource))))))))
     (.setRoot tree (tree-item (g/node-value workspace :resource-tree)))))
 
 (defn- bind-menus [menu handler]
@@ -216,16 +210,19 @@
 
 (defn setup-workspace [project-path]
   (first
-   (ds/tx-nodes-added
-    (ds/transact
-     (g/make-nodes
-      *workspace-graph*
-      [workspace [workspace/Workspace :root project-path]]
-      (cubemap/register-resource-types workspace)
-      (image/register-resource-types workspace)
-      (atlas/register-resource-types workspace)
-      (platformer/register-resource-types workspace)
-      (switcher/register-resource-types workspace))))))
+    (ds/tx-nodes-added
+      (ds/transact
+        (g/make-nodes
+          *workspace-graph*
+          [workspace [workspace/Workspace :root project-path]]
+          (collection/register-resource-types workspace)
+          (game-object/register-resource-types workspace)
+          (cubemap/register-resource-types workspace)
+          (image/register-resource-types workspace)
+          (atlas/register-resource-types workspace)
+          (platformer/register-resource-types workspace)
+          (switcher/register-resource-types workspace)
+          (sprite/register-resource-types workspace))))))
 
 (defn open-project
   [^File game-project-file]
@@ -237,8 +234,9 @@
                        (ds/transact
                         (g/make-nodes
                          *project-graph*
-                         [project project/Project]
-                         (g/connect workspace :resource-list project :resources)))))
+                         [project [project/Project :workspace workspace]]
+                         (g/connect workspace :resource-list project :resources)
+                         (g/connect workspace :resource-types project :resource-types)))))
         resources    (g/node-value workspace :resource-list)
         project      (project/load-project project resources)
         root         (load-stage workspace project)

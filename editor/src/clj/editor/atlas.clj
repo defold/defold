@@ -1,5 +1,6 @@
 (ns editor.atlas
   (:require [clojure.string :as str]
+            [clojure.pprint :refer [pprint]]
             [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
@@ -36,6 +37,10 @@
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d]))
+
+(def atlas-icon "icons/images.png")
+(def animation-icon "icons/film.png")
+(def image-icon "icons/image.png")
 
 (vtx/defvertex engine-format-texture
   (vec3.float position)
@@ -191,6 +196,7 @@
 
 (g/defnk produce-outline-vertex-buffer
   [[:texture-packing aabb coords]]
+  (prn coords)
   (let [vbuf       (->texture-vtx (* 6 (count coords)))
         x-scale    (/ 1.0 (.width aabb))
         y-scale    (/ 1.0 (.height aabb))]
@@ -241,7 +247,7 @@
   (input src-image BufferedImage)
   (output image Image (g/fnk [path src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
-  (output outline t/Any (g/fnk [self path] {:self self :label (path->id path)})))
+  (output outline t/Any (g/fnk [self path] {:self self :label (path->id path) :icon image-icon})))
 
 (g/defnode AtlasAnimation
   (property id t/Str)
@@ -255,7 +261,7 @@
 
   (output animation Animation (g/fnk [this id frames :- [Image] fps flip-horizontal flip-vertical playback]
                                      (->Animation id frames fps flip-horizontal flip-vertical playback)))
-  (output outline t/Any (g/fnk [self id outline] {:self self :label id :children outline})))
+  (output outline t/Any (g/fnk [self id outline] {:self self :label id :children outline :icon animation-icon})))
 
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
@@ -266,13 +272,13 @@
   (input animations [Animation])
   (input outline [t/Any])
 
-  (output images [Image] (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
-  (output aabb            AABB               (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
-  (output gpu-texture     t/Any      :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
+  (output images          [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
+  (output aabb            AABB           (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
+  (output gpu-texture     t/Any          :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
   (output texture-packing TexturePacking :cached :substitute-value (tex/blank-texture-packing) produce-texture-packing)
   (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
   (output textureset      TextureSet     :cached produce-textureset)
-  (output outline         t/Any          :cached (g/fnk [self outline] {:self self :label "Atlas" :children outline})))
+  (output outline         t/Any          :cached (g/fnk [self outline] {:self self :label "Atlas" :children outline :icon atlas-icon})))
 
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
 
@@ -282,12 +288,11 @@
         :when (get img-nodes image)
         :let [img-node (get img-nodes image)]]
     (g/make-nodes
-     graph-id
-     [atlas-image [AtlasImage :path image]]
-     (concat
+      graph-id
+      [atlas-image [AtlasImage :path image]]
       (g/connect (get img-nodes image) :content   atlas-image :src-image)
       (g/connect atlas-image           :animation parent      :animations)
-      (g/connect atlas-image           :outline   parent      :outline)))))
+      (g/connect atlas-image           :outline   parent      :outline))))
 
 (defn load-atlas [project self input]
   (let [atlas         (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
@@ -295,40 +300,35 @@
         img-nodes     (into {} (map (fn [[resource node]] [(workspace/path resource) node]) img-resources))
         graph-id      (g/nref->gid (g/node-id self))]
     (concat
-     ;; TODO Bug, protobuf defaults should be preserved
-     (g/set-property self :margin (get atlas :margin 0))
-     (g/set-property self :extrude-borders (get atlas :extrude-borders 0))
-     (attach-atlas-image-nodes graph-id self img-nodes (mapv #(subs (:image %) 1) (:images atlas)))
-     (for [anim (:animations atlas)
-           :let [images (mapv :image (:images anim))]]
-       (g/make-nodes
-        (g/nref->gid (g/node-id self))
-        [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim) :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
-        (g/connect atlas-anim :animation self :animations)
-        (g/connect atlas-anim :outline   self :outline)
-        (attach-atlas-image-nodes graph-id atlas-anim img-nodes images))))))
+      ;; TODO Bug, protobuf defaults should be preserved
+      (g/set-property self :margin (get atlas :margin 0))
+      (g/set-property self :extrude-borders (get atlas :extrude-borders 0))
+      (attach-atlas-image-nodes graph-id self img-nodes (mapv #(subs (:image %) 1) (:images atlas)))
+      (for [anim (:animations atlas)
+            :let [images (mapv :image (:images anim))]]
+        (g/make-nodes
+          (g/nref->gid (g/node-id self))
+          [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim) :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
+          (g/connect atlas-anim :animation self :animations)
+          (g/connect atlas-anim :outline   self :outline)
+          (attach-atlas-image-nodes graph-id atlas-anim img-nodes images))))))
 
 (defn setup-rendering [self view]
-  (g/make-nodes
-   (g/nref->gid (g/node-id view))
-   [atlas-render AtlasRender
-    renderer     scene/SceneRenderer
-    background   background/Gradient
-    grid         grid/Grid
-    camera       [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
-   (g/connect background   :renderable      renderer     :renderables)
-   (g/connect grid         :renderable      renderer     :renderables)
-   (g/connect camera       :camera          grid         :camera)
-   (g/connect camera       :camera          renderer     :camera)
-   (g/connect camera       :input-handler   view         :input-handlers)
-   (g/connect view         :viewport        camera       :viewport)
-   (g/connect view         :viewport        renderer     :viewport)
-   (g/connect renderer     :frame           view         :frame)
-
-   (g/connect self         :texture-packing atlas-render :texture-packing)
-   (g/connect self         :gpu-texture     atlas-render :gpu-texture)
-   (g/connect atlas-render :renderable      renderer     :renderables)
-   (g/connect self         :aabb            camera       :aabb)))
+  (let [renderer (t/lookup view :renderer)
+        camera (t/lookup view :camera)]
+    (g/make-nodes
+      (g/nref->gid (g/node-id view))
+      [atlas-render AtlasRender]
+      (g/connect self         :texture-packing atlas-render :texture-packing)
+      (g/connect self         :gpu-texture     atlas-render :gpu-texture)
+      (g/connect atlas-render :renderable      renderer     :renderables)
+      (g/connect self         :aabb            camera       :aabb))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace :ext "atlas" :node-type AtlasNode :load-fn load-atlas :setup-rendering-fn setup-rendering))
+  (workspace/register-resource-type workspace
+                                    :ext "atlas"
+                                    :node-type AtlasNode
+                                    :load-fn load-atlas
+                                    :setup-view-fn (fn [self view] (scene/setup-view view :grid true))
+                                    :setup-rendering-fn setup-rendering
+                                    :icon atlas-icon))

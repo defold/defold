@@ -359,6 +359,7 @@
       action)))
 
 (g/defnode CameraController
+  (property name t/Keyword (default :camera))
   (property camera Camera)
   (property reframe t/Bool)
   (property ui-state t/Any (default (constantly (atom {:movement :idle}))))

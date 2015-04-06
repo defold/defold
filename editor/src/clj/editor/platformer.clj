@@ -30,6 +30,8 @@
            [javax.vecmath Point3d Matrix4d]
            [java.io PushbackReader]))
 
+(def platformer-icon "icons/diagramm.png")
+
 (def cp-trigger 5)
 
 (vtx/defvertex texture-vtx
@@ -159,10 +161,15 @@
         (when (nil? active-cp) action))
       action)))
 
-(g/defnk produce-gpu-textures
-  []
-  #_(apply texture/image-texture (map :contents [right-img left-img top-img bottom-img front-img back-img]))
-  nil)
+(g/defnode PlatformerController
+  (property active-cp t/Any (visible false))
+  (property inactive-cps t/Any (visible false))
+
+  (input source t/Any)
+  (input camera t/Any)
+  (input viewport Region)
+
+  (output input-handler Runnable (g/fnk [] handle-input)))
 
 (g/defnode PlatformerNode
   (inherits project/ResourceNode)
@@ -170,15 +177,8 @@
   (property control-points  [t/Any] (visible false))
   (property base-texture t/Str)
 
-  ; TODO temp solution
-  (property active-cp t/Any (visible false))
-  (property inactive-cps t/Any (visible false))
-
-  (input camera t/Any)
-  (input viewport Region)
   (input base-texture-img BufferedImage)
 
-  (output input-handler Runnable (g/fnk [] handle-input))
   (output base-texture t/Any :cached (g/fnk [base-texture-img] (texture/image-texture
                                                                 base-texture-img
                                                                 {:min-filter gl/linear-mipmap-linear
@@ -198,29 +198,31 @@
          (g/connect img-node :content self :base-texture-img))))))
 
 (defn setup-rendering [self view]
-  (g/make-nodes
-   (g/nref->gid (g/node-id view))
-   [platformer-render PlatformerRender
-    renderer          scene/SceneRenderer
-    background        background/Gradient
-    grid              grid/Grid
-    camera            [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
-    (g/connect background        :renderable     renderer          :renderables)
-    (g/connect grid              :renderable     renderer          :renderables)
-    (g/connect camera            :camera         grid              :camera)
-    (g/connect camera            :camera         renderer          :camera)
-    (g/connect camera            :input-handler  view              :input-handlers)
-    (g/connect view              :viewport       camera            :viewport)
-    (g/connect view              :viewport       renderer          :viewport)
-    (g/connect renderer          :frame          view              :frame)
+  (let [renderer     (t/lookup view :renderer)
+        camera   (t/lookup view :camera)]
+    (g/make-nodes
+      (g/nref->gid (g/node-id view))
+      [platformer-render PlatformerRender]
+      (g/connect self              :base-texture   platformer-render :base-texture)
+      (g/connect self              :control-points platformer-render :control-points)
+      (g/connect platformer-render :renderable     renderer          :renderables)
+      (g/connect self              :aabb           camera            :aabb))))
 
-    (g/connect self              :base-texture   platformer-render :base-texture)
-    (g/connect camera            :camera         self              :camera)
-    (g/connect self              :input-handler  view              :input-handlers)
-    (g/connect view              :viewport       self              :viewport)
-    (g/connect self              :control-points platformer-render :control-points)
-    (g/connect platformer-render :renderable     renderer          :renderables)
-    (g/connect self              :aabb           camera            :aabb)))
+(defn setup-editing [self view]
+  (let [renderer     (t/lookup view :renderer)
+        camera   (t/lookup view :camera)]
+    (g/make-nodes
+      (g/nref->gid (g/node-id view))
+      [controller PlatformerController]
+      (g/connect view              :viewport       controller        :viewport)
+      (g/connect camera            :camera         controller        :camera)
+      (g/connect controller        :input-handler  view              :input-handlers))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace :ext "platformer" :node-type PlatformerNode :load-fn load-level :setup-rendering-fn setup-rendering))
+  (workspace/register-resource-type workspace
+                                    :ext "platformer"
+                                    :node-type PlatformerNode
+                                    :load-fn load-level
+                                    :setup-view-fn (fn [self view] (scene/setup-view view :grid true))
+                                    :setup-rendering-fn setup-rendering
+                                    :icon platformer-icon))
