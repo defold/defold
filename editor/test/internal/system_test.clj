@@ -73,4 +73,50 @@
           history-after  (is/history-states (is/graph-history sys pgraph-id))]
       (is (= :ok (:status tx-report)))
       (is (< before after))
-      (is (< (count history-before) (count history-after))))))
+      (is (< (count history-before) (count history-after)))))
+
+  (testing "transaction labels appear in the history"
+    (let [sys          (fresh-system)
+          sys          (is/attach-graph-with-history sys (g/make-graph))
+          pgraph-id    (:last-graph sys)
+          sys-holder   (ref sys)
+          undos-before (is/undo-stack (is/graph-history sys pgraph-id))
+          tx-report    (ds/transact sys-holder
+                                    [(g/make-node pgraph-id Root)
+                                     (g/operation-label "Build root")])
+          root         (first (ds/tx-nodes-added tx-report))
+          tx-report    (ds/transact sys-holder
+                                    [(g/set-property root :touched 1)
+                                     (g/operation-label "Increment touch count")])
+          undos-after  (is/undo-stack (is/graph-history sys pgraph-id))
+          redos-after  (is/redo-stack (is/graph-history sys pgraph-id))]
+      (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
+      (is (= []                                     (mapv :label redos-after)))
+      (is/undo-history (is/graph-history sys pgraph-id))
+
+      (let [undos-after-undo  (is/undo-stack (is/graph-history sys pgraph-id))
+            redos-after-undo  (is/redo-stack (is/graph-history sys pgraph-id))]
+        (is (= ["Build root"]            (mapv :label undos-after-undo)))
+        (is (= ["Increment touch count"] (mapv :label redos-after-undo))))))
+
+  (testing "has-undo? and has-redo?"
+    (ts/with-clean-system
+      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+
+        (is (not (ds/has-undo? pgraph-id)))
+        (is (not (ds/has-redo? pgraph-id)))
+
+        (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
+
+          (is      (ds/has-undo? pgraph-id))
+          (is (not (ds/has-redo? pgraph-id)))
+
+          (ds/transact (g/set-property root :touched 1))
+
+          (is      (ds/has-undo? pgraph-id))
+          (is (not (ds/has-redo? pgraph-id)))
+
+          (ds/undo pgraph-id)
+
+          (is (ds/has-undo? pgraph-id))
+          (is (ds/has-redo? pgraph-id)))))))

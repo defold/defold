@@ -104,14 +104,6 @@
   [config]
   (reset! *the-system* (is/make-system config)))
 
-(defn undo
-  []
-  (is/undo-history (is/history @*the-system*)))
-
-(defn redo
-  []
-  (is/redo-history (is/history @*the-system*)))
-
 (defn dispose-pending
   []
   (dispose/dispose-pending (is/disposal-queue @*the-system*)))
@@ -164,3 +156,27 @@
 (defn last-graph-added
   []
   (is/last-graph @*the-system*))
+
+(defn undo
+  [graph]
+  (is/undo-history (is/graph-history @*the-system* graph)))
+
+(defn undo-stack
+  [graph]
+  (is/undo-stack (is/graph-history @*the-system* graph)))
+
+(defn has-undo?
+  [graph]
+  (not (empty? (undo-stack graph))))
+
+(defn redo
+  [graph]
+  (is/redo-history (is/graph-history @*the-system* graph)))
+
+(defn redo-stack
+  [graph]
+  (is/redo-stack (is/graph-history @*the-system* graph)))
+
+(defn has-redo?
+  [graph]
+  (not (empty? (redo-stack graph))))

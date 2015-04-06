@@ -16,15 +16,11 @@ into an arglist."
 
 (defn map-keys
   [f m]
-  (zipmap
-    (map f (keys m))
-    (vals m)))
+  (reduce-kv (fn [m k v] (assoc m (f k) v)) m m))
 
 (defn map-vals
   [f m]
-  (zipmap
-    (keys m)
-    (map f (vals m))))
+  (reduce-kv (fn [m k v] (assoc m k (f v))) m m))
 
 (defn map-first
   [f pairs]

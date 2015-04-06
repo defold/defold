@@ -335,6 +335,12 @@
       (one-transaction-pass (assoc ctx :pending pending-actions) current-action)
       (dec retrigger-count)))))
 
+(defn- apply-tx-label
+  [{:keys [basis label] :as ctx}]
+  (if label
+    (assoc ctx :basis (update basis :graphs (fn [g] (map-vals #(assoc % :tx-label label) g))))
+    ctx))
+
 (def tx-report-keys [:basis :new-event-loops :tempids :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
 
 (defn- finalize-update
@@ -369,4 +375,5 @@
   (-> ctx
       exhaust-actions-and-triggers
       trace-dependencies
+      apply-tx-label
       finalize-update))
