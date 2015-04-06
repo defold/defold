@@ -70,8 +70,9 @@
                                           (proxy [TreeCell] []
                                             (updateItem [item empty]
                                               (proxy-super updateItem item empty)
-                                              (when-let [item (and (not empty) item)]
-                                                (proxy-super setText (:label item))))))))
+                                              (let [label (or (and (not empty) (:label item)) nil)]
+                                                (proxy-super setText label))
+                                              (proxy-super setGraphic (jfx/get-image-view (:icon item))))))))
   (let [root (when (:outline (g/outputs node))
                (tree-item (g/node-value node :outline)))]
     (.setRoot tree root)))

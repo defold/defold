@@ -36,6 +36,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d]))
 
+(def cubemap-icon "icons/layer_raster_3d.png")
+
 (vtx/defvertex normal-vtx
   (vec3 position)
   (vec3 normal))
@@ -133,23 +135,21 @@
         (g/set-property self side input)))))
 
 (defn setup-rendering [self view]
-  (g/make-nodes
-   (g/nref->gid (g/node-id view))
-   [cubemap-render CubemapRender
-    renderer       scene/SceneRenderer
-    background     background/Gradient
-    camera         [c/CameraController :camera (c/make-camera :orthographic) :reframe true]]
-   (g/connect background     :renderable    renderer       :renderables)
-   (g/connect camera         :camera        renderer       :camera)
-   (g/connect camera         :input-handler view           :input-handlers)
-   (g/connect view           :viewport      camera         :viewport)
-   (g/connect view           :viewport      renderer       :viewport)
-   (g/connect renderer       :frame         view           :frame)
-
-   (g/connect self           :gpu-texture   cubemap-render :gpu-texture)
-   (g/connect cubemap-render :renderable    renderer       :renderables)
-   (g/connect camera         :camera        cubemap-render :camera)
-   (g/connect cubemap-render :aabb          camera         :aabb)))
+  (let [renderer (t/lookup view :renderer)
+        camera (t/lookup view :camera)]
+    (g/make-nodes
+      (g/nref->gid (g/node-id view))
+      [cubemap-render CubemapRender]
+      (g/connect self           :gpu-texture   cubemap-render :gpu-texture)
+      (g/connect cubemap-render :renderable    renderer       :renderables)
+      (g/connect camera         :camera        cubemap-render :camera)
+      (g/connect cubemap-render :aabb          camera         :aabb))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace :ext "cubemap" :node-type CubemapNode :load-fn load-cubemap :setup-rendering-fn setup-rendering))
+  (workspace/register-resource-type workspace
+                                    :ext "cubemap"
+                                    :node-type CubemapNode
+                                    :load-fn load-cubemap
+                                    :setup-view-fn (fn [self view] (scene/setup-view view))
+                                    :setup-rendering-fn setup-rendering
+                                    :icon cubemap-icon))

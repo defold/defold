@@ -14,7 +14,8 @@ ordinary paths."
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
             [service.log :as log])
-  (:import [java.io File FilterOutputStream]))
+  (:import [java.io File FilterOutputStream]
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (defprotocol Resource
   (resource-type [this])
@@ -52,7 +53,28 @@ ordinary paths."
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
-  (.write w (format "FileResource{:file %s :children %s}" (:file file-resource) (str (:children file-resource)))))
+  (.write w (format "FileResource{:workspace %s :file %s :children %s}" (:workspace file-resource) (:file file-resource) (str (:children file-resource)))))
+
+(defrecord MemoryResource [workspace resource-type data]
+  Resource
+  (resource-type [this] resource-type)
+  (source-type [this] :file)
+  (read-only? [this] false)
+  (path [this] nil)
+  (url [this] nil)
+  (resource-name [this] nil)
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream (:data this)) opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (io/make-output-stream (.toCharArray (:data this)) opts))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+
+(defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
+  (.write w (format "MemoryResource{:workspace %s :data %s}" (:workspace memory-resource) (:data memory-resource))))
+
+(defn make-memory-resource [workspace resource-type data]
+  (MemoryResource. workspace resource-type data))
 
 (defn- create-resource-tree [workspace ^File file]
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace %) (.listFiles file)))]
@@ -65,10 +87,12 @@ ordinary paths."
   (let [root-node (create-resource-tree self (File. root))]
     (tree-seq #(= :folder (source-type %1)) :children root-node)))
 
-(defn register-resource-type [workspace & {:keys [ext node-type load-fn setup-rendering-fn]}]
+(defn register-resource-type [workspace & {:keys [ext node-type load-fn setup-view-fn setup-rendering-fn icon]}]
   (let [resource-type {:node-type node-type
                        :load-fn load-fn
-                       :setup-rendering-fn setup-rendering-fn}
+                       :setup-view-fn setup-view-fn
+                       :setup-rendering-fn setup-rendering-fn
+                       :icon icon}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext ext)]
                          (map (fn [ext] (assoc resource-type :ext ext)) ext))]
@@ -77,6 +101,16 @@ ordinary paths."
 
 (defn get-resource-type [workspace ext]
   (get (:resource-types workspace) ext))
+
+(def default-icons {:file "icons/page_white.png" :folder "icons/folder.png"})
+
+(defn resource-icon [resource]
+  (and resource (or (:icon (resource-type resource)) (get default-icons (source-type resource)))))
+
+(defn resolve-resource [base-resource path]
+  (let [workspace (:workspace base-resource)]
+    ; TODO handle relative paths
+    (FileResource. workspace (File. (str (:root workspace) path)) [])))
 
 (g/defnode Workspace
   (property root t/Str)

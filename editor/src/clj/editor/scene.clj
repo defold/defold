@@ -6,6 +6,8 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.types :refer [IDisposable dispose]]
+            [dynamo.background :as background]
+            [dynamo.grid :as grid]
             [editor.camera :as c]
             [editor.core :as core]
             [editor.input :as i]
@@ -146,6 +148,7 @@
               buf-image))))))
 
 (g/defnode SceneRenderer
+  (property name t/Keyword (default :renderer))
   (property gl-drawable GLAutoDrawable)
 
   (input viewport Region)
@@ -232,6 +235,8 @@
       view)))
 
 (g/defnode PreviewView
+  (inherits core/Scope)
+
   (property width t/Num)
   (property height t/Num)
   (input frame BufferedImage)
@@ -240,4 +245,29 @@
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
 
 (defn make-preview-view [graph width height]
-  (g/make-node graph PreviewView :width width :height height))
+  (first (ds/tx-nodes-added (ds/transact (g/make-node graph PreviewView :width width :height height)))))
+
+(defn setup-view [view & kvs]
+  (let [opts (into {} (map vec (partition 2 kvs)))
+        view-graph (g/nref->gid (g/node-id view))]
+    (g/make-nodes view-graph
+                  [renderer   SceneRenderer
+                   background background/Gradient
+                   camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]]
+                  (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
+                  
+                  ; Needed for scopes
+                  (g/connect renderer :self view :nodes)
+                  (g/connect camera :self view :nodes)
+
+                  (g/connect background      :renderable    renderer        :renderables)
+                  (g/connect camera          :camera        renderer        :camera)
+                  (g/connect camera          :input-handler view            :input-handlers)
+                  (g/connect view            :viewport      camera          :viewport)
+                  (g/connect view            :viewport      renderer        :viewport)
+                  (g/connect renderer        :frame         view            :frame)
+                  
+                  (when (:grid opts)
+                    (let [grid (first (ds/tx-nodes-added (ds/transact (g/make-node view-graph grid/Grid))))]
+                      (g/connect grid   :renderable renderer :renderables)
+                      (g/connect camera :camera     grid     :camera))))))
