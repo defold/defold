@@ -180,3 +180,7 @@
 (defn has-redo?
   [graph]
   (not (empty? (redo-stack graph))))
+
+(defn reset-undo!
+  [graph]
+  (is/clear-history (is/graph-history @*the-system* graph)))
