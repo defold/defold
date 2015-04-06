@@ -11,7 +11,6 @@
             [dynamo.messages :as m]
             [dynamo.property-test]
             [dynamo.transaction-test]
-            [dynamo.ui.property-test]
             [dynamo.util-test]
             [editor.atlas-test]
             [editor.injection-test]
