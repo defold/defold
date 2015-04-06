@@ -92,6 +92,11 @@
         (alter history-ref update-in [:undo-stack] conj history-state)
         (alter history-ref update-in [:redo-stack] pop)))))
 
+(defn clear-history
+  [history-ref]
+  (dosync
+   (alter history-ref assoc :undo-stack [] :redo-stack [])))
+
 (defn last-graph     [s]     (-> s :last-graph))
 (defn system-cache   [s]     (-> s :cache))
 (defn disposal-queue [s]     (-> s :disposal-queue))

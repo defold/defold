@@ -119,4 +119,31 @@
           (ds/undo pgraph-id)
 
           (is (ds/has-undo? pgraph-id))
-          (is (ds/has-redo? pgraph-id)))))))
+          (is (ds/has-redo? pgraph-id))))))
+
+    (testing "history can be cleared"
+      (ts/with-clean-system
+      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+
+        (is (not (ds/has-undo? pgraph-id)))
+        (is (not (ds/has-redo? pgraph-id)))
+
+        (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
+
+          (is      (ds/has-undo? pgraph-id))
+          (is (not (ds/has-redo? pgraph-id)))
+
+          (ds/transact (g/set-property root :touched 1))
+
+          (is      (ds/has-undo? pgraph-id))
+          (is (not (ds/has-redo? pgraph-id)))
+
+          (ds/undo pgraph-id)
+
+          (is (ds/has-undo? pgraph-id))
+          (is (ds/has-redo? pgraph-id))
+
+          (ds/reset-undo! pgraph-id)
+
+          (is (not (ds/has-undo? pgraph-id)))
+          (is (not (ds/has-redo? pgraph-id))))))))
