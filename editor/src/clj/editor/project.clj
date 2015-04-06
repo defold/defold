@@ -99,9 +99,11 @@ guaranteed ordering of the sequence."
         resource (workspace/resolve-resource (:resource base-resource-node) path)]
     (get-resource-node project resource)))
 
+; TODO - actually remove all code below when there is indeed no callers anymore
+
 #_((defn register-node-type
    [filetype node-type]
-   (g/update-property (ds/current-scope) :node-types assoc filetype node-type)))
+   (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
 
 (defn register-editor
   [project-node filetype editor-builder]
@@ -271,3 +273,7 @@ behavior."
 (defn project-graph
   []
   (g/make-graph :volatility 0))
+
+)
+
+; TODO - THE CODE ABOVE IS COMMENTED OUT ON PURPOSE, SEE ABOVE
