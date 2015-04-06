@@ -243,11 +243,11 @@
     [_ label value]
     (filter #(= value (get % label)) (mapcat vals graphs)))
   (sources
-    [_ node-id label]
-    (sources (nref->graph graphs node-id) node-id label))
+    [this node-id label]
+    (filter #(gt/node-by-id this (first %)) (sources (nref->graph graphs node-id) node-id label)))
   (targets
-    [_ node-id label]
-    (targets (nref->graph graphs node-id) node-id label))
+    [this node-id label]
+    (filter #(gt/node-by-id this (first %)) (targets (nref->graph graphs node-id) node-id label)))
   (add-node
     [this tempid value]
     (let [gid         (gt/nref->gid tempid)
