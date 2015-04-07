@@ -61,16 +61,20 @@
       (is (= :empty (:status tx-report)))
       (is (= before after)))))
 
+(defn history-states
+  [href]
+  (concat (is/undo-stack href) (is/redo-stack href)))
+
 (deftest history-capture
   (testing "undo history is stored only for undoable graphs"
     (let [sys            (fresh-system)
           sys            (is/attach-graph-with-history sys (g/make-graph))
           pgraph-id      (:last-graph sys)
           before         (is/graph-time sys pgraph-id)
-          history-before (is/history-states (is/graph-history sys pgraph-id))
+          history-before (history-states (is/graph-history sys pgraph-id))
           tx-report      (ds/transact (atom sys) (g/make-node pgraph-id Root))
           after          (is/graph-time sys pgraph-id)
-          history-after  (is/history-states (is/graph-history sys pgraph-id))]
+          history-after  (history-states (is/graph-history sys pgraph-id))]
       (is (= :ok (:status tx-report)))
       (is (< before after))
       (is (< (count history-before) (count history-after)))))
@@ -121,8 +125,8 @@
           (is (ds/has-undo? pgraph-id))
           (is (ds/has-redo? pgraph-id))))))
 
-    (testing "history can be cleared"
-      (ts/with-clean-system
+  (testing "history can be cleared"
+    (ts/with-clean-system
       (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
 
         (is (not (ds/has-undo? pgraph-id)))
@@ -147,3 +151,124 @@
 
           (is (not (ds/has-undo? pgraph-id)))
           (is (not (ds/has-redo? pgraph-id))))))))
+
+(defn undo-redo-state?
+  [graph undos redos]
+  (and (= (ds/undo-stack graph) undos)
+       (= (ds/redo-stack graph) redos)))
+
+(defn touch
+  [node label & [seq-id]]
+  (ds/transact (keep identity
+                     [(g/operation-label label)
+                      (when seq-id
+                        (g/operation-sequence seq-id))
+                      (g/set-property node :touched label)])))
+
+(deftest undo-coalescing
+  (testing "Transactions with no sequence-id each make an undo point"
+    (ts/with-clean-system
+      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+
+        (is (undo-redo-state? pgraph-id [] []))
+
+        (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
+
+          (is (undo-redo-state? pgraph-id [{:label nil}] []))
+
+          (touch root 1)
+          (touch root 2)
+          (touch root 3)
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2} {:label 3}] []))
+
+          (ds/undo pgraph-id)
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2}] [{:label 3}]))))))
+
+  (testing "Transactions with different sequence-ids each make an undo point"
+    (ts/with-clean-system
+      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+
+        (is (undo-redo-state? pgraph-id [] []))
+
+        (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
+
+          (is (undo-redo-state? pgraph-id [{:label nil}] []))
+
+          (touch root 1 :a)
+          (touch root 2 :b)
+          (touch root 3 :c)
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2} {:label 3}] []))
+
+          (ds/undo pgraph-id)
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2}] [{:label 3}]))))))
+
+  (testing "Transactions with the same sequence-id are merged together"
+    (ts/with-clean-system
+      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+
+        (is (undo-redo-state? pgraph-id [] []))
+
+        (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
+
+          (is (undo-redo-state? pgraph-id [{:label nil}] []))
+
+          (touch root 1 :a)
+          (touch root 1.1 :a)
+          (touch root 1.2 :a)
+          (touch root 1.3 :a)
+          (touch root 1.4 :a)
+          (touch root 1.5 :a)
+          (touch root 1.6 :a)
+          (touch root 1.7 :a)
+          (touch root 1.8 :a)
+          (touch root 1.9 :a)
+          (touch root 2 :a)
+          (touch root 3 :c)
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label 2} {:label 3}] []))
+
+          (ds/undo pgraph-id)
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label 2}] [{:label 3}]))
+
+          (ds/undo pgraph-id)
+
+          (is (undo-redo-state? pgraph-id [{:label nil}] [{:label 3} {:label 2}]))))))
+
+
+  (testing "Cross-graph transactions create an undo point in all affected graphs"
+    (ts/with-clean-system
+      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))
+            agraph-id (ds/attach-graph-with-history (g/make-graph))]
+
+        (let [[node-p] (ts/tx-nodes (g/make-node pgraph-id Root :where "graph P"))
+              [node-a] (ts/tx-nodes (g/make-node agraph-id Root :where "graph A"))]
+
+          (is (undo-redo-state? pgraph-id [{:label nil}] []))
+          (is (undo-redo-state? agraph-id [{:label nil}] []))
+
+          (touch node-p 1 :a)
+
+          (ds/transact [(g/set-property node-p :touched 2)
+                        (g/set-property node-a :touched 2)
+                        (g/operation-label 2)
+                        (g/operation-sequence :a)])
+
+          (touch node-p 3 :c)
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label 2} {:label 3}] []))
+          (is (undo-redo-state? agraph-id [{:label nil} {:label 2}] []))
+
+          (ds/undo pgraph-id)
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label 2}] [{:label 3}]))
+          (is (undo-redo-state? agraph-id [{:label nil} {:label 2}] []))
+
+          (ds/undo pgraph-id)
+
+          (is (undo-redo-state? pgraph-id [{:label nil}] [{:label 3} {:label 2}]))
+          (is (undo-redo-state? agraph-id [{:label nil}   {:label 2}] [])))))))
