@@ -52,19 +52,31 @@
 
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
 
-(def ^:private undo-op-keys [:label])
-(def ^:private graph-label :tx-label)
+(def ^:private undo-op-keys   [:label])
+(def ^:private graph-label    :tx-label)
+(def ^:private sequence-label :tx-sequence-label)
 
-(defn- history-state [l g] [l g])
+(def   history-state vector)
 (def   history-state-label first)
 (def   history-state-graph second)
+(defn  history-state-sequence-label [[_ _ l]] l)
 
-(defn- push-history [history-ref _ gref old-graph new-graph]
+(defn- merge-or-push-history
+  [history gref old-graph new-graph]
+  (let [new-state (history-state (graph-label new-graph) old-graph (sequence-label new-graph))
+        stack-op  (if (and (not (nil? (sequence-label new-graph)))
+                           (= (:tx-sequence-label new-graph) (:tx-sequence-label old-graph)))
+                    replace-top
+                    conj-undo-stack)]
+    (-> history
+        (update :undo-stack stack-op new-state)
+        (assoc :redo-stack []))))
+
+(defn- watch-history [history-ref _ gref old-graph new-graph]
   (when (transaction-applied? old-graph new-graph)
     (dosync
-      (assert (= (:state @history-ref) gref))
-      (alter history-ref update-in [:undo-stack] conj-undo-stack (history-state (graph-label new-graph) old-graph))
-      (alter history-ref assoc-in  [:redo-stack] []))))
+     (assert (= (:state @history-ref) gref))
+     (alter history-ref merge-or-push-history gref old-graph new-graph))))
 
 (defn undo-stack [history-ref]
   (mapv (fn [state] {:label (history-state-label state)}) (:undo-stack @history-ref)))
@@ -107,11 +119,6 @@
 (defn graph-history  [s gid] (-> s (graph gid) :history))
 (defn basis          [s]     (ig/multigraph-basis (map-vals deref (graphs s))))
 
-(defn history-states
-  [href]
-  (let [h @href]
-    (concat (:undo-stack h) (:redo-stack h))))
-
 (defn- make-disposal-queue
   [{queue :disposal-queue :or {queue (a/chan (a/dropping-buffer maximum-disposal-backlog))}}]
   queue)
@@ -147,7 +154,7 @@
         href (ref (new-history gref))]
     (dosync (alter gref assoc :history href))
     (let [s (attach-graph* s gref)]
-      (add-watch gref ::push-history (partial push-history href))
+      (add-watch gref ::push-history (partial watch-history href))
       s)))
 
 (defn detach-graph

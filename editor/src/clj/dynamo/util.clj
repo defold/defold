@@ -66,6 +66,10 @@ into an arglist."
       (vec (drop (- size min-size) stack))
       stack)))
 
+(defn replace-top
+  [stack value]
+  (conj (pop stack) value))
+
 (defmacro monitored-task
  [mon nm size & body]
  `(let [m# ~mon]
