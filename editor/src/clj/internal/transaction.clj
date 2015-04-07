@@ -102,6 +102,11 @@
   [{:type  :label
     :label label}])
 
+(defn sequence-label
+  [seq-label]
+  [{:type  :sequence-label
+    :label seq-label}])
+
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
@@ -255,6 +260,10 @@
   [ctx {:keys [label]}]
   (assoc ctx :label label))
 
+(defmethod perform :sequence-label
+  [ctx {:keys [label]}]
+  (assoc ctx :sequence-label label))
+
 (defn- apply-tx
   [ctx actions]
   (reduce
@@ -335,13 +344,21 @@
       (one-transaction-pass (assoc ctx :pending pending-actions) current-action)
       (dec retrigger-count)))))
 
-(defn- apply-tx-label
-  [{:keys [basis label] :as ctx}]
-  (if label
-    (assoc ctx :basis (update basis :graphs (fn [g] (map-vals #(assoc % :tx-label label) g))))
-    ctx))
+(defn map-vals-bargs
+  [m f]
+  (map-vals f m))
 
-(def tx-report-keys [:basis :new-event-loops :tempids :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
+(defn- apply-tx-label
+  [{:keys [basis label sequence-label] :as ctx}]
+  (cond-> ctx
+
+    label
+    (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))
+
+    sequence-label
+    (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))))
+
+(def tx-report-keys [:basis :new-event-loops :tempids :nodes-added :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."

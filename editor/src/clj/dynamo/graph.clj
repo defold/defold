@@ -198,6 +198,12 @@
   [label]
   (it/label label))
 
+(defn operation-sequence
+  "Set a machine-readable label. Successive transactions with the same
+  label will be coalesced into a single undo point."
+  [label]
+  (it/sequence-label label))
+
 (defn make-node
   [gid node-type & args]
   (it/new-node (apply dn/construct node-type :_id (tempid gid) args)))
