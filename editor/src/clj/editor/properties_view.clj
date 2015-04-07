@@ -24,6 +24,7 @@
             [service.log :as log])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
+           [javafx.animation AnimationTimer]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
@@ -145,14 +146,38 @@
       (.add (.getChildren grid) label)
       (.add (.getChildren grid) control))))
 
-(defn setup [parent node]
-  (let [properties (g/properties node)
-        grid (GridPane.)]
-    (.clear (.getChildren parent))
-    (.setPadding grid (Insets. 10 10 10 10))
-    (.setHgap grid 4)
-    (doseq [[key p] properties]
-      (let [row (/ (.size (.getChildren grid)) 2)]
-        (create-properties-row grid node key p row)))
+(defn- update-grid [parent node]
+  (.clear (.getChildren parent))
+  (when node
+    (let [properties (g/properties node)
+          grid (GridPane.)]
+      (.setPadding grid (Insets. 10 10 10 10))
+      (.setHgap grid 4)
+      (doseq [[key p] properties]
+        (let [row (/ (.size (.getChildren grid)) 2)]
+          (create-properties-row grid node key p row)))
+      (.add (.getChildren parent) grid)
+      grid)))
 
-    (.add (.getChildren parent) grid)))
+(g/defnode PropertiesView
+  (property parent-view Parent)
+  (property repainter AnimationTimer)
+
+  (input selection t/Any)
+
+  (output grid-pane GridPane :cached (g/fnk [parent-view selection] (update-grid parent-view (first selection)))) ; TODO - add multi-selection support for properties view
+  
+  (trigger stop-animation :deleted (fn [tx graph self label trigger]
+                                     (.stop ^AnimationTimer (:repainter self))
+                                     nil)))
+
+(defn make-properties-view [view-graph parent]
+  (let [view (first (ds/tx-nodes-added (ds/transact (g/make-node view-graph PropertiesView :parent-view parent))))
+        self-ref (g/node-id view)
+        repainter (proxy [AnimationTimer] []
+                          (handle [now]
+                            (let [self (g/node-by-id (ds/now) self-ref)
+                                  grid (g/node-value self :grid-pane)])))]
+    (ds/transact (g/set-property view :repainter repainter))
+    (.start repainter)
+    (g/refresh view)))

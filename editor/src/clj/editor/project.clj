@@ -73,6 +73,7 @@ guaranteed ordering of the sequence."
 
   (property workspace t/Any)
 
+  (input selection t/Any)
   (input resources t/Any)
   (input resource-types t/Any))
 
@@ -98,6 +99,19 @@ guaranteed ordering of the sequence."
   (let [project (:parent base-resource-node)
         resource (workspace/resolve-resource (:resource base-resource-node) path)]
     (get-resource-node project resource)))
+
+(g/defnode Selection
+  (input selected-nodes [t/Any])
+  (output selection t/Any (g/fnk [selected-nodes] selected-nodes)))
+
+(defn select [project nodes]
+  (let [selection-node (g/node-value project :selection)]
+    (ds/transact
+      (concat
+        (for [[node label] (g/sources-of (ds/now) selection-node :selected-nodes)]
+           (g/disconnect node label selection-node :selected-nodes))
+        (for [node nodes]
+          (g/connect node :self selection-node :selected-nodes))))))
 
 ; TODO - actually remove all code below when there is indeed no callers anymore
 
