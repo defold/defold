@@ -121,7 +121,6 @@
         g             (reduce (fn [g child] (add-child g id child)) g kids)
         query-kids    (ig/query g '[[:name "Atlas"]  (input :children)])
         query-parents (ig/query g '[[:name "image1"] (output :parent)])]
-    (def g* g)
     (is (= kids      (nodeset g query-kids)))
     (is (= #{parent} (nodeset g query-parents)))))
 
