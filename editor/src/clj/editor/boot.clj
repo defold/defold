@@ -101,6 +101,9 @@
    [editor TextEditor]
    (g/connect text-node :text editor :text)))
 
+(defn on-outline-selection-fn [project items]
+  (project/select project (map :self items)))
+
 (defn- create-editor [workspace project resource root]
   (let [resource-node (project/get-resource-node project resource)
         resource-type (project/get-resource-type resource-node)]
@@ -119,8 +122,8 @@
         (ds/transact (setup-view-fn resource-node view))
         (let [view (g/refresh view)]
           (ds/transact (setup-rendering-fn resource-node view)))
-        (outline-view/setup (.lookup root "#outline") resource-node)
-        (properties-view/setup (.lookup root "#properties") resource-node)))))
+        (project/select project [resource-node])
+        (outline-view/setup (.lookup root "#outline") resource-node (fn [items] (on-outline-selection-fn project items)))))))
 
 (declare tree-item)
 
@@ -173,6 +176,7 @@
 
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
+(def ^:dynamic *view-graph*)
 
 (def the-root (atom nil))
 
@@ -234,13 +238,18 @@
                        (ds/transact
                         (g/make-nodes
                          *project-graph*
-                         [project [project/Project :workspace workspace]]
+                         [project [project/Project :workspace workspace]
+                          selection project/Selection]
+                         (g/connect selection :self project :selection)
                          (g/connect workspace :resource-list project :resources)
                          (g/connect workspace :resource-types project :resource-types)))))
         resources    (g/node-value workspace :resource-list)
         project      (project/load-project project resources)
         root         (load-stage workspace project)
-        curve        (create-view project root "#curve-editor-container" CurveEditor)]))
+        curve        (create-view project root "#curve-editor-container" CurveEditor)
+        properties   (properties-view/make-properties-view *view-graph* (.lookup root "#properties"))
+        selection    (g/node-value project :selection)]
+    (ds/transact (g/connect selection :selection properties :selection))))
 
 (defn get-preference [key]
   (let [prefs (.node (Preferences/userRoot) "defold")]
@@ -255,7 +264,8 @@
     (when (nil? @the-root)
       (ds/initialize {:initial-graph (workspace/workspace-graph)})
       (alter-var-root #'*workspace-graph* (fn [_] (ds/last-graph-added)))
-      (alter-var-root #'*project-graph*   (fn [_] (ds/attach-graph-with-history (g/make-graph :volatility 1)))))
+      (alter-var-root #'*project-graph*   (fn [_] (ds/attach-graph-with-history (g/make-graph :volatility 1))))
+      (alter-var-root #'*view-graph*      (fn [_] (ds/attach-graph (g/make-graph :volatility 2)))))
     (let [pref-key "default-project-file"
           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
       (when project-file

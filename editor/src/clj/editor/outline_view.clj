@@ -25,13 +25,13 @@
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.application Platform]
-           [javafx.collections FXCollections ObservableList]
+           [javafx.collections FXCollections ObservableList ListChangeListener]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -65,7 +65,10 @@
             (.setAll children (list-children parent)))
           children)))))
 
-(defn setup [tree node]
+(defn setup [tree node selection-fn]
+  (-> tree
+    (.getSelectionModel)
+    (.setSelectionMode SelectionMode/MULTIPLE))
   (.setCellFactory tree (reify Callback (call ^TreeCell [this view]
                                           (proxy [TreeCell] []
                                             (updateItem [item empty]
@@ -73,6 +76,12 @@
                                               (let [label (or (and (not empty) (:label item)) nil)]
                                                 (proxy-super setText label))
                                               (proxy-super setGraphic (jfx/get-image-view (:icon item))))))))
+  (-> tree
+    (.getSelectionModel)
+    (.getSelectedItems)
+    (.addListener (reify ListChangeListener (onChanged [this change]
+                                              ; TODO - handle selection order
+                                              (selection-fn (map #(.getValue %1) (.getList change)))))))
   (let [root (when (:outline (g/outputs node))
                (tree-item (g/node-value node :outline)))]
     (.setRoot tree root)))
