@@ -1,28 +1,12 @@
 (ns user
   (:require [camel-snake-kebab :refer :all]
-            [clojure.java.io :as io]
-            [clojure.java.io :refer [file]]
             [clojure.pprint :refer [pprint]]
             [clojure.repl :refer :all]
-            [dynamo.file :as f]
             [dynamo.graph :as g]
             [dynamo.image :refer :all]
-            [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.ui :as ui]
-            [internal.graph :as ig]
-            [internal.java :as j]
-            [internal.node :as in]
-            [internal.system :as is])
-  (:import [java.awt Dimension]
-           [javafx.application Platform]
-           [javafx.embed.swing JFXPanel]
-           [javafx.fxml FXMLLoader]
-           [javafx.scene Scene Node Parent]
-           [javafx.stage Stage FileChooser]
-           [javax.swing JFrame JPanel]
-           [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]))
+            [internal.graph.types :as gt]))
 
 (defmacro tap [x] `(do (prn ~(str "**** " &form " ") ~x) ~x))
 
@@ -30,68 +14,54 @@
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
-(defn the-world       [] (-> ds/*the-system* deref :world))
-(defn the-cache       [] (-> ds/*the-system* deref :cache))
-(defn the-graph       [] (-> (the-world) :state deref))
-(defn nodes           [] (-> (the-graph) :nodes vals))
-
 (defn nodes-and-classes
   []
-  (let [gnodes (:nodes (the-graph))]
-    (sort (map (fn [n v] [n (class v)]) (keys gnodes) (vals gnodes)))))
+  (let [now (ds/now)]
+   (for [graphid (sort (keys (:graphs now)))
+         :let [graph (get-in now [:graphs graphid])]
+         nodeid  (sort (keys (:nodes graph)))
+         :let [node (get (:nodes graph) nodeid)]]
+     [graphid (gt/nref->nid nodeid) (class node)])))
 
 (defn node
-  [g id]
-  (g/node-by-id g id))
+  ([nref]
+   (g/node-by-id (ds/now) nref))
+
+  ([gid nid]
+   (g/node-by-id (ds/now) (gt/make-nref gid nid))))
 
 (defn node-type
-  [id]
-  (-> (node id) g/node-type :name))
-
-(defn nodes-of-type
-  [type-name]
-  (filter #(= type-name (:name (g/node-type %))) (nodes)))
-
-(def image-nodes (partial nodes-of-type "ImageResourceNode"))
-
-(defn node-for-file
-  [file-name]
-  (filter #(= file-name (t/local-path (:filename %))) (filter (comp not nil? :filename) (nodes))))
+  [gid nid]
+  (-> (node gid nid) g/node-type :name))
 
 (defn inputs-to
-  ([id]
-    (group-by first
-      (for [a (ig/arcs-to (the-graph) id)]
-        [(get-in a [:target-attributes :label]) (:source a) (get-in a [:source-attributes :label]) ])))
-  ([id label]
-    (ig/sources (the-graph) id label)))
+  ([gid nid label]
+   (sort-by first
+            (gt/sources (ds/now) (gt/make-nref gid nid) label))))
 
 (defn outputs-from
-  ([id]
-    (group-by first
-      (for [a (ig/arcs-from (the-graph) id)]
-       [(get-in a [:source-attributes :label]) (:target a) (get-in a [:target-attributes :label])])))
-  ([id label]
-    (ig/targets (the-graph) id label)))
+  [gid nid label]
+  (sort-by first
+            (gt/targets (ds/now) (gt/make-nref gid nid) label)))
+
+(defn sarc-reciprocated
+  [basis source-arc]
+  (some #{(gt/head source-arc)} (apply gt/sources (ds/now) (gt/tail source-arc))))
+
+(defn tarc-reciprocated
+  [basis target-arc]
+  (some #{(gt/tail target-arc)} (apply gt/targets (ds/now) (gt/head target-arc))))
+
+(defn unreciprocated-arcs
+  [basis]
+  {:source-arcs
+   (remove (partial sarc-reciprocated basis) (mapcat :sarcs (vals (:graphs basis))))
+   :target-arcs
+   (remove (partial tarc-reciprocated basis) (mapcat :tarcs (vals (:graphs basis))))})
 
 (defn get-value
-  [id label]
-  (g/node-value (node id) label))
-
-(defn cache-peek
-  [id label]
-  (if-let [x (get (ds/cache-snapshot) [id label])]
-    x
-    :value-not-cached))
-
-(defn decache
-  [id label]
-  (ds/cache-invalidate [[id label]])
-  :ok)
-
-(defn projects-in-memory
-  []
-  (keep #(when (.endsWith (.getName (second %)) "Project__") (node (first %))) (nodes-and-classes)))
+  [gid nid label]
+  (g/node-value (node gid nid) label))
 
 (defn protobuf-fields
   [protobuf-msg-cls]
@@ -102,13 +72,3 @@
                (str t)
                (.. fld getMessageType getName)))
      :resource? (.getExtension (.getOptions fld) com.dynamo.proto.DdfExtensions/resource)}))
-
-(defn load-stage [fxml]
-  (let [root (FXMLLoader/load (.toURL (io/file fxml)))
-        stage (Stage.)
-        scene (Scene. root)]
-    (.setUseSystemMenuBar (.lookup root "#menu-bar") true)
-    (.setTitle stage "GUI playground")
-    (.setScene stage scene)
-    (.show stage)
-    root))
