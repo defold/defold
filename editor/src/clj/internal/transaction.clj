@@ -128,6 +128,10 @@
       ctx
       all-targets)))
 
+(defn- activate-output
+  [ctx node-id output-label]
+  (update-in ctx [:outputs-modified] conj [node-id output-label]))
+
 (defmulti perform
   "A multimethod used for defining methods that perform the individual
   actions within a transaction. This is for internal use, not intended
@@ -240,10 +244,11 @@
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
-      (mark-activated target-id target-label)
-      (assoc
-        :basis            (gt/connect basis source-id source-label target-id target-label)
-        :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
+        (mark-activated target-id target-label)
+        (activate-output source-id source-label)
+        (assoc
+         :basis            (gt/connect basis source-id source-label target-id target-label)
+         :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
 
 (defmethod perform :disconnect
   [{:keys [basis triggers-to-fire] :as ctx}
@@ -251,10 +256,11 @@
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
-      (mark-activated target-id target-label)
-      (assoc
-       :basis            (gt/disconnect basis source-id source-label target-id target-label)
-       :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
+        (activate-output source-id source-label)
+        (mark-activated target-id target-label)
+        (assoc
+         :basis            (gt/disconnect basis source-id source-label target-id target-label)
+         :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
 
 (defmethod perform :label
   [ctx {:keys [label]}]
