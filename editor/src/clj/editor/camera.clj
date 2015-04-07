@@ -344,17 +344,16 @@
                         (if (= movement :idle) action nil))
       :mouse-moved (let [{:keys [movement last-x last-y]} @(:ui-state self)
                          {:keys [x y]} action]
-                     (if (not (= :idle movement))
+                     (when (not (= :idle movement))
                        (ds/transact
-                         (case movement
-                           :dolly  (g/update-property self :camera dolly (* -0.002 (- y last-y)))
-                           :track  (g/update-property self :camera track viewport last-x last-y x y)
-                           :tumble (g/update-property self :camera tumble last-x last-y x y)
-                           nil)
-                         (swap! (:ui-state self) assoc
-                                :last-x x
-                                :last-y y)
-                         nil)
+                        (case movement
+                          :dolly  (g/update-property self :camera dolly (* -0.002 (- y last-y)))
+                          :track  (g/update-property self :camera track viewport last-x last-y x y)
+                          :tumble (g/update-property self :camera tumble last-x last-y x y)
+                          nil))
+                       (swap! (:ui-state self) assoc
+                              :last-x x
+                              :last-y y)
                        action))
       action)))
 
