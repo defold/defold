@@ -28,7 +28,6 @@
   []
   {:nodes   {}
    :last-id 0
-   :sarcs   []
    :tarcs   []
    :tx-id   0})
 
@@ -54,7 +53,6 @@
   [g n]
   (-> g
       (update :nodes dissoc n)
-      (update :sarcs (fn [s] (removev #(or (= n (.source %)) (= n (.target %))) s)))
       (update :tarcs (fn [s] (removev #(or (= n (.source %)) (= n (.target %))) s)))))
 
 (defn transform-node
@@ -67,26 +65,9 @@
   [g n r]
   (assoc-in g [:nodes n] r))
 
-(defn targets
+(defn arcs-from-source
   [g node label]
-  (for [arc (:sarcs g)
-        :when (= [node label] (gt/head arc))]
-    (gt/tail arc)))
-
-(defn connect-source
-  [g source source-label target target-label]
-  (let [from (node g source)]
-    (assert (not (nil? from)) (str "Attempt to connect " (pr-str source source-label target target-label)))
-    (assert (some #{source-label} (gt/outputs from)) (str "No label " source-label " exists on node " from))
-    (update g :sarcs conj (arc source target source-label target-label))))
-
-(defn source-connected?
-  [g source source-label target target-label]
-  (some #{[target target-label]} (targets g source source-label)))
-
-(defn disconnect-source
-  [g source source-label target target-label]
-  (remove-arc g :sarcs (arc source target source-label target-label)))
+  (filter #(= [node label] (gt/head %)) (:tarcs g)))
 
 (defn sources
   [g node label]
@@ -118,97 +99,6 @@
              ~gsym
              (for [~@bindings]
                [~@loop-vars]))))
-
-;; ----------------------------------------
-;; Simplistic query engine
-;; ----------------------------------------
-
-;; enhancements:
-;;  - additive matches for first clause, subtractive for rest.
-;;  - use indexes for commonly-queries nodes
-;;  - cache built queries in the graph itself.
-;;  - hash join?
-(defprotocol Clause
-  (bind [this next graph candidates] "Match against a graph structure, passing the matching subset on to the continuation"))
-
-(deftype ScanningClause [attr value]
-  Clause
-  (bind [this next graph candidates]
-    (let [rfn (fn [matches candidate-id]
-                (let [node-value (node graph candidate-id)]
-                  (if (= value (get node-value attr))
-                    (conj matches candidate-id)
-                    matches)))]
-      #(next graph (reduce rfn #{} candidates)))))
-
-
-;;   "given the name of the protocol p as a symbol, "
-(deftype ProtocolClause [p]
-  Clause
-  (bind [this next graph candidates]
-    (let [rfn (fn [matches candidate-id]
-                (let [node-value (node graph candidate-id)]
-                  (if (satisfies? p node-value)
-                    (conj matches candidate-id)
-                    matches)))]
-      #(next graph (reduce rfn #{} candidates)))))
-
-
-(deftype NeighborsClause [dir-fn label]
-  Clause
-  (bind [this next graph candidates]
-    (let [rfn (fn [matches candidate-id]
-                (->> label
-                     (dir-fn graph candidate-id)
-                     (map first)
-                     (into matches)))]
-      #(next graph (reduce rfn #{} candidates)))))
-
-(defn- bomb
-  [& info]
-  (throw (ex-info (apply str info) {})))
-
-(defn- make-protocol-clause
-  [clause]
-  (let [prot (second clause)]
-    (if-let [prot (if (:on-interface prot) prot (var-get (resolve (second clause))))]
-      (ProtocolClause. prot)
-      (bomb "Cannot resolve " (second clause)))))
-
-(defn- make-neighbors-clause
-  [dir-fn label]
-  (NeighborsClause. dir-fn label))
-
-(defn- clause-instance
-  [clause]
-  (cond
-    (vector? clause)  (ScanningClause. (first clause) (second clause))
-    (list? clause)    (let [directive (first clause)]
-                        (cond
-                         (= directive 'protocol) (make-protocol-clause clause)
-                         (= directive 'input)    (make-neighbors-clause sources (second clause))
-                         (= directive 'output)   (make-neighbors-clause targets (second clause))
-                         :else                   (bomb "Unrecognized query function: " clause)))
-    :else             (bomb "Unrecognized clause: " clause)))
-
-(defn- add-clause
-  [ls clause]
-  (fn [graph candidates]
-    (bind (clause-instance clause) ls graph candidates)))
-
-(defn- tail
-  [graph candidates]
-  candidates)
-
-;; ProtocolClause - (protocol protocol-symbol)
-;; ScanningClause - [:attr value]
-;; Both (any order):
-;; [(protocol symbol) [:attr value]]
-
-(defn query
-  [g clauses]
-  (let [qfn (reduce add-clause tail (reverse clauses))]
-    (trampoline qfn g (into #{} (node-ids g)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Dependency tracing
@@ -244,10 +134,12 @@
     (filter #(= value (get % label)) (mapcat vals graphs)))
   (sources
     [this node-id label]
-    (filter #(gt/node-by-id this (first %)) (sources (nref->graph graphs node-id) node-id label)))
+    (filter #(gt/node-by-id this (first %))
+            (sources (nref->graph graphs node-id) node-id label)))
   (targets
     [this node-id label]
-    (filter #(gt/node-by-id this (first %)) (targets (nref->graph graphs node-id) node-id label)))
+    (filter #(gt/node-by-id this (first %))
+            (map gt/tail (mapcat #(arcs-from-source % node-id label) (vals graphs)))))
   (add-node
     [this tempid value]
     (let [gid         (gt/nref->gid tempid)
@@ -281,39 +173,22 @@
        node]))
   (connect
     [this src-id src-label tgt-id tgt-label]
-    (let [src-gid   (gt/nref->gid src-id)
-          src-graph (get graphs src-gid)
+    (let [src-graph (nref->graph graphs src-id)
           tgt-gid   (gt/nref->gid tgt-id)
           tgt-graph (get graphs tgt-gid)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
-      (if (= src-gid tgt-gid)
-        (update this :graphs assoc src-gid
-                (-> src-graph
-                    (connect-target src-id src-label tgt-id tgt-label)
-                    (connect-source src-id src-label tgt-id tgt-label)))
-        (update this :graphs assoc
-                tgt-gid (connect-target tgt-graph src-id src-label tgt-id tgt-label)
-                src-gid (connect-source src-graph src-id src-label tgt-id tgt-label)))))
+      (update this :graphs assoc
+              tgt-gid (connect-target tgt-graph src-id src-label tgt-id tgt-label))))
   (disconnect
     [this src-id src-label tgt-id tgt-label]
-    (let [src-gid   (gt/nref->gid src-id)
-          src-graph (get graphs src-gid)
-          tgt-gid   (gt/nref->gid tgt-id)
+    (let [tgt-gid   (gt/nref->gid tgt-id)
           tgt-graph (get graphs tgt-gid)]
-      (if (= src-gid tgt-gid)
-        (update this :graphs assoc src-gid
-                (-> src-graph
-                    (disconnect-target src-id src-label tgt-id tgt-label)
-                    (disconnect-source src-id src-label tgt-id tgt-label)))
-        (update this :graphs assoc
-                tgt-gid (disconnect-target tgt-graph src-id src-label tgt-id tgt-label)
-                src-gid (disconnect-source src-graph src-id src-label tgt-id tgt-label)))))
+      (update this :graphs assoc
+              tgt-gid (disconnect-target tgt-graph src-id src-label tgt-id tgt-label))))
   (connected?
     [this src-id src-label tgt-id tgt-label]
-    (let [src-graph (nref->graph graphs src-id)
-          tgt-graph (nref->graph graphs tgt-id)]
-      (or (source-connected? src-graph src-id src-label tgt-id tgt-label)
-          (target-connected? tgt-graph src-id src-label tgt-id tgt-label))))
+    (let [tgt-graph (nref->graph graphs tgt-id)]
+      (target-connected? tgt-graph src-id src-label tgt-id tgt-label)))
 
   (dependencies
     [this to-be-marked]
@@ -324,13 +199,7 @@
       (if (empty? to-be-marked)
         already-marked
         (let [next-wave (mapcat #(apply marked-downstream-nodes this %)  to-be-marked)]
-          (recur (into already-marked to-be-marked) next-wave (dec iterations-remaining))))))
-
-  (query
-    [this clauses]
-    (let [fan-out (map #(query % clauses) (vals graphs))
-          uniq    (distinct (apply concat fan-out))]
-      (map #(gt/node-by-id this %) uniq))))
+          (recur (into already-marked to-be-marked) next-wave (dec iterations-remaining)))))))
 
 (defn multigraph-basis
   [graphs]
