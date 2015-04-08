@@ -108,7 +108,6 @@
                  #_(is (not-nil? (g/node-value view :frame)))
                  (is (not (has-undo? project-graph))))))))
 
-(open-editor)
 (deftest undo-node-deletion-reconnects-editor
   (testing "Undoing the deletion of a node reconnects it to its editor"
            (with-clean-system
