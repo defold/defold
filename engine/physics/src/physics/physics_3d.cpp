@@ -756,7 +756,7 @@ namespace dmPhysics
         if (body != 0x0)
         {
             const btVector3& v = body->getAngularVelocity();
-            FromBt(v, angular_velocity, context->m_InvScale);
+            FromBt(v, angular_velocity, 1.0f);
         }
         return angular_velocity;
     }
