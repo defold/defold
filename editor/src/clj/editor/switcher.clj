@@ -339,6 +339,7 @@
                                     :ext "switcher"
                                     :node-type SwitcherNode
                                     :load-fn load-level
-                                    :setup-view-fn (fn [self view] (scene/setup-view view))
-                                    :setup-rendering-fn setup-rendering
-                                    :icon switcher-icon))
+                                    :icon switcher-icon
+                                    :view-types [:scene]
+                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view))
+                                                       :setup-rendering-fn setup-rendering}}))

@@ -12,4 +12,4 @@
   (output content BufferedImage :cached (g/fnk [resource] (ImageIO/read (io/input-stream resource)))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace :ext ["jpg" "png"] :node-type ImageNode))
+  (workspace/register-resource-type workspace :ext ["jpg" "png"] :node-type ImageNode :view-types [:default]))

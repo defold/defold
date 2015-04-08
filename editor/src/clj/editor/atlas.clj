@@ -329,6 +329,7 @@
                                     :ext "atlas"
                                     :node-type AtlasNode
                                     :load-fn load-atlas
-                                    :setup-view-fn (fn [self view] (scene/setup-view view :grid true))
-                                    :setup-rendering-fn setup-rendering
-                                    :icon atlas-icon))
+                                    :icon atlas-icon
+                                    :view-types [:scene]
+                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view :grid true))
+                                                       :setup-rendering-fn setup-rendering}}))
