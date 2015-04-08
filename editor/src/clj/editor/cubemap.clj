@@ -150,6 +150,7 @@
                                     :ext "cubemap"
                                     :node-type CubemapNode
                                     :load-fn load-cubemap
-                                    :setup-view-fn (fn [self view] (scene/setup-view view))
-                                    :setup-rendering-fn setup-rendering
-                                    :icon cubemap-icon))
+                                    :icon cubemap-icon
+                                    :view-types [:scene]
+                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view))
+                                                       :setup-rendering-fn setup-rendering}}))

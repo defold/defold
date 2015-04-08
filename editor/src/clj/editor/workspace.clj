@@ -22,6 +22,7 @@ ordinary paths."
   (source-type [this])
   (read-only? [this])
   (path [this])
+  (abs-path [this])
   (url [this])
   (resource-name [this]))
 
@@ -43,6 +44,7 @@ ordinary paths."
   (source-type [this] (if (.isFile file) :file :folder))
   (read-only? [this] (.canRead file))
   (path [this] (relative-path (File. (:root workspace)) file))
+  (abs-path [this] (.getAbsolutePath  file))
   (url [this] (str "file:/" (relative-path (File. (:root workspace)) file)))
   (resource-name [this] (.getName file))
 
@@ -61,6 +63,7 @@ ordinary paths."
   (source-type [this] :file)
   (read-only? [this] false)
   (path [this] nil)
+  (abs-path [this] nil)
   (url [this] nil)
   (resource-name [this] nil)
 
@@ -87,12 +90,15 @@ ordinary paths."
   (let [root-node (create-resource-tree self (File. root))]
     (tree-seq #(= :folder (source-type %1)) :children root-node)))
 
-(defn register-resource-type [workspace & {:keys [ext node-type load-fn setup-view-fn setup-rendering-fn icon]}]
+(defn get-view-type [workspace id]
+  (get (:view-types workspace) id))
+
+(defn register-resource-type [workspace & {:keys [ext node-type load-fn icon view-types view-fns]}]
   (let [resource-type {:node-type node-type
                        :load-fn load-fn
-                       :setup-view-fn setup-view-fn
-                       :setup-rendering-fn setup-rendering-fn
-                       :icon icon}
+                       :icon icon
+                       :view-types (map (partial get-view-type workspace) view-types)
+                       :view-fns view-fns}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext ext)]
                          (map (fn [ext] (assoc resource-type :ext ext)) ext))]
@@ -115,11 +121,18 @@ ordinary paths."
 (g/defnode Workspace
   (property root t/Str)
   (property opened-files t/Any (default (atom #{})))
+  (property view-types t/Any)
   (property resource-types t/Any)
 
   (output resource-list t/Any produce-resource-list)
   (output resource-tree FileResource produce-root)
   (output resource-types t/Any (g/fnk [resource-types] resource-types)))
+
+(defn make-workspace [graph project-path]
+  (first
+    (ds/tx-nodes-added
+      (ds/transact
+        (g/make-node graph Workspace :root project-path :view-types {:default {:id :default}})))))
 
 (defn- wrap-stream [workspace stream file]
   (swap! (:opened-files workspace)
@@ -135,3 +148,7 @@ ordinary paths."
 (defn workspace-graph
   []
   (g/make-graph :volatility 0))
+
+(defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
+  (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
+     (g/update-property workspace :view-types assoc (:id view-type) view-type)))

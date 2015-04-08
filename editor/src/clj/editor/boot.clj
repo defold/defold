@@ -10,6 +10,7 @@
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [editor.project :as project]
+            [editor.asset-browser :as asset-browser]
             [editor.outline-view :as outline-view]
             [editor.properties-view :as properties-view]
             [editor.graph-view :as graph-view]
@@ -45,6 +46,7 @@
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
+           [java.awt Desktop]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
 (defn- fill-control [control]
@@ -90,7 +92,6 @@
   (property a-vector t/Vec3 (default [1 2 3]))
   (property a-color t/Color (default [1 0 0 1]))
 
-
   (on :load
       (g/set-property self :text (slurp (:filename self)))))
 
@@ -106,67 +107,24 @@
 
 (defn- create-editor [workspace project resource root]
   (let [resource-node (project/get-resource-node project resource)
-        resource-type (project/get-resource-type resource-node)]
-    (when (and resource-type (:setup-rendering-fn resource-type))
-      (let [setup-view-fn (:setup-view-fn resource-type)
-            setup-rendering-fn (:setup-rendering-fn resource-type)
-            tab-pane   (.lookup root "#editor-tabs")
+        resource-type (project/get-resource-type resource-node)
+        view-type (first (:view-types resource-type))]
+    (if-let [make-view-fn (:make-view-fn view-type)]
+      (let [tab-pane   (.lookup root "#editor-tabs")
             parent     (AnchorPane.)
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             ;; TODO Delete this graph when the tab is closed.
             view-graph (ds/attach-graph (g/make-graph :volatility 100))
-            view       (scene/make-scene-view view-graph parent tab)]
-        (.setGraphic tab (jfx/get-image-view "cog.png"))
+            view       (make-view-fn view-graph parent ((:id view-type) (:view-fns resource-type)) resource-node)]
+        (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.select (.getSelectionModel tab-pane) tab)
-        (ds/transact (setup-view-fn resource-node view))
-        (let [view (g/refresh view)]
-          (ds/transact (setup-rendering-fn resource-node view)))
         (project/select project [resource-node])
-        (outline-view/setup (.lookup root "#outline") resource-node (fn [items] (on-outline-selection-fn project items)))))))
-
-(declare tree-item)
-
-; TreeItem creator
-(defn- list-children [parent]
-  (let [children (:children parent)]
-    (if (empty? children)
-      (FXCollections/emptyObservableList)
-      (doto (FXCollections/observableArrayList)
-        (.addAll (map tree-item children))))))
-
-; NOTE: Without caching stack-overflow... WHY?
-(defn tree-item [parent]
-  (let [cached (atom false)]
-    (proxy [TreeItem] [parent]
-      (isLeaf []
-        (not= :folder (workspace/source-type (.getValue this))))
-      (getChildren []
-        (let [children (proxy-super getChildren)]
-          (when-not @cached
-            (reset! cached true)
-            (.setAll children (list-children (.getValue this))))
-          children)))))
+        (outline-view/setup (.lookup root "#outline") resource-node (fn [items] (on-outline-selection-fn project items))))
+      (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))
 
 (defn- setup-asset-browser [workspace project root]
-  (let [tree (.lookup root "#assets")
-        tab-pane (.lookup root "#editor-tabs")
-        handler (reify EventHandler
-                  (handle [this e]
-                    (when (= 2 (.getClickCount e))
-                      (let [item (-> tree (.getSelectionModel) (.getSelectedItem))
-                            resource (.getValue item)]
-                        (when (= :file (workspace/source-type resource))
-                          (create-editor workspace project resource root))))))]
-    (.setOnMouseClicked tree handler)
-    (.setCellFactory tree (reify Callback (call ^TreeCell [this view]
-                                            (proxy [TreeCell] []
-                                              (updateItem [resource empty]
-                                                (proxy-super updateItem resource empty)
-                                                (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
-                                                  (proxy-super setText name))
-                                                (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource))))))))
-    (.setRoot tree (tree-item (g/node-value workspace :resource-tree)))))
+  (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (create-editor workspace project resource root))))
 
 (defn- bind-menus [menu handler]
   (cond
@@ -213,12 +171,13 @@
     (n/dispatch-message (ds/now) node :create :parent (.lookup root place))))
 
 (defn setup-workspace [project-path]
-  (first
-    (ds/tx-nodes-added
+  (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
+    (ds/transact
+      (concat
+        (scene/register-view-types workspace)))
+    (let [workspace (g/refresh workspace)]
       (ds/transact
-        (g/make-nodes
-          *workspace-graph*
-          [workspace [workspace/Workspace :root project-path]]
+        (concat
           (collection/register-resource-types workspace)
           (game-object/register-resource-types workspace)
           (cubemap/register-resource-types workspace)
@@ -226,7 +185,8 @@
           (atlas/register-resource-types workspace)
           (platformer/register-resource-types workspace)
           (switcher/register-resource-types workspace)
-          (sprite/register-resource-types workspace))))))
+          (sprite/register-resource-types workspace))))
+    (g/refresh workspace)))
 
 (defn open-project
   [^File game-project-file]

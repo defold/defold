@@ -8,6 +8,7 @@
             [dynamo.types :refer [IDisposable dispose]]
             [dynamo.background :as background]
             [dynamo.grid :as grid]
+            [editor.workspace :as workspace]
             [editor.camera :as c]
             [editor.core :as core]
             [editor.input :as i]
@@ -192,12 +193,8 @@
              (.destroy drawable))
            ))
 
-(defn make-scene-view [scene-graph ^Parent parent ^Tab tab]
+(defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
-    (AnchorPane/setTopAnchor image-view 0.0)
-    (AnchorPane/setBottomAnchor image-view 0.0)
-    (AnchorPane/setLeftAnchor image-view 0.0)
-    (AnchorPane/setRightAnchor image-view 0.0)
     (.add (.getChildren ^Pane parent) image-view)
     (let [view (first (ds/tx-nodes-added (ds/transact (g/make-node scene-graph SceneView :image-view image-view))))]
       (let [self-ref (g/node-id view)
@@ -226,13 +223,8 @@
                                 (let [image (g/node-value self :image)]
                                   (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
           (ds/transact (g/set-property view :repainter repainter))
-          (.start repainter))
-        (.addListener (.selectedProperty tab) (reify ChangeListener (changed [this observable old-val new-val]
-                                                                      (let [self (g/node-by-id (ds/now) self-ref)]
-                                                                        (ds/transact
-                                                                         (g/set-property self :visible new-val))))))
-        )
-      view)))
+          (.start repainter)))
+      (g/refresh view))))
 
 (g/defnode PreviewView
   (inherits core/Scope)
@@ -271,3 +263,25 @@
                     (let [grid (first (ds/tx-nodes-added (ds/transact (g/make-node view-graph grid/Grid))))]
                       (g/connect grid   :renderable renderer :renderables)
                       (g/connect camera :camera     grid     :camera))))))
+
+(defn make-view [graph ^Parent parent view-fns resource-node]
+  (let [view               (make-scene-view graph parent)
+        setup-view-fn      (:setup-view-fn view-fns)
+        setup-rendering-fn (:setup-rendering-fn view-fns)]
+    (ds/transact (setup-view-fn resource-node view))
+    (ds/transact (setup-rendering-fn resource-node (g/refresh view)))
+    (g/refresh view)))
+
+(defn make-preview [graph view-fns resource-node width height]
+  (let [view               (make-preview-view graph width height)
+        setup-view-fn      (:setup-view-fn view-fns)
+        setup-rendering-fn (:setup-rendering-fn view-fns)]
+    (ds/transact (setup-view-fn resource-node view))
+    (ds/transact (setup-rendering-fn resource-node (g/refresh view)))
+    (g/refresh view)))
+
+(defn register-view-types [workspace]
+                               (workspace/register-view-type workspace
+                                                             :id :scene
+                                                             :make-view-fn make-view
+                                                             :make-preview-fn make-preview))

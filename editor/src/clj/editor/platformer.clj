@@ -223,6 +223,7 @@
                                     :ext "platformer"
                                     :node-type PlatformerNode
                                     :load-fn load-level
-                                    :setup-view-fn (fn [self view] (scene/setup-view view :grid true))
-                                    :setup-rendering-fn setup-rendering
-                                    :icon platformer-icon))
+                                    :icon platformer-icon
+                                    :view-types [:scene]
+                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view :grid true))
+                                                       :setup-rendering-fn setup-rendering}}))

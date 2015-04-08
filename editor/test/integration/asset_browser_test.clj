@@ -26,12 +26,13 @@
 (def project-path "resources/test_project")
 
 (defn- load-test-workspace [graph]
-  (first
-    (ds/tx-nodes-added
+  (let [workspace (workspace/make-workspace graph project-path)]
+    (ds/transact
+      (concat
+        (scene/register-view-types workspace)))
+    (let [workspace (g/refresh workspace)]
       (ds/transact
-        (g/make-nodes
-          graph
-          [workspace [workspace/Workspace :root project-path]]
+        (concat
           (collection/register-resource-types workspace)
           (game-object/register-resource-types workspace)
           (cubemap/register-resource-types workspace)
@@ -39,7 +40,8 @@
           (atlas/register-resource-types workspace)
           (platformer/register-resource-types workspace)
           (switcher/register-resource-types workspace)
-          (sprite/register-resource-types workspace))))))
+          (sprite/register-resource-types workspace))))
+    (g/refresh workspace)))
 
 (deftest workspace-tree
   (testing "The file system can be retrieved as a tree"
@@ -66,22 +68,22 @@
                             (g/connect workspace :resource-types project :resource-types)))))
             resources (g/node-value workspace :resource-list)
             project   (project/load-project project resources)
-            #_queries #_["**/atlas_sprite.collection"]
+            #_queries #_["**/atlas_sprite.go"]
             queries ["**/atlas.atlas" "**/env.cubemap" "**/level1.platformer" "**/level01.switcher" "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
         (doseq [query queries
                 :let [results (project/find-resources project query)]]
           (is (= 1 (count results)))
           (let [resource-node (get (first results) 1)
                 resource-type (project/get-resource-type resource-node)
-                setup-view-fn (:setup-view-fn resource-type)
-                setup-rendering-fn (:setup-rendering-fn resource-type)]
-            (let [view (scene/make-preview-view view-graph 128 128)]
-              (ds/transact (setup-view-fn resource-node view))
-              (ds/transact (setup-rendering-fn resource-node (g/refresh view)))
-              (let [view (g/refresh view)
-                    image (g/node-value view :frame)]
-                (is (not (nil? image)))
-                #_(let [file (File. "test.png")]
-                   (ImageIO/write image "png" file))))))))))
+                view-type (first (:view-types resource-type))
+                make-preview-fn (:make-preview-fn view-type)
+                view-fns ((:id view-type) (:view-fns resource-type))
+                setup-view-fn (:setup-view-fn view-fns)
+                setup-rendering-fn (:setup-rendering-fn view-fns)
+                view (make-preview-fn view-graph view-fns resource-node 128 128)]
+            (let [image (g/node-value view :frame)]
+              (is (not (nil? image)))
+              #_(let [file (File. "test.png")]
+                 (ImageIO/write image "png" file)))))))))
 
 #_(asset-browser-search)

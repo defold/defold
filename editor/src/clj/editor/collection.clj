@@ -44,8 +44,9 @@
 
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon game-object/game-object-icon})))
   (output render-setup t/Any (g/fnk [source]
-                                    (let [resource-type (project/get-resource-type source)]
-                                      {:self source :setup-rendering-fn (:setup-rendering-fn resource-type)}))))
+                                    (let [resource-type (project/get-resource-type source)
+                                          view-fns (:scene (:view-fns resource-type))]
+                                      {:self source :setup-rendering-fn (:setup-rendering-fn view-fns)}))))
 
 (g/defnode CollectionNode
   (inherits project/ResourceNode)
@@ -69,8 +70,9 @@
   
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon collection-icon})))
   (output render-setup t/Any (g/fnk [source]
-                                    (let [resource-type (project/get-resource-type source)]
-                                      {:self source :setup-rendering-fn (:setup-rendering-fn resource-type)}))))
+                                    (let [resource-type (project/get-resource-type source)
+                                          view-fns (:scene (:view-fns resource-type))]
+                                      {:self source :setup-rendering-fn (:setup-rendering-fn view-fns)}))))
 
 (defn load-collection [project self input]
   (let [collection (protobuf/pb->map (protobuf/read-text GameObject$CollectionDesc input))
@@ -120,6 +122,7 @@
                                     :ext "collection"
                                     :node-type CollectionNode
                                     :load-fn load-collection
-                                    :setup-view-fn (fn [self view] (scene/setup-view view :grid true))
-                                    :setup-rendering-fn setup-rendering
-                                    :icon collection-icon))
+                                    :icon collection-icon
+                                    :view-types [:scene]
+                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view :grid true))
+                                                       :setup-rendering-fn setup-rendering}}))
