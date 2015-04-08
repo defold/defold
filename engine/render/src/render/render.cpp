@@ -301,7 +301,6 @@ namespace dmRender
 
                 dmGraphics::EnableProgram(context, GetMaterialProgram(material));
                 ApplyMaterialConstants(render_context, material, ro);
-                ApplyMaterialSamplers(render_context, material);
                 ApplyRenderObjectConstants(render_context, ro);
 
                 if (constant_buffer)
@@ -319,7 +318,11 @@ namespace dmRender
                     if (render_context->m_Textures[i])
                         texture = render_context->m_Textures[i];
                     if (texture)
+                    {
                         dmGraphics::EnableTexture(context, i, texture);
+                        ApplyMaterialSampler(render_context, material, i, texture);
+                    }
+
                 }
 
                 dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
