@@ -53,6 +53,13 @@
   (connect          [this src-id src-label tgt-id tgt-label])
   (disconnect       [this src-id src-label tgt-id tgt-label])
   (connected?       [this src-id src-label tgt-id tgt-label])
+  (dependencies     [this node-id-output-label-pairs]
+    "Follow arcs through the graphs, from outputs to the inputs
+     connected to them, and from those inputs to the downstream
+     outputs that use them, and so on. Continue following links until
+     all reachable outputs are found.
+
+     Returns a collection of [node-id output-label] pairs.")
   (query [this clauses]
     "Query for nodes that match all the clauses. Clauses are
    implicitly anded together.  A clause may be one of the following
