@@ -42,7 +42,8 @@
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id})))
   (output render-setup t/Any (g/fnk [source]
                                     (when-let [resource-type (project/get-resource-type source)]
-                                      {:self source :setup-rendering-fn (:setup-rendering-fn resource-type)}))))
+                                      (let [view-fns (:scene (:view-fns resource-type))]
+                                        {:self source :setup-rendering-fn (:setup-rendering-fn view-fns)})))))
 
 (g/defnode GameObjectNode
   (inherits project/ResourceNode)
@@ -96,6 +97,7 @@
                                     :ext "go"
                                     :node-type GameObjectNode
                                     :load-fn load-game-object
-                                    :setup-view-fn (fn [self view] (scene/setup-view view :grid true))
-                                    :setup-rendering-fn setup-rendering
-                                    :icon game-object-icon))
+                                    :icon game-object-icon
+                                    :view-types [:scene]
+                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view :grid true))
+                                                       :setup-rendering-fn setup-rendering}}))

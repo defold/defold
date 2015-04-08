@@ -186,6 +186,7 @@
                                     :ext "sprite"
                                     :node-type SpriteNode
                                     :load-fn load-sprite
-                                    :setup-view-fn (fn [self view] (scene/setup-view view))
-                                    :setup-rendering-fn setup-rendering
-                                    :icon sprite-icon))
+                                    :icon sprite-icon
+                                    :view-types [:scene]
+                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view))
+                                                       :setup-rendering-fn setup-rendering}}))
