@@ -12,7 +12,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals map-keys map-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types tempid nref->gid nref->nid node-by-id node-by-property sources targets connected? query Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
+(import-vars [internal.graph.types tempid nref->gid nref->nid node-by-id node-by-property sources targets connected? dependencies query Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
@@ -332,4 +332,4 @@
    given outputs.  Outputs are specified as pairs of [node-id label]
    for both the argument and return value."
   [basis outputs]
-  (ig/trace-dependencies basis outputs))
+  (dependencies basis outputs))
