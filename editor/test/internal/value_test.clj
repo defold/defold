@@ -219,3 +219,38 @@
       (is (= :property (g/node-value node :the-property)))
       (is (= :output   (g/node-value node :output-using-overloaded-output-input-property)))
       (is (= :input    (g/node-value node :eponymous))))))
+
+(deftest invalidation-across-graphs
+  (with-clean-system
+    (let [project-graph (ds/attach-graph-with-history (g/make-graph))
+          view-graph    (ds/attach-graph (g/make-graph :volatility 100))
+          [content-node aux-node] (tx-nodes (g/make-node project-graph CacheTestNode :scalar "Snake")
+                                            (g/make-node project-graph CacheTestNode :scalar "Plissken"))
+          [view-node]    (tx-nodes (g/make-node view-graph CacheTestNode))]
+      (ds/transact
+       [(g/connect content-node :scalar view-node :first-name)
+        (g/connect aux-node     :scalar view-node :last-name)])
+
+      (expect-call-when
+       view-node 'compute-derived-value
+       (is (= "Snake Plissken" (g/node-value view-node :derived-value))))
+
+      (ds/transact (g/set-property aux-node :scalar "Solid"))
+
+      (expect-call-when
+       view-node 'compute-derived-value
+       (is (= "Snake Solid" (g/node-value view-node :derived-value))))
+
+      (ds/transact
+       [(g/disconnect     aux-node :scalar view-node :last-name)
+        (g/disconnect content-node :scalar view-node :first-name)
+        (g/connect        aux-node :scalar view-node :first-name)
+        (g/connect    content-node :scalar view-node :last-name)])
+
+      (expect-call-when
+       view-node 'compute-derived-value
+       (is (= "Solid Snake" (g/node-value view-node :derived-value))))
+
+      (expect-no-call-when
+       view-node 'compute-derived-value
+       (is (= "Solid Snake" (g/node-value view-node :derived-value)))))))
