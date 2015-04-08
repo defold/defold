@@ -66,7 +66,7 @@ ordinary paths."
   "Return a lazy sequence of all nodes in this project. There is no
 guaranteed ordering of the sequence."
   [project-node]
-  (g/query (ds/now) [[:_id (:_id project-node)] '(input :nodes)]))
+  (g/node-value project-node :nodes))
 
 (g/defnode Project
   (inherits core/Scope)

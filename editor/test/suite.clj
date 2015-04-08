@@ -31,6 +31,10 @@
                        potemkin.imports-test
                        potemkin.namespaces-test])
 
+(def integration-test-namespaces '[editor.atlas-test
+                                   integration.undo-test
+                                   integration.asset-browser-test])
+
 (def builtin-basedir (io/file "../com.dynamo.cr/com.dynamo.cr.builtins"))
 
 (defn file?      [f]   (.isFile f))
@@ -46,4 +50,12 @@
     (Compiler/loadFile (str f))))
 
 (defn suite []
+  (doseq [n test-namespaces]
+    (require n))
   (apply test/run-tests test-namespaces))
+
+
+(defn integration-tests []
+  (doseq [n integration-test-namespaces]
+    (require n))
+  (apply test/run-tests integration-test-namespaces))
