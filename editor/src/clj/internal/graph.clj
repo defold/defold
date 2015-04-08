@@ -1,5 +1,5 @@
 (ns internal.graph
-  (:require [dynamo.util :refer [removev]]
+  (:require [dynamo.util :refer [removev map-vals]]
             [internal.graph.types :as gt]))
 
 (deftype ArcBase [source target sourceLabel targetLabel]
@@ -31,10 +31,6 @@
    :tarcs   []
    :tx-id   0})
 
-(defn- remove-arc
-  [g key arc]
-  (assoc g key (removev #(= arc %) (get g key))))
-
 (defn node-ids    [g] (keys (:nodes g)))
 (defn node-values [g] (vals (:nodes g)))
 
@@ -53,7 +49,7 @@
   [g n]
   (-> g
       (update :nodes dissoc n)
-      (update :tarcs (fn [s] (removev #(or (= n (.source %)) (= n (.target %))) s)))))
+      (update :tarcs (fn [s] (removev #(= n (.target %)) s)))))
 
 (defn transform-node
   [g n f & args]
@@ -88,8 +84,22 @@
 
 (defn disconnect-target
   [g source source-label target target-label]
-  (remove-arc g :tarcs (arc source target source-label target-label)))
+  (update g :tarcs
+          (fn [tarcs]
+            (removev
+             #(and (= source       (.source %))
+                   (= target       (.target %))
+                   (= source-label (.sourceLabel %))
+                   (= target-label (.targetLabel %)))
+             tarcs))))
 
+(defn purge-arcs-from
+  [g source]
+  (update g :tarcs
+          (fn [tarcs]
+            (removev
+             #(= source (.source %))
+             tarcs))))
 
 (defmacro for-graph
   [gsym bindings & body]
@@ -129,17 +139,21 @@
   (node-by-id
     [_ node-id]
     (node (nref->graph graphs node-id) node-id))
+
   (node-by-property
     [_ label value]
     (filter #(= value (get % label)) (mapcat vals graphs)))
+
   (sources
     [this node-id label]
     (filter #(gt/node-by-id this (first %))
             (sources (nref->graph graphs node-id) node-id label)))
+
   (targets
     [this node-id label]
     (filter #(gt/node-by-id this (first %))
             (map gt/tail (mapcat #(arcs-from-source % node-id label) (vals graphs)))))
+
   (add-node
     [this tempid value]
     (let [gid         (gt/nref->gid tempid)
@@ -147,30 +161,29 @@
           node-id     (gt/make-nref gid nid)
           node        (assoc value :_id node-id)
           graph       (add-node graph node-id node)]
-      [(update-in this [:graphs] assoc gid graph)
-       node-id
-       node]))
+      [(update this :graphs assoc gid graph) node-id node]))
+
   (delete-node
     [this node-id]
-    (let [node (gt/node-by-id this node-id)
-          gid  (gt/nref->gid node-id)
+    (let [node  (gt/node-by-id this node-id)
+          gid   (gt/nref->gid node-id)
           graph (remove-node (nref->graph graphs node-id) node-id)]
-      [(update-in this [:graphs] assoc gid graph)
-       node]))
+      [(update this :graphs assoc gid graph) node]))
+
   (replace-node
     [this node-id new-node]
     (let [gid   (gt/nref->gid node-id)
           graph (replace-node (nref->graph graphs node-id) node-id (assoc new-node :_id node-id))
           node  (node graph node-id)]
-      [(update-in this [:graphs] assoc gid graph)
-       node]))
+      [(update this :graphs assoc gid graph) node]))
+
   (update-property
     [this node-id property f args]
     (let [gid   (gt/nref->gid node-id)
           graph (apply transform-node (nref->graph graphs node-id) node-id update-in [property] f args)
           node  (node graph node-id)]
-      [(update-in this [:graphs] assoc gid graph)
-       node]))
+      [(update this :graphs assoc gid graph) node]))
+
   (connect
     [this src-id src-label tgt-id tgt-label]
     (let [src-graph (nref->graph graphs src-id)
@@ -179,12 +192,14 @@
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
       (update this :graphs assoc
               tgt-gid (connect-target tgt-graph src-id src-label tgt-id tgt-label))))
+
   (disconnect
     [this src-id src-label tgt-id tgt-label]
     (let [tgt-gid   (gt/nref->gid tgt-id)
           tgt-graph (get graphs tgt-gid)]
       (update this :graphs assoc
               tgt-gid (disconnect-target tgt-graph src-id src-label tgt-id tgt-label))))
+
   (connected?
     [this src-id src-label tgt-id tgt-label]
     (let [tgt-graph (nref->graph graphs tgt-id)]

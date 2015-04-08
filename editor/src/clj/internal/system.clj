@@ -159,7 +159,7 @@
 
 (defn detach-graph
   [s g]
-  (let [gid (:_gid g)]
+  (let [gid (if (map? g) (:_gid g) g)]
     (update-in s [:graphs] dissoc gid)))
 
 (defn make-system

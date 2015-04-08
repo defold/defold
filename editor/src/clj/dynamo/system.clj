@@ -158,6 +158,12 @@
   []
   (is/last-graph @*the-system*))
 
+(defn delete-graph
+  [graph-id]
+  (when-let [graph (is/graph @*the-system* graph-id)]
+    (transact (mapv it/delete-node (ig/node-ids graph)))
+    (swap! *the-system* is/detach-graph graph-id)))
+
 (defn undo
   [graph]
   (is/undo-history (is/graph-history @*the-system* graph)))

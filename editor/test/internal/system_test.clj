@@ -315,3 +315,89 @@
                  [(id pipe-p1)   :soft]
                  [(id sink-a1)   :loud]
                  [(id source-p1) :source-label]}))))))
+
+(defn bump-counter
+  [transaction graph self & _]
+  (swap! (:counter self) inc)
+  [])
+
+(g/defnode CountOnDelete
+  (trigger deletion :deleted #'bump-counter))
+
+(deftest graph-deletion
+  (testing "Deleting a view (non-history) graph"
+    (ts/with-clean-system
+      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))
+            agraph-id (ds/attach-graph (g/make-graph :volatility 10))]
+
+        (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node pgraph-id Source :source-label "first")
+                                                       (g/make-node pgraph-id Pipe)
+                                                       (g/make-node pgraph-id Sink))
+
+              [source-a1 sink-a1 sink-a2] (ts/tx-nodes (g/make-node agraph-id Source :source-label "second")
+                                                       (g/make-node agraph-id Sink)
+                                                       (g/make-node agraph-id Sink))]
+
+          (ds/transact
+           [(g/connect source-p1 :source-label sink-p1 :target-label)
+            (g/connect source-p1 :source-label pipe-p1 :target-label)
+            (g/connect pipe-p1   :soft         sink-a1 :target-label)
+            (g/connect source-a1 :source-label sink-a2 :target-label)])
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
+
+          (ds/delete-graph agraph-id)
+
+          (is (= 2 (count (is/graphs @ds/*the-system*))))
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
+
+          (is (= (g/dependencies (ds/now) [[(id source-p1) :source-label]])
+                 #{[(id sink-p1)   :loud]
+                   [(id pipe-p1)   :soft]
+                   [(id source-p1) :source-label]}))))))
+
+  (testing "Nodes in a deleted graph are deleted"
+    (ts/with-clean-system
+      (let [ctr       (atom 0)
+            pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+        (let [nodes (ts/tx-nodes
+                     (for [n (range 100)]
+                       (g/make-node pgraph-id CountOnDelete :counter ctr)))]
+          (ds/delete-graph pgraph-id)
+
+          (is (= 100 @ctr))))))
+
+  (testing "Deleting a graph with history"
+    (ts/with-clean-system
+      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))
+            agraph-id (ds/attach-graph (g/make-graph :volatility 10))]
+
+        (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node pgraph-id Source :source-label "first")
+                                                       (g/make-node pgraph-id Pipe)
+                                                       (g/make-node pgraph-id Sink))
+
+              [source-a1 sink-a1 sink-a2] (ts/tx-nodes (g/make-node agraph-id Source :source-label "second")
+                                                       (g/make-node agraph-id Sink)
+                                                       (g/make-node agraph-id Sink))]
+
+          (ds/transact
+           [(g/connect source-p1 :source-label sink-p1 :target-label)
+            (g/connect source-p1 :source-label pipe-p1 :target-label)
+            (g/connect pipe-p1   :soft         sink-a1 :target-label)
+            (g/connect source-a1 :source-label sink-a2 :target-label)])
+
+          (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
+
+          (ds/delete-graph pgraph-id)
+
+          (is (= 2 (count (is/graphs @ds/*the-system*))))
+
+          (is (nil? (is/graph-ref @ds/*the-system* pgraph-id)))
+
+          ;; This documents current behavior: we leave dangling arcs so undo in the project graph "reconnects" to them
+          (is (not (empty? (ig/arcs-from-source (is/graph @ds/*the-system* agraph-id) (id pipe-p1) :soft))))
+
+          (is (= (g/dependencies (ds/now) [[(id source-a1) :source-label]])
+                 #{[(id sink-a2)   :loud]
+                   [(id source-a1) :source-label]})))))))
