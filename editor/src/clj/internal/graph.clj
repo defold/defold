@@ -227,11 +227,11 @@
         affected-outputs           (marked-outputs basis target-node target-input)]
     [target-node affected-outputs]))
 
+(definline nref->graph  [gs node-id] `(get ~gs (gt/nref->gid ~node-id)))
+
 ;; ---------------------------------------------------------------------------
 ;; Support for transactions
 ;; ---------------------------------------------------------------------------
-(definline nref->graph  [gs node-id] `(get ~gs (gt/nref->gid ~node-id)))
-
 (declare multigraph-basis)
 
 (defrecord MultigraphBasis [graphs]
@@ -314,6 +314,18 @@
           tgt-graph (nref->graph graphs tgt-id)]
       (or (source-connected? src-graph src-id src-label tgt-id tgt-label)
           (target-connected? tgt-graph src-id src-label tgt-id tgt-label))))
+
+  (dependencies
+    [this to-be-marked]
+    (loop [already-marked       #{}
+           to-be-marked         to-be-marked
+           iterations-remaining maximum-graph-coloring-recursion]
+      (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
+      (if (empty? to-be-marked)
+        already-marked
+        (let [next-wave (mapcat #(apply marked-downstream-nodes this %)  to-be-marked)]
+          (recur (into already-marked to-be-marked) next-wave (dec iterations-remaining))))))
+
   (query
     [this clauses]
     (let [fan-out (map #(query % clauses) (vals graphs))
@@ -323,22 +335,3 @@
 (defn multigraph-basis
   [graphs]
   (MultigraphBasis. graphs))
-
-;; ---------------------------------------------------------------------------
-;; API
-;; ---------------------------------------------------------------------------
-(defn trace-dependencies
-  "Follow arcs through the graph, from outputs to the inputs connected
-  to them, and from those inputs to the downstream outputs that use
-  them, and so on. Continue following links until all reachable
-  outputs are found.
-
-  Returns a collection of [node-id output-label] pairs."
-  ([basis to-be-marked]
-   (trace-dependencies basis #{} to-be-marked maximum-graph-coloring-recursion))
-  ([basis already-marked to-be-marked iterations-remaining]
-   (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
-   (if (empty? to-be-marked)
-     already-marked
-     (let [next-wave (mapcat #(apply marked-downstream-nodes basis %)  to-be-marked)]
-       (recur basis (into already-marked to-be-marked) next-wave (dec iterations-remaining))))))

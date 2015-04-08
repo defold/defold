@@ -389,9 +389,8 @@
    :txpass              0})
 
 (defn- trace-dependencies
-  [{:keys [basis outputs-modified] :as ctx}]
-  (update-in ctx [:outputs-modified]
-             #(ig/trace-dependencies basis %)))
+  [ctx]
+  (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
 
 (defn transact*
   [ctx]
