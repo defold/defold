@@ -261,7 +261,7 @@ namespace dmRender
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
-    void                            ApplyMaterialSamplers(dmRender::HRenderContext render_context, HMaterial material);
+    void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, int unit, dmGraphics::HTexture texture);
 
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
@@ -292,7 +292,7 @@ namespace dmRender
     bool                            GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t element_index, float& out_value);
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4 constant);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
-    void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit);
+    void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
 
     uint64_t                        GetMaterialUserData1(HMaterial material);
