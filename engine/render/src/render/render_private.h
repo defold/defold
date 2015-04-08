@@ -38,8 +38,8 @@ namespace dmRender
             : m_NameHash(0)
             , m_Location(-1)
             , m_Unit(unit)
-            , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
-            , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR) // TODO(sven): get default params somehow/somewhere
+            , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+            , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
         {
