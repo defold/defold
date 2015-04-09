@@ -68,6 +68,26 @@ guaranteed ordering of the sequence."
   [project-node]
   (g/query (ds/now) [[:_id (:_id project-node)] '(input :nodes)]))
 
+(g/defnk produce-menu [self]
+  (let [project-graph (g/nref->gid (g/node-id self))]
+    [{:label "Edit"
+      :children [{:label (fn [] (let [label "Undo"]
+                                  (if-let [op-label (:label (last (ds/undo-stack project-graph)))]
+                                    (format "%s %s" label op-label)
+                                    label)))
+                  :icon "icons/undo.png"
+                  :acc "Shortcut+Z"
+                  :handler-fn (fn [event] (ds/undo project-graph))
+                  :enable-fn (fn [] (ds/has-undo? project-graph))}
+                 {:label (fn [] (let [label "Redo"]
+                                  (if-let [op-label (:label (last (ds/redo-stack project-graph)))]
+                                    (format "%s %s" label op-label)
+                                    label)))
+                  :icon "icons/redo.png"
+                  :acc "Shift+Shortcut+Z"
+                  :handler-fn (fn [event] (ds/redo project-graph))
+                  :enable-fn (fn [] (ds/has-redo? project-graph))}]}]))
+
 (g/defnode Project
   (inherits core/Scope)
 
@@ -75,7 +95,9 @@ guaranteed ordering of the sequence."
 
   (input selection t/Any)
   (input resources t/Any)
-  (input resource-types t/Any))
+  (input resource-types t/Any)
+  
+  (output menu t/Any :cached produce-menu))
 
 (defn get-resource-type [resource-node]
   (when resource-node (workspace/resource-type (:resource resource-node))))
@@ -108,6 +130,7 @@ guaranteed ordering of the sequence."
   (let [selection-node (g/node-value project :selection)]
     (ds/transact
       (concat
+        (g/operation-label "Select")
         (for [[node label] (g/sources-of (ds/now) selection-node :selected-nodes)]
            (g/disconnect node label selection-node :selected-nodes))
         (for [node nodes]
