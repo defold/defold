@@ -128,10 +128,10 @@
   (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (create-editor workspace project resource root))))
 
 (defn setup-menu [graph menu-bar]
-  (menu/make-menu graph menu-bar [{:label "File" :children []}
-                                  {:label "Edit" :children []}
-                                  {:label "Help" :children [{:label "About Defold"
-                                                             :handler-fn (fn [event] (prn "ABOUT!"))}]}]))
+  (menu/make-menu-node graph menu-bar [{:label "File" :children []}
+                                       {:label "Edit" :children []}
+                                       {:label "Help" :children [{:label "About Defold"
+                                                                  :handler-fn (fn [event] (prn "ABOUT!"))}]}]))
 
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
