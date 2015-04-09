@@ -53,18 +53,13 @@
   (connect          [this src-id src-label tgt-id tgt-label])
   (disconnect       [this src-id src-label tgt-id tgt-label])
   (connected?       [this src-id src-label tgt-id tgt-label])
-  (query [this clauses]
-    "Query for nodes that match all the clauses. Clauses are
-   implicitly anded together.  A clause may be one of the following
-   forms:
+  (dependencies     [this node-id-output-label-pairs]
+    "Follow arcs through the graphs, from outputs to the inputs
+     connected to them, and from those inputs to the downstream
+     outputs that use them, and so on. Continue following links until
+     all reachable outputs are found.
 
-[:attribute value] - returns nodes that contain the given attribute and value.
-(protocol protocolname) - returns nodes that satisfy the given protocol
-(input fromnode)        - returns nodes that have 'fromnode' as an input
-(output tonode)         - returns nodes that have 'tonode' as an output
-
-   All the list forms look for symbols in the first position. Be sure
-   to quote the list to distinguish it from a function call."))
+     Returns a collection of [node-id output-label] pairs."))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers

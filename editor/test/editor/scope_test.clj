@@ -75,28 +75,22 @@
 
 (g/defnode Emitter
   (property name t/Str))
+
 (g/defnode Modifier
   (property name t/Str))
-
-(defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
-
-(defn q [clauses] (solo (g/query (ds/now) clauses)))
 
 (deftest scope-registration
   (testing "Nodes are registered within a scope by name"
     (with-clean-system
-      (ds/transact
-       (g/make-nodes
-        world
-        [view     [ParticleEditor :label "view scope"]
-         emitter  [Emitter  :name "emitter"]
-         modifier [Modifier :name "vortex"]]
-        (g/connect emitter  :self view :nodes)
-        (g/connect modifier :self view :nodes)))
-      (let [scope-node (q [[:label "view scope"]])]
-        (are [n] (identical? (t/lookup scope-node n) (q [[:name n]]))
-             "emitter"
-             "vortex")))))
+      (let [[view emitter modifier] (tx-nodes (g/make-node world ParticleEditor)
+                                              (g/make-node world Emitter :name "emitter")
+                                              (g/make-node world Modifier :name "vortex"))]
+        (ds/transact
+         [(g/connect emitter  :self view :nodes)
+          (g/connect modifier :self view :nodes)])
+
+        (is (identical? (t/lookup view "emitter") emitter))
+        (is (identical? (t/lookup view "vortex")  modifier))))))
 
 (g/defnode DisposableNode
   t/IDisposable
@@ -106,11 +100,12 @@
   (prop/for-all [node-count gen/pos-int]
     (with-clean-system
       (let [[scope]        (tx-nodes (g/make-node world core/Scope))
-            disposables    (ds/tx-nodes-added
-                            (ds/transact
-                             (for [n (range node-count)]
-                               (g/make-node world DisposableNode))))
-            disposable-ids (map :_id disposables)]
+            tx-result      (ds/transact
+                            (for [n (range node-count)]
+                              (g/make-node world DisposableNode)))
+            disposable-ids (map second (:tempids tx-result))]
+        (ds/transact (for [i disposable-ids]
+                       (g/connect i :self scope :nodes)))
         (ds/transact (g/delete-node scope))
         (yield)
         (let [disposed (take-waiting-to-dispose system)]

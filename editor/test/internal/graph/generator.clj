@@ -67,15 +67,13 @@
 (defn- populate-arcs
   [new-arcs]
   (mapcat (fn [a]
-            [`(g/connect-source ~@(flatten a))
-             `(g/connect-target ~@(flatten a))])
+            `[(g/connect-target ~@(flatten a))])
           new-arcs))
 
 (defn- remove-arcs
   [dead-arcs]
   (mapcat (fn [a]
-            [`(g/disconnect-source ~@(flatten a))
-             `(g/disconnect-target ~@(flatten a))])
+            `[(g/disconnect-target ~@(flatten a))])
           dead-arcs))
 
 (defn subselect
