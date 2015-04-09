@@ -239,7 +239,7 @@
 
 (defn setup-view [view & kvs]
   (let [opts (into {} (map vec (partition 2 kvs)))
-        view-graph (g/nref->gid (g/node-id view))]
+        view-graph (g/node->graph-id view)]
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
                    background background/Gradient

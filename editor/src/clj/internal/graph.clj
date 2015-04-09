@@ -128,7 +128,7 @@
         affected-outputs           (marked-outputs basis target-node target-input)]
     [target-node affected-outputs]))
 
-(definline nref->graph  [gs node-id] `(get ~gs (gt/nref->gid ~node-id)))
+(definline node-id->graph  [gs node-id] `(get ~gs (gt/node-id->graph-id ~node-id)))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for transactions
@@ -139,7 +139,7 @@
   gt/IBasis
   (node-by-id
     [_ node-id]
-    (node (nref->graph graphs node-id) node-id))
+    (node (node-id->graph graphs node-id) node-id))
 
   (node-by-property
     [_ label value]
@@ -148,7 +148,7 @@
   (sources
     [this node-id label]
     (filter #(gt/node-by-id this (first %))
-            (sources (nref->graph graphs node-id) node-id label)))
+            (sources (node-id->graph graphs node-id) node-id label)))
 
   (targets
     [this node-id label]
@@ -157,9 +157,9 @@
 
   (add-node
     [this tempid value]
-    (let [gid         (gt/nref->gid tempid)
+    (let [gid         (gt/node-id->graph-id tempid)
           [graph nid] (claim-id (get graphs gid))
-          node-id     (gt/make-nref gid nid)
+          node-id     (gt/make-node-id gid nid)
           node        (assoc value :_id node-id)
           graph       (add-node graph node-id node)]
       [(update this :graphs assoc gid graph) node-id node]))
@@ -167,28 +167,28 @@
   (delete-node
     [this node-id]
     (let [node  (gt/node-by-id this node-id)
-          gid   (gt/nref->gid node-id)
-          graph (remove-node (nref->graph graphs node-id) node-id)]
+          gid   (gt/node-id->graph-id node-id)
+          graph (remove-node (node-id->graph graphs node-id) node-id)]
       [(update this :graphs assoc gid graph) node]))
 
   (replace-node
     [this node-id new-node]
-    (let [gid   (gt/nref->gid node-id)
-          graph (replace-node (nref->graph graphs node-id) node-id (assoc new-node :_id node-id))
+    (let [gid   (gt/node-id->graph-id node-id)
+          graph (replace-node (node-id->graph graphs node-id) node-id (assoc new-node :_id node-id))
           node  (node graph node-id)]
       [(update this :graphs assoc gid graph) node]))
 
   (update-property
     [this node-id property f args]
-    (let [gid   (gt/nref->gid node-id)
-          graph (apply transform-node (nref->graph graphs node-id) node-id update-in [property] f args)
+    (let [gid   (gt/node-id->graph-id node-id)
+          graph (apply transform-node (node-id->graph graphs node-id) node-id update-in [property] f args)
           node  (node graph node-id)]
       [(update this :graphs assoc gid graph) node]))
 
   (connect
     [this src-id src-label tgt-id tgt-label]
-    (let [src-graph (nref->graph graphs src-id)
-          tgt-gid   (gt/nref->gid tgt-id)
+    (let [src-graph (node-id->graph graphs src-id)
+          tgt-gid   (gt/node-id->graph-id tgt-id)
           tgt-graph (get graphs tgt-gid)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
       (update this :graphs assoc
@@ -196,14 +196,14 @@
 
   (disconnect
     [this src-id src-label tgt-id tgt-label]
-    (let [tgt-gid   (gt/nref->gid tgt-id)
+    (let [tgt-gid   (gt/node-id->graph-id tgt-id)
           tgt-graph (get graphs tgt-gid)]
       (update this :graphs assoc
               tgt-gid (disconnect-target tgt-graph src-id src-label tgt-id tgt-label))))
 
   (connected?
     [this src-id src-label tgt-id tgt-label]
-    (let [tgt-graph (nref->graph graphs tgt-id)]
+    (let [tgt-graph (node-id->graph graphs tgt-id)]
       (target-connected? tgt-graph src-id src-label tgt-id tgt-label)))
 
   (dependencies

@@ -167,7 +167,7 @@
   (let [node (first
               (g/tx-nodes-added
                (g/transact
-                (g/make-node (g/nref->gid (g/node-id game-project)) node-type))))]
+                (g/make-node (g/node->graph-id game-project) node-type))))]
     (n/dispatch-message (g/now) node :create :parent (.lookup root place))))
 
 (defn setup-workspace [project-path]
