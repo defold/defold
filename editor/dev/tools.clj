@@ -21,14 +21,14 @@
   []
   (for [n (nodes)
         :let [node-id (g/node-id n)]]
-    [(gt/nref->gid node-id) (gt/nref->nid node-id) (class n)]))
+    [(gt/node-id->graph-id node-id) (gt/node-id->nid node-id) (class n)]))
 
 (defn node
-  ([nref]
-   (g/node-by-id (g/now) nref))
+  ([node-id]
+   (g/node-by-id (g/now) node-id))
 
   ([gid nid]
-   (g/node-by-id (g/now) (gt/make-nref gid nid))))
+   (g/node-by-id (g/now) (gt/make-node-id gid nid))))
 
 (defn nodes-for-file
   [filename]
@@ -44,14 +44,14 @@
 (defn inputs-to
   ([gid nid label]
    (sort-by first
-            (gt/sources (g/now) (gt/make-nref gid nid) label))))
+            (gt/sources (g/now) (gt/make-node-id gid nid) label))))
 
 (defn outputs-from
   ([node-id label]
    (sort-by first
             (gt/targets (g/now) node-id label)))
   ([gid nid label]
-   (outputs-from (gt/make-nref gid nid) label)))
+   (outputs-from (gt/make-node-id gid nid) label)))
 
 (defn get-value
   [gid nid label]

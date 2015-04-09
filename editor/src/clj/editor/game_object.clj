@@ -50,7 +50,7 @@
   (output aabb AABB (g/fnk [aabbs] (reduce (fn [a b] (geom/aabb-union a b)) (geom/null-aabb) aabbs))))
 
 (defn load-game-object [project self input]
-  (let [project-graph (g/nref->gid (g/node-id self))
+  (let [project-graph (g/node->graph-id self)
         prototype (protobuf/pb->map (protobuf/read-text GameObject$PrototypeDesc input))]
     (concat
       (for [component (:components prototype)]

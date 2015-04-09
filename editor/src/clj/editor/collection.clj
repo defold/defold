@@ -65,7 +65,7 @@
 
 (defn load-collection [project self input]
   (let [collection (protobuf/pb->map (protobuf/read-text GameObject$CollectionDesc input))
-        project-graph (g/nref->gid (g/node-id project))]
+        project-graph (g/node->graph-id project)]
     (concat
       (for [game-object (:instances collection)]
         (g/make-nodes project-graph

@@ -196,7 +196,7 @@
   (let [renderer     (t/lookup view :renderer)
         camera   (t/lookup view :camera)]
     (g/make-nodes
-      (g/nref->gid (g/node-id view))
+      (g/node->graph-id view)
       [platformer-render PlatformerRender]
       (g/connect self              :base-texture   platformer-render :base-texture)
       (g/connect self              :control-points platformer-render :control-points)
@@ -207,7 +207,7 @@
   (let [renderer     (t/lookup view :renderer)
         camera   (t/lookup view :camera)]
     (g/make-nodes
-      (g/nref->gid (g/node-id view))
+      (g/node->graph-id view)
       [controller PlatformerController]
       (g/connect view              :viewport       controller        :viewport)
       (g/connect camera            :camera         controller        :camera)
