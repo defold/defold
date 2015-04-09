@@ -1,35 +1,24 @@
 (ns editor.collection
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [dynamo.background :as background]
-            [dynamo.buffers :refer :all]
+  (:require [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
+            [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as geom]
-            [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
-            [dynamo.file.protobuf :as protobuf :refer [pb->str]]
-            [editor.camera :as c]
-            [editor.core :as core]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.project :as project]
             [editor.game-object :as game-object]
-            [internal.render.pass :as pass])
+            [editor.project :as project]
+            [editor.scene :as scene]
+            [editor.workspace :as workspace])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
+           [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]
-           [java.io PushbackReader]))
+           [javax.vecmath Matrix4d Point3d]))
 
 (def collection-icon "icons/bricks.png")
 
@@ -63,11 +52,11 @@
 (g/defnode CollectionInstanceNode
   (property id t/Str)
   (property path t/Str)
-  
+
   (input source t/Any)
   (input aabbs [AABB])
   (input outline t/Any)
-  
+
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon collection-icon})))
   (output render-setup t/Any (g/fnk [source]
                                     (let [resource-type (project/get-resource-type source)

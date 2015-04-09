@@ -1,7 +1,6 @@
 (ns editor.switcher
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.geom :as geom]
@@ -9,25 +8,21 @@
             [dynamo.gl.shader :as shader]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            #_[dynamo.image :refer :all]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
-            [editor.core :as core]
+            [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [editor.project :as project]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
+           [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]
-           [java.io PushbackReader]))
+           [javax.vecmath Matrix4d Point3d]))
 
 (def switcher-icon "icons/board_game.png")
 
@@ -257,12 +252,12 @@
           level-hit     (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
       (cond
         palette-hit
-        (ds/transact
+        (g/transact
          [(g/operation-label "Select Brush")
           (g/set-property self :active-brush (:image palette-hit))])
 
         level-hit
-        (ds/transact
+        (g/transact
          [(g/operation-label "Paint Cell")
           (g/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))])
         :default
@@ -275,7 +270,7 @@
  (input source   t/Any)
  (input camera   t/Any)
  (input viewport Region)
- 
+
  (output input-handler Runnable     (g/fnk [source camera viewport] (fn [self action] (handle-input self action source camera viewport))))
  (output renderable    t/RenderData produce-controller-renderable))
 
@@ -285,7 +280,7 @@
   (property blocks       t/Any (visible false))
   (property width        t/Int (default 1))
   (property height       t/Int (default 1))
- 
+
   (output level t/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
   (output aabb AABB (g/fnk [width height]
                            (let [half-width (* 0.5 cell-size width)

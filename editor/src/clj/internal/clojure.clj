@@ -3,8 +3,6 @@
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
             [dynamo.file :as file]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
             [editor.core :as core])
   (:import [clojure.lang LineNumberingPushbackReader]))
@@ -39,5 +37,5 @@
   (property namespace UnloadableNamespace)
 
   (on :load
-      (ds/transact
+      (g/transact
        [(compile-source-node self (:project event) (:filename self))])))

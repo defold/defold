@@ -1,21 +1,11 @@
 (ns editor.menu
-  (:require [camel-snake-kebab :as camel]
-            [clojure.java.io :as io]
-            [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
+  (:require [dynamo.graph :as g]
             [dynamo.types :as t]
-            [editor.core :as core]
-            [editor.ui :as ui]
             [editor.jfx :as jfx]
-            [editor.scene :as scene]
-            [editor.image :as image]
-            [internal.clojure :as clojure]
-            [internal.disposal :as disp]
-            [internal.graph.types :as gt]
-            [service.log :as log])
+            [editor.ui :as ui])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
+           [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
@@ -33,7 +23,6 @@
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
-           [java.awt Desktop]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
 (defn- merge-menus [menu other-menu]
@@ -83,4 +72,4 @@
   (output menu-bar MenuBar :cached produce-menu-bar))
 
 (defn make-menu-node [graph menu-bar static-menu]
-  (first (ds/tx-nodes-added (ds/transact (g/make-node graph MenuView :menu-bar menu-bar :static-menu static-menu)))))
+  (first (g/tx-nodes-added (g/transact (g/make-node graph MenuView :menu-bar menu-bar :static-menu static-menu)))))

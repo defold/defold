@@ -1,8 +1,8 @@
 (ns dynamo.gl.vertex-test
   (:require [clojure.test :refer :all]
-            [dynamo.system.test-support :refer [array=]]
+            [dynamo.buffers :as b]
             [dynamo.gl.vertex :refer :all]
-            [dynamo.buffers :as b])
+            [dynamo.graph.test-support :refer [array=]])
   (:import [com.google.protobuf ByteString]))
 
 (defn- contents-of

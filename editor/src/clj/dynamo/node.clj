@@ -3,18 +3,9 @@
 for defining and instantiating nodes: `defnode` and `construct`.
 
 Second, this namespace defines some of the basic node types and mixins."
-  (:require [clojure.core.match :refer [match]]
-            [clojure.set :as set]
-            [dynamo.file :as file]
-            [dynamo.property :as dp :refer [defproperty]]
-            [dynamo.system :as ds]
-            [dynamo.types :as t :refer :all]
+  (:require [dynamo.types :as t :refer :all]
             [dynamo.util :refer :all]
-            [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.node :as in]
-            [internal.property :as ip]
-            [internal.transaction :as it]
             [plumbing.core :as pc]))
 
 (defn construct

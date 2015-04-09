@@ -1,34 +1,27 @@
 (ns editor.sprite
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [dynamo.background :as background]
-            [dynamo.buffers :refer :all]
+  (:require [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
+            [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
-            [dynamo.file.protobuf :as protobuf :refer [pb->str]]
-            [editor.camera :as c]
-            [editor.core :as core]
+            [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [editor.project :as project]
             [internal.render.pass :as pass])
-  (:import [com.dynamo.sprite.proto Sprite Sprite$SpriteDesc]
-           [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
+  (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
+           [com.dynamo.sprite.proto Sprite Sprite$SpriteDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
+           [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]
-           [java.io PushbackReader]))
+           [javax.vecmath Matrix4d Point3d]))
 
 (def sprite-icon "icons/pictures.png")
 

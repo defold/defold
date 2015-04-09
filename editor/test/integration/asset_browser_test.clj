@@ -1,23 +1,18 @@
 (ns integration.asset-browser-test
   (:require [clojure.test :refer :all]
-            [clojure.pprint :refer [pprint]]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
-            [dynamo.types :as t]
-            [dynamo.system.test-support :refer [with-clean-system]]
-            [editor.workspace :as workspace]
-            [editor.project :as project]
-            [editor.collection :as collection]
-            [editor.game-object :as game-object]
-            [editor.cubemap :as cubemap]
+            [dynamo.graph.test-support :refer [with-clean-system]]
             [editor.atlas :as atlas]
+            [editor.collection :as collection]
+            [editor.cubemap :as cubemap]
+            [editor.game-object :as game-object]
             [editor.image :as image]
-            [editor.scene :as scene]
             [editor.platformer :as platformer]
-            [editor.switcher :as switcher]
+            [editor.project :as project]
+            [editor.scene :as scene]
             [editor.sprite :as sprite]
-            [internal.clojure :as clojure])
+            [editor.switcher :as switcher]
+            [editor.workspace :as workspace])
   (:import [java.io File]
            [javax.imageio ImageIO]))
 
@@ -27,11 +22,11 @@
 
 (defn- load-test-workspace [graph]
   (let [workspace (workspace/make-workspace graph project-path)]
-    (ds/transact
+    (g/transact
       (concat
         (scene/register-view-types workspace)))
     (let [workspace (g/refresh workspace)]
-      (ds/transact
+      (g/transact
         (concat
           (collection/register-resource-types workspace)
           (game-object/register-resource-types workspace)
@@ -55,12 +50,12 @@
   (testing "Searching for a resource produces a hit and renders a preview"
     (with-clean-system
       (let [ws-graph world
-            proj-graph (ds/attach-graph-with-history (g/make-graph :volatility 1))
-            view-graph (ds/attach-graph (g/make-graph :volatility 100))
+            proj-graph (g/attach-graph-with-history (g/make-graph :volatility 1))
+            view-graph (g/attach-graph (g/make-graph :volatility 100))
             workspace (load-test-workspace ws-graph)
             project (first
-                      (ds/tx-nodes-added
-                        (ds/transact
+                      (g/tx-nodes-added
+                        (g/transact
                           (g/make-nodes
                             proj-graph
                             [project [project/Project :workspace workspace]]
