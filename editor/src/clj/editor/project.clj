@@ -2,19 +2,13 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
-            [clojure.pprint :refer [pprint]]
-            [schema.core :as schema]
             [dynamo.file :as file]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
             [dynamo.property :as dp]
-            [dynamo.selection :as selection]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.ui :as ui]
             [dynamo.util :refer :all]
-            [editor.workspace :as workspace]
             [editor.core :as core]
+            [editor.workspace :as workspace]
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
             [service.log :as log])
@@ -34,8 +28,8 @@ ordinary paths."
 (defn- make-nodes
   [project resources]
   (let [project-graph (graph project)]
-    (ds/tx-nodes-added
-     (ds/transact
+    (g/tx-nodes-added
+     (g/transact
       (for [[resource-type resources] (group-by workspace/resource-type resources)
             :when    (boolean resource-type)
             :let     [node-type (:node-type resource-type PlaceholderResourceNode)]
@@ -46,7 +40,7 @@ ordinary paths."
          (g/connect new-resource :self project :nodes)))))))
 
 (defn- load-nodes [project nodes]
-  (let [new-nodes (ds/tx-nodes-added (ds/transact
+  (let [new-nodes (g/tx-nodes-added (g/transact
                                        (for [node nodes
                                              :when (get-in node [:resource-type :load-fn])]
                                          ((get-in node [:resource-type :load-fn]) project node (io/reader (:resource node))))))]
@@ -72,21 +66,21 @@ guaranteed ordering of the sequence."
   (let [project-graph (g/nref->gid (g/node-id self))]
     [{:label "Edit"
       :children [{:label (fn [] (let [label "Undo"]
-                                  (if-let [op-label (:label (last (ds/undo-stack project-graph)))]
+                                  (if-let [op-label (:label (last (g/undo-stack project-graph)))]
                                     (format "%s %s" label op-label)
                                     label)))
                   :icon "icons/undo.png"
                   :acc "Shortcut+Z"
-                  :handler-fn (fn [event] (ds/undo project-graph))
-                  :enable-fn (fn [] (ds/has-undo? project-graph))}
+                  :handler-fn (fn [event] (g/undo project-graph))
+                  :enable-fn (fn [] (g/has-undo? project-graph))}
                  {:label (fn [] (let [label "Redo"]
-                                  (if-let [op-label (:label (last (ds/redo-stack project-graph)))]
+                                  (if-let [op-label (:label (last (g/redo-stack project-graph)))]
                                     (format "%s %s" label op-label)
                                     label)))
                   :icon "icons/redo.png"
                   :acc "Shift+Shortcut+Z"
-                  :handler-fn (fn [event] (ds/redo project-graph))
-                  :enable-fn (fn [] (ds/has-redo? project-graph))}]}]))
+                  :handler-fn (fn [event] (g/redo project-graph))
+                  :enable-fn (fn [] (g/has-redo? project-graph))}]}]))
 
 (g/defnode Project
   (inherits core/Scope)
@@ -96,7 +90,7 @@ guaranteed ordering of the sequence."
   (input selection t/Any)
   (input resources t/Any)
   (input resource-types t/Any)
-  
+
   (output menu t/Any :cached produce-menu))
 
 (defn get-resource-type [resource-node]
@@ -128,10 +122,10 @@ guaranteed ordering of the sequence."
 
 (defn select [project nodes]
   (let [selection-node (g/node-value project :selection)]
-    (ds/transact
+    (g/transact
       (concat
         (g/operation-label "Select")
-        (for [[node label] (g/sources-of (ds/now) selection-node :selected-nodes)]
+        (for [[node label] (g/sources-of (g/now) selection-node :selected-nodes)]
            (g/disconnect node label selection-node :selected-nodes))
         (for [node nodes]
           (g/connect node :self selection-node :selected-nodes))))))
@@ -140,7 +134,7 @@ guaranteed ordering of the sequence."
 
 #_((defn register-node-type
    [filetype node-type]
-   (g/update-property (ds/current-scope) :node-types assoc filetype node-type))
+   (g/update-property (g/current-scope) :node-types assoc filetype node-type))
 
 (defn register-editor
   [project-node filetype editor-builder]
@@ -186,29 +180,29 @@ behavior."
 
 (defn make-editor
   [project-node path]
-  (let [view-graph   (ds/attach-graph (g/make-graph :volatility 100))
+  (let [view-graph   (g/attach-graph (g/make-graph :volatility 100))
         content-node (t/lookup project-node path)]
     (build-editor-node project-node path content-node view-graph)))
 
 (defn project-enclosing
   [node]
-  (first (g/query (ds/now) [[:_id (g/node-id node)] '(output :self) (list 'protocol `ProjectRoot)])))
+  (first (g/query (g/now) [[:_id (g/node-id node)] '(output :self) (list 'protocol `ProjectRoot)])))
 
 (defn scope-enclosing
   [node]
-  (first (g/query (ds/now) [[:_id (g/node-id node)] '(output :self) (list 'protocol `t/NamingContext)])))
+  (first (g/query (g/now) [[:_id (g/node-id node)] '(output :self) (list 'protocol `t/NamingContext)])))
 
 (defn nodes-in-project
   "Return a lazy sequence of all nodes in this project. There is no
   guaranteed ordering of the sequence."
   [project-node]
-  (g/query (ds/now) [[:_id (g/node-id project-node)] '(input :nodes)]))
+  (g/query (g/now) [[:_id (g/node-id project-node)] '(input :nodes)]))
 
 (defn nodes-with-filename
   "Return a lazy sequence of all nodes in the project that match this
   filename. There is no guaranteed ordering of the sequence."
   [project-node path]
-  (g/query (ds/now) [[:_id (g/node-id project-node)] '(input :nodes) [:filename path]]))
+  (g/query (g/now) [[:_id (g/node-id project-node)] '(input :nodes) [:filename path]]))
 
 (defn nodes-with-extensions
   [project-node extensions]
@@ -246,14 +240,14 @@ behavior."
   t/NamingContext
   (lookup [this name]
           (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
-            (first (g/query (ds/now) [[:_id (g/node-id this)] '(input :nodes) [:filename path]]))))
+            (first (g/query (g/now) [[:_id (g/node-id this)] '(input :nodes) [:filename path]]))))
 
   t/FileContainer
   (node-for-path [this path]
                  (new-node-for-path this path Placeholder))
 
   (on :destroy
-      (ds/transact
+      (g/transact
        (g/delete-node self))))
 
 (defn project-root-node
@@ -267,7 +261,7 @@ behavior."
 (defn load-resource-nodes
   [project-node resources]
   (let [project-node (g/refresh project-node)]
-    (ds/transact
+    (g/transact
      (for [resource resources]
        (load-resource project-node
                       (file/make-project-path project-node resource))))))
@@ -282,7 +276,7 @@ behavior."
 
 (defn load-project-and-tools
   [root branch]
-  (let [project-node    (some-> (load-project root branch) ds/transact ds/tx-nodes-added first)
+  (let [project-node    (some-> (load-project root branch) g/transact g/tx-nodes-added first)
         resources       (group-by clojure/clojure-source? (remove #(.isDirectory ^File %) (file-seq root)))
         clojure-sources (get resources true)
         non-sources     (get resources false)]

@@ -7,15 +7,12 @@
             [clojure.test :refer :all]
             [dynamo.file :as file]
             [dynamo.graph :as g]
+            [dynamo.graph.test-support :refer [with-clean-system tempfile]]
             [dynamo.image :as image]
-            [dynamo.node :as n]
-            [editor.project :as p]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-system tempfile]]
             [dynamo.types :as t]
             [editor.atlas :as atlas]
             [editor.core :as core]
-            [internal.system :as is])
+            [editor.project :as p])
   (:import [dynamo.types Image]
            [javax.imageio ImageIO]))
 
@@ -54,10 +51,10 @@
 (defn <-text
   [project-node text-format]
   (let [atlas  (some-> (g/make-node (g/nref->gid (g/node-id project-node)) atlas/AtlasNode :filename (atlas-tempfile text-format))
-                       ds/transact
-                       ds/tx-nodes-added
+                       g/transact
+                       g/tx-nodes-added
                        first)]
-    (ds/transact (g/connect atlas :self project-node :nodes))
+    (g/transact (g/connect atlas :self project-node :nodes))
     #_(g/process-one-event atlas {:type :load :project project-node})
     atlas))
 
@@ -69,7 +66,7 @@
 
 (defn test-project
   [world image-resource-node-type]
-  (let [project-node (some-> (g/make-node world p/Project) ds/transact ds/tx-nodes-added first)
+  (let [project-node (some-> (g/make-node world p/Project) g/transact g/tx-nodes-added first)
         ppath        (fn [p] (file/make-project-path project-node p))]
     (g/make-nodes
      world
@@ -147,7 +144,7 @@
     (let [project-node (test-project world WildcardImageResourceNode)
           atlas-text   (slurp (io/resource "atlases/single-animation.atlas"))
           atlas        (<-text project-node atlas-text)
-          anim1        (ffirst (ds/sources now atlas :animations))
+          anim1        (ffirst (g/sources now atlas :animations))
           img-frame-01 (t/lookup project-node "images/frame-01.png")
           img-frame-02 (t/lookup project-node "images/frame-02.png")
 
@@ -157,72 +154,72 @@
           outline1     (g/node-value atlas :outline-tree)
 
           ;; disconnect image from anim
-          _            (ds/transact (g/disconnect img-frame-02 :content anim1 :images))
+          _            (g/transact (g/disconnect img-frame-02 :content anim1 :images))
           outline2     (g/node-value atlas :outline-tree)
 
           ;; disconnect anim
-          _            (ds/transact (g/disconnect anim1 :animation atlas :animations))
+          _            (g/transact (g/disconnect anim1 :animation atlas :animations))
           outline3     (g/node-value atlas :outline-tree)
 
           ;; connect existing image
-          _            (ds/transact (g/connect img-frame-01 :content atlas :images))
+          _            (g/transact (g/connect img-frame-01 :content atlas :images))
           outline4     (g/node-value atlas :outline-tree)
 
           ;; disconnect image
-          _            (ds/transact (g/disconnect img-frame-01 :content atlas :images))
+          _            (g/transact (g/disconnect img-frame-01 :content atlas :images))
           outline5     (g/node-value atlas :outline-tree)
 
           ;; add anim
           anim2        (some-> (g/make-node world atlas/AnimationGroupNode :id "anim2")
-                               ds/transact
-                               ds/tx-nodes-added
+                               g/transact
+                               g/tx-nodes-added
                                first)
-          _            (ds/transact (g/connect anim2 :animation atlas :animations))
+          _            (g/transact (g/connect anim2 :animation atlas :animations))
           outline6     (g/node-value atlas :outline-tree)
 
           ;; connect image to anim
           img-small    (some-> (t/node-for-path project-node (ppath "/images/small.png"))
-                               ds/transact
-                               ds/tx-nodes-added
+                               g/transact
+                               g/tx-nodes-added
                                first)
-          _            (ds/transact (g/connect img-small    :content anim2 :images))
-          _            (ds/transact (g/connect img-frame-01 :content anim2 :images))
+          _            (g/transact (g/connect img-small    :content anim2 :images))
+          _            (g/transact (g/connect img-frame-01 :content anim2 :images))
           outline7     (g/node-value atlas :outline-tree)
 
           ;; connect missing (placeholder) image
           img-missing  (some-> (t/node-for-path project-node (ppath "/images/missing.png"))
-                               ds/transact
-                               ds/tx-nodes-added
+                               g/transact
+                               g/tx-nodes-added
                                first)
-          _            (ds/transact (g/connect img-missing :content anim2 :images))
+          _            (g/transact (g/connect img-missing :content anim2 :images))
           outline8     (g/node-value atlas :outline-tree)
 
           ;; connect another missing (placeholder) image
           img-missing2 (some-> (t/node-for-path project-node (ppath "/images/missing2.png"))
-                               ds/transact
-                               ds/tx-nodes-added
+                               g/transact
+                               g/tx-nodes-added
                                first)
-          _            (ds/transact (g/connect img-missing2 :content anim2 :images))
+          _            (g/transact (g/connect img-missing2 :content anim2 :images))
           outline9     (g/node-value atlas :outline-tree)
 
           ;; disconnect placeholder
-          _            (ds/transact (g/disconnect img-missing :content anim2 :images))
+          _            (g/transact (g/disconnect img-missing :content anim2 :images))
           outline10    (g/node-value atlas :outline-tree)
 
           ;; connect duplicate existing image
-          _            (ds/transact (g/connect img-frame-01 :content anim2 :images))
+          _            (g/transact (g/connect img-frame-01 :content anim2 :images))
           outline11    (g/node-value atlas :outline-tree)
 
           ;; disconnect duplicate existing image
-          _            (ds/transact (g/disconnect img-frame-01 :content anim2 :images))
+          _            (g/transact (g/disconnect img-frame-01 :content anim2 :images))
           outline12    (g/node-value atlas :outline-tree)
 
           ;; connect duplicate missing (placeholder) image
-          _            (ds/transact (g/connect img-missing2 :content anim2 :images))
+          _            (g/transact (g/connect img-missing2 :content anim2 :images))
           outline13    (g/node-value atlas :outline-tree)
 
           ;; disconnect duplicate missing (placeholder) image
-          _            (ds/transact (g/disconnect img-missing2 :content anim2 :images))
+          _            (g/transact (g/disconnect img-missing2 :content anim2 :images))
           outline14    (g/node-value atlas :outline-tree)]
       (are [outline-tree expected] (= expected (simple-outline outline-tree))
            outline1  ["Atlas" [["anim1" [["frame-01.png" []] ["frame-02.png" []] ["frame-03.png" []]]]]]

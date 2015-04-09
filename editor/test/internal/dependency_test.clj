@@ -2,9 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :as ts]
+            [dynamo.graph.test-support :as ts]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.system :as is]))
@@ -37,7 +35,7 @@
     (ts/with-clean-system
       (let [[a b] (ts/tx-nodes (g/make-node world SingleOutput)
                                (g/make-node world InputNoOutput))
-            _     (ds/transact (g/connect a :out-from-inline b :unused-input))
+            _     (g/transact (g/connect a :out-from-inline b :unused-input))
             deps  (dependencies system a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]})))))
@@ -46,7 +44,7 @@
     (ts/with-clean-system
       (let [[a b] (ts/tx-nodes (g/make-node world SingleOutput)
                                (g/make-node world InputUsedByOutput))
-            _     (ds/transact (g/connect a :out-from-inline b :string-input))
+            _     (g/transact (g/connect a :out-from-inline b :string-input))
             deps  (dependencies system a :out-from-inline)]
         (is (= deps
                #{[(id a) :out-from-inline]
@@ -77,7 +75,7 @@
                                      (g/make-node world SingleOutput)
                                      (g/make-node world SingleOutput)
                                      (g/make-node world InputUsedByOutput))
-            _           (ds/transact
+            _           (g/transact
                          (concat (g/connect a :out-from-inline x :string-input)
                                  (g/connect b :out-from-inline x :string-input)
                                  (g/connect c :out-from-inline x :string-input)
@@ -103,7 +101,7 @@
                                      (g/make-node world InputUsedByOutput)
                                      (g/make-node world InputUsedByOutput)
                                      (g/make-node world InputUsedByOutput))
-            _           (ds/transact
+            _           (g/transact
                          (concat
                           (g/connect a :out-from-inline x :string-input)
                           (g/connect a :out-from-inline y :string-input)
@@ -139,7 +137,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (g/make-node world SingleOutput)
                                (g/make-node world MultipleInputsIntoOneOutput))
-            _     (ds/transact
+            _     (g/transact
                    (concat
                     (g/connect a :out-from-inline x :input-1)
                     (g/connect a :out-from-inline x :input-2)
@@ -155,7 +153,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (g/make-node world MultipleOutputs)
                                (g/make-node world MultipleInputsIntoOneOutput))
-            _     (ds/transact
+            _     (g/transact
                    (concat
                     (g/connect a :output-1 x :input-1)
                     (g/connect a :output-2 x :input-2)
@@ -190,7 +188,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (g/make-node world SingleOutput)
                                (g/make-node world SelfDependent))
-            _     (ds/transact
+            _     (g/transact
                    (g/connect a :out-from-inline x :string-input))
             deps  (dependencies system a :out-from-inline)]
         (is (= deps
@@ -202,7 +200,7 @@
     (ts/with-clean-system
       (let [[a x] (ts/tx-nodes (g/make-node world SingleOutput)
                                (g/make-node world BadlyWrittenSelfDependent))
-            _     (ds/transact
+            _     (g/transact
                    (g/connect a :out-from-inline x :string-value))
             deps  (dependencies system a :out-from-inline)]
         (is (= deps
@@ -226,7 +224,7 @@
                                    (g/make-node world InputUsedByOutput)
                                    (g/make-node world InputUsedByOutput)
                                    (g/make-node world InputUsedByOutput))
-            _           (ds/transact
+            _           (g/transact
                          (concat
                           (g/connect a :out-from-inline b :string-input)
                           (g/connect a :out-from-inline c :string-input)
@@ -252,7 +250,7 @@
       (let [[a b x] (ts/tx-nodes (g/make-node world SingleOutput)
                                  (g/make-node world SingleOutput)
                                  (g/make-node world TwoIndependentOutputs))
-            _       (ds/transact
+            _       (g/transact
                      (concat
                       (g/connect a :out-from-inline x :input-1)
                       (g/connect b :out-from-inline x :input-2)))

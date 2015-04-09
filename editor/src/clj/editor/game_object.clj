@@ -1,34 +1,23 @@
 (ns editor.game-object
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [dynamo.background :as background]
-            [dynamo.buffers :refer :all]
+  (:require [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
+            [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as geom]
-            [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
-            [dynamo.file.protobuf :as protobuf :refer [pb->str]]
-            [editor.camera :as c]
-            [editor.core :as core]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
             [editor.project :as project]
-            [internal.render.pass :as pass])
+            [editor.scene :as scene]
+            [editor.workspace :as workspace])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
+           [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]
-           [java.io PushbackReader]))
+           [javax.vecmath Matrix4d Point3d]))
 
 (def game-object-icon "icons/brick.png")
 
@@ -40,7 +29,7 @@
   (input outline t/Any)
 
   (output context-menu t/Any (g/fnk [self embedded] [{:label "Delete"
-                                                      :handler-fn (fn [event] (ds/transact
+                                                      :handler-fn (fn [event] (g/transact
                                                                                 (concat
                                                                                   (g/operation-label "Delete")
                                                                                   (g/delete-node self))))}]))

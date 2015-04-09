@@ -1,6 +1,6 @@
 (ns dynamo.buffers-test
   (:require [clojure.test :refer :all]
-            [dynamo.system.test-support :refer [array=]]
+            [dynamo.graph.test-support :refer [array=]]
             [dynamo.buffers :as b])
   (:import [java.nio ByteBuffer]
            [com.google.protobuf ByteString]))

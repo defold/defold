@@ -1,14 +1,9 @@
 (ns internal.value-test
-  (:require [clojure.core.async :as a]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [dynamo.graph.test-support :refer :all]
             [dynamo.node :as n]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
-            [internal.graph :as ig]
-            [internal.node :as in]
-            [internal.system :as is]
             [internal.transaction :as it]))
 
 (def ^:dynamic *calls*)
@@ -68,7 +63,7 @@
                (g/make-node world CacheTestNode)
                (g/make-node world CacheTestNode))
         [name1 name2 combiner expensive]  nodes]
-    (ds/transact
+    (g/transact
      (concat
       (g/connect name1 :uncached-value combiner :first-name)
       (g/connect name2 :uncached-value combiner :last-name)
@@ -102,7 +97,7 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (ds/transact (it/update-property name1 :scalar (constantly "John") []))
+                          (g/transact (it/update-property name1 :scalar (constantly "John") []))
                           (is (= "John Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "transmogrifying a node invalidates its cached value"
@@ -110,7 +105,7 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (ds/transact (it/become name1 (n/construct CacheTestNode)))
+                          (g/transact (it/become name1 (n/construct CacheTestNode)))
                           (is (= "Jane Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"
@@ -124,10 +119,10 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane" (g/node-value combiner :nickname)))
         (expect-call-when combiner 'passthrough-first-name
-                          (ds/transact (it/update-property name1 :scalar (constantly "Mark") []))
+                          (g/transact (it/update-property name1 :scalar (constantly "Mark") []))
                           (is (= "Mark" (g/node-value combiner :nickname))))
         (expect-no-call-when combiner 'passthrough-first-name
-                             (ds/transact (it/update-property name2 :scalar (constantly "Brandenburg") []))
+                             (g/transact (it/update-property name2 :scalar (constantly "Brandenburg") []))
                              (is (= "Mark" (g/node-value combiner :nickname)))
                              (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
 
@@ -142,7 +137,7 @@
                (g/make-node world OverrideValueNode)
                (g/make-node world CacheTestNode :scalar "Jane"))
         [override jane]  nodes]
-    (ds/transact
+    (g/transact
      (g/connect jane :uncached-value override :overridden))
     nodes))
 
@@ -155,7 +150,7 @@
 (deftest update-sees-in-transaction-value
   (with-clean-system
     (let [[node]            (tx-nodes (g/make-node world OverrideValueNode :name "a project" :int-prop 0))
-          after-transaction (ds/transact
+          after-transaction (g/transact
                              (concat
                               (g/update-property node :int-prop inc)
                               (g/update-property node :int-prop inc)
@@ -174,7 +169,7 @@
 
   (output plus-1 t/Int :cached
           (g/fnk [self call-counter]
-                 (ds/transact (g/update-property self :call-counter inc))
+                 (g/transact (g/update-property self :call-counter inc))
                  (inc call-counter))))
 
 (deftest intermediate-uncached-values-are-not-cached
@@ -209,7 +204,7 @@
   (with-clean-system
     (let [[node s1] (tx-nodes (g/make-node world ValuePrecedence)
                               (g/make-node world Source :constant :input))]
-      (ds/transact
+      (g/transact
        (concat
         (g/connect s1 :constant node :overloaded-output-input-property)
         (g/connect s1 :constant node :overloaded-input-property)
@@ -222,12 +217,12 @@
 
 (deftest invalidation-across-graphs
   (with-clean-system
-    (let [project-graph (ds/attach-graph-with-history (g/make-graph))
-          view-graph    (ds/attach-graph (g/make-graph :volatility 100))
+    (let [project-graph (g/attach-graph-with-history (g/make-graph))
+          view-graph    (g/attach-graph (g/make-graph :volatility 100))
           [content-node aux-node] (tx-nodes (g/make-node project-graph CacheTestNode :scalar "Snake")
                                             (g/make-node project-graph CacheTestNode :scalar "Plissken"))
           [view-node]    (tx-nodes (g/make-node view-graph CacheTestNode))]
-      (ds/transact
+      (g/transact
        [(g/connect content-node :scalar view-node :first-name)
         (g/connect aux-node     :scalar view-node :last-name)])
 
@@ -235,13 +230,13 @@
        view-node 'compute-derived-value
        (is (= "Snake Plissken" (g/node-value view-node :derived-value))))
 
-      (ds/transact (g/set-property aux-node :scalar "Solid"))
+      (g/transact (g/set-property aux-node :scalar "Solid"))
 
       (expect-call-when
        view-node 'compute-derived-value
        (is (= "Snake Solid" (g/node-value view-node :derived-value))))
 
-      (ds/transact
+      (g/transact
        [(g/disconnect     aux-node :scalar view-node :last-name)
         (g/disconnect content-node :scalar view-node :first-name)
         (g/connect        aux-node :scalar view-node :first-name)

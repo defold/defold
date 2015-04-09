@@ -2,12 +2,10 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [dynamo.graph.test-support :refer [with-clean-system tx-nodes]]
             [dynamo.node :as n]
             [dynamo.property :as dp]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-system tx-nodes]]
             [dynamo.types :as t]
-            [internal.node :as in]
             [internal.system :as is]))
 
 (def ^:dynamic *calls*)
@@ -43,7 +41,7 @@
 
 (g/defnode NodeWithEvents
   (on :mousedown
-      (ds/transact
+      (g/transact
        (g/set-property self :message-processed true))
     :ok))
 
@@ -110,7 +108,7 @@
   (with-clean-system
     (let [[n1]         (tx-nodes     (g/make-node world SimpleTestNode))
           foo-before   (g/node-value n1 :foo)
-          _            (ds/transact  (g/set-property n1 :foo "quux"))
+          _            (g/transact  (g/set-property n1 :foo "quux"))
           foo-after    (g/node-value n1 :foo)
           [n2]         (tx-nodes     (g/make-node world SimpleTestNode :foo "bar"))
           foo-override (g/node-value n2 :foo)]
@@ -123,7 +121,7 @@
   [properties f]
   (with-clean-system
     (let [[node]    (tx-nodes (g/make-node world SimpleTestNode :foo "one"))
-          tx-result (ds/transact (f node))]
+          tx-result (g/transact (f node))]
       (let [modified (into #{} (map second (:outputs-modified tx-result)))]
         (is (= properties modified))))))
 
@@ -174,7 +172,7 @@
                                (g/make-node world ProductionFunctionInputsNode :prop :node0)
                                (g/make-node world ProductionFunctionInputsNode :prop :node1)
                                (g/make-node world ProductionFunctionInputsNode :prop :node2))
-          _                   (ds/transact
+          _                   (g/transact
                                (concat
                                 (g/connect node0 :defnk-prop node1 :in)
                                 (g/connect node0 :defnk-prop node2 :in)
@@ -205,7 +203,7 @@
       (let [[node0 node1] (tx-nodes
                             (g/make-node world ProductionFunctionInputsNode :prop :node0)
                             (g/make-node world ProductionFunctionInputsNode :prop :node1))
-            _ (ds/transact  (g/connect node0 :prop node1 :in))]
+            _ (g/transact  (g/connect node0 :prop node1 :in))]
         (is (= :node0 (g/node-value node1 :defnk-in))))))
   (testing "the output has the same type as the property"
     (is (= t/Keyword
@@ -227,26 +225,26 @@
   (testing "output dependent on itself connected to downstream input"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
-        (ds/transact
+        (g/transact
          (g/connect node0 :out-from-self node1 :in))
         (is (thrown? Throwable (g/node-value node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
-        (is (thrown? Throwable (ds/transact
+        (is (thrown? Throwable (g/transact
                                 (g/connect node :out-from-in node :in)))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
-        (is (thrown? Throwable (ds/transact
+        (is (thrown? Throwable (g/transact
                                 (concat
                                  (g/connect node0 :out-from-in node1 :in)
                                  (g/connect node1 :out-from-in node0 :in))))))))
   (testing "cycle of period 2 (multiple transactions)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
-        (ds/transact (g/connect node0 :out-from-in node1 :in))
-        (is (thrown? Throwable (ds/transact
+        (g/transact (g/connect node0 :out-from-in node1 :in))
+        (is (thrown? Throwable (g/transact
                                 (g/connect node1 :out-from-in node0 :in))))))))
 
 (defn throw-exception-defn [this & _]
@@ -328,7 +326,7 @@
   (with-clean-system
     (let [[holder-node answer-node] (tx-nodes (g/make-node world ValueHolderNode :value 23) (g/make-node world AnswerNode))]
 
-      (ds/transact (g/connect holder-node :value answer-node :in))
+      (g/transact (g/connect holder-node :value answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (thrown? Throwable (g/node-value answer-node :out)))
@@ -347,7 +345,7 @@
         (is (= :forty-two (g/node-value answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*)))
 
-      (ds/transact (g/set-property holder-node :value 42))
+      (g/transact (g/set-property holder-node :value 42))
 
       (binding [*answer-call-count* (atom 0)]
         (is (= 42 (g/node-value answer-node :out)))
@@ -372,7 +370,7 @@
   (with-clean-system
     (let [[failure-node answer-node] (tx-nodes (g/make-node world FailureNode) (g/make-node world AnswerNode))]
 
-      (ds/transact (g/connect failure-node :out answer-node :in))
+      (g/transact (g/connect failure-node :out answer-node :in))
 
       (binding [*answer-call-count* (atom 0)]
         (is (thrown? Throwable (g/node-value answer-node :out)))
@@ -387,7 +385,7 @@
         (is (= :forty-two (g/node-value answer-node :out-cached-with-substitute)))
         (is (= 0 @*answer-call-count*)))
 
-      (ds/transact
+      (g/transact
        (g/make-nodes
         world
         [value-holder [ValueHolderNode :value 42]]

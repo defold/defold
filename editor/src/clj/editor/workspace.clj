@@ -2,18 +2,9 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
-            [dynamo.file :as file]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.property :as dp]
-            [dynamo.selection :as selection]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.ui :as ui]
-            [dynamo.util :refer :all]
-            [internal.clojure :as clojure]
-            [internal.ui.dialogs :as dialogs]
-            [service.log :as log])
+            [dynamo.util :refer :all])
   (:import [java.io File FilterOutputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
@@ -130,8 +121,8 @@ ordinary paths."
 
 (defn make-workspace [graph project-path]
   (first
-    (ds/tx-nodes-added
-      (ds/transact
+    (g/tx-nodes-added
+      (g/transact
         (g/make-node graph Workspace :root project-path :view-types {:default {:id :default}})))))
 
 (defn- wrap-stream [workspace stream file]

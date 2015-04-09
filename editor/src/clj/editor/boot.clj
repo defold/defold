@@ -1,35 +1,30 @@
 (ns editor.boot
-  (:require [camel-snake-kebab :as camel]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
-            [editor.core :as core]
-            [editor.ui :as ui]
-            [editor.jfx :as jfx]
-            [editor.workspace :as workspace]
-            [editor.project :as project]
-            [editor.menu :as menu]
             [editor.asset-browser :as asset-browser]
-            [editor.outline-view :as outline-view]
-            [editor.properties-view :as properties-view]
-            [editor.graph-view :as graph-view]
-            [editor.scene :as scene]
-            [editor.image :as image]
-            [editor.collection :as collection]
-            [editor.game-object :as game-object]
             [editor.atlas :as atlas]
+            [editor.collection :as collection]
+            [editor.core :as core]
             [editor.cubemap :as cubemap]
+            [editor.game-object :as game-object]
+            [editor.graph-view :as graph-view]
+            [editor.image :as image]
+            [editor.jfx :as jfx]
+            [editor.menu :as menu]
+            [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
-            [editor.switcher :as switcher]
+            [editor.project :as project]
+            [editor.properties-view :as properties-view]
+            [editor.scene :as scene]
             [editor.sprite :as sprite]
-            [internal.clojure :as clojure]
-            [internal.disposal :as disp]
-            [internal.graph.types :as gt]
-            [service.log :as log])
+            [editor.switcher :as switcher]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
+           [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
@@ -47,7 +42,6 @@
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
-           [java.awt Desktop]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
 (defn- fill-control [control]
@@ -116,7 +110,7 @@
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             ;; TODO Delete this graph when the tab is closed.
-            view-graph (ds/attach-graph (g/make-graph :volatility 100))
+            view-graph (g/attach-graph (g/make-graph :volatility 100))
             view       (make-view-fn view-graph parent ((:id view-type) (:view-fns resource-type)) resource-node)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.select (.getSelectionModel tab-pane) tab)
@@ -150,17 +144,17 @@
     (.show stage)
 
     (let [menu (setup-menu *view-graph* (.lookup root "#menu-bar"))]
-      (ds/transact
+      (g/transact
         (concat
           (g/connect project :menu menu :menus)))
       ; TODO - remove menu update hack
       (g/node-value menu :menu-bar))
 
     (let [close-handler (ui/event-handler event
-                          (ds/transact
+                          (g/transact
                             (g/delete-node project))
-                          (ds/dispose-pending))
-          dispose-handler (ui/event-handler event (ds/dispose-pending))]
+                          (g/dispose-pending))
+          dispose-handler (ui/event-handler event (g/dispose-pending))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
@@ -171,18 +165,18 @@
 
 (defn- create-view [game-project root place node-type]
   (let [node (first
-              (ds/tx-nodes-added
-               (ds/transact
+              (g/tx-nodes-added
+               (g/transact
                 (g/make-node (g/nref->gid (g/node-id game-project)) node-type))))]
-    (n/dispatch-message (ds/now) node :create :parent (.lookup root place))))
+    (n/dispatch-message (g/now) node :create :parent (.lookup root place))))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
-    (ds/transact
+    (g/transact
       (concat
         (scene/register-view-types workspace)))
     (let [workspace (g/refresh workspace)]
-      (ds/transact
+      (g/transact
         (concat
           (collection/register-resource-types workspace)
           (game-object/register-resource-types workspace)
@@ -200,8 +194,8 @@
         project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         project      (first
-                      (ds/tx-nodes-added
-                       (ds/transact
+                      (g/tx-nodes-added
+                       (g/transact
                         (g/make-nodes
                          *project-graph*
                          [project [project/Project :workspace workspace]
@@ -215,8 +209,8 @@
         curve        (create-view project root "#curve-editor-container" CurveEditor)
         properties   (properties-view/make-properties-view *view-graph* (.lookup root "#properties"))
         selection    (g/node-value project :selection)]
-    (ds/transact (g/connect selection :selection properties :selection))
-    (ds/reset-undo! *project-graph*)))
+    (g/transact (g/connect selection :selection properties :selection))
+    (g/reset-undo! *project-graph*)))
 
 (defn get-preference [key]
   (let [prefs (.node (Preferences/userRoot) "defold")]
@@ -229,10 +223,10 @@
 (Platform/runLater
   (fn []
     (when (nil? @the-root)
-      (ds/initialize {:initial-graph (workspace/workspace-graph)})
-      (alter-var-root #'*workspace-graph* (fn [_] (ds/last-graph-added)))
-      (alter-var-root #'*project-graph*   (fn [_] (ds/attach-graph-with-history (g/make-graph :volatility 1))))
-      (alter-var-root #'*view-graph*      (fn [_] (ds/attach-graph (g/make-graph :volatility 2)))))
+      (g/initialize {:initial-graph (workspace/workspace-graph)})
+      (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
+      (alter-var-root #'*project-graph*   (fn [_] (g/attach-graph-with-history (g/make-graph :volatility 1))))
+      (alter-var-root #'*view-graph*      (fn [_] (g/attach-graph (g/make-graph :volatility 2)))))
     (let [pref-key "default-project-file"
           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
       (when project-file

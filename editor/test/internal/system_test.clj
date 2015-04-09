@@ -2,12 +2,9 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :as ts]
+            [dynamo.graph.test-support :as ts]
             [internal.graph :as ig]
-            [internal.system :as is]
-            [internal.transaction :as it]))
+            [internal.system :as is]))
 
 (g/defnode Root)
 
@@ -48,7 +45,7 @@
           sys       (is/attach-graph sys (g/make-graph))
           gid       (:last-graph sys)
           before    (is/graph-time sys gid)
-          tx-report (ds/transact (atom sys) (g/make-node gid Root))
+          tx-report (g/transact (atom sys) (g/make-node gid Root))
           after     (is/graph-time sys gid)]
       (is (= :ok (:status tx-report)))
       (is (< before after))))
@@ -57,7 +54,7 @@
     (let [sys       (fresh-system)
           world-ref (is/world-ref sys)
           before    (map-vals #(:tx-id @%) (is/graphs sys))
-          tx-report (ds/transact (atom sys) [])
+          tx-report (g/transact (atom sys) [])
           after     (map-vals #(:tx-id @%) (is/graphs sys))]
       (is (= :empty (:status tx-report)))
       (is (= before after)))))
@@ -73,7 +70,7 @@
           pgraph-id      (:last-graph sys)
           before         (is/graph-time sys pgraph-id)
           history-before (history-states (is/graph-history sys pgraph-id))
-          tx-report      (ds/transact (atom sys) (g/make-node pgraph-id Root))
+          tx-report      (g/transact (atom sys) (g/make-node pgraph-id Root))
           after          (is/graph-time sys pgraph-id)
           history-after  (history-states (is/graph-history sys pgraph-id))]
       (is (= :ok (:status tx-report)))
@@ -86,11 +83,11 @@
           pgraph-id    (:last-graph sys)
           sys-holder   (ref sys)
           undos-before (is/undo-stack (is/graph-history sys pgraph-id))
-          tx-report    (ds/transact sys-holder
+          tx-report    (g/transact sys-holder
                                     [(g/make-node pgraph-id Root)
                                      (g/operation-label "Build root")])
-          root         (first (ds/tx-nodes-added tx-report))
-          tx-report    (ds/transact sys-holder
+          root         (first (g/tx-nodes-added tx-report))
+          tx-report    (g/transact sys-holder
                                     [(g/set-property root :touched 1)
                                      (g/operation-label "Increment touch count")])
           undos-after  (is/undo-stack (is/graph-history sys pgraph-id))
@@ -106,61 +103,61 @@
 
   (testing "has-undo? and has-redo?"
     (ts/with-clean-system
-      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+      (let [pgraph-id (g/attach-graph-with-history (g/make-graph))]
 
-        (is (not (ds/has-undo? pgraph-id)))
-        (is (not (ds/has-redo? pgraph-id)))
+        (is (not (g/has-undo? pgraph-id)))
+        (is (not (g/has-redo? pgraph-id)))
 
         (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
 
-          (is      (ds/has-undo? pgraph-id))
-          (is (not (ds/has-redo? pgraph-id)))
+          (is      (g/has-undo? pgraph-id))
+          (is (not (g/has-redo? pgraph-id)))
 
-          (ds/transact (g/set-property root :touched 1))
+          (g/transact (g/set-property root :touched 1))
 
-          (is      (ds/has-undo? pgraph-id))
-          (is (not (ds/has-redo? pgraph-id)))
+          (is      (g/has-undo? pgraph-id))
+          (is (not (g/has-redo? pgraph-id)))
 
-          (ds/undo pgraph-id)
+          (g/undo pgraph-id)
 
-          (is (ds/has-undo? pgraph-id))
-          (is (ds/has-redo? pgraph-id))))))
+          (is (g/has-undo? pgraph-id))
+          (is (g/has-redo? pgraph-id))))))
 
   (testing "history can be cleared"
     (ts/with-clean-system
-      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+      (let [pgraph-id (g/attach-graph-with-history (g/make-graph))]
 
-        (is (not (ds/has-undo? pgraph-id)))
-        (is (not (ds/has-redo? pgraph-id)))
+        (is (not (g/has-undo? pgraph-id)))
+        (is (not (g/has-redo? pgraph-id)))
 
         (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
 
-          (is      (ds/has-undo? pgraph-id))
-          (is (not (ds/has-redo? pgraph-id)))
+          (is      (g/has-undo? pgraph-id))
+          (is (not (g/has-redo? pgraph-id)))
 
-          (ds/transact (g/set-property root :touched 1))
+          (g/transact (g/set-property root :touched 1))
 
-          (is      (ds/has-undo? pgraph-id))
-          (is (not (ds/has-redo? pgraph-id)))
+          (is      (g/has-undo? pgraph-id))
+          (is (not (g/has-redo? pgraph-id)))
 
-          (ds/undo pgraph-id)
+          (g/undo pgraph-id)
 
-          (is (ds/has-undo? pgraph-id))
-          (is (ds/has-redo? pgraph-id))
+          (is (g/has-undo? pgraph-id))
+          (is (g/has-redo? pgraph-id))
 
-          (ds/reset-undo! pgraph-id)
+          (g/reset-undo! pgraph-id)
 
-          (is (not (ds/has-undo? pgraph-id)))
-          (is (not (ds/has-redo? pgraph-id))))))))
+          (is (not (g/has-undo? pgraph-id)))
+          (is (not (g/has-redo? pgraph-id))))))))
 
 (defn undo-redo-state?
   [graph undos redos]
-  (and (= (ds/undo-stack graph) undos)
-       (= (ds/redo-stack graph) redos)))
+  (and (= (g/undo-stack graph) undos)
+       (= (g/redo-stack graph) redos)))
 
 (defn touch
   [node label & [seq-id]]
-  (ds/transact (keep identity
+  (g/transact (keep identity
                      [(g/operation-label label)
                       (when seq-id
                         (g/operation-sequence seq-id))
@@ -169,7 +166,7 @@
 (deftest undo-coalescing
   (testing "Transactions with no sequence-id each make an undo point"
     (ts/with-clean-system
-      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+      (let [pgraph-id (g/attach-graph-with-history (g/make-graph))]
 
         (is (undo-redo-state? pgraph-id [] []))
 
@@ -183,13 +180,13 @@
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2} {:label 3}] []))
 
-          (ds/undo pgraph-id)
+          (g/undo pgraph-id)
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2}] [{:label 3}]))))))
 
   (testing "Transactions with different sequence-ids each make an undo point"
     (ts/with-clean-system
-      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+      (let [pgraph-id (g/attach-graph-with-history (g/make-graph))]
 
         (is (undo-redo-state? pgraph-id [] []))
 
@@ -203,13 +200,13 @@
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2} {:label 3}] []))
 
-          (ds/undo pgraph-id)
+          (g/undo pgraph-id)
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2}] [{:label 3}]))))))
 
   (testing "Transactions with the same sequence-id are merged together"
     (ts/with-clean-system
-      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+      (let [pgraph-id (g/attach-graph-with-history (g/make-graph))]
 
         (is (undo-redo-state? pgraph-id [] []))
 
@@ -232,19 +229,19 @@
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label 2} {:label 3}] []))
 
-          (ds/undo pgraph-id)
+          (g/undo pgraph-id)
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label 2}] [{:label 3}]))
 
-          (ds/undo pgraph-id)
+          (g/undo pgraph-id)
 
           (is (undo-redo-state? pgraph-id [{:label nil}] [{:label 3} {:label 2}]))))))
 
 
   (testing "Cross-graph transactions create an undo point in all affected graphs"
     (ts/with-clean-system
-      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))
-            agraph-id (ds/attach-graph-with-history (g/make-graph))]
+      (let [pgraph-id (g/attach-graph-with-history (g/make-graph))
+            agraph-id (g/attach-graph-with-history (g/make-graph))]
 
         (let [[node-p] (ts/tx-nodes (g/make-node pgraph-id Root :where "graph P"))
               [node-a] (ts/tx-nodes (g/make-node agraph-id Root :where "graph A"))]
@@ -254,7 +251,7 @@
 
           (touch node-p 1 :a)
 
-          (ds/transact [(g/set-property node-p :touched 2)
+          (g/transact [(g/set-property node-p :touched 2)
                         (g/set-property node-a :touched 2)
                         (g/operation-label 2)
                         (g/operation-sequence :a)])
@@ -264,12 +261,12 @@
           (is (undo-redo-state? pgraph-id [{:label nil} {:label 2} {:label 3}] []))
           (is (undo-redo-state? agraph-id [{:label nil} {:label 2}] []))
 
-          (ds/undo pgraph-id)
+          (g/undo pgraph-id)
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label 2}] [{:label 3}]))
           (is (undo-redo-state? agraph-id [{:label nil} {:label 2}] []))
 
-          (ds/undo pgraph-id)
+          (g/undo pgraph-id)
 
           (is (undo-redo-state? pgraph-id [{:label nil}] [{:label 3} {:label 2}]))
           (is (undo-redo-state? agraph-id [{:label nil}   {:label 2}] [])))))))
@@ -289,8 +286,8 @@
 
 (deftest tracing-across-graphs
   (ts/with-clean-system
-    (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))
-          agraph-id (ds/attach-graph (g/make-graph))]
+    (let [pgraph-id (g/attach-graph-with-history (g/make-graph))
+          agraph-id (g/attach-graph (g/make-graph))]
 
       (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node pgraph-id Source :source-label "first")
                                                      (g/make-node pgraph-id Pipe)
@@ -300,17 +297,17 @@
                                                      (g/make-node agraph-id Sink)
                                                      (g/make-node agraph-id Sink))]
 
-        (ds/transact
+        (g/transact
          [(g/connect source-p1 :source-label sink-p1 :target-label)
           (g/connect source-p1 :source-label pipe-p1 :target-label)
           (g/connect pipe-p1   :soft         sink-a1 :target-label)
           (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-        (is (= (g/dependencies (ds/now) [[(id source-a1) :source-label]])
+        (is (= (g/dependencies (g/now) [[(id source-a1) :source-label]])
                #{[(id sink-a2)   :loud]
                  [(id source-a1) :source-label]}))
 
-        (is (= (g/dependencies (ds/now) [[(id source-p1) :source-label]])
+        (is (= (g/dependencies (g/now) [[(id source-p1) :source-label]])
                #{[(id sink-p1)   :loud]
                  [(id pipe-p1)   :soft]
                  [(id sink-a1)   :loud]
@@ -327,8 +324,8 @@
 (deftest graph-deletion
   (testing "Deleting a view (non-history) graph"
     (ts/with-clean-system
-      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))
-            agraph-id (ds/attach-graph (g/make-graph :volatility 10))]
+      (let [pgraph-id (g/attach-graph-with-history (g/make-graph))
+            agraph-id (g/attach-graph (g/make-graph :volatility 10))]
 
         (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node pgraph-id Source :source-label "first")
                                                        (g/make-node pgraph-id Pipe)
@@ -338,7 +335,7 @@
                                                        (g/make-node agraph-id Sink)
                                                        (g/make-node agraph-id Sink))]
 
-          (ds/transact
+          (g/transact
            [(g/connect source-p1 :source-label sink-p1 :target-label)
             (g/connect source-p1 :source-label pipe-p1 :target-label)
             (g/connect pipe-p1   :soft         sink-a1 :target-label)
@@ -346,13 +343,13 @@
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
 
-          (ds/delete-graph agraph-id)
+          (g/delete-graph agraph-id)
 
-          (is (= 2 (count (is/graphs @ds/*the-system*))))
+          (is (= 2 (count (is/graphs @g/*the-system*))))
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
 
-          (is (= (g/dependencies (ds/now) [[(id source-p1) :source-label]])
+          (is (= (g/dependencies (g/now) [[(id source-p1) :source-label]])
                  #{[(id sink-p1)   :loud]
                    [(id pipe-p1)   :soft]
                    [(id source-p1) :source-label]}))))))
@@ -360,18 +357,18 @@
   (testing "Nodes in a deleted graph are deleted"
     (ts/with-clean-system
       (let [ctr       (atom 0)
-            pgraph-id (ds/attach-graph-with-history (g/make-graph))]
+            pgraph-id (g/attach-graph-with-history (g/make-graph))]
         (let [nodes (ts/tx-nodes
                      (for [n (range 100)]
                        (g/make-node pgraph-id CountOnDelete :counter ctr)))]
-          (ds/delete-graph pgraph-id)
+          (g/delete-graph pgraph-id)
 
           (is (= 100 @ctr))))))
 
   (testing "Deleting a graph with history"
     (ts/with-clean-system
-      (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))
-            agraph-id (ds/attach-graph (g/make-graph :volatility 10))]
+      (let [pgraph-id (g/attach-graph-with-history (g/make-graph))
+            agraph-id (g/attach-graph (g/make-graph :volatility 10))]
 
         (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node pgraph-id Source :source-label "first")
                                                        (g/make-node pgraph-id Pipe)
@@ -381,7 +378,7 @@
                                                        (g/make-node agraph-id Sink)
                                                        (g/make-node agraph-id Sink))]
 
-          (ds/transact
+          (g/transact
            [(g/connect source-p1 :source-label sink-p1 :target-label)
             (g/connect source-p1 :source-label pipe-p1 :target-label)
             (g/connect pipe-p1   :soft         sink-a1 :target-label)
@@ -389,15 +386,15 @@
 
           (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
 
-          (ds/delete-graph pgraph-id)
+          (g/delete-graph pgraph-id)
 
-          (is (= 2 (count (is/graphs @ds/*the-system*))))
+          (is (= 2 (count (is/graphs @g/*the-system*))))
 
-          (is (nil? (is/graph-ref @ds/*the-system* pgraph-id)))
+          (is (nil? (is/graph-ref @g/*the-system* pgraph-id)))
 
           ;; This documents current behavior: we leave dangling arcs so undo in the project graph "reconnects" to them
-          (is (not (empty? (ig/arcs-from-source (is/graph @ds/*the-system* agraph-id) (id pipe-p1) :soft))))
+          (is (not (empty? (ig/arcs-from-source (is/graph @g/*the-system* agraph-id) (id pipe-p1) :soft))))
 
-          (is (= (g/dependencies (ds/now) [[(id source-a1) :source-label]])
+          (is (= (g/dependencies (g/now) [[(id source-a1) :source-label]])
                  #{[(id sink-a2)   :loud]
                    [(id source-a1) :source-label]})))))))

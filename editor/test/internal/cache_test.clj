@@ -1,7 +1,6 @@
 (ns internal.cache-test
-  (:require [clojure.core.async :as a]
-            [clojure.test :refer :all]
-            [dynamo.system.test-support :refer :all]
+  (:require [clojure.test :refer :all]
+            [dynamo.graph.test-support :refer :all]
             [dynamo.types :as t]
             [internal.cache :refer :all]
             [internal.system :as is]))

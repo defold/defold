@@ -5,9 +5,8 @@
             [clojure.test.check :refer :all]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [dynamo.graph.test-support :refer :all]
             [dynamo.node :as n]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [editor.core :as core]
             [schema.macros :as sm]))
@@ -85,7 +84,7 @@
       (let [[view emitter modifier] (tx-nodes (g/make-node world ParticleEditor)
                                               (g/make-node world Emitter :name "emitter")
                                               (g/make-node world Modifier :name "vortex"))]
-        (ds/transact
+        (g/transact
          [(g/connect emitter  :self view :nodes)
           (g/connect modifier :self view :nodes)])
 
@@ -100,13 +99,13 @@
   (prop/for-all [node-count gen/pos-int]
     (with-clean-system
       (let [[scope]        (tx-nodes (g/make-node world core/Scope))
-            tx-result      (ds/transact
+            tx-result      (g/transact
                             (for [n (range node-count)]
                               (g/make-node world DisposableNode)))
             disposable-ids (map second (:tempids tx-result))]
-        (ds/transact (for [i disposable-ids]
+        (g/transact (for [i disposable-ids]
                        (g/connect i :self scope :nodes)))
-        (ds/transact (g/delete-node scope))
+        (g/transact (g/delete-node scope))
         (yield)
         (let [disposed (take-waiting-to-dispose system)]
           (is (= (sort (conj disposable-ids (:_id scope))) (sort (map :_id disposed)))))))))

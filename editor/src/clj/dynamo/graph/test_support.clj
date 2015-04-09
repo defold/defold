@@ -1,6 +1,5 @@
-(ns dynamo.system.test-support
+(ns dynamo.graph.test-support
   (:require [dynamo.graph :as g]
-            [dynamo.system :as ds]
             [internal.async :as ia]
             [internal.system :as is]))
 
@@ -19,11 +18,11 @@
            ~'cache       (:cache ~'system)
            ~'disposal-ch (is/disposal-queue ~'system)
            ~'world       (first (keys (is/graphs ~'system)))]
-       (binding [ds/*the-system* (atom ~'system)]
+       (binding [g/*the-system* (atom ~'system)]
          ~@forms))))
 
 (defn tx-nodes [& txs]
-  (ds/tx-nodes-added (ds/transact txs)))
+  (g/tx-nodes-added (g/transact txs)))
 
 (defn take-waiting-to-dispose
   [system]

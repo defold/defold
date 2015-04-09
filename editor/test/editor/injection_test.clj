@@ -2,14 +2,10 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [dynamo.graph.test-support :refer :all]
             [dynamo.node :as n]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
-            [editor.core :as core]
-            [internal.graph :as ig]
-            [internal.node :as in]
-            [internal.system :as is]))
+            [editor.core :as core]))
 
 (g/defnode Receiver
   (input surname String :inject)
@@ -62,8 +58,8 @@
 (deftest dependency-injection
   (testing "attach node output to input on scope"
     (with-clean-system
-      (let [[scope _] (ds/tx-nodes-added
-                       (ds/transact
+      (let [[scope _] (g/tx-nodes-added
+                       (g/transact
                         (g/make-nodes
                          world
                          [scope    InjectionScope
@@ -74,8 +70,8 @@
   (testing "attach one node output to input on another node"
     (with-clean-system
       (let [[scope producer consumer]
-            (ds/tx-nodes-added
-             (ds/transact
+            (g/tx-nodes-added
+             (g/transact
               (g/make-nodes
                world
                [scope core/Scope
@@ -88,14 +84,14 @@
   (testing "attach nodes in different transactions"
     (with-clean-system
       (let [[scope]    (tx-nodes (g/make-node world core/Scope))
-            [consumer] (ds/tx-nodes-added
-                        (ds/transact
+            [consumer] (g/tx-nodes-added
+                        (g/transact
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
                           (g/connect consumer :self scope :nodes))))
-            [producer] (ds/tx-nodes-added
-                        (ds/transact
+            [producer] (g/tx-nodes-added
+                        (g/transact
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
@@ -105,14 +101,14 @@
   (testing "attach nodes in different transactions and reverse order"
     (with-clean-system
       (let [[scope]    (tx-nodes (g/make-node world core/Scope))
-            [producer] (ds/tx-nodes-added
-                        (ds/transact
+            [producer] (g/tx-nodes-added
+                        (g/transact
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
                           (g/connect producer :self scope :nodes))))
-            [consumer] (ds/tx-nodes-added
-                        (ds/transact
+            [consumer] (g/tx-nodes-added
+                        (g/transact
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
@@ -122,14 +118,14 @@
   (testing "explicitly connect nodes, see if injection also happens"
     (with-clean-system
       (let [[scope]    (tx-nodes (g/make-node world core/Scope))
-            [producer] (ds/tx-nodes-added
-                        (ds/transact
+            [producer] (g/tx-nodes-added
+                        (g/transact
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
                           (g/connect producer :self scope :nodes))))
-            [consumer] (ds/tx-nodes-added
-                        (ds/transact
+            [consumer] (g/tx-nodes-added
+                        (g/transact
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
@@ -145,7 +141,7 @@
   (testing "don't connect a node's own output to its input"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world ReflexiveFeedback))]
-        (is (not (g/connected? (ds/now) (g/node-id node) :port (g/node-id node) :ports)))))))
+        (is (not (g/connected? (g/now) (g/node-id node) :port (g/node-id node) :ports)))))))
 
 (g/defnode OutputProvider
   (inherits core/Scope)
@@ -161,31 +157,31 @@
   (testing "one consumer in a nested scope"
     (with-clean-system
       (let [project    (create-simulated-project world)
-            [provider] (ds/tx-nodes-added
-                        (ds/transact
+            [provider] (g/tx-nodes-added
+                        (g/transact
                          (g/make-nodes
                           world
                           [provider [OutputProvider :context 119]
                            consumer InputConsumer]
                           (g/connect consumer :self provider :nodes))))]
-        (is (= 1 (count (g/nodes-consuming (ds/now) provider :context)))))))
+        (is (= 1 (count (g/nodes-consuming (g/now) provider :context)))))))
 
   (testing "two consumers each in their own nested scope"
     (with-clean-system
       (let [project     (create-simulated-project world)
-            [provider1] (ds/tx-nodes-added
-                         (ds/transact
+            [provider1] (g/tx-nodes-added
+                         (g/transact
                           (g/make-nodes
                            world
                            [provider [OutputProvider :context 119]
                             consumer InputConsumer]
                            (g/connect consumer :self provider :nodes))))
-            [provider2] (ds/tx-nodes-added
-                         (ds/transact
+            [provider2] (g/tx-nodes-added
+                         (g/transact
                           (g/make-nodes
                            world
                            [provider [OutputProvider :context 113]
                             consumer InputConsumer]
                            (g/connect consumer :self provider :nodes))))]
-        (is (= 1 (count (g/nodes-consuming (ds/now) provider1 :context))))
-        (is (= 1 (count (g/nodes-consuming (ds/now) provider2 :context))))))))
+        (is (= 1 (count (g/nodes-consuming (g/now) provider1 :context))))
+        (is (= 1 (count (g/nodes-consuming (g/now) provider2 :context))))))))
