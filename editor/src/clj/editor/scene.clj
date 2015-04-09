@@ -1,17 +1,15 @@
 (ns editor.scene
-  (:require [dynamo.geom :as geom]
+  (:require [dynamo.background :as background]
+            [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
+            [dynamo.grid :as grid]
             [dynamo.types :as t]
             [dynamo.types :refer [IDisposable dispose]]
-            [dynamo.background :as background]
-            [dynamo.grid :as grid]
-            [editor.workspace :as workspace]
             [editor.camera :as c]
             [editor.core :as core]
             [editor.input :as i]
+            [editor.workspace :as workspace]
             [internal.render.pass :as pass]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -124,7 +122,7 @@
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (ds/transact (g/set-property self :gl-drawable drawable))
+        (g/transact (g/set-property self :gl-drawable drawable))
         drawable))))
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
@@ -196,17 +194,17 @@
 (defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
-    (let [view (first (ds/tx-nodes-added (ds/transact (g/make-node scene-graph SceneView :image-view image-view))))]
+    (let [view (first (g/tx-nodes-added (g/transact (g/make-node scene-graph SceneView :image-view image-view))))]
       (let [self-ref (g/node-id view)
             event-handler (reify EventHandler (handle [this e]
-                                                (let [now (ds/now)
+                                                (let [now (g/now)
                                                       self (g/node-by-id now self-ref)]
                                                   (dispatch-input (g/sources-of now self :input-handlers) (i/action-from-jfx e)))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                     (let [bb ^BoundingBox new-val
                                                           w (- (.getMaxX bb) (.getMinX bb))
                                                           h (- (.getMaxY bb) (.getMinY bb))]
-                                                      (ds/transact (g/set-property self-ref :viewport (t/->Region 0 w 0 h))))))]
+                                                      (g/transact (g/set-property self-ref :viewport (t/->Region 0 w 0 h))))))]
         (.setOnMousePressed parent event-handler)
         (.setOnMouseReleased parent event-handler)
         (.setOnMouseClicked parent event-handler)
@@ -216,13 +214,13 @@
         (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
         (let [repainter (proxy [AnimationTimer] []
                           (handle [now]
-                            (let [self                  (g/node-by-id (ds/now) self-ref)
+                            (let [self                  (g/node-by-id (g/now) self-ref)
                                   image-view ^ImageView (:image-view self)
                                   visible               (:visible self)]
                               (when (and visible)
                                 (let [image (g/node-value self :image)]
                                   (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
-          (ds/transact (g/set-property view :repainter repainter))
+          (g/transact (g/set-property view :repainter repainter))
           (.start repainter)))
       (g/refresh view))))
 
@@ -237,7 +235,7 @@
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
 
 (defn make-preview-view [graph width height]
-  (first (ds/tx-nodes-added (ds/transact (g/make-node graph PreviewView :width width :height height)))))
+  (first (g/tx-nodes-added (g/transact (g/make-node graph PreviewView :width width :height height)))))
 
 (defn setup-view [view & kvs]
   (let [opts (into {} (map vec (partition 2 kvs)))
@@ -247,7 +245,7 @@
                    background background/Gradient
                    camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
-                  
+
                   ; Needed for scopes
                   (g/connect renderer :self view :nodes)
                   (g/connect camera :self view :nodes)
@@ -258,9 +256,9 @@
                   (g/connect view            :viewport      camera          :viewport)
                   (g/connect view            :viewport      renderer        :viewport)
                   (g/connect renderer        :frame         view            :frame)
-                  
+
                   (when (:grid opts)
-                    (let [grid (first (ds/tx-nodes-added (ds/transact (g/make-node view-graph grid/Grid))))]
+                    (let [grid (first (g/tx-nodes-added (g/transact (g/make-node view-graph grid/Grid))))]
                       (g/connect grid   :renderable renderer :renderables)
                       (g/connect camera :camera     grid     :camera))))))
 
@@ -268,16 +266,16 @@
   (let [view               (make-scene-view graph parent)
         setup-view-fn      (:setup-view-fn view-fns)
         setup-rendering-fn (:setup-rendering-fn view-fns)]
-    (ds/transact (setup-view-fn resource-node view))
-    (ds/transact (setup-rendering-fn resource-node (g/refresh view)))
+    (g/transact (setup-view-fn resource-node view))
+    (g/transact (setup-rendering-fn resource-node (g/refresh view)))
     (g/refresh view)))
 
 (defn make-preview [graph view-fns resource-node width height]
   (let [view               (make-preview-view graph width height)
         setup-view-fn      (:setup-view-fn view-fns)
         setup-rendering-fn (:setup-rendering-fn view-fns)]
-    (ds/transact (setup-view-fn resource-node view))
-    (ds/transact (setup-rendering-fn resource-node (g/refresh view)))
+    (g/transact (setup-view-fn resource-node view))
+    (g/transact (setup-rendering-fn resource-node (g/refresh view)))
     (g/refresh view)))
 
 (defn register-view-types [workspace]

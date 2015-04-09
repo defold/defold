@@ -1,27 +1,8 @@
 (ns editor.properties-view
   (:require [camel-snake-kebab :as camel]
-            [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
-            [editor.atlas :as atlas]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.graph-view :as graph-view]
-            [editor.jfx :as jfx]
-            [editor.image :as image]
-            [editor.platformer :as platformer]
-            [editor.project :as p]
-            [editor.switcher :as switcher]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [editor.project :as project]
-            [editor.scene :as scene]
-            [internal.clojure :as clojure]
-            [internal.disposal :as disp]
-            [internal.graph.types :as gt]
-            [service.log :as log])
+            [editor.ui :as ui])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.animation AnimationTimer]
@@ -136,7 +117,7 @@
                                  ;; TODO Consider using the :validator-fn feature of atom to apply validation
                                  (@setter-atom new-val)
                                  ;; TODO Apply a label to this transaction for undo menu
-                                 (ds/transact (g/set-property node key new-val)))
+                                 (g/transact (g/set-property node key new-val)))
                                (@setter-atom old-val)))))
           [control setter] (create-property-control! (t/property-value-type property) on-new-value)]
       (reset! setter-atom setter)
@@ -166,18 +147,18 @@
   (input selection t/Any)
 
   (output grid-pane GridPane :cached (g/fnk [parent-view selection] (update-grid parent-view (first selection)))) ; TODO - add multi-selection support for properties view
-  
+
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
                                      nil)))
 
 (defn make-properties-view [view-graph parent]
-  (let [view (first (ds/tx-nodes-added (ds/transact (g/make-node view-graph PropertiesView :parent-view parent))))
+  (let [view (first (g/tx-nodes-added (g/transact (g/make-node view-graph PropertiesView :parent-view parent))))
         self-ref (g/node-id view)
         repainter (proxy [AnimationTimer] []
                           (handle [now]
-                            (let [self (g/node-by-id (ds/now) self-ref)
+                            (let [self (g/node-by-id (g/now) self-ref)
                                   grid (g/node-value self :grid-pane)])))]
-    (ds/transact (g/set-property view :repainter repainter))
+    (g/transact (g/set-property view :repainter repainter))
     (.start repainter)
     (g/refresh view)))

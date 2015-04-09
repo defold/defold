@@ -1,7 +1,6 @@
 (ns editor.graph-view
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [dynamo.system :as ds]
             [editor.ui :as ui])
   (:import [javafx.application Platform]
            [javafx.scene.image Image]
@@ -61,7 +60,7 @@
     dot-file))
 
 (defn- update-graph-view [root graph-id]
-  (let [graph     (ds/graph graph-id)
+  (let [graph     (g/graph graph-id)
         dot-file  (write-dot-graph graph)
         dot-image (File/createTempFile "graph" ".png")
         process   (.exec (Runtime/getRuntime) (format "dot %s -Tpng -o%s" dot-file dot-image))]

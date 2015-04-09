@@ -1,7 +1,6 @@
 (ns editor.platformer
-  (:require [clojure.java.io :as io]
-            [clojure.edn :as edn]
-            [dynamo.background :as background]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.geom :as geom]
@@ -10,25 +9,21 @@
             [dynamo.gl.texture :as texture]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.grid :as grid]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.camera :as c]
-            [editor.core :as core]
+            [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [editor.project :as project]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
+           [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Point3d Matrix4d]
-           [java.io PushbackReader]))
+           [javax.vecmath Point3d Matrix4d]))
 
 (def platformer-icon "icons/diagramm.png")
 

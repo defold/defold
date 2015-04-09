@@ -1,11 +1,8 @@
 (ns dynamo.camera
   (:require [dynamo.geom :as geom]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
-            [plumbing.core :refer [defnk]]
             [schema.macros :as sm])
   (:import [dynamo.types Camera Region AABB]
            [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]))

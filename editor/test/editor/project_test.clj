@@ -1,13 +1,9 @@
 (ns editor.project-test
-  (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.file :as f]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [editor.project :as p]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-system tx-nodes]]
-            [dynamo.types :as t])
+            [dynamo.graph.test-support :refer [with-clean-system]]
+            [editor.project :as p])
   (:import [java.io StringReader]))
 
 (g/defnode DummyNode)
@@ -15,8 +11,8 @@
 #_(deftest find-nodes-by-extension
   (with-clean-system
     (let [[project-node d1 d2 d3 d4]
-          (ds/tx-nodes-added
-           (ds/transact
+          (g/tx-nodes-added
+           (g/transact
             (g/make-nodes
              world
              [project-node p/Project

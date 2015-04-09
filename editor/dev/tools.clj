@@ -4,7 +4,6 @@
             [clojure.repl :refer :all]
             [dynamo.graph :as g]
             [dynamo.image :refer :all]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.graph.types :as gt]))
 
@@ -16,7 +15,7 @@
 
 (defn nodes-and-classes
   []
-  (let [now (ds/now)]
+  (let [now (g/now)]
    (for [graphid (sort (keys (:graphs now)))
          :let [graph (get-in now [:graphs graphid])]
          nodeid  (sort (keys (:nodes graph)))
@@ -25,10 +24,10 @@
 
 (defn node
   ([nref]
-   (g/node-by-id (ds/now) nref))
+   (g/node-by-id (g/now) nref))
 
   ([gid nid]
-   (g/node-by-id (ds/now) (gt/make-nref gid nid))))
+   (g/node-by-id (g/now) (gt/make-nref gid nid))))
 
 (defn node-type
   [gid nid]
@@ -37,20 +36,20 @@
 (defn inputs-to
   ([gid nid label]
    (sort-by first
-            (gt/sources (ds/now) (gt/make-nref gid nid) label))))
+            (gt/sources (g/now) (gt/make-nref gid nid) label))))
 
 (defn outputs-from
   [gid nid label]
   (sort-by first
-            (gt/targets (ds/now) (gt/make-nref gid nid) label)))
+            (gt/targets (g/now) (gt/make-nref gid nid) label)))
 
 (defn sarc-reciprocated
   [basis source-arc]
-  (some #{(gt/head source-arc)} (apply gt/sources (ds/now) (gt/tail source-arc))))
+  (some #{(gt/head source-arc)} (apply gt/sources (g/now) (gt/tail source-arc))))
 
 (defn tarc-reciprocated
   [basis target-arc]
-  (some #{(gt/tail target-arc)} (apply gt/targets (ds/now) (gt/head target-arc))))
+  (some #{(gt/tail target-arc)} (apply gt/targets (g/now) (gt/head target-arc))))
 
 (defn unreciprocated-arcs
   [basis]

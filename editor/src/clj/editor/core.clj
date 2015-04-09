@@ -3,7 +3,6 @@
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
             [dynamo.node :as dn]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
             [inflections.core :as inflect]))
 
@@ -70,7 +69,7 @@ This function should not be called directly."
                                     (fn [[out out-label in in-label]]
                                       (or
                                        (= (g/node-id out) (g/node-id in))
-                                       (g/connected? (ds/transaction-basis transaction)
+                                       (g/connected? (g/transaction-basis transaction)
                                                      (g/node-id out) out-label
                                                      (g/node-id in)  in-label)))
                                     candidates)]
@@ -85,7 +84,7 @@ This function should not be called directly."
   "Trigger to dispose nodes from a scope when the scope is
   destroyed. This should not be called directly."
   [transaction graph self label kind]
-  (when (ds/is-deleted? transaction self)
+  (when (g/is-deleted? transaction self)
     (for [node-to-delete (g/node-value self :nodes)]
       (g/delete-node node-to-delete))))
 

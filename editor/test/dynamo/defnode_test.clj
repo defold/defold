@@ -3,8 +3,7 @@
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.property :as dp]
-            [dynamo.system :as ds]
-            [dynamo.system.test-support :as ts :refer [tx-nodes with-clean-system]]
+            [dynamo.graph.test-support :refer [tx-nodes with-clean-system]]
             [dynamo.types :as t]
             [internal.node :as in]))
 
@@ -301,16 +300,16 @@
       (let [[node] (tx-nodes (g/make-node world OneEventNode))]
         (is (:an-event (g/event-handlers' OneEventNode)))
         (is (satisfies? g/MessageTarget node))
-        (is (= :ok (n/dispatch-message (ds/now) node :an-event)))))
+        (is (= :ok (n/dispatch-message (g/now) node :an-event)))))
     (testing "nodes without event handlers do not implement MessageTarget"
       (let [[node] (tx-nodes (g/make-node world EventlessNode))]
         (is (not (satisfies? g/MessageTarget node)))))
     (testing "nodes can inherit handlers from their supertypes"
       (let [[node] (tx-nodes (g/make-node world InheritedEventNode))]
         (is ((every-pred :an-event :mixin-event :another-event) (g/event-handlers' InheritedEventNode)))
-        (is (= :ok         (n/dispatch-message (ds/now) node :an-event)))
-        (is (= :mixin-ok   (n/dispatch-message (ds/now) node :mixin-event)))
-        (is (= :another-ok (n/dispatch-message (ds/now) node :another-event)))))))
+        (is (= :ok         (n/dispatch-message (g/now) node :an-event)))
+        (is (= :mixin-ok   (n/dispatch-message (g/now) node :mixin-event)))
+        (is (= :another-ok (n/dispatch-message (g/now) node :another-event)))))))
 
 (defn- not-neg? [x] (not (neg? x)))
 

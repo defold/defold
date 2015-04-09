@@ -1,7 +1,6 @@
 (ns editor.camera
   (:require [dynamo.geom :as geom]
             [dynamo.graph :as g]
-            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [schema.macros :as sm])
@@ -304,7 +303,7 @@
 (defn reframe-camera-tx [self camera viewport aabb]
   (if aabb
     (let [camera (camera-orthographic-frame-aabb camera viewport aabb)]
-      (ds/transact
+      (g/transact
        (concat
         (g/set-property self :camera camera)
         (g/set-property self :reframe false)))
@@ -327,7 +326,7 @@
     (case (:type action)
       :scroll (if (contains? (:movements-enabled self) :dolly)
                 (let [dy (:delta-y action)]
-                  (ds/transact (g/update-property self :camera dolly (* -0.002 dy)))
+                  (g/transact (g/update-property self :camera dolly (* -0.002 dy)))
                   nil)
                 action)
       :mouse-pressed (let [movement (get (:movements-enabled self) (camera-movement action) :idle)]
@@ -345,7 +344,7 @@
       :mouse-moved (let [{:keys [movement last-x last-y]} @(:ui-state self)
                          {:keys [x y]} action]
                      (when (not (= :idle movement))
-                       (ds/transact
+                       (g/transact
                         (case movement
                           :dolly  (g/update-property self :camera dolly (* -0.002 (- y last-y)))
                           :track  (g/update-property self :camera track viewport last-x last-y x y)
