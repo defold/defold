@@ -8,21 +8,8 @@
             [editor.core :as core]
             [editor.ui :as ui]
             [editor.jfx :as jfx]
-            [editor.workspace :as workspace]
-            [editor.project :as project]
-            [editor.asset-browser :as asset-browser]
-            [editor.outline-view :as outline-view]
-            [editor.properties-view :as properties-view]
-            [editor.graph-view :as graph-view]
             [editor.scene :as scene]
             [editor.image :as image]
-            [editor.collection :as collection]
-            [editor.game-object :as game-object]
-            [editor.atlas :as atlas]
-            [editor.cubemap :as cubemap]
-            [editor.platformer :as platformer]
-            [editor.switcher :as switcher]
-            [editor.sprite :as sprite]
             [internal.clojure :as clojure]
             [internal.disposal :as disp]
             [internal.graph.types :as gt]
@@ -36,7 +23,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar ContextMenu Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent KeyCombination]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -60,7 +47,7 @@
         new (filter (fn [other] (not (first-set (:label other)))) other-menu)]
     (concat merged new)))
 
-(defn- clj->jfx [{:keys [label icon children handler-fn acc enable-fn] :as item}]
+(defn clj->jfx [{:keys [label icon children handler-fn acc enable-fn] :as item}]
   (let [label (if (fn? label) (label) label)
         menu-item (if children
                     (Menu. label)
@@ -77,12 +64,16 @@
       (.addEventHandler menu-item ActionEvent/ACTION (ui/event-handler event (handler-fn event))))
     menu-item))
 
-(defn- apply-menu [menu-bar menu]
-  (.setAll (.getMenus menu-bar) (map clj->jfx menu)))
+(defn make-context-menu [menu]
+  (let [context-menu (ContextMenu.)
+        populate-fn (fn [] (.setAll (.getItems context-menu) (map clj->jfx menu)))]
+    (populate-fn)
+    (.setOnShowing context-menu (ui/event-handler event populate-fn))
+    context-menu))
 
 (g/defnk produce-menu-bar [static-menu menus menu-bar]
   (let [menu (reduce merge-menus static-menu menus)]
-    (apply-menu menu-bar menu))
+    (.setAll (.getMenus menu-bar) (map clj->jfx menu)))
   menu-bar)
 
 (g/defnode MenuView
@@ -91,5 +82,5 @@
   (input menus [t/Any])
   (output menu-bar MenuBar :cached produce-menu-bar))
 
-(defn make-menu [graph menu-bar static-menu]
+(defn make-menu-node [graph menu-bar static-menu]
   (first (ds/tx-nodes-added (ds/transact (g/make-node graph MenuView :menu-bar menu-bar :static-menu static-menu)))))
