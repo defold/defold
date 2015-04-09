@@ -10,6 +10,7 @@
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [editor.project :as project]
+            [editor.menu :as menu]
             [editor.asset-browser :as asset-browser]
             [editor.outline-view :as outline-view]
             [editor.properties-view :as properties-view]
@@ -126,11 +127,11 @@
 (defn- setup-asset-browser [workspace project root]
   (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (create-editor workspace project resource root))))
 
-(defn- bind-menus [menu handler]
-  (cond
-    (instance? MenuBar menu) (doseq [m (.getMenus menu)] (bind-menus m handler))
-    (instance? Menu menu) (doseq [m (.getItems menu)]
-                            (.addEventHandler m ActionEvent/ACTION handler))))
+(defn setup-menu [graph menu-bar]
+  (menu/make-menu graph menu-bar [{:label "File" :children []}
+                                  {:label "Edit" :children []}
+                                  {:label "Help" :children [{:label "About Defold"
+                                                             :handler-fn (fn [event] (prn "ABOUT!"))}]}]))
 
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
@@ -147,8 +148,13 @@
     (.setScene stage scene)
 
     (.show stage)
-    (let [handler (ui/event-handler event (println event))]
-      (bind-menus (.lookup root "#menu-bar") handler))
+
+    (let [menu (setup-menu *view-graph* (.lookup root "#menu-bar"))]
+      (ds/transact
+        (concat
+          (g/connect project :menu menu :menus)))
+      ; TODO - remove menu update hack
+      (g/node-value menu :menu-bar))
 
     (let [close-handler (ui/event-handler event
                           (ds/transact
@@ -209,7 +215,8 @@
         curve        (create-view project root "#curve-editor-container" CurveEditor)
         properties   (properties-view/make-properties-view *view-graph* (.lookup root "#properties"))
         selection    (g/node-value project :selection)]
-    (ds/transact (g/connect selection :selection properties :selection))))
+    (ds/transact (g/connect selection :selection properties :selection))
+    (ds/reset-undo! *project-graph*)))
 
 (defn get-preference [key]
   (let [prefs (.node (Preferences/userRoot) "defold")]
