@@ -118,3 +118,28 @@
                  (is (nil? (g/node-value camera :aabb)))
                  (g/undo project-graph)
                  (is (not-nil? (g/node-value camera :aabb))))))))
+
+(defn outline-children [node] (:children (g/node-value node :outline)))
+
+(deftest redo-undone-deletion-still-deletes
+  (with-clean-system
+    (let [workspace     (load-test-workspace world)
+          project-graph (g/attach-graph-with-history (g/make-graph :volatility 1))
+          project       (load-test-project workspace project-graph)]
+      (let [game-object-node (second (first (project/find-resources project "switcher/test.go")))]
+
+        (is (= 1 (count (outline-children game-object-node))))
+
+        (g/transact (g/delete-node (:self (first (outline-children game-object-node)))))
+
+        (is (= 0 (count (outline-children game-object-node))))
+
+        ;; undo deletion
+        (g/undo project-graph)
+
+        (is (= 1 (count (outline-children game-object-node))))
+
+        ;; redo deletion
+        (g/redo project-graph)
+
+        (is (= 0 (count (outline-children game-object-node))))))))

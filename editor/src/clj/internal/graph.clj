@@ -49,7 +49,8 @@
   [g n]
   (-> g
       (update :nodes dissoc n)
-      (update :tarcs (fn [s] (removev #(= n (.target %)) s)))))
+      (update :tarcs (fn [s] (removev #(or (= n (.source %))
+                                           (= n (.target %))) s)))))
 
 (defn transform-node
   [g n f & args]
