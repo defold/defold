@@ -13,14 +13,15 @@
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
+(defn nodes
+  []
+  (mapcat (comp vals :nodes) (vals (:graphs (g/now)))))
+
 (defn nodes-and-classes
   []
-  (let [now (g/now)]
-   (for [graphid (sort (keys (:graphs now)))
-         :let [graph (get-in now [:graphs graphid])]
-         nodeid  (sort (keys (:nodes graph)))
-         :let [node (get (:nodes graph) nodeid)]]
-     [graphid (gt/nref->nid nodeid) (class node)])))
+  (for [n (nodes)
+        :let [node-id (g/node-id n)]]
+    [(gt/nref->gid node-id) (gt/nref->nid node-id) (class n)]))
 
 (defn node
   ([nref]
@@ -28,6 +29,13 @@
 
   ([gid nid]
    (g/node-by-id (g/now) (gt/make-nref gid nid))))
+
+(defn nodes-for-file
+  [filename]
+  (for [n (nodes)
+        :let [f (some-> n :resource :file (.getPath))]
+        :when (and f (.endsWith f filename))]
+    n))
 
 (defn node-type
   [gid nid]
@@ -39,24 +47,11 @@
             (gt/sources (g/now) (gt/make-nref gid nid) label))))
 
 (defn outputs-from
-  [gid nid label]
-  (sort-by first
-            (gt/targets (g/now) (gt/make-nref gid nid) label)))
-
-(defn sarc-reciprocated
-  [basis source-arc]
-  (some #{(gt/head source-arc)} (apply gt/sources (g/now) (gt/tail source-arc))))
-
-(defn tarc-reciprocated
-  [basis target-arc]
-  (some #{(gt/tail target-arc)} (apply gt/targets (g/now) (gt/head target-arc))))
-
-(defn unreciprocated-arcs
-  [basis]
-  {:source-arcs
-   (remove (partial sarc-reciprocated basis) (mapcat :sarcs (vals (:graphs basis))))
-   :target-arcs
-   (remove (partial tarc-reciprocated basis) (mapcat :tarcs (vals (:graphs basis))))})
+  ([node-id label]
+   (sort-by first
+            (gt/targets (g/now) node-id label)))
+  ([gid nid label]
+   (outputs-from (gt/make-nref gid nid) label)))
 
 (defn get-value
   [gid nid label]
