@@ -1,5 +1,6 @@
 (ns internal.system-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.string :as str]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.system :as ds]
@@ -272,3 +273,45 @@
 
           (is (undo-redo-state? pgraph-id [{:label nil}] [{:label 3} {:label 2}]))
           (is (undo-redo-state? agraph-id [{:label nil}   {:label 2}] [])))))))
+
+(g/defnode Source
+  (property source-label String))
+
+(g/defnode Pipe
+  (input target-label String)
+  (output soft String (g/fnk [target-label] (str/lower-case target-label))))
+
+(g/defnode Sink
+  (input target-label String)
+  (output loud String (g/fnk [target-label] (str/upper-case target-label))))
+
+(defn id [n] (g/node-id n))
+
+(deftest tracing-across-graphs
+  (ts/with-clean-system
+    (let [pgraph-id (ds/attach-graph-with-history (g/make-graph))
+          agraph-id (ds/attach-graph (g/make-graph))]
+
+      (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node pgraph-id Source :source-label "first")
+                                                     (g/make-node pgraph-id Pipe)
+                                                     (g/make-node pgraph-id Sink))
+
+            [source-a1 sink-a1 sink-a2] (ts/tx-nodes (g/make-node agraph-id Source :source-label "second")
+                                                     (g/make-node agraph-id Sink)
+                                                     (g/make-node agraph-id Sink))]
+
+        (ds/transact
+         [(g/connect source-p1 :source-label sink-p1 :target-label)
+          (g/connect source-p1 :source-label pipe-p1 :target-label)
+          (g/connect pipe-p1   :soft         sink-a1 :target-label)
+          (g/connect source-a1 :source-label sink-a2 :target-label)])
+
+        (is (= (g/dependencies (ds/now) [[(id source-a1) :source-label]])
+               #{[(id sink-a2)   :loud]
+                 [(id source-a1) :source-label]}))
+
+        (is (= (g/dependencies (ds/now) [[(id source-p1) :source-label]])
+               #{[(id sink-p1)   :loud]
+                 [(id pipe-p1)   :soft]
+                 [(id sink-a1)   :loud]
+                 [(id source-p1) :source-label]}))))))

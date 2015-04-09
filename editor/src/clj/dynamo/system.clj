@@ -40,10 +40,7 @@
 (defn- graphs-touched
   [tx-result]
   (distinct
-   (map #(gt/nref->gid (first %))
-        (concat
-         (:outputs-modified tx-result)
-         (:properties-modified tx-result)))))
+   (map gt/nref->gid (:nodes-modified tx-result))))
 
 (defn transact
   ([txs]
@@ -92,6 +89,10 @@
 (defn transaction-basis
   [transaction]
   (:basis transaction))
+
+(defn pre-transaction-basis
+  [transaction]
+  (:original-basis transaction))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade

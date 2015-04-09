@@ -16,7 +16,7 @@ into an arglist."
 
 (defn map-keys
   [f m]
-  (reduce-kv (fn [m k v] (assoc m (f k) v)) m m))
+  (reduce-kv (fn [m k v] (assoc m (f k) v)) (empty m) m))
 
 (defn map-vals
   [f m]
