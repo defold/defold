@@ -128,10 +128,6 @@
       ctx
       all-targets)))
 
-(defn- activate-output
-  [ctx node-id output-label]
-  (update-in ctx [:outputs-modified] conj [node-id output-label]))
-
 (defmulti perform
   "A multimethod used for defining methods that perform the individual
   actions within a transaction. This is for internal use, not intended
@@ -245,7 +241,6 @@
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
         (mark-activated target-id target-label)
-        (activate-output source-id source-label)
         (assoc
          :basis            (gt/connect basis source-id source-label target-id target-label)
          :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
@@ -256,7 +251,6 @@
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
-        (activate-output source-id source-label)
         (mark-activated target-id target-label)
         (assoc
          :basis            (gt/disconnect basis source-id source-label target-id target-label)
@@ -325,8 +319,11 @@
 
 (defn- mark-outputs-modified
   [{:keys [nodes-affected] :as ctx}]
-  (update-in ctx [:outputs-modified]
-             #(set/union % (pairs nodes-affected))))
+  (update-in ctx [:outputs-modified] #(set/union % (pairs nodes-affected))))
+
+(defn- mark-nodes-modified
+  [{:keys [nodes-affected properties-affected] :as ctx}]
+  (update ctx :nodes-modified #(set/union % (keys nodes-affected) (keys properties-affected))))
 
 (defn- one-transaction-pass
   [ctx actions]
@@ -335,6 +332,7 @@
     (assoc :nodes-affected {})
     (apply-tx actions)
     mark-outputs-modified
+    mark-nodes-modified
     process-triggers
     (dissoc :triggers-to-fire)
     (dissoc :nodes-affected)))
@@ -364,7 +362,7 @@
     sequence-label
     (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))))
 
-(def tx-report-keys [:basis :new-event-loops :tempids :nodes-added :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
+(def tx-report-keys [:basis :new-event-loops :tempids :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
@@ -376,6 +374,7 @@
 (defn new-transaction-context
   [basis actions]
   {:basis               basis
+   :original-basis      basis
    :tempids             {}
    :new-event-loops     #{}
    :old-event-loops     #{}
@@ -389,9 +388,8 @@
    :txpass              0})
 
 (defn- trace-dependencies
-  [{:keys [basis outputs-modified] :as ctx}]
-  (update-in ctx [:outputs-modified]
-             #(ig/trace-dependencies basis %)))
+  [ctx]
+  (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
 
 (defn transact*
   [ctx]

@@ -29,61 +29,36 @@
      ~@body
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
-(g/defnk produce-simple-value
-  [this scalar]
-  (tally this 'produce-simple-value)
-  scalar)
-
-(g/defnode UncachedOutput
-  (property scalar t/Str)
-  (output uncached-value String produce-simple-value))
-
-(defn compute-expensive-value
-  [node g]
-  (tally node 'compute-expensive-value)
-  "this took a long time to produce")
-
-(g/defnode CachedOutputNoInputs
-  (output expensive-value String :cached
-    (fn [node g]
-      (tally node 'compute-expensive-value)
-      "this took a long time to produce"))
-  (input operand String))
-
-(g/defnode UpdatesExpensiveValue
-  (output expensive-value String :cached
-    (fn [node g]
-      (tally node 'compute-expensive-value)
-      "this took a long time to produce")))
-
-(g/defnode SecondaryCachedValue
-  (output another-value String :cached
-    (fn [node g]
-      "this is distinct from the other outputs")))
-
-(g/defnk compute-derived-value
-  [this first-name last-name]
-  (tally this 'compute-derived-value)
-  (str first-name " " last-name))
-
-(g/defnk passthrough-first-name
-  [this first-name]
-  (tally this 'passthrough-first-name)
-  first-name)
-
-(g/defnode CachedOutputFromInputs
+(g/defnode CacheTestNode
   (input first-name String)
   (input last-name  String)
+  (input operand    String)
 
-  (output nickname String :cached passthrough-first-name)
-  (output derived-value String :cached compute-derived-value))
+  (property scalar t/Str)
 
-(g/defnode CacheTestNode
-  (inherits UncachedOutput)
-  (inherits CachedOutputNoInputs)
-  (inherits CachedOutputFromInputs)
-  (inherits UpdatesExpensiveValue)
-  (inherits SecondaryCachedValue))
+  (output uncached-value  String
+          (g/fnk [this scalar]
+                 (tally this 'produce-simple-value)
+                 scalar))
+
+  (output expensive-value String :cached
+          (g/fnk [this]
+                 (tally this 'compute-expensive-value)
+                 "this took a long time to produce"))
+
+  (output nickname        String :cached
+          (g/fnk [this first-name]
+                 (tally this 'passthrough-first-name)
+                 first-name))
+
+  (output derived-value   String :cached
+          (g/fnk [this first-name last-name]
+                 (tally this 'compute-derived-value)
+                 (str first-name " " last-name)))
+
+  (output another-value   String :cached
+          (g/fnk [this]
+                 "this is distinct from the other outputs")))
 
 (defn build-sample-project
   [world]
@@ -156,18 +131,10 @@
                              (is (= "Mark" (g/node-value combiner :nickname)))
                              (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
 
-(g/defnk produce-input-from-node
-  [overridden]
-  overridden)
-
-(g/defnk derive-value-from-inputs
-  [an-input]
-  an-input)
-
 (g/defnode OverrideValueNode
   (input overridden t/Str)
-  (output output t/Str produce-input-from-node)
-  (output foo    t/Str derive-value-from-inputs))
+  (output output t/Str (g/fnk [overridden] overridden))
+  (output foo    t/Str (g/fnk [an-input] an-input)))
 
 (defn build-override-project
   [world]
@@ -252,3 +219,38 @@
       (is (= :property (g/node-value node :the-property)))
       (is (= :output   (g/node-value node :output-using-overloaded-output-input-property)))
       (is (= :input    (g/node-value node :eponymous))))))
+
+(deftest invalidation-across-graphs
+  (with-clean-system
+    (let [project-graph (ds/attach-graph-with-history (g/make-graph))
+          view-graph    (ds/attach-graph (g/make-graph :volatility 100))
+          [content-node aux-node] (tx-nodes (g/make-node project-graph CacheTestNode :scalar "Snake")
+                                            (g/make-node project-graph CacheTestNode :scalar "Plissken"))
+          [view-node]    (tx-nodes (g/make-node view-graph CacheTestNode))]
+      (ds/transact
+       [(g/connect content-node :scalar view-node :first-name)
+        (g/connect aux-node     :scalar view-node :last-name)])
+
+      (expect-call-when
+       view-node 'compute-derived-value
+       (is (= "Snake Plissken" (g/node-value view-node :derived-value))))
+
+      (ds/transact (g/set-property aux-node :scalar "Solid"))
+
+      (expect-call-when
+       view-node 'compute-derived-value
+       (is (= "Snake Solid" (g/node-value view-node :derived-value))))
+
+      (ds/transact
+       [(g/disconnect     aux-node :scalar view-node :last-name)
+        (g/disconnect content-node :scalar view-node :first-name)
+        (g/connect        aux-node :scalar view-node :first-name)
+        (g/connect    content-node :scalar view-node :last-name)])
+
+      (expect-call-when
+       view-node 'compute-derived-value
+       (is (= "Solid Snake" (g/node-value view-node :derived-value))))
+
+      (expect-no-call-when
+       view-node 'compute-derived-value
+       (is (= "Solid Snake" (g/node-value view-node :derived-value)))))))
