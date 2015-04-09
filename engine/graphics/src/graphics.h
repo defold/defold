@@ -540,7 +540,7 @@ namespace dmGraphics
      * @param params
      */
     void SetTexture(HTexture texture, const TextureParams& params);
-    void SetTextureParams(HTexture texture, const TextureFilter& minfilter, const TextureFilter& magfilter, const TextureWrap& uwrap, const TextureWrap& vwrap);
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);
