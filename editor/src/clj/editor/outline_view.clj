@@ -5,8 +5,9 @@
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [editor.atlas :as atlas]
             [editor.core :as core]
+            [editor.menu :as menu]
+            [editor.atlas :as atlas]
             [editor.cubemap :as cubemap]
             [editor.graph-view :as graph-view]
             [editor.jfx :as jfx]
@@ -73,9 +74,15 @@
                                           (proxy [TreeCell] []
                                             (updateItem [item empty]
                                               (proxy-super updateItem item empty)
-                                              (let [label (or (and (not empty) (:label item)) nil)]
-                                                (proxy-super setText label))
-                                              (proxy-super setGraphic (jfx/get-image-view (:icon item))))))))
+                                              (if empty
+                                                (do
+                                                  (proxy-super setText nil)
+                                                  (proxy-super setGraphic nil)
+                                                  (proxy-super setContextMenu nil))
+                                                (let [{:keys [label icon context-menu]} item]
+                                                  (proxy-super setText label)
+                                                  (proxy-super setGraphic (jfx/get-image-view icon))
+                                                  (when context-menu (proxy-super setContextMenu (menu/make-context-menu context-menu))))))))))
   (-> tree
     (.getSelectionModel)
     (.getSelectedItems)

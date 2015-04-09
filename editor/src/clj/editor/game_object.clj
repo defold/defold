@@ -39,7 +39,12 @@
   (input source t/Any)
   (input outline t/Any)
 
-  (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id})))
+  (output context-menu t/Any (g/fnk [self embedded] [{:label "Delete"
+                                                      :handler-fn (fn [event] (ds/transact
+                                                                                (concat
+                                                                                  (g/operation-label "Delete")
+                                                                                  (g/delete-node self))))}]))
+  (output outline t/Any (g/fnk [self id outline context-menu] (merge outline {:self self :label id :context-menu context-menu})))
   (output render-setup t/Any (g/fnk [source]
                                     (when-let [resource-type (project/get-resource-type source)]
                                       (let [view-fns (:scene (:view-fns resource-type))]
