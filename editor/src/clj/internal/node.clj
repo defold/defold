@@ -23,7 +23,7 @@
 ;; ---------------------------------------------------------------------------
 (defn abort
   [why _ in-production node-id label & _]
-  (throw (ex-info (str why " Trying to produce [" (gt/nref->gid node-id) ":" (gt/nref->nid node-id) label "]")
+  (throw (ex-info (str why " Trying to produce [" node-id label "]")
                   {:node-id node-id :label label :in-production in-production})))
 
 (def not-found (partial abort "No such property, input or output."))
@@ -582,7 +582,7 @@ and protocols that the node type requires."
        [~node w#]
        (.write
         ^java.io.Writer w#
-        (str "#" '~node-type-name "{" (gt/nref->gid (:_id ~node)) ":" (gt/nref->nid (:_id ~node))
+        (str "#" '~node-type-name "{" (:_id ~node)
              ~@(interpose-every 3 ", "
                                 (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))])
                                         (keys (gt/properties' node-type))))

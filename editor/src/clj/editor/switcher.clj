@@ -303,7 +303,7 @@
         project-node    (:parent self)
         atlas-node      (second (first (project/find-resources project-node switcher-atlas-file)))]
     (g/make-nodes
-      (g/nref->gid (g/node-id view))
+      (g/node->graph-id view)
       [switcher-render SwitcherRender]
       (g/connect switcher-render :renderable    renderer        :renderables)
       (g/connect self            :level         switcher-render :level)
@@ -319,7 +319,7 @@
         project-node    (:parent self)
         atlas-node      (second (first (project/find-resources project-node switcher-atlas-file)))]
     (g/make-nodes
-      (g/nref->gid (g/node-id view))
+      (g/node->graph-id view)
       [controller SwitcherController]
       (g/connect view            :viewport      controller      :viewport)
       (g/connect camera          :camera        controller      :camera)

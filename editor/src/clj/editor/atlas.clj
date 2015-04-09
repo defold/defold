@@ -289,7 +289,7 @@
   (let [atlas         (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
         img-resources (project/find-resources project "**.{png,jpg}")
         img-nodes     (into {} (map (fn [[resource node]] [(workspace/path resource) node]) img-resources))
-        graph-id      (g/nref->gid (g/node-id self))]
+        graph-id      (g/node->graph-id self)]
     (concat
       ;; TODO Bug, protobuf defaults should be preserved
       (g/set-property self :margin (get atlas :margin 0))
@@ -298,7 +298,7 @@
       (for [anim (:animations atlas)
             :let [images (mapv :image (:images anim))]]
         (g/make-nodes
-          (g/nref->gid (g/node-id self))
+          (g/node->graph-id self)
           [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim) :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
           (g/connect atlas-anim :animation self :animations)
           (g/connect atlas-anim :outline   self :outline)
@@ -308,7 +308,7 @@
   (let [renderer (t/lookup view :renderer)
         camera (t/lookup view :camera)]
     (g/make-nodes
-      (g/nref->gid (g/node-id view))
+      (g/node->graph-id view)
       [atlas-render AtlasRender]
       (g/connect self         :texture-packing atlas-render :texture-packing)
       (g/connect self         :gpu-texture     atlas-render :gpu-texture)

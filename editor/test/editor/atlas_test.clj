@@ -50,7 +50,7 @@
 
 (defn <-text
   [project-node text-format]
-  (let [atlas  (some-> (g/make-node (g/nref->gid (g/node-id project-node)) atlas/AtlasNode :filename (atlas-tempfile text-format))
+  (let [atlas  (some-> (g/make-node (g/node->graph-id project-node) atlas/AtlasNode :filename (atlas-tempfile text-format))
                        g/transact
                        g/tx-nodes-added
                        first)]
