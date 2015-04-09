@@ -16,8 +16,8 @@ attribute lowp vec4 shadow_color;
 void main()
 {
     var_texcoord0 = texcoord0;
-    var_face_color = face_color;
-    var_outline_color = outline_color;
+    var_face_color = vec4(face_color.xyz * face_color.w, face_color.w);
+    var_outline_color = vec4(outline_color.xyz * outline_color.w, outline_color.w);
     var_sdf_params = sdf_params;
     gl_Position = view_proj * vec4(position.x, position.y, position.z, 1.0);
 }
