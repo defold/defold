@@ -44,7 +44,13 @@
         ;; graph was modified concurrently by a different transaction.
         (throw (ex-info "Concurrent modification of graph"
                         {:_gid gid :start-tx start-tx :sidereal-tx sidereal-tx}))
-        (ref-set (is/graph-ref sys gid) (update-in graph [:tx-id] safe-inc))))))
+        (let [gref      (is/graph-ref sys gid)
+              href      (is/graph-history sys gid)
+              prior     @gref
+              posterior (update-in graph [:tx-id] safe-inc)]
+          (when href
+            (alter href is/merge-or-push-history gref prior posterior))
+          (ref-set gref posterior))))))
 
 (defn- graphs-touched
   [tx-result]
