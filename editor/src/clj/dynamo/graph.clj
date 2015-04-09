@@ -22,6 +22,7 @@
 ;; ---------------------------------------------------------------------------
 ;; State handling
 ;; ---------------------------------------------------------------------------
+
 ;; Only marked dynamic so tests can rebind. Should never be rebound "for real".
 (defonce ^:dynamic *the-system* (atom nil))
 
@@ -110,6 +111,8 @@
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
+(declare become)
+
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
    and attendant functions.
@@ -225,7 +228,7 @@
        (let [description#    ~(in/node-type-sexps symb (concat dn/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
-             all-graphs#     (map-vals deref (is/graphs @g/*the-system*))
+             all-graphs#     (map-vals deref (is/graphs @*the-system*))
              to-be-replaced# (when (and all-graphs# replacing#)
                                (filterv #(= replacing# (node-type %)) (mapcat ig/node-values (vals all-graphs#))))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
@@ -233,10 +236,10 @@
          (in/define-node-record  '~record-name '~symb ~symb)
          (in/define-print-method '~record-name '~symb ~symb)
          (when (< 0 (count to-be-replaced#))
-           (g/transact
+           (transact
             (mapcat (fn [r#]
                       (let [new# (dn/construct ~symb)]
-                        (g/become r# new#)))
+                        (become r# new#)))
                     to-be-replaced#)))
          (var ~symb)))))
 

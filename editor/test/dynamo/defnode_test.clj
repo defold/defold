@@ -1,11 +1,12 @@
 (ns dynamo.defnode-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [dynamo.graph.test-support :refer [tx-nodes with-clean-system]]
             [dynamo.node :as n]
             [dynamo.property :as dp]
-            [dynamo.graph.test-support :refer [tx-nodes with-clean-system]]
             [dynamo.types :as t]
-            [internal.node :as in]))
+            [internal.node :as in])
+  (:import clojure.lang.Compiler$CompilerException))
 
 (deftest nodetype
   (testing "is created from a data structure"
@@ -251,6 +252,7 @@
         (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
       (is (:cached-output (g/cached-outputs' MultipleOutputNode)))
       (is (:cached-output (g/cached-outputs node)))))
+
   (testing "output inheritance"
     (let [node (n/construct InheritedOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute :abstract-output]]
@@ -260,22 +262,34 @@
         (is (= expected-schema (get-in InheritedOutputNode [:transform-types label]))))
       (is (:cached-output (g/cached-outputs' InheritedOutputNode)))
       (is (:cached-output (g/cached-outputs node)))))
+
   (testing "output dependencies include transforms and their inputs"
     (let [node (n/construct MultipleOutputNode)]
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
               :integer-input #{:string-output :cached-output :with-substitute}}
-            (g/input-dependencies node))))
+             (g/input-dependencies node))))
     (let [node (n/construct InheritedOutputNode)]
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
               :integer-input #{:string-output :abstract-output :cached-output :with-substitute}}
-            (g/input-dependencies node)))))
+             (g/input-dependencies node)))))
+
   (testing "output dependencies are the transitive closure of their inputs"
     (let [node (n/construct TwoLayerDependencyNode)]
       (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property}
               :direct-calculation #{:indirect-calculation}}
-            (g/input-dependencies node))))))
+             (g/input-dependencies node)))))
+
+  (testing "outputs defined without the type cause a compile error"
+    (is (not (nil? (eval '(dynamo.graph/defnode FooNode
+                            (output my-output dynamo.types/Any :abstract))))))
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode FooNode
+                          (output my-output :abstract)))))
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode FooNode
+                          (output my-output (dynamo.graph/fnk [] "constant string"))))))))
 
 (g/defnode OneEventNode
   (on :an-event
