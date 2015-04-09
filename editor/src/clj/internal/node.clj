@@ -368,6 +368,12 @@ not called directly."
     attach-input-dependencies
     map->NodeTypeImpl))
 
+(def ^:private inputs-properties (juxt :inputs :properties))
+
+(defn- name-available
+  [description label]
+  (not (some #{label} (mapcat keys (inputs-properties description)))))
+
 (defn attach-supertype
   "Update the node type description with the given supertype."
   [description supertype]
@@ -376,6 +382,7 @@ not called directly."
 (defn attach-input
   "Update the node type description with the given input."
   [description label schema flags]
+  (assert (name-available description label) (str "Cannot create input " label ". It is already in use."))
   (cond->
     (assoc-in description [:inputs label] schema)
 

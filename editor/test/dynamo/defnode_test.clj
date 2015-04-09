@@ -182,6 +182,7 @@
       (is (:a-property (g/properties' SinglePropertyNode)))
       (is (:a-property (g/properties node)))
       (is (some #{:a-property} (keys node)))))
+
   (testing "two properties"
     (let [node (n/construct TwoPropertyNode)]
       (is (:a-property       (g/properties' TwoPropertyNode)))
@@ -189,9 +190,11 @@
       (is (:a-property       (g/properties node)))
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
+
   (testing "properties can have defaults"
     (let [node (n/construct TwoPropertyNode)]
       (is (= "default value" (:a-property node)))))
+
   (testing "properties are inherited"
     (let [node (n/construct InheritedPropertyNode)]
       (is (:a-property       (g/properties' InheritedPropertyNode)))
@@ -199,15 +202,23 @@
       (is (:a-property       (g/properties node)))
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
+
   (testing "property defaults can be inherited or overridden"
     (let [node (n/construct InheritedPropertyNode)]
       (is (= "default value" (:a-property node)))
       (is (= -1              (:another-property node)))))
+
   (testing "output dependencies include properties"
     (let [node (n/construct InheritedPropertyNode)]
       (is (= {:another-property #{:properties :another-property}
               :a-property #{:properties :a-property}}
-            (g/input-dependencies node))))))
+             (g/input-dependencies node)))))
+
+  (testing "do not allow a property to shadow an input of the same name"
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode ReflexiveFeedbackPropertySingularToSingular
+                          (property port dynamo.types/Keyword (default :x))
+                          (input port dynamo.types/Keyword :inject)))))))
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)

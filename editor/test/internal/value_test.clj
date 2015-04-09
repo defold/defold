@@ -186,7 +186,6 @@
 
 (g/defnode ValuePrecedence
   (property overloaded-output-input-property t/Keyword (default :property))
-  (input    overloaded-output-input-property t/Keyword)
   (output   overloaded-output-input-property t/Keyword (g/fnk [] :output))
 
   (input    overloaded-input-property t/Keyword)
@@ -206,7 +205,6 @@
                               (g/make-node world Source :constant :input))]
       (g/transact
        (concat
-        (g/connect s1 :constant node :overloaded-output-input-property)
         (g/connect s1 :constant node :overloaded-input-property)
         (g/connect s1 :constant node :eponymous)))
       (is (= :output   (g/node-value node :overloaded-output-input-property)))
