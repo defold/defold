@@ -479,8 +479,8 @@ must be part of a protocol or interface attached to the description."
 
 (defn- node-type-form
   "Translate the sugared `defnode` forms into function calls that
-build the node type description (map). These are emitted where you invoked
-`defnode` so that symbols and vars resolve correctly."
+  build the node type description (map). These are emitted where you
+  invoked `defnode` so that symbols and vars resolve correctly."
   [form]
   (match [form]
     [(['inherits supertype] :seq)]
@@ -491,6 +491,7 @@ build the node type description (map). These are emitted where you invoked
 
     [(['output label schema & remainder] :seq)]
     (let [[properties options args] (parse-output-options remainder)]
+      (assert (or (:abstract properties) (not (empty? args))) "The output type seems to be missing.")
       `(attach-output ~(keyword label) ~schema ~properties ~options ~@args))
 
     [(['property label tp & options] :seq)]
