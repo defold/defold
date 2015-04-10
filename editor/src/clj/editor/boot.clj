@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [dynamo.node :as n]
             [dynamo.types :as t]
+            [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.atlas :as atlas]
             [editor.collection :as collection]
@@ -121,12 +122,6 @@
 (defn- setup-asset-browser [workspace project root]
   (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (create-editor workspace project resource root))))
 
-(defn setup-menu [graph menu-bar]
-  (menu/make-menu-node graph menu-bar [{:label "File" :children []}
-                                       {:label "Edit" :children []}
-                                       {:label "Help" :children [{:label "About Defold"
-                                                                  :handler-fn (fn [event] (prn "ABOUT!"))}]}]))
-
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
 (def ^:dynamic *view-graph*)
@@ -137,18 +132,14 @@
   (let [root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
-    (.setUseSystemMenuBar (.lookup root "#menu-bar") true)
-    (.setTitle stage "Defold Editor 2.0!")
-    (.setScene stage scene)
 
+    (.setScene stage scene)
     (.show stage)
 
-    (let [menu (setup-menu *view-graph* (.lookup root "#menu-bar"))]
+    (let [app-view (app-view/make-app-view *view-graph* stage (.lookup root "#menu-bar"))]
       (g/transact
         (concat
-          (g/connect project :menu menu :menus)))
-      ; TODO - remove menu update hack
-      (g/node-value menu :menu-bar))
+          (g/connect project :menu app-view :main-menus))))
 
     (let [close-handler (ui/event-handler event
                           (g/transact

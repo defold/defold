@@ -25,7 +25,7 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
-(defn- merge-menus [menu other-menu]
+(defn merge-menus [menu other-menu]
   (let [first-set (into #{} (map :label menu))
         other-map (into {} (map (fn [other] {(:label other) other}) other-menu))
         merged (map (fn [item]
@@ -53,23 +53,12 @@
       (.addEventHandler menu-item ActionEvent/ACTION (ui/event-handler event (handler-fn event))))
     menu-item))
 
+(defn make-menus [menus]
+  (map clj->jfx menus))
+
 (defn make-context-menu [menu]
   (let [context-menu (ContextMenu.)
         populate-fn (fn [] (.setAll (.getItems context-menu) (map clj->jfx menu)))]
     (populate-fn)
     (.setOnShowing context-menu (ui/event-handler event populate-fn))
     context-menu))
-
-(g/defnk produce-menu-bar [static-menu menus menu-bar]
-  (let [menu (reduce merge-menus static-menu menus)]
-    (.setAll (.getMenus menu-bar) (map clj->jfx menu)))
-  menu-bar)
-
-(g/defnode MenuView
-  (property menu-bar MenuBar)
-  (property static-menu t/Any)
-  (input menus [t/Any])
-  (output menu-bar MenuBar :cached produce-menu-bar))
-
-(defn make-menu-node [graph menu-bar static-menu]
-  (first (g/tx-nodes-added (g/transact (g/make-node graph MenuView :menu-bar menu-bar :static-menu static-menu)))))
