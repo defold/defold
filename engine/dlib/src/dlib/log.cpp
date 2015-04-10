@@ -68,6 +68,52 @@ dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
 int g_TotalBytesLogged = 0;
 FILE* g_LogFile = 0;
 
+static void dmLogReInitialize()
+{
+    dmLogServer* self = g_dmLogServer;
+    dmSocket::Socket server_socket = self->m_ServerSocket;
+    dmSocket::Result r;
+    const char* error_msg = 0;
+
+    r = dmSocket::Delete(server_socket);
+    if (r != dmSocket::RESULT_OK)
+    {
+        error_msg = "Unable to delete old log socket";
+        goto bail_reinit;
+    }
+
+    r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket);
+    if (r != dmSocket::RESULT_OK)
+    {
+        error_msg = "Unable to create log socket";
+        goto bail_reinit;
+    }
+
+    dmSocket::SetReuseAddress(server_socket, true);
+
+    r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("0.0.0.0"), self->m_Port);
+    if (r != dmSocket::RESULT_OK)
+    {
+        error_msg = "Unable to bind to log socket";
+        goto bail_reinit;
+    }
+
+    r = dmSocket::Listen(server_socket, 32);
+    if (r != dmSocket::RESULT_OK)
+    {
+        error_msg = "Unable to listen on log socket";
+        goto bail_reinit;
+    }
+
+    self->m_ServerSocket = server_socket;
+    return;
+
+bail_reinit:
+    fprintf(stderr, "ERROR:DLIB: %s\n", error_msg);
+    if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
+        dmSocket::Delete(server_socket);
+}
+
 static dmSocket::Result SendAll(dmSocket::Socket socket, const char* buffer, int length)
 {
     int total_sent_bytes = 0;
@@ -126,6 +172,10 @@ static void dmLogUpdateNetwork()
                     connection.m_Socket = client_socket;
                     self->m_Connections.Push(connection);
                 }
+            }
+            else if (r == dmSocket::RESULT_BADF || r == dmSocket::RESULT_CONNABORTED)
+            {
+                dmLogReInitialize();
             }
         }
     }
