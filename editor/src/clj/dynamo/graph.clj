@@ -385,10 +385,6 @@
   ([basis cache node label]
    (in/node-value basis cache node label)))
 
-(defn graph-id
-  [g]
-  (:_gid g))
-
 (defn make-graph
   [& {:as options}]
   (let [volatility (:volatility options 0)]
