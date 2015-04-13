@@ -34,11 +34,10 @@
       (is (= 1 (count (is/graphs sys))))))
 
   (testing "a graph can be found by its id"
-    (let [sys (fresh-system)
-          g   (g/make-graph)
-          sys (is/attach-graph sys g)
-          g'  (is/graph sys (g/graph-id g))]
-      (is (= (g/graph-id g') (g/graph-id g))))))
+    (ts/with-clean-system
+      (let [gid (g/attach-graph (g/make-graph))
+            g'  (is/graph @g/*the-system* gid)]
+        (is (= (:_gid g') gid))))))
 
 (deftest tx-id
   (testing "graph time advances with transactions"
