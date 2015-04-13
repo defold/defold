@@ -133,10 +133,6 @@ ordinary paths."
       (swap! (:opened-files workspace) disj file)
       (proxy-super close))))
 
-(defn workspace-graph
-  []
-  (g/make-graph :volatility 0))
-
 (defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
   (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
      (g/update-property workspace :view-types assoc (:id view-type) view-type)))

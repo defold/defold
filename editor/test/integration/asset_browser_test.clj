@@ -50,8 +50,8 @@
   (testing "Searching for a resource produces a hit and renders a preview"
     (with-clean-system
       (let [ws-graph world
-            proj-graph (g/attach-graph-with-history (g/make-graph :volatility 1))
-            view-graph (g/attach-graph (g/make-graph :volatility 100))
+            proj-graph (g/make-graph! :history true :volatility 1)
+            view-graph (g/make-graph! :volatility 100)
             workspace (load-test-workspace ws-graph)
             project (first
                       (g/tx-nodes-added
