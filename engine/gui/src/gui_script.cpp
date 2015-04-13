@@ -2097,6 +2097,7 @@ namespace dmGui
     /*# sets the angle for the filled pie sector
      *
      * @name gui.set_fill_angle
+     * @param node node to set the fill angle for (node)
      * @param sector angle
      */
     static int LuaSetPieFillAngle(lua_State* L)
@@ -2123,6 +2124,7 @@ namespace dmGui
     /*# gets the angle for the filled pie sector
      *
      * @name gui.get_fill_angle
+     * @param node node from which to get the fill angle (node)
      * @return sector angle
      */
     static int LuaGetPieFillAngle(lua_State* L)
@@ -2145,6 +2147,7 @@ namespace dmGui
     /*# sets the pie inner radius (defined along the x dimension)
      *
      * @name gui.set_inner_radius
+     * @param node node to set the inner radius for (node)
      * @param inner radius
      */
     static int LuaSetInnerRadius(lua_State* L)
@@ -2171,6 +2174,7 @@ namespace dmGui
     /*# gets the pie inner radius (defined along the x dimension)
      *
      * @name gui.get_inner_radius
+     * @param node node from where to get the inner radius (node)
      * @return inner radius
      */
     static int LuaGetInnerRadius(lua_State* L)
@@ -2193,6 +2197,7 @@ namespace dmGui
     /*# sets the pie outer bounds mode
      *
      * @name gui.set_outer_bounds
+     * @param node node for which to set the outer bounds mode (node)
      * @param BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
      */
     static int LuaSetOuterBounds(lua_State* L)
@@ -2219,6 +2224,7 @@ namespace dmGui
     /*# gets the pie outer bounds mode
      *
      * @name gui.get_outer_bounds
+     * @param node node from where to get the outer bounds mode (node)
      * @return BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
      */
     static int LuaGetOuterBounds(lua_State* L)
