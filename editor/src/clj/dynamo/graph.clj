@@ -59,22 +59,20 @@
    (map gt/node-id->graph-id (:nodes-modified tx-result))))
 
 (defn transact
-  ([txs]
-   (transact *the-system* txs))
-  ([sys-ref txs]
-   (let [basis     (ig/multigraph-basis (map-vals deref (is/graphs @sys-ref)))
-         tx-result (it/transact* (it/new-transaction-context basis txs))]
-     (when (= :ok (:status tx-result))
-       (dosync
-        (merge-graphs @sys-ref basis (get-in tx-result [:basis :graphs]) (graphs-touched tx-result)))
-       (c/cache-invalidate (is/system-cache @sys-ref) (:outputs-modified tx-result))
-       (doseq [l (:old-event-loops tx-result)]
-         (is/stop-event-loop! @sys-ref l))
-       (doseq [l (:new-event-loops tx-result)]
-         (is/start-event-loop! @sys-ref l))
-       (doseq [d (vals (:nodes-deleted tx-result))]
-         (is/dispose! @sys-ref d)))
-     tx-result)))
+  [txs]
+  (let [basis     (ig/multigraph-basis (map-vals deref (is/graphs @*the-system*)))
+        tx-result (it/transact* (it/new-transaction-context basis txs))]
+    (when (= :ok (:status tx-result))
+      (dosync
+       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (graphs-touched tx-result)))
+      (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))
+      (doseq [l (:old-event-loops tx-result)]
+        (is/stop-event-loop! @*the-system* l))
+      (doseq [l (:new-event-loops tx-result)]
+        (is/start-event-loop! @*the-system* l))
+      (doseq [d (vals (:nodes-deleted tx-result))]
+        (is/dispose! @*the-system* d)))
+    tx-result))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
@@ -432,14 +430,14 @@
   ([basis node label]
    (ffirst (nodes-consuming basis node label))))
 
-(defn output-dependencies
-  "Find all the outputs that could be affected by a change in the
-   given outputs.  Outputs are specified as pairs of [node-id label]
+(defn invalidate!
+  "Invalidate the given outputs and _everything_ that could be
+  affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   ([outputs]
-   (dependencies (now) outputs))
+   (invalidate! (now) outputs))
   ([basis outputs]
-   (dependencies basis outputs)))
+   (c/cache-invalidate (cache) (dependencies basis outputs))))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
@@ -451,37 +449,6 @@
 (defn dispose-pending
   []
   (dispose/dispose-pending (is/disposal-queue @*the-system*)))
-
-(defn cache-invalidate
-  "Uses the system’s cache.
-
-  Atomic action to invalidate the given collection of [node-id label]
-  pairs. If nothing is cached for a pair, it is ignored."
-  [pairs]
-  (c/cache-invalidate (cache) pairs))
-
-(defn cache-encache
-  "Uses the system’s cache.
-
-  Atomic action to record one or more items in cache.
-
-  The collection must contain tuples of [[node-id label] value]."
-  [coll]
-  (c/cache-encache (cache) coll))
-
-(defn cache-hit
-  "Uses the system’s cache.
-
-  Atomic action to record hits on cached items
-
-  The collection must contain tuples of [node-id label] pairs."
-  [coll]
-  (c/cache-hit (cache) coll))
-
-(defn cache-snapshot
-  "Get a value of the cache at a point in time."
-  []
-  (c/cache-snapshot (cache)))
 
 (defn attach-graph
   [graph]
