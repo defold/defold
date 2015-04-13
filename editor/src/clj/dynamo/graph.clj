@@ -354,13 +354,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
-(defn node
-  "Get a node, given a node ID."
-  ([node-id]
-   (node-by-id (now) node-id))
-  ([basis node-id]
-   (node-by-id basis node-id)))
-
 (defn refresh
   ([n]
    (refresh (now) n))
