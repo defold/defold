@@ -194,7 +194,7 @@
 (defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
-    (let [view (first (g/tx-nodes-added (g/transact (g/make-node scene-graph SceneView :image-view image-view))))]
+    (let [view (g/make-node! scene-graph SceneView :image-view image-view)]
       (let [self-ref (g/node-id view)
             event-handler (reify EventHandler (handle [this e]
                                                 (let [now (g/now)
@@ -235,7 +235,7 @@
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
 
 (defn make-preview-view [graph width height]
-  (first (g/tx-nodes-added (g/transact (g/make-node graph PreviewView :width width :height height)))))
+  (g/make-node! graph PreviewView :width width :height height))
 
 (defn setup-view [view & kvs]
   (let [opts (into {} (map vec (partition 2 kvs)))
@@ -258,7 +258,7 @@
                   (g/connect renderer        :frame         view            :frame)
 
                   (when (:grid opts)
-                    (let [grid (first (g/tx-nodes-added (g/transact (g/make-node view-graph grid/Grid))))]
+                    (let [grid (g/make-node! view-graph grid/Grid)]
                       (g/connect grid   :renderable renderer :renderables)
                       (g/connect camera :camera     grid     :camera))))))
 

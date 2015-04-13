@@ -77,7 +77,7 @@
 
   (testing "transaction labels appear in the history"
     (ts/with-clean-system
-      (let [pgraph-id      (g/attach-graph-with-history  (g/make-graph))
+      (let [pgraph-id    (g/attach-graph-with-history (g/make-graph))
             undos-before (is/undo-stack (is/graph-history @g/*the-system* pgraph-id))
             tx-report    (g/transact [(g/make-node pgraph-id Root)
                                       (g/operation-label "Build root")])

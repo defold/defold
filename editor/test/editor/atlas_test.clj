@@ -50,10 +50,7 @@
 
 (defn <-text
   [project-node text-format]
-  (let [atlas  (some-> (g/make-node (g/node->graph-id project-node) atlas/AtlasNode :filename (atlas-tempfile text-format))
-                       g/transact
-                       g/tx-nodes-added
-                       first)]
+  (let [atlas (g/make-node! (g/node->graph-id project-node) atlas/AtlasNode :filename (atlas-tempfile text-format))]
     (g/transact (g/connect atlas :self project-node :nodes))
     #_(g/process-one-event atlas {:type :load :project project-node})
     atlas))
@@ -66,7 +63,7 @@
 
 (defn test-project
   [world image-resource-node-type]
-  (let [project-node (some-> (g/make-node world p/Project) g/transact g/tx-nodes-added first)
+  (let [project-node (g/make-node! world p/Project)
         ppath        (fn [p] (file/make-project-path project-node p))]
     (g/make-nodes
      world
@@ -170,10 +167,7 @@
           outline5     (g/node-value atlas :outline-tree)
 
           ;; add anim
-          anim2        (some-> (g/make-node world atlas/AnimationGroupNode :id "anim2")
-                               g/transact
-                               g/tx-nodes-added
-                               first)
+          anim2        (g/make-node! world atlas/AnimationGroupNode :id "anim2")
           _            (g/transact (g/connect anim2 :animation atlas :animations))
           outline6     (g/node-value atlas :outline-tree)
 

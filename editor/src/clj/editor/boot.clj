@@ -164,10 +164,7 @@
     root))
 
 (defn- create-view [game-project root place node-type]
-  (let [node (first
-              (g/tx-nodes-added
-               (g/transact
-                (g/make-node (g/node->graph-id game-project) node-type))))]
+  (let [node (g/make-node! (g/node->graph-id game-project) node-type)]
     (n/dispatch-message (g/now) node :create :parent (.lookup root place))))
 
 (defn setup-workspace [project-path]
