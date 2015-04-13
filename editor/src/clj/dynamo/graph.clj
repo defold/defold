@@ -352,12 +352,16 @@
 ;; ---------------------------------------------------------------------------
 (defn node
   "Get a node, given a node ID."
-  [node-id]
-  (node-by-id (now) node-id))
+  ([node-id]
+   (node-by-id (now) node-id))
+  ([basis node-id]
+   (node-by-id basis node-id)))
 
 (defn refresh
-  [n]
-  (node-by-id (now) (node-id n)))
+  ([n]
+   (refresh (now) n))
+  ([basis n]
+   (node-by-id basis (node-id n))))
 
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
@@ -393,39 +397,49 @@
   "Find the one-and-only node that sources this input on this node.
    Should you use this on an input label with multiple connections,
    the result is undefined."
-  [basis node label]
-  (node basis
-        (ffirst (sources basis (node-id node) label))))
+  ([node label]
+   (node-feeding-into (now) node label))
+  ([basis node label]
+   (node basis
+         (ffirst (sources basis (node-id node) label)))))
 
 (defn sources-of
   "Find the [node label] pairs for all connections into the given
   node's input label. The result is a sequence of pairs."
-  [basis node label]
-  (map
-   (fn [[node-id label]]
-     [(node-by-id basis node-id) label])
-   (sources basis (node-id node) label)))
+  ([node label]
+   (sources-of (now) node label))
+  ([basis node label]
+   (map
+    (fn [[node-id label]]
+      [(node-by-id basis node-id) label])
+    (sources basis (node-id node) label))))
 
 (defn nodes-consuming
   "Find the [node label] pairs for all connections reached from the
   given node's input label.  The result is a sequence of pairs."
-  [basis node label]
-  (map
-   (fn [[node-id label]]
-     [(node-by-id basis node-id) label])
-   (targets basis (node-id node) label)))
+  ([node label]
+   (nodes-consuming (now) node label))
+  ([basis node label]
+   (map
+    (fn [[node-id label]]
+      [(node-by-id basis node-id) label])
+    (targets basis (node-id node) label))))
 
 (defn node-consuming
   "Like nodes-consuming, but only returns the first result."
-  [basis node label]
-  (ffirst (nodes-consuming basis node label)))
+  ([node label]
+   (node-consuming (now) node label))
+  ([basis node label]
+   (ffirst (nodes-consuming basis node label))))
 
 (defn output-dependencies
   "Find all the outputs that could be affected by a change in the
    given outputs.  Outputs are specified as pairs of [node-id label]
-   for both the argument and return value."
-  [basis outputs]
-  (dependencies basis outputs))
+  for both the argument and return value."
+  ([outputs]
+   (dependencies (now) outputs))
+  ([basis outputs]
+   (dependencies basis outputs)))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
