@@ -72,4 +72,4 @@
   (output menu-bar MenuBar :cached produce-menu-bar))
 
 (defn make-menu-node [graph menu-bar static-menu]
-  (first (g/tx-nodes-added (g/transact (g/make-node graph MenuView :menu-bar menu-bar :static-menu static-menu)))))
+  (g/make-node! graph MenuView :menu-bar menu-bar :static-menu static-menu))
