@@ -56,7 +56,8 @@
 (defn- graphs-touched
   [tx-result]
   (distinct
-   (map gt/node-id->graph-id (:nodes-modified tx-result))))
+   (concat (:graphs-modified tx-result)
+           (map gt/node-id->graph-id (:nodes-modified tx-result)))))
 
 (defn transact
   [txs]
@@ -345,6 +346,11 @@
   [n p f & args]
   (it/update-property n p f args))
 
+(defn set-graph-value
+  "Attach a named value to a graph."
+  [gid k v]
+  (it/update-graph gid assoc [k v]))
+
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
@@ -387,6 +393,12 @@
   [& {:as options}]
   (let [volatility (:volatility options 0)]
     (assoc (ig/empty-graph) :_volatility volatility)))
+
+(defn graph-value
+  ([gid k]
+   (graph-value (now) gid k))
+  ([basis gid k]
+   (get-in basis [:graphs gid k])))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph

@@ -4,7 +4,8 @@
             [dynamo.graph :as g]
             [dynamo.graph.test-support :as ts]
             [internal.graph :as ig]
-            [internal.system :as is]))
+            [internal.system :as is]
+            [internal.graph.types :as gt]))
 
 (g/defnode Root)
 
@@ -392,3 +393,12 @@
           (is (= (g/dependencies (g/now) [[(id source-a1) :source-label]])
                  #{[(id sink-a2)   :loud]
                    [(id source-a1) :source-label]})))))))
+
+(deftest graph-values
+  (testing "Values can be attached to graphs"
+    (ts/with-clean-system
+      (let [node-id (gt/make-node-id 0 1)]
+        (g/transact [(g/set-graph-value 0 :string-value "A String")
+                     (g/set-graph-value 0 :a-node-id node-id)])
+        (is (= "A String" (g/graph-value 0 :string-value)))
+        (is (= node-id    (g/graph-value 0 :a-node-id)))))))
