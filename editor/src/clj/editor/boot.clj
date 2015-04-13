@@ -110,7 +110,7 @@
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             ;; TODO Delete this graph when the tab is closed.
-            view-graph (g/attach-graph (g/make-graph :volatility 100))
+            view-graph (g/make-graph! :volatility 100)
             view       (make-view-fn view-graph parent ((:id view-type) (:view-fns resource-type)) resource-node)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.select (.getSelectionModel tab-pane) tab)
@@ -220,10 +220,10 @@
 (Platform/runLater
   (fn []
     (when (nil? @the-root)
-      (g/initialize {:initial-graph (workspace/workspace-graph)})
+      (g/initialize {})
       (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-      (alter-var-root #'*project-graph*   (fn [_] (g/attach-graph-with-history (g/make-graph :volatility 1))))
-      (alter-var-root #'*view-graph*      (fn [_] (g/attach-graph (g/make-graph :volatility 2)))))
+      (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
+      (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
     (let [pref-key "default-project-file"
           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
       (when project-file

@@ -180,7 +180,7 @@ behavior."
 
 (defn make-editor
   [project-node path]
-  (let [view-graph   (g/attach-graph (g/make-graph :volatility 100))
+  (let [view-graph   (g/make-graph! :volatility 100)
         content-node (t/lookup project-node path)]
     (build-editor-node project-node path content-node view-graph)))
 

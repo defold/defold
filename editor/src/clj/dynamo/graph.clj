@@ -280,7 +280,7 @@
 
 (defmacro graph-with-nodes
   [volatility binding-expr & body-exprs]
-  `(let [g# (g/attach-graph (g/make-graph :volatility ~volatility))]
+  `(let [g# (g/make-graph! :volatility ~volatility)]
      (g/transact
       (make-nodes g# ~binding-expr ~@body-exprs))
      g#))
@@ -410,11 +410,6 @@
   ([basis cache node label]
    (in/node-value basis cache node label)))
 
-(defn make-graph
-  [& {:as options}]
-  (let [volatility (:volatility options 0)]
-    (assoc (ig/empty-graph) :_volatility volatility)))
-
 (defn graph-value
   ([gid k]
    (graph-value (now) gid k))
@@ -483,15 +478,16 @@
   []
   (dispose/dispose-pending (is/disposal-queue @*the-system*)))
 
-(defn attach-graph
-  [graph]
-  (let [s (swap! *the-system* is/attach-graph graph)]
-    (some-> s :graphs (get (:last-graph s)) deref :_gid)))
+(defn- make-graph
+  [& {:as options}]
+  (let [volatility (:volatility options 0)]
+    (assoc (ig/empty-graph) :_volatility volatility)))
 
-(defn attach-graph-with-history
-  [graph]
-  (let [s (swap! *the-system* is/attach-graph-with-history graph)]
-    (some-> s :graphs (get (:last-graph s)) deref :_gid)))
+(defn make-graph!
+  [& {:keys [history volatility] :or {history false volatility 0}}]
+  (let [g (assoc (ig/empty-graph) :_volatility volatility)
+        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
+    (:last-graph s)))
 
 (defn last-graph-added
   []
