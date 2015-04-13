@@ -153,12 +153,12 @@
                                      nil)))
 
 (defn make-properties-view [view-graph parent]
-  (let [view (first (g/tx-nodes-added (g/transact (g/make-node view-graph PropertiesView :parent-view parent))))
-        self-ref (g/node-id view)
+  (let [view      (g/make-node! view-graph PropertiesView :parent-view parent)
+        self-ref  (g/node-id view)
         repainter (proxy [AnimationTimer] []
-                          (handle [now]
-                            (let [self (g/node-by-id (g/now) self-ref)
-                                  grid (g/node-value self :grid-pane)])))]
+                    (handle [now]
+                      (let [self (g/node-by-id (g/now) self-ref)
+                            grid (g/node-value self :grid-pane)])))]
     (g/transact (g/set-property view :repainter repainter))
     (.start repainter)
     (g/refresh view)))

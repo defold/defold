@@ -300,16 +300,28 @@
   [gid node-type & args]
   (it/new-node (apply dn/construct node-type :_id (tempid gid) args)))
 
+(defn make-node!
+  [gid node-type & args]
+  (first (tx-nodes-added (transact (apply make-node gid node-type args)))))
+
 (defn delete-node
   "Remove a node from the world."
   [n]
   (it/delete-node n))
+
+(defn delete-node!
+  [n]
+  (transact (delete-node n)))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
   (it/connect source-node source-label target-node target-label))
+
+(defn connect!
+  [source-node source-label target-node target-label]
+  (transact (connect source-node source-label target-node target-label)))
 
 (defn disconnect
   "Remove a connection from an output of the source node to the input on the target node.
@@ -318,6 +330,10 @@
   is applied."
   [source-node source-label target-node target-label]
   (it/disconnect source-node source-label target-node target-label))
+
+(defn disconnect!
+  [source-node source-label target-node target-label]
+  (transact (disconnect source-node source-label target-node target-label)))
 
 (defn become
   "Turn one kind of node into another, in a transaction. All properties and their values
@@ -331,6 +347,10 @@
   [source-node new-node]
   (it/become source-node new-node))
 
+(defn become!
+  [source-node new-node]
+  (transact (become source-node new-node)))
+
 (defn set-property
   "Assign a value to a node's property (or properties) value(s) in a
   transaction."
@@ -340,16 +360,28 @@
      (it/update-property n p (constantly v) []))
    (partition-all 2 kvs)))
 
+(defn set-property!
+  [n & kvs]
+  (transact (apply set-property n kvs)))
+
 (defn update-property
   "Apply a function to a node's property in a transaction. The
   function f will be invoked as if by (apply f current-value args)"
   [n p f & args]
   (it/update-property n p f args))
 
+(defn update-property!
+  [n p f & args]
+  (transact (apply update-property n p f args)))
+
 (defn set-graph-value
   "Attach a named value to a graph."
   [gid k v]
   (it/update-graph gid assoc [k v]))
+
+(defn set-graph-value!
+  [gid k v]
+  (transact (set-graph-value gid k v)))
 
 ;; ---------------------------------------------------------------------------
 ;; Values

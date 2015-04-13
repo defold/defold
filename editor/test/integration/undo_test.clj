@@ -33,7 +33,7 @@
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
 
 (defn make-dummy-view [graph width height]
-  (first (g/tx-nodes-added (g/transact (g/make-node graph DummySceneView :width width :height height)))))
+  (g/make-node! graph DummySceneView :width width :height height))
 
 (defn- load-test-workspace [graph]
   (let [workspace (workspace/make-workspace graph project-path)]
