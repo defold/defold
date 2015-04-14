@@ -53,15 +53,13 @@ public class CollectionRefactorParticipant extends GenericRefactorParticipant {
             List<EmbeddedInstanceDesc> originalList = collection.getEmbeddedInstancesList();
             for (EmbeddedInstanceDesc desc : originalList) {
                 String newContent = gorp.updateReferences(context, desc.getData(), reference, newPath);
-                if (newContent != null)
-                {
+                if (newContent != null) {
                     EmbeddedInstanceDesc.Builder b = EmbeddedInstanceDesc.newBuilder();
                     b.mergeFrom(desc);
                     b.setData(newContent);
                     newBuilder.addEmbeddedInstances(b.build());
                     changed = true;
-                }
-                else {
+                } else {
                     newBuilder.addEmbeddedInstances(desc);
                 }
             }
