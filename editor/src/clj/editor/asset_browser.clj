@@ -16,7 +16,7 @@
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input MouseEvent KeyCombination]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
@@ -54,9 +54,11 @@
     :command :open}
    {:label "Delete"
     :command :delete
-    :icon "icons/cross.png"}])
+    :icon "icons/cross.png"
+    :acc "Shortcut+BACKSPACE"}])
 
 (defn- is-resource [x] (satisfies? workspace/Resource x))
+(defn- is-deletable-resource [x] (and (satisfies? workspace/Resource x) (not (workspace/read-only? x))))
 (defn- is-file-resource [x] (and (satisfies? workspace/Resource x)
                                  (= :file (workspace/source-type x))))
 
@@ -67,7 +69,7 @@
 
 (handler/defhandler delete-resource :delete :project
   (visible? [instances] (every? is-resource instances))
-  (enabled? [instances] (every? is-resource instances))
+  (enabled? [instances] (every? is-deletable-resource instances))
   (run [instances] (prn "Delete" instances "NOW!")))
 
 ; TODO: Context menu etc is temporary and should be moved elsewhere (and reused)
@@ -81,6 +83,9 @@
           arg-map {:instances resources}
           menu-item (MenuItem. (:label item))]
       (when (handler/visible? command context arg-map)
+        (when (:acc item)
+          (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
+
         (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
         (.setDisable menu-item (not (handler/enabled? command context arg-map)))
         (.setOnAction menu-item (ui/event-handler event (handler/run command context arg-map) ))
