@@ -23,7 +23,7 @@
 ;; ---------------------------------------------------------------------------
 (defn abort
   [why _ in-production node-id label & _]
-  (throw (ex-info (str why " Trying to produce [" (gt/nref->gid node-id) ":" (gt/nref->nid node-id) label "]")
+  (throw (ex-info (str why " Trying to produce [" node-id label "]")
                   {:node-id node-id :label label :in-production in-production})))
 
 (def not-found (partial abort "No such property, input or output."))
@@ -368,6 +368,12 @@ not called directly."
     attach-input-dependencies
     map->NodeTypeImpl))
 
+(def ^:private inputs-properties (juxt :inputs :properties))
+
+(defn- name-available
+  [description label]
+  (not (some #{label} (mapcat keys (inputs-properties description)))))
+
 (defn attach-supertype
   "Update the node type description with the given supertype."
   [description supertype]
@@ -376,6 +382,7 @@ not called directly."
 (defn attach-input
   "Update the node type description with the given input."
   [description label schema flags]
+  (assert (name-available description label) (str "Cannot create input " label ". It is already in use."))
   (cond->
     (assoc-in description [:inputs label] schema)
 
@@ -479,8 +486,8 @@ must be part of a protocol or interface attached to the description."
 
 (defn- node-type-form
   "Translate the sugared `defnode` forms into function calls that
-build the node type description (map). These are emitted where you invoked
-`defnode` so that symbols and vars resolve correctly."
+  build the node type description (map). These are emitted where you
+  invoked `defnode` so that symbols and vars resolve correctly."
   [form]
   (match [form]
     [(['inherits supertype] :seq)]
@@ -491,6 +498,7 @@ build the node type description (map). These are emitted where you invoked
 
     [(['output label schema & remainder] :seq)]
     (let [[properties options args] (parse-output-options remainder)]
+      (assert (or (:abstract properties) (not (empty? args))) "The output type seems to be missing.")
       `(attach-output ~(keyword label) ~schema ~properties ~options ~@args))
 
     [(['property label tp & options] :seq)]
@@ -582,7 +590,7 @@ and protocols that the node type requires."
        [~node w#]
        (.write
         ^java.io.Writer w#
-        (str "#" '~node-type-name "{" (gt/nref->gid (:_id ~node)) ":" (gt/nref->nid (:_id ~node))
+        (str "#" '~node-type-name "{" (:_id ~node)
              ~@(interpose-every 3 ", "
                                 (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))])
                                         (keys (gt/properties' node-type))))

@@ -166,7 +166,7 @@
 (defn setup-rendering [self view]
   (let [renderer   (t/lookup view :renderer)
         camera     (t/lookup view :camera)
-        view-graph (g/nref->gid (g/node-id view))]
+        view-graph (g/node->graph-id view)]
     (g/make-nodes view-graph [sprite-render SpriteRender]
                   (g/connect sprite-render   :renderable    renderer        :renderables)
                   (g/connect self            :textureset    sprite-render   :textureset)

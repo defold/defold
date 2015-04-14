@@ -3,18 +3,11 @@
             [internal.async :as ia]
             [internal.system :as is]))
 
-(defn clean-system
-  [configuration]
-  (let [configuration (if (:initial-graph configuration)
-                        configuration
-                        (assoc configuration :initial-graph (g/make-graph)))]
-    (is/make-system configuration)))
-
 (defmacro with-clean-system
   [& forms]
   (let [configuration  (if (map? (first forms)) (first forms) {})
         forms          (if (map? (first forms)) (next forms)  forms)]
-    `(let [~'system      (clean-system ~configuration)
+    `(let [~'system      (is/make-system ~configuration)
            ~'cache       (:cache ~'system)
            ~'disposal-ch (is/disposal-queue ~'system)
            ~'world       (first (keys (is/graphs ~'system)))]

@@ -52,14 +52,14 @@
   (testing "simple update"
     (with-clean-system
       (let [[resource] (tx-nodes (g/make-node world Resource :c 0))
-            tx-result  (g/transact (atom system) (it/update-property resource :c (fnil + 0) [42]))]
+            tx-result  (g/transact (it/update-property resource :c (fnil + 0) [42]))]
         (is (= :ok (:status tx-result)))
         (is (= 42 (:c (g/node-by-id (:basis tx-result) (:_id resource))))))))
   (testing "node deletion"
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (g/make-node world Resource)
                                             (g/make-node world Downstream))]
-        (g/transact (atom system) (it/connect resource1 :b resource2 :consumer))
+        (g/transact (it/connect resource1 :b resource2 :consumer))
         (let [tx-result  (g/transact (it/delete-node resource2))
               after      (:basis tx-result)]
           (is (nil?      (g/node-by-id   after (:_id resource2))))
@@ -314,7 +314,7 @@
       (is (some #{real-id} (map first outputs-modified)))
       (is (= #{:properties :self :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-node :a-property (constantly "new-value") [])]
-            tx-result        (g/transact (atom system) tx-data)
+            tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map first outputs-modified)))
         (is (= #{:properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
@@ -351,7 +351,7 @@
   (with-clean-system
     (let [[node]   (tx-nodes (g/make-node world DisposableCachedValueNode))
           value1 (g/node-value node :cached-output)
-          tx-result (g/transact (atom system) [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
+          tx-result (g/transact [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
       (is (= [value1] (take-waiting-to-dispose system))))))
 
 (g/defnode OriginalNode

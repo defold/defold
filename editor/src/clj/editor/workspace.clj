@@ -120,10 +120,7 @@ ordinary paths."
   (output resource-types t/Any (g/fnk [resource-types] resource-types)))
 
 (defn make-workspace [graph project-path]
-  (first
-    (g/tx-nodes-added
-      (g/transact
-        (g/make-node graph Workspace :root project-path :view-types {:default {:id :default}})))))
+  (g/make-node! graph Workspace :root project-path :view-types {:default {:id :default}}))
 
 (defn- wrap-stream [workspace stream file]
   (swap! (:opened-files workspace)
@@ -135,10 +132,6 @@ ordinary paths."
     (close []
       (swap! (:opened-files workspace) disj file)
       (proxy-super close))))
-
-(defn workspace-graph
-  []
-  (g/make-graph :volatility 0))
 
 (defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
   (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
