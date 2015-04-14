@@ -138,6 +138,5 @@
             view-graph (g/attach-graph (g/make-graph :volatility 2))
             view       (make-view-fn view-graph parent ((:id view-type) (:view-fns resource-type)) resource-node)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
-        (.select (.getSelectionModel tab-pane) tab)
-        (project/select project resource [resource-node]))
+        (.select (.getSelectionModel tab-pane) tab))
       (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))

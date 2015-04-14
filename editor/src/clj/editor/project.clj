@@ -121,7 +121,7 @@ guaranteed ordering of the sequence."
 
   (output selection t/Any (g/fnk [selected-nodes] selected-nodes)))
 
-(defn select [project context nodes]
+(defn select [project nodes]
   (let [selection-node (g/node-value project :selection)]
     (g/transact
       (concat
