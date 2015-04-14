@@ -1,10 +1,15 @@
-.menu-bar {
+/*.menu-bar {
     -fx-background-color: #aeb5ba, linear-gradient(to bottom, #ecf4fa 0%, #ced4d9 100%);
     -fx-background-insets: 0, 0 0 1 0;
 }
 
 .menu-bar .menu .label {
     -fx-text-fill: #2d3e4c;
+}
+*/
+
+.context-menu {
+    -fx-min-width: 10em;
 }
 
 .text-area {
@@ -15,4 +20,10 @@
 .tab-pane {
     -fx-open-tab-animation: NONE;
     -fx-close-tab-animation: NONE;
+}
+
+/* by default AnchorPane has a padding of 0.8em. Don't know if we're abusing
+   JavaFX by removing padding for AnchorPane */
+.titled-pane .content AnchorPane {
+    -fx-padding: 0em ;
 }
