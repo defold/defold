@@ -33,7 +33,7 @@ ordinary paths."
   Resource
   (resource-type [this] (get (:resource-types workspace) (second (split-ext file))))
   (source-type [this] (if (.isFile file) :file :folder))
-  (read-only? [this] (.canRead file))
+  (read-only? [this] (not (.canWrite file)))
   (path [this] (relative-path (File. (:root workspace)) file))
   (abs-path [this] (.getAbsolutePath  file))
   (url [this] (str "file:/" (relative-path (File. (:root workspace)) file)))
