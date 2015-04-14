@@ -33,7 +33,7 @@
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
 
 (defn make-dummy-view [graph width height]
-  (first (g/tx-nodes-added (g/transact (g/make-node graph DummySceneView :width width :height height)))))
+  (g/make-node! graph DummySceneView :width width :height height))
 
 (defn- load-test-workspace [graph]
   (let [workspace (workspace/make-workspace graph project-path)]
@@ -73,7 +73,7 @@
     (when (and resource-type (:view-types resource-type))
       (let [make-preview-fn (:make-preview-fn (first (:view-types resource-type)))
             view-fns (:scene (:view-fns resource-type))
-            view-graph (g/attach-graph (g/make-graph :volatility 100))]
+            view-graph (g/make-graph! :volatility 100)]
         (make-preview-fn view-graph view-fns resource-node 128 128)))))
 
 (defn- has-undo? [graph]
@@ -83,7 +83,7 @@
   (testing "Verify preconditions for remaining tests"
     (with-clean-system
       (let [workspace     (load-test-workspace world)
-            project-graph (g/attach-graph-with-history (g/make-graph :volatility 1))
+            project-graph (g/make-graph! :history true :volatility 1)
             project       (load-test-project workspace project-graph)]
         (is (false? (has-undo? project-graph)))
         (let [atlas-nodes (project/find-resources project "**/*.atlas")]
@@ -93,7 +93,7 @@
   (testing "Opening editor does not alter undo history"
            (with-clean-system
              (let [workspace     (load-test-workspace world)
-                   project-graph (g/attach-graph-with-history (g/make-graph :volatility 1))
+                   project-graph (g/make-graph! :history true :volatility 1)
                    project       (load-test-project workspace project-graph)]
                (is (not (has-undo? project-graph)))
                (let [atlas-nodes (project/find-resources project "**/*.atlas")
@@ -107,7 +107,7 @@
   (testing "Undoing the deletion of a node reconnects it to its editor"
            (with-clean-system
              (let [workspace     (load-test-workspace world)
-                   project-graph (g/attach-graph-with-history (g/make-graph :volatility 1))
+                   project-graph (g/make-graph! :history true :volatility 1)
                    project       (load-test-project workspace project-graph)]
                (let [atlas-nodes (project/find-resources project "**/*.atlas")
                      atlas-node (second (first atlas-nodes))
@@ -118,3 +118,28 @@
                  (is (nil? (g/node-value camera :aabb)))
                  (g/undo project-graph)
                  (is (not-nil? (g/node-value camera :aabb))))))))
+
+(defn outline-children [node] (:children (g/node-value node :outline)))
+
+(deftest redo-undone-deletion-still-deletes
+  (with-clean-system
+    (let [workspace     (load-test-workspace world)
+          project-graph (g/make-graph! :history true :volatility 1)
+          project       (load-test-project workspace project-graph)]
+      (let [game-object-node (second (first (project/find-resources project "switcher/test.go")))]
+
+        (is (= 1 (count (outline-children game-object-node))))
+
+        (g/transact (g/delete-node (:self (first (outline-children game-object-node)))))
+
+        (is (= 0 (count (outline-children game-object-node))))
+
+        ;; undo deletion
+        (g/undo project-graph)
+
+        (is (= 1 (count (outline-children game-object-node))))
+
+        ;; redo deletion
+        (g/redo project-graph)
+
+        (is (= 0 (count (outline-children game-object-node))))))))

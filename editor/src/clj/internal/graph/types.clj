@@ -73,24 +73,26 @@
 (def ^:const TEMPID-INDICATOR      -9223372036854775808) ;; 2^63 as a signed long
 (def ^:const MAX-GROUP-ID                           254)
 
-(defn make-nref ^long [^long gid ^long nid]
+(defn make-node-id ^long [^long gid ^long nid]
   (bit-or
    (bit-shift-left gid NID-BITS)
    (bit-and nid 0xffffffffffffff)))
 
-(defn nref->gid ^long [^long nref]
-  (bit-and (bit-shift-right nref NID-BITS) GID-MASK))
+(defn node-id->graph-id ^long [^long node-id]
+  (bit-and (bit-shift-right node-id NID-BITS) GID-MASK))
 
-(defn nref->nid ^long [^long nref]
-  (let [r (bit-and nref NID-MASK)]
+(defn node-id->nid ^long [^long node-id]
+  (let [r (bit-and node-id NID-MASK)]
     (if (zero? (bit-and r TEMPID-INDICATOR))
       r
       (bit-or r NID-SIGN-EXTEND))))
 
 (defn- make-tempid ^long [^long gid ^long nid]
-  (bit-or TEMPID-INDICATOR (make-nref gid nid)))
+  (bit-or TEMPID-INDICATOR (make-node-id gid nid)))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicLong next-tempid (java.util.concurrent.atomic.AtomicLong. 1))
 
 (defn tempid  [gid] (make-tempid gid (- (.getAndIncrement next-tempid))))
 (defn tempid? [x] (and x (neg? x)))
+
+(defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))

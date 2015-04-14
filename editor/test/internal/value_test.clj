@@ -186,7 +186,6 @@
 
 (g/defnode ValuePrecedence
   (property overloaded-output-input-property t/Keyword (default :property))
-  (input    overloaded-output-input-property t/Keyword)
   (output   overloaded-output-input-property t/Keyword (g/fnk [] :output))
 
   (input    overloaded-input-property t/Keyword)
@@ -206,7 +205,6 @@
                               (g/make-node world Source :constant :input))]
       (g/transact
        (concat
-        (g/connect s1 :constant node :overloaded-output-input-property)
         (g/connect s1 :constant node :overloaded-input-property)
         (g/connect s1 :constant node :eponymous)))
       (is (= :output   (g/node-value node :overloaded-output-input-property)))
@@ -217,8 +215,8 @@
 
 (deftest invalidation-across-graphs
   (with-clean-system
-    (let [project-graph (g/attach-graph-with-history (g/make-graph))
-          view-graph    (g/attach-graph (g/make-graph :volatility 100))
+    (let [project-graph (g/make-graph! :history true)
+          view-graph    (g/make-graph! :volatility 100)
           [content-node aux-node] (tx-nodes (g/make-node project-graph CacheTestNode :scalar "Snake")
                                             (g/make-node project-graph CacheTestNode :scalar "Plissken"))
           [view-node]    (tx-nodes (g/make-node view-graph CacheTestNode))]

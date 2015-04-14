@@ -127,7 +127,7 @@
   (let [renderer (t/lookup view :renderer)
         camera (t/lookup view :camera)]
     (g/make-nodes
-      (g/nref->gid (g/node-id view))
+      (g/node->graph-id view)
       [cubemap-render CubemapRender]
       (g/connect self           :gpu-texture   cubemap-render :gpu-texture)
       (g/connect cubemap-render :renderable    renderer       :renderables)

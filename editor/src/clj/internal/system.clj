@@ -45,11 +45,6 @@
    :undo-stack []
    :redo-stack []})
 
-(defn- transaction-applied?
-  [{old-time :tx-id :or {old-time 0}}
-   {new-time :tx-id :or {new-time 0} :as new-graph}]
-  (< old-time new-time))
-
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
 
 (def ^:private undo-op-keys   [:label])
@@ -61,7 +56,7 @@
 (def   history-state-graph second)
 (defn  history-state-sequence-label [[_ _ l]] l)
 
-(defn- merge-or-push-history
+(defn merge-or-push-history
   [history gref old-graph new-graph]
   (let [new-state (history-state (graph-label new-graph) old-graph (sequence-label new-graph))
         stack-op  (if (and (not (nil? (sequence-label new-graph)))
@@ -72,24 +67,19 @@
         (update :undo-stack stack-op new-state)
         (assoc :redo-stack []))))
 
-(defn- watch-history [history-ref _ gref old-graph new-graph]
-  (when (transaction-applied? old-graph new-graph)
-    (dosync
-     (assert (= (:state @history-ref) gref))
-     (alter history-ref merge-or-push-history gref old-graph new-graph))))
-
 (defn undo-stack [history-ref]
   (mapv (fn [state] {:label (history-state-label state)}) (:undo-stack @history-ref)))
 
 (defn undo-history [history-ref]
   (dosync
    (let [gref          (:state @history-ref)
-         old-graph     @gref
+         current-graph @gref
+         current-state (history-state (graph-label current-graph) current-graph (sequence-label current-graph))
          history-state (peek (:undo-stack @history-ref))]
       (when history-state
-        (ref-set gref (dissoc (history-state-graph history-state) :last-tx))
+        (ref-set gref (history-state-graph history-state))
         (alter history-ref update-in [:undo-stack] pop)
-        (alter history-ref update-in [:redo-stack] conj history-state)))))
+        (alter history-ref update-in [:redo-stack] conj current-state)))))
 
 (defn redo-stack [history-ref]
   (mapv (fn [state] {:label (history-state-label state)}) (:redo-stack @history-ref)))
@@ -97,12 +87,11 @@
 (defn redo-history [history-ref]
   (dosync
    (let [gref          (:state @history-ref)
-         old-graph     @gref
          history-state (peek (:redo-stack @history-ref))]
-      (when history-state
-        (ref-set gref (dissoc (history-state-graph history-state) :last-tx))
-        (alter history-ref update-in [:undo-stack] conj history-state)
-        (alter history-ref update-in [:redo-stack] pop)))))
+     (when history-state
+       (ref-set gref (history-state-graph history-state))
+       (alter history-ref update-in [:undo-stack] conj history-state)
+       (alter history-ref update-in [:redo-stack] pop)))))
 
 (defn clear-history
   [history-ref]
@@ -153,9 +142,7 @@
   (let [gref (ref g)
         href (ref (new-history gref))]
     (dosync (alter gref assoc :history href))
-    (let [s (attach-graph* s gref)]
-      (add-watch gref ::push-history (partial watch-history href))
-      s)))
+    (attach-graph* s gref)))
 
 (defn detach-graph
   [s g]

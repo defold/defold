@@ -14,7 +14,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types tempid nref->gid nref->nid node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
+(import-vars [internal.graph.types tempid node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
@@ -22,6 +22,7 @@
 ;; ---------------------------------------------------------------------------
 ;; State handling
 ;; ---------------------------------------------------------------------------
+
 ;; Only marked dynamic so tests can rebind. Should never be rebound "for real".
 (defonce ^:dynamic *the-system* (atom nil))
 
@@ -44,30 +45,35 @@
         ;; graph was modified concurrently by a different transaction.
         (throw (ex-info "Concurrent modification of graph"
                         {:_gid gid :start-tx start-tx :sidereal-tx sidereal-tx}))
-        (ref-set (is/graph-ref sys gid) (update-in graph [:tx-id] safe-inc))))))
+        (let [gref      (is/graph-ref sys gid)
+              href      (is/graph-history sys gid)
+              prior     @gref
+              posterior (update-in graph [:tx-id] safe-inc)]
+          (when href
+            (alter href is/merge-or-push-history gref prior posterior))
+          (ref-set gref posterior))))))
 
 (defn- graphs-touched
   [tx-result]
   (distinct
-   (map gt/nref->gid (:nodes-modified tx-result))))
+   (concat (:graphs-modified tx-result)
+           (map gt/node-id->graph-id (:nodes-modified tx-result)))))
 
 (defn transact
-  ([txs]
-   (transact *the-system* txs))
-  ([sys-ref txs]
-   (let [basis     (ig/multigraph-basis (map-vals deref (is/graphs @sys-ref)))
-         tx-result (it/transact* (it/new-transaction-context basis txs))]
-     (when (= :ok (:status tx-result))
-       (dosync
-        (merge-graphs @sys-ref basis (get-in tx-result [:basis :graphs]) (graphs-touched tx-result)))
-       (c/cache-invalidate (is/system-cache @sys-ref) (:outputs-modified tx-result))
-       (doseq [l (:old-event-loops tx-result)]
-         (is/stop-event-loop! @sys-ref l))
-       (doseq [l (:new-event-loops tx-result)]
-         (is/start-event-loop! @sys-ref l))
-       (doseq [d (vals (:nodes-deleted tx-result))]
-         (is/dispose! @sys-ref d)))
-     tx-result)))
+  [txs]
+  (let [basis     (ig/multigraph-basis (map-vals deref (is/graphs @*the-system*)))
+        tx-result (it/transact* (it/new-transaction-context basis txs))]
+    (when (= :ok (:status tx-result))
+      (dosync
+       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (graphs-touched tx-result)))
+      (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))
+      (doseq [l (:old-event-loops tx-result)]
+        (is/stop-event-loop! @*the-system* l))
+      (doseq [l (:new-event-loops tx-result)]
+        (is/start-event-loop! @*the-system* l))
+      (doseq [d (vals (:nodes-deleted tx-result))]
+        (is/dispose! @*the-system* d)))
+    tx-result))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
@@ -104,6 +110,8 @@
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
+(declare become)
+
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
    and attendant functions.
@@ -219,7 +227,7 @@
        (let [description#    ~(in/node-type-sexps symb (concat dn/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
-             all-graphs#     (map-vals deref (is/graphs @g/*the-system*))
+             all-graphs#     (map-vals deref (is/graphs @*the-system*))
              to-be-replaced# (when (and all-graphs# replacing#)
                                (filterv #(= replacing# (node-type %)) (mapcat ig/node-values (vals all-graphs#))))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
@@ -227,10 +235,10 @@
          (in/define-node-record  '~record-name '~symb ~symb)
          (in/define-print-method '~record-name '~symb ~symb)
          (when (< 0 (count to-be-replaced#))
-           (g/transact
+           (transact
             (mapcat (fn [r#]
                       (let [new# (dn/construct ~symb)]
-                        (g/become r# new#)))
+                        (become r# new#)))
                     to-be-replaced#)))
          (var ~symb)))))
 
@@ -272,7 +280,7 @@
 
 (defmacro graph-with-nodes
   [volatility binding-expr & body-exprs]
-  `(let [g# (g/attach-graph (g/make-graph :volatility ~volatility))]
+  `(let [g# (g/make-graph! :volatility ~volatility)]
      (g/transact
       (make-nodes g# ~binding-expr ~@body-exprs))
      g#))
@@ -292,16 +300,28 @@
   [gid node-type & args]
   (it/new-node (apply dn/construct node-type :_id (tempid gid) args)))
 
+(defn make-node!
+  [gid node-type & args]
+  (first (tx-nodes-added (transact (apply make-node gid node-type args)))))
+
 (defn delete-node
   "Remove a node from the world."
   [n]
   (it/delete-node n))
+
+(defn delete-node!
+  [n]
+  (transact (delete-node n)))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
   (it/connect source-node source-label target-node target-label))
+
+(defn connect!
+  [source-node source-label target-node target-label]
+  (transact (connect source-node source-label target-node target-label)))
 
 (defn disconnect
   "Remove a connection from an output of the source node to the input on the target node.
@@ -310,6 +330,10 @@
   is applied."
   [source-node source-label target-node target-label]
   (it/disconnect source-node source-label target-node target-label))
+
+(defn disconnect!
+  [source-node source-label target-node target-label]
+  (transact (disconnect source-node source-label target-node target-label)))
 
 (defn become
   "Turn one kind of node into another, in a transaction. All properties and their values
@@ -323,6 +347,10 @@
   [source-node new-node]
   (it/become source-node new-node))
 
+(defn become!
+  [source-node new-node]
+  (transact (become source-node new-node)))
+
 (defn set-property
   "Assign a value to a node's property (or properties) value(s) in a
   transaction."
@@ -332,23 +360,37 @@
      (it/update-property n p (constantly v) []))
    (partition-all 2 kvs)))
 
+(defn set-property!
+  [n & kvs]
+  (transact (apply set-property n kvs)))
+
 (defn update-property
   "Apply a function to a node's property in a transaction. The
   function f will be invoked as if by (apply f current-value args)"
   [n p f & args]
   (it/update-property n p f args))
 
+(defn update-property!
+  [n p f & args]
+  (transact (apply update-property n p f args)))
+
+(defn set-graph-value
+  "Attach a named value to a graph."
+  [gid k v]
+  (it/update-graph gid assoc [k v]))
+
+(defn set-graph-value!
+  [gid k v]
+  (transact (set-graph-value gid k v)))
+
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
-(defn node
-  "Get a node, given a node ID."
-  [node-id]
-  (node-by-id (now) node-id))
-
 (defn refresh
-  [n]
-  (node-by-id (now) (node-id n)))
+  ([n]
+   (refresh (now) n))
+  ([basis n]
+   (node-by-id basis (node-id n))))
 
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
@@ -368,14 +410,11 @@
   ([basis cache node label]
    (in/node-value basis cache node label)))
 
-(defn graph-id
-  [g]
-  (:_gid g))
-
-(defn make-graph
-  [& {:as options}]
-  (let [volatility (:volatility options 0)]
-    (assoc (ig/empty-graph) :_volatility volatility)))
+(defn graph-value
+  ([gid k]
+   (graph-value (now) gid k))
+  ([basis gid k]
+   (get-in basis [:graphs gid k])))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
@@ -384,39 +423,49 @@
   "Find the one-and-only node that sources this input on this node.
    Should you use this on an input label with multiple connections,
    the result is undefined."
-  [basis node label]
-  (node basis
-        (ffirst (sources basis (node-id node) label))))
+  ([node label]
+   (node-feeding-into (now) node label))
+  ([basis node label]
+   (node basis
+         (ffirst (sources basis (node-id node) label)))))
 
 (defn sources-of
   "Find the [node label] pairs for all connections into the given
   node's input label. The result is a sequence of pairs."
-  [basis node label]
-  (map
-   (fn [[node-id label]]
-     [(node-by-id basis node-id) label])
-   (sources basis (node-id node) label)))
+  ([node label]
+   (sources-of (now) node label))
+  ([basis node label]
+   (map
+    (fn [[node-id label]]
+      [(node-by-id basis node-id) label])
+    (sources basis (node-id node) label))))
 
 (defn nodes-consuming
   "Find the [node label] pairs for all connections reached from the
   given node's input label.  The result is a sequence of pairs."
-  [basis node label]
-  (map
-   (fn [[node-id label]]
-     [(node-by-id basis node-id) label])
-   (targets basis (node-id node) label)))
+  ([node label]
+   (nodes-consuming (now) node label))
+  ([basis node label]
+   (map
+    (fn [[node-id label]]
+      [(node-by-id basis node-id) label])
+    (targets basis (node-id node) label))))
 
 (defn node-consuming
   "Like nodes-consuming, but only returns the first result."
-  [basis node label]
-  (ffirst (nodes-consuming basis node label)))
+  ([node label]
+   (node-consuming (now) node label))
+  ([basis node label]
+   (ffirst (nodes-consuming basis node label))))
 
-(defn output-dependencies
-  "Find all the outputs that could be affected by a change in the
-   given outputs.  Outputs are specified as pairs of [node-id label]
-   for both the argument and return value."
-  [basis outputs]
-  (dependencies basis outputs))
+(defn invalidate!
+  "Invalidate the given outputs and _everything_ that could be
+  affected by them. Outputs are specified as pairs of [node-id label]
+  for both the argument and return value."
+  ([outputs]
+   (invalidate! (now) outputs))
+  ([basis outputs]
+   (c/cache-invalidate (cache) (dependencies basis outputs))))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
@@ -429,46 +478,16 @@
   []
   (dispose/dispose-pending (is/disposal-queue @*the-system*)))
 
-(defn cache-invalidate
-  "Uses the system’s cache.
+(defn- make-graph
+  [& {:as options}]
+  (let [volatility (:volatility options 0)]
+    (assoc (ig/empty-graph) :_volatility volatility)))
 
-  Atomic action to invalidate the given collection of [node-id label]
-  pairs. If nothing is cached for a pair, it is ignored."
-  [pairs]
-  (c/cache-invalidate (cache) pairs))
-
-(defn cache-encache
-  "Uses the system’s cache.
-
-  Atomic action to record one or more items in cache.
-
-  The collection must contain tuples of [[node-id label] value]."
-  [coll]
-  (c/cache-encache (cache) coll))
-
-(defn cache-hit
-  "Uses the system’s cache.
-
-  Atomic action to record hits on cached items
-
-  The collection must contain tuples of [node-id label] pairs."
-  [coll]
-  (c/cache-hit (cache) coll))
-
-(defn cache-snapshot
-  "Get a value of the cache at a point in time."
-  []
-  (c/cache-snapshot (cache)))
-
-(defn attach-graph
-  [graph]
-  (let [s (swap! *the-system* is/attach-graph graph)]
-    (some-> s :graphs (get (:last-graph s)) deref :_gid)))
-
-(defn attach-graph-with-history
-  [graph]
-  (let [s (swap! *the-system* is/attach-graph-with-history graph)]
-    (some-> s :graphs (get (:last-graph s)) deref :_gid)))
+(defn make-graph!
+  [& {:keys [history volatility] :or {history false volatility 0}}]
+  (let [g (assoc (ig/empty-graph) :_volatility volatility)
+        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
+    (:last-graph s)))
 
 (defn last-graph-added
   []
