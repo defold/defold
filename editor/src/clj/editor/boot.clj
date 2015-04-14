@@ -101,27 +101,6 @@
 (defn on-outline-selection-fn [project items]
   (project/select project (map :self items)))
 
-(defn- create-editor [workspace project resource root]
-  (let [resource-node (project/get-resource-node project resource)
-        resource-type (project/get-resource-type resource-node)
-        view-type (first (:view-types resource-type))]
-    (if-let [make-view-fn (:make-view-fn view-type)]
-      (let [tab-pane   (.lookup root "#editor-tabs")
-            parent     (AnchorPane.)
-            tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent))
-            tabs       (doto (.getTabs tab-pane) (.add tab))
-            ;; TODO Delete this graph when the tab is closed.
-            view-graph (g/attach-graph (g/make-graph :volatility 100))
-            view       (make-view-fn view-graph parent ((:id view-type) (:view-fns resource-type)) resource-node)]
-        (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
-        (.select (.getSelectionModel tab-pane) tab)
-        (project/select project [resource-node])
-        (outline-view/setup (.lookup root "#outline") resource-node (fn [items] (on-outline-selection-fn project items))))
-      (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))
-
-(defn- setup-asset-browser [workspace project root]
-  (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (create-editor workspace project resource root))))
-
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
 (def ^:dynamic *view-graph*)
@@ -136,11 +115,6 @@
     (.setScene stage scene)
     (.show stage)
 
-    (let [app-view (app-view/make-app-view *view-graph* stage (.lookup root "#menu-bar"))]
-      (g/transact
-        (concat
-          (g/connect project :menu app-view :main-menus))))
-
     (let [close-handler (ui/event-handler event
                           (g/transact
                             (g/delete-node project))
@@ -149,7 +123,15 @@
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
-    (setup-asset-browser workspace project root)
+    (let [app-view (app-view/make-app-view *view-graph* stage (.lookup root "#menu-bar") (.lookup root "#editor-tabs"))
+          outline-view (outline-view/make-outline-view *view-graph* (.lookup root "#outline") (fn [items] (on-outline-selection-fn project items)))]
+      (g/transact
+        (concat
+          (g/connect project :menu app-view :main-menus)
+          (for [label [:active-resource :active-outline :open-resources]]
+            (g/connect app-view label outline-view label))
+          (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
+      (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (app-view/open-resource app-view project resource))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
@@ -184,7 +166,7 @@
   (let [progress-bar nil
         project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
-        project      (first
+        project      (first 
                       (g/tx-nodes-added
                        (g/transact
                         (g/make-nodes
