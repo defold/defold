@@ -12,19 +12,19 @@
 <?import javafx.scene.paint.*?>
 <?import javafx.scene.text.*?>
 
-<VBox prefHeight="768.0" prefWidth="1024.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<VBox prefHeight="774.0" prefWidth="1205.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
   <stylesheets>
     <URL value="@editor.css" />
   </stylesheets>
    <children>
       <MenuBar id="menu-bar" />
-      <SplitPane dividerPositions="0.29797979797979796" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+      <SplitPane dividerPositions="0.228595178719867, 0.5694098088113051" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
         <items>
-          <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0">
+          <AnchorPane prefHeight="160.0" prefWidth="100.0">
                <children>
-                  <TitledPane animated="false" collapsible="false" layoutX="60.0" layoutY="110.0" text="Assets" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                  <TitledPane animated="false" collapsible="false" layoutX="60.0" layoutY="110.0" minWidth="300.0" text="Assets" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                     <content>
-                      <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                      <AnchorPane prefHeight="180.0" prefWidth="200.0">
                            <children>
                               <VBox maxHeight="1.7976931348623157E308" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                  <children>
@@ -42,93 +42,87 @@
                   </TitledPane>
                </children>
             </AnchorPane>
-          <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0">
+          <AnchorPane prefHeight="160.0" prefWidth="100.0">
                <children>
-                  <SplitPane dividerPositions="0.6104078762306611" layoutX="381.0" layoutY="223.0" prefHeight="160.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                  <SplitPane dividerPositions="0.5" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                     <items>
-                      <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0">
+                      <AnchorPane prefHeight="100.0" prefWidth="160.0">
                            <children>
-                              <SplitPane dividerPositions="0.5" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                <items>
-                                  <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="100.0" prefWidth="160.0">
-                                       <children>
-                                          <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
-                                       </children></AnchorPane>
-                                  <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="100.0" prefWidth="160.0">
-                                       <children>
-                                          <TabPane layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                            <tabs>
-                                              <Tab text="Console">
-                                                <content>
-                                                  <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
-                                                         <children>
-                                                            <TextArea id="console" layoutX="91.0" layoutY="52.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
-                                                         </children></AnchorPane>
-                                                </content>
-                                              </Tab>
-                                              <Tab text="Curve Editor">
-                                                <content>
-                                                  <AnchorPane id="curve-editor-container" minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" />
-                                                </content>
-                                              </Tab>
-                                                <Tab text="Graph">
-                                                  <content>
-                                                    <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
-                                                         <children>
-                                                            <VBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                                               <children>
-                                                                  <Button id="graph-refresh" mnemonicParsing="false" text="Refresh" />
-                                                                  <ScrollPane prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
-                                                                     <content>
-                                                                        <ImageView id="graph-image" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
-                                                                     </content>
-                                                                  </ScrollPane>
-                                                               </children>
-                                                            </VBox>
-                                                         </children>
-                                                      </AnchorPane>
-                                                  </content>
-                                                </Tab>
-                                            </tabs>
-                                          </TabPane>
-                                       </children>
-                                    </AnchorPane>
-                                </items>
-                              </SplitPane>
+                              <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" minHeight="400.0" minWidth="400.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                            </children>
                         </AnchorPane>
-                      <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0">
+                      <AnchorPane prefHeight="100.0" prefWidth="160.0">
                            <children>
-                              <SplitPane dividerPositions="0.5" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                <items>
-                                  <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="100.0" prefWidth="160.0">
+                              <TabPane layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                <tabs>
+                                  <Tab text="Console">
+                                    <content>
+                                      <AnchorPane prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <TextArea id="console" layoutX="91.0" layoutY="52.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                             </children>
+                                          </AnchorPane>
+                                    </content>
+                                  </Tab>
+                                  <Tab text="Curve Editor">
+                                    <content>
+                                      <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0" />
+                                    </content>
+                                  </Tab>
+                                    <Tab text="Graph">
+                                      <content>
+                                        <AnchorPane prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <VBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                   <children>
+                                                      <Button id="graph-refresh" mnemonicParsing="false" text="Refresh" />
+                                                      <ScrollPane prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                                                         <content>
+                                                            <ImageView id="graph-image" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
+                                                         </content>
+                                                      </ScrollPane>
+                                                   </children>
+                                                </VBox>
+                                             </children>
+                                          </AnchorPane>
+                                      </content>
+                                    </Tab>
+                                </tabs>
+                              </TabPane>
+                           </children>
+                        </AnchorPane>
+                    </items>
+                  </SplitPane>
+               </children>
+            </AnchorPane>
+          <AnchorPane prefHeight="160.0" prefWidth="100.0">
+               <children>
+                  <SplitPane dividerPositions="0.5" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                    <items>
+                      <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                           <children>
+                              <TitledPane animated="false" collapsible="false" layoutX="24.0" layoutY="60.0" text="Outline" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                 <content>
+                                    <AnchorPane prefHeight="200.0" prefWidth="200.0">
                                        <children>
-                                          <TitledPane animated="false" collapsible="false" layoutX="24.0" layoutY="60.0" text="Outline" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                            <content>
-                                                <ScrollPane hbarPolicy="NEVER" prefViewportHeight="325.0" prefViewportWidth="269.0">
-                                                   <content>
-                                                      <TreeView id="outline" prefHeight="326.0" prefWidth="269.0" />
-                                                   </content>
-                                                </ScrollPane>
-                                            </content>
-                                          </TitledPane>
+                                          <TreeView id="outline" prefHeight="326.0" prefWidth="269.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                        </children>
                                     </AnchorPane>
-                                  <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="100.0" prefWidth="160.0">
-                                       <children>
-                                          <TitledPane animated="false" collapsible="false" layoutX="14.0" layoutY="61.0" text="Properties" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                            <content>
-                                                <ScrollPane hbarPolicy="NEVER" prefViewportHeight="325.0" prefViewportWidth="269.0">
-                                                   <content>
-                                                    <AnchorPane id="properties" minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" />
-                                                   </content>
-                                                </ScrollPane>
-                                            </content>
-                                          </TitledPane>
-                                       </children>
-                                    </AnchorPane>
-                                </items>
-                              </SplitPane>
+                                 </content>
+                              </TitledPane>
+                           </children>
+                        </AnchorPane>
+                      <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                           <children>
+                              <TitledPane animated="false" collapsible="false" layoutX="14.0" layoutY="61.0" text="Properties" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                <content>
+                                    <ScrollPane hbarPolicy="NEVER" prefViewportHeight="325.0" prefViewportWidth="269.0">
+                                       <content>
+                                        <AnchorPane id="properties" prefHeight="180.0" prefWidth="200.0" />
+                                       </content>
+                                    </ScrollPane>
+                                </content>
+                              </TitledPane>
                            </children>
                         </AnchorPane>
                     </items>
