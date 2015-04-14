@@ -63,7 +63,7 @@
                             [project [project/Project :workspace workspace]]
                             (g/connect workspace :resource-list project :resources)
                             (g/connect workspace :resource-types project :resource-types)))))
-        project (project/load-project project (g/node-value workspace :resource-list))]
+        project (project/load-project project)]
     (g/reset-undo! proj-graph)
     project))
 

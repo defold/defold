@@ -35,7 +35,7 @@
 (def palette-cell-size 80)
 (def palette-cell-size-half (/ palette-cell-size 2.0))
 
-(def switcher-atlas-file "switcher/switcher.atlas")
+(def switcher-atlas-file "/switcher/switcher.atlas")
 (def candy-colors ["red" "blue" "yellow" "green" "orange" "purple"])
 
 (def palette
@@ -296,12 +296,9 @@
        (g/set-property self :blocks (:blocks level))])))
 
 (defn setup-rendering [self view]
-  ;; TODO - resource nodes should be able to lookup other resource nodes
   (let [renderer        (t/lookup view :renderer)
         camera          (t/lookup view :camera)
-        ; TODO - resource nodes should be able to lookup other resource nodes
-        project-node    (:parent self)
-        atlas-node      (second (first (project/find-resources project-node switcher-atlas-file)))]
+        atlas-node      (project/resolve-resource-node self switcher-atlas-file)]
     (g/make-nodes
       (g/node->graph-id view)
       [switcher-render SwitcherRender]
@@ -312,12 +309,9 @@
       (g/connect self            :aabb          camera          :aabb))))
 
 (defn setup-editing [self view]
-  ;; TODO - resource nodes should be able to lookup other resource nodes
   (let [renderer        (t/lookup view :renderer)
         camera          (t/lookup view :camera)
-        ; TODO - resource nodes should be able to lookup other resource nodes
-        project-node    (:parent self)
-        atlas-node      (second (first (project/find-resources project-node switcher-atlas-file)))]
+        atlas-node      (project/resolve-resource-node self switcher-atlas-file)]
     (g/make-nodes
       (g/node->graph-id view)
       [controller SwitcherController]

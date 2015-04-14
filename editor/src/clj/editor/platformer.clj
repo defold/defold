@@ -188,9 +188,9 @@
       (concat
        (g/set-property self :control-points (:control-points level))
        (g/set-property self :base-texture (:base-texture level))
-       (let [results (project/find-resources project (:base-texture level))
-             img-node (second (first results))]
-         (g/connect img-node :content self :base-texture-img))))))
+       (if-let [img-node (project/resolve-resource-node self (:base-texture level))]
+         (g/connect img-node :content self :base-texture-img)
+         [])))))
 
 (defn setup-rendering [self view]
   (let [renderer     (t/lookup view :renderer)
