@@ -10,18 +10,17 @@
 
 (deftest run
   (handler/defhandler my :open :project
-    (visible? [instance] (= instance :foo))
-    (enabled? [instance] (= instance :foo))
-    (run [instance] 123))
-  (are [ctx inst exp] (= exp (handler/enabled? :open ctx {:instance inst}))
+    (visible? [instances] (every? #(= % :foo) instances))
+    (enabled? [instances] (every? #(= % :foo) instances))
+    (run [instances] 123))
+  (are [ctx inst exp] (= exp (handler/enabled? :open ctx {:instances [inst]}))
        :project :foo true
        :project :bar false
        :assets :foo false
        :assets :bar false)
-  (are [ctx inst exp] (= exp (handler/visible? :open ctx {:instance inst}))
+  (are [ctx inst exp] (= exp (handler/visible? :open ctx {:instances [inst]}))
        :project :foo true
        :project :bar false
        :assets :foo false
        :assets :bar false)
-  (is (= 123 (handler/run :open :project {:instance :foo}))))
-
+  (is (= 123 (handler/run :open :project {:instances [:foo]}))))

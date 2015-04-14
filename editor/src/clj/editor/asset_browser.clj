@@ -14,7 +14,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar ContextMenu]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -56,26 +56,29 @@
     :command :delete
     :icon "icons/cross.png"}])
 
+(defn- is-resource [x] (satisfies? workspace/Resource x))
+(defn- is-file-resource [x] (and (satisfies? workspace/Resource x)
+                                 (= :file (workspace/source-type x))))
+
 (handler/defhandler open-resource :open :project
-  (visible? [instance] (and (satisfies? workspace/Resource instance)
-                            (= :file (workspace/source-type instance))))
-  (enabled? [instance] (satisfies? workspace/Resource instance))
-  (run [instance] (prn "Open" instance "NOW!")))
+  (visible? [instances] (every? is-file-resource instances))
+  (enabled? [instances] (every? is-file-resource instances))
+  (run [instances] (prn "Open" instances "NOW!")))
 
 (handler/defhandler delete-resource :delete :project
-  (visible? [instance] (satisfies? workspace/Resource instance))
-  (enabled? [instance] (satisfies? workspace/Resource instance))
-  (run [instance] (prn "Delete" instance "NOW!")))
+  (visible? [instances] (every? is-resource instances))
+  (enabled? [instances] (every? is-resource instances))
+  (run [instances] (prn "Delete" instances "NOW!")))
 
 ; TODO: Context menu etc is temporary and should be moved elsewhere (and reused)
 (defn- populate [context-menu tree-view menu-var]
   (.clear (.getItems context-menu))
   (doseq [item @menu-var]
-    (let [tree-item (-> tree-view (.getSelectionModel) (.getSelectedItem))
-          resource (when tree-item (.getValue tree-item))
+    (let [tree-items (-> tree-view (.getSelectionModel) (.getSelectedItems))
+          resources (map #(.getValue %) tree-items)
           command (:command item)
           context :project ; TODO
-          arg-map {:instance resource}
+          arg-map {:instances resources}
           menu-item (MenuItem. (:label item))]
       (when (handler/visible? command context arg-map)
         (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
@@ -92,6 +95,7 @@
     context-menu))
 
 (defn- setup-asset-browser [workspace tree-view open-resource-fn]
+  (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [handler (reify EventHandler
                   (handle [this e]
                     (when (= 2 (.getClickCount e))
