@@ -21,8 +21,6 @@
   (let [href (graph-history gid)]
     (concat (is/undo-stack href) (is/redo-stack href))))
 
-
-
 (deftest graph-registration
   (testing "a fresh system has a graph"
     (ts/with-clean-system
@@ -143,8 +141,8 @@
 
 (defn undo-redo-state?
   [graph undos redos]
-  (and (= (g/undo-stack graph) undos)
-       (= (g/redo-stack graph) redos)))
+  (and (= (map :label (g/undo-stack graph)) undos)
+       (= (map :label (g/redo-stack graph)) redos)))
 
 (defn touch
   [node label & [seq-id]]
@@ -163,17 +161,17 @@
 
         (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
 
-          (is (undo-redo-state? pgraph-id [{:label nil}] []))
+          (is (undo-redo-state? pgraph-id [nil] []))
 
           (touch root 1)
           (touch root 2)
           (touch root 3)
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2} {:label 3}] []))
+          (is (undo-redo-state? pgraph-id [nil 1 2 3] []))
 
           (g/undo pgraph-id)
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2}] [{:label 3}]))))))
+          (is (undo-redo-state? pgraph-id [nil 1 2] [3]))))))
 
   (testing "Transactions with different sequence-ids each make an undo point"
     (ts/with-clean-system
@@ -183,17 +181,17 @@
 
         (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
 
-          (is (undo-redo-state? pgraph-id [{:label nil}] []))
+          (is (undo-redo-state? pgraph-id [nil] []))
 
           (touch root 1 :a)
           (touch root 2 :b)
           (touch root 3 :c)
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2} {:label 3}] []))
+          (is (undo-redo-state? pgraph-id [nil 1 2 3] []))
 
           (g/undo pgraph-id)
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label 1} {:label 2}] [{:label 3}]))))))
+          (is (undo-redo-state? pgraph-id [nil 1 2] [3]))))))
 
   (testing "Transactions with the same sequence-id are merged together"
     (ts/with-clean-system
@@ -203,7 +201,7 @@
 
         (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
 
-          (is (undo-redo-state? pgraph-id [{:label nil}] []))
+          (is (undo-redo-state? pgraph-id [nil] []))
 
           (touch root 1 :a)
           (touch root 1.1 :a)
@@ -218,15 +216,15 @@
           (touch root 2 :a)
           (touch root 3 :c)
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label 2} {:label 3}] []))
+          (is (undo-redo-state? pgraph-id [nil 2 3] []))
 
           (g/undo pgraph-id)
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label 2}] [{:label 3}]))
+          (is (undo-redo-state? pgraph-id [nil 2] [3]))
 
           (g/undo pgraph-id)
 
-          (is (undo-redo-state? pgraph-id [{:label nil}] [{:label 3} {:label 2}]))))))
+          (is (undo-redo-state? pgraph-id [nil] [3 2]))))))
 
 
   (testing "Cross-graph transactions create an undo point in all affected graphs"
@@ -237,8 +235,8 @@
         (let [[node-p] (ts/tx-nodes (g/make-node pgraph-id Root :where "graph P"))
               [node-a] (ts/tx-nodes (g/make-node agraph-id Root :where "graph A"))]
 
-          (is (undo-redo-state? pgraph-id [{:label nil}] []))
-          (is (undo-redo-state? agraph-id [{:label nil}] []))
+          (is (undo-redo-state? pgraph-id [nil] []))
+          (is (undo-redo-state? agraph-id [nil] []))
 
           (touch node-p 1 :a)
 
@@ -249,18 +247,18 @@
 
           (touch node-p 3 :c)
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label 2} {:label 3}] []))
-          (is (undo-redo-state? agraph-id [{:label nil} {:label 2}] []))
+          (is (undo-redo-state? pgraph-id [nil 2 3] []))
+          (is (undo-redo-state? agraph-id [nil 2] []))
 
           (g/undo pgraph-id)
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label 2}] [{:label 3}]))
-          (is (undo-redo-state? agraph-id [{:label nil} {:label 2}] []))
+          (is (undo-redo-state? pgraph-id [nil 2] [3]))
+          (is (undo-redo-state? agraph-id [nil 2] []))
 
           (g/undo pgraph-id)
 
-          (is (undo-redo-state? pgraph-id [{:label nil}] [{:label 3} {:label 2}]))
-          (is (undo-redo-state? agraph-id [{:label nil}   {:label 2}] [])))))))
+          (is (undo-redo-state? pgraph-id [nil] [3 2]))
+          (is (undo-redo-state? agraph-id [nil 2] [])))))))
 
 (g/defnode Source
   (property source-label String))
@@ -332,13 +330,13 @@
             (g/connect pipe-p1   :soft         sink-a1 :target-label)
             (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
+          (is (undo-redo-state? pgraph-id [nil nil] []))
 
           (g/delete-graph agraph-id)
 
           (is (= 2 (count (graphs))))
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
+          (is (undo-redo-state? pgraph-id [nil nil] []))
 
           (is (= (g/dependencies (g/now) [[(id source-p1) :source-label]])
                  #{[(id sink-p1)   :loud]
@@ -375,7 +373,7 @@
             (g/connect pipe-p1   :soft         sink-a1 :target-label)
             (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-          (is (undo-redo-state? pgraph-id [{:label nil} {:label nil}] []))
+          (is (undo-redo-state? pgraph-id [nil nil] []))
 
           (g/delete-graph pgraph-id)
 
