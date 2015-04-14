@@ -36,7 +36,7 @@
 
 (defn graph [gid] (is/graph @*the-system* gid))
 
-(defn- merge-graphs [sys basis tx-graphs gids]
+(defn- merge-graphs [sys basis tx-graphs gids outputs-modified]
   (doseq [gid  gids
           :let [graph (get tx-graphs gid)]]
     (let [start-tx    (:tx-id graph -1)
@@ -50,7 +50,7 @@
               prior     @gref
               posterior (update-in graph [:tx-id] safe-inc)]
           (when href
-            (alter href is/merge-or-push-history gref prior posterior))
+            (alter href is/merge-or-push-history gref prior posterior (filter #(= gid (node-id->graph-id (first %))) outputs-modified)))
           (ref-set gref posterior))))))
 
 (defn- graphs-touched
@@ -65,7 +65,7 @@
         tx-result (it/transact* (it/new-transaction-context basis txs))]
     (when (= :ok (:status tx-result))
       (dosync
-       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (graphs-touched tx-result)))
+       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (graphs-touched tx-result) (:outputs-modified tx-result)))
       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))
       (doseq [l (:old-event-loops tx-result)]
         (is/stop-event-loop! @*the-system* l))
@@ -501,7 +501,8 @@
 
 (defn undo
   [graph]
-  (is/undo-history (is/graph-history @*the-system* graph)))
+  (when-let [ks (is/undo-history (is/graph-history @*the-system* graph))]
+    (invalidate! ks)))
 
 (defn undo-stack
   [graph]
@@ -513,7 +514,8 @@
 
 (defn redo
   [graph]
-  (is/redo-history (is/graph-history @*the-system* graph)))
+  (when-let [ks (is/redo-history (is/graph-history @*the-system* graph))]
+    (invalidate! ks)))
 
 (defn redo-stack
   [graph]

@@ -143,3 +143,51 @@
         (g/redo project-graph)
 
         (is (= 0 (count (outline-children game-object-node))))))))
+
+(g/defnode DummyComponent
+  (output outline t/Any (g/fnk [self] {:self self :label "dummy" :icon nil :children []})))
+
+(g/defnode OutlineViewSimulator
+  (input outline-input t/Any)
+
+  (property counter t/Any)
+
+  (output outline-output t/Any :cached
+          (g/fnk [self outline-input]
+                 (swap! (:counter self) inc)
+                 outline-input)))
+
+(deftest undo-doesnt-leave-cached-junk
+  (with-clean-system
+    (let [workspace        (load-test-workspace world)
+          project-graph    (g/make-graph! :history true :volatility 1)
+          project          (load-test-project workspace project-graph)
+          game-object-node (second (first (project/find-resources project "switcher/test.go")))
+          outline          (g/make-node! project-graph OutlineViewSimulator :counter (atom 0))
+          proximate-cause  (g/make-node! project-graph DummyComponent)]
+      (g/transact (g/connect game-object-node :outline outline :outline-input))
+
+      (is (= 0 @(:counter outline)))
+
+      ;; change the upstream
+      (g/transact (g/connect proximate-cause :outline game-object-node :outline))
+
+      ;; force :outline to be cached
+      (is (not (nil? (g/node-value outline :outline-output))))
+
+      ;; confirm production function was called once
+      (is (= 1 @(:counter outline)))
+
+      ;; undo the set-property
+      (g/undo project-graph)
+
+      ;; :outline should be re-produced
+      (is (not (nil?  (g/node-value outline :outline-output))))
+      (is (= 2 @(:counter outline)))
+
+      ;; redo the set-property
+      (g/redo project-graph)
+
+      ;; :outline should be re-produced again
+      (is (not (nil?  (g/node-value outline :outline-output))))
+      (is (= 3 @(:counter outline))))))
