@@ -142,7 +142,7 @@ public class ProjectView extends Composite {
 
             Image gravatar = new Image(ClientUtil.createGravatarUrl(memberInfo.getEmail(), 48));
             this.members2.setWidget(i, 0, gravatar);
-            this.members2.setText(i, 1, memberInfo.getFirstName() + " " + memberInfo.getLastName());
+            this.members2.setText(i, 1, memberInfo.getFirstName() + " " + memberInfo.getLastName()  + " (" + memberInfo.getEmail() +")");
 
             if (isOwner && !(memberInfo.getId() == userId)) {
                 Button removeButton = new Button("Remove");
