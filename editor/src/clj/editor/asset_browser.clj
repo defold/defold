@@ -16,7 +16,7 @@
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent KeyCombination]
+           [javafx.scene.input MouseEvent KeyCombination ContextMenuEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
@@ -96,7 +96,6 @@
 (defn- make-context-menu [tree-view menu-var]
   (let [context-menu (ContextMenu.)]
     (populate context-menu tree-view menu-var)
-    (.setOnShowing context-menu (ui/event-handler event (populate context-menu tree-view menu-var)))
     context-menu))
 
 (defn- setup-asset-browser [workspace tree-view open-resource-fn]
@@ -116,7 +115,16 @@
                                                      (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
                                                        (proxy-super setText name))
                                                      (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource))))))))
-    (.setContextMenu tree-view (make-context-menu tree-view #'asset-context-menu))
+    
+    (let [cm (make-context-menu tree-view #'asset-context-menu)]
+      ; Required for autohide to work when the event originates from the anchor/source control
+      ; See RT-15160 and Control.java  
+      (.setImpl_showRelativeToWindow cm true)
+      (.addEventHandler tree-view ContextMenuEvent/CONTEXT_MENU_REQUESTED  
+        (ui/event-handler event
+                          (when-not (.isConsumed event)
+                             (.show cm tree-view (.getScreenX event) (.getScreenY event))
+                             (.consume event)))))
     (.setRoot tree-view (tree-item (g/node-value workspace :resource-tree)))))
 
 (defn make-asset-browser [workspace tree-view open-resource-fn]
