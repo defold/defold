@@ -28,15 +28,14 @@ ordinary paths."
 (defn- make-nodes [project resources]
   (let [project-graph (graph project)]
     (g/tx-nodes-added
-     (g/transact
-      (for [[resource-type resources] (group-by workspace/resource-type resources)
-            :when    (boolean resource-type)
-            :let     [node-type (:node-type resource-type PlaceholderResourceNode)]
-            resource resources]
-        (g/make-nodes
-         project-graph
-         [new-resource [node-type :resource resource :parent project :resource-type resource-type]]
-         (g/connect new-resource :self project :nodes)))))))
+      (g/transact
+        (for [[resource-type resources] (group-by workspace/resource-type resources)
+              :let     [node-type (:node-type resource-type PlaceholderResourceNode)]
+              resource resources]
+          (g/make-nodes
+            project-graph
+            [new-resource [node-type :resource resource :parent project :resource-type resource-type]]
+            (g/connect new-resource :self project :nodes)))))))
 
 (defn- load-nodes [project nodes]
   (let [new-nodes (g/tx-nodes-added (g/transact

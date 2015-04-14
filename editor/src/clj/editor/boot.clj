@@ -18,6 +18,7 @@
             [editor.platformer :as platformer]
             [editor.project :as project]
             [editor.properties-view :as properties-view]
+            [editor.text :as text]
             [editor.scene :as scene]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
@@ -45,12 +46,6 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
-(defn- fill-control [control]
-  (AnchorPane/setTopAnchor control 0.0)
-  (AnchorPane/setBottomAnchor control 0.0)
-  (AnchorPane/setLeftAnchor control 0.0)
-  (AnchorPane/setRightAnchor control 0.0))
-
 (defn- setup-console [root]
   (.appendText (.lookup root "#console") "Hello Console"))
 
@@ -64,39 +59,6 @@
 
   t/IDisposable
   (dispose [this]))
-
-(g/defnode TextEditor
-  (inherits core/Scope)
-  (inherits core/ResourceNode)
-
-  (input text t/Str)
-
-  (on :create
-      (let [textarea (TextArea.)]
-        (fill-control textarea)
-        (.appendText textarea (slurp (:file event)))
-        (.add (.getChildren (:parent event)) textarea)))
-  t/IDisposable
-  (dispose [this]
-           (println "Dispose TextEditor")))
-
-(g/defnode TextNode
-  (inherits core/Scope)
-  (inherits core/ResourceNode)
-
-  (property text t/Str)
-  (property a-vector t/Vec3 (default [1 2 3]))
-  (property a-color t/Color (default [1 0 0 1]))
-
-  (on :load
-      (g/set-property self :text (slurp (:filename self)))))
-
-(defn on-edit-text
-  [project-node text-node]
-  (g/graph-with-nodes
-   10
-   [editor TextEditor]
-   (g/connect text-node :text editor :text)))
 
 (defn on-outline-selection-fn [project items]
   (project/select project (map :self items)))
@@ -131,7 +93,7 @@
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
-      (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (app-view/open-resource app-view project resource))))
+      (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (app-view/open-resource app-view workspace project resource))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
@@ -144,6 +106,7 @@
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
     (g/transact
       (concat
+        (text/register-view-types workspace)
         (scene/register-view-types workspace)))
     (let [workspace (g/refresh workspace)]
       (g/transact
