@@ -146,7 +146,11 @@ public class Defold implements EntryPoint {
      * @param expires expires
      */
     public static void setCookie(String name, String value, Date expires) {
-        Cookies.setCookie(name, value, expires, null, "/", false);
+        String domain = Window.Location.getHostName();
+        if (domain.startsWith("www.")) {
+            domain = domain.substring(3);
+        }
+        Cookies.setCookie(name, value, expires, domain, "/", false);
     }
 
     /**
