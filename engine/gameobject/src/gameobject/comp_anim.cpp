@@ -269,7 +269,7 @@ namespace dmGameObject
                     t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
                 if (anim.m_Backwards)
                     t = 1.0f - t;
-                if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG) {
+                if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG || anim.m_Playback == PLAYBACK_LOOP_PINGPONG) {
                     t *= 2.0f;
                     if (t > 1.0f) {
                         t = 2.0f - t;
