@@ -51,47 +51,70 @@
 (def ^:private graph-label    :tx-label)
 (def ^:private sequence-label :tx-sequence-label)
 
-(def   history-state vector)
-(def   history-state-label first)
-(def   history-state-graph second)
-(defn  history-state-sequence-label [[_ _ l]] l)
+(def  history-state                vector)
+(def  history-state-label          first)
+(def  history-state-graph          second)
+(defn history-state-sequence-label [hs] (and hs (nth hs 2)))
+(defn history-state-cache-keys     [hs] (and hs (nth hs 3)))
+
+(defn- history-state-merge-cache-keys
+  [[_ _ _ ks :as new] [_ _ _ old-ks :as old]]
+  (replace {3 (into ks old-ks)} new))
+
+(defn- merge-into-top
+  [stack new-state]
+  (let [old-state (peek stack)]
+    (conj
+     (pop stack)
+     (history-state-merge-cache-keys new-state old-state))))
+
+(defn =*
+  ([x] true)
+  ([x y] (and x y (= x y) x))
+  ([x y & more] (reduce =* (=* x y) more)))
 
 (defn merge-or-push-history
-  [history gref old-graph new-graph]
-  (let [new-state (history-state (graph-label new-graph) old-graph (sequence-label new-graph))
-        stack-op  (if (and (not (nil? (sequence-label new-graph)))
-                           (= (:tx-sequence-label new-graph) (:tx-sequence-label old-graph)))
-                    replace-top
-                    conj-undo-stack)]
+  [history gref old-graph new-graph outputs-modified]
+  (let [new-state (history-state (graph-label new-graph) old-graph (sequence-label new-graph) outputs-modified)
+        stack-op (if (=* (:tx-sequence-label new-graph) (:tx-sequence-label old-graph))
+                   merge-into-top
+                   conj-undo-stack)]
     (-> history
         (update :undo-stack stack-op new-state)
         (assoc :redo-stack []))))
 
 (defn undo-stack [history-ref]
-  (mapv (fn [state] {:label (history-state-label state)}) (:undo-stack @history-ref)))
+  (mapv (fn [state]
+          {:label    (history-state-label state)
+           :modified (history-state-cache-keys state)})
+        (:undo-stack @history-ref)))
 
-(defn undo-history [history-ref]
+(defn undo-history
+  [history-ref]
   (dosync
-   (let [gref          (:state @history-ref)
-         current-graph @gref
-         current-state (history-state (graph-label current-graph) current-graph (sequence-label current-graph))
-         history-state (peek (:undo-stack @history-ref))]
-      (when history-state
-        (ref-set gref (history-state-graph history-state))
-        (alter history-ref update-in [:undo-stack] pop)
-        (alter history-ref update-in [:redo-stack] conj current-state)))))
+   (let [{:keys [state undo-stack redo-stack]} @history-ref
+         undo-to                               (peek undo-stack)
+         current-state                         (history-state (graph-label @state) @state (sequence-label @state) (history-state-cache-keys undo-to))]
+     (when undo-to
+        (ref-set state (history-state-graph undo-to))
+        (alter history-ref assoc
+               :undo-stack (pop undo-stack)
+               :redo-stack (conj redo-stack current-state))
+        (into (history-state-cache-keys current-state) (history-state-cache-keys (peek (pop undo-stack))))))))
 
 (defn redo-stack [history-ref]
   (mapv (fn [state] {:label (history-state-label state)}) (:redo-stack @history-ref)))
 
 (defn redo-history [history-ref]
   (dosync
-   (let [gref          (:state @history-ref)
-         history-state (peek (:redo-stack @history-ref))]
+   (let [{:keys [state undo-stack redo-stack]} @history-ref
+         redo-to (peek redo-stack)]
      (when history-state
-       (ref-set gref (history-state-graph history-state))
-       (alter history-ref update-in [:undo-stack] conj history-state)
-       (alter history-ref update-in [:redo-stack] pop)))))
+       (ref-set state (history-state-graph redo-to))
+       (alter history-ref assoc
+              :undo-stack (conj undo-stack redo-to)
+              :redo-stack (pop redo-stack))
+       (into (history-state-cache-keys redo-to) (history-state-cache-keys (peek undo-stack)))))))
 
 (defn clear-history
   [history-ref]
