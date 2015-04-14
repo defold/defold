@@ -1,7 +1,9 @@
 (ns editor.asset-browser
   (:require [dynamo.graph :as g]
             [editor.jfx :as jfx]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.ui :as ui]
+            [editor.handler :as handler])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
@@ -12,7 +14,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar ContextMenu]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -47,6 +49,48 @@
             (.setAll children (list-children (.getValue this))))
           children)))))
 
+(def asset-context-menu
+  [{:label "Open"
+    :command :open}
+   {:label "Delete"
+    :command :delete
+    :icon "icons/cross.png"}])
+
+(handler/defhandler open-resource :open :project
+  (visible? [instance] (and (satisfies? workspace/Resource instance)
+                            (= :file (workspace/source-type instance))))
+  (enabled? [instance] (satisfies? workspace/Resource instance))
+  (run [instance] (prn "Open" instance "NOW!")))
+
+(handler/defhandler delete-resource :delete :project
+  (visible? [instance] (satisfies? workspace/Resource instance))
+  (enabled? [instance] (satisfies? workspace/Resource instance))
+  (run [instance] (prn "Delete" instance "NOW!")))
+
+; TODO: Context menu etc is temporary and should be moved elsewhere (and reused)
+(defn- populate [context-menu tree-view menu-var]
+  (.clear (.getItems context-menu))
+  (doseq [item @menu-var]
+    (let [tree-item (-> tree-view (.getSelectionModel) (.getSelectedItem))
+          resource (when tree-item (.getValue tree-item))
+          command (:command item)
+          context :project ; TODO
+          arg-map {:instance resource}
+          menu-item (MenuItem. (:label item))]
+      (when (handler/visible? command context arg-map)
+        (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
+        (.setDisable menu-item (not (handler/enabled? command context arg-map)))
+        (.setOnAction menu-item (ui/event-handler event (handler/run command context arg-map) ))
+        (.add (.getItems context-menu) menu-item))))
+  (when (empty? (.getItems context-menu))
+    (.add (.getItems context-menu) (MenuItem. "Empty Menu"))))
+
+(defn- make-context-menu [tree-view menu-var]
+  (let [context-menu (ContextMenu.)]
+    (populate context-menu tree-view menu-var)
+    (.setOnShowing context-menu (ui/event-handler event (populate context-menu tree-view menu-var)))
+    context-menu))
+
 (defn- setup-asset-browser [workspace tree-view open-resource-fn]
   (let [handler (reify EventHandler
                   (handle [this e]
@@ -63,6 +107,7 @@
                                                      (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
                                                        (proxy-super setText name))
                                                      (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource))))))))
+    (.setContextMenu tree-view (make-context-menu tree-view #'asset-context-menu))
     (.setRoot tree-view (tree-item (g/node-value workspace :resource-tree)))))
 
 (defn make-asset-browser [workspace tree-view open-resource-fn]
