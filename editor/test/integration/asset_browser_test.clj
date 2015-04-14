@@ -62,7 +62,7 @@
                             (g/connect workspace :resource-list project :resources)
                             (g/connect workspace :resource-types project :resource-types)))))
             resources (g/node-value workspace :resource-list)
-            project   (project/load-project project resources)
+            project   (project/load-project project)
             #_queries #_["**/atlas_sprite.go"]
             queries ["**/atlas.atlas" "**/env.cubemap" "**/level1.platformer" "**/level01.switcher" "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
         (doseq [query queries

@@ -187,7 +187,6 @@
 
 (g/defnk produce-outline-vertex-buffer
   [[:texture-packing aabb coords]]
-  (prn coords)
   (let [vbuf       (->texture-vtx (* 6 (count coords)))
         x-scale    (/ 1.0 (.width aabb))
         y-scale    (/ 1.0 (.height aabb))]
@@ -274,35 +273,32 @@
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
 
 (defn- attach-atlas-image-nodes
-  [graph-id parent img-nodes images]
-  (for [image images
-        :when (get img-nodes image)
-        :let [img-node (get img-nodes image)]]
-    (g/make-nodes
-      graph-id
-      [atlas-image [AtlasImage :path image]]
-      (g/connect (get img-nodes image) :content   atlas-image :src-image)
-      (g/connect atlas-image           :animation parent      :animations)
-      (g/connect atlas-image           :outline   parent      :outline))))
+  [graph-id base-node parent images src-label tgt-label]
+  (for [[image img-node] (map (fn [img] [img (project/resolve-resource-node base-node img)]) images)
+       :when img-node]
+   (g/make-nodes
+     graph-id
+     [atlas-image [AtlasImage :path image]]
+     (g/connect img-node :content   atlas-image :src-image)
+     (g/connect atlas-image           src-label  parent      tgt-label)
+     (g/connect atlas-image           :outline   parent      :outline))))
 
 (defn load-atlas [project self input]
   (let [atlas         (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
-        img-resources (project/find-resources project "**.{png,jpg}")
-        img-nodes     (into {} (map (fn [[resource node]] [(workspace/path resource) node]) img-resources))
         graph-id      (g/node->graph-id self)]
     (concat
       ;; TODO Bug, protobuf defaults should be preserved
       (g/set-property self :margin (get atlas :margin 0))
       (g/set-property self :extrude-borders (get atlas :extrude-borders 0))
-      (attach-atlas-image-nodes graph-id self img-nodes (mapv #(subs (:image %) 1) (:images atlas)))
+      (attach-atlas-image-nodes graph-id self self (map :image (:images atlas)) :animation :animations)
       (for [anim (:animations atlas)
-            :let [images (mapv :image (:images anim))]]
+            :let [images (map :image (:images anim))]]
         (g/make-nodes
           (g/node->graph-id self)
           [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim) :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
           (g/connect atlas-anim :animation self :animations)
           (g/connect atlas-anim :outline   self :outline)
-          (attach-atlas-image-nodes graph-id atlas-anim img-nodes images))))))
+          (attach-atlas-image-nodes graph-id self atlas-anim images :image :frames))))))
 
 (defn setup-rendering [self view]
   (let [renderer (t/lookup view :renderer)

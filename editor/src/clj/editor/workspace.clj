@@ -74,12 +74,11 @@ ordinary paths."
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace %) (.listFiles file)))]
     (FileResource. workspace file children)))
 
-(g/defnk produce-root [self root]
+(g/defnk produce-resource-tree [self root]
   (create-resource-tree self (File. root)))
 
-(g/defnk produce-resource-list [self root]
-  (let [root-node (create-resource-tree self (File. root))]
-    (tree-seq #(= :folder (source-type %1)) :children root-node)))
+(g/defnk produce-resource-list [self resource-tree]
+  (tree-seq #(= :folder (source-type %)) :children resource-tree))
 
 (defn get-view-type [workspace id]
   (get (:view-types workspace) id))
@@ -115,9 +114,9 @@ ordinary paths."
   (property view-types t/Any)
   (property resource-types t/Any)
 
-  (output resource-list t/Any produce-resource-list)
-  (output resource-tree FileResource produce-root)
-  (output resource-types t/Any (g/fnk [resource-types] resource-types)))
+  (output resource-tree FileResource :cached produce-resource-tree)
+  (output resource-list t/Any :cached produce-resource-list)
+  (output resource-types t/Any :cached (g/fnk [resource-types] resource-types)))
 
 (defn make-workspace [graph project-path]
   (g/make-node! graph Workspace :root project-path :view-types {:default {:id :default}}))
