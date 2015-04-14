@@ -74,6 +74,13 @@
   [node pr v]
   (update-property node pr (constantly v) []))
 
+(defn update-graph
+  [gid f args]
+  [{:type :update-graph
+    :gid  gid
+    :fn   f
+    :args args}])
+
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
 (`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `connect` may have tempids."
@@ -256,6 +263,12 @@
          :basis            (gt/disconnect basis source-id source-label target-id target-label)
          :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
 
+(defmethod perform :update-graph
+  [{:keys [basis] :as ctx} {:keys [gid fn args]}]
+  (-> ctx
+      (update-in [:basis :graphs gid] #(apply fn % args))
+      (update :graphs-modified conj gid)))
+
 (defmethod perform :label
   [ctx {:keys [label]}]
   (assoc ctx :label label))
@@ -362,7 +375,7 @@
     sequence-label
     (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))))
 
-(def tx-report-keys [:basis :new-event-loops :tempids :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
+(def tx-report-keys [:basis :new-event-loops :tempids :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
@@ -381,6 +394,7 @@
    :nodes-added         []
    :nodes-modified      #{}
    :nodes-deleted       {}
+   :graphs-modified     #{}
    :properties-modified {}
    :pending             [actions]
    :completed           []

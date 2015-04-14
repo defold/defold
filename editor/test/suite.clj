@@ -54,7 +54,6 @@
     (require n))
   (apply test/run-tests test-namespaces))
 
-
 (defn integration-tests []
   (doseq [n integration-test-namespaces]
     (require n))

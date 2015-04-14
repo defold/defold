@@ -23,7 +23,7 @@ ordinary paths."
   (inherits ResourceNode))
 
 (defn graph [project]
-  (g/nref->gid (g/node-id project)))
+  (g/node->graph-id project))
 
 (defn- make-nodes
   [project resources]
@@ -63,7 +63,7 @@ guaranteed ordering of the sequence."
   (g/node-value project-node :nodes))
 
 (g/defnk produce-menu [self]
-  (let [project-graph (g/nref->gid (g/node-id self))]
+  (let [project-graph (g/node->graph-id self)]
     [{:label "Edit"
       :children [{:label (fn [] (let [label "Undo"]
                                   (if-let [op-label (:label (last (g/undo-stack project-graph)))]
@@ -165,7 +165,7 @@ behavior."
 (defn- new-node-for-path
   [project-node path type-if-not-registered]
   (let [type          (get-in project-node [:node-types (t/extension path)] type-if-not-registered)
-        project-graph (g/nref->gid (g/node-id project-node))
+        project-graph (g/node->graph-id project-node)
         temp          (g/tempid project-graph)]
     [(g/make-node project-graph type :filename path :_id temp)
      (g/connect temp :self project-node :nodes)]))
@@ -181,7 +181,7 @@ behavior."
 
 (defn make-editor
   [project-node path]
-  (let [view-graph   (g/attach-graph (g/make-graph :volatility 100))
+  (let [view-graph   (g/make-graph! :volatility 100)
         content-node (t/lookup project-node path)]
     (build-editor-node project-node path content-node view-graph)))
 

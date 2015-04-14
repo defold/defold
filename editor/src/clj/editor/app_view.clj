@@ -75,7 +75,7 @@
                                      (.stop ^AnimationTimer (:refresh-timer self)))))
 
 (defn- invalidate [node label]
-  (g/cache-invalidate (g/output-dependencies (g/now) [[(g/node-id node) label]])))
+  (g/invalidate! [[(g/node-id node) label]]))
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of (g/now) target-node target-label)]
@@ -135,7 +135,7 @@
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             ;; TODO Delete this graph when the tab is closed.
-            view-graph (g/attach-graph (g/make-graph :volatility 2))
+            view-graph (g/make-graph! :history false :volatility 2)
             view       (make-view-fn view-graph parent ((:id view-type) (:view-fns resource-type)) resource-node)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.select (.getSelectionModel tab-pane) tab))
