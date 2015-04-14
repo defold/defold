@@ -114,11 +114,9 @@
   (output gpu-texture   s/Any  produce-gpu-texture))
 
 (defn load-cubemap [project self input]
-  (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))
-        img-resources (project/find-resources project "**.{jpg,png}")
-        img-nodes (into {} (map (fn [[resource node]] [(workspace/path resource) node]) img-resources))]
+  (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))]
     (for [[side input] cubemap-message]
-      (if-let [img-node (get img-nodes (subs input 1))]
+      (if-let [img-node (project/resolve-resource-node self input)]
         [(g/connect img-node :content self (keyword (subs (str side "-img") 1)))
          (g/set-property self side input)]
         (g/set-property self side input)))))
