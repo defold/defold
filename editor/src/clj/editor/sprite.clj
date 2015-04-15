@@ -14,7 +14,7 @@
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.sprite.proto Sprite Sprite$SpriteDesc]
+           [com.dynamo.sprite.proto Sprite Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -126,6 +126,16 @@
   (output vertex-binding t/Any :cached (g/fnk [textureset animation] (vtx/use-with (gen-vertex-buffer textureset animation) shader)))
   (output renderable             t/RenderData  produce-renderable))
 
+(g/defnk produce-save-data [self image default-animation material blend-mode]
+  {:resource (:resource self)
+   :content (protobuf/pb->str
+              (.build
+                (doto (Sprite$SpriteDesc/newBuilder)
+                  (.setTileSet image)
+                  (.setDefaultAnimation default-animation)
+                  (protobuf/set-if-present :material self)
+                  (.setBlendMode (protobuf/val->pb-enum Sprite$SpriteDesc$BlendMode blend-mode)))))})
+
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
@@ -145,7 +155,8 @@
                                         (-> (geom/null-aabb)
                                           (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                           (geom/aabb-incorporate (Point3d. hw hh 0))))))
-  (output outline t/Any (g/fnk [self] {:self self :label "Sprite" :icon sprite-icon})))
+  (output outline t/Any (g/fnk [self] {:self self :label "Sprite" :icon sprite-icon}))
+  (output save-data t/Any :cached produce-save-data))
 
 (defn load-sprite [project self input]
   (let [sprite (protobuf/pb->map (protobuf/read-text Sprite$SpriteDesc input))]

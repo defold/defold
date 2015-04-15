@@ -70,12 +70,14 @@ ordinary paths."
 (defn make-memory-resource [workspace resource-type data]
   (MemoryResource. workspace resource-type data))
 
-(defn- create-resource-tree [workspace ^File file]
-  (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace %) (.listFiles file)))]
+(defn- create-resource-tree [workspace ^File file filter-fn]
+  (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace % filter-fn) (filter filter-fn (.listFiles file))))]
     (FileResource. workspace file children)))
 
 (g/defnk produce-resource-tree [self root]
-  (create-resource-tree self (File. root)))
+  (create-resource-tree self (File. root) (fn [f]
+                                            (let [name (.getName f)]
+                                              (not (or (= name "build") (= (subs name 0 1) ".")))))))
 
 (g/defnk produce-resource-list [self resource-tree]
   (tree-seq #(= :folder (source-type %)) :children resource-tree))
