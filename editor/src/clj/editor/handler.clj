@@ -7,8 +7,8 @@
 (defmacro defhandler [name command context & body]
   (let [qname (keyword (str *ns*) (str name))
         fns (->> body
-              (mapcat (fn [[fname fargs fbody]]
-                        [(keyword fname) `(fnk ~fargs ~fbody)]))
+              (mapcat (fn [[fname fargs & fbody]]
+                        [(keyword fname) `(fnk ~fargs ~@fbody)]))
               (apply hash-map))]
     `(swap! *handlers* assoc ~qname {:context ~context
                                      :command ~command
