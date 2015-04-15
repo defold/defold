@@ -8,6 +8,9 @@ ordinary paths."
   (:import [java.io File FilterOutputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
+(defprotocol SelectionProvider
+  (selection [this]))
+
 (defprotocol Resource
   (resource-type [this])
   (source-type [this])
