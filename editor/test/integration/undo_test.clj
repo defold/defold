@@ -1,5 +1,6 @@
 (ns integration.undo-test
   (:require [clojure.test :refer :all]
+            [clojure.walk :as walk]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer [with-clean-system]]
             [dynamo.types :as t]
@@ -14,7 +15,8 @@
             [editor.scene :as scene]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [internal.system :as is])
   (:import [dynamo.types Region]
            [java.awt.image BufferedImage]
            [java.io File]))
@@ -136,7 +138,6 @@
 
         ;; undo deletion
         (g/undo project-graph)
-
         (is (= 1 (count (outline-children game-object-node))))
 
         ;; redo deletion
@@ -148,46 +149,69 @@
   (output outline t/Any (g/fnk [self] {:self self :label "dummy" :icon nil :children []})))
 
 (g/defnode OutlineViewSimulator
-  (input outline-input t/Any)
+  (input outline t/Any)
 
   (property counter t/Any)
 
-  (output outline-output t/Any :cached
-          (g/fnk [self outline-input]
+  (output outline t/Any :cached
+          (g/fnk [self outline]
                  (swap! (:counter self) inc)
-                 outline-input)))
+                 outline)))
 
-(deftest undo-doesnt-leave-cached-junk
+(defn remove-handlers
+  "Handlers are functions, so they are never equal. Strip them out of the outline"
+  [outline]
+  (walk/postwalk
+   (fn [form]
+     (if-not (and (vector? form) (= :handler-fn (first form)))
+       form))
+   outline))
+
+(deftest undo-redo-undo-redo
   (with-clean-system
     (let [workspace        (load-test-workspace world)
           project-graph    (g/make-graph! :history true :volatility 1)
           project          (load-test-project workspace project-graph)
           game-object-node (second (first (project/find-resources project "switcher/test.go")))
           outline          (g/make-node! project-graph OutlineViewSimulator :counter (atom 0))
-          proximate-cause  (g/make-node! project-graph DummyComponent)]
-      (g/transact (g/connect game-object-node :outline outline :outline-input))
+          component        (g/make-node! project-graph DummyComponent)]
+      (g/transact [(g/connect game-object-node :outline outline :outline)
+                   (g/connect component :outline game-object-node :outline)])
 
-      (is (= 0 @(:counter outline)))
+      (let [original-outline (remove-handlers (g/node-value outline :outline))]
 
-      ;; change the upstream
-      (g/transact (g/connect proximate-cause :outline game-object-node :outline))
+        (g/reset-undo! project-graph)
 
-      ;; force :outline to be cached
-      (is (not (nil? (g/node-value outline :outline-output))))
+        ;; delete the component
+        (g/transact
+         [(g/operation-label "delete node")
+          (g/delete-node component)])
 
-      ;; confirm production function was called once
-      (is (= 1 @(:counter outline)))
+        ;; force :outline to be cached
+        (let [outline-without-component (remove-handlers (g/node-value outline :outline))]
 
-      ;; undo the set-property
-      (g/undo project-graph)
+          ;; undo the deletion (component is back)
+          (g/undo project-graph)
 
-      ;; :outline should be re-produced
-      (is (not (nil?  (g/node-value outline :outline-output))))
-      (is (= 2 @(:counter outline)))
+          ;; same :outline should be re-produced
+          (let [outline-after-undo (remove-handlers (g/node-value outline :outline))]
+            (is (= original-outline outline-after-undo)))
 
-      ;; redo the set-property
-      (g/redo project-graph)
+          ;; redo the deletion (component is gone)
+          (g/redo project-graph)
 
-      ;; :outline should be re-produced again
-      (is (not (nil?  (g/node-value outline :outline-output))))
-      (is (= 3 @(:counter outline))))))
+          ;; :outline should be re-produced again
+          (is (= outline-without-component (remove-handlers (g/node-value outline :outline))))
+
+          ;; undo the deletion again (component is back again)
+          (g/undo project-graph)
+
+          ;; :outline should be re-produced
+          (let [outline-after-second-undo (remove-handlers (g/node-value outline :outline))]
+            (is (= original-outline outline-after-second-undo)))
+
+          ;; redo the deletion yet again (component is gone again)
+          (g/redo project-graph)
+
+          ;; :outline should be re-produced yet again
+          (is (= outline-without-component (remove-handlers (g/node-value outline :outline)))))))))
