@@ -17,7 +17,10 @@ ordinary paths."
 
 (g/defnode ResourceNode
   (inherits core/Scope)
-  (property resource (t/protocol workspace/Resource) (visible false)))
+
+  (property resource (t/protocol workspace/Resource) (visible false))
+
+  (output save-data t/Any (g/fnk [resource] {:resource resource})))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -32,10 +35,15 @@ ordinary paths."
         (for [[resource-type resources] (group-by workspace/resource-type resources)
               :let     [node-type (:node-type resource-type PlaceholderResourceNode)]
               resource resources]
-          (g/make-nodes
-            project-graph
-            [new-resource [node-type :resource resource :parent project :resource-type resource-type]]
-            (g/connect new-resource :self project :nodes)))))))
+          (if (not= (workspace/source-type resource) :folder)
+            (g/make-nodes
+              project-graph
+              [new-resource [node-type :resource resource :parent project :resource-type resource-type]]
+              (g/connect new-resource :self project :nodes)
+              (if ((g/outputs' node-type) :save-data)
+                (g/connect new-resource :save-data project :save-data)
+                []))
+            []))))))
 
 (defn- load-nodes [project nodes]
   (let [new-nodes (g/tx-nodes-added (g/transact
@@ -54,9 +62,18 @@ ordinary paths."
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
     (workspace/make-memory-resource (:workspace project) resource-type data)))
 
+(defn save-all [project]
+  (let [save-data (g/node-value project :save-data)]
+    (doseq [{:keys [resource content]} save-data]
+      (spit resource content))))
+
 (g/defnk produce-menu [self]
   (let [project-graph (g/node->graph-id self)]
-    [{:label "Edit"
+    [{:label "File"
+      :children [{:label "Save All"
+                  :acc "Shortcut+S"
+                  :handler-fn (fn [event] (save-all self))}]}
+     {:label "Edit"
       :children [{:label (fn [] (let [label "Undo"]
                                   (if-let [op-label (:label (last (g/undo-stack project-graph)))]
                                     (format "%s %s" label op-label)
@@ -82,9 +99,11 @@ ordinary paths."
   (input selection t/Any)
   (input resources t/Any)
   (input resource-types t/Any)
+  (input save-data [t/Any])
 
   (output nodes-by-resource t/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))
-  (output menu t/Any :cached produce-menu))
+  (output menu t/Any :cached produce-menu)
+  (output save-data t/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data))))
 
 (defn get-resource-type [resource-node]
   (when resource-node (workspace/resource-type (:resource resource-node))))
