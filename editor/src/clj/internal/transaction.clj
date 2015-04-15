@@ -126,14 +126,14 @@
 
 (defn- activate-all-outputs
   [{:keys [basis] :as ctx} node-id node]
-  (let [all-labels  (concat (gt/outputs node) (keys (gt/properties node)))
+  (let [all-labels  (gt/outputs node)
         ctx         (update-in ctx [:nodes-affected node-id] set/union all-labels)
         all-targets (into #{[node-id nil]} (mapcat #(gt/targets basis node-id %) all-labels))]
     (reduce
-      (fn [ctx [target-id target-label]]
-        (mark-activated ctx target-id target-label))
-      ctx
-      all-targets)))
+     (fn [ctx [target-id target-label]]
+       (mark-activated ctx target-id target-label))
+     ctx
+     all-targets)))
 
 (defmulti perform
   "A multimethod used for defining methods that perform the individual
