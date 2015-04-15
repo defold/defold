@@ -14,7 +14,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem SeparatorMenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent KeyCombination ContextMenuEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -55,7 +55,10 @@
    {:label "Delete"
     :command :delete
     :icon "icons/cross.png"
-    :acc "Shortcut+BACKSPACE"}])
+    :acc "Shortcut+BACKSPACE"}
+   {:label :separator}
+   {:label "Refresh"
+    :command :refresh}])
 
 (defn- is-resource [x] (satisfies? workspace/Resource x))
 (defn- is-deletable-resource [x] (and (satisfies? workspace/Resource x) (not (workspace/read-only? x))))
@@ -72,26 +75,32 @@
   (enabled? [instances] (every? is-deletable-resource instances))
   (run [instances] (prn "Delete" instances "NOW!")))
 
+(handler/defhandler refresh-resources :refresh :project
+  (visible? [] true)
+  (enabled? []  true)
+  (run [] (prn "REFRESH NOW!") ))
+
+(defn- create-menu-item [item context arg-map]
+  (let [menu-item (MenuItem. (:label item))
+        command (:command item)]
+    (when (:acc item)
+      (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
+    (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
+    (.setDisable menu-item (not (handler/enabled? command context arg-map)))
+    (.setOnAction menu-item (ui/event-handler event (handler/run command context arg-map) ))
+    menu-item))
+
 ; TODO: Context menu etc is temporary and should be moved elsewhere (and reused)
 (defn- populate [context-menu tree-view menu-var]
-  (.clear (.getItems context-menu))
-  (doseq [item @menu-var]
-    (let [tree-items (-> tree-view (.getSelectionModel) (.getSelectedItems))
-          resources (map #(.getValue %) tree-items)
-          command (:command item)
-          context :project ; TODO
-          arg-map {:instances resources}
-          menu-item (MenuItem. (:label item))]
-      (when (handler/visible? command context arg-map)
-        (when (:acc item)
-          (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
-
-        (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
-        (.setDisable menu-item (not (handler/enabled? command context arg-map)))
-        (.setOnAction menu-item (ui/event-handler event (handler/run command context arg-map) ))
-        (.add (.getItems context-menu) menu-item))))
-  (when (empty? (.getItems context-menu))
-    (.add (.getItems context-menu) (MenuItem. "Empty Menu"))))
+  (let [tree-items (-> tree-view (.getSelectionModel) (.getSelectedItems))
+        resources (map #(.getValue %) tree-items)
+        context :project ; TODO
+        arg-map {:instances resources}]
+    (doseq [item @menu-var]
+      (let [menu-item (if (= :separator (:label item))
+                        (SeparatorMenuItem.)
+                        (create-menu-item item context arg-map) )]
+        (.add (.getItems context-menu) menu-item)))))
 
 (defn- make-context-menu [tree-view menu-var]
   (let [context-menu (ContextMenu.)]
@@ -115,16 +124,16 @@
                                                      (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
                                                        (proxy-super setText name))
                                                      (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource))))))))
-    
-    (let [cm (make-context-menu tree-view #'asset-context-menu)]
-      ; Required for autohide to work when the event originates from the anchor/source control
-      ; See RT-15160 and Control.java  
-      (.setImpl_showRelativeToWindow cm true)
-      (.addEventHandler tree-view ContextMenuEvent/CONTEXT_MENU_REQUESTED  
+
+    (.addEventHandler tree-view ContextMenuEvent/CONTEXT_MENU_REQUESTED
         (ui/event-handler event
                           (when-not (.isConsumed event)
-                             (.show cm tree-view (.getScreenX event) (.getScreenY event))
-                             (.consume event)))))
+                            (let [cm (make-context-menu tree-view #'asset-context-menu)]
+                              ; Required for autohide to work when the event originates from the anchor/source control
+                              ; See RT-15160 and Control.java
+                              (.setImpl_showRelativeToWindow cm true)
+                              (.show cm tree-view (.getScreenX event) (.getScreenY event))
+                              (.consume event)))))
     (.setRoot tree-view (tree-item (g/node-value workspace :resource-tree)))))
 
 (defn make-asset-browser [workspace tree-view open-resource-fn]
