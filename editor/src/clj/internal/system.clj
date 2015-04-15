@@ -5,11 +5,11 @@
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.history :as h]
             [service.log :as log]))
 
 (def ^:private maximum-cached-items     10000)
 (def ^:private maximum-disposal-backlog 2500)
-(def ^:private history-size-min         50)
 (def ^:private history-size-max         60)
 
 (prefer-method print-method java.util.Map               clojure.lang.IDeref)
@@ -42,10 +42,7 @@
 (defn- new-history
   [state]
   {:state      state
-   :undo-stack []
-   :redo-stack []})
-
-(def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
+   :tape       (conj (h/paper-tape history-size-max) [])})
 
 (def ^:private undo-op-keys   [:label])
 (def ^:private graph-label    :tx-label)
@@ -57,15 +54,21 @@
 (defn history-state-sequence-label [hs] (and hs (nth hs 2)))
 (defn history-state-cache-keys     [hs] (and hs (nth hs 3)))
 
+(defn history-state-map
+  [[label graph _ cache-keys]]
+  {:label    label
+   :tx-id    (:tx-id graph)
+   :modified cache-keys})
+
 (defn- history-state-merge-cache-keys
   [[_ _ _ ks :as new] [_ _ _ old-ks :as old]]
   (replace {3 (into ks old-ks)} new))
 
 (defn- merge-into-top
-  [stack new-state]
-  (let [old-state (peek stack)]
+  [tape new-state]
+  (let [old-state (h/ivalue tape)]
     (conj
-     (pop stack)
+     (h/truncate (h/iprev tape))
      (history-state-merge-cache-keys new-state old-state))))
 
 (defn =*
@@ -75,51 +78,57 @@
 
 (defn merge-or-push-history
   [history gref old-graph new-graph outputs-modified]
-  (let [new-state (history-state (graph-label new-graph) old-graph (sequence-label new-graph) outputs-modified)
-        stack-op (if (=* (:tx-sequence-label new-graph) (:tx-sequence-label old-graph))
-                   merge-into-top
-                   conj-undo-stack)]
-    (-> history
-        (update :undo-stack stack-op new-state)
-        (assoc :redo-stack []))))
+  (let [new-state (history-state (graph-label new-graph) new-graph (sequence-label new-graph) outputs-modified)
+        tape-op   (if (=* (:tx-sequence-label new-graph) (:tx-sequence-label old-graph))
+                    merge-into-top
+                    conj)]
+    (update history :tape tape-op new-state)))
 
 (defn undo-stack [history-ref]
-  (mapv (fn [state]
-          {:label    (history-state-label state)
-           :modified (history-state-cache-keys state)})
-        (:undo-stack @history-ref)))
+  (->> history-ref
+       deref
+       :tape
+       h/before
+       next
+       (mapv history-state-map)))
 
 (defn undo-history
   [history-ref]
   (dosync
-   (let [{:keys [state undo-stack redo-stack]} @history-ref
-         undo-to                               (peek undo-stack)
-         current-state                         (history-state (graph-label @state) @state (sequence-label @state) (history-state-cache-keys undo-to))]
+   (let [{:keys [state tape]} @history-ref
+         last-change          (h/ivalue tape)
+         tape                 (h/iprev tape)
+         undo-to              (h/ivalue tape)]
      (when undo-to
         (ref-set state (history-state-graph undo-to))
-        (alter history-ref assoc
-               :undo-stack (pop undo-stack)
-               :redo-stack (conj redo-stack current-state))
-        (into (history-state-cache-keys current-state) (history-state-cache-keys (peek (pop undo-stack))))))))
+        (alter history-ref assoc :tape tape)
+        (into (history-state-cache-keys last-change) (history-state-cache-keys undo-to))))))
 
 (defn redo-stack [history-ref]
-  (mapv (fn [state] {:label (history-state-label state)}) (:redo-stack @history-ref)))
+  (->> history-ref
+       deref
+       :tape
+       h/after
+       (mapv history-state-map)))
 
 (defn redo-history [history-ref]
   (dosync
-   (let [{:keys [state undo-stack redo-stack]} @history-ref
-         redo-to (peek redo-stack)]
-     (when history-state
+   (let [{:keys [state tape]} @history-ref
+         previous-change      (h/ivalue tape)
+         tape                 (h/inext tape)
+         redo-to              (h/ivalue tape)]
+     (when redo-to
        (ref-set state (history-state-graph redo-to))
-       (alter history-ref assoc
-              :undo-stack (conj undo-stack redo-to)
-              :redo-stack (pop redo-stack))
-       (into (history-state-cache-keys redo-to) (history-state-cache-keys (peek undo-stack)))))))
+       (alter history-ref assoc :tape tape)
+       (into (history-state-cache-keys previous-change) (history-state-cache-keys redo-to))))))
 
 (defn clear-history
   [history-ref]
   (dosync
-   (alter history-ref assoc :undo-stack [] :redo-stack [])))
+   (let [graph         (-> history-ref deref :state deref)
+         initial-state (history-state (graph-label graph) graph (sequence-label graph) #{})]
+     (alter history-ref update :tape (fn [tape]
+                                       (conj (empty tape) initial-state))))))
 
 (defn last-graph     [s]     (-> s :last-graph))
 (defn system-cache   [s]     (-> s :cache))

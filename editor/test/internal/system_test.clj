@@ -97,7 +97,7 @@
         (is (not (g/has-undo? pgraph-id)))
         (is (not (g/has-redo? pgraph-id)))
 
-        (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
+        (let [root (g/make-node! pgraph-id Root)]
 
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
