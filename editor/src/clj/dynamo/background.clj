@@ -1,11 +1,10 @@
 (ns dynamo.background
-  (:require [plumbing.core :refer [fnk]]
-            [dynamo.geom :as geom]
-            [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.types :as t]
+  (:require [dynamo.geom :as geom]
             [dynamo.gl :as gl]
-            [internal.render.pass :as p])
+            [dynamo.graph :as g]
+            [dynamo.types :as t]
+            [internal.render.pass :as p]
+            [plumbing.core :refer [fnk]])
   (:import [javax.media.opengl GL2]))
 
 (def grad-top-color    (gl/color 123 143 167))

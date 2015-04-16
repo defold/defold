@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer [tx-nodes with-clean-system]]
-            [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.types :as t]
             [internal.node :as in])
@@ -32,7 +31,7 @@
 
 (deftest basic-node-definition
   (is (satisfies? g/NodeType BasicNode))
-  (is (= BasicNode (g/node-type (n/construct BasicNode)))))
+  (is (= BasicNode (g/node-type (g/construct BasicNode)))))
 
 (g/defnode IRootNode)
 (g/defnode ChildNode
@@ -46,11 +45,11 @@
 
 (deftest inheritance
  (is (= [IRootNode]           (g/supertypes ChildNode)))
- (is (= ChildNode             (g/node-type (n/construct ChildNode))))
+ (is (= ChildNode             (g/node-type (g/construct ChildNode))))
  (is (= [ChildNode]           (g/supertypes GChild)))
- (is (= GChild                (g/node-type (n/construct GChild))))
+ (is (= GChild                (g/node-type (g/construct GChild))))
  (is (= [ChildNode MixinNode] (g/supertypes GGChild)))
- (is (= GGChild               (g/node-type (n/construct GGChild)))))
+ (is (= GGChild               (g/node-type (g/construct GGChild)))))
 
 (g/defnode OneInputNode
   (input an-input t/Str))
@@ -63,17 +62,17 @@
 
 (deftest nodes-can-have-inputs
   (testing "labeled input"
-    (let [node (n/construct OneInputNode)]
+    (let [node (g/construct OneInputNode)]
       (is (:an-input (g/inputs' OneInputNode)))
       (is (= t/Str (:an-input (g/input-types node))))
       (is (:an-input (g/inputs node)))))
   (testing "inherited input"
-    (let [node (n/construct InheritedInputNode)]
+    (let [node (g/construct InheritedInputNode)]
       (is (:an-input (g/inputs' InheritedInputNode)))
       (is (= t/Str (:an-input (g/input-types node))))
       (is (:an-input (g/inputs node)))))
   (testing "inputs can be flagged for injection"
-    (let [node (n/construct InjectableInputNode)]
+    (let [node (g/construct InjectableInputNode)]
       (is (:for-injection (g/injectable-inputs' InjectableInputNode))))))
 
 (definterface MarkerInterface)
@@ -111,26 +110,26 @@
 
 (deftest nodes-can-implement-interfaces
   (testing "implement a single interface"
-    (let [node (n/construct MarkerInterfaceNode)]
+    (let [node (g/construct MarkerInterfaceNode)]
       (is (= #{`MarkerInterface} (g/interfaces MarkerInterfaceNode)))
       (is (instance? MarkerInterface node))
       (is (not (instance? SecondaryInterface node)))))
   (testing "implement two interfaces"
-    (let [node (n/construct MarkerAndSecondaryInterfaceNode)]
+    (let [node (g/construct MarkerAndSecondaryInterfaceNode)]
       (is (= #{`MarkerInterface `SecondaryInterface} (g/interfaces MarkerAndSecondaryInterfaceNode)))
       (is (instance? MarkerInterface node))
       (is (instance? SecondaryInterface node))))
   (testing "implement interface with methods"
-    (let [node (n/construct OneMethodNode)]
+    (let [node (g/construct OneMethodNode)]
       (is (instance? OneMethodInterface node))
       (is (= [5 :ok] (.oneMethod node 5)))))
   (testing "interface inheritance"
-    (let [node (n/construct InheritedInterfaceNode)]
+    (let [node (g/construct InheritedInterfaceNode)]
       (is (instance? MarkerInterface node)))
-    (let [node (n/construct InheritedMethodNode)]
+    (let [node (g/construct InheritedMethodNode)]
       (is (instance? OneMethodInterface node))
       (is (= [5 :ok] (.oneMethod node 5))))
-    (let [node (n/construct OverriddenMethodNode)]
+    (let [node (g/construct OverriddenMethodNode)]
       (is (instance? OneMethodInterface node))
       (is (= [42 :overridden] (.oneMethod node 42)))))
   (testing "preserves type hints"
@@ -154,14 +153,14 @@
 
 (deftest nodes-can-support-protocols
   (testing "support a single protocol"
-    (let [node (n/construct LocalProtocolNode)]
+    (let [node (g/construct LocalProtocolNode)]
       (is (= #{`LocalProtocol} (g/protocols LocalProtocolNode)))
       (is (satisfies? LocalProtocol node))
       (is (= [:ok 5 10] (protocol-method node 5 10))))
-    (let [node (n/construct InheritedLocalProtocol)]
+    (let [node (g/construct InheritedLocalProtocol)]
       (is (satisfies? LocalProtocol node))
       (is (= [:ok 5 10] (protocol-method node 5 10))))
-    (let [node (n/construct InheritedProtocolOverride)]
+    (let [node (g/construct InheritedProtocolOverride)]
       (is (satisfies? LocalProtocol node))
       (is (= [:override-ok 5 10] (protocol-method node 5 10))))))
 
@@ -178,13 +177,13 @@
 
 (deftest nodes-can-include-properties
   (testing "a single property"
-    (let [node (n/construct SinglePropertyNode)]
+    (let [node (g/construct SinglePropertyNode)]
       (is (:a-property (g/properties' SinglePropertyNode)))
       (is (:a-property (g/properties node)))
       (is (some #{:a-property} (keys node)))))
 
   (testing "two properties"
-    (let [node (n/construct TwoPropertyNode)]
+    (let [node (g/construct TwoPropertyNode)]
       (is (:a-property       (g/properties' TwoPropertyNode)))
       (is (:another-property (g/properties node)))
       (is (:a-property       (g/properties node)))
@@ -192,11 +191,11 @@
       (is (some #{:another-property} (keys node)))))
 
   (testing "properties can have defaults"
-    (let [node (n/construct TwoPropertyNode)]
+    (let [node (g/construct TwoPropertyNode)]
       (is (= "default value" (:a-property node)))))
 
   (testing "properties are inherited"
-    (let [node (n/construct InheritedPropertyNode)]
+    (let [node (g/construct InheritedPropertyNode)]
       (is (:a-property       (g/properties' InheritedPropertyNode)))
       (is (:another-property (g/properties node)))
       (is (:a-property       (g/properties node)))
@@ -204,12 +203,12 @@
       (is (some #{:another-property} (keys node)))))
 
   (testing "property defaults can be inherited or overridden"
-    (let [node (n/construct InheritedPropertyNode)]
+    (let [node (g/construct InheritedPropertyNode)]
       (is (= "default value" (:a-property node)))
       (is (= -1              (:another-property node)))))
 
   (testing "output dependencies include properties"
-    (let [node (n/construct InheritedPropertyNode)]
+    (let [node (g/construct InheritedPropertyNode)]
       (is (= {:another-property #{:properties :another-property}
               :a-property #{:properties :a-property}}
              (g/input-dependencies node)))))
@@ -255,7 +254,7 @@
 
 (deftest nodes-can-have-outputs
   (testing "basic output definition"
-    (let [node (n/construct MultipleOutputNode)]
+    (let [node (g/construct MultipleOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute]]
         (is (get (g/outputs' MultipleOutputNode) expected-output))
         (is (get (g/outputs  node)               expected-output)))
@@ -265,7 +264,7 @@
       (is (:cached-output (g/cached-outputs node)))))
 
   (testing "output inheritance"
-    (let [node (n/construct InheritedOutputNode)]
+    (let [node (g/construct InheritedOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute :abstract-output]]
         (is (get (g/outputs' InheritedOutputNode) expected-output))
         (is (get (g/outputs  node)               expected-output)))
@@ -275,19 +274,19 @@
       (is (:cached-output (g/cached-outputs node)))))
 
   (testing "output dependencies include transforms and their inputs"
-    (let [node (n/construct MultipleOutputNode)]
+    (let [node (g/construct MultipleOutputNode)]
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
               :integer-input #{:string-output :cached-output :with-substitute}}
              (g/input-dependencies node))))
-    (let [node (n/construct InheritedOutputNode)]
+    (let [node (g/construct InheritedOutputNode)]
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
               :integer-input #{:string-output :abstract-output :cached-output :with-substitute}}
              (g/input-dependencies node)))))
 
   (testing "output dependencies are the transitive closure of their inputs"
-    (let [node (n/construct TwoLayerDependencyNode)]
+    (let [node (g/construct TwoLayerDependencyNode)]
       (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property}
               :direct-calculation #{:indirect-calculation}}
              (g/input-dependencies node)))))
@@ -325,16 +324,16 @@
       (let [[node] (tx-nodes (g/make-node world OneEventNode))]
         (is (:an-event (g/event-handlers' OneEventNode)))
         (is (satisfies? g/MessageTarget node))
-        (is (= :ok (n/dispatch-message (g/now) node :an-event)))))
+        (is (= :ok (g/dispatch-message (g/now) node :an-event)))))
     (testing "nodes without event handlers do not implement MessageTarget"
       (let [[node] (tx-nodes (g/make-node world EventlessNode))]
         (is (not (satisfies? g/MessageTarget node)))))
     (testing "nodes can inherit handlers from their supertypes"
       (let [[node] (tx-nodes (g/make-node world InheritedEventNode))]
         (is ((every-pred :an-event :mixin-event :another-event) (g/event-handlers' InheritedEventNode)))
-        (is (= :ok         (n/dispatch-message (g/now) node :an-event)))
-        (is (= :mixin-ok   (n/dispatch-message (g/now) node :mixin-event)))
-        (is (= :another-ok (n/dispatch-message (g/now) node :another-event)))))))
+        (is (= :ok         (g/dispatch-message (g/now) node :an-event)))
+        (is (= :mixin-ok   (g/dispatch-message (g/now) node :mixin-event)))
+        (is (= :another-ok (g/dispatch-message (g/now) node :another-event)))))))
 
 (defn- not-neg? [x] (not (neg? x)))
 

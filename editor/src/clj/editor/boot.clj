@@ -1,7 +1,6 @@
 (ns editor.boot
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
             [dynamo.types :as t]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
@@ -13,15 +12,14 @@
             [editor.graph-view :as graph-view]
             [editor.image :as image]
             [editor.jfx :as jfx]
-            [editor.menu :as menu]
             [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
             [editor.project :as project]
             [editor.properties-view :as properties-view]
-            [editor.text :as text]
             [editor.scene :as scene]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
+            [editor.text :as text]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
@@ -100,7 +98,7 @@
 
 (defn- create-view [game-project root place node-type]
   (let [node (g/make-node! (g/node->graph-id game-project) node-type)]
-    (n/dispatch-message (g/now) node :create :parent (.lookup root place))))
+    (g/dispatch-message (g/now) node :create :parent (.lookup root place))))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
@@ -126,7 +124,7 @@
   (let [progress-bar nil
         project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
-        project      (first 
+        project      (first
                       (g/tx-nodes-added
                        (g/transact
                         (g/make-nodes

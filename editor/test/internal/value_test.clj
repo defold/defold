@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.node :as n]
             [dynamo.types :as t]
             [internal.transaction :as it]))
 
@@ -103,7 +102,7 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (g/transact (it/become name1 (n/construct CacheTestNode)))
+                          (g/transact (it/become name1 (g/construct CacheTestNode)))
                           (is (= "Jane Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"

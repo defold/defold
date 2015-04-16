@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.node :as n]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.either :as e]
@@ -68,7 +67,7 @@
     (with-clean-system
       (let [[resource1] (tx-nodes (g/make-node world Resource :marker 99))
             id1         (:_id resource1)
-            resource2   (n/construct Downstream)
+            resource2   (g/construct Downstream)
             tx-result   (g/transact (it/become resource1 resource2))
             after       (:basis tx-result)]
         (is (= :ok (:status tx-result)))
@@ -201,7 +200,7 @@
       (let [tracker         (atom {})
             [counter]       (tx-nodes (g/make-node world TriggerExecutionCounter :tracking tracker))
             before-transmog @tracker
-            _               (g/transact (g/become counter (n/construct StringSource)))
+            _               (g/transact (g/become counter (g/construct StringSource)))
             stringer        (g/refresh counter)
             after-transmog  @tracker]
         (is (identical? (:tracking counter) (:tracking stringer)))
@@ -280,7 +279,7 @@
 (deftest event-loops-started-by-transaction
   (with-clean-system
     (let [[receiver] (tx-nodes (g/make-node world EventReceiver :latch (promise)))]
-      (n/dispatch-message (g/now) receiver :custom-event)
+      (g/dispatch-message (g/now) receiver :custom-event)
       (is (= true (deref (:latch receiver) 500 :timeout))))))
 
 (g/defnode DisposableNode
@@ -364,7 +363,7 @@
             expected-value (g/node-value node :original-output)]
         (is (not (nil? expected-value)))
         (is (= expected-value (e/result (cache-peek system node-id :original-output))))
-        (let [tx-result (g/transact (g/become node (n/construct ReplacementNode)))]
+        (let [tx-result (g/transact (g/become node (g/construct ReplacementNode)))]
           (yield)
           (is (nil? (cache-peek system node-id :original-output)))))))
 
@@ -372,7 +371,7 @@
     (with-clean-system
       (let [[node]       (tx-nodes (g/make-node world OriginalNode))
             node-id      (:_id node)
-            tx-result    (g/transact (g/become node (n/construct ReplacementNode)))
+            tx-result    (g/transact (g/become node (g/construct ReplacementNode)))
             node         (g/refresh node)
             cached-value (g/node-value node :additional-output)]
         (yield)
