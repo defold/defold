@@ -290,4 +290,6 @@ void _glfwRestoreVideoMode( void );
 void _glfwInitJoysticks( void );
 void _glfwTerminateJoysticks( void );
 
+void _glfwInputRemoveReleasedTouches(void);
+
 #endif // _platform_h_

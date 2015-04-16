@@ -261,32 +261,19 @@ static GLFWTouch* touchById(void *ref)
 static GLFWTouch* touchGetOrAlloc(void *ref)
 {
     // If it already exists, not expected but then just overwrite it.
-    GLFWTouch *new_touch = touchById(ref);
-    if (!new_touch && _glfwInput.TouchCount < GLFW_MAX_TOUCH)
-    {
-        new_touch = &_glfwInput.Touch[_glfwInput.TouchCount++];
+    GLFWTouch *touch = touchById(ref);
+    if (touch) {
+        return touch;
     }
-    if (new_touch)
-    {
-        memset(new_touch, 0x00, sizeof(GLFWTouch));
-        new_touch->Reference = ref;
-    }
-    return new_touch;
-}
 
-static void touchFree(void *ref)
-{
-    int32_t i, j;
-    for (i=0;i!=_glfwInput.TouchCount;i++)
-    {
-        if (_glfwInput.Touch[i].Reference == ref)
-        {
-            _glfwInput.TouchCount--;
-            for (j=i;j<_glfwInput.TouchCount;j++)
-                _glfwInput.Touch[j] = _glfwInput.Touch[j+1];
-            return;
-        }
+    if (_glfwInput.TouchCount < GLFW_MAX_TOUCH) {
+        touch = &_glfwInput.Touch[_glfwInput.TouchCount++];
+        memset(touch, 0x00, sizeof(GLFWTouch));
+        touch->Reference = ref;
+        return touch;
     }
+
+    return 0;
 }
 
 static void touchStart(void *ref, int32_t x, int32_t y)
@@ -322,6 +309,28 @@ inline void *pointerIdToRef(int32_t id)
     return (void*)(0x1 + id);
 }
 
+// When this function is called it is certain that ended and cancelled
+// touches have been read, so they can be remove now.
+void _glfwInputRemoveReleasedTouches(void)
+{
+    int32_t i, j;
+    for (i=0;i<_glfwInput.TouchCount;i++)
+    {
+        switch (_glfwInput.Touch[i].Phase)
+        {
+            case GLFW_PHASE_CANCELLED:
+            case GLFW_PHASE_ENDED:
+                // erase this.
+                _glfwInput.TouchCount--;
+                for (j=i;j<_glfwInput.TouchCount;j++)
+                    _glfwInput.Touch[j] = _glfwInput.Touch[j+1];
+                break;
+            default:
+                break;
+        }
+    }
+}
+
 // return 1 to handle the event, 0 for default handling
 static int32_t handleInput(struct android_app* app, AInputEvent* event)
 {
@@ -348,9 +357,6 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
 
         int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
 
-        // which to remove after updating
-        void *rm_pointer = 0;
-
         switch (action_action)
         {
             case AMOTION_EVENT_ACTION_DOWN:
@@ -359,16 +365,16 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
                 break;
             case AMOTION_EVENT_ACTION_UP:
                 _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
-                rm_pointer = touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED);
+                touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED);
                 break;;
             case AMOTION_EVENT_ACTION_POINTER_DOWN:
                 touchStart(pointer_ref, x, y);
                 break;
             case AMOTION_EVENT_ACTION_POINTER_UP:
-                rm_pointer = touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED);
+                touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED);
                 break;
             case AMOTION_EVENT_ACTION_CANCEL:
-                rm_pointer = touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED);
+                touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED);
                 break;
             case AMOTION_EVENT_ACTION_MOVE:
                 {
@@ -389,14 +395,9 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
                 break;
         }
 
-        if (_glfwWin.touchCallback)
+        if (_glfwWin.touchCallback && _glfwInput.TouchCount > 0)
         {
             _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
-        }
-
-        if (rm_pointer)
-        {
-            touchFree(rm_pointer);
         }
 
         return 1;
@@ -477,6 +478,7 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
 
     return 0;
 }
+
 
 void _glfwPreMain(struct android_app* state)
 {
