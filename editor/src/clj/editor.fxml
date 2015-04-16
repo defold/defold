@@ -18,6 +18,19 @@
   </stylesheets>
    <children>
       <MenuBar id="menu-bar" />
+      <HBox spacing="4.0">
+         <children>
+            <ToggleButton focusTraversable="false" mnemonicParsing="false" text="Move" />
+            <ToggleButton focusTraversable="false" mnemonicParsing="false" text="Scale" />
+            <ToggleButton focusTraversable="false" mnemonicParsing="false" text="Rotate" />
+            <Separator orientation="VERTICAL" />
+            <Pane HBox.hgrow="ALWAYS" />
+            <ComboBox focusTraversable="false" prefWidth="150.0" />
+         </children>
+         <VBox.margin>
+            <Insets bottom="4.0" left="4.0" right="4.0" top="4.0" />
+         </VBox.margin>
+      </HBox>
       <SplitPane dividerPositions="0.228595178719867, 0.7406483790523691" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
         <items>
           <AnchorPane prefHeight="100.0" prefWidth="160.0">
