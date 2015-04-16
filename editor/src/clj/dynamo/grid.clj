@@ -3,7 +3,6 @@
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
-            [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.types :as t :refer [min-p max-p]]
             [internal.render.pass :as pass])

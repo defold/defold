@@ -2,7 +2,6 @@
   "Essential node types"
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
-            [dynamo.node :as dn]
             [dynamo.types :as t]
             [inflections.core :as inflect]))
 

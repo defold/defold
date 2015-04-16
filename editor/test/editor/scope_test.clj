@@ -6,7 +6,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.node :as n]
             [dynamo.types :as t]
             [editor.core :as core]
             [schema.macros :as sm]))
@@ -56,8 +55,8 @@
 (g/defnode N2)
 
 (deftest input-compatibility
-  (let [n1 (n/construct N1)
-        n2 (n/construct N2)]
+  (let [n1 (g/construct N1)
+        n2 (g/construct N2)]
     (are [out-node out out-type in-node in in-type expect-compat why]
       (= expect-compat (core/compatible? [out-node out out-type in-node in in-type]))
       n1 :image Image    n2 :image  ABACAB    nil                    "type mismatch"
