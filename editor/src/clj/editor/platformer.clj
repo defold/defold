@@ -199,25 +199,27 @@
          [])))))
 
 (defn setup-rendering [self view]
-  (let [renderer     (t/lookup view :renderer)
-        camera   (t/lookup view :camera)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)]
     (g/make-nodes
-      (g/node->graph-id view)
-      [platformer-render PlatformerRender]
-      (g/connect self              :base-texture-tex platformer-render :base-texture)
-      (g/connect self              :control-points   platformer-render :control-points)
-      (g/connect platformer-render :renderable       renderer          :renderables)
-      (g/connect self              :aabb             camera            :aabb))))
+     view-graph
+     [platformer-render PlatformerRender]
+     (g/connect self              :base-texture-tex platformer-render :base-texture)
+     (g/connect self              :control-points   platformer-render :control-points)
+     (g/connect platformer-render :renderable       renderer          :renderables)
+     (g/connect self              :aabb             camera            :aabb))))
 
 (defn setup-editing [self view]
-  (let [renderer     (t/lookup view :renderer)
-        camera   (t/lookup view :camera)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)]
     (g/make-nodes
-      (g/node->graph-id view)
-      [controller PlatformerController]
-      (g/connect view              :viewport       controller        :viewport)
-      (g/connect camera            :camera         controller        :camera)
-      (g/connect controller        :input-handler  view              :input-handlers))))
+     view-graph
+     [controller PlatformerController]
+     (g/connect view              :viewport       controller        :viewport)
+     (g/connect camera            :camera         controller        :camera)
+     (g/connect controller        :input-handler  view              :input-handlers))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

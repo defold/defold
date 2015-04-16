@@ -302,32 +302,34 @@
        (g/set-property self :blocks (:blocks level))])))
 
 (defn setup-rendering [self view]
-  (let [renderer        (t/lookup view :renderer)
-        camera          (t/lookup view :camera)
-        atlas-node      (project/resolve-resource-node self switcher-atlas-file)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)
+        atlas-node (project/resolve-resource-node self switcher-atlas-file)]
     (g/make-nodes
-      (g/node->graph-id view)
-      [switcher-render SwitcherRender]
-      (g/connect switcher-render :renderable    renderer        :renderables)
-      (g/connect self            :level         switcher-render :level)
-      (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
-      (g/connect atlas-node      :textureset    switcher-render :textureset)
-      (g/connect self            :aabb          camera          :aabb))))
+     view-graph
+     [switcher-render SwitcherRender]
+     (g/connect switcher-render :renderable    renderer        :renderables)
+     (g/connect self            :level         switcher-render :level)
+     (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
+     (g/connect atlas-node      :textureset    switcher-render :textureset)
+     (g/connect self            :aabb          camera          :aabb))))
 
 (defn setup-editing [self view]
-  (let [renderer        (t/lookup view :renderer)
-        camera          (t/lookup view :camera)
-        atlas-node      (project/resolve-resource-node self switcher-atlas-file)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)
+        atlas-node (project/resolve-resource-node self switcher-atlas-file)]
     (g/make-nodes
-      (g/node->graph-id view)
-      [controller SwitcherController]
-      (g/connect view            :viewport      controller      :viewport)
-      (g/connect camera          :camera        controller      :camera)
-      (g/connect controller      :input-handler view            :input-handlers)
-      (g/connect controller      :renderable    renderer        :renderables)
-      (g/connect atlas-node      :gpu-texture   controller      :gpu-texture)
-      (g/connect atlas-node      :textureset    controller      :textureset)
-      (g/connect self            :aabb          camera          :aabb))))
+     view-graph
+     [controller SwitcherController]
+     (g/connect view            :viewport      controller      :viewport)
+     (g/connect camera          :camera        controller      :camera)
+     (g/connect controller      :input-handler view            :input-handlers)
+     (g/connect controller      :renderable    renderer        :renderables)
+     (g/connect atlas-node      :gpu-texture   controller      :gpu-texture)
+     (g/connect atlas-node      :textureset    controller      :textureset)
+     (g/connect self            :aabb          camera          :aabb))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

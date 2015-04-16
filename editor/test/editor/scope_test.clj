@@ -68,28 +68,6 @@
       n1 :names [String] n2 :names  [String]  [n1 :names n2 :names]  "ok"
       n1 :name  String   n2 :name   [String]  nil                    "singular name, plural type")))
 
-(g/defnode ParticleEditor
-  (inherits core/Scope))
-
-(g/defnode Emitter
-  (property name t/Str))
-
-(g/defnode Modifier
-  (property name t/Str))
-
-(deftest scope-registration
-  (testing "Nodes are registered within a scope by name"
-    (with-clean-system
-      (let [[view emitter modifier] (tx-nodes (g/make-node world ParticleEditor)
-                                              (g/make-node world Emitter :name "emitter")
-                                              (g/make-node world Modifier :name "vortex"))]
-        (g/transact
-         [(g/connect emitter  :self view :nodes)
-          (g/connect modifier :self view :nodes)])
-
-        (is (identical? (t/lookup view "emitter") emitter))
-        (is (identical? (t/lookup view "vortex")  modifier))))))
-
 (g/defnode DisposableNode
   t/IDisposable
   (dispose [this] (deliver (:latch this) true)))

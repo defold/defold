@@ -132,15 +132,16 @@
         (g/set-property self side input)))))
 
 (defn setup-rendering [self view]
-  (let [renderer (t/lookup view :renderer)
-        camera (t/lookup view :camera)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)]
     (g/make-nodes
-      (g/node->graph-id view)
-      [cubemap-render CubemapRender]
-      (g/connect self           :gpu-texture   cubemap-render :gpu-texture)
-      (g/connect cubemap-render :renderable    renderer       :renderables)
-      (g/connect camera         :camera        cubemap-render :camera)
-      (g/connect cubemap-render :aabb          camera         :aabb))))
+     view-graph
+     [cubemap-render CubemapRender]
+     (g/connect self           :gpu-texture   cubemap-render :gpu-texture)
+     (g/connect cubemap-render :renderable    renderer       :renderables)
+     (g/connect camera         :camera        cubemap-render :camera)
+     (g/connect cubemap-render :aabb          camera         :aabb))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
