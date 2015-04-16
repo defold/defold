@@ -6,7 +6,8 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.history :as h]
-            [service.log :as log]))
+            [service.log :as log])
+  (:import [java.util.concurrent.atomic AtomicLong]))
 
 (def ^:private maximum-cached-items     10000)
 (def ^:private maximum-disposal-backlog 2500)
@@ -38,6 +39,10 @@
 (defn- subscribe
   [{subscribe-to :subscribe-to} node]
   (a/sub subscribe-to (subscriber-id node) (a/chan 100)))
+
+(defn- integer-counter
+  []
+  (AtomicLong. 0))
 
 (defn- new-history
   [state]
@@ -157,12 +162,17 @@
   (let [used (into #{} (keys (graphs s)))]
     (first (drop-while used (range 0 gt/MAX-GROUP-ID)))))
 
+(defn next-node-id
+  [s gid]
+  (gt/make-node-id gid (.getAndIncrement ^AtomicLong (get-in s [:id-generators gid]))))
+
 (defn- attach-graph*
   [s gref]
   (let [gid (next-available-gid s)]
     (dosync (alter gref assoc :_gid gid))
     (-> s
         (assoc :last-graph gid)
+        (update-in [:id-generators] assoc gid (integer-counter))
         (update-in [:graphs] assoc gid gref))))
 
 (defn attach-graph
@@ -190,6 +200,7 @@
         cache          (make-cache configuration disposal-queue)]
     (-> {:disposal-queue disposal-queue
          :graphs         {}
+         :id-generators  {}
          :cache          cache
          :publish-to     pubch
          :subscribe-to   subch}

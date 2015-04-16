@@ -102,7 +102,7 @@
             tx-result      (g/transact
                             (for [n (range node-count)]
                               (g/make-node world DisposableNode)))
-            disposable-ids (map second (:tempids tx-result))]
+            disposable-ids (map g/node-id (g/tx-nodes-added tx-result))]
         (g/transact (for [i disposable-ids]
                        (g/connect i :self scope :nodes)))
         (g/transact (g/delete-node scope))

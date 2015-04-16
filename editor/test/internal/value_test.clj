@@ -57,18 +57,16 @@
 
 (defn build-sample-project
   [world]
-  (let [nodes (tx-nodes
-               (g/make-node world CacheTestNode :scalar "Jane")
-               (g/make-node world CacheTestNode :scalar "Doe")
-               (g/make-node world CacheTestNode)
-               (g/make-node world CacheTestNode))
-        [name1 name2 combiner expensive]  nodes]
-    (g/transact
-     (concat
-      (g/connect name1 :uncached-value combiner :first-name)
-      (g/connect name2 :uncached-value combiner :last-name)
-      (g/connect name1 :uncached-value expensive :operand)))
-    nodes))
+  (g/tx-nodes-added
+   (g/transact
+    (g/make-nodes world
+                  [name1     [CacheTestNode :scalar "Jane"]
+                   name2     [CacheTestNode :scalar "Doe"]
+                   combiner  CacheTestNode
+                   expensive CacheTestNode]
+                  (g/connect name1 :uncached-value combiner :first-name)
+                  (g/connect name2 :uncached-value combiner :last-name)
+                  (g/connect name1 :uncached-value expensive :operand)))))
 
 (defn with-function-counts
   [f]
