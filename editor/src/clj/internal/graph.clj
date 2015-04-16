@@ -27,20 +27,11 @@
 (defn empty-graph
   []
   {:nodes   {}
-   :last-id 0
    :tarcs   []
    :tx-id   0})
 
 (defn node-ids    [g] (keys (:nodes g)))
 (defn node-values [g] (vals (:nodes g)))
-
-(defn- last-id     [g] (:last-id g))
-(defn- next-id     [g] (inc (last-id g)))
-
-(defn claim-id
-  [g]
-  (let [id (next-id g)]
-    [(assoc-in g [:last-id] (next-id g)) id]))
 
 (defn node        [g id]   (get-in g [:nodes id]))
 (defn add-node    [g id n] (assoc-in g [:nodes id] n))
@@ -156,13 +147,11 @@
             (map gt/tail (mapcat #(arcs-from-source % node-id label) (vals graphs)))))
 
   (add-node
-    [this tempid value]
-    (let [gid         (gt/node-id->graph-id tempid)
-          [graph nid] (claim-id (get graphs gid))
-          node-id     (gt/make-node-id gid nid)
-          node        (assoc value :_id node-id)
-          graph       (add-node graph node-id node)]
-      [(update this :graphs assoc gid graph) node-id node]))
+    [this node]
+    (let [node-id (gt/node-id node)
+          gid     (gt/node-id->graph-id node-id)
+          graph   (add-node (get graphs gid) node-id node)]
+      [(update this :graphs assoc gid graph) node]))
 
   (delete-node
     [this node-id]

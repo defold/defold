@@ -46,7 +46,7 @@
   (node-by-property [this label value])
   (sources          [this node-id label])
   (targets          [this node-id label])
-  (add-node         [this tempid  value]         "returns [basis realid real-value]")
+  (add-node         [this value]                 "returns [basis real-value]")
   (delete-node      [this node-id]               "returns [basis node]")
   (replace-node     [this node-id value]         "returns [basis node]")
   (update-property  [this node-id label f args]  "returns [basis new-node]")
@@ -70,7 +70,6 @@
 (def ^:const NID-SIGN-EXTEND         -72057594037927936) ;; as a signed long
 (def ^:const GID-BITS                                 7)
 (def ^:const GID-MASK                              0x7f)
-(def ^:const TEMPID-INDICATOR      -9223372036854775808) ;; 2^63 as a signed long
 (def ^:const MAX-GROUP-ID                           254)
 
 (defn make-node-id ^long [^long gid ^long nid]
@@ -82,17 +81,6 @@
   (bit-and (bit-shift-right node-id NID-BITS) GID-MASK))
 
 (defn node-id->nid ^long [^long node-id]
-  (let [r (bit-and node-id NID-MASK)]
-    (if (zero? (bit-and r TEMPID-INDICATOR))
-      r
-      (bit-or r NID-SIGN-EXTEND))))
-
-(defn- make-tempid ^long [^long gid ^long nid]
-  (bit-or TEMPID-INDICATOR (make-node-id gid nid)))
-
-(def ^:private ^java.util.concurrent.atomic.AtomicLong next-tempid (java.util.concurrent.atomic.AtomicLong. 1))
-
-(defn tempid  [gid] (make-tempid gid (- (.getAndIncrement next-tempid))))
-(defn tempid? [x] (and x (neg? x)))
+  (bit-and node-id NID-MASK))
 
 (defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
