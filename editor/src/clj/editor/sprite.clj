@@ -175,9 +175,9 @@
           [])))))
 
 (defn setup-rendering [self view]
-  (let [renderer   (t/lookup view :renderer)
-        camera     (t/lookup view :camera)
-        view-graph (g/node->graph-id view)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)]
     (g/make-nodes view-graph [sprite-render SpriteRender]
                   (g/connect sprite-render   :renderable    renderer        :renderables)
                   (g/connect self            :textureset    sprite-render   :textureset)
