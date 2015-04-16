@@ -38,13 +38,17 @@
     n))
 
 (defn node-type
-  [gid nid]
-  (-> (node gid nid) g/node-type :name))
+  ([node-id]
+   (-> (node node-id) g/node-type :name))
+  ([gid nid]
+   (-> (node gid nid) g/node-type :name)))
 
 (defn inputs-to
-  ([gid nid label]
+  ([node-id label]
    (sort-by first
-            (gt/sources (g/now) (gt/make-node-id gid nid) label))))
+            (gt/sources (g/now) node-id label)))
+  ([gid nid label]
+   (inputs-to (gt/make-node-id gid nid) label)))
 
 (defn outputs-from
   ([node-id label]
@@ -52,6 +56,12 @@
             (gt/targets (g/now) node-id label)))
   ([gid nid label]
    (outputs-from (gt/make-node-id gid nid) label)))
+
+(defn all-outputs
+  ([node-id]
+   (map #(outputs-from node-id %) (-> (node node-id) g/outputs)))
+  ([gid nid]
+   (all-outputs (gt/make-node-id gid nid))))
 
 (defn get-value
   [gid nid label]
