@@ -13,6 +13,7 @@
                      [org.clojure/core.async                      "0.1.346.0-17112a-alpha"]
                      [org.clojure/core.match                      "0.2.1"]
                      [org.clojure/tools.macro                     "0.1.2"]
+                     [org.clojure/tools.namespace                 "0.2.10"]
                      [prismatic/schema                            "0.3.1"]
                      [prismatic/plumbing                          "0.3.5"]
                      [inflections/inflections                     "0.9.10"]
