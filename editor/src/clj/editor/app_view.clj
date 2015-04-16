@@ -134,9 +134,10 @@
             parent     (AnchorPane.)
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
-            ;; TODO Delete this graph when the tab is closed.
             view-graph (g/make-graph! :history false :volatility 2)
             view       (make-view-fn view-graph parent ((:id view-type) (:view-fns resource-type)) resource-node)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
+        ;; TODO Delete this graph when the tab is closed, currently blocked by #91736094
+        #_(.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
         (.select (.getSelectionModel tab-pane) tab))
       (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))
