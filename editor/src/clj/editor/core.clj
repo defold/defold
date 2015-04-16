@@ -91,8 +91,6 @@ This function should not be called directly."
 ;; Bootstrapping the core node types
 ;; ---------------------------------------------------------------------------
 
-;; TODO - lookup should not require any internal namespaces.
-
 (g/defnode Scope
   "Scope provides a level of grouping for nodes. Scopes nest.
 When a node is added to a Scope, the node's :self output will be
@@ -102,16 +100,10 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes [t/Any])
 
   (property tag      t/Keyword (visible false))
-  (property parent   (t/protocol t/NamingContext) (visible false))
+  (property parent   t/Any (visible false))
 
   (trigger dependency-injection :input-connections #'inject-new-nodes)
-  (trigger garbage-collection   :deleted           #'dispose-nodes)
-
-  t/NamingContext
-  (lookup
-   [this nm]
-   (let [nodes (g/node-value this :nodes)]
-     (first (filter #(= nm (:name %)) nodes)))))
+  (trigger garbage-collection   :deleted           #'dispose-nodes))
 
 
 (g/defnode Saveable

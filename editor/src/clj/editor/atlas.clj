@@ -327,10 +327,11 @@
           (attach-atlas-image-nodes graph-id self atlas-anim images :image :frames))))))
 
 (defn setup-rendering [self view]
-  (let [renderer (t/lookup view :renderer)
-        camera (t/lookup view :camera)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)]
     (g/make-nodes
-      (g/node->graph-id view)
+     view-graph
       [atlas-render AtlasRender]
       (g/connect self         :texture-packing atlas-render :texture-packing)
       (g/connect self         :gpu-texture     atlas-render :gpu-texture)
