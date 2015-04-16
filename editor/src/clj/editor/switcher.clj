@@ -1,5 +1,6 @@
 (ns editor.switcher
   (:require [clojure.edn :as edn]
+            [clojure.pprint :refer [pprint]]
             [clojure.java.io :as io]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
@@ -274,6 +275,10 @@
  (output input-handler Runnable     (g/fnk [source camera viewport] (fn [self action] (handle-input self action source camera viewport))))
  (output renderable    t/RenderData produce-controller-renderable))
 
+(g/defnk produce-save-data [resource level]
+  {:resource resource
+   :content (with-out-str (pprint level))})
+
 (g/defnode SwitcherNode
   (inherits project/ResourceNode)
 
@@ -286,7 +291,8 @@
                            (let [half-width (* 0.5 cell-size width)
                                  half-height (* 0.5 cell-size height)]
                              (t/->AABB (Point3d. (- half-width) (- half-height) 0)
-                                       (Point3d. half-width half-height 0))))))
+                                       (Point3d. half-width half-height 0)))))
+  (output save-data t/Any :cached produce-save-data))
 
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
