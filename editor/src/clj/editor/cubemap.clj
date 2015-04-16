@@ -1,15 +1,12 @@
 (ns editor.cubemap
-  (:require [dynamo.buffers :refer :all]
-            [dynamo.camera :refer :all]
-            [dynamo.file.protobuf :as protobuf]
+  (:require [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.property :as dp]
-            [dynamo.types :as t :refer :all]
+            [dynamo.types :as t]
             [dynamo.ui :refer :all]
             [editor.project :as project]
             [editor.scene :as scene]
@@ -74,7 +71,7 @@
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))
     (gl/gl-disable gl GL/GL_CULL_FACE)))
 
-(defnk produce-renderable :- RenderData
+(g/defnk produce-renderable :- t/RenderData
   [this camera gpu-texture vertex-binding]
   (let [world (Matrix4d. geom/Identity4d)]
     {pass/transparent
@@ -87,22 +84,34 @@
   (input  camera        Camera)
 
   (output vertex-binding s/Any     :cached (fnk [] (vtx/use-with unit-sphere cubemap-shader)))
-  (output renderable    RenderData :cached produce-renderable)
+  (output renderable    t/RenderData :cached produce-renderable)
   (output aabb          AABB       :cached (fnk [] geom/unit-bounding-box)))
 
-(defnk produce-gpu-texture
+(g/defnk produce-gpu-texture
   [self right-img left-img top-img bottom-img front-img back-img]
   (apply texture/image-cubemap-texture [right-img left-img top-img bottom-img front-img back-img]))
+
+(g/defnk produce-save-data [resource right left top bottom front back]
+  {:resource resource
+   :content (-> (doto (Graphics$Cubemap/newBuilder)
+                  (.setRight right)
+                  (.setLeft left)
+                  (.setTop top)
+                  (.setBottom bottom)
+                  (.setFront front)
+                  (.setBack back))
+              (.build)
+              (protobuf/pb->str))})
 
 (g/defnode CubemapNode
   (inherits project/ResourceNode)
 
-  (property right  dp/ImageResource)
-  (property left   dp/ImageResource)
-  (property top    dp/ImageResource)
-  (property bottom dp/ImageResource)
-  (property front  dp/ImageResource)
-  (property back   dp/ImageResource)
+  (property right  t/Str)
+  (property left   t/Str)
+  (property top    t/Str)
+  (property bottom t/Str)
+  (property front  t/Str)
+  (property back   t/Str)
 
   (input right-img  BufferedImage)
   (input left-img   BufferedImage)
@@ -111,7 +120,8 @@
   (input front-img  BufferedImage)
   (input back-img   BufferedImage)
 
-  (output gpu-texture   s/Any  produce-gpu-texture))
+  (output gpu-texture s/Any :cached produce-gpu-texture)
+  (output save-data   s/Any :cached produce-save-data))
 
 (defn load-cubemap [project self input]
   (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))]
