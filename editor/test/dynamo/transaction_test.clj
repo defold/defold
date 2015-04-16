@@ -22,12 +22,10 @@
   (input consumer String))
 
 (deftest low-level-transactions
-  (testing "one node with tempid"
+  (testing "one node"
     (with-clean-system
-      (let [temp      (g/tempid world)
-            tx-result (g/transact (g/make-node world Resource :_id temp :a "known value"))]
-        (is (= :ok (:status tx-result)))
-        (is (= "known value" (:a (g/node-by-id (:basis tx-result) (it/resolve-tempid tx-result temp))))))))
+      (let [tx-result (g/transact (g/make-node world Resource :a "known value"))]
+        (is (= :ok (:status tx-result))))))
   (testing "two connected nodes"
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (g/make-node world Resource)
@@ -70,12 +68,10 @@
     (with-clean-system
       (let [[resource1] (tx-nodes (g/make-node world Resource :marker 99))
             id1         (:_id resource1)
-            temp        (g/tempid world)
-            resource2   (n/construct Downstream :_id temp)
+            resource2   (n/construct Downstream)
             tx-result   (g/transact (it/become resource1 resource2))
             after       (:basis tx-result)]
         (is (= :ok (:status tx-result)))
-        (is (= id1 (it/resolve-tempid tx-result temp)))
         (is (= Downstream (g/node-type (g/node-by-id after id1))))
         (is (= 99  (:marker (g/node-by-id after id1))))))))
 
@@ -306,9 +302,8 @@
 
 (deftest invalidated-properties-noted-by-transaction
   (with-clean-system
-    (let [temp             (g/tempid world)
-          tx-result        (g/transact (g/make-node world CachedOutputInvalidation :_id temp))
-          real-node        (g/node-by-id (:basis tx-result) (it/resolve-tempid tx-result temp))
+    (let [tx-result        (g/transact (g/make-node world CachedOutputInvalidation))
+          real-node        (first (g/tx-nodes-added tx-result))
           real-id          (g/node-id real-node)
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))

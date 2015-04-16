@@ -14,7 +14,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types tempid node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
+(import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
@@ -267,14 +267,15 @@
   (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
   (let [locals (take-nth 2 binding-expr)
         ctors  (take-nth 2 (next binding-expr))
-        ids    (repeat (count locals) `(tempid ~gid))]
+        ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~gid))]
     `(let [~@(interleave locals ids)]
        (concat
         ~@(map
            (fn [ctor id]
-             (if (sequential? ctor)
-               `(g/make-node ~gid ~@ctor :_id ~id)
-               `(g/make-node ~gid ~ctor :_id ~id)))
+             (list `it/new-node
+                   (if (sequential? ctor)
+                     `(dn/construct ~@ctor :_id ~id)
+                     `(dn/construct  ~ctor :_id ~id))))
            ctors locals)
         ~@body-exprs))))
 
@@ -298,7 +299,7 @@
 
 (defn make-node
   [gid node-type & args]
-  (it/new-node (apply dn/construct node-type :_id (tempid gid) args)))
+  (it/new-node (apply dn/construct node-type :_id (is/next-node-id @*the-system* gid) args)))
 
 (defn make-node!
   [gid node-type & args]
