@@ -490,3 +490,38 @@
         (g/node-value adder :cached-sum)
         (is (= (count number-sources) (some-> (cache-peek system (:_id adder) :cached-sum)  e/result)))
         (is (= 1                      (some-> (cache-peek system (:_id (first number-sources)) :cached-sum) e/result)))))))
+
+
+;; This case is taken from editor.core/Scope.
+;; Code is copied here to avoid inverted dependencies
+(defn dispose-nodes
+  [transaction graph self label kind]
+  (when (g/is-deleted? transaction self)
+    (for [node-to-delete (g/node-value self :nodes)]
+      (g/delete-node node-to-delete))))
+
+(g/defnode Container
+  (input nodes [t/Any])
+
+  (trigger garbage-collection :deleted #'dispose-nodes))
+
+(deftest double-deletion-is-safe
+  (testing "delete scope first"
+    (with-clean-system
+      (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
+        (g/transact (g/connect inner :self outer :nodes))
+
+        (is (= :ok (:status (g/transact
+                             (concat
+                              (g/delete-node outer)
+                              (g/delete-node inner)))))))))
+
+  (testing "delete inner node first"
+    (with-clean-system
+      (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
+        (g/transact (g/connect inner :self outer :nodes))
+
+        (is (= :ok (:status (g/transact
+                             (concat
+                              (g/delete-node inner)
+                              (g/delete-node outer))))))))))
