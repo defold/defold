@@ -91,12 +91,12 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (:view-types workspace) id))
 
-(defn register-resource-type [workspace & {:keys [ext node-type load-fn icon view-types view-fns]}]
+(defn register-resource-type [workspace & {:keys [ext node-type load-fn icon view-types view-opts]}]
   (let [resource-type {:node-type node-type
                        :load-fn load-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
-                       :view-fns view-fns}
+                       :view-opts view-opts}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext ext)]
                          (map (fn [ext] (assoc resource-type :ext ext)) ext))]

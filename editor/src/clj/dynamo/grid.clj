@@ -67,7 +67,7 @@
                     (nth (:aabbs grids) grid-index))))))
 
 (defn render-scaled-grids
-  [context ^GL2 gl this camera grids]
+  [^GL2 gl camera grids]
   (let [view-matrix (c/camera-view-matrix camera)
         dir         (double-array 4)
         _           (.getRow view-matrix 2 dir)]
@@ -76,10 +76,10 @@
       (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
 (g/defnk grid-renderable :- t/RenderData
-  [this camera grids]
+  [camera grids]
   {pass/transparent
    [{:world-transform geom/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-scaled-grids ctx gl this camera grids))}]})
+     :render-fn       (g/fnk [gl] (render-scaled-grids gl camera grids))}]})
 
 (def axis-vectors
   [(Vector4d. 1.0 0.0 0.0 0.0)
@@ -136,7 +136,7 @@
                       (grid-snap-up   (-> aabb max-p .z) grid-size))))
 
 (g/defnk update-grids :- t/Any
-  [this g camera]
+  [camera]
   (let [frustum-planes   (c/viewproj-frustum-planes camera)
         far-z-plane      (nth frustum-planes 5)
         normal           (as-unit-vector far-z-plane)

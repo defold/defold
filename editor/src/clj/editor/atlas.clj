@@ -118,9 +118,9 @@
                         :tex-coords       (:vbuf tex-coord-summary)})))
 
 (defn render-overlay
-  [ctx ^GL2 gl ^TextRenderer text-renderer texture-packing]
+  [^GL2 gl ^TextRenderer text-renderer texture-packing]
   (let [image ^BufferedImage (.packed-image texture-packing)]
-    (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
+    (gl/overlay gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
@@ -139,83 +139,10 @@
 (def atlas-shader (shader/make-shader pos-uv-vert pos-uv-frag))
 
 (defn render-texture-packing
-  [ctx gl texture-packing vertex-binding gpu-texture]
+  [gl texture-packing vertex-binding gpu-texture]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
     (shader/set-uniform atlas-shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords texture-packing))))))
-
-(defn render-quad
-  [ctx gl texture-packing vertex-binding gpu-texture i]
-  (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-    (shader/set-uniform atlas-shader gl "texture" 0)
-    (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
-
-(g/defnk produce-renderable :- RenderData
-  [this texture-packing vertex-binding gpu-texture]
-  {pass/overlay
-   [{:world-transform geom/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer texture-packing))}]
-   pass/transparent
-   [{:world-transform geom/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-texture-packing ctx gl texture-packing vertex-binding gpu-texture))}]})
-
-(g/defnk produce-renderable-vertex-buffer
-  [[:texture-packing aabb coords]]
-  (let [vbuf       (->texture-vtx (* 6 (count coords)))
-        x-scale    (/ 1.0 (.width aabb))
-        y-scale    (/ 1.0 (.height aabb))]
-    (doseq [coord coords]
-      (let [w  (.width coord)
-            h  (.height coord)
-            x0 (.x coord)
-            y0 (- (.height aabb) (.y coord)) ;; invert for screen
-            x1 (+ x0 w)
-            y1 (- (.height aabb) (+ (.y coord) h))
-            u0 (* x0 x-scale)
-            v0 (* y0 y-scale)
-            u1 (* x1 x-scale)
-            v1 (* y1 y-scale)]
-        (doto vbuf
-          (conj! [x0 y0 0 1 u0 (- 1 v0)])
-          (conj! [x0 y1 0 1 u0 (- 1 v1)])
-          (conj! [x1 y1 0 1 u1 (- 1 v1)])
-
-          (conj! [x1 y1 0 1 u1 (- 1 v1)])
-          (conj! [x1 y0 0 1 u1 (- 1 v0)])
-          (conj! [x0 y0 0 1 u0 (- 1 v0)]))))
-    (persistent! vbuf)))
-
-(g/defnk produce-outline-vertex-buffer
-  [[:texture-packing aabb coords]]
-  (let [vbuf       (->texture-vtx (* 6 (count coords)))
-        x-scale    (/ 1.0 (.width aabb))
-        y-scale    (/ 1.0 (.height aabb))]
-    (doseq [coord coords]
-      (let [w  (.width coord)
-            h  (.height coord)
-            x0 (.x coord)
-            y0 (- (.height aabb) (.y coord)) ;; invert for screen
-            x1 (+ x0 w)
-            y1 (- (.height aabb) (+ y0 h))
-            u0 (* x0 x-scale)
-            v0 (* y0 y-scale)
-            u1 (* x1 x-scale)
-            v1 (* y1 y-scale)]
-        (doto vbuf
-          (conj! [x0 y0 0 1 u0 (- 1 v0)])
-          (conj! [x0 y1 0 1 u0 (- 1 v1)])
-          (conj! [x1 y1 0 1 u1 (- 1 v1)])
-          (conj! [x1 y0 0 1 u1 (- 1 v0)]))))
-    (persistent! vbuf)))
-
-(g/defnode AtlasRender
-  (input gpu-texture t/Any)
-  (input texture-packing t/Any)
-
-  (output vertex-buffer t/Any         :cached produce-renderable-vertex-buffer)
-  (output outline-vertex-buffer t/Any :cached produce-outline-vertex-buffer)
-  (output vertex-binding t/Any        :cached (g/fnk [vertex-buffer] (vtx/use-with vertex-buffer atlas-shader)))
-  (output renderable RenderData       produce-renderable))
 
 (defn- path->id [path]
   (-> path
@@ -275,6 +202,44 @@
               (.build)
               (protobuf/pb->str))})
 
+(defn gen-renderable-vertex-buffer
+  [{:keys [aabb coords]}]
+  (let [vbuf       (->texture-vtx (* 6 (count coords)))
+        x-scale    (/ 1.0 (.width aabb))
+        y-scale    (/ 1.0 (.height aabb))]
+    (doseq [coord coords]
+      (let [w  (.width coord)
+            h  (.height coord)
+            x0 (.x coord)
+            y0 (- (.height aabb) (.y coord)) ;; invert for screen
+            x1 (+ x0 w)
+            y1 (- (.height aabb) (+ (.y coord) h))
+            u0 (* x0 x-scale)
+            v0 (* y0 y-scale)
+            u1 (* x1 x-scale)
+            v1 (* y1 y-scale)]
+        (doto vbuf
+          (conj! [x0 y0 0 1 u0 (- 1 v0)])
+          (conj! [x0 y1 0 1 u0 (- 1 v1)])
+          (conj! [x1 y1 0 1 u1 (- 1 v1)])
+
+          (conj! [x1 y1 0 1 u1 (- 1 v1)])
+          (conj! [x1 y0 0 1 u1 (- 1 v0)])
+          (conj! [x0 y0 0 1 u0 (- 1 v0)]))))
+    (persistent! vbuf)))
+
+(g/defnk produce-scene
+  [self aabb texture-packing gpu-texture]
+  (let [vertex-buffer (gen-renderable-vertex-buffer texture-packing)
+        vertex-binding (vtx/use-with vertex-buffer atlas-shader)]
+    {:id (g/node-id self)
+     :transform geom/Identity4d
+     :aabb aabb
+     :renderables {pass/overlay
+                   [{:render-fn       (g/fnk [gl glu text-renderer] (render-overlay gl text-renderer texture-packing))}]
+                   pass/transparent
+                   [{:render-fn       (g/fnk [gl glu text-renderer] (render-texture-packing gl texture-packing vertex-binding gpu-texture))}]}}))
+
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
@@ -293,7 +258,8 @@
   (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
   (output textureset      TextureSet     :cached produce-textureset)
   (output outline         t/Any          :cached (g/fnk [self outline] {:self self :label "Atlas" :children outline :icon atlas-icon}))
-  (output save-data       t/Any          :cached produce-save-data))
+  (output save-data       t/Any          :cached produce-save-data)
+  (output scene           t/Any          :cached produce-scene))
 
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
 
@@ -326,18 +292,6 @@
           (g/connect atlas-anim :ddf-message self :anim-ddf)
           (attach-atlas-image-nodes graph-id self atlas-anim images :image :frames))))))
 
-(defn setup-rendering [self view]
-  (let [view-graph (g/node->graph-id view)
-        renderer   (g/graph-value view-graph :renderer)
-        camera     (g/graph-value view-graph :camera)]
-    (g/make-nodes
-     view-graph
-      [atlas-render AtlasRender]
-      (g/connect self         :texture-packing atlas-render :texture-packing)
-      (g/connect self         :gpu-texture     atlas-render :gpu-texture)
-      (g/connect atlas-render :renderable      renderer     :renderables)
-      (g/connect self         :aabb            camera       :aabb))))
-
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "atlas"
@@ -345,5 +299,4 @@
                                     :load-fn load-atlas
                                     :icon atlas-icon
                                     :view-types [:scene]
-                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view :grid true))
-                                                       :setup-rendering-fn setup-rendering}}))
+                                    :view-opts {:scene {:grid true}}))
