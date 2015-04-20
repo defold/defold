@@ -4,6 +4,8 @@
 
 (def ^:dynamic *handlers* (atom {}))
 
+; TODO: Validate arguments for all functions and log appropriate message
+
 (defmacro defhandler [name command context & body]
   (let [qname (keyword (str *ns*) (str name))
         fns (->> body
@@ -23,6 +25,10 @@
 (defn run [command context arg-map]
   (when-let [run (get-fn command context :run arg-map)]
     (run arg-map)))
+
+(defn state [command context arg-map]
+  (when-let [state (get-fn command context :state arg-map)]
+    (state arg-map)))
 
 (defn enabled? [command context arg-map]
   (if-let [enabled? (get-fn command context :enabled? arg-map)]
