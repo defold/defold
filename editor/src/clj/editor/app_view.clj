@@ -10,6 +10,7 @@
             [editor.cubemap :as cubemap]
             [editor.game-object :as game-object]
             [editor.graph-view :as graph-view]
+            [editor.handler :as handler]
             [editor.image :as image]
             [editor.jfx :as jfx]
             [editor.menu :as menu]
@@ -61,6 +62,7 @@
   (property tab-pane TabPane)
   (property refresh-timer AnimationTimer)
   (property auto-pulls t/Any)
+  (property active-tool t/Any)
 
   (input main-menus [t/Any])
   (input outline t/Any)
@@ -96,10 +98,31 @@
 (defn- on-tabs-changed [app-view]
   (invalidate app-view :open-resources))
 
+(handler/defhandler move-tool :move-tool :project
+  (visible? [app-view] true)
+  (enabled? [app-view] true)
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :move-tool)))
+  (state [app-view] (= (:active-tool (g/refresh app-view)) :move-tool)))
+
+(handler/defhandler scale-tool :scale-tool :project
+  (visible? [app-view] true)
+  (enabled? [app-view] true)
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale-tool)))
+  (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale-tool)))
+
+(handler/defhandler rotate-tool :rotate-tool :project
+  (visible? [app-view] true)
+  (enabled? [app-view] true)
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate-tool)))
+  (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate-tool)))
+
 (defn make-app-view [graph stage menu-bar tab-pane]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
-  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node graph AppView :stage stage :menu-bar menu-bar :tab-pane tab-pane))))]
+  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node graph AppView :stage stage :menu-bar menu-bar :tab-pane tab-pane :active-tool :move-tool))))
+        binder (ui/make-ui-binder (.getScene stage))
+        arg-map {:app-view app-view}]
+    (ui/bind-toolbar binder "#toolbar" arg-map)
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -115,6 +138,8 @@
             (on-tabs-changed app-view)))))
     (let [refresh-timer (proxy [AnimationTimer] []
                           (handle [now]
+                            ; TODO: Not invoke this function every frame...
+                            (ui/refresh binder arg-map)
                             (let [auto-pulls (:auto-pulls (g/refresh app-view))]
                               (doseq [[node label] auto-pulls]
                                 (g/node-value node label)))))]

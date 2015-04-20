@@ -49,16 +49,22 @@
             (.setAll children (list-children (.getValue this))))
           children)))))
 
-(def asset-context-menu
-  [{:label "Open"
-    :command :open}
-   {:label "Delete"
-    :command :delete
-    :icon "icons/cross.png"
-    :acc "Shortcut+BACKSPACE"}
-   {:label :separator}
-   {:label "Refresh"
-    :command :refresh}])
+(ui/extend-menu ::resource-menu nil
+                [{:label "Open"
+                  :command :open}
+                 {:label "Delete"
+                  :command :delete
+                  :icon "icons/cross.png"
+                  :acc "Shortcut+BACKSPACE"}
+                 {:label :separator}
+                 {:id ::refresh
+                  :label "Refresh"
+                  :command :refresh}])
+
+(ui/extend-menu ::resource-menu-ext ::refresh
+                [{:label "Show in Finder"
+                  :command :show-in-finder}])
+
 
 (defn- is-resource [x] (satisfies? workspace/Resource x))
 (defn- is-deletable-resource [x] (and (satisfies? workspace/Resource x) (not (workspace/read-only? x))))
@@ -98,7 +104,7 @@
                                                        (proxy-super setText name))
                                                      (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource))))))))
 
-    (ui/register-context-menu tree-view tree-view #'asset-context-menu)
+    (ui/register-context-menu tree-view tree-view ::resource-menu)
     (.setRoot tree-view (tree-item (g/node-value workspace :resource-tree)))))
 
 (defn make-asset-browser [workspace tree-view open-resource-fn]
