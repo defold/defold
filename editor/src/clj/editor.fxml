@@ -18,11 +18,11 @@
   </stylesheets>
    <children>
       <MenuBar id="menu-bar" />
-      <HBox spacing="4.0">
+      <HBox id="toolbar" spacing="4.0">
          <children>
-            <ToggleButton focusTraversable="false" mnemonicParsing="false" text="Move" />
-            <ToggleButton focusTraversable="false" mnemonicParsing="false" text="Scale" />
-            <ToggleButton focusTraversable="false" mnemonicParsing="false" text="Rotate" />
+            <ToggleButton id="move-tool" focusTraversable="false" mnemonicParsing="false" text="Move" />
+            <ToggleButton id="scale-tool" focusTraversable="false" mnemonicParsing="false" text="Scale" />
+            <ToggleButton id="rotate-tool" focusTraversable="false" mnemonicParsing="false" text="Rotate" />
             <Separator orientation="VERTICAL" />
             <Pane HBox.hgrow="ALWAYS" />
             <ComboBox focusTraversable="false" prefWidth="150.0" />
