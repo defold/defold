@@ -56,23 +56,6 @@
 
 ; Rendering
 
-#_(defn render-text
-   [ctx ^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float zloc ^Float scale]
-   (gl/gl-push-matrix gl
-     (.glScaled gl 1 -1 1)
-     (.setColor text-renderer 1 1 1 1)
-     (.begin3DRendering text-renderer)
-     (.draw3D text-renderer chars xloc yloc zloc scale)
-     (.end3DRendering text-renderer)))
-
-#_(defn render-palette [ctx ^GL2 gl text-renderer gpu-texture vertex-binding layout]
-   (doseq [group layout]
-     (render-text ctx gl text-renderer (:name group) (- (:x group) palette-cell-size-half) (+ (* 0.25 group-spacing) (- palette-cell-size-half (:y group))) 0 1))
-   (let [cell-count (reduce (fn [v0 v1] (+ v0 (count (:cells v1)))) 0 layout)]
-    (gl/with-enabled gl [gpu-texture shader vertex-binding]
-     (shader/set-uniform shader gl "texture" 0)
-     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 cell-count)))))
-
 (defn render-sprite [^GL2 gl gpu-texture vertex-binding]
  (gl/with-enabled gl [gpu-texture shader vertex-binding]
    (shader/set-uniform shader gl "texture" 0)
@@ -112,20 +95,6 @@
 
 ; Node defs
 
-(g/defnk produce-renderable
-  [this gpu-texture vertex-binding]
-  {pass/transparent [{:world-transform geom/Identity4d
-                   :render-fn (fn [ctx gl glu text-renderer]
-                                (render-sprite gl gpu-texture vertex-binding))}]})
-
-(g/defnode SpriteRender
-  (input textureset t/Any)
-  (input gpu-texture t/Any)
-  (input animation t/Any)
-
-  (output vertex-binding t/Any :cached (g/fnk [textureset animation] (vtx/use-with (gen-vertex-buffer textureset animation) shader)))
-  (output renderable             t/RenderData  produce-renderable))
-
 (g/defnk produce-save-data [self image default-animation material blend-mode]
   {:resource (:resource self)
    :content (protobuf/pb->str
@@ -135,6 +104,15 @@
                   (.setDefaultAnimation default-animation)
                   (protobuf/set-if-present :material self)
                   (.setBlendMode (protobuf/val->pb-enum Sprite$SpriteDesc$BlendMode blend-mode)))))})
+
+(g/defnk produce-scene
+  [self aabb gpu-texture textureset animation]
+  (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation) shader)]
+    {:id (g/node-id self)
+     :aabb aabb 
+     :renderables {pass/transparent [{:world-transform geom/Identity4d
+                                      :render-fn (g/fnk [gl]
+                                                        (render-sprite gl gpu-texture vertex-binding))}]}}))
 
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
@@ -156,7 +134,8 @@
                                           (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                           (geom/aabb-incorporate (Point3d. hw hh 0))))))
   (output outline t/Any (g/fnk [self] {:self self :label "Sprite" :icon sprite-icon}))
-  (output save-data t/Any :cached produce-save-data))
+  (output save-data t/Any :cached produce-save-data)
+  (output scene t/Any :cached produce-scene))
 
 (defn load-sprite [project self input]
   (let [sprite (protobuf/pb->map (protobuf/read-text Sprite$SpriteDesc input))]
@@ -164,26 +143,12 @@
       (g/set-property self :image (:tile-set sprite))
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material (:material sprite))
-      ; TODO - hack, protobuf should carry the default
-      (if (:blend-mode sprite)
-        (g/set-property self :blend-mode (:blend-mode sprite))
-        [])
+      (g/set-property self :blend-mode (:blend-mode sprite))
       (let [atlas-node (project/resolve-resource-node self (:tile-set sprite))]
         (if atlas-node
           [(g/connect atlas-node :textureset self :textureset)
            (g/connect atlas-node :gpu-texture self :gpu-texture)]
           [])))))
-
-(defn setup-rendering [self view]
-  (let [renderer   (t/lookup view :renderer)
-        camera     (t/lookup view :camera)
-        view-graph (g/node->graph-id view)]
-    (g/make-nodes view-graph [sprite-render SpriteRender]
-                  (g/connect sprite-render   :renderable    renderer        :renderables)
-                  (g/connect self            :textureset    sprite-render   :textureset)
-                  (g/connect self            :animation     sprite-render   :animation)
-                  (g/connect self            :gpu-texture   sprite-render   :gpu-texture)
-                  (g/connect self            :aabb          camera          :aabb))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -191,6 +156,4 @@
                                     :node-type SpriteNode
                                     :load-fn load-sprite
                                     :icon sprite-icon
-                                    :view-types [:scene]
-                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view))
-                                                       :setup-rendering-fn setup-rendering}}))
+                                    :view-types [:scene]))

@@ -230,7 +230,7 @@
 
 
 (defn overlay
-  [ctx ^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float scalex ^Float scaley]
+  [^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float scalex ^Float scaley]
   (gl-push-matrix gl
     (.glScaled gl 1 -1 1)
     (.setColor text-renderer 1 1 1 1)
