@@ -8,7 +8,8 @@
             [dynamo.ui :refer :all]
             [editor.project :as project]
             [editor.scene :as scene]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.math :as math])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc GameObject$ComponentDesc GameObject$EmbeddedComponentDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -17,14 +18,14 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (def game-object-icon "icons/brick.png")
 
 (defn- gen-ref-ddf [id position rotation save-data]
   (.build (doto (GameObject$ComponentDesc/newBuilder)
             (.setId id)
-            (.setPosition (protobuf/vecmath->pb position))
+            (.setPosition (protobuf/vecmath->pb (Point3d. position)))
             (.setRotation (protobuf/vecmath->pb rotation))
             (.setComponent (workspace/proj-path (:resource save-data))))))
 
@@ -32,19 +33,20 @@
   (.build (doto (GameObject$EmbeddedComponentDesc/newBuilder)
             (.setId id)
             (.setType (:ext (workspace/resource-type (:resource save-data))))
-            (.setPosition (protobuf/vecmath->pb position))
+            (.setPosition (protobuf/vecmath->pb (Point3d. position)))
             (.setRotation (protobuf/vecmath->pb rotation))
             (.setData (:content save-data)))))
 
 (g/defnode ComponentNode
+  (inherits scene/SceneNode)
+
   (property id t/Str)
   (property embedded t/Bool (visible false))
-  (property position Point3d)
-  (property rotation Quat4d)
 
   (input source t/Any)
   (input outline t/Any)
   (input save-data t/Any)
+  (input scene t/Any)
 
   (output context-menu t/Any (g/fnk [self embedded] [{:label "Delete"
                                                       :handler-fn (fn [event] (g/transact
@@ -52,13 +54,14 @@
                                                                                   (g/operation-label "Delete")
                                                                                   (g/delete-node self))))}]))
   (output outline t/Any (g/fnk [self id outline context-menu] (merge outline {:self self :label id :context-menu context-menu})))
-  (output render-setup t/Any (g/fnk [source]
-                                    (when-let [resource-type (project/get-resource-type source)]
-                                      (let [view-fns (:scene (:view-fns resource-type))]
-                                        {:self source :setup-rendering-fn (:setup-rendering-fn view-fns)}))))
   (output ddf-message t/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
                                                                                        (gen-embed-ddf id position rotation save-data)
-                                                                                       (gen-ref-ddf id position rotation save-data)))))
+                                                                                       (gen-ref-ddf id position rotation save-data))))
+  (output scene t/Any :cached (g/fnk [self transform scene]
+                                     (assoc scene
+                                            :id (g/node-id self)
+                                            :transform transform
+                                            :aabb (geom/aabb-transform (:aabb scene) transform)))))
 
 (g/defnk produce-save-data [resource ref-ddf embed-ddf]
   {:resource resource
@@ -70,18 +73,22 @@
                   (.addEmbeddedComponents builder ddf))
                 (.build builder)))})
 
+(g/defnk produce-scene [self child-scenes]
+  {:id (g/node-id self)
+   :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
+   :children child-scenes})
+
 (g/defnode GameObjectNode
   (inherits project/ResourceNode)
 
-  (input aabbs [AABB])
   (input outline [t/Any])
-  (input render-setups [t/Any])
   (input ref-ddf [t/Any])
   (input embed-ddf [t/Any])
+  (input child-scenes [t/Any])
 
   (output outline t/Any (g/fnk [self outline] {:self self :label "Game Object" :icon game-object-icon :children outline}))
-  (output aabb AABB (g/fnk [aabbs] (reduce (fn [a b] (geom/aabb-union a b)) (geom/null-aabb) aabbs)))
-  (output save-data t/Any :cached produce-save-data))
+  (output save-data t/Any :cached produce-save-data)
+  (output scene t/Any :cached produce-scene))
 
 (defn- connect-if-output [out-node out-label in-node in-label]
   (if ((g/outputs out-node) out-label)
@@ -94,38 +101,33 @@
     (concat
       (for [component (:components prototype)]
         (g/make-nodes project-graph
-                      [comp-node [ComponentNode :id (:id component) :position (:position component) :rotation (:rotation component)]]
-                      (g/connect comp-node :outline self :outline)
-                      (if-let [source-node (project/resolve-resource-node self (:component component))]
-                        (concat
-                          (g/connect comp-node :render-setup self :render-setups)
-                          (g/connect comp-node :ddf-message self :ref-ddf)
-                          (g/connect source-node :self comp-node :source)
-                          (connect-if-output source-node :outline comp-node :outline)
-                          (connect-if-output source-node :save-data comp-node :save-data))
-                        [])))
+                     [comp-node [ComponentNode :id (:id component) :position (t/Point3d->Vec3 (:position component)) :rotation (math/quat->euler (:rotation component))]]
+                     (g/connect comp-node :outline self :outline)
+                     (if-let [source-node (project/resolve-resource-node self (:component component))]
+                       (concat
+                         (g/connect comp-node :ddf-message self :ref-ddf)
+                         (g/connect comp-node :scene self :child-scenes)
+                         (g/connect source-node :self comp-node :source)
+                         (connect-if-output source-node :outline comp-node :outline)
+                         (connect-if-output source-node :save-data comp-node :save-data)
+                         (connect-if-output source-node :scene comp-node :scene))
+                       [])))
       (for [embedded (:embedded-components prototype)]
         (let [resource (project/make-embedded-resource project (:type embedded) (:data embedded))]
           (if-let [resource-type (and resource (workspace/resource-type resource))]
             (g/make-nodes project-graph
-                          [comp-node [ComponentNode :id (:id embedded) :embedded true :position (:position embedded) :rotation (:rotation embedded)]
-                           source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
-                          (g/connect source-node :self         comp-node :source)
-                          (g/connect source-node :outline      comp-node :outline)
-                          (g/connect source-node :save-data comp-node :save-data)
-                          (g/connect comp-node   :outline      self      :outline)
-                          (g/connect comp-node   :render-setup self      :render-setups)
-                          (g/connect comp-node   :ddf-message  self      :embed-ddf))
+                         [comp-node [ComponentNode :id (:id embedded) :embedded true :position (t/Point3d->Vec3 (:position embedded)) :rotation (math/quat->euler (:rotation embedded))]
+                          source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
+                         (g/connect source-node :self         comp-node :source)
+                         (g/connect source-node :outline      comp-node :outline)
+                         (g/connect source-node :save-data comp-node :save-data)
+                         (g/connect source-node :scene comp-node :scene)
+                         (g/connect comp-node   :outline      self      :outline)
+                         (g/connect comp-node   :ddf-message  self      :embed-ddf)
+                         (g/connect comp-node   :scene  self      :child-scenes))
             (g/make-nodes project-graph
                           [comp-node [ComponentNode :id (:id embedded) :embedded true]]
                           (g/connect comp-node   :outline      self      :outline))))))))
-
-(defn setup-rendering [self view]
-  (for [render-setup (g/node-value self :render-setups)
-        :when (:setup-rendering-fn render-setup)
-        :let [node (:self render-setup)
-              render-fn (:setup-rendering-fn render-setup)]]
-    (render-fn (g/refresh node) view)))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -134,5 +136,4 @@
                                     :load-fn load-game-object
                                     :icon game-object-icon
                                     :view-types [:scene]
-                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view :grid true))
-                                                       :setup-rendering-fn setup-rendering}}))
+                                    :view-opts {:scene {:grid true}}))

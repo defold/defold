@@ -11,8 +11,7 @@
 (def grad-top-color    (gl/color 123 143 167))
 (def grad-bottom-color (gl/color  28  29  31))
 
-(defn render-gradient
-  [context ^GL2 gl glu text-renderer]
+(g/defnk render-gradient [^GL2 gl]
   (let [x0           (float -1.0)
         x1           (float 1.0)
         y0           (float -1.0)

@@ -10,6 +10,7 @@
             [editor.core :as core]
             [editor.input :as i]
             [editor.workspace :as workspace]
+            [editor.math :as math]
             [internal.render.pass :as pass]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -32,7 +33,7 @@
            [java.lang Runnable]
            [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]))
+           [javax.vecmath Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -81,14 +82,14 @@
       (pass/prepare-gl pass gl glu)))
 
 (defn render-node
-  [^GLContext context ^GL2 gl ^GLU glu ^TextRenderer text-renderer pass renderable]
+  [^GL2 gl pass renderable render-args]
   (gl/gl-push-matrix
     gl
     (when (t/model-transform? pass)
       (gl/gl-mult-matrix-4d gl (:world-transform renderable)))
     (try
       (when (:render-fn renderable)
-        ((:render-fn renderable) context gl glu text-renderer))
+        ((:render-fn renderable) render-args))
       (catch Exception e
         (log/error :exception e
                    :pass pass
@@ -130,17 +131,19 @@
     (let [^GLContext context (.getContext drawable)]
       (.makeCurrent context)
       (let [gl ^GL2 (.getGL context)
-            glu ^GLU (GLU.)]
+            glu ^GLU (GLU.)
+            render-args {:gl gl :glu glu :camera camera :viewport viewport :text-renderer @text-renderer}]
         (try
           (.glClearColor gl 0.0 0.0 0.0 1.0)
           (gl/gl-clear gl 0.0 0.0 0.0 1)
           (.glColor4f gl 1.0 1.0 1.0 1.0)
           (gl-viewport gl viewport)
           (when-let [renderables (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera viewport %) (concat a b)))) renderables)]
-            (doseq [pass pass/render-passes]
+            (doseq [pass pass/render-passes
+                    :let [render-args (assoc render-args :pass pass)]]
               (setup-pass context gl glu pass camera viewport)
-              (doseq [node (get renderables pass)]
-                (render-node context gl glu @text-renderer pass node))))
+              (doseq [renderable (get renderables pass)]
+                (render-node gl pass renderable render-args))))
           (let [[w h] (vp-dims viewport)
                   buf-image (Screenshot/readToBufferedImage w h)]
               (.release context)
@@ -156,8 +159,7 @@
 
   (output drawable GLAutoDrawable :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
-  (output frame BufferedImage :cached produce-frame) ; TODO cache when the cache bug is fixed
-  )
+  (output frame BufferedImage :cached produce-frame))
 
 (defn dispatch-input [input-handlers action]
   (reduce (fn [action input-handler]
@@ -166,6 +168,22 @@
               (when action
                 ((g/node-value node label) node action))))
           action input-handlers))
+
+(defn- apply-transform [^Matrix4d transform renderables]
+  (let [apply-tx (fn [renderable]
+                   (let [^Matrix4d world-transform (or (:world-transform renderable) (doto (Matrix4d.) (.setIdentity)))]
+                     (assoc renderable :world-transform (doto (Matrix4d. transform)
+                                                          (.mul world-transform)))))]
+    (into {} (map (fn [[pass lst]] [pass (map apply-tx lst)]) renderables))))
+
+(defn scene->renderables [scene]
+  (if (seq? scene)
+    (map scene->renderables scene)
+    (let [{:keys [id transform renderables children]} scene
+          renderables (reduce #(merge-with concat %1 %2) renderables (map scene->renderables children))]
+      (if transform
+        (apply-transform transform renderables)
+        renderables))))
 
 (g/defnode SceneView
   (inherits core/Scope)
@@ -176,10 +194,13 @@
   (property visible t/Bool (default true))
 
   (input frame BufferedImage)
+  (input scene t/Any)
   (input input-handlers [Runnable])
 
+  (output renderables t/Any :cached (g/fnk [scene] (scene->renderables scene)))
 ;;  (output viewport Region (g/fnk [viewport] viewport))
   (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
+  (output aabb AABB :cached (g/fnk [scene] (:aabb scene)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
@@ -229,21 +250,24 @@
 
   (property width t/Num)
   (property height t/Num)
+  (input scene t/Any)
   (input frame BufferedImage)
   (input input-handlers [Runnable])
+  (output renderables t/Any :cached (g/fnk [scene] (scene->renderables scene)))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
-  (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
+  (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
+  (output aabb AABB :cached (g/fnk [scene] (:aabb scene))))
 
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView :width width :height height))
 
-(defn setup-view [view & kvs]
-  (let [opts (into {} (map vec (partition 2 kvs)))
-        view-graph (g/node->graph-id view)]
+(defn setup-view [view opts]
+  (let [view-graph (g/node->graph-id view)]
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
                    background background/Gradient
-                   camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]]
+                   camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
+                   grid       grid/Grid]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                   ; Needed for scopes
@@ -253,33 +277,49 @@
                   (g/connect background      :renderable    renderer        :renderables)
                   (g/connect camera          :camera        renderer        :camera)
                   (g/connect camera          :input-handler view            :input-handlers)
+                  (g/connect view            :aabb          camera          :aabb)
                   (g/connect view            :viewport      camera          :viewport)
                   (g/connect view            :viewport      renderer        :viewport)
+                  (g/connect view            :renderables   renderer        :renderables)
                   (g/connect renderer        :frame         view            :frame)
 
-                  (when (:grid opts)
-                    (let [grid (g/make-node! view-graph grid/Grid)]
-                      (g/connect grid   :renderable renderer :renderables)
-                      (g/connect camera :camera     grid     :camera))))))
+                  (g/connect grid   :renderable renderer :renderables)
+                  (g/connect camera :camera     grid     :camera)
+                  (when (not (:grid opts))
+                    (g/delete-node grid)
+                    #_(let [grid (g/make-node! view-graph grid/Grid)]
+                       (g/connect grid   :renderable renderer :renderables)
+                       (g/connect camera :camera     grid     :camera))))))
 
-(defn make-view [graph ^Parent parent view-fns resource-node]
-  (let [view               (make-scene-view graph parent)
-        setup-view-fn      (:setup-view-fn view-fns)
-        setup-rendering-fn (:setup-rendering-fn view-fns)]
-    (g/transact (setup-view-fn resource-node view))
-    (g/transact (setup-rendering-fn resource-node (g/refresh view)))
-    (g/refresh view)))
+(defn make-view [graph ^Parent parent resource-node opts]
+  (let [view (make-scene-view graph parent)]
+    (g/transact
+      (concat
+        (setup-view view opts)
+        (g/connect resource-node :scene view :scene)))
+    view))
 
-(defn make-preview [graph view-fns resource-node width height]
-  (let [view               (make-preview-view graph width height)
-        setup-view-fn      (:setup-view-fn view-fns)
-        setup-rendering-fn (:setup-rendering-fn view-fns)]
-    (g/transact (setup-view-fn resource-node view))
-    (g/transact (setup-rendering-fn resource-node (g/refresh view)))
-    (g/refresh view)))
+(defn make-preview [graph resource-node opts width height]
+  (let [view (make-preview-view graph width height)]
+    (g/transact
+      (concat
+        (setup-view view (dissoc opts :grid))
+        (g/connect resource-node :scene view :scene)))
+    view))
 
 (defn register-view-types [workspace]
                                (workspace/register-view-type workspace
                                                              :id :scene
                                                              :make-view-fn make-view
                                                              :make-preview-fn make-preview))
+
+(g/defnode SceneNode
+  (property position t/Vec3 (default [0 0 0]))
+  (property rotation t/Vec3 (default [0 0 0]))
+  (property scale t/Num (default 1.0)) ; TODO - non-uniform scale
+
+  (output position Vector3d :cached (g/fnk [position] (Vector3d. (double-array position))))
+  (output rotation Quat4d :cached (g/fnk [rotation] (math/euler->quat rotation)))
+  (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation ^double scale] (Matrix4d. rotation position scale)))
+  (output scene t/Any :cached (g/fnk [self transform] {:id (g/node-id self) :transform transform}))
+  (output aabb AABB :cached (g/fnk [] (geom/null-aabb))))
