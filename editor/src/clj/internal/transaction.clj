@@ -23,26 +23,12 @@
   `(str (:txid ~ctx) ":" (:txpass ~ctx) " " ~@(interpose " " rest)))
 
 (defn nid [n] (if (number? n) n (if (gt/node? n) (gt/node-id n) (if (map? n) (:_id n) n))))
-(defn resolve-tempid [ctx x] (when x (if (gt/tempid? x) (get (:tempids ctx) x) x)))
-
-;; This is a transitional function. I'm using it to
-;; treat the first graph as the "fallback" for any callers
-;; that aren't yet updated to handle multiple graphs.
-(defn- which-graph
-  [graphs gid]
-  (get graphs (or gid 0)))
 
 ;; ---------------------------------------------------------------------------
 ;; Building transactions
 ;; ---------------------------------------------------------------------------
 (defn new-node
-  "*transaction step* - creates a resource in the project. Expects a
-  node. May include an `:_id` key containing a tempid if the resource
-  will be referenced again in the same transaction. If supplied,
-  _input_ and _output_ are sets of input and output labels,
-  respectively.  If not supplied as arguments, the `:input` and
-  `:output` keys in the node may will be assigned as the resource's
-  inputs and outputs."
+  "*transaction step* - add a node to a graph"
   [node]
   [{:type     :create-node
     :node     node}])
@@ -61,8 +47,7 @@
 (defn update-property
   "*transaction step* - Expects a node, a property label, and a
   function f (with optional args) to be performed on the current value
-  of the property. The node may be a uncommitted, in which case it
-  will have a tempid."
+  of the property."
   [node pr f args]
   [{:type     :update-property
     :node-id  (nid node)
@@ -83,7 +68,7 @@
 
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
-(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `connect` may have tempids."
+(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]."
   [from-node from-label to-node to-label]
   [{:type         :connect
     :source-id    (nid from-node)
@@ -96,7 +81,7 @@
   transaction step disconnecting a source node and label
   (`from-resource from-label`) from a target node and label
   (`to-resource to-label`). It returns a value suitable for consumption
-  by [[perform]]. Nodes passed to `disconnect` may be tempids."
+  by [[perform]]."
   [from-node from-label to-node to-label]
   [{:type         :disconnect
     :source-id    (nid from-node)
@@ -151,14 +136,13 @@
   (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [basis tempids triggers-to-fire nodes-affected world-ref new-event-loops nodes-added] :as ctx}
+  [{:keys [basis triggers-to-fire nodes-affected world-ref new-event-loops nodes-added] :as ctx}
    {:keys [node]}]
-  (let [temp-id                         (gt/node-id node)
-        [basis-after node-id full-node] (gt/add-node basis temp-id node)]
+  (let [[basis-after full-node] (gt/add-node basis node)
+        node-id                 (gt/node-id full-node)]
     (assoc ctx
            :basis            basis-after
            :nodes-added      (conj nodes-added node-id)
-           :tempids          (assoc tempids temp-id node-id)
            :new-event-loops  (if (gt/message-target? full-node) (conj new-event-loops node-id) new-event-loops)
            :triggers-to-fire (update-in triggers-to-fire [node-id :added] concat [])
            :nodes-affected   (merge-with set/union nodes-affected {node-id (gt/outputs full-node)}))))
@@ -188,80 +172,87 @@
     (gt/targets (:basis ctx) (nid source-node) source-label)))
 
 (defmethod perform :become
-  [{:keys [basis tempids nodes-affected new-event-loops old-event-loops] :as ctx}
+  [{:keys [basis nodes-affected new-event-loops old-event-loops] :as ctx}
    {:keys [node-id to-node]}]
-  (let [old-node         (gt/node-by-id basis node-id)
-        to-node-id       (gt/node-id to-node)
-        new-node         (merge to-node old-node)
+  (if-let [old-node (gt/node-by-id basis node-id)] ; nil if node was deleted in this transaction
+    (let [old-node         (gt/node-by-id basis node-id)
+          to-node-id       (gt/node-id to-node)
+          new-node         (merge to-node old-node)
 
-        ;; disconnect inputs that no longer exist
-        vanished-inputs  (set/difference (gt/inputs old-node) (gt/inputs new-node))
-        ctx              (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in))  ctx vanished-inputs)
+          ;; disconnect inputs that no longer exist
+          vanished-inputs  (set/difference (gt/inputs old-node) (gt/inputs new-node))
+          ctx              (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in))  ctx vanished-inputs)
 
-        ;; disconnect outputs that no longer exist
-        vanished-outputs (set/difference (gt/outputs old-node) (gt/outputs new-node))
-        ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
+          ;; disconnect outputs that no longer exist
+          vanished-outputs (set/difference (gt/outputs old-node) (gt/outputs new-node))
+          ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
 
-        [basis-after _]  (gt/replace-node basis node-id new-node)
+          [basis-after _]  (gt/replace-node basis node-id new-node)
 
-        start-loop       (and      (gt/message-target? new-node)  (not (gt/message-target? old-node)))
-        end-loop         (and (not (gt/message-target? new-node))      (gt/message-target? old-node))]
-    (assoc (activate-all-outputs ctx node-id new-node)
-           :basis           basis-after
-           :tempids         (if (gt/tempid? to-node-id) (assoc tempids to-node-id node-id) tempids)
-           :new-event-loops (if start-loop (conj new-event-loops node-id)  new-event-loops)
-           :old-event-loops (if end-loop   (conj old-event-loops old-node) old-event-loops))))
+          start-loop       (and      (gt/message-target? new-node)  (not (gt/message-target? old-node)))
+          end-loop         (and (not (gt/message-target? new-node))      (gt/message-target? old-node))]
+      (assoc (activate-all-outputs ctx node-id new-node)
+             :basis           basis-after
+             :new-event-loops (if start-loop (conj new-event-loops node-id)  new-event-loops)
+             :old-event-loops (if end-loop   (conj old-event-loops old-node) old-event-loops)))
+    ctx))
 
 (defmethod perform :delete-node
   [{:keys [basis nodes-deleted old-event-loops nodes-added triggers-to-fire] :as ctx}
    {:keys [node-id]}]
-  (let [node-id            (resolve-tempid ctx node-id)
-        [basis-after node] (gt/delete-node basis node-id)
-        ctx                (activate-all-outputs ctx node-id node)]
-    (assoc ctx
-           :basis            basis-after
-           :old-event-loops  (if (gt/message-target? node) (conj old-event-loops node) old-event-loops)
-           :nodes-deleted    (assoc nodes-deleted node-id node)
-           :nodes-added      (removev #(= node-id %) nodes-added)
-           :triggers-to-fire (update-in triggers-to-fire [node-id :deleted] concat []))))
+  (if-let [node (gt/node-by-id basis node-id)] ; nil if node was deleted in this transaction
+    (let [[basis-after node] (gt/delete-node basis node-id)
+          ctx                (activate-all-outputs ctx node-id node)]
+      (assoc ctx
+             :basis            basis-after
+             :old-event-loops  (if (gt/message-target? node) (conj old-event-loops node) old-event-loops)
+             :nodes-deleted    (assoc nodes-deleted node-id node)
+             :nodes-added      (removev #(= node-id %) nodes-added)
+             :triggers-to-fire (update-in triggers-to-fire [node-id :deleted] concat [])))
+    ctx))
 
 (defmethod perform :update-property
   [{:keys [basis triggers-to-fire properties-modified] :as ctx}
    {:keys [node-id property fn args]}]
-  (let [node-id            (resolve-tempid ctx node-id)
-        old-value          (get (gt/node-by-id basis node-id) property)
-        [basis-after node] (gt/update-property basis node-id property fn args)
-        new-value          (get node property)]
-    (if (= old-value new-value)
-      ctx
-      (-> ctx
-          (mark-activated node-id property)
-          (assoc
-           :basis               basis-after
-           :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] concat [property])
-           :properties-modified (update-in properties-modified [node-id] conj property))))))
+  (if-let [node (gt/node-by-id basis node-id)] ; nil if node was deleted in this transaction
+    (let [old-value          (get node property)
+          [basis-after node] (gt/update-property basis node-id property fn args)
+          new-value          (get node property)]
+      (if (= old-value new-value)
+        ctx
+        (-> ctx
+            (mark-activated node-id property)
+            (assoc
+             :basis               basis-after
+             :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] concat [property])
+             :properties-modified (update-in properties-modified [node-id] conj property)))))
+    ctx))
 
 (defmethod perform :connect
   [{:keys [basis triggers-to-fire] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
-  (let [source-id (resolve-tempid ctx source-id)
-        target-id (resolve-tempid ctx target-id)]
-    (-> ctx
-        (mark-activated target-id target-label)
-        (assoc
-         :basis            (gt/connect basis source-id source-label target-id target-label)
-         :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
+  (if-let [source (gt/node-by-id basis source-id)] ; nil if source node was deleted in this transaction
+    (if-let [target (gt/node-by-id basis target-id)] ; nil if target node was deleted in this transaction
+      (-> ctx
+          (mark-activated target-id target-label)
+          (assoc
+           :basis            (gt/connect basis source-id source-label target-id target-label)
+           :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))
+      ctx)
+    ctx))
 
 (defmethod perform :disconnect
   [{:keys [basis triggers-to-fire] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
-  (let [source-id (resolve-tempid ctx source-id)
-        target-id (resolve-tempid ctx target-id)]
-    (-> ctx
-        (mark-activated target-id target-label)
-        (assoc
-         :basis            (gt/disconnect basis source-id source-label target-id target-label)
-         :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
+  (if-let [source (gt/node-by-id basis source-id)] ; nil if source node was deleted in this transaction
+    (if-let [target (gt/node-by-id basis target-id)] ; nil if target node was deleted in this transaction
+      (-> ctx
+          (mark-activated target-id target-label)
+          (assoc
+           :basis            (gt/disconnect basis source-id source-label target-id target-label)
+           :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))
+      ctx)
+    ctx))
 
 (defmethod perform :update-graph
   [{:keys [basis] :as ctx} {:keys [gid fn args]}]
@@ -375,7 +366,7 @@
     sequence-label
     (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))))
 
-(def tx-report-keys [:basis :new-event-loops :tempids :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
+(def tx-report-keys [:basis :new-event-loops :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
@@ -388,7 +379,6 @@
   [basis actions]
   {:basis               basis
    :original-basis      basis
-   :tempids             {}
    :new-event-loops     #{}
    :old-event-loops     #{}
    :nodes-added         []

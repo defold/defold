@@ -1,26 +1,10 @@
 (ns editor.app-view
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
-            [dynamo.node :as n]
+  (:require [dynamo.graph :as g]
             [dynamo.types :as t]
-            [editor.asset-browser :as asset-browser]
-            [editor.atlas :as atlas]
-            [editor.collection :as collection]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.graph-view :as graph-view]
-            [editor.handler :as handler]
-            [editor.image :as image]
             [editor.jfx :as jfx]
             [editor.menu :as menu]
-            [editor.outline-view :as outline-view]
-            [editor.platformer :as platformer]
             [editor.project :as project]
-            [editor.properties-view :as properties-view]
-            [editor.scene :as scene]
-            [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
+            [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
@@ -159,9 +143,9 @@
             parent     (AnchorPane.)
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
-            ;; TODO Delete this graph when the tab is closed.
             view-graph (g/make-graph! :history false :volatility 2)
             view       (make-view-fn view-graph parent ((:id view-type) (:view-fns resource-type)) resource-node)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
+        (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
         (.select (.getSelectionModel tab-pane) tab))
       (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))

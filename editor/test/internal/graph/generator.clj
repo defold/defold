@@ -5,8 +5,10 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
-            [internal.graph :as g]
-            [internal.graph.types :as gt]))
+            [dynamo.graph :as g]
+            [internal.graph :as ig]
+            [internal.graph.types :as gt])
+  (:import [java.util.concurrent.atomic AtomicLong]))
 
 (def min-node-count 80)
 (def max-node-count 100)
@@ -16,6 +18,9 @@
 (def arc-deletion-factor 5)
 
 (def labels (gen/elements [:t :u :v :w :x :y :z]))
+
+(let [counter (AtomicLong. 0)]
+  (defn next-node-id [] (.getAndIncrement counter)))
 
 (defrecord FakeNode [_id ins outs]
   gt/Node
@@ -55,25 +60,25 @@
   (into []
         (mapcat
          (fn [[sym node]]
-           `[[~gsym ~sym] (g/claim-id ~gsym)
-             ~gsym        (g/add-node ~gsym ~sym (assoc ~node :_id ~sym))])
+           `[~sym  ~(next-node-id)
+             ~gsym (ig/add-node ~gsym ~sym (assoc ~node :_id ~sym))])
          nodes)))
 
 (defn remove-nodes
   [dead-nodes]
   (for [n dead-nodes]
-    `(g/remove-node ~n)))
+    `(ig/remove-node ~n)))
 
 (defn- populate-arcs
   [new-arcs]
   (mapcat (fn [a]
-            `[(g/connect-target ~@(flatten a))])
+            `[(ig/connect-target ~@(flatten a))])
           new-arcs))
 
 (defn- remove-arcs
   [dead-arcs]
   (mapcat (fn [a]
-            `[(g/disconnect-target ~@(flatten a))])
+            `[(ig/disconnect-target ~@(flatten a))])
           dead-arcs))
 
 (defn subselect
@@ -95,7 +100,7 @@
         arcs       (s (gen/vector (gen-arcs nodes) min-arc-count max-arc-count))
         dead-arcs  (s (subselect arcs arc-deletion-factor))]
     `(fn []
-       (let [~'g (g/empty-graph)]
+       (let [~'g (ig/empty-graph)]
          (let [~@(node-bindings 'g nodes)]
            (-> ~'g
                ~@(populate-arcs  arcs)

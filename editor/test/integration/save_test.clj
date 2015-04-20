@@ -55,32 +55,16 @@
     (g/reset-undo! proj-graph)
     project))
 
-(defn- headless-create-view
-  [workspace project resource-node]
-  (let [resource-type (project/get-resource-type resource-node)]
-    (when (and resource-type (:view-types resource-type))
-      (let [make-preview-fn (:make-preview-fn (first (:view-types resource-type)))
-            view-fns (:scene (:view-fns resource-type))
-            view-graph (g/make-graph! :volatility 100)]
-        (make-preview-fn view-graph view-fns resource-node 128 128)))))
-
-(deftest preconditions
-  (testing "Verify preconditions for remaining tests"
-    (with-clean-system
-      (let [workspace     (load-test-workspace world)
-            project-graph (g/make-graph! :history true :volatility 1)
-            project       (load-test-project workspace project-graph)]
-        (let [go-nodes (project/find-resources project "**/*.go")]
-          (is (> (count go-nodes) 0)))))))
-
 (deftest save-all
   (testing "Saving all resource nodes in the project"
            (with-clean-system
-             (let [workspace     (load-test-workspace world)
+             (let [queries       ["**/level1.platformer" "**/level01.switcher" "**/env.cubemap" "**/switcher.atlas" "**/atlas_sprite.collection" "**/atlas_sprite.go" "**/atlas.sprite"]
+                   workspace     (load-test-workspace world)
                    project-graph (g/make-graph! :history true :volatility 1)
                    project       (load-test-project workspace project-graph)
-                   save-data (group-by :resource (g/node-value project :save-data))
-                   [go-resource _] (first (project/find-resources project "**/atlas_sprite.go"))
-                   go-save (first (get save-data go-resource))
-                   go-file (slurp go-resource)]
-               (is (= go-file (:content go-save)))))))
+                   save-data (group-by :resource (g/node-value project :save-data))]
+               (doseq [query queries]
+                 (let [[resource _] (first (project/find-resources project query))
+                       save (first (get save-data resource))
+                       file (slurp resource)]
+                   (is (= file (:content save)))))))))

@@ -17,25 +17,30 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]))
+           [javax.vecmath Matrix4d Point3d Quat4d]))
 
 (def game-object-icon "icons/brick.png")
 
-(defn- produce-ref-ddf [id save-data]
+(defn- gen-ref-ddf [id position rotation save-data]
   (.build (doto (GameObject$ComponentDesc/newBuilder)
             (.setId id)
-            ; TODO - fix global path hack
-            (.setComponent (str "/" (workspace/path (:resource save-data)))))))
+            (.setPosition (protobuf/vecmath->pb position))
+            (.setRotation (protobuf/vecmath->pb rotation))
+            (.setComponent (workspace/proj-path (:resource save-data))))))
 
-(defn- produce-embed-ddf [id save-data]
+(defn- gen-embed-ddf [id position rotation save-data]
   (.build (doto (GameObject$EmbeddedComponentDesc/newBuilder)
             (.setId id)
             (.setType (:ext (workspace/resource-type (:resource save-data))))
+            (.setPosition (protobuf/vecmath->pb position))
+            (.setRotation (protobuf/vecmath->pb rotation))
             (.setData (:content save-data)))))
 
 (g/defnode ComponentNode
   (property id t/Str)
   (property embedded t/Bool (visible false))
+  (property position Point3d)
+  (property rotation Quat4d)
 
   (input source t/Any)
   (input outline t/Any)
@@ -51,7 +56,9 @@
                                     (when-let [resource-type (project/get-resource-type source)]
                                       (let [view-fns (:scene (:view-fns resource-type))]
                                         {:self source :setup-rendering-fn (:setup-rendering-fn view-fns)}))))
-  (output ddf-message t/Any :cached (g/fnk [id embedded save-data] (if embedded (produce-embed-ddf id save-data) (produce-ref-ddf id save-data)))))
+  (output ddf-message t/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
+                                                                                       (gen-embed-ddf id position rotation save-data)
+                                                                                       (gen-ref-ddf id position rotation save-data)))))
 
 (g/defnk produce-save-data [resource ref-ddf embed-ddf]
   {:resource resource
@@ -87,7 +94,7 @@
     (concat
       (for [component (:components prototype)]
         (g/make-nodes project-graph
-                      [comp-node [ComponentNode :id (:id component)]]
+                      [comp-node [ComponentNode :id (:id component) :position (:position component) :rotation (:rotation component)]]
                       (g/connect comp-node :outline self :outline)
                       (if-let [source-node (project/resolve-resource-node self (:component component))]
                         (concat
@@ -101,7 +108,7 @@
         (let [resource (project/make-embedded-resource project (:type embedded) (:data embedded))]
           (if-let [resource-type (and resource (workspace/resource-type resource))]
             (g/make-nodes project-graph
-                          [comp-node [ComponentNode :id (:id embedded) :embedded true]
+                          [comp-node [ComponentNode :id (:id embedded) :embedded true :position (:position embedded) :rotation (:rotation embedded)]
                            source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
                           (g/connect source-node :self         comp-node :source)
                           (g/connect source-node :outline      comp-node :outline)

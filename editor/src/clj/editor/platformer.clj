@@ -1,5 +1,6 @@
 (ns editor.platformer
   (:require [clojure.edn :as edn]
+            [clojure.pprint :refer [pprint]]
             [clojure.java.io :as io]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
@@ -166,6 +167,10 @@
 
   (output input-handler Runnable (g/fnk [] handle-input)))
 
+(g/defnk produce-save-data [resource control-points base-texture]
+  {:resource resource
+   :content (with-out-str (pprint {:control-points control-points :base-texture base-texture}))})
+
 (g/defnode PlatformerNode
   (inherits project/ResourceNode)
 
@@ -174,13 +179,14 @@
 
   (input base-texture-img BufferedImage)
 
-  (output base-texture t/Any :cached (g/fnk [base-texture-img] (texture/image-texture
-                                                                base-texture-img
-                                                                {:min-filter gl/linear-mipmap-linear
-                                                                 :mag-filter gl/linear
-                                                                 :wrap-s     gl/repeat
-                                                                 :wrap-t     gl/repeat})))
-  (output aabb          AABB       :cached (g/fnk [control-points] (reduce (fn [aabb cp] (geom/aabb-incorporate aabb (:x cp) (:y cp) 0)) (geom/null-aabb) control-points))))
+  (output base-texture-tex t/Any  :cached (g/fnk [base-texture-img] (texture/image-texture
+                                                                     base-texture-img
+                                                                     {:min-filter gl/linear-mipmap-linear
+                                                                      :mag-filter gl/linear
+                                                                      :wrap-s     gl/repeat
+                                                                      :wrap-t     gl/repeat})))
+  (output aabb          AABB  :cached (g/fnk [control-points] (reduce (fn [aabb cp] (geom/aabb-incorporate aabb (:x cp) (:y cp) 0)) (geom/null-aabb) control-points)))
+  (output save-data     t/Any :cached produce-save-data))
 
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
@@ -193,25 +199,27 @@
          [])))))
 
 (defn setup-rendering [self view]
-  (let [renderer     (t/lookup view :renderer)
-        camera   (t/lookup view :camera)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)]
     (g/make-nodes
-      (g/node->graph-id view)
-      [platformer-render PlatformerRender]
-      (g/connect self              :base-texture   platformer-render :base-texture)
-      (g/connect self              :control-points platformer-render :control-points)
-      (g/connect platformer-render :renderable     renderer          :renderables)
-      (g/connect self              :aabb           camera            :aabb))))
+     view-graph
+     [platformer-render PlatformerRender]
+     (g/connect self              :base-texture-tex platformer-render :base-texture)
+     (g/connect self              :control-points   platformer-render :control-points)
+     (g/connect platformer-render :renderable       renderer          :renderables)
+     (g/connect self              :aabb             camera            :aabb))))
 
 (defn setup-editing [self view]
-  (let [renderer     (t/lookup view :renderer)
-        camera   (t/lookup view :camera)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)]
     (g/make-nodes
-      (g/node->graph-id view)
-      [controller PlatformerController]
-      (g/connect view              :viewport       controller        :viewport)
-      (g/connect camera            :camera         controller        :camera)
-      (g/connect controller        :input-handler  view              :input-handlers))))
+     view-graph
+     [controller PlatformerController]
+     (g/connect view              :viewport       controller        :viewport)
+     (g/connect camera            :camera         controller        :camera)
+     (g/connect controller        :input-handler  view              :input-handlers))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
