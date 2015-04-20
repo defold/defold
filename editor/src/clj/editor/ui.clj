@@ -41,24 +41,23 @@
       (:menu)
       (mapcat (fn [x] (concat [x] (get exts (:id x))))))))
 
-(defn- create-menu-item [item context arg-map]
+(defn- create-menu-item [item arg-map]
   (let [menu-item (MenuItem. (:label item))
         command (:command item)]
     (when (:acc item)
       (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
     (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
-    (.setDisable menu-item (not (handler/enabled? command context arg-map)))
-    (.setOnAction menu-item (event-handler event (handler/run command context arg-map) ))
+    (.setDisable menu-item (not (handler/enabled? command arg-map)))
+    (.setOnAction menu-item (event-handler event (handler/run command arg-map) ))
     menu-item))
 
 (defn- populate-context-menu [^ContextMenu context-menu selection-provider menu]
   (let [instances (workspace/selection selection-provider)
-        context :project ; TODO
         arg-map {:instances instances}]
     (doseq [item menu]
       (let [menu-item (if (= :separator (:label item))
                         (SeparatorMenuItem.)
-                        (create-menu-item item context arg-map) )]
+                        (create-menu-item item arg-map) )]
         (.add (.getItems context-menu) menu-item)))))
 
 (defn register-context-menu [^Control control selection-provider menu-id]
@@ -86,17 +85,17 @@
           (.setOnAction n (event-handler event (handler/run (keyword (.getId n)) :project arg-map))))))
     (log/warn :message (format "toolbar %s not found" toolbar-id))))
 
-(defn- refresh-toolbar [toolbar context arg-map]
+(defn- refresh-toolbar [toolbar arg-map]
   (let [nodes (.getChildren toolbar)
         ids (map #(.getId %) nodes)]
     (doseq [n nodes]
-      (.setDisable n (not (handler/enabled? (keyword (.getId n)) context arg-map)))
+      (.setDisable n (not (handler/enabled? (keyword (.getId n)) arg-map)))
       (when (instance? ToggleButton n)
-        (if (handler/state (keyword (.getId n)) context arg-map)
+        (if (handler/state (keyword (.getId n)) arg-map)
           (.setSelected n true)
           (.setSelected n false))))))
 
 (defn refresh [binder arg-map]
   (doseq [[_ t] (:toolbars @binder)]
-    (refresh-toolbar t :project arg-map)))
+    (refresh-toolbar t arg-map)))
 
