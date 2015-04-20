@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.node :as n]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.either :as e]
@@ -22,12 +21,10 @@
   (input consumer String))
 
 (deftest low-level-transactions
-  (testing "one node with tempid"
+  (testing "one node"
     (with-clean-system
-      (let [temp      (g/tempid world)
-            tx-result (g/transact (g/make-node world Resource :_id temp :a "known value"))]
-        (is (= :ok (:status tx-result)))
-        (is (= "known value" (:a (g/node-by-id (:basis tx-result) (it/resolve-tempid tx-result temp))))))))
+      (let [tx-result (g/transact (g/make-node world Resource :a "known value"))]
+        (is (= :ok (:status tx-result))))))
   (testing "two connected nodes"
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (g/make-node world Resource)
@@ -70,12 +67,10 @@
     (with-clean-system
       (let [[resource1] (tx-nodes (g/make-node world Resource :marker 99))
             id1         (:_id resource1)
-            temp        (g/tempid world)
-            resource2   (n/construct Downstream :_id temp)
+            resource2   (g/construct Downstream)
             tx-result   (g/transact (it/become resource1 resource2))
             after       (:basis tx-result)]
         (is (= :ok (:status tx-result)))
-        (is (= id1 (it/resolve-tempid tx-result temp)))
         (is (= Downstream (g/node-type (g/node-by-id after id1))))
         (is (= 99  (:marker (g/node-by-id after id1))))))))
 
@@ -205,7 +200,7 @@
       (let [tracker         (atom {})
             [counter]       (tx-nodes (g/make-node world TriggerExecutionCounter :tracking tracker))
             before-transmog @tracker
-            _               (g/transact (g/become counter (n/construct StringSource)))
+            _               (g/transact (g/become counter (g/construct StringSource)))
             stringer        (g/refresh counter)
             after-transmog  @tracker]
         (is (identical? (:tracking counter) (:tracking stringer)))
@@ -284,7 +279,7 @@
 (deftest event-loops-started-by-transaction
   (with-clean-system
     (let [[receiver] (tx-nodes (g/make-node world EventReceiver :latch (promise)))]
-      (n/dispatch-message (g/now) receiver :custom-event)
+      (g/dispatch-message (g/now) receiver :custom-event)
       (is (= true (deref (:latch receiver) 500 :timeout))))))
 
 (g/defnode DisposableNode
@@ -306,9 +301,8 @@
 
 (deftest invalidated-properties-noted-by-transaction
   (with-clean-system
-    (let [temp             (g/tempid world)
-          tx-result        (g/transact (g/make-node world CachedOutputInvalidation :_id temp))
-          real-node        (g/node-by-id (:basis tx-result) (it/resolve-tempid tx-result temp))
+    (let [tx-result        (g/transact (g/make-node world CachedOutputInvalidation))
+          real-node        (first (g/tx-nodes-added tx-result))
           real-id          (g/node-id real-node)
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
@@ -369,7 +363,7 @@
             expected-value (g/node-value node :original-output)]
         (is (not (nil? expected-value)))
         (is (= expected-value (e/result (cache-peek system node-id :original-output))))
-        (let [tx-result (g/transact (g/become node (n/construct ReplacementNode)))]
+        (let [tx-result (g/transact (g/become node (g/construct ReplacementNode)))]
           (yield)
           (is (nil? (cache-peek system node-id :original-output)))))))
 
@@ -377,7 +371,7 @@
     (with-clean-system
       (let [[node]       (tx-nodes (g/make-node world OriginalNode))
             node-id      (:_id node)
-            tx-result    (g/transact (g/become node (n/construct ReplacementNode)))
+            tx-result    (g/transact (g/become node (g/construct ReplacementNode)))
             node         (g/refresh node)
             cached-value (g/node-value node :additional-output)]
         (yield)
@@ -490,3 +484,38 @@
         (g/node-value adder :cached-sum)
         (is (= (count number-sources) (some-> (cache-peek system (:_id adder) :cached-sum)  e/result)))
         (is (= 1                      (some-> (cache-peek system (:_id (first number-sources)) :cached-sum) e/result)))))))
+
+
+;; This case is taken from editor.core/Scope.
+;; Code is copied here to avoid inverted dependencies
+(defn dispose-nodes
+  [transaction graph self label kind]
+  (when (g/is-deleted? transaction self)
+    (for [node-to-delete (g/node-value self :nodes)]
+      (g/delete-node node-to-delete))))
+
+(g/defnode Container
+  (input nodes [t/Any])
+
+  (trigger garbage-collection :deleted #'dispose-nodes))
+
+(deftest double-deletion-is-safe
+  (testing "delete scope first"
+    (with-clean-system
+      (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
+        (g/transact (g/connect inner :self outer :nodes))
+
+        (is (= :ok (:status (g/transact
+                             (concat
+                              (g/delete-node outer)
+                              (g/delete-node inner)))))))))
+
+  (testing "delete inner node first"
+    (with-clean-system
+      (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
+        (g/transact (g/connect inner :self outer :nodes))
+
+        (is (= :ok (:status (g/transact
+                             (concat
+                              (g/delete-node inner)
+                              (g/delete-node outer))))))))))

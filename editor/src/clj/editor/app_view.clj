@@ -1,25 +1,10 @@
 (ns editor.app-view
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
-            [dynamo.node :as n]
+  (:require [dynamo.graph :as g]
             [dynamo.types :as t]
-            [editor.asset-browser :as asset-browser]
-            [editor.atlas :as atlas]
-            [editor.collection :as collection]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.graph-view :as graph-view]
-            [editor.image :as image]
             [editor.jfx :as jfx]
             [editor.menu :as menu]
-            [editor.outline-view :as outline-view]
-            [editor.platformer :as platformer]
             [editor.project :as project]
-            [editor.properties-view :as properties-view]
-            [editor.scene :as scene]
-            [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
+            [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
@@ -61,6 +46,7 @@
   (property tab-pane TabPane)
   (property refresh-timer AnimationTimer)
   (property auto-pulls t/Any)
+  (property active-tool t/Any)
 
   (input main-menus [t/Any])
   (input outline t/Any)
@@ -96,10 +82,31 @@
 (defn- on-tabs-changed [app-view]
   (invalidate app-view :open-resources))
 
+(handler/defhandler move-tool :move-tool
+  (visible? [app-view] true)
+  (enabled? [app-view] true)
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :move-tool)))
+  (state [app-view] (= (:active-tool (g/refresh app-view)) :move-tool)))
+
+(handler/defhandler scale-tool :scale-tool
+  (visible? [app-view] true)
+  (enabled? [app-view] true)
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale-tool)))
+  (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale-tool)))
+
+(handler/defhandler rotate-tool :rotate-tool
+  (visible? [app-view] true)
+  (enabled? [app-view] true)
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate-tool)))
+  (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate-tool)))
+
 (defn make-app-view [graph stage menu-bar tab-pane]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
-  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node graph AppView :stage stage :menu-bar menu-bar :tab-pane tab-pane))))]
+  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node graph AppView :stage stage :menu-bar menu-bar :tab-pane tab-pane :active-tool :move-tool))))
+        binder (ui/make-ui-binder (.getScene stage))
+        arg-map {:app-view app-view}]
+    (ui/bind-toolbar binder "#toolbar" arg-map)
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -115,6 +122,8 @@
             (on-tabs-changed app-view)))))
     (let [refresh-timer (proxy [AnimationTimer] []
                           (handle [now]
+                            ; TODO: Not invoke this function every frame...
+                            (ui/refresh binder arg-map)
                             (let [auto-pulls (:auto-pulls (g/refresh app-view))]
                               (doseq [[node label] auto-pulls]
                                 (g/node-value node label)))))]
@@ -137,7 +146,6 @@
             view-graph (g/make-graph! :history false :volatility 2)
             view       (make-view-fn view-graph parent resource-node ((:id view-type) (:view-opts resource-type)))]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
-        ;; TODO Delete this graph when the tab is closed, currently blocked by #91736094
-        #_(.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
+        (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
         (.select (.getSelectionModel tab-pane) tab))
       (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))

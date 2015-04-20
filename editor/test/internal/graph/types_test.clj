@@ -14,17 +14,3 @@
                   (and
                    (= g (gt/node-id->graph-id id))
                    (= n (gt/node-id->nid id))))))
-
-(defspec tempids-recognized
-  100000
-  (prop/for-all [g (gen/choose 0 (dec (Math/pow 2 gt/GID-BITS)))]
-                (let [tid (gt/tempid g)]
-                  (and (gt/tempid? tid)
-                       (= g (gt/node-id->graph-id tid))))))
-
-(defspec regular-ids-not-confused
-  100000
-  (prop/for-all [g (gen/choose 0 (dec (Math/pow 2 gt/GID-BITS)))
-                 n (gen/choose 0 (dec (Math/pow 2 gt/NID-BITS)))]
-                (let [id (gt/make-node-id g n)]
-                  (not (gt/tempid? id)))))
