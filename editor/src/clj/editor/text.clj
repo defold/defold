@@ -58,7 +58,7 @@
   (AnchorPane/setLeftAnchor control 0.0)
   (AnchorPane/setRightAnchor control 0.0))
 
-(defn make-view [graph ^Parent parent view-fns resource-node]
+(defn make-view [graph ^Parent parent resource-node opts]
   (let [text-area (TextArea.)]
     (.appendText text-area (slurp (:resource resource-node)))
     (.add (.getChildren ^Pane parent) text-area)

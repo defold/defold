@@ -12,7 +12,6 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass]
-            [plumbing.core :refer [fnk defnk]]
             [schema.core :as s])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -71,24 +70,8 @@
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))
     (gl/gl-disable gl GL/GL_CULL_FACE)))
 
-(g/defnk produce-renderable :- t/RenderData
-  [this camera gpu-texture vertex-binding]
-  (let [world (Matrix4d. geom/Identity4d)]
-    {pass/transparent
-     [{:world-transform world
-       :render-fn       (fn [ctx gl glu text-renderer] (render-cubemap gl world camera gpu-texture vertex-binding))}]}))
-
-(g/defnode CubemapRender
-  (input gpu-texture s/Any)
-
-  (input  camera        Camera)
-
-  (output vertex-binding s/Any     :cached (fnk [] (vtx/use-with unit-sphere cubemap-shader)))
-  (output renderable    t/RenderData :cached produce-renderable)
-  (output aabb          AABB       :cached (fnk [] geom/unit-bounding-box)))
-
 (g/defnk produce-gpu-texture
-  [self right-img left-img top-img bottom-img front-img back-img]
+  [right-img left-img top-img bottom-img front-img back-img]
   (apply texture/image-cubemap-texture [right-img left-img top-img bottom-img front-img back-img]))
 
 (g/defnk produce-save-data [resource right left top bottom front back]
@@ -103,8 +86,19 @@
               (.build)
               (protobuf/pb->str))})
 
+(g/defnk produce-scene
+  [self aabb gpu-texture vertex-binding]
+  (let [vertex-binding (vtx/use-with unit-sphere cubemap-shader)
+        world (Matrix4d. geom/Identity4d)]
+    {:id          (g/node-id self)
+     :aabb        aabb
+     :transform   world
+     :renderables {pass/transparent
+                   [{:render-fn (g/fnk [gl camera] (render-cubemap gl world camera gpu-texture vertex-binding))}]}}))
+
 (g/defnode CubemapNode
   (inherits project/ResourceNode)
+  (inherits scene/SceneNode)
 
   (property right  t/Str)
   (property left   t/Str)
@@ -121,7 +115,9 @@
   (input back-img   BufferedImage)
 
   (output gpu-texture s/Any :cached produce-gpu-texture)
-  (output save-data   s/Any :cached produce-save-data))
+  (output save-data   s/Any :cached produce-save-data)
+  (output aabb        AABB  :cached (g/fnk [] geom/unit-bounding-box))
+  (output scene       s/Any :cached produce-scene))
 
 (defn load-cubemap [project self input]
   (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))]
@@ -131,23 +127,10 @@
          (g/set-property self side input)]
         (g/set-property self side input)))))
 
-(defn setup-rendering [self view]
-  (let [renderer (t/lookup view :renderer)
-        camera (t/lookup view :camera)]
-    (g/make-nodes
-      (g/node->graph-id view)
-      [cubemap-render CubemapRender]
-      (g/connect self           :gpu-texture   cubemap-render :gpu-texture)
-      (g/connect cubemap-render :renderable    renderer       :renderables)
-      (g/connect camera         :camera        cubemap-render :camera)
-      (g/connect cubemap-render :aabb          camera         :aabb))))
-
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "cubemap"
                                     :node-type CubemapNode
                                     :load-fn load-cubemap
                                     :icon cubemap-icon
-                                    :view-types [:scene]
-                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view))
-                                                       :setup-rendering-fn setup-rendering}}))
+                                    :view-types [:scene]))

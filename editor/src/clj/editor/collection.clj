@@ -10,7 +10,8 @@
             [editor.game-object :as game-object]
             [editor.project :as project]
             [editor.scene :as scene]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.math :as math])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -29,7 +30,7 @@
         (.setId id)
         ; TODO children
         (.setData (:content save-data))
-        (.setPosition (protobuf/vecmath->pb position))
+        (.setPosition (protobuf/vecmath->pb (Point3d. position)))
         (.setRotation (protobuf/vecmath->pb rotation))
         ; TODO properties
         (.setScale scale))
@@ -40,32 +41,33 @@
         (.setId id)
         ; TODO children
         (.setPrototype (workspace/proj-path (:resource save-data)))
-        (.setPosition (protobuf/vecmath->pb position))
+        (.setPosition (protobuf/vecmath->pb (Point3d. position)))
         (.setRotation (protobuf/vecmath->pb rotation))
         ; TODO properties
         (.setScale scale))
     (.build)))
 
 (g/defnode GameObjectInstanceNode
+  (inherits scene/SceneNode)
+
   (property id t/Str)
   (property path t/Str)
   (property embedded t/Bool (visible false))
-  (property position Point3d)
-  (property rotation Quat4d)
-  (property scale t/Num) ; TODO - non-uniform scale
 
   (input source t/Any)
   (input properties t/Any)
   (input outline t/Any)
   (input save-data t/Any)
+  (input scene t/Any)
 
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon game-object/game-object-icon})))
-  (output render-setup t/Any (g/fnk [source]
-                                    (let [resource-type (project/get-resource-type source)
-                                          view-fns (:scene (:view-fns resource-type))]
-                                      {:self source :setup-rendering-fn (:setup-rendering-fn view-fns)})))
   (output ddf-message t/Any :cached (g/fnk [id path embedded position rotation scale save-data]
-                                           (if embedded (gen-embed-ddf id position rotation scale save-data) (gen-ref-ddf id position rotation scale save-data)))))
+                                           (if embedded (gen-embed-ddf id position rotation scale save-data) (gen-ref-ddf id position rotation scale save-data))))
+  (output scene t/Any :cached (g/fnk [self transform scene]
+                                     (assoc scene
+                                            :id (g/node-id self)
+                                            :transform transform
+                                            :aabb (geom/aabb-transform (:aabb scene) transform)))))
 
 (g/defnk produce-save-data [resource name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   {:resource resource
@@ -77,44 +79,47 @@
 
 (g/defnode CollectionNode
   (inherits project/ResourceNode)
+  (inherits scene/SceneNode)
 
   (property name t/Str)
 
-  (input aabbs [AABB])
   (input outline [t/Any])
-  (input render-setups [t/Any])
   (input ref-inst-ddf [t/Any])
   (input embed-inst-ddf [t/Any])
   (input ref-coll-ddf [t/Any])
+  (input child-scenes [t/Any])
 
   (output outline t/Any (g/fnk [self outline] {:self self :label "Collection" :icon collection-icon :children outline}))
-  (output aabb AABB (g/fnk [aabbs] (reduce (fn [a b] (geom/aabb-union a b)) (geom/null-aabb) aabbs)))
-  (output save-data t/Any :cached produce-save-data))
+  (output save-data t/Any :cached produce-save-data)
+  (output scene t/Any :cached (g/fnk [self child-scenes]
+                                     {:id (g/node-id self)
+                                      :children child-scenes
+                                      :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))})))
 
 (g/defnode CollectionInstanceNode
+  (inherits scene/SceneNode)
+
   (property id t/Str)
   (property path t/Str)
-  (property position Point3d)
-  (property rotation Quat4d)
-  (property scale t/Num) ; TODO - non-uniform scale
 
   (input source t/Any)
-  (input aabbs [AABB])
   (input outline t/Any)
   (input save-data t/Any)
+  (input scene t/Any)
 
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon collection-icon})))
-  (output render-setup t/Any (g/fnk [source]
-                                    (let [resource-type (project/get-resource-type source)
-                                          view-fns (:scene (:view-fns resource-type))]
-                                      {:self source :setup-rendering-fn (:setup-rendering-fn view-fns)})))
   (output ddf-message t/Any :cached (g/fnk [id path position rotation scale]
                                            (.build (doto (GameObject$CollectionInstanceDesc/newBuilder)
                                                      (.setId id)
                                                      (.setCollection path)
-                                                     (.setPosition (protobuf/vecmath->pb position))
+                                                     (.setPosition (protobuf/vecmath->pb (Point3d. position)))
                                                      (.setRotation (protobuf/vecmath->pb rotation))
-                                                     (.setScale scale))))))
+                                                     (.setScale scale)))))
+  (output scene t/Any :cached (g/fnk [self transform scene]
+                                     (assoc scene
+                                            :id (g/node-id self)
+                                            :transform transform
+                                            :aabb (geom/aabb-transform (:aabb scene) transform)))))
 
 (defn load-collection [project self input]
   (let [collection (protobuf/pb->map (protobuf/read-text GameObject$CollectionDesc input))
@@ -124,50 +129,46 @@
       (for [game-object (:instances collection)]
         (g/make-nodes project-graph
                       [go-node [GameObjectInstanceNode :id (:id game-object) :path (:prototype game-object)
-                                :position (:position game-object) :rotation (:rotation game-object) :scale (:scale game-object)]]
+                                :position (t/Point3d->Vec3 (:position game-object)) :rotation (math/quat->euler (:rotation game-object)) :scale (:scale game-object)]]
                       (g/connect go-node :outline self :outline)
                       (if-let [source-node (project/resolve-resource-node self (:prototype game-object))]
-                        [(g/connect go-node :render-setup self :render-setups)
-                         (g/connect go-node :ddf-message self :ref-inst-ddf)
+                        [(g/connect go-node :ddf-message self :ref-inst-ddf)
+                         (g/connect go-node :scene self :child-scenes)
                          (g/connect source-node :self go-node :source)
                          (g/connect source-node :outline go-node :outline)
-                         (g/connect source-node :save-data go-node :save-data)]
+                         (g/connect source-node :save-data go-node :save-data)
+                         (g/connect source-node :scene go-node :scene)]
                         [])))
       (for [embedded (:embedded-instances collection)]
         (let [resource (project/make-embedded-resource project "go" (:data embedded))]
           (if-let [resource-type (and resource (workspace/resource-type resource))]
             (g/make-nodes project-graph
                           [go-node [GameObjectInstanceNode :id (:id embedded) :embedded true
-                                    :position (:position embedded) :rotation (:rotation embedded) :scale (:scale embedded)]
+                                    :position (t/Point3d->Vec3 (:position embedded)) :rotation (math/quat->euler (:rotation embedded)) :scale (:scale embedded)]
                            source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
                           (g/connect source-node :self       go-node :source)
                           (g/connect source-node :outline    go-node :outline)
                           (g/connect source-node :save-data  go-node :save-data)
+                          (g/connect source-node :scene  go-node :scene)
                           (g/connect go-node   :outline      self    :outline)
                           (g/connect go-node   :ddf-message  self    :embed-inst-ddf)
-                          (g/connect go-node   :render-setup self    :render-setups))
+                          (g/connect go-node   :scene self    :child-scenes))
             (g/make-nodes project-graph
                           [go-node [GameObjectInstanceNode :id (:id embedded) :embedded true]]
                           (g/connect go-node :outline self :outline)))))
       (for [coll-instance (:collection-instances collection)]
         (g/make-nodes project-graph
                       [coll-node [CollectionInstanceNode :id (:id coll-instance) :path (:collection coll-instance)
-                                  :position (:position coll-instance) :rotation (:rotation coll-instance) :scale (:scale coll-instance)]]
+                                  :position (t/Point3d->Vec3 (:position coll-instance)) :rotation (math/quat->euler (:rotation coll-instance)) :scale (:scale coll-instance)]]
                       (g/connect coll-node :outline self :outline)
                       (if-let [source-node (project/resolve-resource-node self (:collection coll-instance))]
-                        [(g/connect coll-node   :render-setup self :render-setups)
-                         (g/connect coll-node   :ddf-message  self :ref-coll-ddf)
+                        [(g/connect coll-node   :ddf-message  self :ref-coll-ddf)
+                         (g/connect coll-node   :scene  self :child-scenes)
                          (g/connect source-node :self         coll-node :source)
                          (g/connect source-node :outline      coll-node :outline)
-                         (g/connect source-node :save-data    coll-node :save-data)]
+                         (g/connect source-node :save-data    coll-node :save-data)
+                         (g/connect source-node :scene    coll-node :scene)]
                         []))))))
-
-(defn setup-rendering [self view]
-  (for [render-setup (g/node-value self :render-setups)
-        :when (:setup-rendering-fn render-setup)
-        :let [node (:self render-setup)
-              render-fn (:setup-rendering-fn render-setup)]]
-    (render-fn (g/refresh node) view)))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -176,5 +177,4 @@
                                     :load-fn load-collection
                                     :icon collection-icon
                                     :view-types [:scene]
-                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view :grid true))
-                                                       :setup-rendering-fn setup-rendering}}))
+                                    :view-opts {:scene {:grid true}}))

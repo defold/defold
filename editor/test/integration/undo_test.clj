@@ -74,9 +74,9 @@
   (let [resource-type (project/get-resource-type resource-node)]
     (when (and resource-type (:view-types resource-type))
       (let [make-preview-fn (:make-preview-fn (first (:view-types resource-type)))
-            view-fns (:scene (:view-fns resource-type))
+            view-opts (:scene (:view-opts resource-type))
             view-graph (g/make-graph! :volatility 100)]
-        (make-preview-fn view-graph view-fns resource-node 128 128)))))
+        (make-preview-fn view-graph resource-node view-opts 128 128)))))
 
 (defn- has-undo? [graph]
   (g/has-undo? graph))

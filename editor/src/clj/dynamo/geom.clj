@@ -4,7 +4,7 @@
             [dynamo.types :as t :refer [min-p max-p]])
   (:import [dynamo.types Rect AABB]
            [com.defold.util Geometry]
-           [javax.vecmath Point3d Point4d Vector4d Vector3d Matrix4d]))
+           [javax.vecmath Point3d Point4d Vector4d Vector3d Quat4d Matrix4d]))
 
 (defn clamper [low high] (fn [x] (min (max x low) high)))
 
@@ -279,6 +279,17 @@
   (-> (null-aabb)
     (aabb-incorporate  1  1  1)
     (aabb-incorporate -1 -1 -1)))
+
+(defn aabb-transform [^AABB aabb ^Matrix4d transform]
+  (if (= aabb (null-aabb))
+    aabb
+    (let [extents [(t/min-p aabb) (t/max-p aabb)]
+          points (for [x (map #(.x %) extents)
+                       y (map #(.y %) extents)
+                       z (map #(.z %) extents)] (Point3d. x y z))]
+      (doseq [p points]
+        (.transform transform p))
+      (reduce #(aabb-incorporate %1 %2) (null-aabb) points))))
 
 ; -------------------------------------
 ; Primitive shapes as vertex arrays
