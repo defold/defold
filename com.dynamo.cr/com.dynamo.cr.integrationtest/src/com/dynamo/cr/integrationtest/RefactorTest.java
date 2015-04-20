@@ -56,6 +56,7 @@ import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.dynamo.spine.proto.Spine.SpineModelDesc;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
@@ -478,6 +479,44 @@ public class RefactorTest {
             @Override
             public String[] getReferences(PrototypeDesc desc) {
                 return new String[] { desc.getComponents(1).getComponent() };
+            }
+        });
+    }
+
+    @Test
+    public void testRenameEmbeddedWav() throws CoreException, IOException {
+        testRename(CollectionDesc.newBuilder(), "collection/embedded_embedded_sounds.collection", "/sounds/powerup.wav", new ReferenceFetcher<CollectionDesc>() {
+            @Override
+            public String[] getReferences(CollectionDesc desc) {
+                try {
+                    PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
+                    TextFormat.merge(desc.getEmbeddedInstances(0).getData(), b);
+                    SoundDesc.Builder c = SoundDesc.newBuilder();
+                    TextFormat.merge(b.getEmbeddedComponents(0).getData(), c);
+                    return new String[] { c.getSound() };
+                } catch (TextFormat.ParseException e) {
+                    assertTrue(false);
+                    return null;
+                }
+            }
+        });
+    }
+
+    @Test
+    public void testRenameEmbeddedOgg() throws CoreException, IOException {
+        testRename(CollectionDesc.newBuilder(), "collection/embedded_embedded_sounds.collection", "/sounds/drums.ogg", new ReferenceFetcher<CollectionDesc>() {
+            @Override
+            public String[] getReferences(CollectionDesc desc) {
+                try {
+                    PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
+                    TextFormat.merge(desc.getEmbeddedInstances(1).getData(), b);
+                    SoundDesc.Builder c = SoundDesc.newBuilder();
+                    TextFormat.merge(b.getEmbeddedComponents(0).getData(), c);
+                    return new String[] { c.getSound() };
+                } catch (TextFormat.ParseException e) {
+                    assertTrue(false);
+                    return null;
+                }
             }
         });
     }

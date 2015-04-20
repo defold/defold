@@ -30,7 +30,6 @@ public class CollectionRefactorParticipant extends GenericRefactorParticipant {
             String resource, IFile reference, String newPath) throws CoreException {
         Builder builder = CollectionDesc.newBuilder();
 
-        IContainer contentRoot = context.getContentRoot();
         try {
             // First use regular reference updating.
             // Then check all embedded objects.
@@ -49,22 +48,18 @@ public class CollectionRefactorParticipant extends GenericRefactorParticipant {
             Builder newBuilder = CollectionDesc.newBuilder(collection);
             newBuilder.clearEmbeddedInstances();
 
+            GameObjectRefactorParticipant gorp = new GameObjectRefactorParticipant();
+
             List<EmbeddedInstanceDesc> originalList = collection.getEmbeddedInstancesList();
             for (EmbeddedInstanceDesc desc : originalList) {
-
-                PrototypeDesc.Builder protoBuilder = PrototypeDesc.newBuilder();
-                TextFormat.merge(desc.getData(), protoBuilder);
-                PrototypeDesc tmp = protoBuilder.build();
-                MessageNode node = new MessageNode(tmp);
-                boolean embeddedChanged = GenericRefactorParticipant.doUpdateReferences(contentRoot, reference, newPath, node, node);
-                if (embeddedChanged) {
+                String newContent = gorp.updateReferences(context, desc.getData(), reference, newPath);
+                if (newContent != null) {
                     EmbeddedInstanceDesc.Builder b = EmbeddedInstanceDesc.newBuilder();
                     b.mergeFrom(desc);
-                    b.setData(TextFormat.printToString(node.build()));
+                    b.setData(newContent);
                     newBuilder.addEmbeddedInstances(b.build());
                     changed = true;
-                }
-                else {
+                } else {
                     newBuilder.addEmbeddedInstances(desc);
                 }
             }
