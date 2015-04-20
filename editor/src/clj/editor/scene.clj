@@ -271,8 +271,11 @@
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                   ; Needed for scopes
-                  (g/connect renderer :self view :nodes)
-                  (g/connect camera :self view :nodes)
+;                  (g/connect renderer :self view :nodes)
+;                  (g/connect camera :self view :nodes)
+
+                  (g/set-graph-value view-graph :renderer renderer)
+                  (g/set-graph-value view-graph :camera   camera)
 
                   (g/connect background      :renderable    renderer        :renderables)
                   (g/connect camera          :camera        renderer        :camera)

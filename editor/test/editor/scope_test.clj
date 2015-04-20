@@ -6,7 +6,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.node :as n]
             [dynamo.types :as t]
             [editor.core :as core]
             [schema.macros :as sm]))
@@ -56,8 +55,8 @@
 (g/defnode N2)
 
 (deftest input-compatibility
-  (let [n1 (n/construct N1)
-        n2 (n/construct N2)]
+  (let [n1 (g/construct N1)
+        n2 (g/construct N2)]
     (are [out-node out out-type in-node in in-type expect-compat why]
       (= expect-compat (core/compatible? [out-node out out-type in-node in in-type]))
       n1 :image Image    n2 :image  ABACAB    nil                    "type mismatch"
@@ -68,28 +67,6 @@
       n1 :name  String   n2 :names  String    nil                    "plural name, singular type"
       n1 :names [String] n2 :names  [String]  [n1 :names n2 :names]  "ok"
       n1 :name  String   n2 :name   [String]  nil                    "singular name, plural type")))
-
-(g/defnode ParticleEditor
-  (inherits core/Scope))
-
-(g/defnode Emitter
-  (property name t/Str))
-
-(g/defnode Modifier
-  (property name t/Str))
-
-(deftest scope-registration
-  (testing "Nodes are registered within a scope by name"
-    (with-clean-system
-      (let [[view emitter modifier] (tx-nodes (g/make-node world ParticleEditor)
-                                              (g/make-node world Emitter :name "emitter")
-                                              (g/make-node world Modifier :name "vortex"))]
-        (g/transact
-         [(g/connect emitter  :self view :nodes)
-          (g/connect modifier :self view :nodes)])
-
-        (is (identical? (t/lookup view "emitter") emitter))
-        (is (identical? (t/lookup view "vortex")  modifier))))))
 
 (g/defnode DisposableNode
   t/IDisposable
@@ -102,7 +79,7 @@
             tx-result      (g/transact
                             (for [n (range node-count)]
                               (g/make-node world DisposableNode)))
-            disposable-ids (map second (:tempids tx-result))]
+            disposable-ids (map g/node-id (g/tx-nodes-added tx-result))]
         (g/transact (for [i disposable-ids]
                        (g/connect i :self scope :nodes)))
         (g/transact (g/delete-node scope))

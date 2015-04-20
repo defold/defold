@@ -1,6 +1,5 @@
 (ns dynamo.graph
   (:require [clojure.tools.macro :as ctm]
-            [dynamo.node :as dn]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.cache :as c]
@@ -10,11 +9,12 @@
             [internal.node :as in]
             [internal.system :as is]
             [internal.transaction :as it]
+            [plumbing.core :as pc]
             [potemkin.namespaces :refer [import-vars]]))
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types tempid node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
+(import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' MessageTarget process-one-event])
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
@@ -106,11 +106,52 @@
   [transaction]
   (:original-basis transaction))
 
+;; ---------------------------------------------------------------------------
+;; Intrinsics
+;; ---------------------------------------------------------------------------
+(defn- gather-property [this prop]
+  (let [type     (-> this gt/properties prop)
+        value    (get this prop)
+        problems (t/property-validate type value)]
+    {:node-id             (gt/node-id this)
+     :value               value
+     :type                type
+     :validation-problems problems}))
+
+(pc/defnk gather-properties :- t/Properties
+  "Production function that delivers the definition and value
+for all properties of this node."
+  [this]
+  (let [property-names (-> this gt/properties keys)]
+    (zipmap property-names (map (partial gather-property this) property-names))))
+
+(def node-intrinsics
+  [(list 'output 'self `t/Any `(pc/fnk [~'this] ~'this))
+   (list 'output 'properties `t/Properties `gather-properties)])
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
 (declare become)
+
+(defn construct
+  "Creates an instance of a node. The node-type must have been
+  previously defined via `defnode`.
+
+  The node's properties will all have their default values. The caller
+  may pass key/value pairs to override properties.
+
+  A node that has been constructed is not connected to anything and it
+  doesn't exist in any graph yet.
+
+  Example:
+  (defnode GravityModifier
+    (property acceleration t/Int (default 32))
+
+  (construct GravityModifier :acceleration 16)"
+  [node-type & {:as args}]
+  (assert (::ctor node-type))
+  ((::ctor node-type) args))
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -224,20 +265,20 @@
         ctor-name    (symbol (str 'map-> record-name))]
     `(do
        (declare ~ctor-name ~symb)
-       (let [description#    ~(in/node-type-sexps symb (concat dn/node-intrinsics forms))
+       (let [description#    ~(in/node-type-sexps symb (concat node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
              all-graphs#     (map-vals deref (is/graphs @*the-system*))
              to-be-replaced# (when (and all-graphs# replacing#)
                                (filterv #(= replacing# (node-type %)) (mapcat ig/node-values (vals all-graphs#))))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
-         (def ~symb (in/make-node-type (assoc description# :dynamo.node/ctor ctor#)))
+         (def ~symb (in/make-node-type (assoc description# :dynamo.graph/ctor ctor#)))
          (in/define-node-record  '~record-name '~symb ~symb)
          (in/define-print-method '~record-name '~symb ~symb)
          (when (< 0 (count to-be-replaced#))
            (transact
             (mapcat (fn [r#]
-                      (let [new# (dn/construct ~symb)]
+                      (let [new# (construct ~symb)]
                         (become r# new#)))
                     to-be-replaced#)))
          (var ~symb)))))
@@ -267,14 +308,15 @@
   (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
   (let [locals (take-nth 2 binding-expr)
         ctors  (take-nth 2 (next binding-expr))
-        ids    (repeat (count locals) `(tempid ~gid))]
+        ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~gid))]
     `(let [~@(interleave locals ids)]
        (concat
         ~@(map
            (fn [ctor id]
-             (if (sequential? ctor)
-               `(g/make-node ~gid ~@ctor :_id ~id)
-               `(g/make-node ~gid ~ctor :_id ~id)))
+             (list `it/new-node
+                   (if (sequential? ctor)
+                     `(construct ~@ctor :_id ~id)
+                     `(construct  ~ctor :_id ~id))))
            ctors locals)
         ~@body-exprs))))
 
@@ -298,7 +340,7 @@
 
 (defn make-node
   [gid node-type & args]
-  (it/new-node (apply dn/construct node-type :_id (tempid gid) args)))
+  (it/new-node (apply construct node-type :_id (is/next-node-id @*the-system* gid) args)))
 
 (defn make-node!
   [gid node-type & args]
@@ -415,6 +457,14 @@
    (graph-value (now) gid k))
   ([basis gid k]
    (get-in basis [:graphs gid k])))
+
+(defn dispatch-message
+  "This is an advanced usage. If you have a reference to a node,
+  you can directly send it a message.
+
+  This function should mainly be used to create 'plumbing'."
+  [basis node type & {:as body}]
+  (gt/process-one-event (gt/node-by-id basis (gt/node-id node)) (assoc body :type type)))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph

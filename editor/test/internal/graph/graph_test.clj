@@ -19,16 +19,10 @@
   (let [g (random-graph)]
     (is (= 1 (apply max (occurrences (ig/node-ids g)))))))
 
-(deftest adding-node
-  (let [v       "Any ig/node value at all"
-        g       (random-graph)
-        [g' id] (ig/claim-id g)
-        g       (ig/add-node g' id v)]
-    (is (= v (ig/node g id)))))
-
 (deftest removing-node
   (let [v      "Any ig/node value"
-        [g id] (ig/claim-id (random-graph))
+        g      (random-graph)
+        id     (inc (count (:nodes g)))
         g      (ig/add-node g id v)
         g      (ig/remove-node g id)]
     (is (nil? (ig/node g id)))
@@ -52,7 +46,8 @@
     (is (arcs-are-reflexive? g))))
 
 (deftest transformable
-  (let [[g id] (ig/claim-id  (random-graph))
+  (let [g      (random-graph)
+        id     (inc (count (:nodes g)))
         g      (ig/add-node g id {:number 0})
         g'     (ig/transform-node g id update-in [:number] inc)]
     (is (not= g g'))
