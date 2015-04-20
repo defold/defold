@@ -82,7 +82,7 @@
       (swap! binder assoc-in [:toolbars toolbar-id] toolbar)
       (doseq [n (.getChildren toolbar)]
         (when (instance? ButtonBase n)
-          (.setOnAction n (event-handler event (handler/run (keyword (.getId n)) :project arg-map))))))
+          (.setOnAction n (event-handler event (handler/run (keyword (.getId n)) arg-map))))))
     (log/warn :message (format "toolbar %s not found" toolbar-id))))
 
 (defn- refresh-toolbar [toolbar arg-map]
