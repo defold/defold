@@ -79,9 +79,13 @@
 (def Icon    Str)
 
 (def Color   [Num])
+
 (def Vec3    [(one Num "x")
               (one Num "y")
               (one Num "z")])
+
+(defn Point3d->Vec3 [p]
+  [(.getX p) (.getY p) (.getZ p)])
 
 (def MouseType (enum :one-button :three-button))
 
