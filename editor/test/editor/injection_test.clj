@@ -3,7 +3,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.node :as n]
             [dynamo.types :as t]
             [editor.core :as core]))
 
@@ -34,10 +33,10 @@
   (output label t/Keyword produce-label))
 
 (deftest compatible-inputs-and-outputs
-  (let [recv    (n/construct Receiver)
-        sender  (n/construct Sender1)
-        sampler (n/construct Sampler)
-        labeler (n/construct Labeler)]
+  (let [recv    (g/construct Receiver)
+        sender  (g/construct Sender1)
+        sampler (g/construct Sampler)
+        labeler (g/construct Labeler)]
     (is (= #{[sender  :surname recv :surname]} (core/injection-candidates [recv] [sender])))
     (is (= #{[sampler :sample  recv :samples]} (core/injection-candidates [recv] [sampler])))
     (is (= #{[labeler :label   recv :label]}   (core/injection-candidates [recv] [labeler])))))

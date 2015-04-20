@@ -308,6 +308,9 @@
   [])
 
 (g/defnode CountOnDelete
+  (input upstream Integer)
+  (output downstream Integer (g/fnk [upstream] (inc upstream)))
+
   (trigger deletion :deleted #'bump-counter))
 
 (deftest graph-deletion
@@ -350,6 +353,9 @@
         (let [nodes (ts/tx-nodes
                      (for [n (range 100)]
                        (g/make-node pgraph-id CountOnDelete :counter ctr)))]
+          (g/transact
+           (for [[n1 n2] (partition 2 1 nodes)]
+             (g/connect n1 :downstream n2 :upstream)))
           (g/delete-graph pgraph-id)
 
           (is (= 100 @ctr))))))

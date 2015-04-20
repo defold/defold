@@ -13,4 +13,5 @@ instances {
     z: 0.0
     w: 1.0
   }
+  scale: 1.0
 }

@@ -17,6 +17,7 @@ ordinary paths."
   (read-only? [this])
   (path [this])
   (abs-path [this])
+  (proj-path [this])
   (url [this])
   (resource-name [this]))
 
@@ -39,6 +40,7 @@ ordinary paths."
   (read-only? [this] (not (.canWrite file)))
   (path [this] (relative-path (File. (:root workspace)) file))
   (abs-path [this] (.getAbsolutePath  file))
+  (proj-path [this] (str "/" (path this)))
   (url [this] (str "file:/" (relative-path (File. (:root workspace)) file)))
   (resource-name [this] (.getName file))
 
@@ -58,6 +60,7 @@ ordinary paths."
   (read-only? [this] false)
   (path [this] nil)
   (abs-path [this] nil)
+  (proj-path [this] nil)
   (url [this] nil)
   (resource-name [this] nil)
 
