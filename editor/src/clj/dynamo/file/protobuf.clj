@@ -3,6 +3,8 @@
             [clojure.java.io :as io]
             [internal.java :as j])
   (:import [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]
+           [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
+           [com.dynamo.proto DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.io Reader]))
 
 (defmacro set-if-present
@@ -45,6 +47,74 @@ placed into the protocol buffer."
   [^Descriptors$EnumValueDescriptor val]
   (keyword (.getName val)))
 
+(defn- msg->vecmath [^Message pb v]
+  (let [cls (class pb)]
+    (cond
+      (= cls DdfMath$Point3)
+      (Point3d. (:x v) (:y v) (:z v))
+
+      (= cls DdfMath$Vector3)
+      (Vector3d. (:x v) (:y v) (:z v))
+
+      (= cls DdfMath$Vector4)
+      (Vector4d. (:x v) (:y v) (:z v) (:w v))
+
+      (= cls DdfMath$Quat)
+      (Quat4d. (:x v) (:y v) (:z v) (:w v))
+
+      (= cls DdfMath$Matrix4)
+      (Matrix4d. (:m00 v) (:m01 v) (:m02 v) (:m03 v)
+                 (:m10 v) (:m11 v) (:m12 v) (:m13 v)
+                 (:m20 v) (:m21 v) (:m22 v) (:m23 v)
+                 (:m30 v) (:m31 v) (:m32 v) (:m33 v))
+
+      :else v)))
+
+(defmulti vecmath->pb (fn [v] (class v)))
+
+(defmethod vecmath->pb Point3d [v]
+  (->
+    (doto (DdfMath$Point3/newBuilder)
+      (.setX (.getX v))
+      (.setY (.getY v))
+      (.setZ (.getZ v)))
+    (.build)))
+
+(defmethod vecmath->pb Vector3d [v]
+  (->
+    (doto (DdfMath$Vector3/newBuilder)
+      (.setX (.getX v))
+      (.setY (.getY v))
+      (.setZ (.getZ v)))
+    (.build)))
+
+(defmethod vecmath->pb Vector4d [v]
+  (->
+    (doto (DdfMath$Vector4/newBuilder)
+      (.setX (.getX v))
+      (.setY (.getY v))
+      (.setZ (.getZ v))
+      (.setW (.getW v)))
+    (.build)))
+
+(defmethod vecmath->pb Quat4d [v]
+  (->
+    (doto (DdfMath$Quat/newBuilder)
+      (.setX (.getX v))
+      (.setY (.getY v))
+      (.setZ (.getZ v))
+      (.setW (.getW v)))
+    (.build)))
+
+(defmethod vecmath->pb Matrix4d [v]
+  (->
+    (doto (DdfMath$Point3/newBuilder)
+      (.setM00 (.getElement 0 0 v)) (.setM01 (.getElement 0 1 v)) (.setM02 (.getElement 0 2 v)) (.setM03 (.getElement 0 3 v))
+      (.setM10 (.getElement 1 0 v)) (.setM11 (.getElement 1 1 v)) (.setM12 (.getElement 1 2 v)) (.setM13 (.getElement 1 3 v))
+      (.setM20 (.getElement 2 0 v)) (.setM21 (.getElement 2 1 v)) (.setM22 (.getElement 2 2 v)) (.setM23 (.getElement 2 3 v))
+      (.setM30 (.getElement 3 0 v)) (.setM31 (.getElement 3 1 v)) (.setM32 (.getElement 3 2 v)) (.setM33 (.getElement 3 3 v)))
+    (.build)))
+
 (defn pb->map
   [^Message pb]
   (let [fld->map (fn [m [^Descriptors$FieldDescriptor descriptor value]]
@@ -58,5 +128,7 @@ placed into the protocol buffer."
                        (assoc m prop (if repeated? (map pb-enum->val value) (pb-enum->val value)))
 
                        :else
-                       (assoc m prop (if repeated? (seq value) value)))))]
-    (reduce fld->map {} (.getAllFields pb))))
+                       (assoc m prop (if repeated? (seq value) value)))))
+        all-fields     (.getFields (.getDescriptorForType pb))]
+    (->> (reduce fld->map {} (zipmap all-fields (map #(.getField pb %) all-fields)))
+      (msg->vecmath pb))))

@@ -382,7 +382,7 @@ not called directly."
 (defn attach-input
   "Update the node type description with the given input."
   [description label schema flags]
-  (assert (name-available description label) (str "Cannot create input " label ". It is already in use."))
+  (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
   (cond->
     (assoc-in description [:inputs label] schema)
 

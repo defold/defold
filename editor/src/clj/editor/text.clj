@@ -1,27 +1,6 @@
 (ns editor.text
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
-            [dynamo.node :as n]
-            [dynamo.types :as t]
-            [editor.app-view :as app-view]
-            [editor.asset-browser :as asset-browser]
-            [editor.atlas :as atlas]
-            [editor.collection :as collection]
+  (:require [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.graph-view :as graph-view]
-            [editor.image :as image]
-            [editor.jfx :as jfx]
-            [editor.menu :as menu]
-            [editor.outline-view :as outline-view]
-            [editor.platformer :as platformer]
-            [editor.project :as project]
-            [editor.properties-view :as properties-view]
-            [editor.scene :as scene]
-            [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
-            [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -47,7 +26,7 @@
 
 (g/defnode TextView
   (inherits core/ResourceNode)
-  
+
   (property text-area TextArea)
 
   )

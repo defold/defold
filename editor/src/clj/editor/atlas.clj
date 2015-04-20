@@ -237,7 +237,17 @@
   (input src-image BufferedImage)
   (output image Image (g/fnk [path src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
-  (output outline t/Any (g/fnk [self path] {:self self :label (path->id path) :icon image-icon})))
+  (output outline t/Any (g/fnk [self path] {:self self :label (path->id path) :icon image-icon}))
+  (output ddf-message t/Any :cached (g/fnk [path] (.build (doto (AtlasProto$AtlasImage/newBuilder) (.setImage path))))))
+
+(g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]
+  (.build (doto (AtlasProto$AtlasAnimation/newBuilder)
+            (.setId id)
+            (.setFps fps)
+            (.setFlipHorizontal flip-horizontal)
+            (.setFlipVertical flip-vertical)
+            (.setPlayback (protobuf/val->pb-enum Tile$Playback playback))
+            (.addAllImages img-ddf))))
 
 (g/defnode AtlasAnimation
   (property id t/Str)
@@ -248,10 +258,22 @@
 
   (input frames [Image])
   (input outline [t/Any])
+  (input img-ddf [t/Any])
 
   (output animation Animation (g/fnk [this id frames :- [Image] fps flip-horizontal flip-vertical playback]
                                      (->Animation id frames fps flip-horizontal flip-vertical playback)))
-  (output outline t/Any (g/fnk [self id outline] {:self self :label id :children outline :icon animation-icon})))
+  (output outline t/Any (g/fnk [self id outline] {:self self :label id :children outline :icon animation-icon}))
+  (output ddf-message t/Any :cached produce-anim-ddf))
+
+(g/defnk produce-save-data [resource margin extrude-borders img-ddf anim-ddf]
+  {:resource resource
+   :content (-> (doto (AtlasProto$Atlas/newBuilder)
+                  (.setMargin margin)
+                  (.setExtrudeBorders extrude-borders)
+                  (.addAllImages img-ddf)
+                  (.addAllAnimations anim-ddf))
+              (.build)
+              (protobuf/pb->str))})
 
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
@@ -261,6 +283,8 @@
 
   (input animations [Animation])
   (input outline [t/Any])
+  (input img-ddf [t/Any])
+  (input anim-ddf [t/Any])
 
   (output images          [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
   (output aabb            AABB           (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
@@ -268,7 +292,8 @@
   (output texture-packing TexturePacking :cached :substitute-value (tex/blank-texture-packing) produce-texture-packing)
   (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
   (output textureset      TextureSet     :cached produce-textureset)
-  (output outline         t/Any          :cached (g/fnk [self outline] {:self self :label "Atlas" :children outline :icon atlas-icon})))
+  (output outline         t/Any          :cached (g/fnk [self outline] {:self self :label "Atlas" :children outline :icon atlas-icon}))
+  (output save-data       t/Any          :cached produce-save-data))
 
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
 
@@ -279,32 +304,34 @@
    (g/make-nodes
      graph-id
      [atlas-image [AtlasImage :path image]]
-     (g/connect img-node :content   atlas-image :src-image)
-     (g/connect atlas-image           src-label  parent      tgt-label)
-     (g/connect atlas-image           :outline   parent      :outline))))
+     (g/connect img-node    :content     atlas-image :src-image)
+     (g/connect atlas-image src-label    parent      tgt-label)
+     (g/connect atlas-image :outline     parent      :outline)
+     (g/connect atlas-image :ddf-message parent      :img-ddf))))
 
 (defn load-atlas [project self input]
   (let [atlas         (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))
         graph-id      (g/node->graph-id self)]
     (concat
-      ;; TODO Bug, protobuf defaults should be preserved
-      (g/set-property self :margin (get atlas :margin 0))
-      (g/set-property self :extrude-borders (get atlas :extrude-borders 0))
+      (g/set-property self :margin (:margin atlas))
+      (g/set-property self :extrude-borders (:extrude-borders atlas))
       (attach-atlas-image-nodes graph-id self self (map :image (:images atlas)) :animation :animations)
       (for [anim (:animations atlas)
             :let [images (map :image (:images anim))]]
         (g/make-nodes
           (g/node->graph-id self)
           [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim) :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
-          (g/connect atlas-anim :animation self :animations)
-          (g/connect atlas-anim :outline   self :outline)
+          (g/connect atlas-anim :animation   self :animations)
+          (g/connect atlas-anim :outline     self :outline)
+          (g/connect atlas-anim :ddf-message self :anim-ddf)
           (attach-atlas-image-nodes graph-id self atlas-anim images :image :frames))))))
 
 (defn setup-rendering [self view]
-  (let [renderer (t/lookup view :renderer)
-        camera (t/lookup view :camera)]
+  (let [view-graph (g/node->graph-id view)
+        renderer   (g/graph-value view-graph :renderer)
+        camera     (g/graph-value view-graph :camera)]
     (g/make-nodes
-      (g/node->graph-id view)
+     view-graph
       [atlas-render AtlasRender]
       (g/connect self         :texture-packing atlas-render :texture-packing)
       (g/connect self         :gpu-texture     atlas-render :gpu-texture)
