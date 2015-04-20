@@ -59,16 +59,6 @@
       (shader/set-uniform platformer-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
 
-(g/defnk produce-renderable :- RenderData
-  [this base-texture vertex-buffer]
-  (if vertex-buffer
-    (let [world (Matrix4d. geom/Identity4d)]
-      {pass/transparent
-       [{:world-transform world
-         :render-fn       (fn [ctx gl glu text-renderer] (render-platformer gl base-texture vertex-buffer))}]})
-    {})
-  )
-
 (defn gen-mesh [control-points]
   (let [min-y (reduce #(min %1 (:y %2)) 0 control-points)
         pairs (partition 2 1 control-points)
@@ -90,24 +80,6 @@
 (defn filter-cps [control-points]
   (sort-by :x (flatten control-points)))
 
-(g/defnk produce-vertex-buffer [control-points]
-  (let [cps (filter-cps control-points)
-        quad-count (- (count cps) 1)]
-    (when (> quad-count 0)
-      (let [mesh (gen-mesh cps)
-            vbuf  (->texture-vtx (* 6 quad-count))]
-        (doseq [v mesh]
-          (conj! vbuf v))
-        (persistent! vbuf)))))
-
-(g/defnode PlatformerRender
-  #_(input gpu-textures {t/Str t/Any})
-  (input control-points [t/Any])
-  (input base-texture t/Any)
-
-  (output vertex-buffer t/Any      produce-vertex-buffer)
-  (output renderable    RenderData :cached produce-renderable))
-
 (defn- hit? [cp pos camera viewport]
   (let [screen-cp (c/camera-project camera viewport (Point3d. (:x cp) (:y cp) 0))
         xd (- (:x pos) (.x screen-cp))
@@ -116,12 +88,6 @@
     (when (and (<= (* xd xd) d-sq)
                (<= (* yd yd) d-sq))
       cp)))
-
-(let [test [0 1 2 3]]
-  (filter #(not= %1 1) test))
-
-(let [test [0 1 2 3]]
-  (conj test 5))
 
 (defn handle-input [self action]
   (let [camera (g/node-value self :camera)
@@ -171,6 +137,26 @@
   {:resource resource
    :content (with-out-str (pprint {:control-points control-points :base-texture base-texture}))})
 
+(defn gen-vertex-buffer [control-points]
+  (let [cps (filter-cps control-points)
+        quad-count (- (count cps) 1)]
+    (when (> quad-count 0)
+      (let [mesh (gen-mesh cps)
+            vbuf  (->texture-vtx (* 6 quad-count))]
+        (doseq [v mesh]
+          (conj! vbuf v))
+        (persistent! vbuf)))))
+
+(g/defnk produce-scene
+  [self aabb base-texture-tex control-points]
+  (let [scene {:id (g/node-id self) :aabb aabb :transform (Matrix4d. geom/Identity4d)}
+        vertex-buffer (gen-vertex-buffer control-points)]
+    (if vertex-buffer
+      (assoc scene :renderables {pass/transparent
+                                 [{:world-transform (Matrix4d. geom/Identity4d)
+                                   :render-fn       (g/fnk [gl] (render-platformer gl base-texture-tex vertex-buffer))}]})
+     scene)))
+
 (g/defnode PlatformerNode
   (inherits project/ResourceNode)
 
@@ -186,7 +172,8 @@
                                                                       :wrap-s     gl/repeat
                                                                       :wrap-t     gl/repeat})))
   (output aabb          AABB  :cached (g/fnk [control-points] (reduce (fn [aabb cp] (geom/aabb-incorporate aabb (:x cp) (:y cp) 0)) (geom/null-aabb) control-points)))
-  (output save-data     t/Any :cached produce-save-data))
+  (output save-data     t/Any :cached produce-save-data)
+  (output scene         t/Any :cached produce-scene))
 
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
@@ -198,29 +185,6 @@
          (g/connect img-node :content self :base-texture-img)
          [])))))
 
-(defn setup-rendering [self view]
-  (let [view-graph (g/node->graph-id view)
-        renderer   (g/graph-value view-graph :renderer)
-        camera     (g/graph-value view-graph :camera)]
-    (g/make-nodes
-     view-graph
-     [platformer-render PlatformerRender]
-     (g/connect self              :base-texture-tex platformer-render :base-texture)
-     (g/connect self              :control-points   platformer-render :control-points)
-     (g/connect platformer-render :renderable       renderer          :renderables)
-     (g/connect self              :aabb             camera            :aabb))))
-
-(defn setup-editing [self view]
-  (let [view-graph (g/node->graph-id view)
-        renderer   (g/graph-value view-graph :renderer)
-        camera     (g/graph-value view-graph :camera)]
-    (g/make-nodes
-     view-graph
-     [controller PlatformerController]
-     (g/connect view              :viewport       controller        :viewport)
-     (g/connect camera            :camera         controller        :camera)
-     (g/connect controller        :input-handler  view              :input-handlers))))
-
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "platformer"
@@ -228,5 +192,4 @@
                                     :load-fn load-level
                                     :icon platformer-icon
                                     :view-types [:scene]
-                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view :grid true))
-                                                       :setup-rendering-fn setup-rendering}}))
+                                    :view-opts {:scene {:grid true}}))

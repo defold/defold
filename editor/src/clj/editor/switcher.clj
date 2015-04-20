@@ -185,31 +185,14 @@
 (def active-cell (atom {}))
 
 (defn gen-level-vertex-buffer
-  [textureset layout size-half active-brush]
-  (let [layout (map (fn [cell] (if (= @active-cell cell) (assoc cell :image active-brush) cell)) layout)
-        cell-count (count layout)
+  [textureset layout size-half]
+  (let [cell-count (count layout)
         vbuf  (->texture-vtx (* 6 cell-count))]
     (doseq [vertex (cells->quads textureset layout cell-size-half true)]
       (conj! vbuf vertex))
     (persistent! vbuf)))
 
 ; Node defs
-
-(g/defnk produce-renderable
-  [this level gpu-texture level-vertex-binding active-brush level-layout]
-  {pass/transparent [{:world-transform geom/Identity4d
-                   :render-fn (fn [ctx gl glu text-renderer]
-                                (render-level gl level gpu-texture level-vertex-binding level-layout))}]})
-
-(g/defnode SwitcherRender
-  (input level t/Any)
-  (input gpu-texture t/Any)
-  (input textureset t/Any)
-  (input active-brush t/Str)
-
-  (output level-layout           t/Any :cached (g/fnk [level] (layout-level level)))
-  (output level-vertex-binding   t/Any :cached (g/fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
-  (output renderable             t/RenderData  produce-renderable))
 
 (g/defnk produce-controller-renderable
   [this level gpu-texture palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
@@ -279,6 +262,16 @@
   {:resource resource
    :content (with-out-str (pprint level))})
 
+(g/defnk produce-scene
+   [self aabb level gpu-texture textureset]
+   (let [level-layout (layout-level level)
+         level-vertex-binding (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half) shader)]
+     {:id (g/node-id self)
+      :aabb aabb
+      :transform geom/Identity4d
+      :renderables {pass/transparent [{:render-fn (g/fnk [gl]
+                                                         (render-level gl level gpu-texture level-vertex-binding level-layout))}]}}))
+
 (g/defnode SwitcherNode
   (inherits project/ResourceNode)
 
@@ -286,50 +279,28 @@
   (property width        t/Int (default 1))
   (property height       t/Int (default 1))
 
+  (input textureset t/Any)
+  (input gpu-texture t/Any)
+
   (output level t/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
   (output aabb AABB (g/fnk [width height]
                            (let [half-width (* 0.5 cell-size width)
                                  half-height (* 0.5 cell-size height)]
                              (t/->AABB (Point3d. (- half-width) (- half-height) 0)
                                        (Point3d. half-width half-height 0)))))
-  (output save-data t/Any :cached produce-save-data))
+  (output save-data t/Any :cached produce-save-data)
+  (output scene     t/Any :cached produce-scene))
 
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
-    (let [level (edn/read reader)]
-      [(g/set-property self :width (:width level))
-       (g/set-property self :height (:height level))
-       (g/set-property self :blocks (:blocks level))])))
-
-(defn setup-rendering [self view]
-  (let [view-graph (g/node->graph-id view)
-        renderer   (g/graph-value view-graph :renderer)
-        camera     (g/graph-value view-graph :camera)
-        atlas-node (project/resolve-resource-node self switcher-atlas-file)]
-    (g/make-nodes
-     view-graph
-     [switcher-render SwitcherRender]
-     (g/connect switcher-render :renderable    renderer        :renderables)
-     (g/connect self            :level         switcher-render :level)
-     (g/connect atlas-node      :gpu-texture   switcher-render :gpu-texture)
-     (g/connect atlas-node      :textureset    switcher-render :textureset)
-     (g/connect self            :aabb          camera          :aabb))))
-
-(defn setup-editing [self view]
-  (let [view-graph (g/node->graph-id view)
-        renderer   (g/graph-value view-graph :renderer)
-        camera     (g/graph-value view-graph :camera)
-        atlas-node (project/resolve-resource-node self switcher-atlas-file)]
-    (g/make-nodes
-     view-graph
-     [controller SwitcherController]
-     (g/connect view            :viewport      controller      :viewport)
-     (g/connect camera          :camera        controller      :camera)
-     (g/connect controller      :input-handler view            :input-handlers)
-     (g/connect controller      :renderable    renderer        :renderables)
-     (g/connect atlas-node      :gpu-texture   controller      :gpu-texture)
-     (g/connect atlas-node      :textureset    controller      :textureset)
-     (g/connect self            :aabb          camera          :aabb))))
+    (let [level      (edn/read reader)
+          atlas-node (project/resolve-resource-node self switcher-atlas-file)]
+      (concat
+        (g/set-property self :width (:width level))
+        (g/set-property self :height (:height level))
+        (g/set-property self :blocks (:blocks level))
+        (g/connect atlas-node :gpu-texture self :gpu-texture)
+        (g/connect atlas-node :textureset  self :textureset)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -337,6 +308,4 @@
                                     :node-type SwitcherNode
                                     :load-fn load-level
                                     :icon switcher-icon
-                                    :view-types [:scene]
-                                    :view-fns {:scene {:setup-view-fn (fn [self view] (scene/setup-view view))
-                                                       :setup-rendering-fn setup-rendering}}))
+                                    :view-types [:scene]))

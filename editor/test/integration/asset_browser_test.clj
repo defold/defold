@@ -63,6 +63,12 @@
                             (g/connect workspace :resource-types project :resource-types)))))
             resources (g/node-value workspace :resource-list)
             project   (project/load-project project)
+            #_queries #_["**/atlas_sprite.collection"]
+            #_queries #_["**/level01.switcher"]
+            #_queries #_["**/level1.platformer"]
+            #_queries #_["**/atlas.atlas"]
+            #_queries #_["**/env.cubemap"]
+            #_queries #_["**/atlas.sprite"]
             #_queries #_["**/atlas_sprite.go"]
             queries ["**/atlas.atlas" "**/env.cubemap" "**/level1.platformer" "**/level01.switcher" "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
         (doseq [query queries
@@ -72,10 +78,8 @@
                 resource-type (project/get-resource-type resource-node)
                 view-type (first (:view-types resource-type))
                 make-preview-fn (:make-preview-fn view-type)
-                view-fns ((:id view-type) (:view-fns resource-type))
-                setup-view-fn (:setup-view-fn view-fns)
-                setup-rendering-fn (:setup-rendering-fn view-fns)
-                view (make-preview-fn view-graph view-fns resource-node 128 128)]
+                view-opts ((:id view-type) (:view-opts resource-type))
+                view (make-preview-fn view-graph resource-node view-opts 128 128)]
             (let [image (g/node-value view :frame)]
               (is (not (nil? image)))
               #_(let [file (File. "test.png")]
