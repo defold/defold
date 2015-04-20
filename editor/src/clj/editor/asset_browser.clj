@@ -71,17 +71,17 @@
 (defn- is-file-resource [x] (and (satisfies? workspace/Resource x)
                                  (= :file (workspace/source-type x))))
 
-(handler/defhandler open-resource :open :project
+(handler/defhandler open-resource :open
   (visible? [instances] (every? is-file-resource instances))
   (enabled? [instances] (every? is-file-resource instances))
   (run [instances] (prn "Open" instances "NOW!")))
 
-(handler/defhandler delete-resource :delete :project
+(handler/defhandler delete-resource :delete
   (visible? [instances] (every? is-resource instances))
   (enabled? [instances] (every? is-deletable-resource instances))
   (run [instances] (prn "Delete" instances "NOW!")))
 
-(handler/defhandler refresh-resources :refresh :project
+(handler/defhandler refresh-resources :refresh
   (visible? [] true)
   (enabled? []  true)
   (run [] (prn "REFRESH NOW!") ))

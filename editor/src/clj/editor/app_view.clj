@@ -82,19 +82,19 @@
 (defn- on-tabs-changed [app-view]
   (invalidate app-view :open-resources))
 
-(handler/defhandler move-tool :move-tool :project
+(handler/defhandler move-tool :move-tool
   (visible? [app-view] true)
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move-tool)))
   (state [app-view] (= (:active-tool (g/refresh app-view)) :move-tool)))
 
-(handler/defhandler scale-tool :scale-tool :project
+(handler/defhandler scale-tool :scale-tool
   (visible? [app-view] true)
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale-tool)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale-tool)))
 
-(handler/defhandler rotate-tool :rotate-tool :project
+(handler/defhandler rotate-tool :rotate-tool
   (visible? [app-view] true)
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate-tool)))
