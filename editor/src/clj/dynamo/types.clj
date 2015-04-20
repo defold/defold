@@ -26,9 +26,6 @@
 (defprotocol Cancelable
   (cancel [this] "Cancel a thing."))
 
-(defprotocol NamingContext
-  (lookup [this nm] "Locate a value by name"))
-
 (defprotocol FileContainer
   (node-for-path [this path] "Create a new node from a path within the container. `path` must be a ProjectPath."))
 

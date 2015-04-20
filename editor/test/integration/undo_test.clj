@@ -99,8 +99,8 @@
                    project       (load-test-project workspace project-graph)]
                (is (not (has-undo? project-graph)))
                (let [atlas-nodes (project/find-resources project "**/*.atlas")
-                     atlas-node (second (first atlas-nodes))
-                     view (headless-create-view workspace project atlas-node)]
+                     atlas-node  (second (first atlas-nodes))
+                     view        (headless-create-view workspace project atlas-node)]
                  (is (not (has-undo? project-graph)))
                  #_(is (not-nil? (g/node-value view :frame)))
                  (is (not (has-undo? project-graph))))))))
@@ -112,9 +112,9 @@
                    project-graph (g/make-graph! :history true :volatility 1)
                    project       (load-test-project workspace project-graph)]
                (let [atlas-nodes (project/find-resources project "**/*.atlas")
-                     atlas-node (second (first atlas-nodes))
-                     view (headless-create-view workspace project atlas-node)
-                     camera (t/lookup view :camera)]
+                     atlas-node  (second (first atlas-nodes))
+                     view        (headless-create-view workspace project atlas-node)
+                     camera      (g/graph-value (g/node->graph-id view) :camera)]
                  (is (not-nil? (g/node-value camera :aabb)))
                  (g/transact (g/delete-node (g/node-id atlas-node)))
                  (is (nil? (g/node-value camera :aabb)))
