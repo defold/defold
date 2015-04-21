@@ -1,0 +1,8 @@
+/.gradle
+/bin
+/tmp
+/build
+/src/generated
+/server*.log
+/derby.log
+

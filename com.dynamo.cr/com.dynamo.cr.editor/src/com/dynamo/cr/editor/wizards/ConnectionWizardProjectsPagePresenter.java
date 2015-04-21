@@ -12,7 +12,6 @@ import com.dynamo.cr.client.IProjectsClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfoList;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectStatus;
 
 public class ConnectionWizardProjectsPagePresenter {
 
@@ -39,11 +38,6 @@ public class ConnectionWizardProjectsPagePresenter {
 
     public void onSelectProject(ProjectInfo projectInfo) {
         if (projectInfo != null) {
-            if (projectInfo.getStatus() == ProjectStatus.PROJECT_STATUS_UNQUALIFIED) {
-                display.setErrorMessage("You need to upgrade your plan to access this project.");
-                display.setPageComplete(false);
-                return;
-            }
             URI uri = ClientUtils.getProjectUri(client, projectInfo.getId());
             IProjectClient projectClient;
             try {
@@ -77,8 +71,7 @@ public class ConnectionWizardProjectsPagePresenter {
     }
 
     public boolean canFinish() {
-        return display.getErrorMessage() == null && display.getSelectedProject() != null && display
-                .getSelectedProject().getStatus() == ProjectStatus.PROJECT_STATUS_OK;
+        return display.getErrorMessage() == null && display.getSelectedProject() != null;
     }
 
 }
