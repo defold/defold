@@ -3,18 +3,6 @@ package dmResourceServer;
 option java_package = "com.dynamo.cr.proto";
 option java_outer_classname = "Config";
 
-message Command
-{
-    repeated string args = 1;
-}
-
-message Application
-{
-    required string platform = 1;
-    required string name = 2;
-    required string path = 3;
-}
-
 message ProjectTemplate {
     required string id = 1;
     required string path = 2;
@@ -31,7 +19,6 @@ message Configuration
     required int32 git_port = 40;
     required string persistence_unit_name = 6;
     required string repository_root = 7;
-    repeated Application applications = 13;
     repeated ProjectTemplate project_templates = 14;
     required string hostname = 17;
     optional int32 max_project_count = 19 [default=10];
