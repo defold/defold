@@ -190,6 +190,22 @@ namespace dmGameSystem
         return result;
     }
 
+    dmGameObject::UpdateResult CompCollectionProxyRender(const dmGameObject::ComponentsRenderParams& params)
+    {
+        CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
+        dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
+        for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
+        {
+            CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
+            if (proxy->m_Collection != 0 && proxy->m_Enabled)
+            {
+                if (!dmGameObject::Render(proxy->m_Collection))
+                    result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+        }
+        return result;
+    }
+
     dmGameObject::UpdateResult CompCollectionProxyPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
     {
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;

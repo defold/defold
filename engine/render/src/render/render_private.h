@@ -118,6 +118,7 @@ namespace dmRender
         uint32_t                            m_RenderObjectIndex;
         uint32_t                            m_VertexIndex;
         uint32_t                            m_MaxVertexCount;
+        uint32_t                            m_VerticesFlushed;
         dmArray<char>                       m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
         dmHashTable64<int32_t>              m_Batches;
@@ -138,6 +139,30 @@ namespace dmRender
         uint32_t                    m_CommandBufferSize;
     };
 
+    struct RenderListDispatch
+    {
+        RenderListDispatchFn m_Fn;
+        void *m_UserData;
+    };
+
+    struct RenderListSortValue
+    {
+        union
+        {
+            struct
+            {
+                uint32_t m_BatchKey:24;
+                uint32_t m_Dispatch:8;
+                uint32_t m_Order:24;
+                uint32_t m_MajorOrder:8;
+            };
+            // only temporarily used
+            float m_ZW;
+            // final sort value
+            uint64_t m_SortKey;
+        };
+    };
+
     struct RenderContext
     {
         dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
@@ -147,6 +172,15 @@ namespace dmRender
         RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderTargetSetup>  m_RenderTargets;
         dmArray<RenderObject*>      m_RenderObjects;
+
+        dmArray<RenderListEntry>    m_RenderList;
+        dmArray<RenderListDispatch> m_RenderListDispatch;
+        dmArray<RenderListSortValue>m_RenderListSortValues;
+        dmArray<uint32_t>           m_RenderListSortBuffers[2];
+        uint32_t                    m_RenderListSortTarget;
+        dmArray<uint32_t>           m_RenderListSortIndices;
+        Matrix4                     m_RenderListDispatchedForViewProj;
+
         HFontMap                    m_SystemFontMap;
 
         Matrix4                     m_View;
