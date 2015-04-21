@@ -507,7 +507,7 @@ class Configuration(object):
 
     def build_server(self):
         cwd = join(self.defold_root, 'server')
-        self.exec_env_command(['./gradlew', 'clean', 'distZip'], cwd = cwd)
+        self.exec_env_command(['./gradlew', 'clean', 'test', 'distZip'], cwd = cwd)
 
     def build_editor(self):
         import xml.etree.ElementTree as ET
