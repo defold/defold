@@ -185,6 +185,7 @@ namespace dmRender
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         text_context.m_ClientBuffer = new char[buffer_size];
         text_context.m_VertexIndex = 0;
+        text_context.m_VerticesFlushed = 0;
 
         dmGraphics::VertexElement ve[] =
         {
@@ -401,8 +402,6 @@ namespace dmRender
         ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
         ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         ro->m_SetBlendFactors = 1;
-        ro->m_RenderKey.m_Depth = first_te.m_Depth;
-        ro->m_RenderKey.m_Order = first_te.m_RenderOrder;
         ro->m_Material = font_map->m_Material;
         ro->m_Textures[0] = font_map->m_Texture;
         ro->m_VertexStart = text_context.m_VertexIndex;
@@ -544,7 +543,7 @@ namespace dmRender
         AddToRender(render_context, ro);
     }
 
-    void FlushTexts(HRenderContext render_context)
+    void FlushTexts(HRenderContext render_context, bool final)
     {
         DM_PROFILE(Render, "FlushTexts");
         TextContext& text_context = render_context->m_TextContext;
@@ -554,10 +553,17 @@ namespace dmRender
             // This might be called multiple times so clear the batch table
             // This function should however only be called once. See case 2261
             text_context.m_Batches.Clear();
+        }
 
-            uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
-            dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-            dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        if (final)
+        {
+            if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
+            {
+                uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
+                dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                text_context.m_VerticesFlushed = text_context.m_VertexIndex;
+            }
         }
     }
 
