@@ -14,21 +14,25 @@ repositories {
 sourceSets {
     main {
         java {
-            srcDirs = ['src/generated/java',  'src/main/java']
+            srcDirs = ['build/generated/java',  'src/main/java']
         }
     }
 }
 
-task compileProto() {
+task compileProto() << {
+    new File('build/generated/java').mkdirs()
+
     exec {
         executable = 'protoc'
-        args('--java_out', 'src/generated/java', '-I../com.dynamo.cr/com.dynamo.cr.common/proto', '../com.dynamo.cr/com.dynamo.cr.common/proto/cr_protocol_ddf.proto')
+        args('--java_out', 'build/generated/java', '-I../com.dynamo.cr/com.dynamo.cr.common/proto', '../com.dynamo.cr/com.dynamo.cr.common/proto/cr_protocol_ddf.proto')
     }
     exec {
         executable = 'protoc'
-        args('--java_out', 'src/generated/java', '-I../com.dynamo.cr/com.dynamo.cr.common/proto', '../com.dynamo.cr/com.dynamo.cr.common/proto/cr_ddf.proto')
+        args('--java_out', 'build/generated/java', '-I../com.dynamo.cr/com.dynamo.cr.common/proto', '../com.dynamo.cr/com.dynamo.cr.common/proto/cr_ddf.proto')
     }
 }
+
+compileJava.dependsOn compileProto
 
 dependencies {
     compile 'com.sun.jersey:jersey-core:1.11'
