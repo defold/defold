@@ -8,7 +8,6 @@ import com.dynamo.cr.web2.client.ResourceCallback;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
-import com.dynamo.cr.web2.client.place.SubscriptionPlace;
 import com.dynamo.cr.web2.client.ui.DashboardView;
 import com.google.gwt.activity.shared.AbstractActivity;
 import com.google.gwt.event.shared.EventBus;
@@ -99,7 +98,4 @@ public class DashboardActivity extends AbstractActivity implements DashboardView
         return clientFactory.getDefold().getUserId() == projectInfo.getOwner().getId();
     }
 
-    @Override public void onEditSubscription() {
-        this.clientFactory.getPlaceController().goTo(new SubscriptionPlace());
-    }
 }
