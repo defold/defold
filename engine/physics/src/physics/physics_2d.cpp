@@ -347,6 +347,10 @@ namespace dmPhysics
                     add_data.m_UserDataA = body_a->GetUserData();
                     add_data.m_ObjectB = body_b;
                     add_data.m_UserDataB = body_b->GetUserData();
+                    int32_t index_a = contact->GetChildIndexA();
+                    int32_t index_b = contact->GetChildIndexB();
+                    add_data.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
+                    add_data.m_GroupB = fixture_b->GetFilterData(index_b).categoryBits;
                     OverlapCacheAdd(cache, add_data);
                 }
             }

@@ -148,6 +148,10 @@ namespace dmPhysics
         void* m_UserDataA;
         /// User data of the second object
         void* m_UserDataB;
+        /// Collision group of the first object
+        uint16_t m_GroupA;
+        /// Collision group of the second object
+        uint16_t m_GroupB;
     };
     typedef void (*TriggerEnteredCallback)(const TriggerEnter& trigger_enter, void* user_data);
 
@@ -157,6 +161,10 @@ namespace dmPhysics
         void* m_UserDataA;
         /// User data of the second object
         void* m_UserDataB;
+        /// Collision group of the first object
+        uint16_t m_GroupA;
+        /// Collision group of the second object
+        uint16_t m_GroupB;
     };
     typedef void (*TriggerExitedCallback)(const TriggerExit& trigger_exit, void* user_data);
 
