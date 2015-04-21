@@ -184,7 +184,7 @@ static void dmLogUpdateNetwork()
                     self->m_Connections.Push(connection);
                 }
             }
-            else if (r == dmSocket::RESULT_BADF || r == dmSocket::RESULT_CONNABORTED)
+            else if (r == dmSocket::RESULT_BADF || r == dmSocket::RESULT_CONNABORTED)
             {
                 // reinitalize log socket
                 dmLogInitSocket(g_dmLogServer->m_ServerSocket);
