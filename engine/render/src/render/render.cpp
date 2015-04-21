@@ -114,6 +114,8 @@ namespace dmRender
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
 
+        context->m_RenderListSortTarget = 0;
+
         return context;
     }
 
@@ -357,8 +359,6 @@ namespace dmRender
             c++;
         }
 
-        const float max = 0xffff00;
-
         float rc = 0;
         if (c > 1 && maxZW != minZW)
             rc = 1.0f / (maxZW - minZW);
@@ -388,7 +388,6 @@ namespace dmRender
     Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
     {
         uint32_t target = context->m_RenderListSortTarget;
-
         dmArray<uint32_t>* sort_target   = &context->m_RenderListSortBuffers[target];
         dmArray<uint32_t>* sort_previous = &context->m_RenderListSortBuffers[1-target];
 
