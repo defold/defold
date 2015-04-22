@@ -62,9 +62,8 @@
                   :command :refresh}])
 
 (ui/extend-menu ::resource-menu-ext ::refresh
-                [{:label "Show in Finder"
-                  :command :show-in-finder}])
-
+                [{:label "Show in Desktop"
+                  :command :show-in-desktop}])
 
 (defn- is-resource [x] (satisfies? workspace/Resource x))
 (defn- is-deletable-resource [x] (and (satisfies? workspace/Resource x) (not (workspace/read-only? x))))
@@ -72,19 +71,26 @@
                                  (= :file (workspace/source-type x))))
 
 (handler/defhandler open-resource :open
-  (visible? [instances] (every? is-file-resource instances))
-  (enabled? [instances] (every? is-file-resource instances))
-  (run [instances] (prn "Open" instances "NOW!")))
+  (visible? [selection] (every? is-file-resource selection))
+  (enabled? [selection] (every? is-file-resource selection))
+  (run [selection] (prn "Open" selection "NOW!")))
 
 (handler/defhandler delete-resource :delete
-  (visible? [instances] (every? is-resource instances))
-  (enabled? [instances] (every? is-deletable-resource instances))
-  (run [instances] (prn "Delete" instances "NOW!")))
+  (visible? [selection] (every? is-resource selection))
+  (enabled? [selection] (every? is-deletable-resource selection))
+  (run [selection] (prn "Delete" selection "NOW!")))
 
 (handler/defhandler refresh-resources :refresh
   (visible? [] true)
-  (enabled? []  true)
+  (enabled? [] true)
   (run [] (prn "REFRESH NOW!") ))
+
+(handler/defhandler show-in-desktop :show-in-desktop
+  (visible? [selection] (= 1 (count selection)))
+  (enabled? [selection] (= 1 (count selection)) )
+  (run [selection] (let [f (File. (workspace/abs-path (first selection)))
+                         dir (if (.isFile f) (.getParentFile f) f)]
+                     (.open (Desktop/getDesktop) dir))))
 
 (defn- setup-asset-browser [workspace tree-view open-resource-fn]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
