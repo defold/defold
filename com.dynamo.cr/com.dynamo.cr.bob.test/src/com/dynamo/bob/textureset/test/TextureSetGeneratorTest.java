@@ -143,6 +143,33 @@ public class TextureSetGeneratorTest {
     }
 
     @Test
+    public void testAtlasGeneratorMaxRectMargin() throws Exception {
+        // These are 11x11 and with 5x5 padding added during generation, the output should be 64x16
+        List<BufferedImage> images = Arrays.asList(newImage(11, 11), newImage(11, 11), newImage(11, 11),
+                newImage(11, 11));
+
+        List<String> ids = Arrays.asList("1", "2", "3", "4");
+
+        List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
+        animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
+        animations.add(newAnim("anim2", Arrays.asList("2", "4")));
+
+        MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
+
+        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 5, 0, 0, false, false, true, false, null);
+        BufferedImage image = result.image;
+        assertThat(image.getWidth(), is(64));
+        assertThat(image.getHeight(), is(16));
+
+        for (UVTransform uv : result.uvTransforms)
+        {
+            // Same as original
+            assertThat((int)(uv.scale.x * image.getWidth()), is(11));
+            assertThat((int)(uv.scale.y * image.getHeight()), is(11));
+        }
+    }
+
+    @Test
     public void testRotatedAnimations() {
         List<BufferedImage> images = Arrays.asList(newImage(64,32), newImage(64,32), newImage(32,64), newImage(32,64));
 
