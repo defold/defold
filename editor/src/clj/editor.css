@@ -22,6 +22,10 @@
     -fx-close-tab-animation: NONE;
 }
 
+#toolbar * {
+    -fx-focus-traversable: false;
+}
+
 /* by default AnchorPane has a padding of 0.8em. Don't know if we're abusing
    JavaFX by removing padding for AnchorPane */
 .titled-pane .content AnchorPane {
