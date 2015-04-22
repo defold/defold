@@ -617,12 +617,12 @@ namespace dmGameSystem
                     const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
                     const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
                     us[uI[0]] = tc[0];
-                    us[uI[1]] = tc[0] + (sv * slice9.getW());
-                    us[uI[2]] = tc[2] - (sv * slice9.getY());
+                    us[uI[1]] = tc[0] + (su * slice9.getW());
+                    us[uI[2]] = tc[2] - (su * slice9.getY());
                     us[uI[3]] = tc[2];
                     vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] + (su * slice9.getX());
-                    vs[vI[2]] = tc[5] - (su * slice9.getZ());
+                    vs[vI[1]] = tc[1] + (sv * slice9.getX());
+                    vs[vI[2]] = tc[5] - (sv * slice9.getZ());
                     vs[vI[3]] = tc[5];
                 }
                 else
