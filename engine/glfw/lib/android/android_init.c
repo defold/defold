@@ -178,7 +178,7 @@ static void computeIconifiedState()
     //
     // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
     // Iconified unless opened, active and resumed (not paused)
-    return !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused);
+    _glfwWin.iconified = !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused);
 }
 
 static void handleCommand(struct android_app* app, int32_t cmd) {
