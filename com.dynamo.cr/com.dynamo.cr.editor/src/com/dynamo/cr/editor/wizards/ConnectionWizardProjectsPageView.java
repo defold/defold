@@ -19,7 +19,6 @@ import org.eclipse.swt.widgets.Composite;
 
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
-import com.dynamo.cr.protocol.proto.Protocol.ProjectStatus;
 
 /**
  * Wizard page shown when the user has chosen car as means of
@@ -66,10 +65,6 @@ public class ConnectionWizardProjectsPageView extends WizardPage implements Conn
 
             @Override
             public Image getImage(Object element) {
-                ProjectInfo p = (ProjectInfo) element;
-                if (p.getStatus() != ProjectStatus.PROJECT_STATUS_OK) {
-                    return Activator.getDefault().getImageRegistry().get(Activator.OVERLAY_ERROR_IMAGE_ID);
-                }
                 return super.getImage(element);
             }
         });

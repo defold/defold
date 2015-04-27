@@ -13,7 +13,6 @@
 	        <ul id="sideBarList" class="nav nav-list">
 	            <li class="nav-header">Dashboard</li>
 	            <li id="projects"><g:InlineHyperlink targetHistoryToken=""><i class="icon-folder-open"></i> Projects</g:InlineHyperlink></li>
-                <li id="billing"><g:InlineHyperlink targetHistoryToken="billing:"><i class="icon-briefcase"></i> Billing</g:InlineHyperlink></li>
                 <li id="downloads"><g:InlineHyperlink targetHistoryToken="downloads:"><i class="icon-download"></i> Downloads</g:InlineHyperlink></li>
                 <li id="invite"><g:InlineHyperlink targetHistoryToken="invite:"><i class="icon-envelope"></i> Invite</g:InlineHyperlink></li>
                 <li id="settings"><g:InlineHyperlink targetHistoryToken="settings:"><i class="icon-list-alt"></i> Settings</g:InlineHyperlink></li>
