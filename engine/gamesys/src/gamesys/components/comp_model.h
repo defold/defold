@@ -17,6 +17,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
+    dmGameObject::UpdateResult CompModelRender(const dmGameObject::ComponentsRenderParams& params);
+
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
