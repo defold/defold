@@ -63,7 +63,6 @@ namespace dmRender
             ro.m_VertexBuffer = debug_renderer.m_VertexBuffer;
             ro.m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
             ro.m_VertexCount = 0;
-            ro.m_RenderKey.m_Depth = i;
             DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
             type_data.m_RenderObject = ro;
             type_data.m_ClientBuffer = new char[buffer_size];
