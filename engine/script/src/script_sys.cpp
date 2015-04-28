@@ -51,7 +51,8 @@ namespace dmScript
      * Save data:
      * </p>
      * <pre>
-     * local my_table = {my_key = "my_important_value"}
+     * local my_table = {}
+     * table.add(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * if not sys.save(my_file_path, my_table) then
      *     -- Alert user that the data could not be saved
@@ -63,8 +64,8 @@ namespace dmScript
      * <pre>
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * local my_table = sys.load(my_file_path)
-     * if #my_table == 0 then
-     *     -- The file could not be found
+     * if not next(my_table) then
+     *     -- empty table
      * end
      * </pre>
      */

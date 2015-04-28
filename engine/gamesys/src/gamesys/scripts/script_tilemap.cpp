@@ -142,7 +142,7 @@ namespace dmGameSystem
 
     /*# set a tile in a tile map
      * Replace a tile in a tile map with a new tile. The coordinates of the tile is 1-indexed so a 4 by 4
-     * tile map has the following x,y coordinates:
+     * tile map centered around origo has the following x,y coordinates:
      * <pre>
      * +-------+-------+------+------+
      * | -2,1  | -1,1  | 0,1  | 1,1  |
