@@ -124,22 +124,12 @@
   (let [progress-bar nil
         project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
-        project      (first
-                      (g/tx-nodes-added
-                       (g/transact
-                        (g/make-nodes
-                         *project-graph*
-                         [project [project/Project :workspace workspace]
-                          selection project/Selection]
-                         (g/connect selection :self project :selection)
-                         (g/connect workspace :resource-list project :resources)
-                         (g/connect workspace :resource-types project :resource-types)))))
+        project      (project/make-project *project-graph* workspace)
         project      (project/load-project project)
         root         (load-stage workspace project)
         curve        (create-view project root "#curve-editor-container" CurveEditor)
-        properties   (properties-view/make-properties-view *view-graph* (.lookup root "#properties"))
-        selection    (g/node-value project :selection)]
-    (g/transact (g/connect selection :selection properties :selection))
+        properties   (properties-view/make-properties-view *view-graph* (.lookup root "#properties"))]
+    (g/transact (g/connect project :selection properties :selection))
     (g/reset-undo! *project-graph*)))
 
 (defn get-preference [key]

@@ -75,7 +75,7 @@
 
 (g/defnk produce-scene [self child-scenes]
   {:id (g/node-id self)
-   :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
+   :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
 (g/defnode GameObjectNode

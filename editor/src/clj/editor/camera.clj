@@ -310,7 +310,7 @@
       camera)
     camera))
 
-(g/defnk produce-camera [self camera viewport aabb reframe]
+(g/defnk produce-camera [self camera viewport reframe aabb]
   (let [w (- (:right viewport) (:left viewport))
        h (- (:bottom viewport) (:top viewport))]
    (if (and (> w 0) (> h 0))
@@ -343,16 +343,18 @@
                         (if (= movement :idle) action nil))
       :mouse-moved (let [{:keys [movement last-x last-y]} @(:ui-state self)
                          {:keys [x y]} action]
-                     (when (not (= :idle movement))
-                       (g/transact
-                        (case movement
-                          :dolly  (g/update-property self :camera dolly (* -0.002 (- y last-y)))
-                          :track  (g/update-property self :camera track viewport last-x last-y x y)
-                          :tumble (g/update-property self :camera tumble last-x last-y x y)
-                          nil))
-                       (swap! (:ui-state self) assoc
-                              :last-x x
-                              :last-y y)
+                     (if (not (= :idle movement))
+                       (do
+                         (g/transact
+                           (case movement
+                             :dolly  (g/update-property self :camera dolly (* -0.002 (- y last-y)))
+                             :track  (g/update-property self :camera track viewport last-x last-y x y)
+                             :tumble (g/update-property self :camera tumble last-x last-y x y)
+                             nil))
+                         (swap! (:ui-state self) assoc
+                                :last-x x
+                                :last-y y)
+                         nil)
                        action))
       action)))
 

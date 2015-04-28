@@ -57,14 +57,7 @@
 
 (defn- load-test-project
   [workspace proj-graph]
-  (let [project (first
-                      (g/tx-nodes-added
-                        (g/transact
-                          (g/make-nodes
-                            proj-graph
-                            [project [project/Project :workspace workspace]]
-                            (g/connect workspace :resource-list project :resources)
-                            (g/connect workspace :resource-types project :resource-types)))))
+  (let [project (project/make-project proj-graph workspace)
         project (project/load-project project)]
     (g/reset-undo! proj-graph)
     project))
