@@ -396,6 +396,7 @@
 
 (def mac-toggle-modifiers #{:shift :meta})
 (def other-toggle-modifiers #{:control})
+(def toggle-modifiers (if util/mac? mac-toggle-modifiers other-toggle-modifiers))
 
 (defn handle-selection-input [self action]
   (let [start (g/node-value self :start)
@@ -405,8 +406,7 @@
         cursor-pos [(:x action) (:y action) 0]]
     (case (:type action)
       :mouse-pressed (let [op-seq (gensym)
-                           toggle-modifiers (if util/is-mac mac-toggle-modifiers other-toggle-modifiers)
-                           toggle (reduce #(or %1 %2) (map #(% action) mac-toggle-modifiers))
+                           toggle (reduce #(or %1 %2) (map #(% action) toggle-modifiers))
                            mode (if toggle :toggle :direct)]
                        (g/transact
                          (concat

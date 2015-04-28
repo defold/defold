@@ -117,7 +117,7 @@ into an arglist."
 
 (def safe-inc (fnil inc 0))
 
-(def is-mac (-> (System/getProperty "os.name")
-              (.toLowerCase)
-              (.indexOf "mac")
-              (>= 0)))
+(def mac? (-> (System/getProperty "os.name")
+            (.toLowerCase)
+            (.indexOf "mac")
+            (>= 0)))
