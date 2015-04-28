@@ -100,13 +100,22 @@
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate-tool)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate-tool)))
 
+(ui/extend-menu ::tool-bar ::toolbar
+                [{:label "Move"
+                  :icon "icons/transform_move.png"
+                  :command :move-tool}
+                 {:label "Rotate"
+                  :icon "icons/transform_rotate.png"
+                  :command :rotate-tool}
+                 {:label "Scale"
+                  :icon "icons/transform_scale.png"
+                  :command :scale-tool}])
+
 (defn make-app-view [graph stage menu-bar tab-pane]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node graph AppView :stage stage :menu-bar menu-bar :tab-pane tab-pane :active-tool :move-tool))))
-        binder (ui/make-ui-binder (.getScene stage))
-        arg-map {:app-view app-view}]
-    (ui/bind-toolbar binder "#toolbar" arg-map)
+        command-context {:app-view app-view}]
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -120,10 +129,12 @@
         (reify ListChangeListener
           (onChanged [this change]
             (on-tabs-changed app-view)))))
+
+    (ui/register-tool-bar (.getScene stage) command-context (fn [] []) "#toolbar" ::toolbar)
     (let [refresh-timer (proxy [AnimationTimer] []
                           (handle [now]
                             ; TODO: Not invoke this function every frame...
-                            (ui/refresh binder arg-map)
+                            (ui/refresh (.getScene stage))
                             (let [auto-pulls (:auto-pulls (g/refresh app-view))]
                               (doseq [[node label] auto-pulls]
                                 (g/node-value node label)))))]
