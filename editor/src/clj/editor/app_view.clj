@@ -144,7 +144,8 @@
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             view-graph (g/make-graph! :history false :volatility 2)
-            view       (make-view-fn view-graph parent resource-node ((:id view-type) (:view-opts resource-type)))]
+            view       (make-view-fn view-graph parent resource-node (assoc ((:id view-type) (:view-opts resource-type)) :select-fn (fn [selection op-seq] (project/select project selection op-seq))))]
+        (g/transact (g/connect project :selection view :selection))
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
         (.select (.getSelectionModel tab-pane) tab))

@@ -6,6 +6,7 @@
             [dynamo.grid :as grid]
             [dynamo.types :as t]
             [dynamo.types :refer [IDisposable dispose]]
+            [dynamo.util :as util]
             [editor.camera :as c]
             [editor.core :as core]
             [editor.input :as i]
@@ -15,9 +16,11 @@
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer Screenshot]
-           [dynamo.types Camera AABB Region]
+           [dynamo.types Camera AABB Region Rect]
            [java.awt Font]
            [java.awt.image BufferedImage]
+           [java.lang Runnable Math]
+           [java.nio IntBuffer ByteBuffer ByteOrder]
            [javafx.animation AnimationTimer]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -30,16 +33,23 @@
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane Pane]
-           [java.lang Runnable]
            [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]))
+           [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
 (def PASS_SHIFT        32)
 (def INDEX_SHIFT       (+ PASS_SHIFT 4))
 (def MANIPULATOR_SHIFT 62)
+
+(def outline-color [(/ 43.0 255) (/ 25.0 255) (/ 116.0 255)])
+(def selected-outline-color [(/ 69.0 255) (/ 255.0 255) (/ 162.0 255)])
+
+(defn select-color [pass selected object-color]
+  (if (or (= pass pass/outline) (= pass pass/icon-outline))
+    (if selected selected-outline-color outline-color)
+    object-color))
 
 (defn vp-dims [^Region viewport]
   (let [w (- (.right viewport) (.left viewport))
@@ -82,19 +92,26 @@
       (pass/prepare-gl pass gl glu)))
 
 (defn render-node
-  [^GL2 gl pass renderable render-args]
-  (gl/gl-push-matrix
-    gl
-    (when (t/model-transform? pass)
-      (gl/gl-mult-matrix-4d gl (:world-transform renderable)))
-    (try
-      (when (:render-fn renderable)
-        ((:render-fn renderable) render-args))
-      (catch Exception e
-        (log/error :exception e
-                   :pass pass
-                   :render-fn (:render-fn renderable)
-                   :message "skipping renderable")))))
+  ([^GL2 gl pass renderable render-args]
+    (render-node gl pass renderable render-args nil))
+  ([^GL2 gl pass renderable render-args gl-name]
+    (gl/gl-push-matrix
+      gl
+      (when gl-name
+        (.glPushName gl gl-name))
+      (when (t/model-transform? pass)
+        (gl/gl-mult-matrix-4d gl (:world-transform renderable)))
+      (try
+        (when (:render-fn renderable)
+          ((:render-fn renderable) render-args))
+        (catch Exception e
+          (log/error :exception e
+                     :pass pass
+                     :render-fn (:render-fn renderable)
+                     :message "skipping renderable"))
+        (finally
+          (when gl-name
+            (.glPopName gl)))))))
 
 (defrecord TextRendererRef [^TextRenderer text-renderer ^GLContext context]
   clojure.lang.IDeref
@@ -126,40 +143,104 @@
         (g/transact (g/set-property self :gl-drawable drawable))
         drawable))))
 
-(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables]
+(defn- make-current [^Region viewport ^GLAutoDrawable drawable]
   (when (and drawable (vp-not-empty? viewport))
-    (let [^GLContext context (.getContext drawable)]
-      (.makeCurrent context)
+    (when-let [^GLContext context (.getContext drawable)]
+      (doto context (.makeCurrent)))))
+
+(defn- render-sort [renderables camera viewport]
+  (reverse (sort-by #(render-key camera viewport %) renderables)))
+
+(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables selection]
+  (when-let [^GLContext context (make-current viewport drawable)]
+    (let [gl ^GL2 (.getGL context)
+          glu ^GLU (GLU.)
+          render-args {:gl gl :glu glu :camera camera :viewport viewport :text-renderer @text-renderer}
+          selection-set (set (map :_id selection))]
+      (.glClearColor gl 0.0 0.0 0.0 1.0)
+      (gl/gl-clear gl 0.0 0.0 0.0 1)
+      (.glColor4f gl 1.0 1.0 1.0 1.0)
+      (gl-viewport gl viewport)
+      (doseq [pass pass/render-passes
+              :let [render-args (assoc render-args :pass pass)]]
+        (setup-pass context gl glu pass camera viewport)
+        (doseq [renderable (get renderables pass)]
+          (render-node gl pass renderable (assoc render-args :selected (selection-set (:id renderable))))))
+      (let [[w h] (vp-dims viewport)
+            buf-image (Screenshot/readToBufferedImage w h)]
+        (.release context)
+        buf-image))))
+
+(def pick-buffer-size 4096)
+
+(defn- begin-select [^GL2 gl select-buffer]
+  (.glSelectBuffer gl pick-buffer-size select-buffer)
+  (.glRenderMode gl GL2/GL_SELECT)
+  (.glInitNames gl))
+
+(defn- unsigned-int [v]
+  (unsigned-bit-shift-right (bit-shift-left (long v) 32) 32))
+
+(defn- parse-select-buffer [hits ^IntBuffer select-buffer]
+  (loop [offset 0
+        hits-left hits
+        selected-names []]
+   (if (> hits-left 0)
+     (let [name-count (int (.get select-buffer offset))
+           min-z (unsigned-int (.get select-buffer (+ offset 1)))
+           name (int (.get select-buffer (+ offset 3)))]
+       (recur (inc (+ name-count offset 2)) (dec hits-left) (conj selected-names name)))
+     selected-names)))
+
+(defn- end-select [^GL2 gl select-buffer renderables]
+  (.glFlush gl)
+  (let [hits (.glRenderMode gl GL2/GL_RENDER)
+        selected-names (parse-select-buffer hits select-buffer)]
+    (map #(nth renderables %) selected-names)))
+
+(g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
+  (if-let [^GLContext context (and picking-rect (make-current viewport drawable))]
+    (try
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
-            render-args {:gl gl :glu glu :camera camera :viewport viewport :text-renderer @text-renderer}]
-        (try
-          (.glClearColor gl 0.0 0.0 0.0 1.0)
-          (gl/gl-clear gl 0.0 0.0 0.0 1)
-          (.glColor4f gl 1.0 1.0 1.0 1.0)
-          (gl-viewport gl viewport)
-          (when-let [renderables (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera viewport %) (concat a b)))) renderables)]
-            (doseq [pass pass/render-passes
-                    :let [render-args (assoc render-args :pass pass)]]
-              (setup-pass context gl glu pass camera viewport)
-              (doseq [renderable (get renderables pass)]
-                (render-node gl pass renderable render-args))))
-          (let [[w h] (vp-dims viewport)
-                  buf-image (Screenshot/readToBufferedImage w h)]
-              (.release context)
-              buf-image))))))
+            render-args {:gl gl :glu glu :camera camera :viewport viewport}
+            selection-set (set (map :_id selection))]
+        (flatten
+          (for [pass pass/selection-passes
+                :let [render-args (assoc render-args :pass pass)]]
+            (do
+              (begin-select gl select-buffer)
+              (setup-pass context gl glu pass camera viewport picking-rect)
+              (let [renderables (get renderables pass)]
+                (doseq [[index renderable] (keep-indexed #(list %1 %2) renderables)]
+                  (render-node gl pass renderable (assoc render-args :selected (selection-set (:id renderable))) index))
+                (render-sort (end-select gl select-buffer renderables) camera viewport))))))
+      (finally
+        (.release context)))
+    []))
+
+(g/defnk produce-renderables [renderables camera viewport]
+  (let [renderables (apply merge-with #(concat %1 %2) renderables)]
+    (into {} (map (fn [[pass renderables]] [pass (render-sort renderables camera viewport)]) renderables))))
 
 (g/defnode SceneRenderer
   (property name t/Keyword (default :renderer))
   (property gl-drawable GLAutoDrawable)
 
+  (input selection t/Any)
   (input viewport Region)
   (input camera Camera)
   (input renderables [t/RenderData])
+  (input picking-rect Region)
 
+  (output renderables t/Any :cached produce-renderables)
+  (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
+                                                      (.order (ByteOrder/nativeOrder))
+                                                      (.asIntBuffer))))
   (output drawable GLAutoDrawable :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
-  (output frame BufferedImage :cached produce-frame))
+  (output frame BufferedImage :cached produce-frame)
+  (output picking-selection t/Any :cached produce-selection))
 
 (defn dispatch-input [input-handlers action]
   (reduce (fn [action input-handler]
@@ -179,7 +260,11 @@
 (defn scene->renderables [scene]
   (if (seq? scene)
     (map scene->renderables scene)
-    (let [{:keys [id transform renderables children]} scene
+    (let [{:keys [id transform aabb renderable children]} scene
+          {:keys [render-fn passes]} renderable
+          renderables (into {} (map (fn [pass] [pass [{:id id
+                                                       :render-fn render-fn
+                                                       :world-transform (doto (Matrix4d.) (.setIdentity))}]]) passes))
           renderables (reduce #(merge-with concat %1 %2) renderables (map scene->renderables children))]
       (if transform
         (apply-transform transform renderables)
@@ -196,11 +281,13 @@
   (input frame BufferedImage)
   (input scene t/Any)
   (input input-handlers [Runnable])
+  (input selection t/Any)
 
   (output renderables t/Any :cached (g/fnk [scene] (scene->renderables scene)))
 ;;  (output viewport Region (g/fnk [viewport] viewport))
   (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
-  (output aabb AABB :cached (g/fnk [scene] (:aabb scene)))
+  (output aabb AABB :cached (g/fnk [scene] (:aabb scene))) ; TODO - base aabb on selection
+  (output selection t/Any :cached (g/fnk [selection] selection))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
@@ -250,21 +337,114 @@
 
   (property width t/Num)
   (property height t/Num)
+
+  (input selection t/Any)
   (input scene t/Any)
   (input frame BufferedImage)
   (input input-handlers [Runnable])
+
   (output renderables t/Any :cached (g/fnk [scene] (scene->renderables scene)))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
-  (output aabb AABB :cached (g/fnk [scene] (:aabb scene))))
+  (output aabb AABB :cached (g/fnk [scene] (:aabb scene)))
+  (output selection t/Any :cached (g/fnk [selection] selection)))
 
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView :width width :height height))
+
+(defn render-selection-box [^GL2 gl start current]
+  (when (and start current)
+    (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
+          max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
+          min-p (reduce min-fn [start current])
+          min-x (nth min-p 0)
+          min-y (nth min-p 1)
+          max-p (reduce max-fn [start current])
+          max-x (nth max-p 0)
+          max-y (nth max-p 1)
+          z 0.0
+          c (double-array (map #(/ % 255.0) [131 188 212]))]
+      (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
+      (.glBegin gl GL2/GL_LINE_LOOP)
+      (.glVertex3d gl min-x min-y z)
+      (.glVertex3d gl min-x max-y z)
+      (.glVertex3d gl max-x max-y z)
+      (.glVertex3d gl max-x min-y z)
+      (.glEnd gl)
+      
+      (.glBegin gl GL2/GL_QUADS)
+      (.glColor4d gl (nth c 0) (nth c 1) (nth c 2) 0.2)
+      (.glVertex3d gl min-x, min-y, z);
+      (.glVertex3d gl min-x, max-y, z);
+      (.glVertex3d gl max-x, max-y, z);
+      (.glVertex3d gl max-x, min-y, z);
+      (.glEnd gl))))
+
+(defn- select [controller op-seq]
+  (let [controller (g/refresh controller)
+        select-fn (g/node-value controller :select-fn)
+        selection (g/node-value controller :picking-selection)]
+    (select-fn (map #(g/node-by-id (g/now) (:id %)) selection) op-seq)))
+
+(defn handle-selection-input [self action]
+  (let [start (g/node-value self :start)
+        current (g/node-value self :current)
+        op-seq (g/node-value self :op-seq)
+        cursor-pos [(:x action) (:y action) 0]]
+    (case (:type action)
+      :mouse-pressed (let [op-seq (gensym)]
+                       (g/transact
+                         (concat
+                           (g/set-property self :op-seq op-seq)
+                           (g/set-property self :start cursor-pos)
+                           (g/set-property self :current cursor-pos)))
+                       (select self op-seq)
+                       nil)
+      :mouse-released (do
+                        (g/transact
+                          (concat
+                            (g/set-property self :start nil)
+                            (g/set-property self :current nil)
+                            (g/set-property self :op-seq nil)))
+                        nil)
+      :mouse-moved (if start
+                     (do
+                       (g/transact (g/set-property self :current cursor-pos))
+                       (select self op-seq)
+                       nil)
+                     action)
+      action)))
+
+(def ^Integer min-pick-size 16)
+
+(g/defnk produce-picking-rect [start current]
+  (let [ps [start current]
+        min-fn (fn [^Integer v1 ^Integer v2] (Math/min v1 v2))
+        max-fn (fn [^Integer v1 ^Integer v2] (Math/max v1 v2))
+        min-p (Point2i. (reduce min-fn (map first ps)) (reduce min-fn (map second ps)))
+        max-p (Point2i. (reduce max-fn (map first ps)) (reduce max-fn (map second ps)))
+        dims (doto (Point2i. max-p) (.sub min-p))
+        center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
+    (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
+
+(g/defnode SelectionController
+  (property select-fn Runnable)
+  (property start t/Vec3)
+  (property current t/Vec3)
+  (property op-seq t/Any)
+
+  (input selection t/Any)
+  (input picking-selection t/Any)
+
+  (output picking-rect Rect :cached produce-picking-rect)
+  (output renderable t/Any :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d) :render-fn (g/fnk [gl] (render-selection-box gl start current))}]}))
+  (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
 
 (defn setup-view [view opts]
   (let [view-graph (g/node->graph-id view)]
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
+                   selection  [SelectionController :select-fn (:select-fn opts)]
                    background background/Gradient
                    camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
                    grid       grid/Grid]
@@ -284,15 +464,19 @@
                   (g/connect view            :viewport      camera          :viewport)
                   (g/connect view            :viewport      renderer        :viewport)
                   (g/connect view            :renderables   renderer        :renderables)
+                  (g/connect view            :selection     renderer        :selection)
                   (g/connect renderer        :frame         view            :frame)
+
+                  (g/connect selection       :renderable        renderer        :renderables)
+                  (g/connect selection       :input-handler     view            :input-handlers)
+                  (g/connect selection       :picking-rect      renderer        :picking-rect)
+                  (g/connect renderer        :picking-selection selection       :picking-selection)
+                  (g/connect view            :selection         selection       :selection)
 
                   (g/connect grid   :renderable renderer :renderables)
                   (g/connect camera :camera     grid     :camera)
                   (when (not (:grid opts))
-                    (g/delete-node grid)
-                    #_(let [grid (g/make-node! view-graph grid/Grid)]
-                       (g/connect grid   :renderable renderer :renderables)
-                       (g/connect camera :camera     grid     :camera))))))
+                    (g/delete-node grid)))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view (make-scene-view graph parent)]

@@ -52,25 +52,18 @@
       (let [ws-graph world
             proj-graph (g/make-graph! :history true :volatility 1)
             view-graph (g/make-graph! :volatility 100)
-            workspace (load-test-workspace ws-graph)
-            project (first
-                      (g/tx-nodes-added
-                        (g/transact
-                          (g/make-nodes
-                            proj-graph
-                            [project [project/Project :workspace workspace]]
-                            (g/connect workspace :resource-list project :resources)
-                            (g/connect workspace :resource-types project :resource-types)))))
-            resources (g/node-value workspace :resource-list)
-            project   (project/load-project project)
-            #_queries #_["**/atlas_sprite.collection"]
-            #_queries #_["**/level01.switcher"]
-            #_queries #_["**/level1.platformer"]
-            #_queries #_["**/atlas.atlas"]
-            #_queries #_["**/env.cubemap"]
-            #_queries #_["**/atlas.sprite"]
-            #_queries #_["**/atlas_sprite.go"]
-            queries ["**/atlas.atlas" "**/env.cubemap" "**/level1.platformer" "**/level01.switcher" "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
+            workspace  (load-test-workspace ws-graph)
+            project    (project/make-project proj-graph workspace)
+            resources  (g/node-value workspace :resource-list)
+            project    (project/load-project project)
+            #_queries  #_["**/atlas_sprite.collection"]
+            #_queries  #_["**/level01.switcher"]
+            #_queries  #_["**/level1.platformer"]
+            #_queries  #_["**/atlas.atlas"]
+            #_queries  #_["**/env.cubemap"]
+            #_queries  #_["**/atlas.sprite"]
+            #_queries  #_["**/atlas_sprite.go"]
+            queries  ["**/atlas.atlas" "**/env.cubemap" "**/level1.platformer" "**/level01.switcher" "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
         (doseq [query queries
                 :let [results (project/find-resources project query)]]
           (is (= 1 (count results)))

@@ -95,27 +95,27 @@
 (g/defnk produce-textureset :- TextureSet
   [texture-packing :- TexturePacking animations]
   (let [animations             (remove #(empty? (:images %)) animations)
-        animations-images      (for [a animations i (:images a)] [a i])
-        images                 (mapcat :images animations)
-        frame-data             (map (partial animation-frame-data texture-packing) images)
-        vertex-summary         (summarize-frame-data :vertices         ->engine-format-texture frame-data)
-        outline-vertex-summary (summarize-frame-data :outline-vertices ->engine-format-texture frame-data)
-        tex-coord-summary      (summarize-frame-data :tex-coords       ->uv-only               frame-data)
-        frames                 (map t/->TextureSetAnimationFrame
-                                 images
-                                 (:starts vertex-summary)
-                                 (:counts vertex-summary)
-                                 (:starts outline-vertex-summary)
-                                 (:counts outline-vertex-summary)
-                                 (:starts tex-coord-summary)
-                                 (:counts tex-coord-summary))
-        animation-frames       (partition-by first (map (fn [[a i] f] [a f]) animations-images frames))
-        textureset-animations  (map build-textureset-animation animations)
-        textureset-animations  (map (fn [a aframes] (assoc a :frames (mapv second aframes))) textureset-animations animation-frames)]
-    (t/map->TextureSet {:animations       (reduce (fn [m a] (assoc m (:id a) a)) {} textureset-animations)
-                        :vertices         (:vbuf vertex-summary)
-                        :outline-vertices (:vbuf outline-vertex-summary)
-                        :tex-coords       (:vbuf tex-coord-summary)})))
+       animations-images      (for [a animations i (:images a)] [a i])
+       images                 (mapcat :images animations)
+       frame-data             (map (partial animation-frame-data texture-packing) images)
+       vertex-summary         (summarize-frame-data :vertices         ->engine-format-texture frame-data)
+       outline-vertex-summary (summarize-frame-data :outline-vertices ->engine-format-texture frame-data)
+       tex-coord-summary      (summarize-frame-data :tex-coords       ->uv-only               frame-data)
+       frames                 (map t/->TextureSetAnimationFrame
+                                images
+                                (:starts vertex-summary)
+                                (:counts vertex-summary)
+                                (:starts outline-vertex-summary)
+                                (:counts outline-vertex-summary)
+                                (:starts tex-coord-summary)
+                                (:counts tex-coord-summary))
+       animation-frames       (partition-by first (map (fn [[a i] f] [a f]) animations-images frames))
+       textureset-animations  (map build-textureset-animation animations)
+       textureset-animations  (map (fn [a aframes] (assoc a :frames (mapv second aframes))) textureset-animations animation-frames)]
+   (t/map->TextureSet {:animations       (reduce (fn [m a] (assoc m (:id a) a)) {} textureset-animations)
+                       :vertices         (:vbuf vertex-summary)
+                       :outline-vertices (:vbuf outline-vertex-summary)
+                       :tex-coords       (:vbuf tex-coord-summary)})))
 
 (defn render-overlay
   [^GL2 gl ^TextRenderer text-renderer texture-packing]
@@ -232,13 +232,12 @@
   [self aabb texture-packing gpu-texture]
   (let [vertex-buffer (gen-renderable-vertex-buffer texture-packing)
         vertex-binding (vtx/use-with vertex-buffer atlas-shader)]
-    {:id (g/node-id self)
-     :transform geom/Identity4d
-     :aabb aabb
-     :renderables {pass/overlay
-                   [{:render-fn       (g/fnk [gl glu text-renderer] (render-overlay gl text-renderer texture-packing))}]
-                   pass/transparent
-                   [{:render-fn       (g/fnk [gl glu text-renderer] (render-texture-packing gl texture-packing vertex-binding gpu-texture))}]}}))
+    {:aabb aabb
+     :renderable {:render-fn (g/fnk [gl glu text-renderer pass]
+                                    (cond
+                                      (= pass pass/overlay)     (render-overlay gl text-renderer texture-packing)
+                                      (= pass pass/transparent) (render-texture-packing gl texture-packing vertex-binding gpu-texture)))
+                  :passes [pass/overlay pass/transparent]}}))
 
 (g/defnode AtlasNode
   (inherits project/ResourceNode)

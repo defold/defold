@@ -268,9 +268,8 @@
          level-vertex-binding (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half) shader)]
      {:id (g/node-id self)
       :aabb aabb
-      :transform geom/Identity4d
-      :renderables {pass/transparent [{:render-fn (g/fnk [gl]
-                                                         (render-level gl level gpu-texture level-vertex-binding level-layout))}]}}))
+      :renderable {:render-fn (g/fnk [gl] (render-level gl level gpu-texture level-vertex-binding level-layout))
+                   :passes [pass/transparent]}}))
 
 (g/defnode SwitcherNode
   (inherits project/ResourceNode)

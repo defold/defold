@@ -149,12 +149,11 @@
 
 (g/defnk produce-scene
   [self aabb base-texture-tex control-points]
-  (let [scene {:id (g/node-id self) :aabb aabb :transform (Matrix4d. geom/Identity4d)}
+  (let [scene {:id (g/node-id self) :aabb aabb}
         vertex-buffer (gen-vertex-buffer control-points)]
     (if vertex-buffer
-      (assoc scene :renderables {pass/transparent
-                                 [{:world-transform (Matrix4d. geom/Identity4d)
-                                   :render-fn       (g/fnk [gl] (render-platformer gl base-texture-tex vertex-buffer))}]})
+      (assoc scene :renderable {:render-fn (g/fnk [gl] (render-platformer gl base-texture-tex vertex-buffer))
+                                :passes [pass/transparent]})
      scene)))
 
 (g/defnode PlatformerNode
