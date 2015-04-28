@@ -1,5 +1,6 @@
 (ns editor.scene
-  (:require [dynamo.background :as background]
+  (:require [clojure.set :as set]
+            [dynamo.background :as background]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
@@ -156,7 +157,7 @@
     (let [gl ^GL2 (.getGL context)
           glu ^GLU (GLU.)
           render-args {:gl gl :glu glu :camera camera :viewport viewport :text-renderer @text-renderer}
-          selection-set (set (map :_id selection))]
+          selection-set (set (map g/node-id selection))]
       (.glClearColor gl 0.0 0.0 0.0 1.0)
       (gl/gl-clear gl 0.0 0.0 0.0 1)
       (.glColor4f gl 1.0 1.0 1.0 1.0)
@@ -204,7 +205,7 @@
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
             render-args {:gl gl :glu glu :camera camera :viewport viewport}
-            selection-set (set (map :_id selection))]
+            selection-set (set (map g/node-id selection))]
         (flatten
           (for [pass pass/selection-passes
                 :let [render-args (assoc render-args :pass pass)]]
@@ -380,37 +381,54 @@
       (.glVertex3d gl max-x, min-y, z);
       (.glEnd gl))))
 
-(defn- select [controller op-seq]
+(defn- select [controller op-seq mode]
   (let [controller (g/refresh controller)
         select-fn (g/node-value controller :select-fn)
-        selection (g/node-value controller :picking-selection)]
-    (select-fn (map #(g/node-by-id (g/now) (:id %)) selection) op-seq)))
+        selection (g/node-value controller :picking-selection)
+        sel-filter-fn (case mode
+                        :direct (fn [sel] (map :id selection))
+                        :toggle (fn [sel]
+                                  (let [selection-set (set (map :id selection))
+                                        prev-selection-set (g/node-value controller :prev-selection-set)]
+                                    (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))]
+    (select-fn (map #(g/node-by-id (g/now) %) (sel-filter-fn selection)) op-seq)))
+
+(def mac-toggle-modifiers #{:shift :meta})
+(def other-toggle-modifiers #{:control})
 
 (defn handle-selection-input [self action]
   (let [start (g/node-value self :start)
         current (g/node-value self :current)
         op-seq (g/node-value self :op-seq)
+        mode (g/node-value self :mode)
         cursor-pos [(:x action) (:y action) 0]]
     (case (:type action)
-      :mouse-pressed (let [op-seq (gensym)]
+      :mouse-pressed (let [op-seq (gensym)
+                           toggle-modifiers (if util/is-mac mac-toggle-modifiers other-toggle-modifiers)
+                           toggle (reduce #(or %1 %2) (map #(% action) mac-toggle-modifiers))
+                           mode (if toggle :toggle :direct)]
                        (g/transact
                          (concat
                            (g/set-property self :op-seq op-seq)
                            (g/set-property self :start cursor-pos)
-                           (g/set-property self :current cursor-pos)))
-                       (select self op-seq)
+                           (g/set-property self :current cursor-pos)
+                           (g/set-property self :mode mode)
+                           (g/set-property self :prev-selection-set (set (map g/node-id (g/node-value self :selection))))))
+                       (select self op-seq mode)
                        nil)
       :mouse-released (do
                         (g/transact
                           (concat
                             (g/set-property self :start nil)
                             (g/set-property self :current nil)
-                            (g/set-property self :op-seq nil)))
+                            (g/set-property self :op-seq nil)
+                            (g/set-property self :mode nil)
+                            (g/set-property self :prev-selection-set nil)))
                         nil)
       :mouse-moved (if start
                      (do
                        (g/transact (g/set-property self :current cursor-pos))
-                       (select self op-seq)
+                       (select self op-seq mode)
                        nil)
                      action)
       action)))
@@ -432,6 +450,8 @@
   (property start t/Vec3)
   (property current t/Vec3)
   (property op-seq t/Any)
+  (property mode (t/enum :direct :toggle))
+  (property prev-selection-set t/Any)
 
   (input selection t/Any)
   (input picking-selection t/Any)
