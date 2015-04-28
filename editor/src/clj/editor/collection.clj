@@ -84,7 +84,6 @@
 
 (g/defnode CollectionNode
   (inherits project/ResourceNode)
-  (inherits scene/SceneNode)
 
   (property name t/Str)
 
