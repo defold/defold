@@ -20,11 +20,11 @@
       <MenuBar id="menu-bar" />
       <HBox id="toolbar" spacing="4.0">
          <children>
-            <ToggleButton id="move-tool" focusTraversable="false" mnemonicParsing="false" text="Move" />
-            <ToggleButton id="scale-tool" focusTraversable="false" mnemonicParsing="false" text="Scale" />
-            <ToggleButton id="rotate-tool" focusTraversable="false" mnemonicParsing="false" text="Rotate" />
             <Separator orientation="VERTICAL" />
-            <Pane HBox.hgrow="ALWAYS" />
+            <Pane HBox.hgrow="ALWAYS">
+               <children>
+                  <Button mnemonicParsing="false" text="Button" />
+               </children></Pane>
             <ComboBox focusTraversable="false" prefWidth="150.0" />
          </children>
          <VBox.margin>
