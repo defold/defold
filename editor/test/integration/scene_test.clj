@@ -5,6 +5,7 @@
             [dynamo.graph.test-support :refer [with-clean-system]]
             [dynamo.types :as t]
             [dynamo.geom :as geom]
+            [dynamo.util :as util]
             [editor.atlas :as atlas]
             [editor.collection :as collection]
             [editor.core :as core]
@@ -133,12 +134,15 @@
                  (let [renderables (g/node-value view :renderables)]
                    (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))))
 
-(defn- fake-input [view type x y]
-  (let [handlers (g/sources-of view :input-handlers)
-        action {:type type :x x :y y}]
-    (doseq [[node label] handlers]
-      (let [handler-fn (g/node-value node label)]
-        (handler-fn node action)))))
+(defn- fake-input
+  ([view type x y]
+    (fake-input view type x y []))
+  ([view type x y modifiers]
+    (let [handlers (g/sources-of view :input-handlers)
+          action (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)]
+      (doseq [[node label] handlers]
+        (let [handler-fn (g/node-value node label)]
+          (handler-fn node action))))))
 
 (defn- is-empty-selection [project]
   (let [sel (g/node-value project :selection)]
@@ -158,10 +162,13 @@
                    query         "**/atlas_sprite.collection"]
                (let [[resource node] (first (project/find-resources project query))
                      view            (scene/make-preview view-graph node {:select-fn (fn [selection op-seq] (project/select project selection op-seq))} 128 128)
-                     press-fn         (fn [x y] (fake-input view :mouse-pressed x y))
+                     press-fn         (fn
+                                        ([x y] (fake-input view :mouse-pressed x y))
+                                        ([x y modifiers] (fake-input view :mouse-pressed x y modifiers)))
                      move-fn         (fn [x y] (fake-input view :mouse-moved x y))
                      release-fn (fn [x y] (fake-input view :mouse-released x y))
                      go-node (ffirst (g/sources-of node :child-scenes))]
+                 (g/transact (g/connect project :selection view :selection))
                  (is-empty-selection project)
                  ; Press
                  (press-fn 64 64)
@@ -176,4 +183,12 @@
                  (is-selected project go-node)
                  ; Deselect
                  (press-fn 128 128)
-                 (is-empty-selection project))))))
+                 (is-empty-selection project)
+                 ; Toggling
+                 (let [modifiers (if util/is-mac [:meta] [:control])]
+                   (press-fn 64 64)
+                   (release-fn 64 64)
+                   (is-selected project go-node)
+                   (press-fn 64 64 modifiers)
+                   (release-fn 64 64)
+                   (is-empty-selection project)))))))
