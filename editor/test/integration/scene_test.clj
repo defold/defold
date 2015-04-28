@@ -185,7 +185,7 @@
                  (press-fn 128 128)
                  (is-selected project root-node)
                  ; Toggling
-                 (let [modifiers (if util/is-mac [:meta] [:control])]
+                 (let [modifiers (if util/mac? [:meta] [:control])]
                    (press-fn 64 64)
                    (release-fn 64 64)
                    (is-selected project go-node)
