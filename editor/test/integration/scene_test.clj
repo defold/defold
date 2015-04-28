@@ -155,7 +155,7 @@
                    project-graph (g/make-graph! :history true :volatility 1)
                    project       (load-test-project workspace project-graph)
                    view-graph    (g/make-graph! :history false :volatility 2)
-                   query         "**/small_atlas_sprite.collection"]
+                   query         "**/atlas_sprite.collection"]
                (let [[resource node] (first (project/find-resources project query))
                      view            (scene/make-preview view-graph node {:select-fn (fn [selection op-seq] (project/select project selection op-seq))} 128 128)
                      press-fn         (fn [x y] (fake-input view :mouse-pressed x y))
