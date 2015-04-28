@@ -201,8 +201,22 @@
    read-input
    not-found])
 
-(defn- delta [deltas node-id label v] (swap! deltas conj [[node-id label] v]) v)
-(defn- local [deltas node-id label]   (first (keep (fn [[i l v]] (when (and (= node-id i) (= l label)) v)) @deltas)))
+(defn- cacheable?
+  "Check the node type to see if the given output should be cached
+  once computed."
+  [^IBasis basis node-id label]
+  (if-let [node (gt/node-by-id basis node-id)]
+    ((gt/cached-outputs node) label)
+    false))
+
+(defn- delta
+  [deltas node-id label v]
+  (swap! deltas conj [[node-id label] v]) v)
+
+(defn- local
+  [deltas node-id label]
+  (let [seeking [node-id label]]
+    (first (keep (fn [[k v]] (when (= k seeking) v)) @deltas))))
 
 (defn local-deltas
   "Returns an evaluator. The evaluator is an evaluation function that
@@ -213,10 +227,12 @@
   chain. Whatever the chain returns gets recorded as a local delta for
   possible use during the remainder of the evaluation."
   [deltas ^IBasis basis in-production node-id label chain-head chain-next]
-  (if-some [r (local deltas node-id label)]
-    r
-    (delta deltas node-id label
-           (continue basis in-production node-id label chain-head chain-next))))
+  (if-not (cacheable? basis node-id label)
+    (continue basis in-production node-id label chain-head chain-next)
+    (if-some [r (local deltas node-id label)]
+      r
+      (delta deltas node-id label
+             (continue basis in-production node-id label chain-head chain-next)))))
 
 (defn- hit [hits node-id label v] (swap! hits conj [node-id label]) v)
 
@@ -226,35 +242,11 @@
   The evaluator collects records of values that were 'hits' in the
   atom of the same name."
   [snapshot hits ^IBasis basis in-production node-id label chain-head chain-next]
-  (if-some [v (get snapshot [node-id label])]
-    (hit hits node-id label v)
+  (if (cacheable? basis node-id label)
+    (if-some [v (get snapshot [node-id label])]
+      (hit hits node-id label v)
+      (continue basis in-production node-id label chain-head chain-next))
     (continue basis in-production node-id label chain-head chain-next)))
-
-(defn fork
-  "Return a thunk for an evaluation chain. When invoked during
-  evaluation, it will call `test` with 6 arguments: the basis, the
-  in-production set, the node-id and label, the head of the evaluation
-  chain and the rest of the current chain.
-
-  The rest of the current chain should be 2 items long. Each one is a
-  nested sequence of evaluators."
-  [test]
-  (fn [^IBasis basis in-production node-id label chain-head chain-next]
-    (assert (= 2 (count chain-next)))
-    (let [[consequent alternate & _] chain-next
-          branch?                    (test basis node-id label)
-          next-chain                 (if branch? consequent alternate)]
-      ((first next-chain) basis in-production node-id label chain-head (next next-chain)))))
-
-(defn- cacheable?
-  "Check the node type to see if the given output should be cached
-  once computed."
-  [^IBasis basis node-id label]
-  (if-let [node (gt/node-by-id basis node-id)]
-    ((gt/cached-outputs node) label)
-    false))
-
-(def fork-cacheable (fork cacheable?))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -267,11 +259,9 @@
         hits       (atom [])
         deltas     (atom [])
         evaluators (if cache
-                     [fork-cacheable
-                      (list* (partial local-deltas deltas)
-                             (partial cache-lookup (c/cache-snapshot cache) hits)
-                             world-evaluation-chain)
-                      world-evaluation-chain]
+                     (list* (partial local-deltas deltas)
+                            (partial cache-lookup (c/cache-snapshot cache) hits)
+                            world-evaluation-chain)
                      world-evaluation-chain)
         result     (chain-eval evaluators basis [] node-id label)]
     (when cache
