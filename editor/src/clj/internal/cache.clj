@@ -3,6 +3,8 @@
             [clojure.core.cache :as cc]
             [internal.either :as e]))
 
+(def ^:dynamic *cache-debug* nil)
+
 (defn- build-leastness-queue
   [base limit start-at]
   (into (clojure.data.priority-map/priority-map)
@@ -90,6 +92,8 @@
 
 (defn- encache
   [c kvs]
+  (when *cache-debug*
+    (println 'internal.cache/encache (map first kvs)))
   (reduce
    (fn [c [k v]]
      (cc/miss c k v))
@@ -97,6 +101,8 @@
 
 (defn- hits
   [c ks]
+  (when *cache-debug*
+    (println 'internal.cache/hits ks))
   (reduce
    (fn [c [k v]]
      (cc/hit c k))
@@ -104,6 +110,8 @@
 
 (defn- evict
   [cache ks]
+  (when *cache-debug*
+    (println 'internal.cache/evict ks))
   (reduce cc/evict cache ks))
 
 ;; ----------------------------------------
