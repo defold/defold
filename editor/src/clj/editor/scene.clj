@@ -390,8 +390,9 @@
                         :toggle (fn [sel]
                                   (let [selection-set (set (map :id selection))
                                         prev-selection-set (g/node-value controller :prev-selection-set)]
-                                    (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))]
-    (select-fn (map #(g/node-by-id (g/now) %) (sel-filter-fn selection)) op-seq)))
+                                    (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))
+        selection (or (not-empty (sel-filter-fn selection)) [(:id (g/node-value controller :scene))])]
+    (select-fn (map #(g/node-by-id (g/now) %) selection) op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})
 (def other-toggle-modifiers #{:control})
@@ -455,12 +456,13 @@
 
   (input selection t/Any)
   (input picking-selection t/Any)
+  (input scene t/Any)
 
   (output picking-rect Rect :cached produce-picking-rect)
   (output renderable t/Any :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d) :render-fn (g/fnk [gl] (render-selection-box gl start current))}]}))
   (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
 
-(defn setup-view [view opts]
+(defn setup-view [view resource-node opts]
   (let [view-graph (g/node->graph-id view)]
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
@@ -470,10 +472,8 @@
                    grid       grid/Grid]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
-                  ; Needed for scopes
-;                  (g/connect renderer :self view :nodes)
-;                  (g/connect camera :self view :nodes)
-
+                  (g/connect resource-node :scene view :scene)
+                  (g/connect resource-node :scene selection :scene)
                   (g/set-graph-value view-graph :renderer renderer)
                   (g/set-graph-value view-graph :camera   camera)
 
@@ -501,17 +501,13 @@
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view (make-scene-view graph parent)]
     (g/transact
-      (concat
-        (setup-view view opts)
-        (g/connect resource-node :scene view :scene)))
+      (setup-view view resource-node opts))
     view))
 
 (defn make-preview [graph resource-node opts width height]
   (let [view (make-preview-view graph width height)]
     (g/transact
-      (concat
-        (setup-view view (dissoc opts :grid))
-        (g/connect resource-node :scene view :scene)))
+      (setup-view view resource-node (dissoc opts :grid)))
     view))
 
 (defn register-view-types [workspace]
