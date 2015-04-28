@@ -96,11 +96,12 @@ ordinary paths."
 
   (property workspace t/Any)
 
-  (input selection t/Any)
+  (input selection [t/Any])
   (input resources t/Any)
   (input resource-types t/Any)
   (input save-data [t/Any])
 
+  (output selection t/Any :cached (g/fnk [selection] selection))
   (output nodes-by-resource t/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))
   (output menu t/Any :cached produce-menu)
   (output save-data t/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data))))
@@ -127,17 +128,24 @@ ordinary paths."
         resource (workspace/resolve-resource (:resource base-resource-node) path)]
     (get-resource-node project resource)))
 
-(g/defnode Selection
-  (input selected-nodes [t/Any])
-
-  (output selection t/Any (g/fnk [selected-nodes] selected-nodes)))
-
-(defn select [project nodes]
-  (let [selection-node (g/node-value project :selection)]
+(defn select
+  ([project nodes]
+    (select project nodes (gensym)))
+  ([project nodes op-seq]
     (g/transact
       (concat
+        (g/operation-sequence op-seq)
         (g/operation-label "Select")
-        (for [[node label] (g/sources-of (g/now) selection-node :selected-nodes)]
-           (g/disconnect node label selection-node :selected-nodes))
+        (for [[node label] (g/sources-of (g/now) project :selection)]
+           (g/disconnect node label project :selection))
         (for [node nodes]
-          (g/connect node :self selection-node :selected-nodes))))))
+          (g/connect node :self project :selection))))))
+
+(defn make-project [graph workspace]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (g/make-nodes graph
+                      [project [Project :workspace workspace]]
+                      (g/connect workspace :resource-list project :resources)
+                      (g/connect workspace :resource-types project :resource-types))))))

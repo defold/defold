@@ -60,9 +60,9 @@
 (def cubemap-shader (shader/make-shader pos-norm-vert pos-norm-frag))
 
 (defn render-cubemap
-  [^GL2 gl world camera gpu-texture vertex-binding]
+  [^GL2 gl camera gpu-texture vertex-binding]
   (gl/with-enabled gl [gpu-texture cubemap-shader vertex-binding]
-    (shader/set-uniform cubemap-shader gl "world" world)
+    (shader/set-uniform cubemap-shader gl "world" geom/Identity4d)
     (shader/set-uniform cubemap-shader gl "cameraPosition" (t/position camera))
     (shader/set-uniform cubemap-shader gl "envMap" 0)
     (gl/gl-enable gl GL/GL_CULL_FACE)
@@ -88,13 +88,10 @@
 
 (g/defnk produce-scene
   [self aabb gpu-texture vertex-binding]
-  (let [vertex-binding (vtx/use-with unit-sphere cubemap-shader)
-        world (Matrix4d. geom/Identity4d)]
-    {:id          (g/node-id self)
-     :aabb        aabb
-     :transform   world
-     :renderables {pass/transparent
-                   [{:render-fn (g/fnk [gl camera] (render-cubemap gl world camera gpu-texture vertex-binding))}]}}))
+  (let [vertex-binding (vtx/use-with unit-sphere cubemap-shader)]
+    {:aabb        aabb
+     :renderable {:render-fn (g/fnk [gl camera] (render-cubemap gl camera gpu-texture vertex-binding))
+                  :passes [pass/transparent]}}))
 
 (g/defnode CubemapNode
   (inherits project/ResourceNode)

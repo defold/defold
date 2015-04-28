@@ -16,7 +16,8 @@
             [editor.scene :as scene]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [internal.render.pass :as pass])
   (:import [dynamo.types Region]
            [java.awt.image BufferedImage]
            [java.io File]
@@ -46,14 +47,7 @@
 
 (defn- load-test-project
   [workspace proj-graph]
-  (let [project (first
-                      (g/tx-nodes-added
-                        (g/transact
-                          (g/make-nodes
-                            proj-graph
-                            [project [project/Project :workspace workspace]]
-                            (g/connect workspace :resource-list project :resources)
-                            (g/connect workspace :resource-types project :resource-types)))))
+  (let [project (project/make-project proj-graph workspace)
         project (project/load-project project)]
     (g/reset-undo! proj-graph)
     project))
@@ -114,7 +108,7 @@
                           "**/switcher.atlas" test-atlas-scene}
                    #_{"**/atlas_sprite.collection" test-coll-scene}
                    #_{"**/atlas_sprite.go" test-go-scene}
-                   #_{"**/atlas.sprite" test-sprite-scene}
+                   #_{"**/small_atlas.sprite" test-sprite-scene}
                    #_{"**/env.cubemap" test-cubemap-scene}
                    #_{"**/level1.platformer" test-platformer-scene}
                    #_{"**/level01.switcher" test-switcher-scene}
@@ -125,3 +119,61 @@
                (doseq [[query test-fn] tests]
                  (let [[resource node] (first (project/find-resources project query))]
                    (test-fn node)))))))
+
+(deftest gen-renderables
+  (testing "Renderables generation"
+           (with-clean-system
+             (let [workspace     (load-test-workspace world)
+                   project-graph (g/make-graph! :history true :volatility 1)
+                   project       (load-test-project workspace project-graph)
+                   view-graph    (g/make-graph! :history false :volatility 2)
+                   query         "**/small_atlas.sprite"]
+               (let [[resource node] (first (project/find-resources project query))
+                     view            (scene/make-preview view-graph node {} 128 128)]
+                 (let [renderables (g/node-value view :renderables)]
+                   (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))))
+
+(defn- fake-input [view type x y]
+  (let [handlers (g/sources-of view :input-handlers)
+        action {:type type :x x :y y}]
+    (doseq [[node label] handlers]
+      (let [handler-fn (g/node-value node label)]
+        (handler-fn node action)))))
+
+(defn- is-empty-selection [project]
+  (let [sel (g/node-value project :selection)]
+    (is (empty? sel))))
+
+(defn- is-selected [project tgt-node]
+  (let [sel (g/node-value project :selection)]
+    (is (some #{tgt-node} sel))))
+
+(deftest scene-selection
+  (testing "Scene generation"
+           (with-clean-system
+             (let [workspace     (load-test-workspace world)
+                   project-graph (g/make-graph! :history true :volatility 1)
+                   project       (load-test-project workspace project-graph)
+                   view-graph    (g/make-graph! :history false :volatility 2)
+                   query         "**/small_atlas_sprite.collection"]
+               (let [[resource node] (first (project/find-resources project query))
+                     view            (scene/make-preview view-graph node {:select-fn (fn [selection op-seq] (project/select project selection op-seq))} 128 128)
+                     press-fn         (fn [x y] (fake-input view :mouse-pressed x y))
+                     move-fn         (fn [x y] (fake-input view :mouse-moved x y))
+                     release-fn (fn [x y] (fake-input view :mouse-released x y))
+                     go-node (ffirst (g/sources-of node :child-scenes))]
+                 (is-empty-selection project)
+                 ; Press
+                 (press-fn 64 64)
+                 (is-selected project go-node)
+                 ; Click
+                 (release-fn 64 64)
+                 (is-selected project go-node)
+                 ; Drag
+                 (press-fn 64 64)
+                 (move-fn 64 68)
+                 (release-fn 64 68)
+                 (is-selected project go-node)
+                 ; Deselect
+                 (press-fn 128 128)
+                 (is-empty-selection project))))))

@@ -28,38 +28,52 @@
 ; Render assets
 
 (vtx/defvertex texture-vtx
-  (vec4 position)
-  (vec2 texcoord0)
-  (vec4 color))
+  (vec3 position)
+  (vec2 texcoord0 true))
 
 (shader/defshader vertex-shader
   (attribute vec4 position)
   (attribute vec2 texcoord0)
-  (attribute vec4 color)
   (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
   (defn void main []
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)
-    (setq var_color color)))
+    (setq var_texcoord0 texcoord0)))
 
 (shader/defshader fragment-shader
   (varying vec2 var_texcoord0)
+  (uniform vec4 color)
   (uniform sampler2D texture)
-  (varying vec4 var_color)
   (defn void main []
-    (setq gl_FragColor (* var_color (texture2D texture var_texcoord0.xy)))
+    (setq gl_FragColor (* color (texture2D texture var_texcoord0.xy)))
     #_(setq gl_FragColor (vec4 var_texcoord0.xy 0 1))
     ))
 
 (def shader (shader/make-shader vertex-shader fragment-shader))
 
+(shader/defshader outline-vertex-shader
+  (attribute vec4 position)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
+
+(shader/defshader outline-fragment-shader
+  (uniform vec4 color)
+  (defn void main []
+    (setq gl_FragColor color)))
+
+(def outline-shader (shader/make-shader outline-vertex-shader outline-fragment-shader))
+
 ; Rendering
 
-(defn render-sprite [^GL2 gl gpu-texture vertex-binding]
- (gl/with-enabled gl [gpu-texture shader vertex-binding]
-   (shader/set-uniform shader gl "texture" 0)
-   (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
+(defn render-sprite [^GL2 gl gpu-texture vertex-binding outline-vertex-binding pass selected]
+  (let [color (float-array (scene/select-color pass selected [1.0 1.0 1.0]))]
+    (if (= pass pass/outline)
+      (gl/with-enabled gl [outline-shader outline-vertex-binding]
+        (shader/set-uniform outline-shader gl "color" color)
+        (gl/gl-draw-arrays gl GL/GL_LINE_LOOP 0 4))
+      (gl/with-enabled gl [gpu-texture shader vertex-binding]
+        (shader/set-uniform shader gl "color" color)
+        (shader/set-uniform shader gl "texture" 0)
+        (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))))
 
 ; Vertex generation
 
@@ -69,27 +83,37 @@
       (mapv #(nth (:tex-coords textureset) %) (range start (+ start count)))
       [[0 0] [0 0]])))
 
-(defn gen-vertex [x y u v color]
-  (doall (concat [x y 0 1 u v] color)))
+(defn gen-vertex [x y u v]
+  [x y 0 u v])
 
 (defn gen-quad [textureset animation]
   (let [x1 (* 0.5 (:width animation))
         y1 (* 0.5 (:height animation))
         x0 (- x1)
         y0 (- y1)
-        [[u0 v0] [u1 v1]] (anim-uvs textureset animation)
-        color [1 1 1 1]]
-    [(gen-vertex x0 y0 u0 v1 color)
-     (gen-vertex x1 y0 u1 v1 color)
-     (gen-vertex x0 y1 u0 v0 color)
-     (gen-vertex x1 y0 u1 v1 color)
-     (gen-vertex x1 y1 u1 v0 color)
-     (gen-vertex x0 y1 u0 v0 color)]))
+        [[u0 v0] [u1 v1]] (anim-uvs textureset animation)]
+    [(gen-vertex x0 y0 u0 v1)
+     (gen-vertex x1 y0 u1 v1)
+     (gen-vertex x0 y1 u0 v0)
+     (gen-vertex x1 y0 u1 v1)
+     (gen-vertex x1 y1 u1 v0)
+     (gen-vertex x0 y1 u0 v0)]))
+
+(defn gen-outline-quad [textureset animation]
+  (let [x1 (* 0.5 (:width animation))
+        y1 (* 0.5 (:height animation))
+        x0 (- x1)
+        y0 (- y1)
+        [[u0 v0] [u1 v1]] (anim-uvs textureset animation)]
+    [(gen-vertex x0 y0 u0 v1)
+     (gen-vertex x1 y0 u1 v1)
+     (gen-vertex x1 y1 u1 v0)
+     (gen-vertex x0 y1 u0 v0)]))
 
 (defn gen-vertex-buffer
-  [textureset animation]
-  (let [vbuf  (->texture-vtx 6)]
-    (doseq [vertex (gen-quad textureset animation)]
+  [textureset animation gen-quad-fn vtx-count]
+  (let [vbuf  (->texture-vtx vtx-count)]
+    (doseq [vertex (gen-quad-fn textureset animation)]
       (conj! vbuf vertex))
     (persistent! vbuf)))
 
@@ -107,12 +131,12 @@
 
 (g/defnk produce-scene
   [self aabb gpu-texture textureset animation]
-  (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation) shader)]
+  (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-quad 6) shader)
+        outline-vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-outline-quad 4) outline-shader)]
     {:id (g/node-id self)
-     :aabb aabb 
-     :renderables {pass/transparent [{:world-transform geom/Identity4d
-                                      :render-fn (g/fnk [gl]
-                                                        (render-sprite gl gpu-texture vertex-binding))}]}}))
+     :aabb aabb
+     :renderable {:render-fn (g/fnk [gl pass selected] (render-sprite gl gpu-texture vertex-binding outline-vertex-binding pass selected))
+                  :passes [pass/transparent pass/selection pass/outline]}}))
 
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
@@ -129,10 +153,10 @@
   (output gpu-texture t/Any (g/fnk [gpu-texture] gpu-texture))
   (output animation t/Any (g/fnk [textureset default-animation] (get (:animations textureset) default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (let [hw (* 0.5 (:width animation))
-                                            hh (* 0.5 (:height animation))]
-                                        (-> (geom/null-aabb)
-                                          (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
-                                          (geom/aabb-incorporate (Point3d. hw hh 0))))))
+                                             hh (* 0.5 (:height animation))]
+                                         (-> (geom/null-aabb)
+                                           (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
+                                           (geom/aabb-incorporate (Point3d. hw hh 0))))))
   (output outline t/Any (g/fnk [self] {:self self :label "Sprite" :icon sprite-icon}))
   (output save-data t/Any :cached produce-save-data)
   (output scene t/Any :cached produce-scene))
