@@ -33,7 +33,9 @@
 
 (def integration-test-namespaces '[editor.atlas-test
                                    integration.undo-test
-                                   integration.asset-browser-test])
+                                   integration.asset-browser-test
+                                   integration.save-test
+                                   integration.scene-test])
 
 (def builtin-basedir (io/file "../com.dynamo.cr/com.dynamo.cr.builtins"))
 
