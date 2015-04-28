@@ -150,7 +150,7 @@
 
 (defn- is-selected [project tgt-node]
   (let [sel (g/node-value project :selection)]
-    (is (some #{tgt-node} sel))))
+    (is (some #{(g/node-id tgt-node)} (map g/node-id sel)))))
 
 (deftest scene-selection
   (testing "Scene generation"
@@ -160,14 +160,14 @@
                    project       (load-test-project workspace project-graph)
                    view-graph    (g/make-graph! :history false :volatility 2)
                    query         "**/atlas_sprite.collection"]
-               (let [[resource node] (first (project/find-resources project query))
-                     view            (scene/make-preview view-graph node {:select-fn (fn [selection op-seq] (project/select project selection op-seq))} 128 128)
+               (let [[resource root-node] (first (project/find-resources project query))
+                     view            (scene/make-preview view-graph root-node {:select-fn (fn [selection op-seq] (project/select project selection op-seq))} 128 128)
                      press-fn         (fn
                                         ([x y] (fake-input view :mouse-pressed x y))
                                         ([x y modifiers] (fake-input view :mouse-pressed x y modifiers)))
                      move-fn         (fn [x y] (fake-input view :mouse-moved x y))
                      release-fn (fn [x y] (fake-input view :mouse-released x y))
-                     go-node (ffirst (g/sources-of node :child-scenes))]
+                     go-node (ffirst (g/sources-of root-node :child-scenes))]
                  (g/transact (g/connect project :selection view :selection))
                  (is-empty-selection project)
                  ; Press
@@ -181,9 +181,9 @@
                  (move-fn 64 68)
                  (release-fn 64 68)
                  (is-selected project go-node)
-                 ; Deselect
+                 ; Deselect - default to "root" node
                  (press-fn 128 128)
-                 (is-empty-selection project)
+                 (is-selected project root-node)
                  ; Toggling
                  (let [modifiers (if util/is-mac [:meta] [:control])]
                    (press-fn 64 64)
@@ -191,4 +191,4 @@
                    (is-selected project go-node)
                    (press-fn 64 64 modifiers)
                    (release-fn 64 64)
-                   (is-empty-selection project)))))))
+                   (is-selected project root-node)))))))
