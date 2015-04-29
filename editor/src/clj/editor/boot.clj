@@ -88,6 +88,7 @@
       (g/transact
         (concat
           (g/connect project :menu app-view :main-menus)
+          (g/connect project :selection outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
