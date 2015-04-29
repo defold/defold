@@ -140,15 +140,18 @@
   (let [prefs (.node (Preferences/userRoot) "defold")]
     (.put prefs key value)))
 
-(Platform/runLater
-  (fn []
-    (when (nil? @the-root)
-      (g/initialize {})
-      (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-      (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
-      (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
-    (let [pref-key "default-project-file"
-          project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
-      (when project-file
-        (set-preference pref-key project-file)
-        (open-project (io/file project-file))))))
+
+
+(defn main []
+  (Platform/runLater
+   (fn []
+     (when (nil? @the-root)
+       (g/initialize {})
+       (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
+       (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
+       (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
+     (let [pref-key "default-project-file"
+           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
+       (when project-file
+         (set-preference pref-key project-file)
+         (open-project (io/file project-file)))))))
