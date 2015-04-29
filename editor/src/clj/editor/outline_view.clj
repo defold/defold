@@ -27,6 +27,8 @@
 
 (declare tree-item)
 
+(def ^:dynamic user-selection true)
+
 ; TreeItem creator
 (defn- list-children [parent]
   (let [children (:children parent)]
@@ -81,13 +83,10 @@
        root (get root-cache active-resource)
        new-root (when active-outline (sync-tree root (tree-item active-outline)))
        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
-    (doto (-> tree-view (.getSelectionModel) (.getSelectedItems))
-      (.removeListener selection-listener))
-    (.setRoot tree-view new-root)
-    (sync-selection tree-view new-root selection)
-    (doto (-> tree-view (.getSelectionModel) (.getSelectedItems))
-      (.addListener selection-listener))
-    (g/transact (g/set-property self :root-cache new-cache))))
+    (binding [user-selection false]
+      (.setRoot tree-view new-root)
+      (sync-selection tree-view new-root selection)
+      (g/transact (g/set-property self :root-cache new-cache)))))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
@@ -125,7 +124,8 @@
 
 (defn make-outline-view [graph tree-view selection-fn]
   (let [selection-listener (reify ListChangeListener (onChanged [this change]
-                                                       ; TODO - handle selection order
-                                                       (selection-fn (map #(.getValue %1) (.getList change)))))]
+                                                       (when user-selection
+                                                         ; TODO - handle selection order
+                                                         (selection-fn (map #(.getValue %1) (.getList change))))))]
     (setup-tree-view tree-view selection-listener)
     (first (g/tx-nodes-added (g/transact (g/make-node graph OutlineView :tree-view tree-view :selection-listener selection-listener))))))
