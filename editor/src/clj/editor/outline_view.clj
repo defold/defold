@@ -27,7 +27,7 @@
 
 (declare tree-item)
 
-(def ^:dynamic user-selection true)
+(def ^:private ^:dynamic *programmatic-selection* nil)
 
 ; TreeItem creator
 (defn- list-children [parent]
@@ -83,7 +83,7 @@
        root (get root-cache active-resource)
        new-root (when active-outline (sync-tree root (tree-item active-outline)))
        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
-    (binding [user-selection false]
+    (binding [*programmatic-selection* true]
       (.setRoot tree-view new-root)
       (sync-selection tree-view new-root selection)
       (g/transact (g/set-property self :root-cache new-cache)))))
@@ -124,7 +124,7 @@
 
 (defn make-outline-view [graph tree-view selection-fn]
   (let [selection-listener (reify ListChangeListener (onChanged [this change]
-                                                       (when user-selection
+                                                       (when-not *programmatic-selection*
                                                          ; TODO - handle selection order
                                                          (selection-fn (map #(.getValue %1) (.getList change))))))]
     (setup-tree-view tree-view selection-listener)
