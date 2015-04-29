@@ -180,8 +180,8 @@ namespace dmScript
      *
      * @name sys.get_config
      * @param key key to get value for. The syntax is SECTION.KEY
-     * @param default_value default value to return if the value doens't exists
-     * @return config value as a string. default_value if the config key doesn't exists
+     * @param default_value default value to return if the value does not exist
+     * @return config value as a string. default_value if the config key does not exist
      * @examples
      * <p>
      * Get user config value
@@ -400,7 +400,6 @@ namespace dmScript
     }
 
     /*# set the error handler. The error handler is a function which is called whenever a lua runtime error occurs.
-     *
      * @examples
      * <p>
      * Install error handler that just prints the errors
@@ -412,7 +411,6 @@ namespace dmScript
      *      print("traceback: " .. traceback);
      *  end)
      * </pre>
-     *
      * @name sys.set_error_handler
      * @param error_handler the function to be called on error
      */
