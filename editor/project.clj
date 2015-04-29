@@ -27,6 +27,9 @@
                      [commons-io/commons-io                       "2.3"]
                      [cider/cider-nrepl                           "0.8.2"]
 
+                     [org.projectodd.shimdandy/shimdandy-api "1.1.0"]
+                     [org.projectodd.shimdandy/shimdandy-impl "1.1.0"]
+
                      ;; These are installed in a local repository
                      [javax/vecmath                               "1.5.2"]
                      [javax/inject                                "1.0.0"]
