@@ -68,18 +68,31 @@
         (.setExpanded item true))))
   new-root)
 
-(g/defnk update-tree-view [self tree-view root-cache active-resource active-outline open-resources selection selection-fn]
+(defn- sync-selection [tree-view new-root selection]
+  (let [selected-ids (set (map g/node-id selection))
+        selected-items (filter #(selected-ids (g/node-id (:self (.getValue %)))) (tree-item-seq new-root))
+        selected-indices (map #(.getRow tree-view %) selected-items)]
+    (when (not (empty? selected-indices))
+      (doto (-> tree-view (.getSelectionModel))
+        (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))
+
+(g/defnk update-tree-view [self tree-view root-cache active-resource active-outline open-resources selection selection-listener]
   (let [resource-set (set open-resources)
-        root (get root-cache active-resource)
-        new-root (when active-outline (sync-tree root (tree-item active-outline)))
-        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
+       root (get root-cache active-resource)
+       new-root (when active-outline (sync-tree root (tree-item active-outline)))
+       new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
+    (doto (-> tree-view (.getSelectionModel) (.getSelectedItems))
+      (.removeListener selection-listener))
     (.setRoot tree-view new-root)
+    (sync-selection tree-view new-root selection)
+    (doto (-> tree-view (.getSelectionModel) (.getSelectedItems))
+      (.addListener selection-listener))
     (g/transact (g/set-property self :root-cache new-cache))))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
   (property root-cache t/Any)
-  (property selection-fn t/Any)
+  (property selection-listener ListChangeListener)
 
   (input active-outline t/Any)
   (input active-resource workspace/Resource)
@@ -88,16 +101,14 @@
   
   (output tree-view TreeView :cached update-tree-view))
 
-(defn- setup-tree-view [tree-view selection-fn]
+(defn- setup-tree-view [tree-view selection-listener]
   (-> tree-view
       (.getSelectionModel)
       (.setSelectionMode SelectionMode/MULTIPLE))
   (-> tree-view
       (.getSelectionModel)
       (.getSelectedItems)
-      (.addListener (reify ListChangeListener (onChanged [this change]
-                                                ; TODO - handle selection order
-                                                (selection-fn (map #(.getValue %1) (.getList change)))))))
+      (.addListener selection-listener))
   (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                (proxy [TreeCell] []
                                                  (updateItem [item empty]
@@ -113,5 +124,8 @@
                                                        (when context-menu (proxy-super setContextMenu (menu/make-context-menu context-menu)))))))))))
 
 (defn make-outline-view [graph tree-view selection-fn]
-  (setup-tree-view tree-view selection-fn)
-  (first (g/tx-nodes-added (g/transact (g/make-node graph OutlineView :tree-view tree-view :selection-fn selection-fn)))))
+  (let [selection-listener (reify ListChangeListener (onChanged [this change]
+                                                       ; TODO - handle selection order
+                                                       (selection-fn (map #(.getValue %1) (.getList change)))))]
+    (setup-tree-view tree-view selection-listener)
+    (first (g/tx-nodes-added (g/transact (g/make-node graph OutlineView :tree-view tree-view :selection-listener selection-listener))))))
