@@ -66,6 +66,7 @@ copy arm64-darwin/dmengine_release arm64-darwin/dmengine_release
 copy armv7-android/libdmengine.so armv7-android/libdmengine.so
 copy armv7-android/libdmengine_release.so armv7-android/libdmengine_release.so
 copy js-web/dmengine.js js-web/dmengine.js
+copy js-web/defold_sound.swf js-web/defold_sound.swf
 #copy js-web/dmengine.js.mem js-web/dmengine.js.mem
 copy js-web/dmengine_release.js js-web/dmengine_release.js
 #copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
