@@ -1,4 +1,4 @@
-(ns integration.undo-test
+(ns ^:integration integration.undo-test
   (:require [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
