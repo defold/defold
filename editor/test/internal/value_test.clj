@@ -276,7 +276,7 @@
       ;; output-label connected? source-sends  expected-pfn
       :unary-no-sub   false      :dontcare     nil
       :multi-no-sub   false      :dontcare     '()
-      :unary-with-sub false      :dontcare     nil
+      :unary-with-sub false      :dontcare     99
       :multi-with-sub false      :dontcare     '()
 
       :unary-no-sub   true       nil           nil
