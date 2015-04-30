@@ -3,23 +3,11 @@
             [dynamo.types :as t]
             [dynamo.util :refer :all]))
 
-(defn- get-default-value [property-type-descriptor]
-  (some-> property-type-descriptor
-          :default
-          var-get-recursive
-          apply-if-fn))
-
 (def ^:private default-validation-fn (constantly true))
 
-(defn- validations
-  [property-type-descriptor]
-  (->> property-type-descriptor
-    :validation
-    (map second)))
-
 (defn- validation-problems
-  [property-type-descriptor value]
-  (if (t/check (t/property-value-type property-type-descriptor) value)
+  [value-type validations value]
+  (if (t/check value-type value)
     (list "invalid value type")
     (keep identity
       (reduce
@@ -29,21 +17,18 @@
               (when-not valid?
                 (apply-if-fn (var-get-recursive formatter) value)))))
         []
-        (validations property-type-descriptor)))))
-
-(defn- valid-value?
-  [property-type-descriptor value]
-  (empty? (validation-problems property-type-descriptor value)))
+        validations))))
 
 (defrecord PropertyTypeImpl
-  [value-type]
+  [value-type default validation visible tags enabled]
   t/PropertyType
-  (property-value-type    [this]   (:value-type this))
-  (property-default-value [this]   (get-default-value this))
-  (property-validate      [this v] (validation-problems this v))
-  (property-valid-value?  [this v] (valid-value? this v))
-  (property-visible       [this]   (if (contains? this :visible) (:visible this) true))
-  (property-tags          [this]   (:tags this)))
+  (property-value-type    [this]   value-type)
+  (property-default-value [this]   (some-> default var-get-recursive apply-if-fn))
+  (property-validate      [this v] (validation-problems value-type (map second validation) v))
+  (property-valid-value?  [this v] (empty? (validation-problems value-type (map second validation) v)))
+  (property-enabled?      [this v] (or (nil? enabled) (apply-if-fn (var-get-recursive enabled) v)))
+  (property-visible?      [this v] (or (nil? visible) (apply-if-fn (var-get-recursive visible) v)))
+  (property-tags          [this]   tags))
 
 (defn- resolve-if-symbol [sym]
   (if (symbol? sym)
@@ -65,12 +50,14 @@
     {:validation [[(keyword label) {:fn (resolve-if-symbol validation-fn)
                                    :formatter "invalid value"}]]}
 
-    [(['validation validation-fn] :seq)]
-    {:validation [[(keyword (gensym)) {:fn (resolve-if-symbol validation-fn)
-                                    :formatter "invalid value"}]]}
-
     [(['visible visibility] :seq)]
     {:visible (resolve-if-symbol visibility)}
+
+    [(['enabled enablement-fn] :seq)]
+    {:enabled (resolve-if-symbol enablement-fn)}
+
+    [(['visible visibility-fn] :seq)]
+    {:visible (resolve-if-symbol visibility-fn)}
 
     [(['tag tag] :seq)]
     {:tags [tag]}
