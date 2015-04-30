@@ -68,7 +68,8 @@
   (property-default-value [this])
   (property-validate      [this v] "Returns a possibly-empty seq of messages.")
   (property-valid-value?  [this v] "If valid, returns nil. If invalid, returns seq of Marker")
-  (property-visible       [this]   "If true, this property appears in the UI")
+  (property-enabled?      [this v] "If true, this property may be edited")
+  (property-visible?      [this v] "If true, this property appears in the UI")
   (property-tags          [this]))
 
 (defn property-type? [x] (satisfies? PropertyType x))
