@@ -12,7 +12,7 @@
     (is (identical? (resolve `SomeProperty) property-defn))
     (is (satisfies? t/PropertyType (var-get property-defn)))
     (is (= t/Any (-> property-defn var-get :value-type)))
-    (is (t/property-visible SomeProperty)))
+    (is (t/property-visible? SomeProperty :a-value)))
   (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"\(schema.core/protocol dynamo.property-test/MyProtocol\)"
         (eval '(dynamo.property/defproperty BadProp dynamo.property-test/MyProtocol)))))
 
@@ -310,3 +310,52 @@
     {:type :some-type :widget "FILTER ME"} {:type :some-type}
     {:character \d}                        {::dp/character \d}
     {:type :some-type :character \d}       {:type :some-type ::dp/character \d}))
+
+
+(defproperty PropWithoutEnablement t/Any)
+
+(defproperty PropWithEnablementFnInline t/Num
+  (enabled #(pos? %)))
+
+(defproperty PropWithEnablementFnValue t/Num
+  (enabled (every-pred pos? even?)))
+
+(defproperty PropWithEnablementLiteralTrue t/Num
+  (enabled true))
+
+(defproperty PropWithEnablementLiteralFalse t/Num
+  (enabled false))
+
+(defn ^:dynamic *enablement-fn* [v] (= 42 v))
+
+(defproperty PropWithEnablementVarAsSymbol t/Num
+  (enabled *enablement-fn*))
+
+(defproperty PropWithEnablementVarForm t/Num
+  (enabled #'*enablement-fn*))
+
+(deftest property-type-enablement
+  (is (true?  (t/property-enabled? PropWithoutEnablement nil)))
+  (is (true?  (t/property-enabled? PropWithoutEnablement 0)))
+  (is (true?  (t/property-enabled? PropWithoutEnablement 1)))
+  (is (false? (t/property-enabled? PropWithEnablementFnInline 0)))
+  (is (true?  (t/property-enabled? PropWithEnablementFnInline 1)))
+  (is (false? (t/property-enabled? PropWithEnablementFnValue 0)))
+  (is (false? (t/property-enabled? PropWithEnablementFnValue 1)))
+  (is (true?  (t/property-enabled? PropWithEnablementFnValue 2)))
+  (is (true?  (t/property-enabled? PropWithEnablementLiteralTrue 0)))
+  (is (true?  (t/property-enabled? PropWithEnablementLiteralTrue 1)))
+  (is (false? (t/property-enabled? PropWithEnablementLiteralFalse 0)))
+  (is (false? (t/property-enabled? PropWithEnablementLiteralFalse 1)))
+  (is (false? (t/property-enabled? PropWithEnablementVarAsSymbol 23)))
+  (is (true?  (t/property-enabled? PropWithEnablementVarAsSymbol 42)))
+  (is (false? (t/property-enabled? PropWithEnablementVarForm 23)))
+  (is (true?  (t/property-enabled? PropWithEnablementVarForm 42)))
+  (binding [*enablement-fn* #(= 23 %)]
+    (is (true?  (t/property-enabled? PropWithEnablementVarAsSymbol 23)))
+    (is (false? (t/property-enabled? PropWithEnablementVarAsSymbol 42)))
+    (is (true?  (t/property-enabled? PropWithEnablementVarForm 23)))
+    (is (false? (t/property-enabled? PropWithEnablementVarForm 42))))
+  (is (thrown-with-msg?
+        clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
+        (eval '(dynamo.property/defproperty BadProp schema.core/Num (enabled non-existent-symbol))))))

@@ -112,11 +112,15 @@
 (defn- gather-property [this prop]
   (let [type     (-> this gt/properties prop)
         value    (get this prop)
-        problems (t/property-validate type value)]
+        problems (t/property-validate type value)
+        enabled? (t/property-enabled? type value)
+        visible? (t/property-visible? type value)]
     {:node-id             (gt/node-id this)
      :value               value
      :type                type
-     :validation-problems problems}))
+     :validation-problems problems
+     :enabled             enabled?
+     :visible             visible?}))
 
 (pc/defnk gather-properties :- t/Properties
   "Production function that delivers the definition and value

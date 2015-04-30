@@ -369,7 +369,11 @@
   (property default-internal TypedProperty
     (default 0))
   (property validated-internal DefaultProperty
-    (validate always-valid (fn [value] true))))
+            (validate always-valid (fn [value] true)))
+  (property literally-disabled TypedProperty
+            (enabled false))
+  (property functionally-disabled TypedProperty
+            (enabled #(pos? %))))
 
 (g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
