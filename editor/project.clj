@@ -45,8 +45,7 @@
   :java-source-paths ["src/java"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/java"]
 
-  :resource-paths    ["../com.dynamo.cr/com.dynamo.cr.builtins/builtins"
-                      "resources"]
+  :resource-paths    ["resources"]
 
   :proto-paths       ["../com.dynamo.cr/com.dynamo.cr.common/proto"
                       "../com.dynamo.cr/com.dynamo.cr.rlog/proto"
@@ -71,8 +70,7 @@
 
   :aliases           {"ci" ["do" "test," "uberjar"]}
 
-  :codox             {:sources                   ["src/clj"
-                                                  "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
+  :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"
                       :exclude                   [internal]
                       :src-dir-uri               "http://github.com/relevance/defold/blob/clojure-sceneed"
@@ -94,5 +92,4 @@
                                     :repl-options   {:port 4001}
                                     :proto-paths    ["test/proto"]
                                     :main ^:skip-aot com.defold.editor.Start
-                                    :resource-paths ["test/resources"
-                                                     "../com.dynamo.cr/com.dynamo.cr.builtins/test/resources/"]}})
+                                    :resource-paths ["test/resources"]}})
