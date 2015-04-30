@@ -1,5 +1,13 @@
 (ns internal.type-test
   (:require [clojure.test :refer :all]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [dynamo.types :as t]))
+            [internal.graph.types :refer [error error?]]))
+
+(deftest error-is-singleton
+  (is (identical? (error) (error))))
+
+(deftest error-is-identifiable
+  (is (error? (error)))
+  (is (not (error? 0)))
+  (is (not (error? nil)))
+  (is (not (error? false)))
+  (is (not (error? (Exception.)))))

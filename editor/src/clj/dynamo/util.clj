@@ -5,6 +5,16 @@
             [clojure.string :as str]
             [potemkin.namespaces :as namespaces]))
 
+(defn var-get-recursive [var-or-value]
+  (if (var? var-or-value)
+    (recur (var-get var-or-value))
+    var-or-value))
+
+(defn apply-if-fn [f & args]
+  (if (fn? f)
+    (apply f args)
+    f))
+
 (defn removev [pred coll]
   (filterv (complement pred) coll))
 

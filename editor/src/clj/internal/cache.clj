@@ -1,7 +1,6 @@
 (ns internal.cache
   (:require [clojure.core.async :as a]
-            [clojure.core.cache :as cc]
-            [internal.either :as e]))
+            [clojure.core.cache :as cc]))
 
 (def ^:dynamic *cache-debug* nil)
 
@@ -12,16 +11,7 @@
                 (for [[k _] base] [k start-at]))))
 
 (defn- post-removal [ch v]
-  (when v
-    (cond
-      (and (satisfies? e/Either v) (e/exists? v) (not (nil? (e/result v))))
-      (a/>!! ch (e/result v))
-
-      (not (satisfies? e/Either v))
-      (a/>!! ch v)
-
-      :else
-      :ignored)))
+  (when v (a/>!! ch v)))
 
 ;; This is the LRUCache from clojure.core.cache,
 ;; but with an added core.async channel that

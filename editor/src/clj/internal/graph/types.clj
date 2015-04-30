@@ -19,7 +19,8 @@
   (outputs'             [this])
   (cached-outputs'      [this])
   (event-handlers'      [this])
-  (input-dependencies'  [this]))
+  (input-dependencies'  [this])
+  (substitute-for'      [this input]))
 
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
@@ -32,7 +33,8 @@
   (input-types         [this]        "Return a map from input label to schema of the value type allowed for the input")
   (outputs             [this]        "Return a set of labels for the outputs of this node.")
   (cached-outputs      [this]        "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
-  (input-dependencies  [this]        "Return a map of labels for the inputs and properties to outputs that depend on them."))
+  (input-dependencies  [this]        "Return a map of labels for the inputs and properties to outputs that depend on them.")
+  (substitute-for      [this input]  "Return a generator for a substitute value (if any) for the given input"))
 
 (defn node? [v] (satisfies? Node v))
 
@@ -84,3 +86,11 @@
   (bit-and node-id NID-MASK))
 
 (defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
+
+;; ---------------------------------------------------------------------------
+;; The Error type
+;; ---------------------------------------------------------------------------
+(defonce ^:private the-error (proxy [Object] []
+                               (toString [] "#Error")))
+(defn error [] the-error)
+(defn error? [x] (identical? the-error x))

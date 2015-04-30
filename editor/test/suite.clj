@@ -20,7 +20,6 @@
                        editor.scope-test
                        internal.cache-test
                        internal.dependency-test
-                       internal.either-test
                        internal.graph.graph-test
                        internal.math-test
                        internal.node-test

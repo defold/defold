@@ -1,5 +1,6 @@
 (ns internal.value-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.core.match :as match]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
             [dynamo.types :as t]
@@ -244,3 +245,50 @@
       (expect-no-call-when
        view-node 'compute-derived-value
        (is (= "Solid Snake" (g/node-value view-node :derived-value)))))))
+
+(g/defnode SubstitutingInputsNode
+  (input unary-no-sub     t/Int)
+  (input multi-no-sub    [t/Int])
+  (input unary-with-sub   t/Int  :substitute 99)
+  (input multi-with-sub  [t/Int] :substitute 4848)
+
+  (output unary-no-sub    t/Int  (g/fnk [unary-no-sub] unary-no-sub))
+  (output multi-no-sub   [t/Int] (g/fnk [multi-no-sub] multi-no-sub))
+  (output unary-with-sub  t/Int  (g/fnk [unary-with-sub] unary-with-sub))
+  (output multi-with-sub [t/Int] (g/fnk [multi-with-sub] multi-with-sub)))
+
+(g/defnode ConstantNode
+  (property value t/Any)
+  (output source t/Int (g/fnk [value] value)))
+
+(defn arrange-error-value-call
+  [world label connected? source-sends]
+  (let [[receiver const] (tx-nodes (g/make-node world SubstitutingInputsNode)
+                                   (g/make-node world ConstantNode :value source-sends))]
+    (when connected?
+      (g/transact (g/connect const :source receiver label)))
+    (g/node-value receiver label)))
+
+(deftest error-value-replacement
+  (with-clean-system
+    (are [label connected? source-sends expected-pfn-val]
+      (= expected-pfn-val (arrange-error-value-call world label connected? source-sends))
+      ;; output-label connected? source-sends  expected-pfn
+      :unary-no-sub   false      :dontcare     nil
+      :multi-no-sub   false      :dontcare     '()
+      :unary-with-sub false      :dontcare     nil
+      :multi-with-sub false      :dontcare     '()
+
+      :unary-no-sub   true       nil           nil
+      :unary-with-sub true       nil           nil
+
+      :multi-no-sub   true       1             '(1)
+      :multi-with-sub true       42            '(42)
+      :multi-no-sub   true       '(nil 1 2 3)  '[(nil 1 2 3)]
+      :multi-with-sub true       '(nil 1 2 3)  '[(nil 1 2 3)]
+
+      :unary-no-sub   true       (g/error)      (g/error)
+      :unary-with-sub true       (g/error)      99
+
+      :multi-no-sub   true       (g/error)      [(g/error)]
+      :multi-with-sub true       (g/error)      [4848])))

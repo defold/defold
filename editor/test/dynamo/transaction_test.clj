@@ -4,7 +4,6 @@
             [dynamo.graph.test-support :refer :all]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
-            [internal.either :as e]
             [internal.transaction :as it]
             [plumbing.core :refer [defnk fnk]]))
 
@@ -327,7 +326,7 @@
           node-id (:_id node)]
       (is (= "an-output-value" (g/node-value node :cached-output)))
       (let [cached-value (cache-peek system node-id :cached-output)]
-        (is (= "an-output-value" (e/result cached-value)))
+        (is (= "an-output-value" cached-value))
         (g/transact (g/delete-node node))
         (is (nil? (cache-peek system node-id :cached-output)))))))
 
@@ -362,7 +361,7 @@
             node-id        (:_id node)
             expected-value (g/node-value node :original-output)]
         (is (not (nil? expected-value)))
-        (is (= expected-value (e/result (cache-peek system node-id :original-output))))
+        (is (= expected-value (cache-peek system node-id :original-output)))
         (let [tx-result (g/transact (g/become node (g/construct ReplacementNode)))]
           (yield)
           (is (nil? (cache-peek system node-id :original-output)))))))
@@ -375,7 +374,7 @@
             node         (g/refresh node)
             cached-value (g/node-value node :additional-output)]
         (yield)
-        (is (= cached-value (e/result (cache-peek system (:_id node) :additional-output))))))))
+        (is (= cached-value (cache-peek system (:_id node) :additional-output)))))))
 
 (g/defnode NumberSource
   (property x          t/Num         (default 0))
@@ -482,8 +481,8 @@
         (is (nil? (cache-peek system (:_id adder) :cached-sum)))
         (is (nil? (cache-peek system (:_id (first number-sources)) :cached-sum)))
         (g/node-value adder :cached-sum)
-        (is (= (count number-sources) (some-> (cache-peek system (:_id adder) :cached-sum)  e/result)))
-        (is (= 1                      (some-> (cache-peek system (:_id (first number-sources)) :cached-sum) e/result)))))))
+        (is (= (count number-sources) (some-> (cache-peek system (:_id adder) :cached-sum))))
+        (is (= 1                      (some-> (cache-peek system (:_id (first number-sources)) :cached-sum))))))))
 
 
 ;; This case is taken from editor.core/Scope.
