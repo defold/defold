@@ -79,16 +79,20 @@
                       :src-linenum-anchor-prefix "L"
                       :doc/format                :markdown}
 
-  :profiles          {:uberjar {:main com.defold.editor.Start
-                                :aot [editor]}
-                      :repl    {:source-paths   ["dev"]
-                                :prep-tasks     ^:replace []
-                                :aot            ^:replace []
-                                :repl-options   {:init-ns user}}
-                      :dev     {:dependencies   [[org.clojure/test.check "0.5.8"]
-                                                 [org.mockito/mockito-core "1.8.5"]]
-                                :repl-options   {:port 4001}
-                                :proto-paths    ["test/proto"]
-                                :main ^:skip-aot com.defold.editor.Start
-                                :resource-paths ["test/resources"
-                                                 "../com.dynamo.cr/com.dynamo.cr.builtins/test/resources/"]}})
+  :test-selectors    {:default     (fn [m] (not (:integration m)))
+                      :integration :integration}
+
+  :profiles          {:test        {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
+                      :uberjar     {:main com.defold.editor.Start
+                                    :aot  [editor]}
+                      :repl        {:source-paths   ["dev"]
+                                    :prep-tasks     ^:replace []
+                                    :aot            ^:replace []
+                                    :repl-options   {:init-ns user}}
+                      :dev         {:dependencies   [[org.clojure/test.check "0.5.8"]
+                                                     [org.mockito/mockito-core "1.8.5"]]
+                                    :repl-options   {:port 4001}
+                                    :proto-paths    ["test/proto"]
+                                    :main ^:skip-aot com.defold.editor.Start
+                                    :resource-paths ["test/resources"
+                                                     "../com.dynamo.cr/com.dynamo.cr.builtins/test/resources/"]}})
