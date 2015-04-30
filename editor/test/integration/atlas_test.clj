@@ -1,4 +1,4 @@
-(ns integration.atlas-test
+(ns ^:integration integration.atlas-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [clojure.walk :as walk]
