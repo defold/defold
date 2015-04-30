@@ -48,17 +48,23 @@
 (defn- currently-producing [in-production node-id label] (= [node-id label] (last in-production)))
 
 (defn- input-with-substitute
-  [basis in-production node-id label chain-head [source-node source-label]]
-  (let [error-or-value (chain-eval chain-head basis in-production source-node source-label)]
-    (if-let [sub (and (gt/error? error-or-value)
-                      (gt/substitute-for (gt/node-by-id basis node-id) label))]
+  [basis in-production node-id label chain-head [source-node source-label] replace-nil?]
+  (let [error-or-value (when source-node (chain-eval chain-head basis in-production source-node source-label))
+        sub            (gt/substitute-for (gt/node-by-id basis node-id) label)]
+    (cond
+      (and replace-nil? (nil? source-node) (not (nil? sub)))
       (apply-if-fn sub)
+
+      (and (gt/error? error-or-value) (not (nil? sub)))
+      (apply-if-fn sub)
+
+      :else
       error-or-value)))
 
 (defn- pull-singlevalued-input
   [basis in-production node-id label chain-head]
-  (when-let [source (first (gt/sources basis node-id label))]
-    (input-with-substitute basis in-production node-id label chain-head source)))
+  (let [source (first (gt/sources basis node-id label))]
+    (input-with-substitute basis in-production node-id label chain-head source true)))
 
 (defn- pull-multivalued-input
   [basis in-production node-id label chain-head]
@@ -67,7 +73,7 @@
     (fn [input-vals source]
       (conj!
        input-vals
-       (input-with-substitute basis in-production node-id label chain-head source)))
+       (input-with-substitute basis in-production node-id label chain-head source false)))
     (transient [])
     (gt/sources basis node-id label))))
 
