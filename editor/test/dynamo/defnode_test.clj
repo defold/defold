@@ -7,6 +7,8 @@
             [internal.node :as in])
   (:import clojure.lang.Compiler$CompilerException))
 
+(defn substitute-value-fn [& _] "substitute value")
+
 (deftest nodetype
   (testing "is created from a data structure"
     (is (satisfies? g/NodeType (in/make-node-type {:inputs {:an-input t/Str}}))))
@@ -60,6 +62,11 @@
 (g/defnode InjectableInputNode
   (input for-injection t/Int :inject))
 
+(g/defnode SubstitutingInputNode
+  (input substitute-fn  String :substitute substitute-value-fn)
+  (input var-to-fn      String :substitute #'substitute-value-fn)
+  (input inline-literal String :substitute "inline literal"))
+
 (deftest nodes-can-have-inputs
   (testing "labeled input"
     (let [node (g/construct OneInputNode)]
@@ -73,7 +80,15 @@
       (is (:an-input (g/inputs node)))))
   (testing "inputs can be flagged for injection"
     (let [node (g/construct InjectableInputNode)]
-      (is (:for-injection (g/injectable-inputs' InjectableInputNode))))))
+      (is (:for-injection (g/injectable-inputs' InjectableInputNode)))))
+  (testing "inputs can have substitute values to use when there is no source"
+    (is (= substitute-value-fn   (g/substitute-for' SubstitutingInputNode :substitute-fn)))
+    (is (= #'substitute-value-fn (g/substitute-for' SubstitutingInputNode :var-to-fn)))
+    (is (= "inline literal"      (g/substitute-for' SubstitutingInputNode :inline-literal)))
+    (let [node (g/construct SubstitutingInputNode)]
+      (is (= substitute-value-fn   (g/substitute-for node :substitute-fn)))
+      (is (= #'substitute-value-fn (g/substitute-for node :var-to-fn)))
+      (is (= "inline literal"      (g/substitute-for node :inline-literal))))))
 
 (definterface MarkerInterface)
 (definterface SecondaryInterface)
@@ -222,7 +237,7 @@
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
 (defn schemaless-production-fn [this & _] "schemaless fn produced string")
-(defn substitute-value-fn [& _] "substitute value")
+
 
 (dp/defproperty IntegerProperty t/Int (validate positive? (comp not neg?)))
 
@@ -234,8 +249,7 @@
   (output integer-output        IntegerProperty                                       integer-production-fnk)
   (output cached-output         t/Str           :cached                               string-production-fnk)
   (output inline-string         t/Str                                                 (g/fnk [string-input] "inline-string"))
-  (output schemaless-production t/Str                                                 schemaless-production-fn)
-  (output with-substitute       t/Str           :substitute-value substitute-value-fn string-production-fnk))
+  (output schemaless-production t/Str                                                 schemaless-production-fn))
 
 (g/defnode AbstractOutputNode
   (output abstract-output t/Str :abstract))
@@ -255,20 +269,20 @@
 (deftest nodes-can-have-outputs
   (testing "basic output definition"
     (let [node (g/construct MultipleOutputNode)]
-      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute]]
+      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production]]
         (is (get (g/outputs' MultipleOutputNode) expected-output))
         (is (get (g/outputs  node)               expected-output)))
-      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :schemaless-production t/Str :with-substitute t/Str}]
+      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :schemaless-production t/Str}]
         (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
       (is (:cached-output (g/cached-outputs' MultipleOutputNode)))
       (is (:cached-output (g/cached-outputs node)))))
 
   (testing "output inheritance"
     (let [node (g/construct InheritedOutputNode)]
-      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute :abstract-output]]
+      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :abstract-output]]
         (is (get (g/outputs' InheritedOutputNode) expected-output))
         (is (get (g/outputs  node)               expected-output)))
-      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :schemaless-production t/Str :with-substitute t/Str :abstract-output t/Str}]
+      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :schemaless-production t/Str :abstract-output t/Str}]
         (is (= expected-schema (get-in InheritedOutputNode [:transform-types label]))))
       (is (:cached-output (g/cached-outputs' InheritedOutputNode)))
       (is (:cached-output (g/cached-outputs node)))))
@@ -277,12 +291,12 @@
     (let [node (g/construct MultipleOutputNode)]
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
-              :integer-input #{:string-output :cached-output :with-substitute}}
+              :integer-input #{:string-output :cached-output}}
              (g/input-dependencies node))))
     (let [node (g/construct InheritedOutputNode)]
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
-              :integer-input #{:string-output :abstract-output :cached-output :with-substitute}}
+              :integer-input #{:string-output :abstract-output :cached-output}}
              (g/input-dependencies node)))))
 
   (testing "output dependencies are the transitive closure of their inputs"

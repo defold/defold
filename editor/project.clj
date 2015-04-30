@@ -89,6 +89,6 @@
                                                  [org.mockito/mockito-core "1.8.5"]]
                                 :repl-options   {:port 4001}
                                 :proto-paths    ["test/proto"]
-                                :main ^:skip-aot editor
+                                :main ^:skip-aot com.defold.editor.Start
                                 :resource-paths ["test/resources"
                                                  "../com.dynamo.cr/com.dynamo.cr.builtins/test/resources/"]}})
