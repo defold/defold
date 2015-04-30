@@ -1,16 +1,7 @@
 (ns internal.property
   (:require [clojure.core.match :refer [match]]
-            [dynamo.types :as t]))
-
-(defn- var-get-recursive [var-or-value]
-  (if (var? var-or-value)
-    (recur (var-get var-or-value))
-    var-or-value))
-
-(defn- apply-if-fn [f & args]
-  (if (fn? f)
-    (apply f args)
-    f))
+            [dynamo.types :as t]
+            [dynamo.util :refer :all]))
 
 (defn- get-default-value [property-type-descriptor]
   (some-> property-type-descriptor
