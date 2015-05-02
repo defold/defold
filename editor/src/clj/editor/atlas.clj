@@ -253,7 +253,7 @@
   (output images          [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
   (output aabb            AABB           (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
   (output gpu-texture     t/Any          :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
-  (output texture-packing TexturePacking :cached :substitute-value (tex/blank-texture-packing) produce-texture-packing)
+  (output texture-packing TexturePacking :cached produce-texture-packing)
   (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
   (output textureset      TextureSet     :cached produce-textureset)
   (output outline         t/Any          :cached (g/fnk [self outline] {:self self :label "Atlas" :children outline :icon atlas-icon}))
