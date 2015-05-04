@@ -62,36 +62,36 @@
 (s/defrecord T2 [value :- Integer])
 
 (deftest type-compatibility
-  (are [first second allow-collection? compatible?]
-    (= compatible? (g/type-compatible? first second allow-collection?))
-    T1 T1               false    true
-    T1 T1               true     false
-    T1 T2               false    false
-    T1 T2               true     false
-    T1 [T1]             true     true
-    T1 [T1]             false    false
-    T1 [T2]             true     false
-    T1 [T2]             false    false
-    String String       false    true
-    String String       true     false
-    String [String]     false    false
-    String [String]     true     true
-    [String] String     false    false
-    [String] String     true     false
-    [String] [String]   false    true
-    [String] [String]   true     false
-    [String] [[String]] true     true
-    Integer  Number     false    true
-    Integer  t/Num      false    true
-    T1       t/Any      false    true
-    T1       t/Any      true     true
-    T1       [t/Any]    false    false
-    T1       [t/Any]    true     true
-    String   t/Any      false    true
-    String   t/Any      true     true
-    String   [t/Any]    false    false
-    String   [t/Any]    true     true
-    [String] t/Any      false    true
-    [String] t/Any      true     true
-    [String] [t/Any]    false    true
-    [String] [t/Any]    false    true))
+  (are [first second cardinality compatible?]
+    (= compatible? (g/type-compatible? first second cardinality))
+    T1 T1               :one    true
+    T1 T1               :many   false
+    T1 T2               :one    false
+    T1 T2               :many   false
+    T1 [T1]             :many   true
+    T1 [T1]             :one    false
+    T1 [T2]             :many   false
+    T1 [T2]             :one    false
+    String String       :one    true
+    String String       :many   false
+    String [String]     :one    false
+    String [String]     :many   true
+    [String] String     :one    false
+    [String] String     :many   false
+    [String] [String]   :one    true
+    [String] [String]   :many   false
+    [String] [[String]] :many   true
+    Integer  Number     :one    true
+    Integer  t/Num      :one    true
+    T1       t/Any      :one    true
+    T1       t/Any      :many   true
+    T1       [t/Any]    :one    false
+    T1       [t/Any]    :many   true
+    String   t/Any      :one    true
+    String   t/Any      :many   true
+    String   [t/Any]    :one    false
+    String   [t/Any]    :many   true
+    [String] t/Any      :one    true
+    [String] t/Any      :many   true
+    [String] [t/Any]    :one    true
+    [String] [t/Any]    :one    true))
