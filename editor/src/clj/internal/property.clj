@@ -50,9 +50,6 @@
     {:validation [[(keyword label) {:fn (resolve-if-symbol validation-fn)
                                    :formatter "invalid value"}]]}
 
-    [(['visible visibility] :seq)]
-    {:visible (resolve-if-symbol visibility)}
-
     [(['enabled enablement-fn] :seq)]
     {:enabled (resolve-if-symbol enablement-fn)}
 
