@@ -187,8 +187,20 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
-        const char* layer = luaL_checkstring(L, 2);
-        dmhash_t layer_id = dmHashString64(layer);
+        dmhash_t layer_id;
+        if (lua_isstring(L, 2))
+        {
+            layer_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            layer_id = dmScript::CheckHash(L, 2);
+        }
+        else
+        {
+            return luaL_error(L, "name must be either a hash or a string");
+        }
+
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {
@@ -287,8 +299,20 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
-        const char* layer = luaL_checkstring(L, 2);
-        dmhash_t layer_id = dmHashString64(layer);
+        dmhash_t layer_id;
+        if (lua_isstring(L, 2))
+        {
+            layer_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            layer_id = dmScript::CheckHash(L, 2);
+        }
+        else
+        {
+            return luaL_error(L, "name must be either a hash or a string");
+        }
+
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {
