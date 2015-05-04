@@ -378,6 +378,9 @@
 (g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
 
+
+;;; TODO - Make some tests for the Derived Properties etc...
+
 (def original-node-definition
   '(dynamo.graph/defnode MutagenicNode
      (property a-property schema.core/Str  (default "a-string"))
