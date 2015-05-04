@@ -1,5 +1,5 @@
 (ns dynamo.particle-lib
-  (:import [com.dynamo.cr.parted ParticleLibrary]
+  (:import [com.defold.libs ParticleLibrary]
            [com.sun.jna Pointer]))
 
 (defn create-context [max-emitter-count max-particle-count]
