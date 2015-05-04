@@ -335,7 +335,7 @@ namespace dmGameObject
             HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
-                luaL_error(L, "Instance %s not found", lua_tostring(L, index));
+                luaL_error(L, "Instance %s not found (function called can only access instances within the same collection).", lua_tostring(L, index));
                 return; // Actually never reached
             }
 
