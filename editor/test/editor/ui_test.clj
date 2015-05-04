@@ -48,4 +48,3 @@
     (ui/run-now (ui/refresh scene))
     (is (= 2 (count (.getChildren root))))))
 
-(run-tests)
