@@ -145,15 +145,17 @@ for all properties of this node."
    (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
 
 (defn type-compatible?
-  [output-schema input-schema expect-collection?]
+  [output-schema input-schema cardinality]
   (let [out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
+        in-t-pl?  (coll? input-schema)
+        expects-one? (= :one cardinality)
+        expects-many? (= :many cardinality)]
     (or
      (= t/Any input-schema)
-     (and expect-collection? (= [t/Any] input-schema))
-     (and expect-collection? in-t-pl? (check-single-type output-schema (first input-schema)))
-     (and (not expect-collection?) (check-single-type output-schema input-schema))
-     (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
+     (and expects-many? (= [t/Any] input-schema))
+     (and expects-many? in-t-pl? (check-single-type output-schema (first input-schema)))
+     (and expects-one? (check-single-type output-schema input-schema))
+     (and expects-one? in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
 
 
 

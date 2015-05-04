@@ -15,10 +15,10 @@
 (defn compatible?
   [[out-node out-label out-type in-node in-label in-type]]
   (cond
-   (and (= out-label in-label) (g/type-compatible? out-type in-type false))
+   (and (= out-label in-label) (g/type-compatible? out-type in-type :one))
    [out-node out-label in-node in-label]
 
-   (and (= (inflect/plural out-label) in-label) (g/type-compatible? out-type in-type true))
+   (and (= (inflect/plural out-label) in-label) (g/type-compatible? out-type in-type :many))
    [out-node out-label in-node in-label]))
 
 (defn injection-candidates
