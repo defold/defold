@@ -134,6 +134,30 @@ for all properties of this node."
    (list 'output 'properties `t/Properties `gather-properties)])
 
 ;; ---------------------------------------------------------------------------
+;; Type checking
+;; ---------------------------------------------------------------------------
+
+(defn- check-single-type
+  [out in]
+  (or
+   (= t/Any in)
+   (= out in)
+   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
+
+(defn type-compatible?
+  [output-schema input-schema expect-collection?]
+  (let [out-t-pl? (coll? output-schema)
+        in-t-pl?  (coll? input-schema)]
+    (or
+     (= t/Any input-schema)
+     (and expect-collection? (= [t/Any] input-schema))
+     (and expect-collection? in-t-pl? (check-single-type output-schema (first input-schema)))
+     (and (not expect-collection?) (check-single-type output-schema input-schema))
+     (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
+
+
+
+;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
 (declare become)

@@ -4,9 +4,12 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
+            [dynamo.types :as t]
             [internal.graph :as ig]
             [internal.graph.generator :as ggen]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt]
+            [schema.core :as s]))
 
 (defn occurrences [coll]
   (vals (frequencies coll)))
@@ -53,3 +56,42 @@
     (is (not= g g'))
     (is (= 1 (:number (ig/node g' id))))
     (is (= 0 (:number (ig/node g id))))))
+
+
+(s/defrecord T1 [ident :- String])
+(s/defrecord T2 [value :- Integer])
+
+(deftest type-compatibility
+  (are [first second allow-collection? compatible?]
+    (= compatible? (g/type-compatible? first second allow-collection?))
+    T1 T1               false    true
+    T1 T1               true     false
+    T1 T2               false    false
+    T1 T2               true     false
+    T1 [T1]             true     true
+    T1 [T1]             false    false
+    T1 [T2]             true     false
+    T1 [T2]             false    false
+    String String       false    true
+    String String       true     false
+    String [String]     false    false
+    String [String]     true     true
+    [String] String     false    false
+    [String] String     true     false
+    [String] [String]   false    true
+    [String] [String]   true     false
+    [String] [[String]] true     true
+    Integer  Number     false    true
+    Integer  t/Num      false    true
+    T1       t/Any      false    true
+    T1       t/Any      true     true
+    T1       [t/Any]    false    false
+    T1       [t/Any]    true     true
+    String   t/Any      false    true
+    String   t/Any      true     true
+    String   [t/Any]    false    false
+    String   [t/Any]    true     true
+    [String] t/Any      false    true
+    [String] t/Any      true     true
+    [String] [t/Any]    false    true
+    [String] [t/Any]    false    true))
