@@ -207,15 +207,13 @@ for all properties of this node."
   This will produce a record `AtlasCompiler`. `defnode` merges the
   behaviors appropriately.
 
-  Every node can receive messages. The node declares message handlers
-  with a special syntax:
 
-  (trigger _symbol_ _type_ _action_)
-
-  A trigger is invoked during transaction execution, when a node of
+  A trigger may be invoked during transaction execution, when a node of
   the type is touched by the transaction. _symbol_ is a label for the
   trigger. Triggers are inherited, colliding labels are overwritten by
   the descendant.
+
+  (trigger _symbol_ _type_ _action_)
 
   _type_ is a keyword, one of:
 
