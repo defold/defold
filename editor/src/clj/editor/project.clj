@@ -64,7 +64,7 @@ ordinary paths."
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
     (workspace/make-memory-resource (:workspace project) resource-type data)))
 
-(handler/defhandler save-all :save-all
+(handler/defhandler :save-all
     (visible? [] true)
     (enabled? [] true)
     (run [project] (let [save-data (g/node-value project :save-data)]
@@ -72,12 +72,12 @@ ordinary paths."
                        (spit resource content)))))
 
 
-(handler/defhandler undo :undo
+(handler/defhandler :undo
     (visible? [] true)
     (enabled? [project-graph] (g/has-undo? project-graph))
     (run [project-graph] (g/undo project-graph)))
 
-(handler/defhandler redo :redo
+(handler/defhandler :redo
     (visible? [] true)
     (enabled? [project-graph] (g/has-redo? project-graph))
     (run [project-graph] (g/redo project-graph)))

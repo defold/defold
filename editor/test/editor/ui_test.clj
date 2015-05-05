@@ -41,7 +41,7 @@
                                {:label "Save"
                                 :command :save}]}])
 
-  (handler/defhandler my :open
+  (handler/defhandler :open
       (visible? [instances] true)
       (enabled? [instances] true)
       (run [instances] 123))

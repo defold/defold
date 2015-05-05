@@ -9,7 +9,7 @@
 (use-fixtures :each fixture)
 
 (deftest run
-  (handler/defhandler my :open
+  (handler/defhandler :open
     (visible? [instances] (every? #(= % :foo) instances))
     (enabled? [instances] (every? #(= % :foo) instances))
     (run [instances] 123))

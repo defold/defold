@@ -107,7 +107,7 @@
                   :icon "icons/cross.png"
                   :command :delete}])
 
-(handler/defhandler delete :delete
+(handler/defhandler :delete
     (visible? [selection] true)
     (enabled? [selection] (= 1 (count selection)))
     (run [selection] (g/transact
