@@ -1152,7 +1152,12 @@ namespace dmGameSystem
     {
         GuiWorld *gui_world = (GuiWorld *) params.m_UserData;
 
-        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
+        {
+            gui_world->m_GuiRenderObjects.SetSize(0);
+            gui_world->m_ClientVertexBuffer.SetSize(0);
+        }
+        else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
             dmGui::RenderSceneParams rp;
             rp.m_RenderNodes = &RenderNodes;
@@ -1210,8 +1215,6 @@ namespace dmGameSystem
             gui_world->m_GuiRenderObjects.SetCapacity(total_gui_render_objects_count);
         }
 
-        gui_world->m_GuiRenderObjects.SetSize(0);
-        gui_world->m_ClientVertexBuffer.SetSize(0);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
