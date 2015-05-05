@@ -72,6 +72,7 @@
         stage (Stage.)
         scene (Scene. root)]
 
+    (ui/set-main-stage stage)
     (.setScene stage scene)
     (.show stage)
 
@@ -83,11 +84,10 @@
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
-    (let [app-view (app-view/make-app-view *view-graph* stage (.lookup root "#menu-bar") (.lookup root "#editor-tabs"))
+    (let [app-view (app-view/make-app-view *view-graph* *project-graph* project stage (.lookup root "#menu-bar") (.lookup root "#editor-tabs"))
           outline-view (outline-view/make-outline-view *view-graph* (.lookup root "#outline") (fn [items] (on-outline-selection-fn project items)))]
       (g/transact
         (concat
-          (g/connect project :menu app-view :main-menus)
           (g/connect project :selection outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
@@ -120,6 +120,7 @@
           (sprite/register-resource-types workspace))))
     (g/refresh workspace)))
 
+
 (defn open-project
   [^File game-project-file]
   (let [progress-bar nil
@@ -127,9 +128,9 @@
         workspace    (setup-workspace project-path)
         project      (project/make-project *project-graph* workspace)
         project      (project/load-project project)
-        root         (load-stage workspace project)
-        curve        (create-view project root "#curve-editor-container" CurveEditor)
-        properties   (properties-view/make-properties-view *view-graph* (.lookup root "#properties"))]
+        root         (ui/run-now (load-stage workspace project))
+        curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
+        properties   (ui/run-now (properties-view/make-properties-view *view-graph* (.lookup root "#properties")))]
     (g/transact (g/connect project :selection properties :selection))
     (g/reset-undo! *project-graph*)))
 
@@ -141,11 +142,18 @@
   (let [prefs (.node (Preferences/userRoot) "defold")]
     (.put prefs key value)))
 
-
+(defn show-welcome []
+  (let [root (FXMLLoader/load (io/resource "welcome.fxml"))
+        stage (Stage.)
+        scene (Scene. root)]
+    (.setScene stage scene)
+    (.setResizable stage false)
+    (.show stage)))
 
 (defn main []
-  (Platform/runLater
-   (fn []
+  (ui/modal-progress "Loading project" 100
+   (fn [report-fn]
+     (report-fn -1 "loading assets")
      (when (nil? @the-root)
        (g/initialize {})
        (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
