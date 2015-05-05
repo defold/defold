@@ -9,25 +9,40 @@
             [dynamo.types :as t]
             [editor.core :as core]))
 
-(deftype ABACAB [])
 (deftype Image [])
 
-(g/defnode N1)
-(g/defnode N2)
+(g/defnode InputNode
+  (input string-scalar String)
+  (input non-matching-name-string-scalar String)
+  (input images Image :array)
+  (input names String))
+
+(g/defnode DifferentInputNode
+  (input string-scalar t/Num))
+
+(g/defnode OutputNode
+  (property string-scalar String)
+  (property image Image)
+  (property images [Image])
+  (property name String))
 
 (deftest input-compatibility
-  (let [n1 (g/construct N1)
-        n2 (g/construct N2)]
-    (are [out-node out out-type in-node in in-type expect-compat why]
-      (= expect-compat (core/compatible? [out-node out out-type in-node in in-type]))
-      n1 :image Image    n2 :image  ABACAB    nil                    "type mismatch"
-      n1 :image Image    n2 :image  Image     [n1 :image n2 :image]  "ok"
-      n1 :image Image    n2 :images [Image]   [n1 :image n2 :images] "ok"
-      n1 :image Image    n2 :images Image     nil                    "plural name, singular type"
-      n1 :name  String   n2 :names  [String]  [n1 :name n2 :names]   "ok"
-      n1 :name  String   n2 :names  String    nil                    "plural name, singular type"
-      n1 :names [String] n2 :names  [String]  [n1 :names n2 :names]  "ok"
-      n1 :name  String   n2 :name   [String]  nil                    "singular name, plural type")))
+  (testing "Scalar Inputs"
+    (with-clean-system
+      (let [[output input different] (tx-nodes (g/make-node world OutputNode)
+                                               (g/make-node world InputNode)
+                                               (g/make-node world DifferentInputNode))]
+        (is (core/compatible? [output :string-scalar input :string-scalar]))
+        (is (not (core/compatible? [output :string-scalar input :non-matching-name-string-scalar])))
+        (is (not (core/compatible? [output :string-scalar different :string-scalar]))))))
+  (testing "Array Inputs"
+    (with-clean-system
+      (let [[output input different] (tx-nodes (g/make-node world OutputNode)
+                                               (g/make-node world InputNode)
+                                               (g/make-node world DifferentInputNode))]
+        (is (core/compatible? [output :image input :images]))
+        (is (not (core/compatible? [output :images input :images])))
+        (is (not (core/compatible? [output :name input :names])))))))
 
 (g/defnode DisposableNode
   t/IDisposable

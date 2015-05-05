@@ -8,7 +8,7 @@
 
 (g/defnode Receiver
   (input surname String :inject)
-  (input samples [t/Num] :inject)
+  (input samples t/Num :inject :array)
   (input label t/Any :inject))
 
 (g/defnk produce-string :- String
@@ -42,7 +42,7 @@
     (is (= #{[labeler :label   recv :label]}   (core/injection-candidates [recv] [labeler])))))
 
 (g/defnode ValueConsumer
-  (input local-names [t/Str] :inject)
+  (input local-names t/Str :inject :array)
   (output concatenation t/Str (g/fnk [local-names] (str/join local-names))))
 
 (g/defnode InjectionScope
