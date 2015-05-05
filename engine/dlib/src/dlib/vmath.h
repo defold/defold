@@ -6,11 +6,30 @@
 #include "math.h"
 #include "trig_lookup.h"
 
+#include <assert.h>
+
 /**
  * Collection of vector math functions.
  */
 namespace dmVMath
 {
+
+    struct FloatVector
+    {
+        int size;
+        float* values;
+
+        FloatVector() { size = 0; values = NULL; };
+        FloatVector(int new_size) {
+            assert(new_size >= 0);
+            size = new_size;
+            if (new_size > 0)
+                values = (float*)malloc(new_size * sizeof(float));
+            else
+                values = NULL;
+        };
+    };
+
     /**
      * Construct a quaternion from an axis index and angle
      * @param axis_index Index of the axis the quaternion should be a rotation around

@@ -29,6 +29,51 @@ TEST(dmEasing, Linear)
     }
 }
 
+TEST(dmEasing, CurstomCurve)
+{
+    dmVMath::FloatVector vector(64);
+    dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
+    curve.vector = &vector;
+
+    // INQUAD equivalent
+    for (int i = 0; i < 64; ++i) {
+        float t = i / 63.0f;
+        vector.values[i] = t * t;
+    }
+
+    // sample outside interval
+    ASSERT_EQ(0.0f, dmEasing::GetValue(curve, -1.0f));
+    ASSERT_EQ(1.0f, dmEasing::GetValue(curve,  1.5f));
+
+    // 1-to-1 samples
+    for (int i = 0; i <= 63; ++i) {
+        float t = i / 63.0f;
+        ASSERT_NEAR(t * t, dmEasing::GetValue(curve, t), 0.0001f);
+    }
+
+    // fewer tests than sample points
+    for (int i = 0; i <= 24; ++i) {
+        float t = i / 24.0f;
+        ASSERT_NEAR(t * t, dmEasing::GetValue(curve, t), 0.0001f);
+    }
+
+    // more tests than sample points
+    for (int i = 0; i <= 200; ++i) {
+        float t = i / 200.0f;
+        ASSERT_NEAR(t * t, dmEasing::GetValue(curve, t), 0.0001f);
+    }
+
+    // LINEAR equivalent
+    for (int i = 0; i < 64; ++i) {
+        float t = i / 63.0f;
+        vector.values[i] = t;
+    }
+    for (int i = 0; i <= 100; ++i) {
+        float t = i / 100.0f;
+        ASSERT_NEAR(t, dmEasing::GetValue(curve, t), 0.0001f);
+    }
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
