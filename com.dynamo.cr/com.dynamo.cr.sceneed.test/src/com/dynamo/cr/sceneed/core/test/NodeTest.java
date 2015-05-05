@@ -262,7 +262,7 @@ public class NodeTest extends AbstractNodeTest {
         refMat.mul(tmpMat);
         assertTrue(transform.epsilonEquals(refMat, epsilon));
 
-        node.setComponentScale(new Vector3d(0.25, 0.5, 0.75));
+        node.setScale(new Vector3d(0.25, 0.5, 0.75));
         node.getWorldTransform(transform);
         tmpMat.setIdentity();
         tmpMat.setElement(0, 0, 0.25);
