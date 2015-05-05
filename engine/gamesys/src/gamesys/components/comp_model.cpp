@@ -118,15 +118,17 @@ namespace dmGameSystem
             Mesh* mesh = model->m_Mesh;
 
             dmRender::RenderObject& ro = component.m_RenderObject;
-            dmTransform::Transform world = dmGameObject::GetWorldTransform(component.m_Instance);
-            dmTransform::Transform local(Vector3(component.m_Position), component.m_Rotation, 1.0f);
+
+            Matrix4 local(component.m_Rotation, Vector3(component.m_Position));
+
+            const Matrix4& go_world = dmGameObject::GetWorldMatrix(component.m_Instance);
             if (dmGameObject::ScaleAlongZ(component.m_Instance))
             {
-                world = dmTransform::Mul(world, local);
+                ro.m_WorldTransform = go_world * local;
             }
             else
             {
-                world = dmTransform::MulNoScaleZ(world, local);
+                ro.m_WorldTransform = dmTransform::MulNoScaleZ(go_world, local);
             }
 
             ro.m_Material = model->m_Material;
@@ -138,7 +140,6 @@ namespace dmGameSystem
             ro.m_VertexStart = 0;
             ro.m_VertexCount = mesh->m_VertexCount;
             ro.m_TextureTransform = Matrix4::identity();
-            ro.m_WorldTransform = dmTransform::ToMatrix4(world);
             dmRender::AddToRender(params.m_Context, &component.m_RenderObject);
         }
     }

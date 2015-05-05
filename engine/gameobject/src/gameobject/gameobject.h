@@ -1037,7 +1037,7 @@ namespace dmGameObject
     /**
      * Get gameobject instance scale
      * @param instance Gameobject instance
-     * @return Uniform scale
+     * @return Non-uniform scale
      */
     Vector3 GetScale(HInstance instance);
 

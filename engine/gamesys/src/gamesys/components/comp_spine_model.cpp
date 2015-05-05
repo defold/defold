@@ -542,19 +542,16 @@ namespace dmGameSystem
 
             if (c->m_MeshEntry != 0x0)
             {
-                dmTransform::Transform world = dmGameObject::GetWorldTransform(c->m_Instance);
+                const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
+                const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
                 if (dmGameObject::ScaleAlongZ(c->m_Instance))
                 {
-                    world = dmTransform::Mul(world, c->m_Transform);
+                    c->m_World = go_world * local;
                 }
                 else
                 {
-                    world = dmTransform::MulNoScaleZ(world, c->m_Transform);
+                    c->m_World = dmTransform::MulNoScaleZ(go_world, local);
                 }
-                Matrix4 w = dmTransform::ToMatrix4(world);
-                Vector4 position = w.getCol3();
-                w.setCol3(position);
-                c->m_World = w;
             }
         }
     }

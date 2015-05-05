@@ -184,10 +184,11 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 s = MathUtil.ddfToVecmath(collInst.getScale3());
             } else {
                 double scale = collInst.getScale();
-                if (subCollBuilder.getScaleAlongZ() != 0)
+                if (subCollBuilder.getScaleAlongZ() != 0) {
                     s = new Vector3d(scale, scale, scale);
-                else
+                } else {
                     s = new Vector3d(scale, scale, 1);
+                }
             }
 
             for (InstanceDesc inst : subCollBuilder.getInstancesList()) {

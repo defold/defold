@@ -64,7 +64,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setId(desc.getId());
         node.setTranslation(LoaderUtil.toPoint3d(desc.getPosition()));
         node.setEuler(LoaderUtil.toVector3(desc.getRotation()));
-        node.setComponentScale(LoaderUtil.toVector3(desc.getScale()));
+        node.setScale(LoaderUtil.toVector3(desc.getScale()));
         node.setSize(LoaderUtil.toVector3(desc.getSize()));
         node.setColor(LoaderUtil.toRGB(desc.getColor()));
         node.setAlpha(desc.getColor().getW());
@@ -189,7 +189,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         builder.setId(node.getId());
         builder.setPosition(LoaderUtil.toVector4(node.getTranslation()));
         builder.setRotation(LoaderUtil.toVector4(node.getEuler()));
-        builder.setScale(LoaderUtil.toVector4(node.getComponentScale()));
+        builder.setScale(LoaderUtil.toVector4(node.getScale()));
         builder.setSize(LoaderUtil.toVector4(node.getSize()));
         builder.setColor(LoaderUtil.toVector4(node.getColor(), node.getAlpha()));
         builder.setBlendMode(node.getBlendMode());
