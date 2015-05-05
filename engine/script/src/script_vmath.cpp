@@ -777,8 +777,8 @@ namespace dmScript
     /*# creates a new vector from a table of values
      *
      * @name vmath.vector
-     * @param v existing vector (vector3)
-     * @return new vector (vector3)
+     * @param t table of numbers
+     * @return new vector (vector)
      */
     static int Vector_new(lua_State* L)
     {
