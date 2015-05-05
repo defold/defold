@@ -105,7 +105,6 @@ namespace dmScript
 
     static int Vector_gc(lua_State *L)
     {
-        printf("releasing vmath.vector!\n");
         dmVMath::FloatVector* v = CheckVector(L, 1);
         free(v->values);
         memset(v, 0, sizeof(*v));
