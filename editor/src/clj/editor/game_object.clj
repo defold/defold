@@ -48,12 +48,7 @@
   (input save-data t/Any)
   (input scene t/Any)
 
-  (output context-menu t/Any (g/fnk [self embedded] [{:label "Delete"
-                                                      :handler-fn (fn [event] (g/transact
-                                                                                (concat
-                                                                                  (g/operation-label "Delete")
-                                                                                  (g/delete-node self))))}]))
-  (output outline t/Any (g/fnk [self id outline context-menu] (merge outline {:self self :label id :context-menu context-menu})))
+  (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id})))
   (output ddf-message t/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
                                                                                        (gen-embed-ddf id position rotation save-data)
                                                                                        (gen-ref-ddf id position rotation save-data))))

@@ -37,6 +37,3 @@
   (let [h (get-enabled command command-context)]
     (boolean (invoke h :enabled? command-context))))
 
-(defn visible? [command command-context]
-  (let [h (get-enabled command command-context)]
-    (boolean (invoke h :visible? command-context))))

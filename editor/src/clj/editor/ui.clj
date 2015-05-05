@@ -110,7 +110,7 @@
 (defn- make-menu [command-context selection-provider menu]
   (let [command-context (assoc command-context :selection (workspace/selection selection-provider))]
     (->> menu
-      (filter (fn [item] (or (:children item) (handler/visible? (:command item) command-context))))
+      (filter (fn [item] (:children item)))
       (mapv (fn [item]  (if (= :separator (:label item))
                                           (SeparatorMenuItem.)
                                           (create-menu-item item command-context selection-provider)))))))
