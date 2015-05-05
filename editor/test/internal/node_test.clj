@@ -156,15 +156,15 @@
 
 (g/defnode ProductionFunctionInputsNode
   (input in       t/Keyword)
-  (input in-multi t/Keyword :array)
+  (input in-multi [t/Keyword])
   (property prop t/Keyword)
-  (output out              t/Keyword   (fn [this & _] :out-val))
-  (output inline-fn-this   t/Any       (fn [this & _] this))
-  (output defn-this        t/Any       production-fn-this)
-  (output defnk-this       t/Any       production-fnk-this)
-  (output defnk-prop       t/Keyword   production-fnk-prop)
-  (output defnk-in         t/Keyword   production-fnk-in)
-  (output defnk-in-multi   [t/Keyword] production-fnk-in-multi))
+  (output out              t/Keyword (fn [this & _] :out-val))
+  (output inline-fn-this   t/Any     (fn [this & _] this))
+  (output defn-this        t/Any     production-fn-this)
+  (output defnk-this       t/Any     production-fnk-this)
+  (output defnk-prop       t/Any     production-fnk-prop)
+  (output defnk-in         t/Any     production-fnk-in)
+  (output defnk-in-multi   t/Any     production-fnk-in-multi))
 
 (deftest production-function-inputs
   (with-clean-system
