@@ -40,7 +40,7 @@
   [^IBasis basis in-production node-id label chain-head chain-next]
   ((first chain-next) basis in-production node-id label chain-head (next chain-next)))
 
-(def ^:private multivalued?  vector?)
+(defn- multivalued? [cardinality]  (= cardinality :many))
 (def ^:private exists?       (comp not nil?))
 (def ^:private has-property? contains?)
 (defn- has-output? [node label] (some-> node gt/transforms label boolean))
@@ -89,12 +89,13 @@
   [basis in-production node-id label chain-head]
   (let [node             (gt/node-by-id basis node-id)
         input-schema     (some-> node gt/input-types label)
+        input-cardinality (some-> node gt/node-type (gt/input-cardinality label))
         output-transform (some-> node gt/transforms  label)]
     (cond
       (and (has-output? node label) (not (currently-producing in-production node-id label)))
       (chain-eval chain-head basis in-production node-id label)
 
-      (multivalued? input-schema)
+      (multivalued? input-cardinality)
       (pull-multivalued-input basis in-production node-id label chain-head)
 
       (exists? input-schema)
@@ -177,10 +178,11 @@
   conjed together. If the input does not exist, evaluation continues
   with the rest of the chain."
   [^IBasis basis in-production node-id label chain-head chain-next]
-  (let [node             (gt/node-by-id basis node-id)
-        input-schema     (some-> node gt/input-types label)]
+  (let [node              (gt/node-by-id basis node-id)
+        input-schema      (some-> node gt/input-types label)
+        input-cardinality (some-> node gt/node-type (gt/input-cardinality label))]
     (cond
-      (multivalued? input-schema)
+      (multivalued? input-cardinality)
       (pull-multivalued-input basis in-production node-id label chain-head)
 
       (exists? input-schema)
