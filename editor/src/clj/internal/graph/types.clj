@@ -20,10 +20,7 @@
   (cached-outputs'      [this])
   (event-handlers'      [this])
   (input-dependencies'  [this])
-  (substitute-for'      [this input])
-  (input-type           [this input])
-  (input-cardinality    [this input])
-  (output-type          [this output]))
+  (substitute-for'      [this input]))
 
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")

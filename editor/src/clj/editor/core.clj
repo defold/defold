@@ -13,24 +13,24 @@
 
 
 (defn compatible?
-  [[out-node out-label in-node in-label]]
-  (let [out-type (-> out-node g/node-type (g/output-type out-label))
-        in-type  (-> in-node  g/node-type (g/input-type in-label))
-        in-cardinality (-> in-node  g/node-type (g/input-cardinality in-label))
-        type-compatible? (g/type-compatible? out-type in-type)
-        names-compatible? (or (= out-label in-label)
-                              (and (= in-label(inflect/plural out-label)) (= in-cardinality :many)))]
-    (and type-compatible? names-compatible?)))
+  [[out-node out-label out-type in-node in-label in-type]]
+  (cond
+   (and (= out-label in-label) (g/type-compatible? out-type in-type :one))
+   [out-node out-label in-node in-label]
+
+   (and (= (inflect/plural out-label) in-label) (g/type-compatible? out-type in-type :many))
+   [out-node out-label in-node in-label]))
 
 (defn injection-candidates
-  [in-nodes out-nodes]
+  [targets nodes]
   (into #{}
-     (filter compatible?
-        (for [in-node   in-nodes
-              in-label  (g/injectable-inputs in-node)
-              out-node  out-nodes
-              out-label (keys (g/transform-types out-node))]
-            [out-node out-label in-node in-label]))))
+     (keep compatible?
+        (for [target  targets
+              i       (g/injectable-inputs target)
+              :let    [i-l (get (g/input-types target) i)]
+              node    nodes
+              [o o-l] (g/transform-types node)]
+            [node o o-l target i i-l]))))
 
 (defn inject-new-nodes
   "Implementation function that performs dependency injection for nodes.
