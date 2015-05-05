@@ -2,7 +2,6 @@
   (:require [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.jfx :as jfx]
-            [editor.menu :as menu]
             [editor.project :as project]
             [editor.handler :as handler]
             [editor.ui :as ui]
@@ -31,28 +30,15 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
-(def static-menu [{:label "File" :children []}
-                  {:label "Edit" :children []}
-                  {:label "Help" :children [{:label "About Defold"
-                                             :handler-fn (fn [event] (prn "ABOUT!"))}]}])
-
-(g/defnk produce-menu-bar [main-menu menu-bar]
-  (.setAll (.getMenus menu-bar) (menu/make-menus main-menu))
-  menu-bar)
-
 (g/defnode AppView
   (property stage Stage)
-  (property menu-bar MenuBar)
   (property tab-pane TabPane)
   (property refresh-timer AnimationTimer)
   (property auto-pulls t/Any)
   (property active-tool t/Any)
 
-  (input main-menus [t/Any])
   (input outline t/Any)
 
-  (output main-menu t/Any :cached (g/fnk [main-menus] (reduce menu/merge-menus static-menu main-menus)))
-  (output menu-bar MenuBar :cached produce-menu-bar)
   (output active-outline t/Any :cached (g/fnk [outline] outline))
   (output active-resource t/Any (g/fnk [tab-pane] (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))] (:resource (.getUserData tab)))))
   (output open-resources t/Any (g/fnk [tab-pane] (map (fn [tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
@@ -100,7 +86,7 @@
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate-tool)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate-tool)))
 
-(ui/extend-menu ::tool-bar ::toolbar
+(ui/extend-menu ::toolbar nil
                 [{:label "Move"
                   :icon "icons/transform_move.png"
                   :command :move-tool}
@@ -111,11 +97,38 @@
                   :icon "icons/transform_scale.png"
                   :command :scale-tool}])
 
-(defn make-app-view [graph stage menu-bar tab-pane]
+(handler/defhandler quit :quit
+  (visible? [] true)
+  (enabled? [] true)
+  (run [] (prn "QUIT NOW!")))
+
+(handler/defhandler new :new
+  (visible? [] true)
+  (enabled? [] true)
+  (run [] (prn "NEW NOW!")))
+
+(ui/extend-menu ::menubar nil
+                [{:label "File"
+                  :id ::file
+                  :children [{:label "New"
+                              :id ::new
+                              :acc "Shortcut+N"
+                              :command :new}
+                             {:label "Quit"
+                              :acc "Shortcut+Q"
+                              :command :quit}]}])
+
+(defrecord DummySelectionProvider []
+  workspace/SelectionProvider
+  (selection [this] []))
+
+(defn make-app-view [view-graph project-graph project stage menu-bar tab-pane]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
-  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node graph AppView :stage stage :menu-bar menu-bar :tab-pane tab-pane :active-tool :move-tool))))
-        command-context {:app-view app-view}]
+  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move-tool))))
+        command-context {:app-view app-view
+                         :project project
+                         :project-graph project-graph}]
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -130,18 +143,18 @@
           (onChanged [this change]
             (on-tabs-changed app-view)))))
 
-    (ui/register-tool-bar (.getScene stage) command-context (fn [] []) "#toolbar" ::toolbar)
+    (ui/register-toolbar (.getScene stage) command-context (DummySelectionProvider.) "#toolbar" ::toolbar)
+    (ui/register-menubar (.getScene stage) command-context (DummySelectionProvider.) "#menu-bar" ::menubar)
     (let [refresh-timer (proxy [AnimationTimer] []
                           (handle [now]
                             ; TODO: Not invoke this function every frame...
                             (ui/refresh (.getScene stage))
                             (let [auto-pulls (:auto-pulls (g/refresh app-view))]
-                              (doseq [[node label] auto-pulls]
-                                (g/node-value node label)))))]
+                             (doseq [[node label] auto-pulls]
+                               (g/node-value node label)))))]
       (g/transact
         (concat
-          (g/set-property app-view :refresh-timer refresh-timer)
-          (g/set-property app-view :auto-pulls [[app-view :menu-bar]])))
+          (g/set-property app-view :refresh-timer refresh-timer)))
       (.start refresh-timer))
     app-view))
 

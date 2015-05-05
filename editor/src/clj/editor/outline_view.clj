@@ -2,6 +2,8 @@
   (:require [dynamo.graph :as g]
             [editor.jfx :as jfx]
             [editor.menu :as menu]
+            [editor.ui :as ui]
+            [editor.handler :as handler]
             [editor.workspace :as workspace]
             [dynamo.types :as t])
   (:import [com.defold.editor Start]
@@ -55,7 +57,7 @@
 
 (defn tree-item-seq [item]
   (if item
-    (tree-seq 
+    (tree-seq
       #(not (.isLeaf %))
       #(seq (.getChildren %))
       item)
@@ -97,8 +99,21 @@
   (input active-resource workspace/Resource)
   (input open-resources t/Any)
   (input selection t/Any)
-  
+
   (output tree-view TreeView :cached update-tree-view))
+
+(ui/extend-menu ::outline-menu nil
+                [{:label "Delete"
+                  :command :delete}])
+
+(handler/defhandler delete :delete
+    (visible? [selection] true)
+    (enabled? [selection] (= 1 (count selection)))
+    (run [selection] (g/transact
+                       (concat
+                         (g/operation-label "Delete")
+                         ; TODO: Why :self here?
+                         (g/delete-node (:self (first selection)))))))
 
 (defn- setup-tree-view [tree-view selection-listener]
   (-> tree-view
@@ -108,6 +123,7 @@
       (.getSelectionModel)
       (.getSelectedItems)
       (.addListener selection-listener))
+  (ui/register-context-menu tree-view tree-view ::outline-menu)
   (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                (proxy [TreeCell] []
                                                  (updateItem [item empty]
@@ -117,10 +133,9 @@
                                                        (proxy-super setText nil)
                                                        (proxy-super setGraphic nil)
                                                        (proxy-super setContextMenu nil))
-                                                     (let [{:keys [label icon context-menu]} item]
+                                                     (let [{:keys [label icon]} item]
                                                        (proxy-super setText label)
-                                                       (proxy-super setGraphic (jfx/get-image-view icon))
-                                                       (when context-menu (proxy-super setContextMenu (menu/make-context-menu context-menu)))))))))))
+                                                       (proxy-super setGraphic (jfx/get-image-view icon))))))))))
 
 (defn make-outline-view [graph tree-view selection-fn]
   (let [selection-listener (reify ListChangeListener (onChanged [this change]

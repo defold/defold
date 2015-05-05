@@ -9,6 +9,8 @@ ordinary paths."
             [dynamo.util :refer :all]
             [editor.core :as core]
             [editor.workspace :as workspace]
+            [editor.handler :as handler]
+            [editor.ui :as ui]
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
             [service.log :as log])
@@ -62,34 +64,39 @@ ordinary paths."
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
     (workspace/make-memory-resource (:workspace project) resource-type data)))
 
-(defn save-all [project]
-  (let [save-data (g/node-value project :save-data)]
-    (doseq [{:keys [resource content]} save-data]
-      (spit resource content))))
+(handler/defhandler save-all :save-all
+    (visible? [] true)
+    (enabled? [] true)
+    (run [project] (let [save-data (g/node-value project :save-data)]
+                     (doseq [{:keys [resource content]} save-data]
+                       (spit resource content)))))
 
-(g/defnk produce-menu [self]
-  (let [project-graph (g/node->graph-id self)]
-    [{:label "File"
-      :children [{:label "Save All"
+
+(handler/defhandler undo :undo
+    (visible? [] true)
+    (enabled? [project-graph] (g/has-undo? project-graph))
+    (run [project-graph] (g/undo project-graph)))
+
+(handler/defhandler redo :redo
+    (visible? [] true)
+    (enabled? [project-graph] (g/has-redo? project-graph))
+    (run [project-graph] (g/redo project-graph)))
+
+(ui/extend-menu ::menubar :editor.app-view/new
+                [{:label "Save All"
                   :acc "Shortcut+S"
-                  :handler-fn (fn [event] (save-all self))}]}
-     {:label "Edit"
-      :children [{:label (fn [] (let [label "Undo"]
-                                  (if-let [op-label (:label (last (g/undo-stack project-graph)))]
-                                    (format "%s %s" label op-label)
-                                    label)))
-                  :icon "icons/undo.png"
-                  :acc "Shortcut+Z"
-                  :handler-fn (fn [event] (g/undo project-graph))
-                  :enable-fn (fn [] (g/has-undo? project-graph))}
-                 {:label (fn [] (let [label "Redo"]
-                                  (if-let [op-label (:label (last (g/redo-stack project-graph)))]
-                                    (format "%s %s" label op-label)
-                                    label)))
-                  :icon "icons/redo.png"
-                  :acc "Shift+Shortcut+Z"
-                  :handler-fn (fn [event] (g/redo project-graph))
-                  :enable-fn (fn [] (g/has-redo? project-graph))}]}]))
+                  :command :save-all}])
+
+(ui/extend-menu ::menubar :editor.app-view/file
+                [{:label "Edit"
+                  :children [{:label "Undo"
+                              :acc "Shortcut+Z"
+                              :icon "icons/undo.png"
+                              :command :undo}
+                             {:label "Redo"
+                              :acc "Shift+Shortcut+Z"
+                              :icon "icons/redo.png"
+                              :command :redo}]}])
 
 (g/defnode Project
   (inherits core/Scope)
@@ -103,7 +110,6 @@ ordinary paths."
 
   (output selection t/Any :cached (g/fnk [selection] selection))
   (output nodes-by-resource t/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))
-  (output menu t/Any :cached produce-menu)
   (output save-data t/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data))))
 
 (defn get-resource-type [resource-node]

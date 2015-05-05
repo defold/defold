@@ -7,7 +7,7 @@ import javafx.application.Platform;
 import org.projectodd.shimdandy.ClojureRuntimeShim;
 
 /**
- * Project/Main Window abstraction. One classes per project by using custom class loaders
+ * Project/Main Window abstraction. One class per project by using custom class loaders
  * @author chmu
  *
  */

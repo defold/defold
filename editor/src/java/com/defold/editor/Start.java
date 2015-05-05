@@ -13,6 +13,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.stage.Stage;
 
 public class Start extends Application {
@@ -40,8 +41,8 @@ public class Start extends Application {
     private static boolean createdFromMain = false;
 
     public Start() {
-        pool = new LinkedBlockingQueue<>(4);
-        threadPool = Executors.newFixedThreadPool(4);
+        pool = new LinkedBlockingQueue<>(1);
+        threadPool = Executors.newFixedThreadPool(1);
     }
 
     private Object makeEditor() throws Exception {
@@ -87,9 +88,28 @@ public class Start extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        // NOTE: We pool initial editor in main thread. Deadlock when pooling with poolEditor for initial
-        pool.add(makeEditor());
-        openEditor(new String[0]);
+        Splash splash = new Splash();
+
+        FutureTask<Object> future = new FutureTask<>(new Callable<Object>() {
+            @Override
+            public Object call() throws Exception {
+                pool.add(makeEditor());
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            splash.close();
+                            openEditor(new String[0]);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                });
+                return null;
+            }
+
+        });
+        threadPool.submit(future);
     }
 
     public static void main(String[] args) throws Exception {
