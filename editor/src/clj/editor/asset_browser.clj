@@ -70,22 +70,22 @@
 (defn- is-file-resource [x] (and (satisfies? workspace/Resource x)
                                  (= :file (workspace/source-type x))))
 
-(handler/defhandler open-resource :open
+(handler/defhandler :open
   (visible? [selection] (every? is-file-resource selection))
   (enabled? [selection] (every? is-file-resource selection))
   (run [selection] (prn "Open" selection "NOW!")))
 
-(handler/defhandler delete-resource :delete
+(handler/defhandler :delete
   (visible? [selection] (every? is-resource selection))
   (enabled? [selection] (every? is-deletable-resource selection))
   (run [selection] (prn "Delete" selection "NOW!")))
 
-(handler/defhandler refresh-resources :refresh
+(handler/defhandler :refresh
   (visible? [] true)
   (enabled? [] true)
   (run [] (prn "REFRESH NOW!") ))
 
-(handler/defhandler show-in-desktop :show-in-desktop
+(handler/defhandler :show-in-desktop
   (visible? [selection] (= 1 (count selection)))
   (enabled? [selection] (= 1 (count selection)) )
   (run [selection] (let [f (File. (workspace/abs-path (first selection)))

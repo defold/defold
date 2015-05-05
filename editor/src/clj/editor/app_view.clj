@@ -68,19 +68,19 @@
 (defn- on-tabs-changed [app-view]
   (invalidate app-view :open-resources))
 
-(handler/defhandler move-tool :move-tool
+(handler/defhandler :move-tool
   (visible? [app-view] true)
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move-tool)))
   (state [app-view] (= (:active-tool (g/refresh app-view)) :move-tool)))
 
-(handler/defhandler scale-tool :scale-tool
+(handler/defhandler :scale-tool
   (visible? [app-view] true)
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale-tool)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale-tool)))
 
-(handler/defhandler rotate-tool :rotate-tool
+(handler/defhandler :rotate-tool
   (visible? [app-view] true)
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate-tool)))
@@ -97,12 +97,12 @@
                   :icon "icons/transform_scale.png"
                   :command :scale-tool}])
 
-(handler/defhandler quit :quit
+(handler/defhandler :quit
   (visible? [] true)
   (enabled? [] true)
   (run [] (prn "QUIT NOW!")))
 
-(handler/defhandler new :new
+(handler/defhandler :new
   (visible? [] true)
   (enabled? [] true)
   (run [] (prn "NEW NOW!")))

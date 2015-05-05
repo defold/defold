@@ -6,8 +6,9 @@
 
 ; TODO: Validate arguments for all functions and log appropriate message
 
-(defmacro defhandler [name command & body]
-  (let [qname (keyword (str *ns*) (str name))
+
+(defmacro defhandler [command & body]
+  (let [qname (keyword (str *ns*) (name command))
         fns (->> body
               (mapcat (fn [[fname fargs & fbody]]
                         [(keyword fname) `(fnk ~fargs ~@fbody)]))
@@ -15,25 +16,27 @@
     `(swap! *handlers* assoc ~qname {:command ~command
                                      :fns ~fns})))
 
-(defn- get-fn [command fn command-context]
-  (let [h (some #(when (= command (:command %)) %) (vals @*handlers*))]
-    (when h
-      (get-in h [:fns fn]))))
+(defn- invoke [handler fn command-context]
+  (when-let [f (get-in handler [:fns fn])]
+    (f command-context)))
+
+(defn- get-enabled [command command-context]
+  (->> (vals @*handlers*)
+    (filter #(when (= command (:command %)) %))
+    (some (fn [h] (when (invoke h :enabled? command-context) h )))))
 
 (defn run [command command-context]
-  (when-let [run (get-fn command :run command-context)]
-    (run command-context)))
+  (when-let [handler (get-enabled command command-context)]
+    (invoke handler :run command-context)))
 
 (defn state [command command-context]
-  (when-let [state (get-fn command :state command-context)]
-    (state command-context)))
+  (let [h (get-enabled command command-context)]
+    (invoke h :state command-context)))
 
 (defn enabled? [command command-context]
-  (if-let [enabled? (get-fn command :enabled? command-context)]
-    (enabled? command-context)
-    false))
+  (let [h (get-enabled command command-context)]
+    (boolean (invoke h :enabled? command-context))))
 
 (defn visible? [command command-context]
-  (if-let [visible? (get-fn command :visible? command-context)]
-    (visible? command-context)
-    false))
+  (let [h (get-enabled command command-context)]
+    (boolean (invoke h :visible? command-context))))
