@@ -65,7 +65,6 @@ ordinary paths."
     (workspace/make-memory-resource (:workspace project) resource-type data)))
 
 (handler/defhandler :save-all
-    (visible? [] true)
     (enabled? [] true)
     (run [project] (let [save-data (g/node-value project :save-data)]
                      (doseq [{:keys [resource content]} save-data]
@@ -73,12 +72,10 @@ ordinary paths."
 
 
 (handler/defhandler :undo
-    (visible? [] true)
     (enabled? [project-graph] (g/has-undo? project-graph))
     (run [project-graph] (g/undo project-graph)))
 
 (handler/defhandler :redo
-    (visible? [] true)
     (enabled? [project-graph] (g/has-redo? project-graph))
     (run [project-graph] (g/redo project-graph)))
 

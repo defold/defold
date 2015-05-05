@@ -108,12 +108,13 @@
                   :command :delete}])
 
 (handler/defhandler :delete
-    (visible? [selection] true)
     (enabled? [selection] (= 1 (count selection)))
     (run [selection] (g/transact
                        (concat
                          (g/operation-label "Delete")
-                         ; TODO: Why :self here?
+                         ; TODO: :self shouldn't be required here. The value in outline-view should be nodes
+                         ; instead of "outline data" with label and icon
+                         ; OR make a custom selection provider
                          (g/delete-node (:self (first selection)))))))
 
 (defn- setup-tree-view [tree-view selection-listener]
