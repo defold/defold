@@ -116,7 +116,8 @@
                                           (create-menu-item item command-context selection-provider)))))))
 
 (defn- populate-context-menu [^ContextMenu context-menu command-context selection-provider menu]
-  (.addAll (.getItems context-menu) (make-menu command-context selection-provider menu)))
+  (let [items (make-menu command-context selection-provider menu)]
+    (.addAll (.getItems context-menu) items)))
 
 (defn register-context-menu [^Control control selection-provider menu-id]
   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
