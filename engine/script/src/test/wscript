@@ -53,7 +53,7 @@ def build(bld):
                                      uselib_local = 'script',
                                      proto_gen_py = True,
                                      target = 'test_script_vmath',
-                                     source = 'test_script_vmath.cpp test_number.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua')
+                                     source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua')
 
     test_script_vmath.install_path = None
 

@@ -1,0 +1,22 @@
+go.property("test_value", vmath.vector3())
+
+local epsilon = 0.000001
+
+function init(self)
+
+    local curve = vmath.vector( { 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0} )
+
+    go.animate(nil, "test_value", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(1, 1, 1), curve, 1)
+    self.frame = 0
+    self.timer = 0
+end
+
+function update(self, dt)
+    if self.timer <= 1.0 then
+        assert(math.abs(self.timer - self.test_value.x) < epsilon)
+    else
+        assert(1 == self.test_value.x)
+    end
+    self.timer = self.timer + dt
+    self.frame = self.frame + 1
+end
