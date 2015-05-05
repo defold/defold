@@ -14,10 +14,10 @@
 
 (defn compatible?
   [[out-node out-label in-node in-label]]
-  (let [out-type (-> out-node g/node-type (g/output-type out-label))
-        in-type  (-> in-node  g/node-type (g/input-type in-label))
-        in-cardinality (-> in-node  g/node-type (g/input-cardinality in-label))
-        type-compatible? (g/type-compatible? out-type in-type)
+  (let [out-type          (-> out-node g/node-type (g/output-type out-label))
+        in-type           (-> in-node  g/node-type (g/input-type in-label))
+        in-cardinality    (-> in-node  g/node-type (g/input-cardinality in-label))
+        type-compatible?  (g/type-compatible? out-type in-type)
         names-compatible? (or (= out-label in-label)
                               (and (= in-label(inflect/plural out-label)) (= in-cardinality :many)))]
     (and type-compatible? names-compatible?)))
@@ -42,7 +42,7 @@ This function should not be called directly."
                                                 []))
           nodes-after-txn          (g/node-value basis self :nodes)
           nodes-before-txn-ids     (into #{} (map g/node-id nodes-before-txn))
-          new-nodes-in-scope       (remove nodes-before-txn-ids nodes-after-txn)
+          new-nodes-in-scope       (remove #(nodes-before-txn-ids (g/node-id %)) nodes-after-txn)
           out-from-new-connections (injection-candidates nodes-before-txn new-nodes-in-scope)
           in-to-new-connections    (injection-candidates new-nodes-in-scope nodes-before-txn)
           between-new-nodes        (injection-candidates new-nodes-in-scope new-nodes-in-scope)
@@ -80,7 +80,7 @@ When a node is added to a Scope, the node's :self output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."
-  (input nodes [t/Any])
+  (input nodes t/Any :array)
 
   (property tag      t/Keyword (visible false))
   (property parent   t/Any (visible false))

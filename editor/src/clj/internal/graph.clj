@@ -1,6 +1,7 @@
 (ns internal.graph
   (:require [dynamo.util :refer [removev map-vals]]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt]
+            [schema.core :as s]))
 
 (deftype ArcBase [source target sourceLabel targetLabel]
   gt/Arc
@@ -122,9 +123,36 @@
 (definline node-id->graph  [gs node-id] `(get ~gs (gt/node-id->graph-id ~node-id)))
 
 ;; ---------------------------------------------------------------------------
+;; Type checking
+;; ---------------------------------------------------------------------------
+
+(defn- check-single-type
+  [out in]
+  (or
+   (= s/Any in)
+   (= out in)
+   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
+
+(defn type-compatible?
+  [output-schema input-schema]
+  (let [out-t-pl? (coll? output-schema)
+        in-t-pl?  (coll? input-schema)]
+    (or
+     (= s/Any input-schema)
+     (and out-t-pl? (= [s/Any] input-schema))
+     (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
+     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema)))))
+
+;; ---------------------------------------------------------------------------
 ;; Support for transactions
 ;; ---------------------------------------------------------------------------
 (declare multigraph-basis)
+
+(defn- assert-type-compatible
+ [basis src-id src-label tgt-id tgt-label]
+  (let [output-schema (-> src-id (->> (gt/node-by-id basis)) gt/node-type (gt/output-type src-label))
+        input-schema  (-> tgt-id (->> (gt/node-by-id basis)) gt/node-type (gt/input-type tgt-label))]
+    (assert (type-compatible? output-schema input-schema) (format "Cannot connect %s %s to %s %s. %s and %s are not compatible." src-id src-label tgt-id tgt-label output-schema input-schema))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
@@ -176,10 +204,11 @@
 
   (connect
     [this src-id src-label tgt-id tgt-label]
-    (let [src-graph (node-id->graph graphs src-id)
-          tgt-gid   (gt/node-id->graph-id tgt-id)
-          tgt-graph (get graphs tgt-gid)]
+    (let [src-graph     (node-id->graph graphs src-id)
+          tgt-gid       (gt/node-id->graph-id tgt-id)
+          tgt-graph     (get graphs tgt-gid)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
+      (assert-type-compatible this src-id src-label tgt-id tgt-label)
       (update this :graphs assoc
               tgt-gid (connect-target tgt-graph src-id src-label tgt-id tgt-label))))
 
