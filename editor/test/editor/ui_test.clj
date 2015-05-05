@@ -42,7 +42,6 @@
                                 :command :save}]}])
 
   (handler/defhandler :open
-      (visible? [instances] true)
       (enabled? [instances] true)
       (run [instances] 123))
 
