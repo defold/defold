@@ -456,6 +456,19 @@ namespace dmGui
         return 0;
     }
 
+    void LuaCurveRelease(dmEasing::Curve* curve)
+    {
+        lua_State* L = (lua_State*)curve->userdata1;
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+        assert(top == lua_gettop(L));
+    }
+
     void LuaAnimationComplete(HScene scene, HNode node, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
@@ -840,7 +853,29 @@ namespace dmGui
         {
             to = *dmScript::CheckVector4(L, 3);
         }
-        int easing = (int) luaL_checknumber(L, 4);
+
+        dmEasing::Curve curve;
+        if (lua_isnumber(L, 4))
+        {
+            curve.type = (dmEasing::Type)luaL_checkinteger(L, 4);
+            if (curve.type >= dmEasing::TYPE_COUNT)
+                return luaL_error(L, "invalid easing constant");
+        }
+        else if (dmScript::IsVector(L, 4))
+        {
+            curve.type = dmEasing::TYPE_FLOAT_VECTOR;
+            curve.vector = dmScript::CheckVector(L, 4);
+
+            lua_pushvalue(L, 4);
+            curve.release_callback = LuaCurveRelease;
+            curve.userdata1 = (void*)L;
+            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        else
+        {
+            return luaL_error(L, "easing must be either a easing constant or a vmath.vector");
+        }
+
         lua_Number duration = luaL_checknumber(L, 5);
         float delay = 0.0f;
         int node_ref = LUA_NOREF;
@@ -865,15 +900,10 @@ namespace dmGui
             playback = (Playback) luaL_checkinteger(L, 8);
         }
 
-        if (easing >= dmEasing::TYPE_COUNT)
-        {
-            luaL_error(L, "Invalid easing: %d", easing);
-        }
-
         if (animation_complete_ref == LUA_NOREF) {
-            AnimateNodeHash(scene, hnode, property_hash, to, (dmEasing::Type) easing, playback, (float) duration, delay, 0, 0, 0);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, 0, 0, 0);
         } else {
-            AnimateNodeHash(scene, hnode, property_hash, to, (dmEasing::Type) easing, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
 
         assert(top== lua_gettop(L));
