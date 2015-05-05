@@ -248,14 +248,14 @@
 
 (g/defnode SubstitutingInputsNode
   (input unary-no-sub     t/Int)
-  (input multi-no-sub     t/Int :array)
+  (input multi-no-sub    [t/Int])
   (input unary-with-sub   t/Int  :substitute 99)
-  (input multi-with-sub   t/Int :array :substitute 4848)
+  (input multi-with-sub  [t/Int] :substitute 4848)
 
   (output unary-no-sub    t/Int  (g/fnk [unary-no-sub] unary-no-sub))
-  (output multi-no-sub    t/Int  (g/fnk [multi-no-sub] multi-no-sub))
+  (output multi-no-sub   [t/Int] (g/fnk [multi-no-sub] multi-no-sub))
   (output unary-with-sub  t/Int  (g/fnk [unary-with-sub] unary-with-sub))
-  (output multi-with-sub  t/Int  (g/fnk [multi-with-sub] multi-with-sub)))
+  (output multi-with-sub [t/Int] (g/fnk [multi-with-sub] multi-with-sub)))
 
 (g/defnode ConstantNode
   (property value t/Any)

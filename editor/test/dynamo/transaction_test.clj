@@ -17,7 +17,7 @@
   (output c String upcase-a))
 
 (g/defnode Downstream
-  (input consumer t/Keyword))
+  (input consumer String))
 
 (deftest low-level-transactions
   (testing "one node"
@@ -225,7 +225,7 @@
   (output passthrough t/Any (fnk [generic-input] generic-input)))
 
 (g/defnode FocalNode
-  (input aggregator t/Any :array)
+  (input aggregator [t/Any])
   (output aggregated [t/Any] (fnk [aggregator] aggregator)))
 
 (defn- build-network
@@ -388,7 +388,7 @@
   (output   cached-sum t/Num :cached (fnk [x y] (+ x y))))
 
 (g/defnode InputAdder
-  (input xs t/Num :array)
+  (input xs [t/Num])
   (output sum        t/Num         (fnk [xs] (reduce + 0 xs)))
   (output cached-sum t/Num :cached (fnk [xs] (reduce + 0 xs))))
 
@@ -494,7 +494,7 @@
       (g/delete-node node-to-delete))))
 
 (g/defnode Container
-  (input nodes t/Any :array)
+  (input nodes [t/Any])
 
   (trigger garbage-collection :deleted #'dispose-nodes))
 
@@ -503,6 +503,7 @@
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
         (g/transact (g/connect inner :self outer :nodes))
+
         (is (= :ok (:status (g/transact
                              (concat
                               (g/delete-node outer)
