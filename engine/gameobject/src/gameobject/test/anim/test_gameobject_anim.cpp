@@ -604,7 +604,7 @@ TEST_F(AnimTest, ScriptedCustomEasing)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/custom_easing.goc", hash("custom_easing"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/custom_easing.goc", hash("custom_easing"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
