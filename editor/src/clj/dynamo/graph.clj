@@ -16,6 +16,8 @@
 
 (import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
 
+(import-vars [internal.graph type-compatible?])
+
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
 
@@ -132,29 +134,6 @@ for all properties of this node."
 (def node-intrinsics
   [(list 'output 'self `t/Any `(pc/fnk [~'this] ~'this))
    (list 'output 'properties `t/Properties `gather-properties)])
-
-;; ---------------------------------------------------------------------------
-;; Type checking
-;; ---------------------------------------------------------------------------
-
-(defn- check-single-type
-  [out in]
-  (or
-   (= t/Any in)
-   (= out in)
-   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
-
-(defn type-compatible?
-  [output-schema input-schema]
-  (let [out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
-    (or
-     (= t/Any input-schema)
-     (and out-t-pl? (= [t/Any] input-schema))
-     (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
-     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema)))))
-
-
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
