@@ -67,6 +67,12 @@
   (input var-to-fn      String :substitute #'substitute-value-fn)
   (input inline-literal String :substitute "inline literal"))
 
+(g/defnode CardinalityInputNode
+  (input single-scalar-value        t/Str)
+  (input single-collection-value    [t/Str])
+  (input multiple-scalar-values     t/Str :array)
+  (input multiple-collection-values [t/Str] :array))
+
 (deftest nodes-can-have-inputs
   (testing "labeled input"
     (let [node (g/construct OneInputNode)]
@@ -88,7 +94,16 @@
     (let [node (g/construct SubstitutingInputNode)]
       (is (= substitute-value-fn   (g/substitute-for node :substitute-fn)))
       (is (= #'substitute-value-fn (g/substitute-for node :var-to-fn)))
-      (is (= "inline literal"      (g/substitute-for node :inline-literal))))))
+      (is (= "inline literal"      (g/substitute-for node :inline-literal)))))
+
+  (testing "the default cardinality is :one"
+    (is (= :one (g/input-cardinality CardinalityInputNode :single-scalar-value)))
+    (is (= :one (g/input-cardinality CardinalityInputNode :single-collection-value))))
+
+  (testing "inputs can declare their cardinality"
+    (is (= :many (g/input-cardinality CardinalityInputNode :multiple-scalar-values)))
+    (is (= :many (g/input-cardinality CardinalityInputNode :multiple-collection-values)))))
+
 
 (definterface MarkerInterface)
 (definterface SecondaryInterface)
