@@ -62,27 +62,36 @@
 (s/defrecord T2 [value :- Integer])
 
 (deftest type-compatibility
-  (are [first second compatible?]
-    (= compatible? (g/type-compatible? first second))
-    T1        T1           true
-    T1        T2           false
-    [T1]      [T1]         true
-    [T1]      [T2]         false
-    T1        [T2]         false
-    [T1]      T2           false
-    String    String       true
-    String    [String]     false
-    [String]  String       false
-    [String]  [String]     true
-    Integer   Number       true
-    Integer   t/Num        true
-    [Integer] [Number]     true
-    [Number]  [Integer]    false
-    T1        t/Any        true
-    T1        [t/Any]      false
-    [T1]      [t/Any]      true
-    [T1]      t/Any        true
-    String    t/Any        true
-    String    [t/Any]      false
-    [String]  t/Any        true
-    [String]  [t/Any]      true))
+  (are [first second cardinality compatible?]
+    (= compatible? (g/type-compatible? first second cardinality))
+    T1 T1               :one    true
+    T1 T1               :many   false
+    T1 T2               :one    false
+    T1 T2               :many   false
+    T1 [T1]             :many   true
+    T1 [T1]             :one    false
+    T1 [T2]             :many   false
+    T1 [T2]             :one    false
+    String String       :one    true
+    String String       :many   false
+    String [String]     :one    false
+    String [String]     :many   true
+    [String] String     :one    false
+    [String] String     :many   false
+    [String] [String]   :one    true
+    [String] [String]   :many   false
+    [String] [[String]] :many   true
+    Integer  Number     :one    true
+    Integer  t/Num      :one    true
+    T1       t/Any      :one    true
+    T1       t/Any      :many   true
+    T1       [t/Any]    :one    false
+    T1       [t/Any]    :many   true
+    String   t/Any      :one    true
+    String   t/Any      :many   true
+    String   [t/Any]    :one    false
+    String   [t/Any]    :many   true
+    [String] t/Any      :one    true
+    [String] t/Any      :many   true
+    [String] [t/Any]    :one    true
+    [String] [t/Any]    :one    true))

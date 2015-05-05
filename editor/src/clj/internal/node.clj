@@ -268,7 +268,7 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities]
+  [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes]
 
   gt/NodeType
   (supertypes           [_] supertypes)
@@ -285,14 +285,7 @@
   (cached-outputs'      [_] cached-outputs)
   (event-handlers'      [_] event-handlers)
   (input-dependencies'  [_] input-dependencies)
-  (substitute-for'      [_ input] (get substitutes input))
-  (input-type           [_ input]
-    (let [input-definition (get inputs input)]
-      (if (satisfies? t/PropertyType input-definition)
-        (t/property-value-type input-definition)
-        input-definition)))
-  (input-cardinality    [_ input] (get cardinalities input))
-  (output-type          [_ output] (get transform-types output)))
+  (substitute-for'      [_ input] (get substitutes input)))
 
 (defmethod print-method NodeTypeImpl
   [^NodeTypeImpl v ^java.io.Writer w]
@@ -358,7 +351,6 @@ not called directly."
     (update-in [:method-impls]        combine-with merge      {} (from-supertypes description gt/method-impls))
     (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description gt/triggers))
     (update-in [:substitutes]         combine-with merge      {} (from-supertypes description :substitutes))
-    (update-in [:cardinalities]       combine-with merge      {} (from-supertypes description :cardinalities))
     attach-input-dependencies
     map->NodeTypeImpl))
 
@@ -378,19 +370,13 @@ not called directly."
   [description label schema flags options & [args]]
   (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
   (cond->
-      (assoc-in description [:inputs label] schema)
+    (assoc-in description [:inputs label] schema)
 
     (some #{:inject} flags)
     (update-in [:injectable-inputs] #(conj (or % #{}) label))
 
     (:substitute options)
-    (update-in [:substitutes] assoc label (:substitute options))
-
-    (not (some #{:array} flags))
-    (update-in [:cardinalities] assoc label :one)
-
-    (some #{:array} flags)
-    (update-in [:cardinalities] assoc label :many)))
+    (update-in [:substitutes] assoc label (:substitute options))))
 
 (defn- abstract-function
   [label type]
@@ -459,16 +445,16 @@ must be part of a protocol or interface attached to the description."
 
 (defn- parse-flags-and-options
   [allowed-flags allowed-options args]
-  (loop [flags   #{}
-         options {}
-         args    args]
+  (loop [properties #{}
+         options    {}
+         args       args]
     (if-let [[arg & remainder] (seq args)]
       (cond
-        (allowed-flags   arg) (recur (conj flags arg) options remainder)
+        (allowed-flags   arg) (recur (conj properties arg) options remainder)
         (allowed-options arg) (do (assert remainder (str "Expected value for option " arg))
-                                 (recur flags (assoc options arg (first remainder)) (rest remainder)))
-        :else                 [flags options args])
-      [flags options args])))
+                                 (recur properties (assoc options arg (first remainder)) (rest remainder)))
+        :else                 [properties options args])
+      [properties options args])))
 
 (defn classname
   [^Class c]
@@ -481,7 +467,8 @@ must be part of a protocol or interface attached to the description."
     (symbol (str ns) (str name))))
 
 (def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections})
-(def ^:private input-flags   #{:inject :array})
+
+(def ^:private input-flags   #{:inject})
 (def ^:private input-options #{:substitute})
 
 (def ^:private output-flags   #{:cached :abstract})

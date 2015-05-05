@@ -14,7 +14,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
+(import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' MessageTarget process-one-event error? error])
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
@@ -145,14 +145,17 @@ for all properties of this node."
    (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
 
 (defn type-compatible?
-  [output-schema input-schema]
+  [output-schema input-schema cardinality]
   (let [out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
+        in-t-pl?  (coll? input-schema)
+        expects-one? (= :one cardinality)
+        expects-many? (= :many cardinality)]
     (or
      (= t/Any input-schema)
-     (and out-t-pl? (= [t/Any] input-schema))
-     (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
-     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema)))))
+     (and expects-many? (= [t/Any] input-schema))
+     (and expects-many? in-t-pl? (check-single-type output-schema (first input-schema)))
+     (and expects-one? (check-single-type output-schema input-schema))
+     (and expects-one? in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
 
 
 
