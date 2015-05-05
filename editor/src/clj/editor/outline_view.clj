@@ -104,6 +104,7 @@
 
 (ui/extend-menu ::outline-menu nil
                 [{:label "Delete"
+                  :icon "icons/cross.png"
                   :command :delete}])
 
 (handler/defhandler delete :delete
