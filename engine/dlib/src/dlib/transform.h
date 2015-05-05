@@ -394,6 +394,7 @@ namespace dmTransform
     /**
      * Eliminate the scaling components in a matrix
      * @param mtx Matrix to operate on
+     * @return Vector containing the scaling by component
      */
     inline Vector3 ResetScale(Matrix4 *mtx)
     {

@@ -408,8 +408,6 @@ namespace dmGameSystem
 
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
-        TileGridWorld *world = (TileGridWorld *) params.m_UserData;
-
         if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
             assert((params.m_End - params.m_Begin) == 1);
@@ -459,19 +457,16 @@ namespace dmGameSystem
                 continue;
             }
 
-            dmTransform::Transform world = dmGameObject::GetWorldTransform(tile_grid->m_Instance);
-            dmTransform::Transform local(tile_grid->m_Translation, tile_grid->m_Rotation, 1.0f);
-
+            Matrix4 local(tile_grid->m_Rotation, Vector3(tile_grid->m_Translation));
+            const Matrix4& go_world = dmGameObject::GetWorldMatrix(tile_grid->m_Instance);
             if (dmGameObject::ScaleAlongZ(tile_grid->m_Instance))
             {
-                world = dmTransform::Mul(world, local);
+                tile_grid->m_RenderWorldTransform = go_world * local;
             }
             else
             {
-                world = dmTransform::MulNoScaleZ(world, local);
+                tile_grid->m_RenderWorldTransform = dmTransform::MulNoScaleZ(go_world, local);
             }
-
-            tile_grid->m_RenderWorldTransform = dmTransform::ToMatrix4(world);
 
             const Vector4 trans = tile_grid->m_RenderWorldTransform.getCol(3);
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
