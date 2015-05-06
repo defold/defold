@@ -234,7 +234,7 @@
       (future
         (try
           (reset! return (worker-fn report-fn))
-          (catch Exception e
+          (catch Throwable e
             (reset! return e)))
         (run-later (.close stage)))
       (.showAndWait stage)
