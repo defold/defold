@@ -131,7 +131,9 @@ namespace dmGraphics
         TEXTURE_FILTER_NEAREST                  = DMGRAPHICS_TEXTURE_FILTER_NEAREST,
         TEXTURE_FILTER_LINEAR                   = DMGRAPHICS_TEXTURE_FILTER_LINEAR,
         TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST   = DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST,
+        TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR    = DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR,
         TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST    = DMGRAPHICS_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST,
+        TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR     = DMGRAPHICS_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR,
     };
 
     // Texture format
@@ -538,6 +540,7 @@ namespace dmGraphics
      * @param params
      */
     void SetTexture(HTexture texture, const TextureParams& params);
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);

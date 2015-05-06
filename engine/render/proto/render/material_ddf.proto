@@ -27,6 +27,38 @@ message MaterialDesc
         optional dmMath.Vector4 value = 3;
     }
 
+    enum WrapMode
+    {
+        WRAP_MODE_REPEAT          = 0;
+        WRAP_MODE_MIRRORED_REPEAT = 1;
+        WRAP_MODE_CLAMP_TO_EDGE   = 2;
+    }
+
+    enum FilterModeMin
+    {
+        FILTER_MODE_MIN_NEAREST = 0;
+        FILTER_MODE_MIN_LINEAR  = 1;
+        FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST = 2;
+        FILTER_MODE_MIN_NEAREST_MIPMAP_LINEAR  = 3;
+        FILTER_MODE_MIN_LINEAR_MIPMAP_NEAREST  = 4;
+        FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR   = 5;
+    }
+
+    enum FilterModeMag
+    {
+        FILTER_MODE_MAG_NEAREST = 0;
+        FILTER_MODE_MAG_LINEAR  = 1;
+    }
+
+    message Sampler
+    {
+        required string name           = 1; // uniform name
+        required WrapMode wrap_u       = 2;
+        required WrapMode wrap_v       = 3;
+        required FilterModeMin filter_min = 4;
+        required FilterModeMag filter_mag = 5;
+    }
+
     required string name = 1;
     repeated string tags = 2;
     required string vertex_program = 3 [(resource)=true];
@@ -34,4 +66,5 @@ message MaterialDesc
     repeated Constant vertex_constants = 5;
     repeated Constant fragment_constants = 6;
     repeated string textures = 7;
+    repeated Sampler samplers = 8;
 }
