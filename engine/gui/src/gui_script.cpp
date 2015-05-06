@@ -3453,6 +3453,25 @@ namespace dmGui
      *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>touch</code></td><td>List of touch input, one element per finger, if present. See table below about touch input</td></tr>
+     * </table>
+     *
+     * <p>
+     * Touch input table:
+     * </p>
+     * <table>
+     *   <th>Field</th>
+     *   <th>Description</th>
+     *   <tr><td><code>pressed</code></td><td>True if the finger was pressed this frame.</td></tr>
+     *   <tr><td><code>released</code></td><td>True if the finger was released this frame.</td></tr>
+     *   <tr><td><code>tap_count</code></td><td>Number of taps, one for single, two for double-tap, etc</td></tr>
+     *   <tr><td><code>x</code></td><td>The x touch location.</td></tr>
+     *   <tr><td><code>y</code></td><td>The y touch location.</td></tr>
+     *   <tr><td><code>dx</code></td><td>The change in x value.</td></tr>
+     *   <tr><td><code>dy</code></td><td>The change in y value.</td></tr>
+     *   <tr><td><code>acc_x</code></td><td>Accelerometer x value (if present).</td></tr>
+     *   <tr><td><code>acc_y</code></td><td>Accelerometer y value (if present).</td></tr>
+     *   <tr><td><code>acc_z</code></td><td>Accelerometer z value (if present).</td></tr>
      * </table>
      *
      * @name on_input
