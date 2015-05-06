@@ -76,10 +76,10 @@
 (g/defnode GameObjectNode
   (inherits project/ResourceNode)
 
-  (input outline [t/Any])
-  (input ref-ddf [t/Any])
-  (input embed-ddf [t/Any])
-  (input child-scenes [t/Any])
+  (input outline t/Any :array)
+  (input ref-ddf t/Any :array)
+  (input embed-ddf t/Any :array)
+  (input child-scenes t/Any :array)
 
   (output outline t/Any (g/fnk [self outline] {:self self :label "Game Object" :icon game-object-icon :children outline}))
   (output save-data t/Any :cached produce-save-data)

@@ -369,7 +369,7 @@
   (input aabb AABB)
 
   (output viewport Region (g/fnk [viewport] viewport))
-  (output camera Region produce-camera)
+  (output camera Camera produce-camera)
 
   (output input-handler Runnable (g/fnk [] handle-input))
 )

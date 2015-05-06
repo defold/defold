@@ -100,10 +100,10 @@ ordinary paths."
 
   (property workspace t/Any)
 
-  (input selection [t/Any])
+  (input selection t/Any :array)
   (input resources t/Any)
   (input resource-types t/Any)
-  (input save-data [t/Any])
+  (input save-data t/Any :array)
 
   (output selection t/Any :cached (g/fnk [selection] selection))
   (output nodes-by-resource t/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))

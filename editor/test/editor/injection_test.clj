@@ -134,7 +134,7 @@
 
 (g/defnode ReflexiveFeedback
   (property port t/Keyword (default :no))
-  (input ports [t/Keyword] :inject))
+  (input ports t/Keyword :array :inject))
 
 (deftest reflexive-injection
   (testing "don't connect a node's own output to its input"

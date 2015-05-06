@@ -31,7 +31,7 @@
   (property width t/Num)
   (property height t/Num)
   (input frame BufferedImage)
-  (input input-handlers [Runnable])
+  (input input-handlers Runnable :array)
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height))))
 
 (defn make-dummy-view [graph width height]
