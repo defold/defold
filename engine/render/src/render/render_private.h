@@ -29,8 +29,19 @@ namespace dmRender
         int16_t  m_Location;
         int16_t  m_Unit;
 
-        Sampler(dmhash_t name_hash, int16_t location)
-            : m_NameHash(name_hash), m_Location(location), m_Unit(-1)
+        dmGraphics::TextureFilter m_MinFilter;
+        dmGraphics::TextureFilter m_MagFilter;
+        dmGraphics::TextureWrap m_UWrap;
+        dmGraphics::TextureWrap m_VWrap;
+
+        Sampler(int16_t unit)
+            : m_NameHash(0)
+            , m_Location(-1)
+            , m_Unit(unit)
+            , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+            , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
+            , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+            , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
         {
         }
     };
