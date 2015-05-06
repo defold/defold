@@ -21,7 +21,8 @@
             [editor.switcher :as switcher]
             [editor.text :as text]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [clojure.stacktrace :as stack])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
@@ -151,16 +152,21 @@
     (.show stage)))
 
 (defn main []
-  (ui/modal-progress "Loading project" 100
-   (fn [report-fn]
-     (report-fn -1 "loading assets")
-     (when (nil? @the-root)
-       (g/initialize {})
-       (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-       (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
-       (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
-     (let [pref-key "default-project-file"
-           project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
-       (when project-file
-         (set-preference pref-key project-file)
-         (open-project (io/file project-file)))))))
+  (try
+    (ui/modal-progress "Loading project" 100
+                       (fn [report-fn]
+                         (report-fn -1 "loading assets")
+                         (when (nil? @the-root)
+                           (g/initialize {})
+                           (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
+                           (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
+                           (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
+                         (let [pref-key "default-project-file"
+                               project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
+                           (when project-file
+                             (set-preference pref-key project-file)
+                             (open-project (io/file project-file))))))
+    (catch Throwable t
+      (stack/print-stack-trace t)
+      (.flush *out*)
+      (System/exit -1))))
