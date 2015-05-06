@@ -1,4 +1,4 @@
-(ns internal.paper-tape
+(ns internal.paper-tape-test
   (:require [internal.history :refer :all]
             [clojure.test :refer :all]))
 
@@ -21,8 +21,7 @@
 
   (testing "bumping against head end"
     (let [tape (into (paper-tape nil) (range 10))
-          tape (-> tape iprev iprev iprev iprev iprev iprev iprev iprev iprev iprev)
-          ]
+          tape (-> tape iprev iprev iprev iprev iprev iprev iprev iprev iprev iprev)]
       (is (nil? (-> tape ivalue)))
       (is (= 0  (-> tape inext ivalue)))
       (is (= 1  (-> tape inext inext ivalue)))

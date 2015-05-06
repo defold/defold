@@ -14,24 +14,28 @@
                        dynamo.property-test
                        dynamo.transaction-test
                        dynamo.util-test
-                       ;; editor.atlas-test                       ;; Disabled while file saving is not working
+                       editor.handler-test
                        editor.injection-test
+                       editor.math-test
                        editor.project-test
                        editor.scope-test
+                       editor.ui-test
                        internal.cache-test
+                       internal.connection-rules
                        internal.dependency-test
                        internal.graph.graph-test
+                       internal.graph.types-test
                        internal.math-test
                        internal.node-test
                        internal.packing-test
+                       internal.paper-tape-test
                        internal.system-test
                        internal.type-test
                        internal.value-test
                        potemkin.imports-test
                        potemkin.namespaces-test])
 
-(def integration-test-namespaces '[editor.atlas-test
-                                   integration.undo-test
+(def integration-test-namespaces '[integration.undo-test
                                    integration.asset-browser-test
                                    integration.save-test
                                    integration.scene-test])
