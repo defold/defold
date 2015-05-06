@@ -538,7 +538,9 @@ namespace dmScript
                     lua_pushvalue(L, -5);     // 3rd arg: traceback
                     PCallInternal(L, 3, 0, 1);
                 } else {
-                    dmLogError("Registered error handler is not a function");
+                    if (!lua_isnil(L, -1)) {
+                        dmLogError("Registered error handler is not a function");
+                    }
                     lua_pop(L, 1);
                 }
             }
