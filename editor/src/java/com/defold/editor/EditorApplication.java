@@ -20,6 +20,7 @@ public class EditorApplication {
     public EditorApplication(Object startInstance, ClassLoader classLoader) {
         EditorApplication.startInstance = startInstance;
         runtime = ClojureRuntimeShim.newRuntime(classLoader, "editor");
+        runtime.require("editor.enable-reflection-warnings");
         runtime.require("editor.boot");
     }
 
