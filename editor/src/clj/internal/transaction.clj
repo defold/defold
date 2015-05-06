@@ -371,9 +371,8 @@
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
   [ctx]
-  (let [empty-tx? (empty? (:completed ctx))]
-    (assoc (select-keys ctx tx-report-keys)
-           :status (if empty-tx? :empty :ok))))
+  (assoc (select-keys ctx tx-report-keys)
+         :status (if (empty? (:completed ctx)) :empty :ok)))
 
 (defn new-transaction-context
   [basis actions]
