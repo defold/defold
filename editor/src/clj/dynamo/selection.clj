@@ -3,7 +3,7 @@
             [dynamo.types :as t]))
 
 (g/defnode Selection
-  (input selected-nodes ['g/Node])
+  (input selected-nodes 'g/Node :array)
 
   (output selection      t/Any     (g/fnk [selected-nodes] (mapv g/node-id selected-nodes)))
   (output selection-node Selection (g/fnk [self] self)))

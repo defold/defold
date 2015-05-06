@@ -212,7 +212,7 @@
 
 (g/defnode DependencyNode
   (input in t/Any)
-  (input in-multi [t/Any])
+  (input in-multi t/Any :array)
   (output out-from-self     t/Any (g/fnk [out-from-self] out-from-self))
   (output out-from-in       t/Any (g/fnk [in]            in))
   (output out-const         t/Any (fn [this & _] :const-val)))
@@ -263,7 +263,7 @@
 (g/defnode InheritsBasicNode
   (inherits BasicNode)
   (inherits MultipleInheritance)
-  (input another-input [t/Int])
+  (input another-input t/Int :array)
   (property property-to-override t/Str (default "override"))
   (property property-from-type predefined-property-type)
   (property multi-valued-property [t/Str] (default ["extra" "things"]))

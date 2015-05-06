@@ -231,10 +231,10 @@
   (input selection t/Any)
   (input viewport Region)
   (input camera Camera)
-  (input renderables [t/RenderData])
-  (input picking-rect Region)
+  (input renderables t/RenderData :array)
+  (input picking-rect Rect)
 
-  (output renderables t/Any :cached produce-renderables)
+  (output renderables t/RenderData :cached produce-renderables)
   (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
                                                       (.order (ByteOrder/nativeOrder))
                                                       (.asIntBuffer))))
@@ -281,10 +281,10 @@
 
   (input frame BufferedImage)
   (input scene t/Any)
-  (input input-handlers [Runnable])
+  (input input-handlers Runnable :array)
   (input selection t/Any)
 
-  (output renderables t/Any :cached (g/fnk [scene] (scene->renderables scene)))
+  (output renderables t/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
 ;;  (output viewport Region (g/fnk [viewport] viewport))
   (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene))) ; TODO - base aabb on selection
@@ -342,9 +342,9 @@
   (input selection t/Any)
   (input scene t/Any)
   (input frame BufferedImage)
-  (input input-handlers [Runnable])
+  (input input-handlers Runnable :array)
 
-  (output renderables t/Any :cached (g/fnk [scene] (scene->renderables scene)))
+  (output renderables t/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene)))
@@ -459,7 +459,7 @@
   (input scene t/Any)
 
   (output picking-rect Rect :cached produce-picking-rect)
-  (output renderable t/Any :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d) :render-fn (g/fnk [gl] (render-selection-box gl start current))}]}))
+  (output renderable t/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d) :render-fn (g/fnk [gl] (render-selection-box gl start current))}]}))
   (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
 
 (defn setup-view [view resource-node opts]

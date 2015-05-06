@@ -183,9 +183,9 @@
   (property flip-vertical   t/Bool)
   (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
 
-  (input frames [Image])
-  (input outline [t/Any])
-  (input img-ddf [t/Any])
+  (input frames Image :array)
+  (input outline t/Any :array)
+  (input img-ddf t/Any :array)
 
   (output animation Animation (g/fnk [this id frames :- [Image] fps flip-horizontal flip-vertical playback]
                                      (->Animation id frames fps flip-horizontal flip-vertical playback)))
@@ -245,10 +245,10 @@
   (property margin          dp/NonNegativeInt (default 0))
   (property extrude-borders dp/NonNegativeInt (default 0))
 
-  (input animations [Animation])
-  (input outline [t/Any])
-  (input img-ddf [t/Any])
-  (input anim-ddf [t/Any])
+  (input animations Animation :array)
+  (input outline t/Any :array)
+  (input img-ddf t/Any :array)
+  (input anim-ddf t/Any :array)
 
   (output images          [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
   (output aabb            AABB           (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))

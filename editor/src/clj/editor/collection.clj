@@ -87,11 +87,11 @@
 
   (property name t/Str)
 
-  (input outline [t/Any])
-  (input ref-inst-ddf [t/Any])
-  (input embed-inst-ddf [t/Any])
-  (input ref-coll-ddf [t/Any])
-  (input child-scenes [t/Any])
+  (input outline t/Any :array)
+  (input ref-inst-ddf t/Any :array)
+  (input embed-inst-ddf t/Any :array)
+  (input ref-coll-ddf t/Any :array)
+  (input child-scenes t/Any :array)
 
   (output outline t/Any (g/fnk [self outline] {:self self :label "Collection" :icon collection-icon :children outline}))
   (output save-data t/Any :cached produce-save-data)
