@@ -60,7 +60,7 @@ namespace dmRender
             }
         }
 
-        if (constants_count > 0)
+        if ((constants_count + samplers_count) > 0)
         {
             m->m_NameHashToLocation.SetCapacity((constants_count + samplers_count) * 2, (constants_count + samplers_count));
             m->m_Constants.SetCapacity(constants_count);
