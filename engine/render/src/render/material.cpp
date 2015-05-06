@@ -326,7 +326,7 @@ namespace dmRender
 
         uint32_t n = samplers.Size();
         uint32_t i = unit;
-        if (unit < n && name_hash != 0)
+        if (unit < n && name_hash != 0 && material->m_NameHashToLocation.Get(name_hash) != 0)
         {
             Sampler& s = samplers[i];
             s.m_NameHash = name_hash;
