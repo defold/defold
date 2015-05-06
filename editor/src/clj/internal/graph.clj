@@ -149,10 +149,16 @@
 (declare multigraph-basis)
 
 (defn- assert-type-compatible
- [basis src-id src-label tgt-id tgt-label]
-  (let [output-schema (-> src-id (->> (gt/node-by-id basis)) gt/node-type (gt/output-type src-label))
-        input-schema  (-> tgt-id (->> (gt/node-by-id basis)) gt/node-type (gt/input-type tgt-label))]
-    (assert (type-compatible? output-schema input-schema) (format "Cannot connect %s %s to %s %s. %s and %s are not compatible." src-id src-label tgt-id tgt-label output-schema input-schema))))
+  [basis src-id src-label tgt-id tgt-label]
+  (let [output-type   (gt/node-type (gt/node-by-id basis src-id))
+        output-schema (gt/output-type output-type src-label)
+        input-type    (gt/node-type (gt/node-by-id basis tgt-id))
+        input-schema  (gt/input-type input-type tgt-label)]
+    (assert (type-compatible? output-schema input-schema)
+            (format "Cannot connect %s %s [%s] to %s %s [%s]. %s and %s are not compatible."
+                    src-id src-label (:name output-type)
+                    tgt-id tgt-label (:name input-type)
+                    output-schema input-schema))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
