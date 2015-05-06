@@ -9,7 +9,6 @@
 
   :dependencies     [[org.clojure/clojure                         "1.7.0-beta2"]
                      [org.clojure/core.cache                      "0.6.3"]
-                     [org.clojure/tools.nrepl                     "0.2.3"]
                      [org.clojure/core.async                      "0.1.346.0-17112a-alpha"]
                      [org.clojure/core.match                      "0.2.1"]
                      [org.clojure/tools.macro                     "0.1.2"]
@@ -25,7 +24,8 @@
                      [joda-time/joda-time                         "2.1"]
                      [javafx-wrapper                              "0.1.0"]
                      [commons-io/commons-io                       "2.3"]
-                     [cider/cider-nrepl                           "0.8.2"]
+                     [org.clojure/tools.nrepl                     "0.2.7" :exclusions [org.clojure/clojure]]
+                     [cider/cider-nrepl                           "0.9.0-SNAPSHOT" :exclusions [org.clojure/tools.nrepl]]
 
                      [org.projectodd.shimdandy/shimdandy-api "1.1.0"]
                      [org.projectodd.shimdandy/shimdandy-impl "1.1.0"]
@@ -87,8 +87,9 @@
                                     :prep-tasks     ^:replace []
                                     :aot            ^:replace []
                                     :repl-options   {:init-ns user}}
-                      :dev         {:dependencies   [[org.clojure/test.check "0.5.8"]
-                                                     [org.mockito/mockito-core "1.8.5"]]
+                      :dev         {:dependencies   [[org.clojure/test.check   "0.5.8"]
+                                                     [org.mockito/mockito-core "1.8.5"]
+                                                     [org.clojure/tools.nrepl  "0.2.7" :exclusions [org.clojure/clojure]]]
                                     :repl-options   {:port 4001}
                                     :proto-paths    ["test/proto"]
                                     :main ^:skip-aot com.defold.editor.Start
