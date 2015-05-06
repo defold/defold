@@ -326,7 +326,7 @@ namespace dmGameObject
         {
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, index, &receiver, &sender);
-            if (sender.m_Socket != dmGameObject::GetMessageSocket(collection) || receiver.m_Socket != dmGameObject::GetMessageSocket(collection))
+            if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
                 return; // Actually never reached
