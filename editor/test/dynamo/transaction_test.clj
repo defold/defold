@@ -263,14 +263,15 @@
   (with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)]
       (are [update expected] (= (into #{} (pairwise :_id expected)) (affected-by (apply g/set-property update)))
-        [calculator :touched true]                {calculator        #{:properties :touched}}
-        [person :date-of-birth (java.util.Date.)] {person            #{:properties :age :date-of-birth}
+        [calculator :touched true]                {calculator        #{:properties :touched :self}}
+        [person :date-of-birth (java.util.Date.)] {person            #{:properties :age :date-of-birth :self}
                                                    calculator        #{:passthrough}}
-        [first-name-cell :name "Sam"]             {first-name-cell   #{:properties :name}
+        [first-name-cell :name "Sam"]             {first-name-cell   #{:properties :name :self}
                                                    person            #{:full-name :friendly-name}
                                                    greeter           #{:passthrough}
                                                    formal-greeter    #{:passthrough}
                                                    multi-node-target #{:aggregated}}))))
+
 (g/defnode EventReceiver
   (on :custom-event
     (deliver (:latch self) true)))
@@ -310,7 +311,7 @@
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map first outputs-modified)))
-        (is (= #{:properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
+        (is (= #{:properties :a-property :ordinary :self-dependent :self} (into #{} (map second outputs-modified))))))))
 
 (g/defnode CachedValueNode
   (output cached-output t/Str :cached (fnk [] "an-output-value")))

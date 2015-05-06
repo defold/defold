@@ -331,10 +331,11 @@
 
 (defn description->input-dependencies
    [{:keys [transforms properties] :as description}]
-   (let [outs (dissoc transforms :self)
-         outs (zipmap (keys outs) (map #(dependency-seq description (inputs-for %)) (vals outs)))
-         outs (assoc outs :properties (set (keys properties)))]
-     (invert-map outs)))
+   (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))
+         transforms (assoc transforms
+                     :properties (set (keys properties))
+                     :self       (set (keys properties)))]
+     (invert-map transforms)))
 
 (defn attach-input-dependencies
   [description]
