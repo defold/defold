@@ -2046,6 +2046,53 @@ namespace dmGui
         return 1;
     }
 
+    /*# set the slice9 configuration for the node
+     *
+     * @name gui.set_slice9
+     * @param node node to manipulate
+     * @param params new value (vector4)
+     */
+    static int LuaSetSlice9(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        if (dmScript::IsVector4(L, 2))
+        {
+            const Vector4 value = *(dmScript::CheckVector4(L, 2));
+            Scene* scene = GuiScriptInstance_Check(L);
+            dmGui::SetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9, value);
+        }
+        else
+        {
+            luaL_error(L, "invalid parameter given");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# get the slice9 values for the node
+     *
+     * @name gui.get_slice9
+     * @param node node to manipulate
+     * @return vector4 with configuration values
+     */
+    static int LuaGetSlice9(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmScript::PushVector4(L, dmGui::GetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9));
+        return 1;
+    }
+
     /*# sets the number of generarted vertices around the perimeter
      *
      * @name gui.set_perimeter_vertices
@@ -2913,6 +2960,8 @@ namespace dmGui
         {"set_pivot",       LuaSetPivot},
         {"get_width",       LuaGetWidth},
         {"get_height",      LuaGetHeight},
+        {"get_slice9",      LuaGetSlice9},
+        {"set_slice9",      LuaSetSlice9},
         {"pick_node",       LuaPickNode},
         {"is_enabled",      LuaIsEnabled},
         {"set_enabled",     LuaSetEnabled},
