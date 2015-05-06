@@ -324,14 +324,14 @@ namespace dmGameObject
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
         {
-            if (sender.m_Socket != dmGameObject::GetMessageSocket(collection))
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, index, &receiver, &sender);
+            if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
                 return; // Actually never reached
             }
 
-            dmMessage::URL receiver;
-            dmScript::ResolveURL(L, index, &receiver, &sender);
             HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
@@ -1105,7 +1105,7 @@ namespace dmGameObject
      * An example how to delete game objects listed in a table
      * </p>
      * <pre>
-     * -- List the objects to be deleted 
+     * -- List the objects to be deleted
      * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
      * go.delete_all(ids)
      * </pre>
