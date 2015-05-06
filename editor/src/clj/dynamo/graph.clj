@@ -169,9 +169,16 @@ for all properties of this node."
 
   Compose the behavior from the named node type
 
-  (input _symbol_ _schema_)
+  (input _symbol_ _schema_ [:array]? [:inject]?)
 
   Define an input with the name, whose values must match the schema.
+
+  If the :inject flag is present, then this input is available for
+  dependency injection.
+
+  If the :array flag is present, then this input can have multiple
+  outputs connected to it. Without the :array flag, this input can
+  only have one incoming connection from an output.
 
   (property _symbol_ _property-type_ & _options_)
 
