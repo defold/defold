@@ -239,8 +239,8 @@
 
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (= {:another-property #{:properties :another-property}
-              :a-property #{:properties :a-property}}
+      (is (= {:another-property #{:properties :another-property :self}
+              :a-property #{:properties :a-property :self}}
              (g/input-dependencies node)))))
 
   (testing "do not allow a property to shadow an input of the same name"
@@ -316,7 +316,7 @@
 
   (testing "output dependencies are the transitive closure of their inputs"
     (let [node (g/construct TwoLayerDependencyNode)]
-      (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property}
+      (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property :self}
               :direct-calculation #{:indirect-calculation}}
              (g/input-dependencies node)))))
 

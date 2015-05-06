@@ -93,7 +93,7 @@
           deps      (g/input-dependencies test-node)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
-           :a-property         #{:depends-on-property :depends-on-several :a-property :properties}
+           :a-property         #{:depends-on-property :depends-on-several :a-property :properties :self}
            :project            #{:depends-on-several})
       (is (not (contains? deps :this)))
       (is (not (contains? deps :g)))
@@ -126,10 +126,10 @@
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
-  (expect-modified #{:properties :foo} (fn [node] (g/set-property    node :foo "two")))
-  (expect-modified #{:properties :foo} (fn [node] (g/update-property node :foo str/reverse)))
-  (expect-modified #{}                 (fn [node] (g/set-property    node :foo "one")))
-  (expect-modified #{}                 (fn [node] (g/update-property node :foo identity))))
+  (expect-modified #{:properties :foo :self} (fn [node] (g/set-property    node :foo "two")))
+  (expect-modified #{:properties :foo :self} (fn [node] (g/update-property node :foo str/reverse)))
+  (expect-modified #{}                       (fn [node] (g/set-property    node :foo "one")))
+  (expect-modified #{}                       (fn [node] (g/update-property node :foo identity))))
 
 (defn ^:dynamic production-fn [this & _] :defn)
 (def ^:dynamic production-val :def)
