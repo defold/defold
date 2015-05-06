@@ -7,8 +7,6 @@ namespace dmEasing
 {
     #include "easing_lookup.h"
 
-    const float EASING_SAMPLES_MINUS_ONE_RECIP = (1.0f / (EASING_SAMPLES-1));
-
     float GetValue(Type type, float t)
     {
         return GetValue(Curve(type), t);
@@ -26,6 +24,14 @@ namespace dmEasing
         {
             sample_count = curve.vector->size;
             lookup       = curve.vector->values;
+
+            if (sample_count == 0)
+            {
+                return 0.0f;
+            } else if (sample_count == 1) {
+                return lookup[0];
+            }
+
         } else {
             sample_count = EASING_SAMPLES; // 64 samples for built in curves
             lookup       = EASING_LOOKUP;
@@ -33,11 +39,7 @@ namespace dmEasing
         }
 
         index1 = (int) (t * (sample_count-1));
-        index2 = index1 + 1;
-        if (index2 > sample_count-1)
-        {
-            index2 = index1;
-        }
+        index2 = dmMath::Min(index1 + 1, sample_count-1);
 
         val1 = lookup[index1];
         val2 = lookup[index2];
