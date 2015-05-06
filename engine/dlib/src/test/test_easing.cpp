@@ -31,11 +31,31 @@ TEST(dmEasing, Linear)
 
 TEST(dmEasing, CurstomCurve)
 {
+    dmVMath::FloatVector vector_empty(0);
+    dmVMath::FloatVector vector_single(1);
     dmVMath::FloatVector vector(64);
+
     dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
-    curve.vector = &vector;
+
+    // sample curve with zero entries
+    curve.vector = &vector_empty;
+    ASSERT_EQ(0.0f, dmEasing::GetValue(curve, 0.0f));
+    ASSERT_EQ(0.0f, dmEasing::GetValue(curve, 0.5f));
+    ASSERT_EQ(0.0f, dmEasing::GetValue(curve, 0.9f));
+    ASSERT_EQ(0.0f, dmEasing::GetValue(curve, 1.0f));
+
+    // sample curve with only one entry
+    curve.vector = &vector_single;
+    vector_single.values[0] = 0.7f;
+    ASSERT_EQ(0.7f, dmEasing::GetValue(curve,-1.0f));
+    ASSERT_EQ(0.7f, dmEasing::GetValue(curve, 0.0f));
+    ASSERT_EQ(0.7f, dmEasing::GetValue(curve, 0.5f));
+    ASSERT_EQ(0.7f, dmEasing::GetValue(curve, 0.9f));
+    ASSERT_EQ(0.7f, dmEasing::GetValue(curve, 1.0f));
+    ASSERT_EQ(0.7f, dmEasing::GetValue(curve, 2.0f));
 
     // INQUAD equivalent
+    curve.vector = &vector;
     for (int i = 0; i < 64; ++i) {
         float t = i / 63.0f;
         vector.values[i] = t * t;
