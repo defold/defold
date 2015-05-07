@@ -15,7 +15,7 @@
 (def nodes-num 10)
 
 (defmacro do-benchmark [benchmark-name f]
-;;; For more rigorous use benchmark instead of quick-bench 
+;;; For more rigorous use benchmark instead of quick-bench
   `(do
      (println "***************************************")
      (println)
@@ -32,7 +32,6 @@
 
 (g/defnode Container
   (input nodes t/Any))
-
 
 (defn build-network
   [world]
@@ -96,8 +95,6 @@
        (g/transact (g/connect new-input-node :a-property new-output-node :nodes))
        (g/transact (g/disconnect new-input-node :a-property new-output-node :nodes))))))
 
-
-
 (defn run-benchmarks []
   (network-creation)
   (add-one-node)
@@ -106,4 +103,8 @@
   (add-two-nodes-and-connect-them)
   (add-two-nodes-and-connect-and-disconnect-them))
 
-
+(defn -main [& args]
+  (println "Running benchmarks and outputing results to ./test/benchmark/bench-results.txt")
+  (with-open [w (clojure.java.io/writer "./test/benchmark/bench-results.txt")]
+    (binding [*out* w]
+      (run-benchmarks))))
