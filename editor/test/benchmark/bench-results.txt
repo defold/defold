@@ -7,88 +7,104 @@ Whole Graph Network Creation
 ***************************************
 Estimating sampling overhead
 Warming up for JIT optimisations 10000000000 ...
-  compilation occured before 271405 iterations
-  compilation occured before 542740 iterations
-  compilation occured before 814075 iterations
-  compilation occured before 2442085 iterations
-  compilation occured before 12481480 iterations
-  compilation occured before 34730950 iterations
-  compilation occured before 35544955 iterations
-  compilation occured before 43956340 iterations
-  compilation occured before 51825055 iterations
-  compilation occured before 68919160 iterations
-  compilation occured before 69733165 iterations
-  compilation occured before 104192710 iterations
-  compilation occured before 104464045 iterations
-  compilation occured before 113146765 iterations
-  compilation occured before 117759460 iterations
-  compilation occured before 138923590 iterations
-  compilation occured before 660429460 iterations
-  compilation occured before 735046585 iterations
-  compilation occured before 737217265 iterations
-  compilation occured before 1389235270 iterations
-  compilation occured before 1458425695 iterations
-  compilation occured before 1460596375 iterations
-  compilation occured before 1476062470 iterations
-  compilation occured before 1494513250 iterations
-  compilation occured before 1497497935 iterations
-  compilation occured before 1653244225 iterations
+  compilation occured before 65 iterations
+  compilation occured before 158086 iterations
+  compilation occured before 632149 iterations
+  compilation occured before 790170 iterations
+  compilation occured before 1106212 iterations
+  compilation occured before 1264233 iterations
+  compilation occured before 2212359 iterations
+  compilation occured before 2370380 iterations
+  compilation occured before 2844443 iterations
+  compilation occured before 3002464 iterations
+  compilation occured before 4266632 iterations
+  compilation occured before 8059136 iterations
+  compilation occured before 10903514 iterations
+  compilation occured before 20542795 iterations
+  compilation occured before 20700816 iterations
+  compilation occured before 26547593 iterations
+  compilation occured before 40295420 iterations
+  compilation occured before 40611462 iterations
+  compilation occured before 51514911 iterations
+  compilation occured before 60680129 iterations
+  compilation occured before 61154192 iterations
+  compilation occured before 384623179 iterations
+  compilation occured before 430607290 iterations
+  compilation occured before 432661563 iterations
+  compilation occured before 461263364 iterations
+  compilation occured before 849046898 iterations
+  compilation occured before 851417213 iterations
+  compilation occured before 861056494 iterations
+  compilation occured before 871169838 iterations
+  compilation occured before 874488279 iterations
 Estimating execution count ...
 Sampling ...
 Final GC...
 Checking GC...
-WARNING: Final GC required 1.224573561969716 % of runtime
+WARNING: Final GC required 1.5023220059721751 % of runtime
 Finding outliers ...
 Bootstrapping ...
 Checking outlier significance
 Warming up for JIT optimisations 5000000000 ...
   compilation occured before 1 iterations
-  compilation occured before 55 iterations
-  compilation occured before 109 iterations
-  compilation occured before 163 iterations
-  compilation occured before 217 iterations
-  compilation occured before 271 iterations
-  compilation occured before 325 iterations
-  compilation occured before 379 iterations
-  compilation occured before 433 iterations
-  compilation occured before 487 iterations
-  compilation occured before 541 iterations
-  compilation occured before 595 iterations
-  compilation occured before 649 iterations
-  compilation occured before 703 iterations
-  compilation occured before 811 iterations
-  compilation occured before 919 iterations
-  compilation occured before 973 iterations
+  compilation occured before 39 iterations
+  compilation occured before 77 iterations
+  compilation occured before 115 iterations
+  compilation occured before 153 iterations
+  compilation occured before 191 iterations
+  compilation occured before 229 iterations
+  compilation occured before 267 iterations
+  compilation occured before 305 iterations
+  compilation occured before 343 iterations
+  compilation occured before 419 iterations
+  compilation occured before 457 iterations
+  compilation occured before 495 iterations
+  compilation occured before 533 iterations
+  compilation occured before 571 iterations
+  compilation occured before 609 iterations
+  compilation occured before 647 iterations
+  compilation occured before 685 iterations
+  compilation occured before 799 iterations
+  classes loaded before 913 iterations
+  compilation occured before 913 iterations
+  compilation occured before 951 iterations
+  compilation occured before 989 iterations
   compilation occured before 1027 iterations
-  compilation occured before 1081 iterations
-  compilation occured before 1135 iterations
-  compilation occured before 1189 iterations
-  compilation occured before 1243 iterations
-  compilation occured before 1297 iterations
-  compilation occured before 1351 iterations
-  compilation occured before 1405 iterations
-  compilation occured before 1459 iterations
-  compilation occured before 1567 iterations
-  compilation occured before 1621 iterations
-  compilation occured before 1675 iterations
-  compilation occured before 1837 iterations
-  compilation occured before 1891 iterations
-  compilation occured before 1945 iterations
+  compilation occured before 1065 iterations
+  compilation occured before 1103 iterations
+  compilation occured before 1141 iterations
+  compilation occured before 1179 iterations
+  compilation occured before 1217 iterations
+  compilation occured before 1255 iterations
+  compilation occured before 1293 iterations
+  compilation occured before 1331 iterations
+  compilation occured before 1369 iterations
+  compilation occured before 1407 iterations
+  compilation occured before 1521 iterations
+  compilation occured before 1559 iterations
+  compilation occured before 1597 iterations
+  compilation occured before 1635 iterations
+  compilation occured before 1749 iterations
+  compilation occured before 1825 iterations
+  compilation occured before 1863 iterations
+  compilation occured before 1901 iterations
+  compilation occured before 1939 iterations
+  compilation occured before 1977 iterations
 Estimating execution count ...
 Sampling ...
 Final GC...
 Checking GC...
-WARNING: Final GC required 12.06024383567955 % of runtime
+WARNING: Final GC required 13.317838307050769 % of runtime
 Finding outliers ...
 Bootstrapping ...
 Checking outlier significance
 x86_64 Mac OS X 10.10.3 8 cpu(s)
-Evaluation count : 48 in 6 samples of 8 calls.
-             Execution time mean : 13.604698 ms
-    Execution time std-deviation : 815.911255 µs
-   Execution time lower quantile : 12.763569 ms ( 2.5%)
-   Execution time upper quantile : 14.572838 ms (97.5%)
-                   Overhead used : 1.474435 ns
+Evaluation count : 42 in 6 samples of 7 calls.
+             Execution time mean : 14.661755 ms
+    Execution time std-deviation : 489.762651 µs
+   Execution time lower quantile : 14.114657 ms ( 2.5%)
+   Execution time upper quantile : 15.327965 ms (97.5%)
+                   Overhead used : 1.546549 ns
 Benching: Adding one node
 ***************************************
 
@@ -98,24 +114,23 @@ Add One Node
 
 ***************************************
 Warming up for JIT optimisations 5000000000 ...
-  compilation occured before 6588 iterations
-  compilation occured before 46110 iterations
-  compilation occured before 59284 iterations
+  compilation occured before 7950 iterations
+  compilation occured before 31797 iterations
 Estimating execution count ...
 Sampling ...
 Final GC...
 Checking GC...
-WARNING: Final GC required 20.1542229954527 % of runtime
+WARNING: Final GC required 21.28689231608794 % of runtime
 Finding outliers ...
 Bootstrapping ...
 Checking outlier significance
 x86_64 Mac OS X 10.10.3 8 cpu(s)
-Evaluation count : 11694 in 6 samples of 1949 calls.
-             Execution time mean : 52.207934 µs
-    Execution time std-deviation : 2.833392 µs
-   Execution time lower quantile : 48.940222 µs ( 2.5%)
-   Execution time upper quantile : 55.939531 µs (97.5%)
-                   Overhead used : 1.474435 ns
+Evaluation count : 10506 in 6 samples of 1751 calls.
+             Execution time mean : 57.446153 µs
+    Execution time std-deviation : 1.682182 µs
+   Execution time lower quantile : 55.675156 µs ( 2.5%)
+   Execution time upper quantile : 59.821151 µs (97.5%)
+                   Overhead used : 1.546549 ns
 ***************************************
 
 
@@ -124,32 +139,31 @@ Add One Node and Delete One Node
 
 ***************************************
 Warming up for JIT optimisations 5000000000 ...
-  compilation occured before 1 iterations
-  compilation occured before 1136 iterations
-  compilation occured before 2271 iterations
-  compilation occured before 3406 iterations
-  compilation occured before 4541 iterations
-  compilation occured before 5676 iterations
-  compilation occured before 6811 iterations
+  compilation occured before 1825 iterations
+  compilation occured before 3649 iterations
+  compilation occured before 5473 iterations
+  compilation occured before 7297 iterations
+  compilation occured before 20065 iterations
+  compilation occured before 25537 iterations
 Estimating execution count ...
 Sampling ...
 Final GC...
 Checking GC...
-WARNING: Final GC required 10.92512866874734 % of runtime
+WARNING: Final GC required 15.706225171075591 % of runtime
 Finding outliers ...
 Bootstrapping ...
 Checking outlier significance
 x86_64 Mac OS X 10.10.3 8 cpu(s)
-Evaluation count : 5088 in 6 samples of 848 calls.
-             Execution time mean : 137.338254 µs
-    Execution time std-deviation : 7.247957 µs
-   Execution time lower quantile : 124.382363 µs ( 2.5%)
-   Execution time upper quantile : 143.822290 µs (97.5%)
-                   Overhead used : 1.474435 ns
+Evaluation count : 4170 in 6 samples of 695 calls.
+             Execution time mean : 144.550795 µs
+    Execution time std-deviation : 7.142851 µs
+   Execution time lower quantile : 139.777188 µs ( 2.5%)
+   Execution time upper quantile : 156.875005 µs (97.5%)
+                   Overhead used : 1.546549 ns
 
 Found 1 outliers in 6 samples (16.6667 %)
 	low-severe	 1 (16.6667 %)
- Variance from outliers : 14.0694 % Variance is moderately inflated by outliers
+ Variance from outliers : 13.8889 % Variance is moderately inflated by outliers
 ***************************************
 
 
@@ -158,22 +172,22 @@ Set Property on One Node
 
 ***************************************
 Warming up for JIT optimisations 5000000000 ...
-  compilation occured before 8778 iterations
+  compilation occured before 9950 iterations
 Estimating execution count ...
 Sampling ...
 Final GC...
 Checking GC...
-WARNING: Final GC required 13.25740607012901 % of runtime
+WARNING: Final GC required 16.299142225738102 % of runtime
 Finding outliers ...
 Bootstrapping ...
 Checking outlier significance
 x86_64 Mac OS X 10.10.3 8 cpu(s)
-Evaluation count : 38628 in 6 samples of 6438 calls.
-             Execution time mean : 17.185348 µs
-    Execution time std-deviation : 1.252738 µs
-   Execution time lower quantile : 15.394475 µs ( 2.5%)
-   Execution time upper quantile : 18.423734 µs (97.5%)
-                   Overhead used : 1.474435 ns
+Evaluation count : 33156 in 6 samples of 5526 calls.
+             Execution time mean : 19.754553 µs
+    Execution time std-deviation : 762.779160 ns
+   Execution time lower quantile : 19.003782 µs ( 2.5%)
+   Execution time upper quantile : 20.791206 µs (97.5%)
+                   Overhead used : 1.546549 ns
 ***************************************
 
 
@@ -182,25 +196,23 @@ Add Two Nodes and Connect Them
 
 ***************************************
 Warming up for JIT optimisations 5000000000 ...
-  compilation occured before 1 iterations
-  compilation occured before 1410 iterations
-  compilation occured before 2819 iterations
-  compilation occured before 5637 iterations
+  compilation occured before 4136 iterations
+  compilation occured before 8271 iterations
 Estimating execution count ...
 Sampling ...
 Final GC...
 Checking GC...
-WARNING: Final GC required 12.78209683683357 % of runtime
+WARNING: Final GC required 14.7982361999176 % of runtime
 Finding outliers ...
 Bootstrapping ...
 Checking outlier significance
 x86_64 Mac OS X 10.10.3 8 cpu(s)
-Evaluation count : 90 in 6 samples of 15 calls.
-             Execution time mean : 7.623694 ms
-    Execution time std-deviation : 388.549473 µs
-   Execution time lower quantile : 7.183853 ms ( 2.5%)
-   Execution time upper quantile : 8.109793 ms (97.5%)
-                   Overhead used : 1.474435 ns
+Evaluation count : 42 in 6 samples of 7 calls.
+             Execution time mean : 18.040485 ms
+    Execution time std-deviation : 1.030743 ms
+   Execution time lower quantile : 17.015958 ms ( 2.5%)
+   Execution time upper quantile : 19.046198 ms (97.5%)
+                   Overhead used : 1.546549 ns
 ***************************************
 
 
@@ -209,20 +221,50 @@ Add Two Nodes Connect and Disconnect Them
 
 ***************************************
 Warming up for JIT optimisations 5000000000 ...
-  compilation occured before 4054 iterations
-  compilation occured before 8107 iterations
+  compilation occured before 3022 iterations
+  compilation occured before 6043 iterations
 Estimating execution count ...
 Sampling ...
 Final GC...
 Checking GC...
-WARNING: Final GC required 17.82845009422142 % of runtime
+WARNING: Final GC required 15.95136062576055 % of runtime
 Finding outliers ...
 Bootstrapping ...
 Checking outlier significance
 x86_64 Mac OS X 10.10.3 8 cpu(s)
-Evaluation count : 3348 in 6 samples of 558 calls.
-             Execution time mean : 176.381843 µs
-    Execution time std-deviation : 18.830644 µs
-   Execution time lower quantile : 155.703982 µs ( 2.5%)
-   Execution time upper quantile : 200.714573 µs (97.5%)
-                   Overhead used : 1.474435 ns
+Evaluation count : 3846 in 6 samples of 641 calls.
+             Execution time mean : 179.125227 µs
+    Execution time std-deviation : 5.437890 µs
+   Execution time lower quantile : 171.642933 µs ( 2.5%)
+   Execution time upper quantile : 183.492067 µs (97.5%)
+                   Overhead used : 1.546549 ns
+***************************************
+
+
+Run 50000 transactions of adding a node
+
+
+***************************************
+Warming up for JIT optimisations 5000000000 ...
+  compilation occured before 1 iterations
+  compilation occured before 2 iterations
+  compilation occured before 3 iterations
+Estimating execution count ...
+Sampling ...
+Final GC...
+Checking GC...
+Finding outliers ...
+Bootstrapping ...
+Checking outlier significance
+x86_64 Mac OS X 10.10.3 8 cpu(s)
+Evaluation count : 6 in 6 samples of 1 calls.
+             Execution time mean : 2.628084 sec
+    Execution time std-deviation : 165.241694 ms
+   Execution time lower quantile : 2.408637 sec ( 2.5%)
+   Execution time upper quantile : 2.805134 sec (97.5%)
+                   Overhead used : 1.546549 ns
+=======
+
+TPS Report: 19025.26768238029 transactions per second
+
+=======
