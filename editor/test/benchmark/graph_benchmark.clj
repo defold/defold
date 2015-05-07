@@ -15,7 +15,7 @@
 (def nodes-num 10)
 
 (defmacro do-benchmark [benchmark-name f]
-;;; For more rigorous use benchmark instead of quick-bench
+;;; For more rigorous use benchmark instead of quick-benchmark
   `(do
      (println "***************************************")
      (println)
@@ -25,9 +25,11 @@
      (println)
      (println "***************************************")
      (cc/with-progress-reporting
-       (cc/quick-bench ~f :os))))
+       (let [bresults# (cc/quick-benchmark ~f {})]
+         (cc/report-result bresults# :os)
+         bresults#))))
 
-(g/defnode NamedThing
+(g/defnode AThing
   (property a-property t/Str))
 
 (g/defnode Container
@@ -36,7 +38,7 @@
 (defn build-network
   [world]
   (let [nodes-num          10
-        tx-result          (g/transact (repeatedly nodes-num  #(g/make-node world NamedThing)))
+        tx-result          (g/transact (repeatedly nodes-num  #(g/make-node world AThing)))
         named-nodes        (g/tx-nodes-added tx-result)
         named-node-ids     (map g/node-id named-nodes)
         tx-result          (g/transact (repeatedly nodes-num  #(g/make-node world Container)))
@@ -58,13 +60,13 @@
   (with-clean-system
     (build-network world)
     (do-benchmark "Add One Node"
-                  (g/transact (g/make-node world NamedThing)))))
+                  (g/transact (g/make-node world AThing)))))
 
 (defn add-one-node-delete-one-node []
   (with-clean-system
     (build-network world)
     (do-benchmark "Add One Node and Delete One Node"
-                  (let [[new-node] (g/tx-nodes-added (g/transact (g/make-node world NamedThing)))]
+                  (let [[new-node] (g/tx-nodes-added (g/transact (g/make-node world AThing)))]
                     (g/transact (g/delete-node new-node))))))
 
 (defn set-property-one-node []
@@ -80,7 +82,7 @@
   (with-clean-system
     (build-network world)
     (do-benchmark "Add Two Nodes and Connect Them"
-                  (let [txn-results (g/transact [(g/make-node world NamedThing)
+                  (let [txn-results (g/transact [(g/make-node world AThing)
                                                  (g/make-node world Container)])
                         [new-input-node new-output-node] (g/tx-nodes-added txn-results)]
                     (g/transact (g/connect new-input-node :a-property new-output-node :nodes))))))
@@ -89,11 +91,26 @@
   (with-clean-system
     (build-network world)
     (do-benchmark "Add Two Nodes Connect and Disconnect Them"
-     (let [txn-results (g/transact [(g/make-node world NamedThing)
+     (let [txn-results (g/transact [(g/make-node world AThing)
                                     (g/make-node world Container)])
            [new-input-node new-output-node] (g/tx-nodes-added txn-results)]
        (g/transact (g/connect new-input-node :a-property new-output-node :nodes))
        (g/transact (g/disconnect new-input-node :a-property new-output-node :nodes))))))
+
+
+(defn run-many-transactions []
+  (let [num-trans 50000
+        bench-results (do-benchmark (format "Run %s transactions of adding a node" num-trans)
+                                    (with-clean-system
+                                      (doseq [i (range num-trans)]
+                                        (g/transact (g/make-node world AThing)))))
+        mean (first (:mean bench-results))]
+    (when mean
+      (println "=======")
+      (println)
+      (println (str "TPS Report: " (/ num-trans mean) " transactions per second"))
+      (println)
+      (println "======="))))
 
 (defn run-benchmarks []
   (network-creation)
@@ -101,10 +118,12 @@
   (add-one-node-delete-one-node)
   (set-property-one-node)
   (add-two-nodes-and-connect-them)
-  (add-two-nodes-and-connect-and-disconnect-them))
+  (add-two-nodes-and-connect-and-disconnect-them)
+  (run-many-transactions))
 
 (defn -main [& args]
   (println "Running benchmarks and outputing results to ./test/benchmark/bench-results.txt")
   (with-open [w (clojure.java.io/writer "./test/benchmark/bench-results.txt")]
     (binding [*out* w]
       (run-benchmarks))))
+
