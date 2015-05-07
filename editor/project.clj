@@ -90,7 +90,8 @@
                                     :repl-options   {:init-ns user}}
                       :dev         {:dependencies   [[org.clojure/test.check   "0.5.8"]
                                                      [org.mockito/mockito-core "1.8.5"]
-                                                     [org.clojure/tools.nrepl  "0.2.7" :exclusions [org.clojure/clojure]]]
+                                                     [org.clojure/tools.nrepl  "0.2.7" :exclusions [org.clojure/clojure]]
+                                                     [criterium "0.4.3"]]
                                     :repl-options   {:port 4001}
                                     :proto-paths    ["test/proto"]
                                     :main ^:skip-aot com.defold.editor.Start
