@@ -8,6 +8,7 @@
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
+           [com.defold.editor EditorApplication]
            [java.awt Desktop]
            [javafx.animation AnimationTimer]
            [javafx.application Platform]
@@ -102,6 +103,11 @@
   (enabled? [] true)
   (run [] (prn "NEW NOW!")))
 
+(handler/defhandler :open
+  (enabled? [] true)
+  (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
+            (EditorApplication/openEditor (into-array String [file-name])))))
+
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
@@ -109,6 +115,10 @@
                               :id ::new
                               :acc "Shortcut+N"
                               :command :new}
+                             {:label "Open..."
+                              :id ::open
+                              :acc "Shortcut+O"
+                              :command :open}
                              {:label "Quit"
                               :acc "Shortcut+Q"
                               :command :quit}]}])

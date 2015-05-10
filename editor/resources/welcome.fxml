@@ -40,6 +40,6 @@
             <Insets top="20.0" />
          </HBox.margin>
       </GridPane>
-      <ListView id="recent-projects" focusTraversable="false" prefHeight="200.0" prefWidth="200.0" HBox.hgrow="ALWAYS" />
+      <ListView id="recent-projects" focusTraversable="false" prefHeight="200.0" prefWidth="200.0" style="-fx-font-size: 12;" HBox.hgrow="ALWAYS" />
    </children>
 </HBox>

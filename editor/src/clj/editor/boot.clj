@@ -11,6 +11,7 @@
             [editor.game-object :as game-object]
             [editor.graph-view :as graph-view]
             [editor.image :as image]
+            [editor.prefs :as prefs]
             [editor.jfx :as jfx]
             [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
@@ -25,6 +26,7 @@
             [clojure.stacktrace :as stack])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
+           [com.defold.editor EditorApplication]
            [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
@@ -33,10 +35,10 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button ColorPicker Label ListCell TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
+           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority VBox]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
            [javafx.util Callback]
@@ -135,38 +137,78 @@
     (g/transact (g/connect project :selection properties :selection))
     (g/reset-undo! *project-graph*)))
 
-(defn get-preference [key]
-  (let [prefs (.node (Preferences/userRoot) "defold")]
-    (.get prefs key nil)))
 
-(defn set-preference [key value]
-  (let [prefs (.node (Preferences/userRoot) "defold")]
-    (.put prefs key value)))
+(defn- add-to-recent-projects [project-file]
+  (let [recent (->> (prefs/get-prefs "recent-projects" [])
+                 (remove #(= % (str project-file)))
+                 (cons (str project-file))
+                 (take 3))]
+    (prefs/set-prefs "recent-projects" recent)))
 
-(defn show-welcome []
+(defn- make-list-cell [file]
+  (let [path (.toPath file)
+        parent (.getParent path)
+        vbox (VBox.)
+        project-label (Label. (str (.getFileName parent)))
+        path-label (Label. (str (.getParent parent)))]
+    ; TODO: Should be css stylable
+    (.setStyle path-label "-fx-text-fill: grey; -fx-font-size: 10px;")
+    (.addAll (.getChildren vbox) [project-label path-label])
+    vbox))
+
+(def main)
+
+(defn open-welcome []
   (let [root (FXMLLoader/load (io/resource "welcome.fxml"))
         stage (Stage.)
-        scene (Scene. root)]
+        scene (Scene. root)
+        recent-projects (.lookup root "#recent-projects")
+        open-project (.lookup root "#open-project")]
+    (.setOnAction open-project (ui/event-handler event (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
+                                                         (.close stage)
+                                                         ; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
+                                                         ; In other words, we can't reuse the welcome page and it has to be closed.
+                                                         ; We should potentially changed this when we have uberjar support and hence
+                                                         ; faster loading.
+                                                         (main [file-name]))))
+
+    (.setOnMouseClicked recent-projects (ui/event-handler e (when (= 2 (.getClickCount e))
+                                                              (when-let [file (-> recent-projects (.getSelectionModel) (.getSelectedItem))]
+                                                                (.close stage)
+                                                                ; See comment above about main and class-loaders
+                                                                (main [(.getAbsolutePath file)])))))
+    (.setCellFactory recent-projects (reify Callback (call ^ListCell [this view]
+                                                       (proxy [ListCell] []
+                                                         (updateItem [file empty]
+                                                           (proxy-super updateItem file empty)
+                                                           (if (or empty (nil? file))
+                                                             (proxy-super setText nil)
+                                                             (proxy-super setGraphic (make-list-cell file))))))))
+    (let [recent (->>
+                   (prefs/get-prefs "recent-projects" [])
+                   (map io/file)
+                   (filter #(.isFile %)))]
+      (.addAll (.getItems recent-projects) recent))
     (.setScene stage scene)
     (.setResizable stage false)
     (.show stage)))
 
-(defn main []
-  (try
-    (ui/modal-progress "Loading project" 100
-                       (fn [report-fn]
-                         (report-fn -1 "loading assets")
-                         (when (nil? @the-root)
-                           (g/initialize {})
-                           (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-                           (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
-                           (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
-                         (let [pref-key "default-project-file"
-                               project-file (or (get-preference pref-key) (jfx/choose-file "Open Project" "~" "game.project" "Project Files" ["*.project"]))]
-                           (when project-file
-                             (set-preference pref-key project-file)
-                             (open-project (io/file project-file))))))
-    (catch Throwable t
-      (stack/print-stack-trace t)
-      (.flush *out*)
-      (System/exit -1))))
+(defn main [args]
+  (if (= (count args) 0)
+    (ui/run-later (open-welcome))
+    (try
+      (ui/modal-progress "Loading project" 100
+                         (fn [report-fn]
+                           (report-fn -1 "loading assets")
+                           (when (nil? @the-root)
+                             (g/initialize {})
+                             (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
+                             (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
+                             (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
+                           (let [project-file (first args)]
+                             (add-to-recent-projects project-file)
+                             (open-project (io/file project-file)))))
+      (catch Throwable t
+        (stack/print-stack-trace t)
+        (.flush *out*)
+        (System/exit -1)))))
