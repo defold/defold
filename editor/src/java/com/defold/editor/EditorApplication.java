@@ -2,8 +2,6 @@ package com.defold.editor;
 
 import java.lang.reflect.Method;
 
-import javafx.application.Platform;
-
 import org.projectodd.shimdandy.ClojureRuntimeShim;
 
 /**
@@ -31,11 +29,11 @@ public class EditorApplication {
     }
 
     public void run(String[] args) {
-        runtime.invoke("editor.boot/main");
-        Platform.runLater(new Runnable() {
+        new Thread() {
             public void run() {
                 runtime.invoke("editor.debug/start-server", null);
             }
-        });
+        }.start();
+        runtime.invoke("editor.boot/main", args);
     }
 }
