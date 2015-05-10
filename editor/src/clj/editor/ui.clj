@@ -7,6 +7,7 @@
   (:import [javafx.scene Node Scene]
            [javafx.stage Stage Modality]
            [javafx.scene.control ButtonBase Control ContextMenu SeparatorMenuItem ToggleButton TreeView TreeItem Menu MenuBar MenuItem]
+           [javafx.stage FileChooser FileChooser$ExtensionFilter]
            [javafx.application Platform]
            [javafx.fxml FXMLLoader]
            [javafx.event ActionEvent EventHandler]
@@ -23,6 +24,13 @@
 
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
+
+(defn choose-file [title ext-descr exts]
+  (let [chooser (FileChooser.)]
+    (.setTitle chooser title)
+    (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. ext-descr (java.util.ArrayList. exts)))
+    (let [file (.showOpenDialog chooser nil)]
+      (if file (.getAbsolutePath file)))))
 
 (defn do-run-now [f]
   (if (Platform/isFxApplicationThread)
@@ -91,10 +99,19 @@
 
 (def ^:private make-menu nil)
 
-(defn- create-menu-item [item command-context selection-provider]
+(defn- make-desc [control menu-id command-context selection-provider]
+  {:control control
+   :menu-id menu-id
+   :command-context command-context
+   :selection-provider selection-provider})
+
+(defn- make-command-context [desc]
+  (assoc (:command-context desc) :selection (workspace/selection (:selection-provider desc))))
+
+(defn- create-menu-item [desc item]
   (if (:children item)
     (let [menu (Menu. (:label item))]
-      (doseq [i (make-menu command-context selection-provider (:children item))]
+      (doseq [i (make-menu desc (:children item))]
         (.add (.getItems menu) i))
       menu)
     (let [menu-item (MenuItem. (:label item))
@@ -103,42 +120,40 @@
       (when (:acc item)
         (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
       (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
-      (.setDisable menu-item (not (handler/enabled? command command-context)))
-      (.setOnAction menu-item (event-handler event (handler/run command (assoc command-context :selection (workspace/selection selection-provider))) ))
+      (.setDisable menu-item (not (handler/enabled? command (make-command-context desc))))
+      (.setOnAction menu-item (event-handler event (handler/run command (make-command-context desc)) ))
       menu-item)))
 
-(defn- make-menu [command-context selection-provider menu]
-  (let [command-context (assoc command-context :selection (workspace/selection selection-provider))]
+(defn- make-menu [desc menu]
+  (let [command-context (make-command-context desc)]
     (->> menu
-      (mapv (fn [item]  (if (= :separator (:label item))
-                                          (SeparatorMenuItem.)
-                                          (create-menu-item item command-context selection-provider)))))))
+      (mapv (fn [item] (if (= :separator (:label item))
+                         (SeparatorMenuItem.)
+                         (create-menu-item desc item)))))))
 
-(defn- populate-context-menu [^ContextMenu context-menu command-context selection-provider menu]
-  (let [items (make-menu command-context selection-provider menu)]
+(defn- populate-context-menu [^ContextMenu context-menu desc menu]
+  (let [items (make-menu desc menu)]
     (.addAll (.getItems context-menu) items)))
 
 (defn register-context-menu [^Control control selection-provider menu-id]
-  (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
-    (event-handler event
-                   (when-not (.isConsumed event)
-                     (let [^ContextMenu cm (ContextMenu.) ]
-                       ;; TODO: command-context
-                       (populate-context-menu cm {} selection-provider (realize-menu menu-id))
-                       ; Required for autohide to work when the event originates from the anchor/source control
-                       ; See RT-15160 and Control.java
-                       (.setImpl_showRelativeToWindow cm true)
-                       (.show cm control (.getScreenX ^ContextMenuEvent event) (.getScreenY ^ContextMenuEvent event))
-                       (.consume event))))))
+  ;; TODO: command-context
+  (let [desc (make-desc control menu-id {} selection-provider)]
+    (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
+      (event-handler event
+                     (when-not (.isConsumed event)
+                       (let [^ContextMenu cm (ContextMenu.) ]
+                         (populate-context-menu cm desc (realize-menu menu-id))
+                         ; Required for autohide to work when the event originates from the anchor/source control
+                         ; See RT-15160 and Control.java
+                         (.setImpl_showRelativeToWindow cm true)
+                         (.show cm control (.getScreenX ^ContextMenuEvent event) (.getScreenY ^ContextMenuEvent event))
+                         (.consume event)))))))
 
 (defn register-menubar [^Scene scene command-context selection-provider menubar-id menu-id ]
  (let [root (.getRoot scene)]
    (if-let [menubar (.lookup root menubar-id)]
-     (let [menubar-desc {:control menubar
-                         :menu-id menu-id
-                         :command-context command-context
-                         :selection-provider selection-provider}]
-       (set-user-data root ::menubar menubar-desc))
+     (let [desc (make-desc menubar menu-id command-context selection-provider)]
+       (set-user-data root ::menubar desc))
      (log/warn :message (format "menubar %s not found" menubar-id)))))
 
 (defn- refresh-menubar [md]
@@ -147,7 +162,7 @@
    (when-not (= menu (get-user-data control ::menu))
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
-     (.addAll (.getMenus control) (make-menu (:command-context md) (:selection-provider md) menu))
+     (.addAll (.getMenus control) (make-menu md menu))
      (set-user-data control ::menu menu))))
 
 (defn- refresh-menu-state [^Menu menu command-context]
@@ -163,11 +178,8 @@
 (defn register-toolbar [^Scene scene command-context selection-provider toolbar-id menu-id ]
   (let [root (.getRoot scene)]
     (if-let [toolbar (.lookup root toolbar-id)]
-      (let [toolbar-desc {:control toolbar
-                          :menu-id menu-id
-                          :command-context command-context
-                          :selection-provider selection-provider}]
-        (set-user-data root ::toolbars (assoc-in (get-user-data root ::toolbars) [toolbar-id] toolbar-desc)))
+      (let [desc (make-desc toolbar menu-id command-context selection-provider)]
+        (set-user-data root ::toolbars (assoc-in (get-user-data root ::toolbars) [toolbar-id] desc)))
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
 
 (defn- refresh-toolbar [td]
@@ -185,7 +197,7 @@
          (when (:command menu-item)
            (.setId button (name (:command menu-item)))
            (.setOnAction button (event-handler event (handler/run (:command menu-item)
-                                                                  (assoc (:command-context td) :selection (workspace/selection selection-provider))))))
+                                                                  (make-command-context td)))))
          (.add (.getChildren control) button))))))
 
 (defn- refresh-toolbar-state [toolbar command-context]
@@ -203,10 +215,10 @@
        toolbar-descs (vals (get-user-data root ::toolbars))]
    (when-let [md (get-user-data root ::menubar)]
      (refresh-menubar md)
-     (refresh-menubar-state (:control md) (assoc (:command-context md) :selection (workspace/selection (:selection-provider md)))))
+     (refresh-menubar-state (:control md) (make-command-context md)))
    (doseq [td toolbar-descs]
      (refresh-toolbar td)
-     (refresh-toolbar-state (:control td) (assoc (:command-context td) :selection (workspace/selection (:selection-provider td)))))))
+     (refresh-toolbar-state (:control td) (make-command-context td)))))
 
 (defn modal-progress [title total-work worker-fn]
   (run-now

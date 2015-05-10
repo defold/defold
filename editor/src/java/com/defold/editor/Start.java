@@ -45,12 +45,17 @@ public class Start extends Application {
         threadPool = Executors.newFixedThreadPool(1);
     }
 
-    private Object makeEditor() throws Exception {
+    private ClassLoader makeClassLoader() {
         ArrayList<URL> urls = extractURLs(System.getProperty("java.class.path"));
         // The "boot class-loader", i.e. for java.*, sun.*, etc
         ClassLoader parent = ClassLoader.getSystemClassLoader().getParent();
         // Per instance class-loader
         ClassLoader classLoader = new URLClassLoader(urls.toArray(new URL[urls.size()]), parent);
+        return classLoader;
+    }
+
+    private Object makeEditor() throws Exception {
+        ClassLoader classLoader = makeClassLoader();
 
         // NOTE: Is context classloader required?
         // Thread.currentThread().setContextClassLoader(classLoader);
@@ -60,13 +65,13 @@ public class Start extends Application {
         return editorApplication;
     }
 
-    private void poolEditor() {
+    private void poolEditor(long delay) {
         FutureTask<Object> future = new FutureTask<>(new Callable<Object>() {
 
             @Override
             public Object call() throws Exception {
                 // Arbitrary sleep in order to reduce the CPU load while loading the project
-                Thread.sleep(3000);
+                Thread.sleep(delay);
                 Object editorApplication = makeEditor();
                 pool.add(editorApplication);
                 return null;
@@ -80,7 +85,7 @@ public class Start extends Application {
         if (!createdFromMain) {
             throw new RuntimeException(String.format("Multiple %s classes. ClassLoader errors?", this.getClass().getName()));
         }
-        poolEditor();
+        poolEditor(3000);
         Object editorApplication = pool.take();
         Method run = editorApplication.getClass().getMethod("run", new Class[]{ String[].class });
         run.invoke(editorApplication, new Object[] { args });
@@ -91,15 +96,21 @@ public class Start extends Application {
         Splash splash = new Splash();
 
         FutureTask<Object> future = new FutureTask<>(new Callable<Object>() {
+
             @Override
             public Object call() throws Exception {
-                pool.add(makeEditor());
+
+                try {
+                    pool.add(makeEditor());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
                 Platform.runLater(new Runnable() {
                     @Override
                     public void run() {
                         try {
-                            splash.close();
                             openEditor(new String[0]);
+                            splash.close();
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
