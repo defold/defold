@@ -12,8 +12,6 @@
 ;;;Want to use non-random graphs do that we have a non-moving target
 ;; for subsequent benchmarks
 
-(def nodes-num 10)
-
 (defmacro do-benchmark [benchmark-name f]
 ;;; For more rigorous use benchmark instead of quick-benchmark
   `(do
@@ -37,7 +35,7 @@
 
 (defn build-network
   [world]
-  (let [nodes-num          10
+  (let [nodes-num          10000
         tx-result          (g/transact (repeatedly nodes-num  #(g/make-node world AThing)))
         named-nodes        (g/tx-nodes-added tx-result)
         named-node-ids     (map g/node-id named-nodes)
@@ -69,14 +67,15 @@
                   (let [[new-node] (g/tx-nodes-added (g/transact (g/make-node world AThing)))]
                     (g/transact (g/delete-node new-node))))))
 
-(defn set-property-one-node []
+(defn set-property-some-nodes []
   (with-clean-system
     (let [r              (build-network world)
-          basis          (get-in r [:tx-result :basis])
-          chosen-node-id (first (:named-node-ids r))
-          chosen-node    (g/node-by-id basis chosen-node-id)]
-      (do-benchmark  "Set Property on One Node"
-                     (g/transact (g/set-property chosen-node :a-property "foo"))))))
+          affected-num    100
+          chosen-node-ids (repeatedly affected-num (partial rand-nth (:named-node-ids r)))
+          chosen-nodes    (mapv #(g/node-by-id (g/now) %) chosen-node-ids)]
+      (do-benchmark  (str "Set Property on " affected-num " Nodes")
+                     (doseq [chosen-node chosen-nodes]
+                       (g/transact (g/set-property chosen-node :a-property "foo")))))))
 
 (defn add-two-nodes-and-connect-them []
   (with-clean-system
@@ -99,27 +98,28 @@
 
 
 (defn run-many-transactions []
-  (let [num-trans 50000
-        bench-results (do-benchmark (format "Run %s transactions of adding a node" num-trans)
-                                    (with-clean-system
-                                      (doseq [i (range num-trans)]
-                                        (g/transact (g/make-node world AThing)))))
-        mean (first (:mean bench-results))]
-    (when mean
-      (println "=======")
-      (println)
-      (println (str "TPS Report: " (/ num-trans mean) " transactions per second"))
-      (println)
-      (println "======="))))
+  (println "=======")
+  (println)
+  (doseq [num-trans (take 3 (iterate #(* 10 %) 5000))]
+    (let [bench-results (do-benchmark (format "Run %s transactions of adding a node" num-trans)
+                                      (with-clean-system
+                                        (doseq [i (range num-trans)]
+                                          (g/transact (g/make-node world AThing)))))
+          mean (first (:mean bench-results))]
+      (when mean
+        (println (str "TPS Report with " num-trans " txns: " (/ num-trans mean) " transactions per second")))))
+  (println)
+  (println "======="))
 
 (defn run-benchmarks []
   (network-creation)
   (add-one-node)
   (add-one-node-delete-one-node)
-  (set-property-one-node)
+  (set-property-some-nodes)
   (add-two-nodes-and-connect-them)
   (add-two-nodes-and-connect-and-disconnect-them)
-  (run-many-transactions))
+  (run-many-transactions)
+  )
 
 (defn -main [& args]
   (println "Running benchmarks and outputing results to ./test/benchmark/bench-results.txt")
