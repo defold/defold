@@ -284,10 +284,11 @@
   (if (= aabb (null-aabb))
     aabb
     (let [extents [(t/min-p aabb) (t/max-p aabb)]
-          points (for [x (map #(.x %) extents)
-                       y (map #(.y %) extents)
-                       z (map #(.z %) extents)] (Point3d. x y z))]
-      (doseq [p points]
+          points (for [x (map #(let [^Point3d p %] (.x p)) extents)
+                       y (map #(let [^Point3d p %] (.y p)) extents)
+                       z (map #(let [^Point3d p %] (.z p)) extents)
+                       ] (Point3d. x y z))]
+      (doseq [^Point3d p points]
         (.transform transform p))
       (reduce #(aabb-incorporate %1 %2) (null-aabb) points))))
 
