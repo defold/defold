@@ -243,6 +243,21 @@ namespace dmHttpClient
      * @param client Client handle
      */
     void Delete(HClient client);
+
+    /**
+     * Close all sockets open by the internal pool and return how many connections
+     * are still in use. If the function returns zero, there are no remaining in-use
+     * connections and no new connections can be created.
+     *
+     * @return number of in-use connections
+     */
+    uint32_t ShutdownConnectionPool();
+
+    /**
+     * Reopen the internal connection pool. Implemented so testing the shutdown sequence is possible without
+     * permanently breaking for subsequent requests.
+    */
+    void ReopenConnectionPool();
 }
 
 #endif // DM_HTTP_CLIENT_H
