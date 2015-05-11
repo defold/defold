@@ -63,7 +63,7 @@
     (let [r              (build-network)
           affected-num    100
           chosen-node-ids (repeatedly affected-num (partial rand-nth (ig/node-ids r)))
-          chosen-nodes    (mapv #(g/node-by-id (g/now) %) chosen-node-ids)]
+          chosen-nodes    (map #(ig/node r %) chosen-node-ids)]
       (do-benchmark  (str "Set Property on " affected-num " Nodes")
                      (doseq [chosen-node chosen-nodes]
                        (g/transact (g/set-property chosen-node :a-property "foo")))))))
