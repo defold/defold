@@ -210,22 +210,31 @@ static void PushError(lua_State*L, const char* error)
 
 JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onRegistration(JNIEnv* env, jobject, jstring regId, jstring errorMessage)
 {
-    const char* ri = env->GetStringUTFChars(regId, 0);
-    const char* em = env->GetStringUTFChars(errorMessage, 0);
+    const char* ri = NULL;
+    const char* em = NULL;
+
+    if (regId)
+    {
+        ri = env->GetStringUTFChars(regId, 0);
+    }
+    if (errorMessage)
+    {
+        em = env->GetStringUTFChars(errorMessage, 0);
+    }
 
     Command cmd;
     cmd.m_Command = CMD_REGISTRATION_RESULT;
     if (ri) {
         cmd.m_Data1 = strdup(ri);
+        env->ReleaseStringUTFChars(regId, ri);
     }
     if (em) {
         cmd.m_Data2 = strdup(em);
+        env->ReleaseStringUTFChars(errorMessage, em);
     }
     if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
-    env->ReleaseStringUTFChars(regId, ri);
-    env->ReleaseStringUTFChars(errorMessage, em);
 }
 
 
