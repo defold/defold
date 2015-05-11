@@ -19,9 +19,9 @@
 
 (def labels (gen/elements [:t :u :v :w :x :y :z]))
 
-(def *next-node-id* (atom 0))
-(defn- next-node-id [] (swap! *next-node-id* inc))
-(defn- reset-node-id [] (reset! *next-node-id* 0))
+(def ^:private id-counter (atom 0))
+(defn- next-node-id [] (swap! id-counter inc))
+(defn- reset-node-id [] (reset! id-counter 0))
 
 (defrecord FakeNode [_id ins outs]
   gt/Node
