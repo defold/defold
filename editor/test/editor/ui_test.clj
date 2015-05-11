@@ -8,8 +8,9 @@
            [javafx.scene.layout Pane]))
 
 (defn fixture [f]
-  (ui/init)
-  (f))
+  (with-redefs [ui/*menus* (atom {})
+                handler/*handlers* (atom {})]
+    (f)))
 
 (use-fixtures :each fixture)
 
@@ -42,22 +43,23 @@
                                 :command :save}]}])
 
   (handler/defhandler :open
-      (enabled? [instances] true)
-      (run [instances] 123))
+      (enabled? [selection] true)
+      (run [selection] 123))
 
   (let [root (Pane.)
         scene (ui/run-now (Scene. root))
         selection-provider (TestSelectionProvider. [])
         command-context {}]
-    (let [menus (#'ui/make-menu {}  selection-provider (#'ui/realize-menu ::my-menu))]
-      (is (= 1 (count menus)))
-      (is (instance? Menu (first menus)))
-      (is (= 1 (count (.getItems (first menus)))))
-      (is (instance? MenuItem (first (.getItems (first menus))))))))
+   (let [menus (#'ui/make-menu (#'ui/make-desc nil ::my-menu command-context selection-provider) (#'ui/realize-menu ::my-menu))]
+     (is (= 1 (count menus)))
+     (is (instance? Menu (first menus)))
+     (is (= 2 (count (.getItems (first menus)))))
+     (is (instance? MenuItem (first (.getItems (first menus))))))))
 
 (deftest toolbar-test
   (ui/extend-menu ::my-menu nil
                   [{:label "Open"
+                    :command :open
                     :id ::open}])
 
   (let [root (Pane.)
@@ -79,8 +81,10 @@
 
 (deftest menubar-test
   (ui/extend-menu ::my-menu nil
-                  [{:label "Open"
-                    :id ::open}])
+                  [{:label "File"
+                    :children
+                    [{:label "Open"
+                      :id ::open}]}])
 
   (let [root (Pane.)
         scene (ui/run-now (Scene. root))
@@ -91,11 +95,16 @@
     (.setId menubar "menubar")
     (ui/register-menubar scene command-context selection-provider "#menubar" ::my-menu)
     (ui/run-now (ui/refresh scene))
-    (let [c1 (ui/run-now (ui/refresh scene) (.getChildren root))
-          c2 (ui/run-now (ui/refresh scene) (.getChildren root))]
+    (let [c1 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))
+          c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
       (is (= 1 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))
     (ui/extend-menu ::extra ::open
                     [{:label "Save"}])
-    (ui/run-now (ui/refresh scene))))
+    (ui/run-now (ui/refresh scene))
+    (let [c1 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))
+          c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
+      (is (= 2 (count c1) (count c2)))
+      (is (= (.get c1 0) (.get c2 0))))))
+
 
