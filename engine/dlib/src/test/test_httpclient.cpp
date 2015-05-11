@@ -412,6 +412,52 @@ TEST_P(dmHttpClientTest, ServerClose)
     }
 }
 
+void ShutdownThread(void *args)
+{
+    bool* gotit = (bool*) args;
+    while (true)
+    {
+        // Now we give the test time to connect and be in-flight
+        dmTime::Sleep(1000 * 500);
+        if (dmHttpClient::ShutdownConnectionPool() > 0) {
+            // it was in flight and now it should be cancelled and fail.
+            *gotit = true;
+        } else {
+            break; // done.
+        }
+    }
+}
+
+TEST_P(dmHttpClientTest, ClientThreadedShutdown)
+{
+    bool gotit = false;
+    for (int i=0;i<10;i++) {
+        // Create a request that proceeds for a long time and cancel it in-flight with the
+        // shutdown thread. If it managed to get the conneciton it will set gotit to true.
+        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, 0);
+        dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10000");
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+
+        // Wait until no are open
+        dmThread::Join(thr);
+
+        // Pool shut down; must fail.
+        r = dmHttpClient::Get(m_Client, "/sleep/10000");
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+
+        dmHttpClient::ReopenConnectionPool();
+
+        if (gotit)
+            break;
+    }
+
+    ASSERT_TRUE(gotit);
+
+    // Reopened so should succeed.
+    dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+}
+
 TEST_P(dmHttpClientTest, ContentSizes)
 {
     char buf[128];
@@ -674,6 +720,7 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
     ASSERT_STREQ(message, m_Content.c_str());
 }
+
 
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
                         dmHttpClientTest,

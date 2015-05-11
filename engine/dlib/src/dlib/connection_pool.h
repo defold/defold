@@ -28,6 +28,7 @@ namespace dmConnectionPool
         RESULT_OUT_OF_RESOURCES = -1,//!< RESULT_OUT_OF_RESOURCES
         RESULT_SOCKET_ERROR = -2,    //!< RESULT_SOCKET_ERROR
         RESULT_HANDSHAKE_FAILED = -3,//!< RESULT_HANDSHAKE_FAILED
+        RESULT_SHUT_DOWN = -4,       //<! RESULT_SHUT_DOWN
     };
 
     /**
@@ -136,6 +137,23 @@ namespace dmConnectionPool
      * @return reuse count
      */
     uint32_t GetReuseCount(HPool pool, HConnection connection);
+
+    /**
+     * Shuts down all open sockets in the pool and block new connection attempts. The function can be
+     * called repeatedly on the same pool until it returns no more connections in use.
+     *
+     * @param pool pool
+     * @param how shutdown type to pass to socket shutdown function
+     * @return current number of connections in use
+     */
+    uint32_t Shutdown(HPool pool, dmSocket::ShutdownType how);
+
+    /**
+     * Reopen the pool from a Shutdown call so it allows Dialing again. This function is here so the pool can be reset
+     * during testing, or subsequent tests will break when the pool has been put in shutdown mode.
+     */
+    void Reopen(HPool pool);
+
 }
 
 #endif // #ifndef DM_CONNECTION_POOL
