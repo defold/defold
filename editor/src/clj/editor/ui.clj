@@ -18,10 +18,6 @@
 (defonce ^:dynamic *menus* (atom {}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
-; NOTE: Only for unit-tests. Rename?
-(defn init []
-  (reset! *menus* {}))
-
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
@@ -116,7 +112,8 @@
       menu)
     (let [menu-item (MenuItem. (:label item))
           command (:command item)]
-      (.setId menu-item (name command))
+      (when command
+        (.setId menu-item (name command)))
       (when (:acc item)
         (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
       (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
@@ -150,6 +147,7 @@
                          (.consume event)))))))
 
 (defn register-menubar [^Scene scene command-context selection-provider menubar-id menu-id ]
+  ; TODO: See comment below about top-level items. Should be enforced here
  (let [root (.getRoot scene)]
    (if-let [menubar (.lookup root menubar-id)]
      (let [desc (make-desc menubar menu-id command-context selection-provider)]
