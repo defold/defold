@@ -320,12 +320,23 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIterateMeE
 {
     lua_State* L = (lua_State*)user_data;
 
-    const char* str_key = env->GetStringUTFChars(key, 0);
-    lua_pushstring(L, str_key);
-    env->ReleaseStringUTFChars(key, str_key);
-    const char* str_value = env->GetStringUTFChars(value, 0);
-    lua_pushstring(L, str_value);
-    env->ReleaseStringUTFChars(value, str_value);
+    if (key)
+    {
+        const char* str_key = env->GetStringUTFChars(key, 0);
+        lua_pushstring(L, str_key);
+        env->ReleaseStringUTFChars(key, str_key);
+    } else {
+        lua_pushnil(L);
+    }
+
+    if (value)
+    {
+        const char* str_value = env->GetStringUTFChars(value, 0);
+        lua_pushstring(L, str_value);
+        env->ReleaseStringUTFChars(value, str_value);
+    } else {
+        lua_pushnil(L);
+    }
     lua_rawset(L, -3);
 }
 
@@ -336,9 +347,15 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIteratePer
     int i = lua_objlen(L, -1);
 
     lua_pushnumber(L, i + 1);
-    const char* str_permission = env->GetStringUTFChars(permission, 0);
-    lua_pushstring(L, str_permission);
-    env->ReleaseStringUTFChars(permission, str_permission);
+
+    if (permission)
+    {
+        const char* str_permission = env->GetStringUTFChars(permission, 0);
+        lua_pushstring(L, str_permission);
+        env->ReleaseStringUTFChars(permission, str_permission);
+    } else {
+        lua_pushnil(L);
+    }
     lua_rawset(L, -3);
 }
 
@@ -486,16 +503,17 @@ int Facebook_AccessToken(lua_State* L)
     JNIEnv* env = Attach();
 
     jstring str_access_token = (jstring)env->CallObjectMethod(g_Facebook.m_FB, g_Facebook.m_GetAccessToken);
-    const char* access_token = env->GetStringUTFChars(str_access_token, 0);
-    if (access_token != 0x0)
+
+    if (str_access_token)
     {
+        const char* access_token = env->GetStringUTFChars(str_access_token, 0);
         lua_pushstring(L, access_token);
+        env->ReleaseStringUTFChars(str_access_token, access_token);
     }
     else
     {
         lua_pushnil(L);
     }
-    env->ReleaseStringUTFChars(str_access_token, access_token);
     Detach();
     assert(top + 1 == lua_gettop(L));
     return 1;

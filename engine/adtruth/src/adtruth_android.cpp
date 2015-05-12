@@ -102,15 +102,16 @@ int AdTruth_GetReferrer(lua_State* L)
     const char *referrer = 0;
     JNIEnv* env = Attach();
     jstring referrer_obj = (jstring) env->CallObjectMethod(g_AdTruth.m_AdTruthJNI, g_AdTruth.m_GetReferrer);
-    referrer = env->GetStringUTFChars(referrer_obj, 0);
 
-    if (referrer) {
+    if (referrer_obj)
+    {
+        referrer = env->GetStringUTFChars(referrer_obj, 0);
         lua_pushstring(L, referrer);
+        env->ReleaseStringUTFChars(referrer_obj, referrer);
     } else {
         lua_pushnil(L);
     }
 
-    env->ReleaseStringUTFChars(referrer_obj, referrer);
     Detach();
 
     assert(top + 1 == lua_gettop(L));
@@ -180,15 +181,18 @@ JNIEXPORT void JNICALL Java_com_defold_adtruth_AdTruthJNI_onPageFinished(JNIEnv*
 
 JNIEXPORT void JNICALL Java_com_defold_adtruth_AdTruthJNI_onReceivedError__Ljava_lang_String_2(JNIEnv* env, jobject, jstring errorMessage)
 {
-    const char* errorMsg = env->GetStringUTFChars(errorMessage, 0);
+    if (errorMessage)
+    {
+        const char* errorMsg = env->GetStringUTFChars(errorMessage, 0);
 
-    Command cmd;
-    cmd.m_Command = CMD_LOAD;
-    cmd.m_Data1 = strdup(errorMsg);
-    if (write(g_AdTruth.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
-        dmLogFatal("Failed to write command");
+        Command cmd;
+        cmd.m_Command = CMD_LOAD;
+        cmd.m_Data1 = strdup(errorMsg);
+        if (write(g_AdTruth.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
+            dmLogFatal("Failed to write command");
+        }
+        env->ReleaseStringUTFChars(errorMessage, errorMsg);
     }
-    env->ReleaseStringUTFChars(errorMessage, errorMsg);
 }
 
 #ifdef __cplusplus
