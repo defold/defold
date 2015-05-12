@@ -1080,7 +1080,7 @@ namespace dmGameObject
      * </p>
      * <pre>
      * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
-     * go.detele(id) -- delete the game object
+     * go.delete(id) -- delete the game object
      * </pre>
      */
     int Script_Delete(lua_State* L)
