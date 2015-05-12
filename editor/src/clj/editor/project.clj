@@ -79,7 +79,7 @@ ordinary paths."
     (enabled? [project-graph] (g/has-redo? project-graph))
     (run [project-graph] (g/redo project-graph)))
 
-(ui/extend-menu ::menubar :editor.app-view/new
+(ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Save All"
                   :acc "Shortcut+S"
                   :command :save-all}])
