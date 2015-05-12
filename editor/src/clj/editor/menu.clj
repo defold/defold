@@ -25,6 +25,7 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
+
 (defn merge-menus [menu other-menu]
   (let [first-set (into #{} (map :label menu))
         other-map (into {} (map (fn [other] {(:label other) other}) other-menu))
@@ -38,15 +39,17 @@
 
 (defn clj->jfx [{:keys [label icon children handler-fn acc enable-fn] :as item}]
   (let [label (if (fn? label) (label) label)
-        menu-item (if children
-                    (Menu. label)
-                    (MenuItem. label))]
+        ^MenuItem menu-item (if children
+                              (Menu. label)
+                              (MenuItem. label))]
     (when icon (.setGraphic menu-item (jfx/get-image-view icon)))
     (when acc (.setAccelerator menu-item (KeyCombination/keyCombination acc)))
     (when enable-fn (.setDisable menu-item (not (enable-fn))))
     (cond
       children
-      (let [populate-fn (fn [] (.setAll (.getItems menu-item) (map clj->jfx children)))]
+      (let [populate-fn (fn [] (let [^Menu mi menu-item
+                                    ^ObservableList items (.getItems mi)]
+                                (.setAll items (map clj->jfx children))))]
         (populate-fn)
         (.addEventHandler menu-item Menu/ON_SHOWING (ui/event-handler event (populate-fn))))
       handler-fn
@@ -58,7 +61,8 @@
 
 (defn make-context-menu [menu]
   (let [context-menu (ContextMenu.)
-        populate-fn (fn [] (.setAll (.getItems context-menu) (map clj->jfx menu)))]
+        populate-fn (fn [] (let [^"ObservableList" items (.getItems context-menu)]
+                           (.setAll items (map clj->jfx menu))))]
     (populate-fn)
     (.setOnShowing context-menu (ui/event-handler event populate-fn))
     context-menu))
