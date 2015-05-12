@@ -17,7 +17,7 @@ Run build.py --help for help
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 facebook-3.22.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 luajit-2.0.3 tremolo-0.0.8".split()
-PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg python_dateutil-2.4.2-py2.7.egg".split()
+PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
