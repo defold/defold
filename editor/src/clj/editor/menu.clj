@@ -48,8 +48,8 @@
     (cond
       children
       (let [populate-fn (fn [] (let [^Menu mi menu-item
-                                    ^ObservableList items (.getItems mi)]
-                                (.setAll items (map clj->jfx children))))]
+                                    ^"[Ljavafx.scene.control.MenuItem;" items (map clj->jfx children)]
+                                (.setAll (.getItems mi) items)))]
         (populate-fn)
         (.addEventHandler menu-item Menu/ON_SHOWING (ui/event-handler event (populate-fn))))
       handler-fn
@@ -61,8 +61,8 @@
 
 (defn make-context-menu [menu]
   (let [context-menu (ContextMenu.)
-        populate-fn (fn [] (let [^"ObservableList" items (.getItems context-menu)]
-                           (.setAll items (map clj->jfx menu))))]
+        populate-fn (fn [] (let [^"[Ljavafx.scene.control.MenuItem;" items (map clj->jfx menu)]
+                           (.setAll (.getItems context-menu) items)))]
     (populate-fn)
     (.setOnShowing context-menu (ui/event-handler event populate-fn))
     context-menu))
