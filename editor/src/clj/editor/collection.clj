@@ -21,13 +21,13 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]))
 
 (def collection-icon "icons/bricks.png")
 
 (defn- gen-embed-ddf [id position rotation scale save-data]
-  (let [^doubles position-array position
+  (let [^Vector3d position-array position
         ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
         ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
 (-> (doto (GameObject$EmbeddedInstanceDesc/newBuilder)
@@ -41,7 +41,7 @@
        (.build))))
 
 (defn- gen-ref-ddf [id position rotation scale save-data]
-  (let [^doubles position-array position
+  (let [^Vector3d position-array position
         ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
         ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)] (-> (doto (GameObject$InstanceDesc/newBuilder)
          (.setId id)
@@ -119,7 +119,7 @@
 
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon collection-icon})))
   (output ddf-message t/Any :cached (g/fnk [id path position rotation scale]
-                                           (let [^doubles position-array position
+                                           (let [^Vector3d position-array position
                                                  ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
                                                  ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
                                             (.build (doto (GameObject$CollectionInstanceDesc/newBuilder)
