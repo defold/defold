@@ -5,7 +5,7 @@ import gdata.youtube
 import gdata.youtube.service
 import gdata.service
 from gdata.media import YOUTUBE_NAMESPACE
-from gdata.tlslite.utils.dateFuncs import parseDateClass
+from dateutil.parser import parse
 import time
 import threading
 
@@ -16,6 +16,7 @@ class YouTube(object):
     PASSWORD = 'tudOoradNed3'
     EMAIL='youtube@defold.se'
     USERID='defoldvideos'
+    CHANNELID='UCrEYXG15n3V0Y8eK0RbCaLQ'
     EXTENSIONS = '.ivf'.split()
 
     def __init__(self):
@@ -40,7 +41,7 @@ class YouTube(object):
 
     @staticmethod
     def print_entry(entry):
-        date = parseDateClass(entry.published.text)
+        date = parse(entry.published.text)
         print '%s (%s) (%s)' % (entry.media.title.text, date, entry.media.keywords.text)
         if entry.control:
             for i, e in enumerate(entry.control.extension_elements):
@@ -49,7 +50,7 @@ class YouTube(object):
 
     @staticmethod
     def get_video_id(entry):
-        m = re.search('v=(.*)&', entry.media.player.url)
+        m = re.search('v=(.*)', entry.link[0].href)
         return m.groups()[0]
 
     def print_uploaded_videos(self):
@@ -61,7 +62,10 @@ class YouTube(object):
             print 'No videos uploaded'
 
     def fetch_uploaded_videos(self):
-        uri = 'http://gdata.youtube.com/feeds/api/users/%s/uploads' % YouTube.USERID
+        # As of April 2015, Google dropped support for the old way we used
+        # to access the video uploads list (YouTube API V2 in favor of V3).
+        # See: https://youtube.com/devicesupport
+        uri = 'http://www.youtube.com/feeds/videos.xml?channel_id=%s' % YouTube.CHANNELID
         feed = self.service.GetYouTubePlaylistVideoFeed(uri)
         for entry in feed.entry:
             title = entry.media.title.text
@@ -128,8 +132,8 @@ class YouTube(object):
     def find_latest_video(self, title):
         lst = self.title_to_video.get(title, [])
         def c(x, y):
-            date_x = parseDateClass(x.published.text)
-            date_y = parseDateClass(y.published.text)
+            date_x = parse(x.published.text)
+            date_y = parse(y.published.text)
             return cmp(date_x, date_y)
         lst.sort(cmp = c)
 
