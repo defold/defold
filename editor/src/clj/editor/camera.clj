@@ -321,7 +321,7 @@
        (set-orthographic camera (:fov camera) aspect -100000 100000))
      camera)))
 
-(defn handle-input [self action]
+(defn handle-input [self action user-data]
   (let [viewport (g/node-value self :viewport)]
     (case (:type action)
       :scroll (if (contains? (:movements-enabled self) :dolly)
@@ -371,5 +371,4 @@
   (output viewport Region (g/fnk [viewport] viewport))
   (output camera Camera produce-camera)
 
-  (output input-handler Runnable (g/fnk [] handle-input))
-)
+  (output input-handler Runnable (g/fnk [] handle-input)))

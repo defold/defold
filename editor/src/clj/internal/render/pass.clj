@@ -27,6 +27,7 @@
   manipulator    false true
   overlay        false false
   selection      true  true
+  manipulator-selection      false true
   icon           false false
   icon-selection true false)
 
@@ -107,7 +108,22 @@
   [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
-    (.glDisable GL/GL_BLEND)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)
+    (.glDisable GL/GL_SCISSOR_TEST)
+    (.glDisable GL/GL_STENCIL_TEST)
+    (.glStencilMask 0xFF)
+    (.glColorMask true true true true)
+    (.glDisable GL2/GL_LINE_STIPPLE)))
+
+(defmethod prepare-gl manipulator-selection
+  [_ ^GL2 gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
