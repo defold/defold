@@ -405,15 +405,18 @@
   (property height t/Num)
 
   (input selection t/Any)
+  (input selected-tool-renderables t/Any)
   (input scene t/Any :array)
   (input frame BufferedImage)
   (input input-handlers Runnable :array)
 
   (output renderables t/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
+  (output selection-renderables t/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene)))
-  (output selection t/Any :cached (g/fnk [selection] selection)))
+  (output selection t/Any :cached (g/fnk [selection] selection))
+  (output picking-rect Rect :cached (g/fnk [] nil)))
 
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView :width width :height height))
