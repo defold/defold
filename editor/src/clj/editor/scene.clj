@@ -13,6 +13,7 @@
             [editor.input :as i]
             [editor.workspace :as workspace]
             [editor.math :as math]
+            [editor.scene-tools :as scene-tools]
             [internal.render.pass :as pass]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -165,8 +166,9 @@
       (doseq [pass pass/render-passes
               :let [render-args (assoc render-args :pass pass)]]
         (setup-pass context gl glu pass camera viewport)
-        (doseq [renderable (get renderables pass)]
-          (render-node gl pass renderable (assoc render-args :selected (selection-set (:id renderable))))))
+        (doseq [renderable (get renderables pass)
+                :let [id (:id renderable)]]
+          (render-node gl pass renderable (assoc render-args :selected (selection-set id)))))
       (let [[w h] (vp-dims viewport)
             buf-image (Screenshot/readToBufferedImage w h)]
         (.release context)
@@ -220,9 +222,36 @@
         (.release context)))
     []))
 
+(g/defnk produce-tool-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
+  (if-let [^GLContext context (and tool-picking-rect (make-current viewport drawable))]
+    (try
+      (let [gl ^GL2 (.getGL context)
+            glu ^GLU (GLU.)
+            render-args {:gl gl :glu glu :camera camera :viewport viewport}]
+        (flatten
+          (let [pass pass/manipulator-selection
+                render-args (assoc render-args :pass pass)]
+            (begin-select gl select-buffer)
+            (setup-pass context gl glu pass camera viewport tool-picking-rect)
+            (let [renderables (get renderables pass)]
+              (doseq [[index renderable] (keep-indexed #(list %1 %2) renderables)]
+                (render-node gl pass renderable (assoc render-args :selected false) index))
+              (render-sort (end-select gl select-buffer renderables) camera viewport)))))
+      (finally
+        (.release context)))
+    []))
+
 (g/defnk produce-renderables [renderables camera viewport]
   (let [renderables (apply merge-with #(concat %1 %2) renderables)]
     (into {} (map (fn [[pass renderables]] [pass (render-sort renderables camera viewport)]) renderables))))
+
+(g/defnk produce-selected-renderables [selection selection-renderables]
+  (let [renderables (apply merge-with #(concat %1 %2) selection-renderables)
+        renderable-by-id (into {} (mapcat (fn [[pass v]] (map #(do [(:id %) %]) v)) renderables))]
+    (filter (comp not nil?) (map #(get renderable-by-id (g/node-id %)) selection))))
+
+(g/defnk produce-selected-tool-renderables [tool-selection renderables]
+  (apply merge-with concat {} (map #(do {(:id %) [(:user-data %)]}) tool-selection)))
 
 (g/defnode SceneRenderer
   (property name t/Keyword (default :renderer))
@@ -232,7 +261,9 @@
   (input viewport Region)
   (input camera Camera)
   (input renderables t/RenderData :array)
+  (input selection-renderables t/RenderData :array)
   (input picking-rect Rect)
+  (input tool-picking-rect Rect)
 
   (output renderables t/RenderData :cached produce-renderables)
   (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
@@ -241,14 +272,17 @@
   (output drawable GLAutoDrawable :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
   (output frame BufferedImage :cached produce-frame)
-  (output picking-selection t/Any :cached produce-selection))
+  (output picking-selection t/Any :cached produce-selection)
+  (output tool-selection t/Any :cached produce-tool-selection)
+  (output selected-renderables t/Any produce-selected-renderables)
+  (output selected-tool-renderables t/Any produce-selected-tool-renderables))
 
-(defn dispatch-input [input-handlers action]
+(defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action input-handler]
             (let [node (first input-handler)
                   label (second input-handler)]
               (when action
-                ((g/node-value node label) node action))))
+                ((g/node-value node label) node action user-data))))
           action input-handlers))
 
 (defn- apply-transform [^Matrix4d transform renderables]
@@ -258,9 +292,12 @@
                                                           (.mul world-transform)))))]
     (into {} (map (fn [[pass lst]] [pass (map apply-tx lst)]) renderables))))
 
+(defn- any-list? [v]
+  (or (seq? v) (list? v) (vector? v)))
+
 (defn scene->renderables [scene]
-  (if (seq? scene)
-    (map scene->renderables scene)
+  (if (any-list? scene)
+    (reduce #(merge-with concat %1 %2) {} (map scene->renderables scene))
     (let [{:keys [id transform aabb renderable children]} scene
           {:keys [render-fn passes]} renderable
           renderables (into {} (map (fn [pass] [pass [{:id id
@@ -271,6 +308,14 @@
         (apply-transform transform renderables)
         renderables))))
 
+(defn- aabb [v]
+  (:aabb v (geom/null-aabb)))
+
+(g/defnk produce-aabb [scene]
+  (if (any-list? scene)
+    (reduce #(geom/aabb-union %1 (aabb %2)) (geom/null-aabb) scene)
+    (aabb scene)))
+
 (g/defnode SceneView
   (inherits core/Scope)
 
@@ -278,17 +323,21 @@
   (property viewport Region (default (t/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
   (property visible t/Bool (default true))
+  (property picking-rect Rect)
 
   (input frame BufferedImage)
-  (input scene t/Any)
+  (input scene t/Any :array)
   (input input-handlers Runnable :array)
   (input selection t/Any)
+  (input selected-tool-renderables t/Any)
 
   (output renderables t/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
+  (output selection-renderables t/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
 ;;  (output viewport Region (g/fnk [viewport] viewport))
   (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
-  (output aabb AABB :cached (g/fnk [scene] (:aabb scene))) ; TODO - base aabb on selection
+  (output aabb AABB :cached produce-aabb) ; TODO - base aabb on selection
   (output selection t/Any :cached (g/fnk [selection] selection))
+  (output picking-rect Rect :cached (g/fnk [picking-rect] picking-rect))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
@@ -300,6 +349,18 @@
              (.destroy drawable))
            ))
 
+(def ^Integer min-pick-size 10)
+
+(defn- calc-picking-rect [start current]
+  (let [ps [start current]
+        min-fn (fn [^Integer v1 ^Integer v2] (Math/min v1 v2))
+        max-fn (fn [^Integer v1 ^Integer v2] (Math/max v1 v2))
+        min-p (Point2i. (reduce min-fn (map first ps)) (reduce min-fn (map second ps)))
+        max-p (Point2i. (reduce max-fn (map first ps)) (reduce max-fn (map second ps)))
+        dims (doto (Point2i. max-p) (.sub min-p))
+        center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
+    (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
+
 (defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
@@ -307,8 +368,12 @@
       (let [self-ref (g/node-id view)
             event-handler (reify EventHandler (handle [this e]
                                                 (let [now (g/now)
-                                                      self (g/node-by-id now self-ref)]
-                                                  (dispatch-input (g/sources-of now self :input-handlers) (i/action-from-jfx e)))))
+                                                      self (g/node-by-id now self-ref)
+                                                      action (i/action-from-jfx e)
+                                                      pos [(:x action) (:y action) 0.0]
+                                                      picking-rect (calc-picking-rect pos pos)]
+                                                  (g/transact (g/set-property self :picking-rect picking-rect))
+                                                  (dispatch-input (g/sources-of now self :input-handlers) action (g/node-value self :selected-tool-renderables)))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                     (let [bb ^BoundingBox new-val
                                                           w (- (.getMaxX bb) (.getMinX bb))
@@ -340,7 +405,7 @@
   (property height t/Num)
 
   (input selection t/Any)
-  (input scene t/Any)
+  (input scene t/Any :array)
   (input frame BufferedImage)
   (input input-handlers Runnable :array)
 
@@ -398,25 +463,27 @@
 (def other-toggle-modifiers #{:control})
 (def toggle-modifiers (if util/mac? mac-toggle-modifiers other-toggle-modifiers))
 
-(defn handle-selection-input [self action]
+(defn handle-selection-input [self action user-data]
   (let [start (g/node-value self :start)
         current (g/node-value self :current)
         op-seq (g/node-value self :op-seq)
         mode (g/node-value self :mode)
         cursor-pos [(:x action) (:y action) 0]]
     (case (:type action)
-      :mouse-pressed (let [op-seq (gensym)
-                           toggle (reduce #(or %1 %2) (map #(% action) toggle-modifiers))
-                           mode (if toggle :toggle :direct)]
-                       (g/transact
-                         (concat
-                           (g/set-property self :op-seq op-seq)
-                           (g/set-property self :start cursor-pos)
-                           (g/set-property self :current cursor-pos)
-                           (g/set-property self :mode mode)
-                           (g/set-property self :prev-selection-set (set (map g/node-id (g/node-value self :selection))))))
-                       (select self op-seq mode)
-                       nil)
+      :mouse-pressed (if (not (empty? user-data))
+                       action
+                       (let [op-seq (gensym)
+                             toggle (reduce #(or %1 %2) (map #(% action) toggle-modifiers))
+                             mode (if toggle :toggle :direct)]
+                         (g/transact
+                           (concat
+                             (g/set-property self :op-seq op-seq)
+                             (g/set-property self :start cursor-pos)
+                             (g/set-property self :current cursor-pos)
+                             (g/set-property self :mode mode)
+                             (g/set-property self :prev-selection-set (set (map g/node-id (g/node-value self :selection))))))
+                         (select self op-seq mode)
+                         nil))
       :mouse-released (do
                         (g/transact
                           (concat
@@ -434,17 +501,8 @@
                      action)
       action)))
 
-(def ^Integer min-pick-size 16)
-
 (g/defnk produce-picking-rect [start current]
-  (let [ps [start current]
-        min-fn (fn [^Integer v1 ^Integer v2] (Math/min v1 v2))
-        max-fn (fn [^Integer v1 ^Integer v2] (Math/max v1 v2))
-        min-p (Point2i. (reduce min-fn (map first ps)) (reduce min-fn (map second ps)))
-        max-p (Point2i. (reduce max-fn (map first ps)) (reduce max-fn (map second ps)))
-        dims (doto (Point2i. max-p) (.sub min-p))
-        center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
-    (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
+  (calc-picking-rect start current))
 
 (g/defnode SelectionController
   (property select-fn Runnable)
@@ -469,7 +527,8 @@
                    selection  [SelectionController :select-fn (:select-fn opts)]
                    background background/Gradient
                    camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
-                   grid       grid/Grid]
+                   grid       grid/Grid
+                   tool-controller [scene-tools/ToolController :active-tool :move]]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                   (g/connect resource-node :scene view :scene)
@@ -484,17 +543,27 @@
                   (g/connect view            :viewport      camera          :viewport)
                   (g/connect view            :viewport      renderer        :viewport)
                   (g/connect view            :renderables   renderer        :renderables)
+                  (g/connect view            :selection-renderables   renderer        :selection-renderables)
                   (g/connect view            :selection     renderer        :selection)
                   (g/connect renderer        :frame         view            :frame)
+
+                  (g/connect tool-controller :input-handler view :input-handlers)
 
                   (g/connect selection       :renderable        renderer        :renderables)
                   (g/connect selection       :input-handler     view            :input-handlers)
                   (g/connect selection       :picking-rect      renderer        :picking-rect)
                   (g/connect renderer        :picking-selection selection       :picking-selection)
                   (g/connect view            :selection         selection       :selection)
+                  (g/connect view            :picking-rect      renderer        :tool-picking-rect)
+                  (g/connect renderer        :selected-tool-renderables view    :selected-tool-renderables)
 
                   (g/connect grid   :renderable renderer :renderables)
                   (g/connect camera :camera     grid     :camera)
+
+                  (g/connect tool-controller :renderables renderer :renderables)
+                  (g/connect view :viewport    tool-controller          :viewport)
+                  (g/connect camera :camera tool-controller :camera)
+                  (g/connect renderer :selected-renderables tool-controller :selected-renderables)
                   (when (not (:grid opts))
                     (g/delete-node grid)))))
 
@@ -520,9 +589,15 @@
   (property position t/Vec3 (default [0 0 0]))
   (property rotation t/Vec3 (default [0 0 0]))
   (property scale t/Num (default 1.0)) ; TODO - non-uniform scale
+  (property manip-fns t/Any (default {:move (fn [self translation]
+                                              (let [p (doto (Vector3d. (double-array (:position self))) (.add translation))]
+                                                (g/set-property self :position [(.x p) (.y p) (.z p)])))}))
 
   (output position Vector3d :cached (g/fnk [position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation ^double scale] (Matrix4d. rotation position scale)))
   (output scene t/Any :cached (g/fnk [self transform] {:id (g/node-id self) :transform transform}))
-  (output aabb AABB :cached (g/fnk [] (geom/null-aabb))))
+  (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
+  
+  scene-tools/Manipulatable
+  (scene-tools/manip-fn [self type] (get (:manip-fns self) type)))
