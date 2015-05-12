@@ -43,7 +43,8 @@
 (defn- gen-ref-ddf [id position rotation scale save-data]
   (let [^Vector3d position-array position
         ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
-        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)] (-> (doto (GameObject$InstanceDesc/newBuilder)
+        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
+    (-> (doto (GameObject$InstanceDesc/newBuilder)
          (.setId id)
                                         ; TODO children
          (.setPrototype (workspace/proj-path (:resource save-data)))
