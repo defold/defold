@@ -19,8 +19,9 @@
 
 (def labels (gen/elements [:t :u :v :w :x :y :z]))
 
-(let [counter (AtomicLong. 0)]
-  (defn next-node-id [] (.getAndIncrement counter)))
+(def ^:private id-counter (atom 0))
+(defn- next-node-id [] (swap! id-counter inc))
+(defn- reset-node-id [] (reset! id-counter 0))
 
 (defrecord FakeNode [_id ins outs]
   gt/Node
@@ -94,8 +95,9 @@
 
 (defn random-graph-sexps
   []
+  (reset-node-id)
   (let [nodes      (s (gen/vector (gen-nodes max-node-count) min-node-count max-node-count))
-        nodes      (zipmap (repeatedly (count nodes) gensym) nodes)
+        nodes      (doall (zipmap (map #(symbol (str "node" %)) (iterate inc 0)) nodes))
         dead-nodes (s (subselect (keys nodes) node-deletion-factor))
         arcs       (s (gen/vector (gen-arcs nodes) min-arc-count max-arc-count))
         dead-arcs  (s (subselect arcs arc-deletion-factor))]
