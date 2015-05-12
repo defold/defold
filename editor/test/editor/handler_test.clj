@@ -3,8 +3,8 @@
             [editor.handler :as handler]))
 
 (defn fixture [f]
-  (reset! handler/*handlers* {})
-  (f))
+  (with-redefs [handler/*handlers* (atom {})]
+   (f)))
 
 (use-fixtures :each fixture)
 
