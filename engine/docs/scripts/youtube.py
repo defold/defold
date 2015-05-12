@@ -5,7 +5,7 @@ import gdata.youtube
 import gdata.youtube.service
 import gdata.service
 from gdata.media import YOUTUBE_NAMESPACE
-from dateutil.parser import parse
+from iso8601 import parse
 import time
 import threading
 
