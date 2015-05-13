@@ -6,7 +6,7 @@
             [service.log :as log])
   (:import [javafx.scene Parent Node Scene]
            [javafx.stage Stage Modality Window]
-           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Labeled ListCell ToggleButton TextInputControl TreeView TreeItem Menu MenuBar MenuItem]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.application Platform]
@@ -24,10 +24,11 @@
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
-(defn choose-file [title ext-descr exts]
-  (let [chooser (FileChooser.)]
+(defn choose-file [title ^String ext-descr exts]
+  (let [chooser (FileChooser.)
+        ext-array (into-array exts)]
     (.setTitle chooser title)
-    (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. ext-descr (java.util.ArrayList. exts)))
+    (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. ext-descr ^"[Ljava.lang.String;" ext-array))
     (let [file (.showOpenDialog chooser nil)]
       (if file (.getAbsolutePath file)))))
 
@@ -107,10 +108,10 @@
 (defn window [^Scene scene]
   (.getWindow scene))
 
-(defn close! [^Window window]
+(defn close! [^Stage window]
   (.close window))
 
-(defn title! [^Window window t]
+(defn title! [^Stage window t]
   (.setTitle window t))
 
 (defn show! [^Stage stage]
@@ -151,14 +152,15 @@
     (doto
       (.getChildren this)
       (.clear)
-      (.addAll c))))
+      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c)))))
 
 (defn- make-list-cell [render-fn]
   (proxy [ListCell] []
     (updateItem [object empty]
-      (proxy-super updateItem (and object (:text (render-fn object))) empty)
-      (let [name (or (and (not empty) (:text (render-fn object))) nil)]
-        (proxy-super setText name)))))
+      (let [this ^ListCell this]
+        (proxy-super updateItem (and object (:text (render-fn object))) empty)
+        (let [name (or (and (not empty) (:text (render-fn object))) nil)]
+          (proxy-super setText name))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
@@ -170,7 +172,7 @@
 (extend-type ComboBox
   CollectionView
   (selection [this] (when-let [item (.getSelectedItem (.getSelectionModel this))] [item]))
-  (items [this] (.getItems items))
+  (items [this] (.getItems this))
   (items! [this ^java.util.Collection items] (let [l (.getItems this)]
                                                (.clear l)
                                                (.addAll l items)))
@@ -234,7 +236,7 @@
       (.setOnAction menu-item (event-handler event (handler/run command (make-command-context desc)) ))
       menu-item)))
 
-(defn- make-menu [desc menu]
+(defn- ^MenuItem make-menu [desc menu]
   (let [command-context (make-command-context desc)]
     (->> menu
       (mapv (fn [item] (if (= :separator (:label item))
@@ -243,7 +245,7 @@
 
 (defn- populate-context-menu [^ContextMenu context-menu desc menu]
   (let [items (make-menu desc menu)]
-    (.addAll (.getItems context-menu) items)))
+    (.addAll (.getItems context-menu) (to-array items))))
 
 (defn register-context-menu [^Control control selection-provider menu-id]
   ;; TODO: command-context
@@ -269,18 +271,18 @@
 
 (defn- refresh-menubar [md]
  (let [menu (realize-menu (:menu-id md))
-       control (:control md)]
+       control ^MenuBar (:control md)]
    (when-not (= menu (get-user-data control ::menu))
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
-     (.addAll (.getMenus control) (make-menu md menu))
+     (.addAll (.getMenus control) (to-array (make-menu md menu)))
      (set-user-data control ::menu menu))))
 
 (defn- refresh-menu-state [^Menu menu command-context]
   (doseq [m (.getItems menu)]
     (if (instance? Menu m)
       (refresh-menu-state m command-context)
-      (.setDisable m (not (handler/enabled? (keyword (.getId m)) command-context))))))
+      (.setDisable ^Menu m (not (handler/enabled? (keyword (.getId ^Menu m)) command-context))))))
 
 (defn- refresh-menubar-state [^MenuBar menubar command-context]
   (doseq [m (.getMenus menubar)]
@@ -295,7 +297,7 @@
 
 (defn- refresh-toolbar [td]
  (let [menu (realize-menu (:menu-id td))
-       control (:control td)]
+       ^Pane control (:control td)]
    (when-not (= menu (get-user-data control ::menu))
      (.clear (.getChildren control))
      (set-user-data control ::menu menu)
@@ -311,15 +313,15 @@
                                                                   (make-command-context td)))))
          (.add (.getChildren control) button))))))
 
-(defn- refresh-toolbar-state [toolbar command-context]
+(defn- refresh-toolbar-state [^Pane toolbar command-context]
   (let [nodes (.getChildren toolbar)
-        ids (map #(.getId %) nodes)]
-    (doseq [n nodes]
+        ids (map #(.getId ^Node %) nodes)]
+    (doseq [^Node n nodes]
       (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-context)))
       (when (instance? ToggleButton n)
         (if (handler/state (keyword (.getId n)) command-context)
-         (.setSelected n true)
-         (.setSelected n false))))))
+         (.setSelected ^Toggle n true)
+         (.setSelected ^Toggle n false))))))
 
 (defn refresh [^Scene scene]
  (let [root (.getRoot scene)
@@ -333,12 +335,12 @@
 
 (defn modal-progress [title total-work worker-fn]
   (run-now
-    (let [root (FXMLLoader/load (io/resource "progress.fxml"))
+    (let [root ^Parent (FXMLLoader/load (io/resource "progress.fxml"))
           stage (Stage.)
           scene (Scene. root)
-          title-control (.lookup root "#title")
-          progress-control (.lookup root "#progress")
-          message-control (.lookup root "#message")
+          title-control ^Label (.lookup root "#title")
+          progress-control ^ProgressBar (.lookup root "#progress")
+          message-control ^Label (.lookup root "#message")
           worked (atom 0)
           return (atom nil)
           report-fn (fn [work msg]

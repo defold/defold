@@ -13,10 +13,11 @@
     (str "[[" source sourceLabel "] -> [" target targetLabel "]]"))
   (equals [this that]
     (and (satisfies? gt/Arc that)
-         (= source      (.source that))
-         (= target      (.target that))
-         (= sourceLabel (.sourceLabel that))
-         (= targetLabel (.targetLabel that))))
+         (let [^ArcBase that that ]
+           (= source      (.source that))
+           (= target      (.target that))
+           (= sourceLabel (.sourceLabel that))
+           (= targetLabel (.targetLabel that)))))
   (hashCode [this]
     (+ (.hashCode source)      (mod (* 13 (.hashCode target)) 7)
        (.hashCode sourceLabel) (mod (* 19 (.hashCode targetLabel)) 23))))
@@ -41,8 +42,8 @@
   [g n]
   (-> g
       (update :nodes dissoc n)
-      (update :tarcs (fn [s] (removev #(or (= n (.source %))
-                                           (= n (.target %))) s)))))
+      (update :tarcs (fn [s] (removev (fn [^ArcBase arc] (or (= n (.source arc))
+                                                           (= n (.target arc)))) s)))))
 
 (defn transform-node
   [g n f & args]
@@ -80,10 +81,11 @@
   (update g :tarcs
           (fn [tarcs]
             (removev
-             #(and (= source       (.source %))
-                   (= target       (.target %))
-                   (= source-label (.sourceLabel %))
-                   (= target-label (.targetLabel %)))
+             (fn [^ArcBase arc]
+               (and (= source       (.source arc))
+                    (= target       (.target arc))
+                    (= source-label (.sourceLabel arc))
+                    (= target-label (.targetLabel arc))))
              tarcs))))
 
 (defn purge-arcs-from
@@ -91,7 +93,7 @@
   (update g :tarcs
           (fn [tarcs]
             (removev
-             #(= source (.source %))
+             (fn [^ArcBase arc]  (= source (.source arc)))
              tarcs))))
 
 (defmacro for-graph
