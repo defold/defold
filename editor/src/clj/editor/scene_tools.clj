@@ -78,11 +78,13 @@
 (defn render-manip [^GL2 gl pass color vertex-buffers]
   (doseq [[mode vertex-buffer vertex-count] vertex-buffers
           :let [vertex-binding (vtx/use-with vertex-buffer shader)
-                color (if (= mode GL/GL_LINES) (float-array (assoc color 3 1.0)) (float-array color))]
+                color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
           :when (> vertex-count 0)]
     (gl/with-enabled gl [shader vertex-binding]
       (shader/set-uniform shader gl "color" color)
       (gl/gl-draw-arrays gl mode 0 vertex-count))))
+
+; Vertex generation and transformations
 
 (defn- vtx-apply [f vs & args]
   (map (fn [[mode vs]] [mode (map (fn [v] (apply map f v args)) vs)]) vs))
@@ -99,6 +101,9 @@
         circle (partition 2 1 (map #(let [angle (* 2.0 Math/PI (/ (double %) sub-divs))]
                                       [0.0 (Math/cos angle) (Math/sin angle)]) (range (inc sub-divs))))]
     [[GL/GL_TRIANGLES (mapcat (fn [p] (mapcat #(conj % p) circle)) [tip origin])]]))
+
+(defn- gen-point []
+  [[GL/GL_POINTS [[0.0 0.0 0.0]]]])
 
 (defn- gen-line []
   [[GL/GL_LINES [[0.0 0.0 0.0] [1.0 0.0 0.0]]]])
@@ -134,24 +139,23 @@
     :yz [1.0 0.0 0.0]
     nil))
 
-(defn- manip->axis-indices [manip]
+(defn- manip->sub-manips [manip]
   (case manip
-    :x [0]
-    :y [1]
-    :z [2]
-    :xy [0 1]
-    :xz [0 2]
-    :yz [1 2]
-    :screen []))
+    :x #{}
+    :y #{}
+    :z #{}
+    :xy #{:x :y}
+    :xz #{:x :z}
+    :yz #{:y :z}
+    :screen #{}))
 
 (defn- manip->color [manip active-manip hot-manip tool-active?]
   (let [hot (= manip hot-manip)
-        axis-indices (manip->axis-indices manip)
-        active-axis-indices (manip->axis-indices active-manip)
-        active (or (= manip active-manip) (and tool-active? (not (empty? axis-indices)) (every? (set active-axis-indices) axis-indices)))]
+        active (or (= manip active-manip) (and tool-active? (contains? (manip->sub-manips active-manip) manip)))
+        alpha (if (= manip :screen) 0.0 1.0)]
     (cond
-      hot (conj hot-color 1.0)
-      active (conj selected-color 1.0)
+      hot (conj hot-color alpha)
+      active (conj selected-color alpha)
       true (case manip
              (:x :y :z) (conj (manip->normal manip) 1.0)
              (:xy :xz :yz) (conj (manip->normal manip) 0.2)
@@ -167,7 +171,13 @@
     :yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
     :screen (AxisAngle4d.)))
 
-(defn- manip->visible? [manip ^Vector3d view-dir]
+(defn- manip-enabled? [manip active-manip tool-active?]
+  (if tool-active?
+    (or (= manip active-manip)
+        (and (#{:x :y :z} manip) (or (= active-manip :screen) (contains? (manip->sub-manips active-manip) manip))))
+    true))
+
+(defn- manip-visible? [manip ^Vector3d view-dir]
   (if-let [normal (manip->normal manip)]
     (let [dir (Vector3d. (double-array normal))]
       (case manip
@@ -175,8 +185,13 @@
         (:xy :xz :yz) (> (Math/abs (.dot dir view-dir)) 0.05)))
     true))
 
-(defn- index->axis [index]
-  (vec (take 3 (drop (- 3 index) (cycle [1.0 0.0 0.0])))))
+(defn- manip->vertices [manip]
+  (case manip
+    (:x :y :z) (gen-arrow 10)
+    (:xy :xz :yz) (vtx-add [65.0 65.0 0.0] (vtx-scale [8.0 8.0 1.0] (gen-square true)))
+    (:screen) (concat
+                (vtx-scale [8.0 8.0 1.0] (gen-square true))
+                (gen-point))))
 
 (defn- camera->view-dir [camera]
   (let [view ^Matrix4d (c/camera-view-matrix camera)
@@ -184,48 +199,36 @@
         _ (.getColumn view 2 v4)]
     (Vector3d. (.x v4) (.y v4) (.z v4))))
 
-(defn- gen-manip-renderable [id manip ^Vector3d position ^AxisAngle4d rotation ^Double scale vertex-buffers color]
-  (let [wt (Matrix4d. ^Matrix3d (doto (Matrix3d.) (.set rotation)) position scale)]
+(defn- gen-manip-renderable [id manip ^Vector3d position ^AxisAngle4d rotation ^Double scale vertices color]
+  (let [vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)
+        vertex-buffers (map (fn [[mode vs]]
+                              (let [count (count vs)]
+                                [mode (gen-vertex-buffer vs count) count])) vertices-by-mode)
+        wt (Matrix4d. ^Matrix3d (doto (Matrix3d.) (.set rotation)) position scale)]
     {:id id
     :user-data manip
     :render-fn (g/fnk [gl pass camera]
-                      (when (manip->visible? manip (camera->view-dir camera))
+                      (when (manip-visible? manip (camera->view-dir camera))
                         (render-manip gl pass color vertex-buffers)))
     :world-transform wt}))
+
+(defn- transform->translation
+  [^Matrix4d m]
+  (let [v ^Vector3d (Vector3d.)]
+    (.get m v)
+    v))
 
 (g/defnk produce-renderables [self active-tool camera viewport selected-renderables active-manip hot-manip start]
   (if (empty? selected-renderables)
     {}
-    (let [active-axis-indices (manip->axis-indices active-manip)
-          scale (scale-factor camera viewport)
-          wt ^Matrix4d (:world-transform (last selected-renderables))
-          pos4 (Vector4d.)
-          _ (.getColumn wt 3 pos4)
-          pos3 (Vector3d. (.x pos4) (.y pos4) (.z pos4))
-          color-fn #(manip->color % active-manip hot-manip start)
+    (let [position (transform->translation (:world-transform (last selected-renderables)))
           rotation-fn #(manip->rotation %)
-          renderables (concat
-                        (let [arrow-vertices (gen-arrow 10)
-                              arrow-vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} arrow-vertices)
-                              arrow-vertex-buffers (map (fn [[mode vs]]
-                                                          (let [count (count vs)]
-                                                            [mode (gen-vertex-buffer vs count) count])) arrow-vertices)
-                              manip-filter-fn (if (and start (= (count active-axis-indices) 1)) #(= % active-manip) (constantly true))]
-                          (map #(gen-manip-renderable (g/node-id self) % pos3 (rotation-fn %) scale arrow-vertex-buffers (color-fn %)) (filter manip-filter-fn [:x :y :z])))
-                        (let [plane-vertices (vtx-add [65.0 65.0 0.0] (vtx-scale [8.0 8.0 1.0] (gen-square true)))
-                              plane-vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} plane-vertices)
-                              plane-vertex-buffers (map (fn [[mode vs]]
-                                                          (let [count (count vs)]
-                                                            [mode (gen-vertex-buffer vs count) count])) plane-vertices)
-                              manip-filter-fn (if start #(= % active-manip) (constantly true))]
-                          (map #(gen-manip-renderable (g/node-id self) % pos3 (rotation-fn %) scale plane-vertex-buffers (color-fn %)) (filter manip-filter-fn [:xy :xz :yz])))
-                        (let [screen-vertices (vtx-scale [8.0 8.0 1.0] (gen-square true))
-                              screen-vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} screen-vertices)
-                              screen-vertex-buffers (map (fn [[mode vs]]
-                                                           (let [count (count vs)]
-                                                             [mode (gen-vertex-buffer vs count) count])) screen-vertices)
-                              manip-filter-fn (if start #(= % active-manip) (constantly true))]
-                          (map #(gen-manip-renderable (g/node-id self) % pos3 (rotation-fn %) scale screen-vertex-buffers (color-fn %)) (filter manip-filter-fn [:screen]))))]
+          scale (scale-factor camera viewport)
+          color-fn #(manip->color % active-manip hot-manip start)
+          filter-fn #(manip-enabled? % active-manip start)
+          vertices-fn #(manip->vertices %)
+          renderables (map #(gen-manip-renderable (g/node-id self) % position (rotation-fn %) scale (vertices-fn %) (color-fn %))
+                           (filter filter-fn [:x :y :z :xy :xz :yz :screen]))]
       (reduce #(assoc %1 %2 renderables) {} [pass/manipulator pass/manipulator-selection]))))
 
 (defn squash-delta [manip ^Vector3d v]
