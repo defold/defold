@@ -86,10 +86,6 @@
                       :src-linenum-anchor-prefix "L"
                       :doc/format                :markdown}
 
-  :test-selectors    {:default     (constantly true)
-                      :unit        (fn [m] (not (:integration m)))
-                      :integration :integration}
-
   :profiles          {:test        {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
                       :uberjar     {:main com.defold.editor.Start
                                     :aot  [editor]}
