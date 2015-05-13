@@ -221,13 +221,11 @@
   `(let [pick-rect# ~pick-rect]
      (.gluPickMatrix ~glu
        (double (:x pick-rect#))
-       (double (:y pick-rect#))
+       (double (- (:bottom ~viewport) (:y pick-rect#)))
        (double (:width pick-rect#))
        (double (:height pick-rect#))
        (viewport-array ~viewport)
        (int 0))))
-
-
 
 (defn overlay
   [^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float scalex ^Float scaley]

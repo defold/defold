@@ -1,6 +1,7 @@
 (ns editor.text
   (:require [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -31,17 +32,12 @@
 
   )
 
-(defn- fill-control [control]
-  (AnchorPane/setTopAnchor control 0.0)
-  (AnchorPane/setBottomAnchor control 0.0)
-  (AnchorPane/setLeftAnchor control 0.0)
-  (AnchorPane/setRightAnchor control 0.0))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [text-area (TextArea.)]
     (.appendText text-area (slurp (:resource resource-node)))
     (.add (.getChildren ^Pane parent) text-area)
-    (fill-control text-area)
+    (ui/fill-control text-area)
     (g/make-node! graph TextView :text-area text-area)))
 
 (defn register-view-types [workspace]
