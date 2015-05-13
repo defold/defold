@@ -12,6 +12,7 @@
 #include <dlib/math.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <dlib/http_client.h>
 #include <extension/extension.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
@@ -161,6 +162,8 @@ namespace dmEngine
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
         dmGameObject::PostUpdate(engine->m_Register);
+
+        dmHttpClient::ShutdownConnectionPool();
 
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
