@@ -27,6 +27,14 @@
                      [org.clojure/tools.nrepl                     "0.2.7" :exclusions [org.clojure/clojure]]
                      [cider/cider-nrepl                           "0.9.0-SNAPSHOT" :exclusions [org.clojure/tools.nrepl]]
 
+                     [com.nanohttpd/nanohttpd                     "2.1.1"]
+                     [com.sun.jersey/jersey-core                  "1.19"]
+                     [com.sun.jersey/jersey-client                "1.19"]
+                     ; NOTE: Ancient libraries
+                     [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
+                     [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
+                     [org.eclipse.jgit/org.eclipse.jgit           "4.0.0.201505050340-m2"]
+
                      [org.projectodd.shimdandy/shimdandy-api "1.1.0"]
                      [org.projectodd.shimdandy/shimdandy-impl "1.1.0"]
 
@@ -77,10 +85,6 @@
                       :src-dir-uri               "http://github.com/relevance/defold/blob/clojure-sceneed"
                       :src-linenum-anchor-prefix "L"
                       :doc/format                :markdown}
-
-  :test-selectors    {:default     (fn [m] (not (:integration m)))
-                      :integration :integration
-                      :all         (constantly true)}
 
   :profiles          {:test        {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
                       :uberjar     {:main com.defold.editor.Start

@@ -1,4 +1,4 @@
-(ns ^:integration integration.undo-test
+(ns integration.undo-test
   (:require [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
@@ -106,13 +106,14 @@
                    project       (load-test-project workspace project-graph)]
                (let [atlas-nodes (project/find-resources project "**/*.atlas")
                      atlas-node  (second (first atlas-nodes))
+                     atlas-id    (g/node-id atlas-node)
                      view        (headless-create-view workspace project atlas-node)
-                     camera      (g/graph-value (g/node->graph-id view) :camera)]
-                 (is (not-nil? (g/node-value camera :aabb)))
+                     view-id     (g/node-id view)]
+                 (is (g/connected? (g/now) atlas-id :scene view-id :scene))
                  (g/transact (g/delete-node (g/node-id atlas-node)))
-                 (is (nil? (g/node-value camera :aabb)))
+                 (is (not (g/connected? (g/now) atlas-id :scene view-id :scene)))
                  (g/undo project-graph)
-                 (is (not-nil? (g/node-value camera :aabb))))))))
+                 (is (g/connected? (g/now) atlas-id :scene view-id :scene)))))))
 
 (defn outline-children [node] (:children (g/node-value node :outline)))
 
