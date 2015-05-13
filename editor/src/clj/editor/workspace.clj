@@ -38,10 +38,10 @@ ordinary paths."
   (resource-type [this] (get (:resource-types workspace) (second (split-ext file))))
   (source-type [this] (if (.isFile file) :file :folder))
   (read-only? [this] (not (.canWrite file)))
-  (path [this] (relative-path (File. (:root workspace)) file))
+  (path [this] (let [^String root (:root workspace)] (relative-path (File. root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (str "/" (path this)))
-  (url [this] (str "file:/" (relative-path (File. (:root workspace)) file)))
+  (url [this] (let [^String root (:root workspace)] (str "file:/" (relative-path (File. root) file))))
   (resource-name [this] (.getName file))
 
   io/IOFactory
@@ -65,9 +65,11 @@ ordinary paths."
   (resource-name [this] nil)
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream (:data this)) opts))
+  (io/make-input-stream  [this opts] (let [^String data (:data this)]
+                                       (io/make-input-stream (IOUtils/toInputStream data) opts)))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (io/make-output-stream (.toCharArray (:data this)) opts))
+  (io/make-output-stream [this opts] (let [^String data (:data this)]
+                                       (io/make-output-stream (.toCharArray data) opts)))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
 (defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
@@ -80,8 +82,8 @@ ordinary paths."
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace % filter-fn) (filter filter-fn (.listFiles file))))]
     (FileResource. workspace file children)))
 
-(g/defnk produce-resource-tree [self root]
-  (create-resource-tree self (File. root) (fn [f]
+(g/defnk produce-resource-tree [self ^String root]
+  (create-resource-tree self (File. root) (fn [^File f]
                                             (let [name (.getName f)]
                                               (not (or (= name "build") (= (subs name 0 1) ".")))))))
 
@@ -137,8 +139,9 @@ ordinary paths."
           (conj rs file)))
   (proxy [FilterOutputStream] [stream]
     (close []
-      (swap! (:opened-files workspace) disj file)
-      (proxy-super close))))
+      (let [^FilterOutputStream this this]
+        (swap! (:opened-files workspace) disj file)
+           (proxy-super close)))))
 
 (defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
   (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
