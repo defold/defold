@@ -4,12 +4,14 @@
             [editor.jfx :as jfx]
             [editor.handler :as handler]
             [service.log :as log])
-  (:import [javafx.scene Node Scene]
-           [javafx.stage Stage Modality]
-           [javafx.scene.control ButtonBase Control ContextMenu SeparatorMenuItem ToggleButton TreeView TreeItem Menu MenuBar MenuItem]
-           [javafx.stage FileChooser FileChooser$ExtensionFilter]
+  (:import [javafx.scene Parent Node Scene]
+           [javafx.stage Stage Modality Window]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Labeled ListCell ToggleButton TextInputControl TreeView TreeItem Menu MenuBar MenuItem]
+           [javafx.scene.layout AnchorPane Pane]
+           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.application Platform]
            [javafx.fxml FXMLLoader]
+           [javafx.util Callback]
            [javafx.event ActionEvent EventHandler]
            [javafx.scene.input KeyCombination ContextMenuEvent]))
 
@@ -18,6 +20,7 @@
 (defonce ^:dynamic *menus* (atom {}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
+; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
@@ -27,6 +30,30 @@
     (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. ext-descr (java.util.ArrayList. exts)))
     (let [file (.showOpenDialog chooser nil)]
       (if file (.getAbsolutePath file)))))
+
+(defn choose-directory
+  ([title] (choose-directory title @*main-stage*))
+  ([title parent]
+    (let [chooser (DirectoryChooser.)]
+      (.setTitle chooser title)
+      (let [file (.showDialog chooser parent)]
+        (when file (.getAbsolutePath file))))))
+
+(defn collect-controls [^Parent root keys]
+  (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
+        missing (->> controls
+                  (filter (fn [[k v]] (when (nil? v) k)))
+                  (map first))]
+    (when (seq missing)
+      (throw (Exception. (format "controls %s are missing" missing))))
+    controls))
+
+; TODO: Better name?
+(defn fill-control [control]
+  (AnchorPane/setTopAnchor control 0.0)
+  (AnchorPane/setBottomAnchor control 0.0)
+  (AnchorPane/setLeftAnchor control 0.0)
+  (AnchorPane/setRightAnchor control 0.0))
 
 (defn do-run-now [f]
   (if (Platform/isFxApplicationThread)
@@ -64,6 +91,92 @@
   `(reify EventHandler
      (handle [this ~event]
        ~@body)))
+
+(defn scene [^Node node]
+  (.getScene node))
+
+(defn visible! [^Node node v]
+  (.setVisible node v))
+
+(defn managed! [^Node node m]
+  (.setManaged node m))
+
+(defn disable! [^Node node d]
+  (.setDisable node d))
+
+(defn window [^Scene scene]
+  (.getWindow scene))
+
+(defn close! [^Window window]
+  (.close window))
+
+(defn title! [^Window window t]
+  (.setTitle window t))
+
+(defn show! [^Stage stage]
+  (.show stage))
+
+(defn show-and-wait! [^Stage stage]
+  (.showAndWait stage))
+
+(defprotocol Text
+  (text [this])
+  (text! [this val]))
+
+(defprotocol HasAction
+  (on-action! [this fn]))
+
+(defprotocol HasChildren
+  (children! [this c]))
+
+(defprotocol CollectionView
+  (selection [this])
+  (items [this])
+  (items! [this items])
+  (cell-factory! [this render-fn]))
+
+(extend-type TextInputControl
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
+
+(extend-type Labeled
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
+
+(extend-type Pane
+  HasChildren
+  (children! [this c]
+    (doto
+      (.getChildren this)
+      (.clear)
+      (.addAll c))))
+
+(defn- make-list-cell [render-fn]
+  (proxy [ListCell] []
+    (updateItem [object empty]
+      (proxy-super updateItem (and object (:text (render-fn object))) empty)
+      (let [name (or (and (not empty) (:text (render-fn object))) nil)]
+        (proxy-super setText name)))))
+
+(defn- make-list-cell-factory [render-fn]
+  (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
+
+(extend-type ButtonBase
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+
+(extend-type ComboBox
+  CollectionView
+  (selection [this] (when-let [item (.getSelectedItem (.getSelectionModel this))] [item]))
+  (items [this] (.getItems items))
+  (items! [this ^java.util.Collection items] (let [l (.getItems this)]
+                                               (.clear l)
+                                               (.addAll l items)))
+  (cell-factory! [this render-fn]
+    (.setButtonCell this (make-list-cell render-fn))
+    (.setCellFactory this (make-list-cell-factory render-fn))))
 
 (extend-type TreeView
   workspace/SelectionProvider
