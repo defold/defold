@@ -1,6 +1,7 @@
 package com.defold.editor;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -11,6 +12,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -37,12 +40,13 @@ public class Start extends Application {
     }
 
     private LinkedBlockingQueue<Object> pool;
-    private ExecutorService threadPool;
+    private ThreadPoolExecutor threadPool;
     private static boolean createdFromMain = false;
 
     public Start() {
         pool = new LinkedBlockingQueue<>(1);
-        threadPool = Executors.newFixedThreadPool(1);
+        threadPool = new ThreadPoolExecutor(1, 1, 3000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+        threadPool.allowCoreThreadTimeOut(true);
     }
 
     private ClassLoader makeClassLoader() {
@@ -102,20 +106,25 @@ public class Start extends Application {
 
                 try {
                     pool.add(makeEditor());
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                Platform.runLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            openEditor(new String[0]);
-                            splash.close();
-                        } catch (Exception e) {
-                            e.printStackTrace();
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                openEditor(new String[0]);
+                                splash.close();
+                            } catch (Throwable t) {
+                                t.printStackTrace();
+                            }
                         }
-                    }
-                });
+                    });
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
+                    Platform.runLater(() -> {
+                            splash.setLaunchError(message);
+                            splash.setErrorShowing(true);
+                        });
+                }
                 return null;
             }
 

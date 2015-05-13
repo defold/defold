@@ -19,6 +19,16 @@
             <ProgressBar prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
          </children>
       </AnchorPane>
+      <AnchorPane>
+        <children>
+          <Label id="launchError" visible="false" wrapText="true" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
+        </children>
+      </AnchorPane>
+      <AnchorPane>
+        <children>
+          <Button id="errorButton" visible="false" text="Exit" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0"/>
+        </children>
+      </AnchorPane>
    </children>
    <padding>
       <Insets bottom="40.0" left="40.0" right="40.0" top="40.0" />

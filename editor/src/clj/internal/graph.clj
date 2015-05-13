@@ -230,7 +230,9 @@
   (connected?
     [this src-id src-label tgt-id tgt-label]
     (let [tgt-graph (node-id->graph graphs tgt-id)]
-      (target-connected? tgt-graph src-id src-label tgt-id tgt-label)))
+      (and
+       (gt/node-by-id this src-id)
+       (target-connected? tgt-graph src-id src-label tgt-id tgt-label))))
 
   (dependencies
     [this to-be-marked]
