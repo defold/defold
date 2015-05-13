@@ -38,10 +38,10 @@ ordinary paths."
   (resource-type [this] (get (:resource-types workspace) (second (split-ext file))))
   (source-type [this] (if (.isFile file) :file :folder))
   (read-only? [this] (not (.canWrite file)))
-  (path [this] (let [^String root (:root workspace)] (relative-path (File. root) file)))
+  (path [this] (relative-path (File. ^String (:root workspace)) file))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (str "/" (path this)))
-  (url [this] (let [^String root (:root workspace)] (str "file:/" (relative-path (File. root) file))))
+  (url [this] (relative-path (File. ^String (:root workspace)) file))
   (resource-name [this] (.getName file))
 
   io/IOFactory
@@ -65,11 +65,9 @@ ordinary paths."
   (resource-name [this] nil)
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (let [^String data (:data this)]
-                                       (io/make-input-stream (IOUtils/toInputStream data) opts)))
+  (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (let [^String data (:data this)]
-                                       (io/make-output-stream (.toCharArray data) opts)))
+  (io/make-output-stream [this opts] (io/make-output-stream (.toCharArray ^String (:data this)) opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
 (defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
