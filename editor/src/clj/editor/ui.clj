@@ -108,10 +108,10 @@
 (defn window [^Scene scene]
   (.getWindow scene))
 
-(defn close! [^Window window]
+(defn close! [^Stage window]
   (.close window))
 
-(defn title! [^Window window t]
+(defn title! [^Stage window t]
   (.setTitle window t))
 
 (defn show! [^Stage stage]
@@ -152,14 +152,15 @@
     (doto
       (.getChildren this)
       (.clear)
-      (.addAll c))))
+      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c)))))
 
 (defn- make-list-cell [render-fn]
   (proxy [ListCell] []
     (updateItem [object empty]
-      (proxy-super updateItem (and object (:text (render-fn object))) empty)
-      (let [name (or (and (not empty) (:text (render-fn object))) nil)]
-        (proxy-super setText name)))))
+      (let [this ^ListCell this]
+        (proxy-super updateItem (and object (:text (render-fn object))) empty)
+        (let [name (or (and (not empty) (:text (render-fn object))) nil)]
+          (proxy-super setText name))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
@@ -171,7 +172,7 @@
 (extend-type ComboBox
   CollectionView
   (selection [this] (when-let [item (.getSelectedItem (.getSelectionModel this))] [item]))
-  (items [this] (.getItems items))
+  (items [this] (.getItems this))
   (items! [this ^java.util.Collection items] (let [l (.getItems this)]
                                                (.clear l)
                                                (.addAll l items)))
