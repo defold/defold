@@ -35,7 +35,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label ListCell ListView TextField
+           [javafx.scene.control Button Control ColorPicker Label ListCell ListView TextField
             TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
@@ -157,7 +157,7 @@
         vbox (VBox.)
         project-label (Label. (str (.getFileName parent)))
         path-label (Label. (str (.getParent parent)))
-        ^"[Ljavafx.scene.control.Control;" controls [project-label path-label]]
+        ^"[Ljavafx.scene.control.Control;" controls (into-array Control [project-label path-label])]
     ; TODO: Should be css stylable
     (.setStyle path-label "-fx-text-fill: grey; -fx-font-size: 10px;")
     (.addAll (.getChildren vbox) controls)
@@ -196,7 +196,8 @@
     (let [^"[Ljava.io.File;" recent (->>
                    (prefs/get-prefs "recent-projects" [])
                    (map io/file)
-                   (filter (fn [^File f] (.isFile f))))]
+                   (filter (fn [^File f] (.isFile f)))
+                   (into-array File))]
       (.addAll (.getItems recent-projects) recent))
     (.setScene stage scene)
     (.setResizable stage false)
