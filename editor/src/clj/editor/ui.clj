@@ -5,6 +5,7 @@
             [editor.handler :as handler]
             [service.log :as log])
   (:import [javafx.scene Node Scene Parent]
+           [javafx.scene.layout Pane Region]
            [javafx.stage Stage Modality]
            [javafx.scene.control ButtonBase Control ContextMenu SeparatorMenuItem ToggleButton TreeView TreeItem Label Menu MenuBar MenuItem ProgressBar ToolBar Toggle]
            [javafx.stage FileChooser FileChooser$ExtensionFilter]
@@ -183,9 +184,9 @@
 
 (defn- refresh-toolbar [td]
  (let [menu (realize-menu (:menu-id td))
-       control ^ToolBar (:control td)]
+       ^Pane control (:control td)]
    (when-not (= menu (get-user-data control ::menu))
-     (.clear (.getItems control))
+     (.clear (.getChildren control))
      (set-user-data control ::menu menu)
      (doseq [menu-item menu]
        (let [button (ToggleButton. (:label menu-item))
@@ -197,12 +198,12 @@
            (.setId button (name (:command menu-item)))
            (.setOnAction button (event-handler event (handler/run (:command menu-item)
                                                                   (make-command-context td)))))
-         (.add (.getItems control) button))))))
+         (.add (.getChildren control) button))))))
 
-(defn- refresh-toolbar-state [toolbar command-context]
-  (let [nodes (.getItems toolbar)
+(defn- refresh-toolbar-state [^Pane toolbar command-context]
+  (let [nodes (.getChildren toolbar)
         ids (map #(.getId ^Node %) nodes)]
-    (doseq [n nodes]
+    (doseq [^Node n nodes]
       (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-context)))
       (when (instance? ToggleButton n)
         (if (handler/state (keyword (.getId n)) command-context)
