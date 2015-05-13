@@ -88,7 +88,7 @@
       (.addEventFilter scene KeyEvent/KEY_TYPED h)
 
       (doseq [tf (.lookupAll root "TextField")]
-        (.addListener (.textProperty tf)
+        (.addListener (.textProperty ^TextField tf)
           (reify javafx.beans.value.ChangeListener
             (changed [this observable old-value new-value]
               (when (not= old-value new-value)

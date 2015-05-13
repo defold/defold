@@ -190,20 +190,21 @@
                                                               (when-let [file (-> recent-projects (.getSelectionModel) (.getSelectedItem))]
                                                                 (ui/close! stage)
                                                                 ; See comment above about main and class-loaders
-                                                                (main [(.getAbsolutePath file)])))))
+                                                                (main [(.getAbsolutePath ^File file)])))))
     (.setCellFactory recent-projects (reify Callback (call ^ListCell [this view]
                                                        (proxy [ListCell] []
                                                          (updateItem [file empty]
-                                                           (proxy-super updateItem file empty)
-                                                           (if (or empty (nil? file))
-                                                             (proxy-super setText nil)
-                                                             (proxy-super setGraphic (make-list-cell file))))))))
+                                                           (let [this ^ListCell this]
+                                                             (proxy-super updateItem file empty)
+                                                             (if (or empty (nil? file))
+                                                               (proxy-super setText nil)
+                                                               (proxy-super setGraphic (make-list-cell file)))))))))
     (let [recent (->>
                    (prefs/get-prefs prefs "recent-projects" [])
                    (map io/file)
                    (filter (fn [^File f] (.isFile f)))
                    (into-array File))]
-      (.addAll (.getItems recent-projects) recent))
+      (.addAll (.getItems recent-projects) ^"[Ljava.io.File;" recent))
     (.setScene stage scene)
     (.setResizable stage false)
     (ui/show! stage)))
