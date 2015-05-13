@@ -12,6 +12,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -38,12 +40,13 @@ public class Start extends Application {
     }
 
     private LinkedBlockingQueue<Object> pool;
-    private ExecutorService threadPool;
+    private ThreadPoolExecutor threadPool;
     private static boolean createdFromMain = false;
 
     public Start() {
         pool = new LinkedBlockingQueue<>(1);
-        threadPool = Executors.newFixedThreadPool(1);
+        threadPool = new ThreadPoolExecutor(1, 1, 3000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+        threadPool.allowCoreThreadTimeOut(true);
     }
 
     private ClassLoader makeClassLoader() {
