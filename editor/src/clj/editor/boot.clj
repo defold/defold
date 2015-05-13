@@ -36,7 +36,8 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label ListCell TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button Control ColorPicker Label ListCell ListView TextField
+            TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority VBox]
@@ -47,8 +48,9 @@
            [java.nio.file Paths]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
-(defn- setup-console [root]
-  (.appendText (.lookup root "#console") "Hello Console"))
+(defn- setup-console [^VBox root]
+  (let [^TextArea node (.lookup root "#console")]
+   (.appendText node "Hello Console")))
 
 ; Editors
 (g/defnode CurveEditor
@@ -56,7 +58,7 @@
   (on :create
       (let [btn (Button.)]
         (ui/text! btn "Curve Editor WIP!")
-        (.add (.getChildren (:parent event)) btn)))
+        (.add (.getChildren ^VBox (:parent event)) btn)))
 
   t/IDisposable
   (dispose [this]))
@@ -71,7 +73,7 @@
 (def the-root (atom nil))
 
 (defn load-stage [workspace project]
-  (let [root (FXMLLoader/load (io/resource "editor.fxml"))
+  (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
 
@@ -87,20 +89,24 @@
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
-    (let [app-view (app-view/make-app-view *view-graph* *project-graph* project stage (.lookup root "#menu-bar") (.lookup root "#editor-tabs"))
-          outline-view (outline-view/make-outline-view *view-graph* (.lookup root "#outline") (fn [items] (on-outline-selection-fn project items)))]
+    (let [^MenuBar menu-bar (.lookup root "#menu-bar")
+          ^TabPane editor-tabs (.lookup root "#editor-tabs")
+          ^TreeView outline (.lookup root "#outline")
+          ^Tab assets (.lookup root "#assets")
+          app-view (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs)
+          outline-view (outline-view/make-outline-view *view-graph* outline (fn [items] (on-outline-selection-fn project items)))]
       (g/transact
         (concat
           (g/connect project :selection outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
-      (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (app-view/open-resource app-view workspace project resource))))
+      (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
 
-(defn- create-view [game-project root place node-type]
+(defn- create-view [game-project ^VBox root place node-type]
   (let [node (g/make-node! (g/node->graph-id game-project) node-type)]
     (g/dispatch-message (g/now) node :create :parent (.lookup root place))))
 
@@ -131,7 +137,7 @@
         workspace    (setup-workspace project-path)
         project      (project/make-project *project-graph* workspace)
         project      (project/load-project project)
-        root         (ui/run-now (load-stage workspace project))
+        ^VBox root   (ui/run-now (load-stage workspace project))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         properties   (ui/run-now (properties-view/make-properties-view *view-graph* (.lookup root "#properties")))]
     (g/transact (g/connect project :selection properties :selection))
@@ -144,25 +150,27 @@
                  (take 3))]
     (prefs/set-prefs prefs "recent-projects" recent)))
 
-(defn- make-list-cell [file]
+(defn- make-list-cell [^File file]
   (let [path (.toPath file)
         parent (.getParent path)
         vbox (VBox.)
         project-label (Label. (str (.getFileName parent)))
-        path-label (Label. (str (.getParent parent)))]
+        path-label (Label. (str (.getParent parent)))
+        ^"[Ljavafx.scene.control.Control;" controls (into-array Control [project-label path-label])]
     ; TODO: Should be css stylable
     (.setStyle path-label "-fx-text-fill: grey; -fx-font-size: 10px;")
-    (.addAll (.getChildren vbox) [project-label path-label])
+    (.addAll (.getChildren vbox) controls)
     vbox))
 
 (def main)
 
+
 (defn open-welcome [prefs]
-  (let [root (FXMLLoader/load (io/resource "welcome.fxml"))
+  (let [^VBox root (FXMLLoader/load (io/resource "welcome.fxml"))
         stage (Stage.)
         scene (Scene. root)
-        recent-projects (.lookup root "#recent-projects")
-        open-project (.lookup root "#open-project")
+        ^ListView recent-projects (.lookup root "#recent-projects")
+        ^Button open-project (.lookup root "#open-project")
         import-project (.lookup root "#import-project")]
     (ui/set-main-stage stage)
     (ui/on-action! open-project (fn [_] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
@@ -178,23 +186,25 @@
                                             ; See comment above about main and class-loaders
                                             (main [file-name]))))
 
-    (.setOnMouseClicked recent-projects (ui/event-handler e (when (= 2 (.getClickCount e))
+    (.setOnMouseClicked recent-projects (ui/event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                                               (when-let [file (-> recent-projects (.getSelectionModel) (.getSelectedItem))]
                                                                 (ui/close! stage)
                                                                 ; See comment above about main and class-loaders
-                                                                (main [(.getAbsolutePath file)])))))
+                                                                (main [(.getAbsolutePath ^File file)])))))
     (.setCellFactory recent-projects (reify Callback (call ^ListCell [this view]
                                                        (proxy [ListCell] []
                                                          (updateItem [file empty]
-                                                           (proxy-super updateItem file empty)
-                                                           (if (or empty (nil? file))
-                                                             (proxy-super setText nil)
-                                                             (proxy-super setGraphic (make-list-cell file))))))))
+                                                           (let [this ^ListCell this]
+                                                             (proxy-super updateItem file empty)
+                                                             (if (or empty (nil? file))
+                                                               (proxy-super setText nil)
+                                                               (proxy-super setGraphic (make-list-cell file)))))))))
     (let [recent (->>
                    (prefs/get-prefs prefs "recent-projects" [])
                    (map io/file)
-                   (filter #(.isFile %)))]
-      (.addAll (.getItems recent-projects) recent))
+                   (filter (fn [^File f] (.isFile f)))
+                   (into-array File))]
+      (.addAll (.getItems recent-projects) ^"[Ljava.io.File;" recent))
     (.setScene stage scene)
     (.setResizable stage false)
     (ui/show! stage)))

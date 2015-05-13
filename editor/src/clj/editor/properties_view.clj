@@ -25,6 +25,7 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
+
 ; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj
 (defmacro doseq-indexed
   "loops over a set of values, binding index-sym to the 0-based index of each value"
@@ -72,20 +73,20 @@
         box (HBox.)
         setter (fn [vec]
                  (doseq-indexed [t [x y z] i]
-                   (.setText t (str (nth vec i)))))
-        handler (ui/event-handler event (on-new-value (mapv #(to-double (.getText %)) [x y z])))]
+                   (.setText ^TextField t (str (nth vec i)))))
+        handler (ui/event-handler event (on-new-value (mapv #(to-double (.getText ^TextField %)) [x y z])))]
 
     (doseq [t [x y z]]
-      (.setOnAction t handler)
-      (HBox/setHgrow t Priority/SOMETIMES)
-      (.setPrefWidth t 60)
+      (.setOnAction ^TextField t handler)
+      (HBox/setHgrow ^TextField t Priority/SOMETIMES)
+      (.setPrefWidth ^TextField t 60)
       (.add (.getChildren box) t))
     [box setter]))
 
 (defmethod create-property-control! t/Color [_ on-new-value]
  (let [color-picker (ColorPicker.)
        handler (ui/event-handler event
-                                 (let [c (.getValue color-picker)]
+                                 (let [^Color c (.getValue color-picker)]
                                    (on-new-value [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)])))
        setter #(.setValue color-picker (Color. (nth % 0) (nth % 1) (nth % 2) (nth % 3)))]
    (.setOnAction color-picker handler)
@@ -104,7 +105,7 @@
     camel/->Camel_Snake_Case_String
     (clojure.string/replace "_" " ")))
 
-(defn- create-properties-row [grid node key property row]
+(defn- create-properties-row [^GridPane grid node key property row]
   (when (not (false? (:visible property)))
     (let [label (Label. (niceify-label key))
           ; TODO: Possible to solve mutual references without an atom here?
