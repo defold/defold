@@ -14,7 +14,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem SeparatorMenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell TreeView Menu MenuItem SeparatorMenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent KeyCombination ContextMenuEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -28,22 +28,25 @@
 
 (declare tree-item)
 
+
 ; TreeItem creator
-(defn- list-children [parent]
-  (let [children (:children parent)]
+(defn-  ^ObservableList list-children [parent]
+  (let [children (:children parent)
+        items (into-array TreeItem (map tree-item children))]
     (if (empty? children)
       (FXCollections/emptyObservableList)
       (doto (FXCollections/observableArrayList)
-        (.addAll (map tree-item children))))))
+        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
 
 ; NOTE: Without caching stack-overflow... WHY?
 (defn tree-item [parent]
   (let [cached (atom false)]
     (proxy [TreeItem] [parent]
       (isLeaf []
-        (not= :folder (workspace/source-type (.getValue this))))
+        (not= :folder (workspace/source-type (.getValue ^TreeItem this))))
       (getChildren []
-        (let [children (proxy-super getChildren)]
+        (let [this ^TreeItem this
+              ^ObservableList children (proxy-super getChildren)]
           (when-not @cached
             (reset! cached true)
             (.setAll children (list-children (.getValue this))))
@@ -84,27 +87,28 @@
 
 (handler/defhandler :show-in-desktop
   (enabled? [selection] (= 1 (count selection)) )
-  (run [selection] (let [f (File. (workspace/abs-path (first selection)))
+  (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))
                          dir (if (.isFile f) (.getParentFile f) f)]
                      (.open (Desktop/getDesktop) dir))))
 
-(defn- setup-asset-browser [workspace tree-view open-resource-fn]
+(defn- setup-asset-browser [workspace ^TreeView tree-view open-resource-fn]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [handler (reify EventHandler
                   (handle [this e]
-                    (when (= 2 (.getClickCount e))
+                    (when (= 2 (.getClickCount ^MouseEvent e))
                       (let [item (-> tree-view (.getSelectionModel) (.getSelectedItem))
-                            resource (.getValue item)]
+                            resource (.getValue ^TreeItem item)]
                         (when (= :file (workspace/source-type resource))
                           (open-resource-fn resource))))))]
     (.setOnMouseClicked tree-view handler)
     (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                  (proxy [TreeCell] []
                                                    (updateItem [resource empty]
-                                                     (proxy-super updateItem resource empty)
-                                                     (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
-                                                       (proxy-super setText name))
-                                                     (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource))))))))
+                                                     (let [this ^TreeCell this]
+                                                       (proxy-super updateItem resource empty)
+                                                          (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
+                                                            (proxy-super setText name))
+                                                          (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource)))))))))
 
     (ui/register-context-menu tree-view tree-view ::resource-menu)
     (.setRoot tree-view (tree-item (g/node-value workspace :resource-tree)))))
