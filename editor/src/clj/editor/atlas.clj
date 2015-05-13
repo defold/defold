@@ -33,6 +33,7 @@
 (def animation-icon "icons/film.png")
 (def image-icon "icons/image.png")
 
+
 (vtx/defvertex engine-format-texture
   (vec3.float position)
   (vec2.short texcoord0 true))
@@ -118,7 +119,7 @@
                        :tex-coords       (:vbuf tex-coord-summary)})))
 
 (defn render-overlay
-  [^GL2 gl ^TextRenderer text-renderer texture-packing]
+  [^GL2 gl ^TextRenderer text-renderer ^TexturePacking texture-packing]
   (let [image ^BufferedImage (.packed-image texture-packing)]
     (gl/overlay gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
@@ -162,7 +163,7 @@
 (g/defnode AtlasImage
   (property path t/Str)
   (input src-image BufferedImage)
-  (output image Image (g/fnk [path src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
+  (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
   (output outline t/Any (g/fnk [self path] {:self self :label (path->id path) :icon image-icon}))
   (output ddf-message t/Any :cached (g/fnk [path] (.build (doto (AtlasProto$AtlasImage/newBuilder) (.setImage path))))))
@@ -203,11 +204,11 @@
               (protobuf/pb->str))})
 
 (defn gen-renderable-vertex-buffer
-  [{:keys [aabb coords]}]
+  [{:keys [^Rect aabb coords]}]
   (let [vbuf       (->texture-vtx (* 6 (count coords)))
         x-scale    (/ 1.0 (.width aabb))
         y-scale    (/ 1.0 (.height aabb))]
-    (doseq [coord coords]
+    (doseq [^Rect coord coords]
       (let [w  (.width coord)
             h  (.height coord)
             x0 (.x coord)
