@@ -67,6 +67,12 @@ namespace dmHttpClient
             return m_Pool;
         }
 
+        dmConnectionPool::HPool GetPoolNoCreate()
+        {
+            DM_MUTEX_SCOPED_LOCK(m_Mutex);
+            return m_Pool;
+        }
+
     private:
         dmConnectionPool::HPool m_Pool;
         dmMutex::Mutex          m_Mutex;
@@ -908,8 +914,9 @@ bail:
 
             client->m_SocketResult = dmSocket::RESULT_OK;
             Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure);
-            if (r != RESULT_OK)
+            if (r != RESULT_OK) {
                 return r;
+            }
 
             r = DoDoRequest(client, response, path, method);
             if (r != RESULT_OK && r != RESULT_NOT_200_OK) {
@@ -1037,6 +1044,21 @@ bail:
     dmHttpCache::HCache GetHttpCache(HClient client)
     {
         return client->m_HttpCache;
+    }
+
+    uint32_t ShutdownConnectionPool()
+    {
+        dmConnectionPool::HPool pool = g_PoolCreator.GetPoolNoCreate();
+        if (pool) {
+            return dmConnectionPool::Shutdown(pool, dmSocket::SHUTDOWNTYPE_READWRITE);
+        }
+        return 0;
+    }
+
+    void ReopenConnectionPool()
+    {
+        dmConnectionPool::HPool pool = g_PoolCreator.GetPool();
+        dmConnectionPool::Reopen(pool);
     }
 
 #undef HTTP_CLIENT_SENDALL_AND_BAIL
