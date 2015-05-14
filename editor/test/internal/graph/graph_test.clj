@@ -31,18 +31,26 @@
     (is (nil? (ig/node g id)))
     (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 
+(defn- source-arcs-without-targets
+  [g]
+  (for [source                (ig/node-ids g)
+        source-label          (gt/outputs (ig/node g source))
+        [target target-label] (ig/targets g source source-label)
+        :when                 (not (some #(= % [source source-label]) (ig/sources g target target-label)))]
+    [source source-label]))
+
+(defn- target-arcs-without-sources
+  [g]
+  (for [target                (ig/node-ids g)
+        target-label          (gt/inputs (ig/node g target))
+        [source source-label] (ig/sources g target target-label)
+        :when                 (not (some #(= % [target target-label]) (ig/targets g source source-label)))]
+    [target target-label]))
+
 (defn- arcs-are-reflexive?
   [g]
-  (and (every? #(= true %)
-               (for [source       (ig/node-ids g)
-                     source-label (gt/outputs (ig/node g source))
-                     [target target-label] (map gt/tail (ig/arcs-from-source g source source-label))]
-                 (some #(= % [source source-label]) (ig/sources g target target-label))))
-       (every? #(= true %)
-               (for [target       (ig/node-ids g)
-                     target-label (gt/inputs (ig/node g target))
-                     [source source-label] (ig/sources g target target-label)]
-                 (some #(= % [target target-label]) (map gt/tail (ig/arcs-from-source g source source-label)))))))
+  (and (empty? (source-arcs-without-targets g))
+       (empty? (target-arcs-without-sources g))))
 
 (deftest reflexivity
   (let [g (random-graph)]
