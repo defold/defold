@@ -4,7 +4,7 @@
 
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
-  :plugins          [[lein-protobuf-minimal "0.4.4"]
+  :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.8.10"]]
 
   :dependencies     [[org.clojure/clojure                         "1.7.0-beta3"]
@@ -47,8 +47,6 @@
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
-
-  :target-path       "target/%s"
 
   :java-source-paths ["src/java"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/java"]
