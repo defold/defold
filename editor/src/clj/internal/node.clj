@@ -281,18 +281,14 @@
   (transforms'          [_] transforms)
   (transform-types'     [_] transform-types)
   (properties'          [_] properties)
-  (inputs'              [_] (map-vals #(if (satisfies? t/PropertyType %) (t/property-value-type %) %) inputs))
+  (inputs'              [_] inputs)
   (injectable-inputs'   [_] injectable-inputs)
   (outputs'             [_] (set (keys transforms)))
   (cached-outputs'      [_] cached-outputs)
   (event-handlers'      [_] event-handlers)
   (input-dependencies'  [_] input-dependencies)
   (substitute-for'      [_ input] (get substitutes input))
-  (input-type           [_ input]
-    (let [input-definition (get inputs input)]
-      (if (satisfies? t/PropertyType input-definition)
-        (t/property-value-type input-definition)
-        input-definition)))
+  (input-type           [_ input] (get inputs input))
   (input-cardinality    [_ input] (get cardinalities input))
   (output-type          [_ output] (get transform-types output)))
 
@@ -380,8 +376,9 @@ not called directly."
   "Update the node type description with the given input."
   [description label schema flags options & [args]]
   (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
+(let [property-schema (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)]
   (cond->
-      (assoc-in description [:inputs label] schema)
+      (assoc-in description [:inputs label] property-schema)
 
     (some #{:inject} flags)
     (update-in [:injectable-inputs] #(conj (or % #{}) label))
@@ -393,7 +390,7 @@ not called directly."
     (update-in [:cardinalities] assoc label :one)
 
     (some #{:array} flags)
-    (update-in [:cardinalities] assoc label :many)))
+    (update-in [:cardinalities] assoc label :many))))
 
 (defn- abstract-function
   [label type]
