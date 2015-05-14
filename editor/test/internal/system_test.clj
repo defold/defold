@@ -362,16 +362,16 @@
 
   (testing "Deleting a graph with history"
     (ts/with-clean-system
-      (let [pgraph-id (g/make-graph! :history true)
-            agraph-id (g/make-graph! :volatility 10)]
+      (let [project-graph-id (g/make-graph! :history true)
+            view-graph-id (g/make-graph! :volatility 10)]
 
-        (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node pgraph-id Source :source-label "first")
-                                                       (g/make-node pgraph-id Pipe)
-                                                       (g/make-node pgraph-id Sink))
+        (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node project-graph-id Source :source-label "first")
+                                                       (g/make-node project-graph-id Pipe)
+                                                       (g/make-node project-graph-id Sink))
 
-              [source-a1 sink-a1 sink-a2] (ts/tx-nodes (g/make-node agraph-id Source :source-label "second")
-                                                       (g/make-node agraph-id Sink)
-                                                       (g/make-node agraph-id Sink))]
+              [source-a1 sink-a1 sink-a2] (ts/tx-nodes (g/make-node view-graph-id Source :source-label "second")
+                                                       (g/make-node view-graph-id Sink)
+                                                       (g/make-node view-graph-id Sink))]
 
           (g/transact
            [(g/connect source-p1 :source-label sink-p1 :target-label)
@@ -379,16 +379,13 @@
             (g/connect pipe-p1   :soft         sink-a1 :target-label)
             (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-          (is (undo-redo-state? pgraph-id [nil nil] []))
+          (is (undo-redo-state? project-graph-id [nil nil] []))
 
-          (g/delete-graph pgraph-id)
+          (g/delete-graph project-graph-id)
 
           (is (= 2 (count (graphs))))
 
-          (is (nil? (graph-ref pgraph-id)))
-
-          ;; This documents current behavior: we leave dangling arcs so undo in the project graph "reconnects" to them
-          (is (not (empty? (ig/arcs-from-source (graph agraph-id) (id pipe-p1) :soft))))
+          (is (nil? (graph-ref project-graph-id)))
 
           (is (= (g/dependencies (g/now) [[(id source-a1) :source-label]])
                  #{[(id sink-a2)   :loud]

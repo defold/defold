@@ -229,26 +229,28 @@
     ctx))
 
 (defmethod perform :connect
-  [{:keys [basis triggers-to-fire] :as ctx}
+  [{:keys [basis triggers-to-fire graphs-modified] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
   (if-let [source (gt/node-by-id basis source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id basis target-id)] ; nil if target node was deleted in this transaction
       (-> ctx
           (mark-activated target-id target-label)
           (assoc
+           :graphs-modified  (conj graphs-modified (gt/node-id->graph-id source-id))
            :basis            (gt/connect basis source-id source-label target-id target-label)
            :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))
       ctx)
     ctx))
 
 (defmethod perform :disconnect
-  [{:keys [basis triggers-to-fire] :as ctx}
+  [{:keys [basis triggers-to-fire graphs-modified] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
   (if-let [source (gt/node-by-id basis source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id basis target-id)] ; nil if target node was deleted in this transaction
       (-> ctx
           (mark-activated target-id target-label)
           (assoc
+           :graphs-modified  (conj graphs-modified (gt/node-id->graph-id source-id))
            :basis            (gt/disconnect basis source-id source-label target-id target-label)
            :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))
       ctx)
