@@ -3,6 +3,11 @@
             [internal.graph.types :as gt]
             [schema.core :as s]))
 
+;; Desired changes
+;; Index arcs by source-id -> list-of-Arc (starting at that source)
+;; Index arcs by target-id -> list-of-Arc (terminating at that target)
+;; Stop using head & tail internally... creates garbage vectors. Create fns on Arc to test for source, target, source+label, and target+label.
+
 (deftype ArcBase [source target sourceLabel targetLabel]
   gt/Arc
   (head [_] [source sourceLabel])
@@ -29,7 +34,8 @@
 (defn empty-graph
   []
   {:nodes   {}
-   :tarcs   []
+   :sarcs   {}
+   :tarcs   {}
    :tx-id   0})
 
 (defn node-ids    [g] (keys (:nodes g)))
@@ -42,8 +48,10 @@
   [g n]
   (-> g
       (update :nodes dissoc n)
-      (update :tarcs (fn [s] (removev (fn [^ArcBase arc] (or (= n (.source arc))
-                                                           (= n (.target arc)))) s)))))
+      (update :sarcs dissoc n)
+      (update :sarcs #(map-vals (fn [arcs] (removev (fn [^ArcBase arc] (= n (.target arc))) arcs)) %))
+      (update :tarcs dissoc n)
+      (update :tarcs #(map-vals (fn [arcs] (removev (fn [^ArcBase arc] (= n (.source arc))) arcs)) %))))
 
 (defn transform-node
   [g n f & args]
@@ -55,46 +63,59 @@
   [g n r]
   (assoc-in g [:nodes n] r))
 
-(defn arcs-from-source
-  [g node label]
-  (filter #(= [node label] (gt/head %)) (:tarcs g)))
-
 (defn sources
   [g node label]
-  (for [arc   (:tarcs g)
-        :when (= [node label] (gt/tail arc))]
-    (gt/head arc)))
+  (map gt/head (filter #(= label (.targetLabel %)) (get-in g [:tarcs node]))))
+
+(defn targets
+  [g node label]
+  (map gt/tail (filter #(= label (.sourceLabel %)) (get-in g [:sarcs node]))))
+
+(defn connect-source
+  [g source source-label target target-label]
+  (let [from (node g source)]
+    (assert (not (nil? from)) (str "Attempt to connect " (pr-str source source-label target target-label)))
+    (assert (some #{source-label} (gt/outputs from)) (str "No label " source-label " exists on node " source " type " (:name (gt/node-type from))))
+    (update-in g [:sarcs source] #(conj % (arc source target source-label target-label)))))
 
 (defn connect-target
   [g source source-label target target-label]
   (let [to (node g target)]
     (assert (not (nil? to)) (str "Attempt to connect " (pr-str source source-label target target-label)))
     (assert (some #{target-label} (gt/inputs to))    (str "No label " target-label " exists on node " to))
-    (update g :tarcs conj (arc source target source-label target-label))))
+    (update-in g [:tarcs target] #(conj % (arc source target source-label target-label)))))
+
+(defn source-connected?
+  [g source source-label target target-label]
+  (some #{[target target-label]} (targets g source source-label)))
 
 (defn target-connected?
   [g source source-label target target-label]
   (some #{[source source-label]} (sources g target target-label)))
 
-(defn disconnect-target
+(defn disconnect-source
   [g source source-label target target-label]
-  (update g :tarcs
-          (fn [tarcs]
+  (update-in g [:sarcs source]
+          (fn [arcs]
             (removev
              (fn [^ArcBase arc]
                (and (= source       (.source arc))
                     (= target       (.target arc))
                     (= source-label (.sourceLabel arc))
                     (= target-label (.targetLabel arc))))
-             tarcs))))
+             arcs))))
 
-(defn purge-arcs-from
-  [g source]
-  (update g :tarcs
-          (fn [tarcs]
+(defn disconnect-target
+  [g source source-label target target-label]
+  (update-in g [:tarcs target]
+          (fn [arcs]
             (removev
-             (fn [^ArcBase arc]  (= source (.source arc)))
-             tarcs))))
+             (fn [^ArcBase arc]
+               (and (= source       (.source arc))
+                    (= target       (.target arc))
+                    (= source-label (.sourceLabel arc))
+                    (= target-label (.targetLabel arc)))
+               arcs)))))
 
 (defmacro for-graph
   [gsym bindings & body]
@@ -180,7 +201,7 @@
   (targets
     [this node-id label]
     (filter #(gt/node-by-id this (first %))
-            (map gt/tail (mapcat #(arcs-from-source % node-id label) (vals graphs)))))
+            (targets (node-id->graph graphs node-id) node-id label)))
 
   (add-node
     [this node]
@@ -212,27 +233,40 @@
 
   (connect
     [this src-id src-label tgt-id tgt-label]
-    (let [src-graph     (node-id->graph graphs src-id)
+    (let [src-gid       (gt/node-id->graph-id src-id)
+          src-graph     (get graphs src-gid)
           tgt-gid       (gt/node-id->graph-id tgt-id)
           tgt-graph     (get graphs tgt-gid)]
       (assert (<= (:_volatility src-graph 0) (:_volatility tgt-graph 0)))
       (assert-type-compatible this src-id src-label tgt-id tgt-label)
-      (update this :graphs assoc
-              tgt-gid (connect-target tgt-graph src-id src-label tgt-id tgt-label))))
+      (if (= src-gid tgt-gid)
+        (update this :graphs assoc
+                src-gid (-> src-graph
+                            (connect-target src-id src-label tgt-id tgt-label)
+                            (connect-source src-id src-label tgt-id tgt-label)))
+        (update this :graphs assoc
+                src-gid (connect-source src-graph src-id src-label tgt-id tgt-label)
+                tgt-gid (connect-target tgt-graph src-id src-label tgt-id tgt-label)))))
 
   (disconnect
     [this src-id src-label tgt-id tgt-label]
-    (let [tgt-gid   (gt/node-id->graph-id tgt-id)
+    (let [src-gid   (gt/node-id->graph-id src-id)
+          src-graph (get graphs src-gid)
+          tgt-gid   (gt/node-id->graph-id tgt-id)
           tgt-graph (get graphs tgt-gid)]
-      (update this :graphs assoc
-              tgt-gid (disconnect-target tgt-graph src-id src-label tgt-id tgt-label))))
+      (if (= src-gid tgt-gid)
+        (update this :graphs assoc
+                src-gid (-> src-graph
+                            (disconnect-source src-id src-label tgt-id tgt-label)
+                            (disconnect-target src-id src-label tgt-id tgt-label)))
+        (update this :graphs assoc
+                src-gid (disconnect-source src-graph src-id src-label tgt-id tgt-label)
+                tgt-gid (disconnect-target tgt-graph src-id src-label tgt-id tgt-label)))))
 
   (connected?
     [this src-id src-label tgt-id tgt-label]
-    (let [tgt-graph (node-id->graph graphs tgt-id)]
-      (and
-       (gt/node-by-id this src-id)
-       (target-connected? tgt-graph src-id src-label tgt-id tgt-label))))
+    (let [src-graph (node-id->graph graphs src-id)]
+      (source-connected? src-graph src-id src-label tgt-id tgt-label)))
 
   (dependencies
     [this to-be-marked]
