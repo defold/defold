@@ -183,7 +183,7 @@
 (extend-type ListView
   CollectionView
   (selection [this] (when-let [items (.getSelectedItems (.getSelectionModel this))] items))
-  (items [this] (.getItems items))
+  (items [this] (.getItems this))
   (items! [this ^java.util.Collection items] (let [l (.getItems this)]
                                                (.clear l)
                                                (.addAll l items)))
