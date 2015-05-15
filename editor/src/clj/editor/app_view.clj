@@ -4,6 +4,7 @@
             [editor.jfx :as jfx]
             [editor.project :as project]
             [editor.handler :as handler]
+            [editor.login :as login]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
@@ -108,6 +109,10 @@
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
+(handler/defhandler :logout
+  (enabled? [] true)
+  (run [prefs] (login/logout prefs)))
+
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
@@ -119,6 +124,9 @@
                               :id ::open
                               :acc "Shortcut+O"
                               :command :open}
+                             {:label :separator}
+                             {:label "Logout"
+                              :command :logout}
                              {:label "Quit"
                               :acc "Shortcut+Q"
                               :command :quit}]}])
@@ -127,13 +135,14 @@
   workspace/SelectionProvider
   (selection [this] []))
 
-(defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
+(defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move-tool))))
         command-context {:app-view app-view
                          :project project
-                         :project-graph project-graph}]
+                         :project-graph project-graph
+                         :prefs prefs}]
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)

@@ -73,7 +73,7 @@
 
 (def the-root (atom nil))
 
-(defn load-stage [workspace project]
+(defn load-stage [workspace project prefs]
   (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
@@ -94,7 +94,7 @@
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TreeView outline (.lookup root "#outline")
           ^Tab assets (.lookup root "#assets")
-          app-view (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs)
+          app-view (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view (outline-view/make-outline-view *view-graph* outline (fn [items] (on-outline-selection-fn project items)))]
       (g/transact
         (concat
@@ -132,13 +132,13 @@
 
 
 (defn open-project
-  [^File game-project-file]
+  [^File game-project-file prefs]
   (let [progress-bar nil
         project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         project      (project/make-project *project-graph* workspace)
         project      (project/load-project project)
-        ^VBox root   (ui/run-now (load-stage workspace project))
+        ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
         properties   (ui/run-now (properties-view/make-properties-view *view-graph* (.lookup root "#properties")))]
@@ -226,7 +226,7 @@
                                (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
                              (let [project-file (first args)]
                                (add-to-recent-projects prefs project-file)
-                               (open-project (io/file project-file)))))
+                               (open-project (io/file project-file) prefs))))
         (catch Throwable t
           (stack/print-stack-trace t)
           (.flush *out*)

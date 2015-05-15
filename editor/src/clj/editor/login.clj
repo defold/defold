@@ -71,3 +71,7 @@
       true
       (ui/run-now (open-login-dialog prefs client)))))
 
+(defn logout [prefs]
+  (prefs/set-prefs prefs "email" nil)
+  (prefs/set-prefs prefs "token" nil))
+
