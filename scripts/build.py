@@ -386,6 +386,7 @@ class Configuration(object):
             engine = join(bin_dir, exe_prefix + n + exe_ext)
             self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
             if self.target_platform == 'js-web':
+                self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
                 engine_mem = join(bin_dir, exe_prefix + n + exe_ext + '.mem')
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
