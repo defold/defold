@@ -100,6 +100,27 @@
                                           </AnchorPane>
                                       </content>
                                     </Tab>
+                                    <Tab text="Changed Files">
+                                      <content>
+                                        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <VBox id="changes-container" layoutX="64.0" layoutY="34.0" prefHeight="200.0" prefWidth="100.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                   <children>
+                                                      <ToolBar prefHeight="40.0" prefWidth="200.0">
+                                                        <items>
+                                                          <Button id="changes-refresh" mnemonicParsing="false" text="Refresh" />
+                                                        </items>
+                                                      </ToolBar>
+                                                      <AnchorPane VBox.vgrow="ALWAYS">
+                                                         <children>
+                                                            <ListView id="changes" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                                         </children>
+                                                      </AnchorPane>
+                                                   </children>
+                                                </VBox>
+                                             </children></AnchorPane>
+                                      </content>
+                                    </Tab>
                                 </tabs>
                               </TabPane>
                            </children>

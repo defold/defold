@@ -14,6 +14,7 @@
             [editor.import :as import]
             [editor.prefs :as prefs]
             [editor.jfx :as jfx]
+            [editor.changes-view :as changes-view]
             [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
             [editor.project :as project]
@@ -139,6 +140,7 @@
         project      (project/load-project project)
         ^VBox root   (ui/run-now (load-stage workspace project))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
+        changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
         properties   (ui/run-now (properties-view/make-properties-view *view-graph* (.lookup root "#properties")))]
     (g/transact (g/connect project :selection properties :selection))
     (g/reset-undo! *project-graph*)))
