@@ -434,7 +434,7 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
     for (int i=0;i<10;i++) {
         // Create a request that proceeds for a long time and cancel it in-flight with the
         // shutdown thread. If it managed to get the conneciton it will set gotit to true.
-        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, 0);
+        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, "cst");
         dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10000");
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
 
