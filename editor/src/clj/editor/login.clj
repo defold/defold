@@ -71,6 +71,3 @@
       true
       (ui/run-now (open-login-dialog prefs client)))))
 
-(let [prefs (prefs/make-prefs "defold")]
-  (login prefs))
-
