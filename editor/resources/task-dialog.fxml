@@ -5,9 +5,13 @@
 <?import javafx.scene.*?>
 <?import javafx.scene.control.*?>
 <?import java.lang.*?>
+<?import java.net.*?>
 <?import javafx.scene.layout.*?>
 
 <BorderPane prefHeight="200.0" prefWidth="468.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <stylesheets>
+    <URL value="@editor.css" />
+  </stylesheets>
    <bottom>
       <HBox BorderPane.alignment="CENTER">
          <children>
@@ -35,7 +39,7 @@
          <children>
             <AnchorPane>
                <children>
-                  <ProgressBar id="progress-bar" maxHeight="10.0" minHeight="10.0" prefHeight="10.0" progress="0.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                  <ProgressBar id="progress-bar" minHeight="6.0" prefHeight="6.0" progress="0.0" styleClass="small-progress-bar" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                </children>
             </AnchorPane>
             <AnchorPane id="error-group">
