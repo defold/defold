@@ -5,7 +5,8 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [dynamo.graph :as g]
-            [dynamo.types :as t])
+            [dynamo.types :as t]
+            [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode]
            [org.eclipse.jgit.api Git]
@@ -51,5 +52,10 @@
 (defn make-changes-view [view-graph workspace parent]
   (let [view      (g/make-node! view-graph ChangesView :parent-view parent)
         self-ref  (g/node-id view)]
-    (g/dispatch-message (g/now) view :create :parent parent :git (Git/open (io/file (:root workspace))))
-    (g/refresh view)))
+    ; TODO: try/catch to protect against project without git setup
+    ; Show warning/error etc?
+    (try
+      (g/dispatch-message (g/now) view :create :parent parent :git (Git/open (io/file (:root workspace))))
+      (g/refresh view)
+      (catch Exception e
+        (log/error :exception e)))))
