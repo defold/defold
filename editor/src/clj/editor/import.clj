@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [editor.client :as client]
             [editor.dialogs :as dialogs]
+            [editor.login :as login]
             [editor.ui :as ui]
             [editor.git :as git]
             [editor.prefs :as prefs]
@@ -45,6 +46,7 @@
       (ui/items! (:projects controls) (sort-projects project-info-list)))))
 
 (defn open-import-dialog [prefs]
+  (login/login prefs)
   (let [client (client/make-client prefs)
         dialog (dialogs/make-task-dialog "import.fxml"
                                          {:title "Import Project"
@@ -58,7 +60,3 @@
     (dialogs/task! dialog (fn [] (fetch-projects prefs controls)))
     (dialogs/show! dialog {:on-ok (fn [] (dialogs/task! dialog (fn [] (clone-project prefs dialog controls))))
                            :ready? (fn [] (ready? controls))})))
-
-#_(let [prefs (prefs/make-prefs "defold")]
-  (ui/run-later (prn (open-import-dialog prefs))))
-
