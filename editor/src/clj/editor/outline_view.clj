@@ -127,7 +127,7 @@
       (.getSelectionModel)
       (.getSelectedItems)
       (.addListener selection-listener))
-  (ui/register-context-menu tree-view tree-view ::outline-menu)
+  (ui/register-context-menu tree-view {}  tree-view ::outline-menu)
   (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                (proxy [TreeCell] []
                                                  (updateItem [item empty]

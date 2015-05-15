@@ -6,7 +6,7 @@
             [service.log :as log])
   (:import [javafx.scene Parent Node Scene]
            [javafx.stage Stage Modality Window]
-           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.application Platform]
@@ -180,12 +180,29 @@
     (.setButtonCell this (make-list-cell render-fn))
     (.setCellFactory this (make-list-cell-factory render-fn))))
 
+(extend-type ListView
+  CollectionView
+  (selection [this] (when-let [items (.getSelectedItems (.getSelectionModel this))] items))
+  (items [this] (.getItems items))
+  (items! [this ^java.util.Collection items] (let [l (.getItems this)]
+                                               (.clear l)
+                                               (.addAll l items)))
+  (cell-factory! [this render-fn]
+    (.setCellFactory this (make-list-cell-factory render-fn))))
+
 (extend-type TreeView
   workspace/SelectionProvider
   (selection [this] (->> this
                       (.getSelectionModel)
                       (.getSelectedItems)
                       (map #(.getValue ^TreeItem %)))))
+
+(extend-type ListView
+  workspace/SelectionProvider
+  (selection [this] (->> this
+                      (.getSelectionModel)
+                      (.getSelectedItems)
+                      (vec))))
 
 (defn extend-menu [id location menu]
   (swap! *menus* assoc id {:location location
@@ -247,9 +264,8 @@
   (let [items (make-menu desc menu)]
     (.addAll (.getItems context-menu) (to-array items))))
 
-(defn register-context-menu [^Control control selection-provider menu-id]
-  ;; TODO: command-context
-  (let [desc (make-desc control menu-id {} selection-provider)]
+(defn register-context-menu [^Control control command-context selection-provider menu-id]
+  (let [desc (make-desc control menu-id command-context selection-provider)]
     (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
       (event-handler event
                      (when-not (.isConsumed event)
