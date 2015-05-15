@@ -110,7 +110,7 @@
                                                             (proxy-super setText name))
                                                           (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource)))))))))
 
-    (ui/register-context-menu tree-view tree-view ::resource-menu)
+    (ui/register-context-menu tree-view {} tree-view ::resource-menu)
     (.setRoot tree-view (tree-item (g/node-value workspace :resource-tree)))))
 
 (defn make-asset-browser [workspace tree-view open-resource-fn]
