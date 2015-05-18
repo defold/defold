@@ -7,7 +7,7 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.property :as ip]
-            [plumbing.core :refer [fnk]]
+            [plumbing.core :as pc]
             [plumbing.fnk.pfnk :as pf])
   (:import [internal.graph.types IBasis]))
 
@@ -133,14 +133,9 @@
   "Attempt to invoke the production function for an output. If it
   fails, call the transform's substitute value function."
   [^IBasis basis in-production node-id label chain-head producer]
-  (cond
+  (if
     (pfnk? producer)
     (produce-with-schema basis in-production node-id label chain-head producer)
-
-    (fn? producer)
-    (producer (gt/node-by-id basis node-id) basis)
-
-    :else
     producer))
 
 (defn mark-in-production
@@ -394,7 +389,7 @@ not called directly."
 
 (defn- abstract-function
   [label type]
-  (fn [this & _]
+  (pc/fnk [this]
     (throw (AssertionError.
              (format "Node %d does not supply a production function for the abstract '%s' output. Add (output %s %s your-function) to the definition of %s"
                (gt/node-id this) label
@@ -402,7 +397,10 @@ not called directly."
 
 (defn attach-output
   "Update the node type description with the given output."
-  [description label schema properties options & [args]]
+  [description label schema properties options & [production-fn]]
+  (when (fn? production-fn)
+    (assert (pfnk? production-fn) (format "Node output %s needs a production function that is a dynamo.graph/fnk for %s"  label production-fn)))
+
   (cond-> (update-in description [:transform-types] assoc label schema)
 
     (:cached properties)
@@ -412,7 +410,7 @@ not called directly."
     (update-in [:transforms] assoc-in [label] (abstract-function label schema))
 
     (not (:abstract properties))
-    (update-in [:transforms] assoc-in [label] args)))
+    (update-in [:transforms] assoc-in [label] production-fn)))
 
 (defn attach-property
   "Update the node type description with the given property."
@@ -507,7 +505,7 @@ must be part of a protocol or interface attached to the description."
       `(attach-output ~(keyword label) ~schema ~properties ~options ~@args))
 
     [(['property label tp & options] :seq)]
-    `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (fnk [~label] ~label))
+    `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label))
 
     [(['on label & fn-body] :seq)]
     `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))

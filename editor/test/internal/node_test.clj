@@ -73,7 +73,6 @@
 (g/defnk depends-on-input [an-input] an-input)
 (g/defnk depends-on-property [a-property] a-property)
 (g/defnk depends-on-several [this project g an-input a-property] [this project g an-input a-property])
-(defn  depends-on-default-params [this g] [this g])
 
 (g/defnode DependencyTestNode
   (input an-input String)
@@ -84,8 +83,7 @@
   (output depends-on-self t/Any depends-on-self)
   (output depends-on-input t/Any depends-on-input)
   (output depends-on-property t/Any depends-on-property)
-  (output depends-on-several t/Any depends-on-several)
-  (output depends-on-default-params t/Any depends-on-default-params))
+  (output depends-on-several t/Any depends-on-several))
 
 (deftest dependency-mapping
   (testing "node reports its own dependencies"
@@ -131,40 +129,15 @@
   (expect-modified #{}                       (fn [node] (g/set-property    node :foo "one")))
   (expect-modified #{}                       (fn [node] (g/update-property node :foo identity))))
 
-(defn ^:dynamic production-fn [this & _] :defn)
-(def ^:dynamic production-val :def)
-
-(g/defnode ProductionFunctionTypesNode
-  (output inline-fn      t/Keyword (fn [this & _] :fn))
-  (output defn-as-symbol t/Keyword production-fn)
-  (output def-as-symbol  t/Keyword production-val))
-
-(deftest production-function-types
-  (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world ProductionFunctionTypesNode))]
-      (is (= :fn   (g/node-value node :inline-fn)))
-      (is (= :defn (g/node-value node :defn-as-symbol)))
-      (is (= :def  (g/node-value node :def-as-symbol))))))
-
-(defn production-fn-this [this g] this)
-(defn production-fn-g [this g] g)
-(g/defnk production-fnk-this [this] this)
-(g/defnk production-fnk-g [g] g)
-(g/defnk production-fnk-prop [prop] prop)
-(g/defnk production-fnk-in [in] in)
-(g/defnk production-fnk-in-multi [in-multi] in-multi)
 
 (g/defnode ProductionFunctionInputsNode
   (input in       t/Keyword)
   (input in-multi t/Keyword :array)
   (property prop t/Keyword)
-  (output out              t/Keyword   (fn [this & _] :out-val))
-  (output inline-fn-this   t/Any       (fn [this & _] this))
-  (output defn-this        t/Any       production-fn-this)
-  (output defnk-this       t/Any       production-fnk-this)
-  (output defnk-prop       t/Keyword   production-fnk-prop)
-  (output defnk-in         t/Keyword   production-fnk-in)
-  (output defnk-in-multi   [t/Keyword] production-fnk-in-multi))
+  (output defnk-this       t/Any       (g/fnk production-fnk-this [this] this))
+  (output defnk-prop       t/Keyword   (g/fnk production-fnk-prop [prop] prop))
+  (output defnk-in         t/Keyword   (g/fnk production-fnk-in [in] in))
+  (output defnk-in-multi   [t/Keyword] (g/fnk production-fnk-in-multi [in-multi] in-multi)))
 
 (deftest production-function-inputs
   (with-clean-system
@@ -181,10 +154,6 @@
                                 (g/connect node0 :defnk-prop node2 :in-multi)
                                 (g/connect node1 :defnk-prop node2 :in-multi)))
           graph               (is/basis system)]
-      (testing "inline fn parameters"
-        (is (identical? node0 (g/node-value node0 :inline-fn-this))))
-      (testing "standard defn parameters"
-        (is (identical? node0 (g/node-value node0 :defn-this))))
       (testing "'special' defnk inputs"
         (is (identical? node0     (g/node-value node0 :defnk-this))))
       (testing "defnk inputs from node properties"
@@ -214,8 +183,7 @@
   (input in t/Any)
   (input in-multi t/Any :array)
   (output out-from-self     t/Any (g/fnk [out-from-self] out-from-self))
-  (output out-from-in       t/Any (g/fnk [in]            in))
-  (output out-const         t/Any (fn [this & _] :const-val)))
+  (output out-from-in       t/Any (g/fnk [in]            in)))
 
 (deftest dependency-loops
   (testing "output dependent on itself"
@@ -252,7 +220,7 @@
   (property string-property t/Str)
   (property property-to-override t/Str)
   (property multi-valued-property [t/Keyword] (default [:basic]))
-  (output basic-output t/Keyword :cached (fn [this & _] :keyword)))
+  (output basic-output t/Keyword :cached "hello"))
 
 (dp/defproperty predefined-property-type t/Str
   (default "a-default"))
@@ -267,8 +235,8 @@
   (property property-to-override t/Str (default "override"))
   (property property-from-type predefined-property-type)
   (property multi-valued-property [t/Str] (default ["extra" "things"]))
-  (output another-output t/Keyword (fn [this & _] :keyword))
-  (output another-cached-output t/Keyword :cached (fn [this & _] :keyword)))
+  (output another-output t/Keyword (g/fnk [this & _] :keyword))
+  (output another-cached-output t/Keyword :cached (g/fnk [this & _] :keyword)))
 
 (deftest inheritance-merges-node-types
   (testing "properties"
