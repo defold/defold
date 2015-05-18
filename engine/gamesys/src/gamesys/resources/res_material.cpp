@@ -129,14 +129,11 @@ namespace dmGameSystem
         {
             dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-            dmGraphics::TextureFilter minfilter;
-            dmGraphics::TextureFilter magfilter;
-            dmGraphics::GetDefaultTextureFilters(graphics_context, minfilter, magfilter);
 
             for (uint32_t i = 0; i < texture_count; i++)
             {
                 dmhash_t name_hash = dmHashString64(textures[i]);
-                dmRender::SetMaterialSampler(material, name_hash, i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, minfilter, magfilter);
+                dmRender::SetMaterialSampler(material, name_hash, i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_DEFAULT, dmGraphics::TEXTURE_FILTER_DEFAULT);
             }
         }
 

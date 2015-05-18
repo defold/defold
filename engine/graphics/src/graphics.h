@@ -128,6 +128,7 @@ namespace dmGraphics
     // Texture format
     enum TextureFilter
     {
+        TEXTURE_FILTER_DEFAULT                  = 0,
         TEXTURE_FILTER_NEAREST                  = DMGRAPHICS_TEXTURE_FILTER_NEAREST,
         TEXTURE_FILTER_LINEAR                   = DMGRAPHICS_TEXTURE_FILTER_LINEAR,
         TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST   = DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST,
