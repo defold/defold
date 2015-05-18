@@ -114,8 +114,8 @@
                (and (= source       (.source arc))
                     (= target       (.target arc))
                     (= source-label (.sourceLabel arc))
-                    (= target-label (.targetLabel arc)))
-               arcs)))))
+                    (= target-label (.targetLabel arc))))
+             arcs))))
 
 (defmacro for-graph
   [gsym bindings & body]
