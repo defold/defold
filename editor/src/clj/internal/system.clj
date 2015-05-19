@@ -79,6 +79,7 @@
      (history-state-merge-cache-keys new-state old-state))))
 
 (defn =*
+  "Comparison operator that treats nil as not equal to anything."
   ([x] true)
   ([x y] (and x y (= x y) x))
   ([x y & more] (reduce =* (=* x y) more)))
