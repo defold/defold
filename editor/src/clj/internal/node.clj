@@ -8,7 +8,8 @@
             [internal.graph.types :as gt]
             [internal.property :as ip]
             [plumbing.core :as pc]
-            [plumbing.fnk.pfnk :as pf])
+            [plumbing.fnk.pfnk :as pf]
+            [schema.core :as s])
   (:import [internal.graph.types IBasis]))
 
 (defn resource-property?
@@ -110,6 +111,41 @@
       (has-output? node label)
       (chain-eval chain-head basis in-production node-id label))))
 
+(defn- deduce-input-type
+  "Return the type of the node's input label (or property). Take care with :array inputs."
+  [^IBasis basis in-production node-id label]
+  (let [node              (gt/node-by-id basis node-id)
+        node-type         (some-> node gt/node-type)
+        input-cardinality (gt/input-cardinality node-type label)
+        input-type        (gt/input-type node-type label)
+        output-transform  (some-> node gt/transforms  label)]
+    (cond
+      (and (has-output? node label) (not (currently-producing in-production node-id label)))
+      (gt/output-type node-type label)
+
+      (multivalued? input-cardinality)
+      (s/maybe [input-type])
+
+      (exists? input-type)
+      (s/maybe input-type)
+
+      (= :this label)
+      (type node)
+
+      (has-output? node label)
+      (gt/output-type node-type label))))
+
+(defn- collect-input-schema
+  "Return a schema with the production function's input names mapped to the node's corresponding input type."
+  [^IBasis basis in-production node-id label production-fn]
+  (persistent!
+   (reduce-kv
+    (fn [inputs desired-input-name desired-input-schema]
+      (assoc! inputs desired-input-name
+              (deduce-input-type basis in-production node-id desired-input-name)))
+    (transient {})
+    (dissoc (pf/input-schema production-fn) t/Keyword))))
+
 (defn- collect-inputs
   "Return a map of all inputs needed for the input-schema."
   [^IBasis basis in-production node-id label chain-head input-schema]
@@ -119,15 +155,17 @@
       (assoc! inputs desired-input-name
              (evaluate-input-internal basis in-production node-id desired-input-name chain-head)))
     (transient {})
-    (dissoc input-schema t/Keyword))))
+    input-schema)))
 
 (defn- produce-with-schema
   "Helper function: if the production function has schema information,
   use it to collect the required arguments."
   [^IBasis basis in-production node-id label chain-head production-fn]
-  (production-fn
-   (collect-inputs basis in-production node-id label chain-head
-                   (pf/input-schema production-fn))))
+  (let [input-schema (collect-input-schema basis in-production node-id label production-fn)
+        input        (collect-inputs basis in-production node-id label chain-head input-schema)] 
+    (if-not (s/check input-schema input)
+      (production-fn input)
+      (gt/error))))
 
 (defn apply-transform-or-substitute
   "Attempt to invoke the production function for an output. If it
