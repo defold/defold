@@ -26,8 +26,14 @@
    :type (get edit-type->keyword (.getType edit))})
 
 ; TODO: \r and windows?
-(defn- split-lines [str]
-  (vec (str/split str #"\n")))
+; TODO: Lot of logic to get "correct" number of lines
+; NOTE: -1 is required to keep empty lines
+(defn- split-lines [^String str]
+  (let [lines (.split str "\n" -1)]
+    (vec
+      (if (.endsWith str "\n")
+       (drop-last lines)
+       lines))))
 
 (defn- cut-edit [edit cutter]
   [(-> edit
