@@ -1143,7 +1143,7 @@ namespace dmGameObject
                      dmhash_t property_id,
                      Playback playback,
                      const PropertyVar& to,
-                     dmEasing::Type easing,
+                     dmEasing::Curve easing,
                      float duration,
                      float delay,
                      AnimationStopped animation_stopped,
