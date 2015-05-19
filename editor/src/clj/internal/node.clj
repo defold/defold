@@ -7,8 +7,9 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.property :as ip]
-            [plumbing.core :refer [fnk]]
-            [plumbing.fnk.pfnk :as pf])
+            [plumbing.core :as pc]
+            [plumbing.fnk.pfnk :as pf]
+            [schema.core :as s])
   (:import [internal.graph.types IBasis]))
 
 (defn resource-property?
@@ -110,6 +111,45 @@
       (has-output? node label)
       (chain-eval chain-head basis in-production node-id label))))
 
+(defn- deduce-input-type
+  "Return the type of the node's input label (or property). Take care with :array inputs."
+  [^IBasis basis in-production node-id label]
+  (let [node              (gt/node-by-id basis node-id)
+        node-type         (some-> node gt/node-type)
+        input-cardinality (gt/input-cardinality node-type label)
+        input-type        (gt/input-type node-type label)
+        output-transform  (some-> node gt/transforms  label)]
+    (cond
+      (and (has-output? node label) (not (currently-producing in-production node-id label)))
+      (gt/output-type node-type label)
+
+      (multivalued? input-cardinality)
+      (s/maybe [input-type])
+
+      (exists? input-type)
+      (s/maybe input-type)
+
+      (has-property? node label)
+      (let [schema (gt/property-type node-type label)]
+       (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema))
+
+      (= :this label)
+      (class node)
+
+      (has-output? node label)
+      (gt/output-type node-type label))))
+
+(defn- collect-input-schema
+  "Return a schema with the production function's input names mapped to the node's corresponding input type."
+  [^IBasis basis in-production node-id label production-fn]
+  (persistent!
+   (reduce-kv
+    (fn [inputs desired-input-name desired-input-schema]
+      (assoc! inputs desired-input-name
+              (deduce-input-type basis in-production node-id desired-input-name)))
+    (transient {})
+    (dissoc (pf/input-schema production-fn) t/Keyword))))
+
 (defn- collect-inputs
   "Return a map of all inputs needed for the input-schema."
   [^IBasis basis in-production node-id label chain-head input-schema]
@@ -119,28 +159,44 @@
       (assoc! inputs desired-input-name
              (evaluate-input-internal basis in-production node-id desired-input-name chain-head)))
     (transient {})
-    (dissoc input-schema t/Keyword))))
+    input-schema)))
+
+(defn- clean-schema [m]
+  (reduce-kv (fn [m k v]
+               (assoc m k (if (nil? v) s/Any v))) {} m))
+
+(defn- warn [node-id node-type label input-schema error]
+  (println "WARNING: node " node-id
+           "- type:" (:name node-type)
+           "input label for" label
+           "expected" input-schema
+           "and had the problem:" error ))
 
 (defn- produce-with-schema
   "Helper function: if the production function has schema information,
   use it to collect the required arguments."
   [^IBasis basis in-production node-id label chain-head production-fn]
-  (production-fn
-   (collect-inputs basis in-production node-id label chain-head
-                   (pf/input-schema production-fn))))
+  (let [input-schema      (collect-input-schema basis in-production node-id label production-fn)
+        cleaned-schema    (if (map? input-schema) (clean-schema input-schema) input-schema)
+        input             (collect-inputs basis in-production node-id label chain-head input-schema)
+        node              (gt/node-by-id basis node-id)
+        node-type         (some-> node gt/node-type)
+        input-cardinality (gt/input-cardinality node-type label)]
+    (if-let [validation-error (if  (gt/error? input)
+                                (do (println "Carin error input already " node-id  " " label ) input)
+                                (s/check cleaned-schema input))]
+      (let [error (gt/error validation-error node-id label)]
+        (warn node-id node-type label input-schema error)
+        (if (multivalued? input-cardinality) [error] error))
+      (production-fn input))))
 
 (defn apply-transform-or-substitute
   "Attempt to invoke the production function for an output. If it
   fails, call the transform's substitute value function."
   [^IBasis basis in-production node-id label chain-head producer]
-  (cond
+  (if
     (pfnk? producer)
     (produce-with-schema basis in-production node-id label chain-head producer)
-
-    (fn? producer)
-    (producer (gt/node-by-id basis node-id) basis)
-
-    :else
     producer))
 
 (defn mark-in-production
@@ -261,6 +317,8 @@
                             world-evaluation-chain)
                      world-evaluation-chain)
         result     (chain-eval evaluators basis [] node-id label)]
+    (when (some gt/error? (collify result))
+      (throw (Exception. (str "Error Value Found in Node.  Reason: " (pr-str result)))))
     (when cache
       (c/cache-hit cache @hits)
       (c/cache-encache cache @deltas))
@@ -270,7 +328,7 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities property-types]
 
   gt/NodeType
   (supertypes           [_] supertypes)
@@ -290,7 +348,8 @@
   (substitute-for'      [_ input] (get substitutes input))
   (input-type           [_ input] (get inputs input))
   (input-cardinality    [_ input] (get cardinalities input))
-  (output-type          [_ output] (get transform-types output)))
+  (output-type          [_ output] (get transform-types output))
+  (property-type        [_ output] (get property-types output)))
 
 (defmethod print-method NodeTypeImpl
   [^NodeTypeImpl v ^java.io.Writer w]
@@ -358,6 +417,7 @@ not called directly."
     (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description gt/triggers))
     (update-in [:substitutes]         combine-with merge      {} (from-supertypes description :substitutes))
     (update-in [:cardinalities]       combine-with merge      {} (from-supertypes description :cardinalities))
+    (update-in [:property-types]      combine-with merge      {} (from-supertypes description :property-types))
     attach-input-dependencies
     map->NodeTypeImpl))
 
@@ -376,25 +436,27 @@ not called directly."
   "Update the node type description with the given input."
   [description label schema flags options & [args]]
   (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
-(let [property-schema (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)]
-  (cond->
-      (assoc-in description [:inputs label] property-schema)
+  (assert (not (gt/protocol? schema))
+          (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (t/protocol) instead" label (:name description)))
+  (let [property-schema (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)]
+    (cond->
+        (assoc-in description [:inputs label] property-schema)
 
-    (some #{:inject} flags)
-    (update-in [:injectable-inputs] #(conj (or % #{}) label))
+      (some #{:inject} flags)
+      (update-in [:injectable-inputs] #(conj (or % #{}) label))
 
-    (:substitute options)
-    (update-in [:substitutes] assoc label (:substitute options))
+      (:substitute options)
+      (update-in [:substitutes] assoc label (:substitute options))
 
-    (not (some #{:array} flags))
-    (update-in [:cardinalities] assoc label :one)
+      (not (some #{:array} flags))
+      (update-in [:cardinalities] assoc label :one)
 
-    (some #{:array} flags)
-    (update-in [:cardinalities] assoc label :many))))
+      (some #{:array} flags)
+      (update-in [:cardinalities] assoc label :many))))
 
 (defn- abstract-function
   [label type]
-  (fn [this & _]
+  (pc/fnk [this]
     (throw (AssertionError.
              (format "Node %d does not supply a production function for the abstract '%s' output. Add (output %s %s your-function) to the definition of %s"
                (gt/node-id this) label
@@ -402,7 +464,10 @@ not called directly."
 
 (defn attach-output
   "Update the node type description with the given output."
-  [description label schema properties options & [args]]
+  [description label schema properties options & [production-fn]]
+  (when (fn? production-fn)
+    (assert (pfnk? production-fn) (format "Node output %s needs a production function that is a dynamo.graph/fnk for %s"  label production-fn)))
+
   (cond-> (update-in description [:transform-types] assoc label schema)
 
     (:cached properties)
@@ -412,7 +477,7 @@ not called directly."
     (update-in [:transforms] assoc-in [label] (abstract-function label schema))
 
     (not (:abstract properties))
-    (update-in [:transforms] assoc-in [label] args)))
+    (update-in [:transforms] assoc-in [label] production-fn)))
 
 (defn attach-property
   "Update the node type description with the given property."
@@ -421,6 +486,9 @@ not called directly."
 
     (resource-property? property-type)
     (assoc-in [:inputs label] property-type)
+
+    true
+    (assoc-in [:property-types label] property-type)
 
     true
     (update-in [:transforms] assoc-in [label] passthrough)
@@ -507,7 +575,7 @@ must be part of a protocol or interface attached to the description."
       `(attach-output ~(keyword label) ~schema ~properties ~options ~@args))
 
     [(['property label tp & options] :seq)]
-    `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (fnk [~label] ~label))
+    `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label))
 
     [(['on label & fn-body] :seq)]
     `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
