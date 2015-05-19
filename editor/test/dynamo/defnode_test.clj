@@ -251,8 +251,6 @@
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
-(defn schemaless-production-fn [this & _] "schemaless fn produced string")
-
 
 (dp/defproperty IntegerProperty t/Int (validate positive? (comp not neg?)))
 
@@ -263,8 +261,7 @@
   (output string-output         t/Str                                                 string-production-fnk)
   (output integer-output        IntegerProperty                                       integer-production-fnk)
   (output cached-output         t/Str           :cached                               string-production-fnk)
-  (output inline-string         t/Str                                                 (g/fnk [string-input] "inline-string"))
-  (output schemaless-production t/Str                                                 schemaless-production-fn))
+  (output inline-string         t/Str                                                 (g/fnk [string-input] "inline-string")))
 
 (g/defnode AbstractOutputNode
   (output abstract-output t/Str :abstract))
@@ -284,20 +281,20 @@
 (deftest nodes-can-have-outputs
   (testing "basic output definition"
     (let [node (g/construct MultipleOutputNode)]
-      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production]]
+      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string]]
         (is (get (g/outputs' MultipleOutputNode) expected-output))
         (is (get (g/outputs  node)               expected-output)))
-      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :schemaless-production t/Str}]
+      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str}]
         (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
       (is (:cached-output (g/cached-outputs' MultipleOutputNode)))
       (is (:cached-output (g/cached-outputs node)))))
 
   (testing "output inheritance"
     (let [node (g/construct InheritedOutputNode)]
-      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :abstract-output]]
+      (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :abstract-output]]
         (is (get (g/outputs' InheritedOutputNode) expected-output))
         (is (get (g/outputs  node)               expected-output)))
-      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :schemaless-production t/Str :abstract-output t/Str}]
+      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :abstract-output t/Str}]
         (is (= expected-schema (get-in InheritedOutputNode [:transform-types label]))))
       (is (:cached-output (g/cached-outputs' InheritedOutputNode)))
       (is (:cached-output (g/cached-outputs node)))))
@@ -328,7 +325,16 @@
                           (output my-output :abstract)))))
     (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode FooNode
-                          (output my-output (dynamo.graph/fnk [] "constant string"))))))))
+                          (output my-output (dynamo.graph/fnk [] "constant string")))))))
+
+  (testing "outputs defined without the production function being a fnk or a val cause an Assertion error"
+    (is (thrown? AssertionError
+                 (eval '(let [foo-fn (fn [x] "foo")]
+                          (dynamo.graph/defnode FooNode
+                            (output my-output dynamo.types/Any foo-fn))))))
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode FooNode
+                          (output my-output dynamo.types/Any (fn [x] "foo"))))))))
 
 (g/defnode OneEventNode
   (on :an-event

@@ -7,13 +7,11 @@
             [internal.transaction :as it]
             [plumbing.core :refer [defnk fnk]]))
 
-(defn dummy-output [& _] :ok)
-
 (defnk upcase-a [a] (.toUpperCase a))
 
 (g/defnode Resource
   (input a String)
-  (output b t/Keyword dummy-output)
+  (output b t/Keyword (fnk [] :ok))
   (output c String upcase-a))
 
 (g/defnode Downstream
@@ -343,7 +341,7 @@
 
 (deftest cached-values-are-disposed-when-invalidated
   (with-clean-system
-    (let [[node]   (tx-nodes (g/make-node world DisposableCachedValueNode))
+    (let [[node]   (tx-nodes (g/make-node world DisposableCachedValueNode :a-property "a-value"))
           value1 (g/node-value node :cached-output)
           tx-result (g/transact [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
       (is (= [value1] (take-waiting-to-dispose system))))))
