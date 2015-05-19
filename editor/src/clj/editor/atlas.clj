@@ -180,15 +180,15 @@
 (g/defnode AtlasAnimation
   (property id t/Str)
   (property fps             dp/NonNegativeInt (default 30))
-  (property flip-horizontal t/Bool)
-  (property flip-vertical   t/Bool)
+  (property flip-horizontal t/Int)
+  (property flip-vertical   t/Int)
   (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
 
   (input frames Image :array)
   (input outline t/Any :array)
   (input img-ddf t/Any :array)
 
-  (output animation Animation (g/fnk [this id frames :- [Image] fps flip-horizontal flip-vertical playback]
+  (output animation Animation (g/fnk [this id frames fps flip-horizontal flip-vertical playback]
                                      (->Animation id frames fps flip-horizontal flip-vertical playback)))
   (output outline t/Any (g/fnk [self id outline] {:self self :label id :children outline :icon animation-icon}))
   (output ddf-message t/Any :cached produce-anim-ddf))

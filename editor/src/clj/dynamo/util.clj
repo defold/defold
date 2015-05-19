@@ -100,3 +100,7 @@ into an arglist."
             (.toLowerCase)
             (.indexOf "mac")
             (>= 0)))
+
+(defn collify
+  [val-or-coll]
+  (if (and (coll? val-or-coll) (not (map? val-or-coll))) val-or-coll [val-or-coll]))

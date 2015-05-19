@@ -98,7 +98,7 @@
   (property selection-listener ListChangeListener)
 
   (input active-outline t/Any)
-  (input active-resource workspace/Resource)
+  (input active-resource (t/protocol workspace/Resource))
   (input open-resources t/Any)
   (input selection t/Any)
 
