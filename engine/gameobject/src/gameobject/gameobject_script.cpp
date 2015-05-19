@@ -812,6 +812,20 @@ namespace dmGameObject
         return instance->m_Script->m_LuaState;
     }
 
+    void LuaCurveRelease(dmEasing::Curve* curve)
+    {
+        ScriptInstance* script_instance = (ScriptInstance*)curve->userdata1;
+        lua_State* L = GetLuaState(script_instance);
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+        assert(top == lua_gettop(L));
+    }
+
     void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
@@ -926,9 +940,29 @@ namespace dmGameObject
         {
             return luaL_error(L, "only numerical values can be used as target values for animation");
         }
-        lua_Integer easing = luaL_checkinteger(L, 5);
-        if (easing >= dmEasing::TYPE_COUNT)
-            return luaL_error(L, "invalid playback mode when starting an animation");
+
+        dmEasing::Curve curve;
+        if (lua_isnumber(L, 5))
+        {
+            curve.type = (dmEasing::Type)luaL_checkinteger(L, 5);
+            if (curve.type >= dmEasing::TYPE_COUNT)
+                return luaL_error(L, "invalid easing constant");
+        }
+        else if (dmScript::IsVector(L, 5))
+        {
+            curve.type = dmEasing::TYPE_FLOAT_VECTOR;
+            curve.vector = dmScript::CheckVector(L, 5);
+
+            lua_pushvalue(L, 5);
+            curve.release_callback = LuaCurveRelease;
+            curve.userdata1 = i;
+            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        else
+        {
+            return luaL_error(L, "easing must be either a easing constant or a vmath.vector");
+        }
+
         float duration = (float) luaL_checknumber(L, 6);
         float delay = 0.0f;
         if (top > 6)
@@ -947,7 +981,7 @@ namespace dmGameObject
         }
 
         result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
-                (Playback)playback, property_var, (dmEasing::Type)easing, duration, delay, stopped, userdata1, userdata2);
+                (Playback)playback, property_var, curve, duration, delay, stopped, userdata1, userdata2);
         switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:

@@ -27,7 +27,7 @@ namespace dmGameObject
         dmhash_t            m_ComponentId;
         dmhash_t            m_PropertyId;
         Playback            m_Playback;
-        dmEasing::Type      m_Easing;
+        dmEasing::Curve     m_Easing;
         float*              m_Value;
         float               m_From;
         float               m_To;
@@ -298,6 +298,11 @@ namespace dmGameObject
             Animation* anim = &world->m_Animations[i];
             if (!anim->m_Playing)
             {
+                if (anim->m_Easing.release_callback != 0x0)
+                {
+                    anim->m_Easing.release_callback(&anim->m_Easing);
+                }
+
                 if (anim->m_AnimationStopped != 0x0)
                 {
                     uint32_t orig_size = size;
@@ -364,7 +369,7 @@ namespace dmGameObject
                      float* value,
                      float from,
                      float to,
-                     dmEasing::Type easing,
+                     dmEasing::Curve easing,
                      float duration,
                      float delay,
                      AnimationStopped animation_stopped,
@@ -468,7 +473,7 @@ namespace dmGameObject
             dmhash_t property_id, Playback playback, float duration, float delay, AnimationStopped animation_stopped,
             void* userdata1, void* userdata2)
     {
-        return PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, dmEasing::TYPE_LINEAR,
+        return PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, dmEasing::Curve(dmEasing::TYPE_LINEAR),
                 duration, delay, animation_stopped, userdata1, userdata2, true);
     }
 
@@ -492,7 +497,7 @@ namespace dmGameObject
                      dmhash_t property_id,
                      Playback playback,
                      const PropertyVar& to,
-                     dmEasing::Type easing,
+                     dmEasing::Curve easing,
                      float duration,
                      float delay,
                      AnimationStopped animation_stopped,
@@ -651,6 +656,7 @@ namespace dmGameObject
         anim->m_AnimationStopped = 0x0;
         anim->m_Userdata1 = 0x0;
         anim->m_Userdata2 = 0x0;
+
     }
 
     void CancelAnimationCallbacks(HCollection collection, void* userdata1)

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
+#include <dlib/vmath.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/configfile.h>
@@ -170,6 +171,29 @@ namespace dmScript
      * @return The hash value
      */
     dmhash_t CheckHash(lua_State* L, int index);
+
+    /**
+     * Check if the value at #index is a FloatVector
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a FloatVector
+     */
+    bool IsVector(lua_State *L, int index);
+
+    /**
+     * Push a FloatVector value onto the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param v Vector3 value to push
+     */
+    void PushVector(lua_State* L, const dmVMath::FloatVector& v);
+
+    /**
+	 * Check if the value in the supplied index on the lua stack is a Vector.
+	 * @param L Lua state
+	 * @param index Index of the value
+	 * @return The FloatVector value
+	 */
+    dmVMath::FloatVector* CheckVector(lua_State* L, int index);
 
     /**
      * Check if the value at #index is a vector3
