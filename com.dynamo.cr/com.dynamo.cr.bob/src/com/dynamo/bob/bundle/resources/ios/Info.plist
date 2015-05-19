@@ -97,18 +97,12 @@
                 <string>opengles-2</string>
         </array>
         <key>UISupportedInterfaceOrientations</key>
-        <array>
-                <string>UIInterfaceOrientationPortrait</string>
-                <string>UIInterfaceOrientationPortraitUpsideDown</string>
-                <string>UIInterfaceOrientationLandscapeLeft</string>
-                <string>UIInterfaceOrientationLandscapeRight</string>
+        <array> {{#orientation-support}}
+                <string>UIInterfaceOrientation{{.}}</string>{{/orientation-support}}
         </array>
         <key>UISupportedInterfaceOrientations~ipad</key>
-        <array>
-                <string>UIInterfaceOrientationPortrait</string>
-                <string>UIInterfaceOrientationPortraitUpsideDown</string>
-                <string>UIInterfaceOrientationLandscapeLeft</string>
-                <string>UIInterfaceOrientationLandscapeRight</string>
+        <array> {{#orientation-support}}
+                <string>UIInterfaceOrientation{{.}}</string>{{/orientation-support}}
         </array>
 
         <key>CFBundleURLTypes</key>

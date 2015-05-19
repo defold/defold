@@ -42,6 +42,7 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.render.proto.Render.DisplayProfiles;
 import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.tile.proto.Tile.TileGrid;
@@ -375,6 +376,10 @@ public class ProtoBuilders {
             return messageBuilder;
         }
     }
+
+    @ProtoParams(messageClass = DisplayProfiles.class)
+    @BuilderParams(name="DisplayProfiles", inExts=".display_profiles", outExt=".display_profilesc")
+    public static class DisplayProfilesBuilder extends ProtoBuilder<DisplayProfiles.Builder> {}
 
 
 }

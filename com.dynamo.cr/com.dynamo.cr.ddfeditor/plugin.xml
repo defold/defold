@@ -138,6 +138,15 @@
             id="com.dynamo.cr.ddfeditor.textureprofileseditor"
             name="Texture Profiles Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.DisplayProfilesEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="display_profiles"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.displayprofileseditor"
+            name="Display Profiles Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -231,6 +240,13 @@
             icon="icons/ice_cube.png"
             id="com.dynamo.cr.ddfeditor.wizards.CubemapNewWizard"
             name="Cubemap File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.DisplayProfilesNewWizard"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.wizards.DisplayProfilesNewWizard"
+            name="Display Profiles File">
       </wizard>
    </extension>
    <extension
@@ -538,6 +554,14 @@
             name="Texture Profiles"
             proto-message-class="com.dynamo.graphics.proto.Graphics$TextureProfiles"
             template-data="path_settings { path: '**' profile: 'Default' } profiles { name: 'Default' platforms { os: OS_ID_GENERIC formats { format: TEXTURE_FORMAT_RGBA compression_level: BEST } mipmaps: true } }">
+      </resource-type>
+      <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.DisplayProfilesEditSupport"
+            file-extension="display_profiles"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.DisplayProfiles"
+            name="Display Profiles"
+            proto-message-class="com.dynamo.render.proto.Render$DisplayProfiles"
+            template-data="profiles { name: &apos;Default&apos; qualifiers { width: 1280 height: 720 dpi: 360 } }">
       </resource-type>
     </extension>
    <extension

@@ -67,6 +67,10 @@ public class ScenePresenter implements IPresenter, IModelListener {
         this.view.refresh(this.model.getSelection(), this.model.isDirty());
     }
 
+    public void onRefreshSceneView() {
+        this.view.refresh(this.model.getSelection(), this.model.isDirty());
+    }
+
     @Override
     public final void onLoad(String type, InputStream contents) throws IOException, CoreException {
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(type);

@@ -67,6 +67,11 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
     return &src;
 }
 
+void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
+{
+    dmGui::SetSceneResolution(scene, width, height);
+}
+
 dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
 {
     out_data->Init();
@@ -102,6 +107,8 @@ public:
         context_params.m_GetUserDataCallback = GetUserDataCallback;
         context_params.m_ResolvePathCallback = ResolvePathCallback;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
+        context_params.m_PhysicalWidth = 1;
+        context_params.m_PhysicalHeight = 1;
 
         m_Context = dmGui::NewContext(&context_params);
         // Bogus font for the metric callback to be run (not actually using the default font)
@@ -111,6 +118,9 @@ public:
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
+        params.m_OnWindowResizeCallback = OnWindowResizeCallback;
+        params.m_Width = 1;
+        params.m_Height = 1;
         m_Scene = dmGui::NewScene(m_Context, &params);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
@@ -226,6 +236,115 @@ TEST_F(dmGuiTest, Name)
 
     ASSERT_TRUE(SetScript(m_Script, s));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+}
+
+TEST_F(dmGuiTest, ContextAndSceneResolution)
+{
+    uint32_t width, height;
+    dmGui::GetPhysicalResolution(m_Context, width, height);
+    ASSERT_EQ(1, width);
+    ASSERT_EQ(1, height);
+    dmGui::GetSceneResolution(m_Scene, width, height);
+    ASSERT_EQ(1, width);
+    ASSERT_EQ(1, height);
+    dmGui::SetSceneResolution(m_Scene, 2, 3);
+    dmGui::GetSceneResolution(m_Scene, width, height);
+    ASSERT_EQ(2, width);
+    ASSERT_EQ(3, height);
+    dmGui::SetPhysicalResolution(m_Context, 4, 5);
+    dmGui::GetPhysicalResolution(m_Context, width, height);
+    ASSERT_EQ(4, width);
+    ASSERT_EQ(5, height);
+    dmGui::GetSceneResolution(m_Scene, width, height);
+    ASSERT_EQ(4, width);
+    ASSERT_EQ(5, height);
+}
+
+void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode node, const void *node_desc)
+{
+    dmGui::SetNodePosition(scene, node, *((Point3 *)node_desc));
+}
+
+TEST_F(dmGuiTest, Layouts)
+{
+    // layout creation and access
+    dmGui::Result r;
+    const char *l1_name = "layout1";
+    dmhash_t l1_hash = dmHashString64(l1_name);
+    const char *l2_name = "layout2";
+    dmhash_t l2_hash = dmHashString64(l2_name);
+    dmGui::AllocateLayouts(m_Scene, 2, 2);
+    r = dmGui::AddLayout(m_Scene, l1_name);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::AddLayout(m_Scene, l2_name);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    uint16_t ld_index = dmGui::GetLayoutIndex(m_Scene, dmGui::DEFAULT_LAYOUT);
+    ASSERT_EQ(0, ld_index);
+    uint16_t l1_index = dmGui::GetLayoutIndex(m_Scene, l1_hash);
+    ASSERT_EQ(1, l1_index);
+    uint16_t l2_index = dmGui::GetLayoutIndex(m_Scene, l2_hash);
+    ASSERT_EQ(2, l2_index);
+    const dmArray<dmhash_t>* layouts = GetLayouts(m_Scene);
+    ASSERT_EQ(3, layouts->Size());
+
+    Point3 p0(0,0,0);
+    Point3 p1(1,0,0);
+    Point3 p2(2,0,0);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(3,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 3);
+
+    // set data for layout index range 0-2
+    r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p0, 0, 2);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // test all layouts
+    dmGui::SetLayout(m_Scene, dmGui::DEFAULT_LAYOUT, SetNodeCallback);
+    ASSERT_EQ(dmGui::DEFAULT_LAYOUT, dmGui::GetLayout(m_Scene));
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 0);
+
+    dmGui::SetLayout(m_Scene, l1_hash, SetNodeCallback);
+    ASSERT_EQ(l1_hash, dmGui::GetLayout(m_Scene));
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 0);
+
+    dmGui::SetLayout(m_Scene, l2_hash, SetNodeCallback);
+    ASSERT_EQ(l2_hash, dmGui::GetLayout(m_Scene));
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 0);
+
+    // set data for layout independently index 0,1,2
+    r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p1, 1, 1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p2, 2, 2);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // test all layouts
+    dmGui::SetLayout(m_Scene, dmGui::DEFAULT_LAYOUT, SetNodeCallback);
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 0);
+
+    dmGui::SetLayout(m_Scene, l1_hash, SetNodeCallback);
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 1);
+
+    dmGui::SetLayout(m_Scene, l2_hash, SetNodeCallback);
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 2);
+
+    // test script functions
+    const char* s = "function init(self)\n"
+                    "    assert(hash(\"layout1\") == gui.get_layout())\n"
+                    "end\n"
+                    "function update(self, dt)\n"
+                    "    assert(hash(\"layout2\") == gui.get_layout())\n"
+                    "end\n";
+
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::SetLayout(m_Scene, l1_hash, SetNodeCallback);
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::SetLayout(m_Scene, l2_hash, SetNodeCallback);
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
 TEST_F(dmGuiTest, FlipbookAnim)
@@ -2026,8 +2145,8 @@ TEST_F(dmGuiTest, Scaling)
     uint32_t physical_width = 640;
     uint32_t physical_height = 480;
 
-    dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2.0f, height/2.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
@@ -2048,10 +2167,10 @@ TEST_F(dmGuiTest, Anchoring)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
 
-    dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
@@ -2085,10 +2204,10 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
 
-    dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
 
     const char* s = "function init(self)\n"
                     "    assert (1024 == gui.get_width())\n"
@@ -2152,10 +2271,10 @@ TEST_F(dmGuiTest, AdjustMode)
     uint32_t physical_width = 1280;
     uint32_t physical_height = 320;
 
-    dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
     float min_ref_scale = dmMath::Min(ref_scale.getX(), ref_scale.getY());
     float max_ref_scale = dmMath::Max(ref_scale.getX(), ref_scale.getY());
 
@@ -2266,8 +2385,8 @@ TEST_F(dmGuiTest, Picking)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
     float ref_scale = 0.5f;
-    dmGui::SetResolution(m_Context, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
 
     Vector3 size(10, 10, 0);
     Point3 pos(size * 0.5f);
@@ -2298,7 +2417,6 @@ TEST_F(dmGuiTest, ScriptPicking)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
-    dmGui::SetResolution(m_Context, physical_width, physical_height);
 
     char buffer[1024];
 
@@ -3238,6 +3356,7 @@ TEST_F(dmGuiTest, PhysResUpdatesTransform)
     ASSERT_LT(lengthSqr(p - next_p), EPSILON);
 
     dmGui::SetPhysicalResolution(m_Context, 10, 10);
+    dmGui::SetSceneResolution(m_Scene, 1, 1);
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, &next_transform);
 
     next_p = next_transform.getCol3();

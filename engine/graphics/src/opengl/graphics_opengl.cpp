@@ -431,6 +431,7 @@ static void LogFrameBufferError(GLenum status)
         glfwGetWindowSize(&width, &height);
         context->m_WindowWidth = (uint32_t)width;
         context->m_WindowHeight = (uint32_t)height;
+        context->m_Dpi = 0;
 
         if (params->m_PrintDeviceInfo)
         {
@@ -543,6 +544,12 @@ static void LogFrameBufferError(GLenum status)
             return glfwGetWindowParam(state);
         else
             return 0;
+    }
+
+    uint32_t GetDisplayDpi(HContext context)
+    {
+        assert(context);
+        return context->m_Dpi;
     }
 
     uint32_t GetWidth(HContext context)

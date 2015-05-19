@@ -26,6 +26,7 @@ import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Entity;
@@ -78,7 +79,7 @@ public abstract class Node implements IAdaptable, Serializable {
     // Cached status
     private transient IStatus status = Status.OK_STATUS;
 
-    private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
+    public static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
 
     public void dispose(GL2 gl) {
@@ -513,6 +514,10 @@ public abstract class Node implements IAdaptable, Serializable {
         } else {
             return null;
         }
+    }
+
+    public int getLabelTextStyle() {
+        return SWT.NORMAL;
     }
 
     public final IStatus getStatus() {

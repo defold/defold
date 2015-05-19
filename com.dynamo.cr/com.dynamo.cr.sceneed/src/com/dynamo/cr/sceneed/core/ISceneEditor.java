@@ -12,4 +12,5 @@ public interface ISceneEditor {
 
     ILoaderContext getLoaderContext();
 
+    ISceneModel getModel();
 }

@@ -11,8 +11,10 @@
 #include <graphics/graphics.h>
 #include <graphics/graphics_util.h>
 #include <render/render.h>
+#include <render/display_profiles.h>
 #include <render/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
+#include <render/render_ddf.h>
 
 #include "comp_gui.h"
 
@@ -124,6 +126,159 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    bool SetNode(const dmGui::HScene scene, dmGui::HNode n, const dmGuiDDF::NodeDesc* node_desc)
+    {
+        bool result = true;
+
+        // properties
+        dmGui::SetNodePosition(scene, n, Point3(node_desc->m_Position.getXYZ()));
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
+        Vector4 color;
+        color.setXYZ(node_desc->m_Color.getXYZ());
+        color.setW(node_desc->m_Alpha);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, color);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SIZE, node_desc->m_Size);
+        color.setXYZ(node_desc->m_Outline.getXYZ());
+        color.setW(node_desc->m_OutlineAlpha);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_OUTLINE, color);
+        color.setXYZ(node_desc->m_Shadow.getXYZ());
+        color.setW(node_desc->m_ShadowAlpha);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SHADOW, color);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SLICE9, node_desc->m_Slice9);
+
+        // texture and texture animation setup
+        if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
+        {
+            const size_t path_str_size_max = 512;
+            size_t path_str_size = strlen(node_desc->m_Texture)+1;
+            if(path_str_size > path_str_size_max)
+            {
+                dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %lu characters (max %lu).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
+                result = false;
+            }
+            else
+            {
+                char texture_str[path_str_size_max];
+                dmStrlCpy(texture_str, node_desc->m_Texture, path_str_size);
+
+                char* texture_anim_name = strstr(texture_str, "/");
+                if(texture_anim_name)
+                    *texture_anim_name++ = 0;
+
+                dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_str);
+                if (gui_result != dmGui::RESULT_OK)
+                {
+                    dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                    result = false;
+                }
+
+                if(texture_anim_name != NULL)
+                {
+                    gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name);
+                    if (gui_result != dmGui::RESULT_OK)
+                    {
+                        dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        result = false;
+                    }
+                }
+            }
+        }
+        else
+        {
+            dmGui::SetNodeTexture(scene, n, "");
+        }
+
+        // layer setup
+        if (node_desc->m_Layer != 0x0 && *node_desc->m_Layer != '\0')
+        {
+            dmGui::Result gui_result = dmGui::SetNodeLayer(scene, n, node_desc->m_Layer);
+            if (gui_result != dmGui::RESULT_OK)
+            {
+                dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                result = false;
+            }
+        }
+        else
+        {
+            dmGui::SetNodeLayer(scene, n, "");
+        }
+
+        // attributes
+        dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
+        // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
+        if (blend_mode == dmGui::BLEND_MODE_ADD_ALPHA)
+            blend_mode = dmGui::BLEND_MODE_ADD;
+        dmGui::SetNodeBlendMode(scene, n, blend_mode);
+
+        dmGui::SetNodePivot(scene, n, (dmGui::Pivot) node_desc->m_Pivot);
+        dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
+        dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
+        dmGui::SetNodeAdjustMode(scene, n, (dmGui::AdjustMode) node_desc->m_AdjustMode);
+        dmGui::SetNodeInheritAlpha(scene, n, node_desc->m_InheritAlpha);
+
+        dmGui::SetNodeClippingMode(scene, n, (dmGui::ClippingMode) node_desc->m_ClippingMode);
+        dmGui::SetNodeClippingVisible(scene, n, node_desc->m_ClippingVisible);
+        dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
+
+        // type specific attributes
+        switch(node_desc->m_Type)
+        {
+            case dmGuiDDF::NodeDesc::TYPE_TEXT:
+                dmGui::SetNodeText(scene, n, node_desc->m_Text);
+                dmGui::SetNodeFont(scene, n, node_desc->m_Font);
+                dmGui::SetNodeLineBreak(scene, n, node_desc->m_LineBreak);
+            break;
+
+            case dmGuiDDF::NodeDesc::TYPE_PIE:
+                dmGui::SetNodePerimeterVertices(scene, n, node_desc->m_Perimetervertices);
+                dmGui::SetNodeInnerRadius(scene, n, node_desc->m_Innerradius);
+                dmGui::SetNodeOuterBounds(scene, n, (dmGui::PieBounds) node_desc->m_Outerbounds);
+                dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
+            break;
+
+            default:
+            break;
+        }
+
+        dmGui::SetNodeResetPoint(scene, n);
+        return result;
+    }
+
+    void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode n, const void* node_desc)
+    {
+        SetNode(scene, n, (const dmGuiDDF::NodeDesc*) node_desc);
+    }
+
+    void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
+    {
+        const dmArray<dmhash_t>* scene_layouts = dmGui::GetLayouts(scene);
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), scene_layouts);
+        if(layout_id != GetLayout(scene))
+        {
+            dmhash_t current_layout_id = GetLayout(scene);
+
+            dmRender::DisplayProfileDesc profile_desc;
+            GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
+            dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
+            dmGui::SetLayout(scene, layout_id, SetNodeCallback);
+
+            // Notify the scene script. The callback originates from the dmGraphics::SetWindowSize firing the callback.
+            char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
+            dmMessage::Message* message = (dmMessage::Message*)buf;
+            message->m_Sender = dmMessage::URL();
+            message->m_Receiver = dmMessage::URL();
+            message->m_Id = dmHashString64("layout_changed");
+            message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
+            message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
+            dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
+            message_data->m_Id = layout_id;
+            message_data->m_PreviousId = current_layout_id;
+            DispatchMessage(scene, message);
+        }
+    }
+
     bool SetupGuiScene(dmGui::HScene scene, GuiSceneResource* scene_resource)
     {
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
@@ -164,100 +319,36 @@ namespace dmGameSystem
             }
         }
 
+        uint32_t layouts_count = scene_desc->m_Layouts.m_Count;
+        if(layouts_count != 0)
+        {
+            dmGui::AllocateLayouts(scene, scene_desc->m_Nodes.m_Count, layouts_count);
+            for (uint32_t i = 0; i < layouts_count; ++i)
+            {
+                const char* name = scene_desc->m_Layouts[i].m_Name;
+                dmGui::Result r = dmGui::AddLayout(scene, name);
+                if (r != dmGui::RESULT_OK) {
+                    dmLogError("Unable to add layout '%s' to scene (%d)", name,  r);
+                    return false;
+                }
+            }
+        }
+
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
         {
-            const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
-
             // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
+            const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
             dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
-            dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
-            // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
-            if (blend_mode == dmGui::BLEND_MODE_ADD_ALPHA)
-                blend_mode = dmGui::BLEND_MODE_ADD;
-            dmGui::AdjustMode adjust_mode = (dmGui::AdjustMode) node_desc->m_AdjustMode;
-
             Vector4 position = node_desc->m_Position;
             Vector4 size = node_desc->m_Size;
             dmGui::HNode n = dmGui::NewNode(scene, Point3(position.getXYZ()), Vector3(size.getXYZ()), type);
             if (n)
             {
-                if (node_desc->m_Type == dmGuiDDF::NodeDesc::TYPE_TEXT)
-                {
-                    dmGui::SetNodeText(scene, n, node_desc->m_Text);
-                    dmGui::SetNodeFont(scene, n, node_desc->m_Font);
-                    dmGui::SetNodeLineBreak(scene, n, node_desc->m_LineBreak);
-                }
                 if (node_desc->m_Id)
-                {
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
-                }
-                if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
-                {
-                    const size_t path_str_size_max = 512;
-                    size_t path_str_size = strlen(node_desc->m_Texture)+1;
-                    if(path_str_size > path_str_size_max)
-                    {
-                        dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %d characters (max %d).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
-                        result = false;
-                    }
-                    else
-                    {
-                        char texture_str[path_str_size_max];
-                        dmStrlCpy(texture_str, node_desc->m_Texture, path_str_size);
-
-                        char* texture_anim_name = strstr(texture_str, "/");
-                        if(texture_anim_name)
-                            *texture_anim_name++ = 0;
-
-                        dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_str);
-                        if (gui_result != dmGui::RESULT_OK)
-                        {
-                            dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
-                            result = false;
-                        }
-
-                        if(texture_anim_name != NULL)
-                        {
-                            gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name);
-                            if (gui_result != dmGui::RESULT_OK)
-                            {
-                                dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
-                                result = false;
-                            }
-                        }
-                    }
-                }
-                if (node_desc->m_Layer != 0x0 && *node_desc->m_Layer != '\0')
-                {
-                    dmGui::Result gui_result = dmGui::SetNodeLayer(scene, n, node_desc->m_Layer);
-                    if (gui_result != dmGui::RESULT_OK)
-                    {
-                        dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
-                        result = false;
-                    }
-                }
-
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, node_desc->m_Color);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_OUTLINE, node_desc->m_Outline);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SHADOW, node_desc->m_Shadow);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SLICE9, node_desc->m_Slice9);
-                dmGui::SetNodeBlendMode(scene, n, blend_mode);
-                dmGui::SetNodePivot(scene, n, (dmGui::Pivot) node_desc->m_Pivot);
-                dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
-                dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
-                dmGui::SetNodeAdjustMode(scene, n, adjust_mode);
-                dmGui::SetNodeResetPoint(scene, n);
-                dmGui::SetNodeInheritAlpha(scene, n, node_desc->m_InheritAlpha);
-
-                dmGui::SetNodePerimeterVertices(scene, n, node_desc->m_Perimetervertices);
-                dmGui::SetNodeInnerRadius(scene, n, node_desc->m_Innerradius);
-                dmGui::SetNodeOuterBounds(scene, n, (dmGui::PieBounds) node_desc->m_Outerbounds);
-                dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
-                dmGui::SetNodeClippingMode(scene, n, (dmGui::ClippingMode) node_desc->m_ClippingMode);
-                dmGui::SetNodeClippingVisible(scene, n, node_desc->m_ClippingVisible);
-                dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
+                result = SetNode(scene, n, node_desc);
+                if(layouts_count != 0)
+                    dmGui::SetNodeLayoutDesc(scene, n, node_desc, 0, layouts_count);
             }
             else
             {
@@ -283,6 +374,41 @@ namespace dmGameSystem
                 dmGui::SetNodeParent(scene, n, p);
             }
         }
+
+        if(layouts_count != 0)
+        {
+            for (uint32_t l = 0; l < layouts_count; ++l)
+            {
+                uint16_t layout_index = dmGui::GetLayoutIndex(scene, dmHashString64(scene_desc->m_Layouts[l].m_Name));
+                for (uint32_t i = 0; i < scene_desc->m_Layouts[l].m_Nodes.m_Count; ++i)
+                {
+                    const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Layouts[l].m_Nodes[i];
+                    dmGui::HNode n = dmGui::GetNodeById(scene, node_desc->m_Id);
+                    if (n)
+                    {
+                        dmGui::SetNodeLayoutDesc(scene, n, node_desc, layout_index, layout_index);
+                    }
+                    else
+                    {
+                        dmLogError("The default node for '%s' could not be found in the scene.", node_desc->m_Id);
+                    }
+                }
+            }
+
+            // we might have any resolution starting the scene, so let's set the best alternative layout directly
+            uint32_t display_width, display_height;
+            dmGui::GetPhysicalResolution(scene, display_width, display_height);
+            dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles)dmGui::GetDisplayProfiles(scene);
+            dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, display_width, display_height, 0, dmGui::GetLayouts(scene));
+            if(layout_id != dmGui::DEFAULT_LAYOUT)
+            {
+                dmRender::DisplayProfileDesc profile_desc;
+                GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
+                dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
+                dmGui::SetLayout(scene, layout_id, SetNodeCallback);
+            }
+        }
+
         return result;
     }
 
@@ -305,7 +431,12 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
+        uint32_t scene_width, scene_height;
+        dmGui::GetPhysicalResolution((dmGui::HContext) scene_resource->m_GuiContext, scene_width, scene_height);
+        scene_params.m_Width = scene_width;
+        scene_params.m_Height = scene_height;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
+        scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
 
@@ -1196,15 +1327,17 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
+            GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
             gui_component->m_Enabled = 1;
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
+            GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
             gui_component->m_Enabled = 0;
         }
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
         if (result != dmGui::RESULT_OK)
         {
@@ -1273,6 +1406,7 @@ namespace dmGameSystem
         dmGui::ClearTextures(gui_component->m_Scene);
         dmGui::ClearFonts(gui_component->m_Scene);
         dmGui::ClearNodes(gui_component->m_Scene);
+        dmGui::ClearLayouts(gui_component->m_Scene);
         if (SetupGuiScene(gui_component->m_Scene, scene_resource))
         {
             result = dmGui::InitScene(gui_component->m_Scene);

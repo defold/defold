@@ -5,11 +5,14 @@ import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.StructuredSelection;
 
 import com.dynamo.cr.guied.operations.AddFontsOperation;
 import com.dynamo.cr.guied.operations.AddGuiNodeOperation;
 import com.dynamo.cr.guied.operations.AddLayersOperation;
+import com.dynamo.cr.guied.operations.AddLayoutOperation;
 import com.dynamo.cr.guied.operations.AddTexturesOperation;
+import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
@@ -101,4 +104,22 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
         List<Node> nodes = Collections.singletonList((Node) new LayerNode("layer"));
         context.executeOperation(new AddLayersOperation(scene, nodes, context));
     }
+
+    public void onSelectLayoutNode(IPresenterContext context, String id) {
+        GuiSceneNode scene = findSceneFromSelection(context.getSelection());
+        LayoutsNode layoutsNode = ((LayoutsNode)scene.getLayoutsNode());
+        List<String> layouts = layoutsNode.getLayouts();
+        if(layouts.contains(id)) {
+            context.setSelection(new StructuredSelection(((LayoutsNode) scene.getLayoutsNode()).getLayoutNode(id)));
+        } else {
+            List<Node> nodes = Collections.singletonList((Node) new LayoutNode(id));
+            Node nodesNode = scene.getNodesNode();
+            GuiNodeStateBuilder.storeStates(nodesNode.getChildren());
+            context.executeOperation(new AddLayoutOperation(scene, nodes, context));
+            GuiNodeStateBuilder.cloneStates(nodesNode.getChildren(), id, scene.getCurrentLayout().getId());
+            scene.setCurrentLayout(id);
+        }
+
+    }
+
 }

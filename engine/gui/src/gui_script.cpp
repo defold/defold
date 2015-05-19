@@ -1632,6 +1632,22 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the scene current layout
+     *
+     * @name gui.get_layout
+     * @return layout id (hash)
+     */
+    static int LuaGetLayout(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmScript::PushHash(L, dmGui::GetLayout(scene));
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# gets the node clipping mode
      * Clipping mode defines how the node will clipping it's children nodes
      *
@@ -2029,7 +2045,7 @@ namespace dmGui
     {
         Scene* scene = GuiScriptInstance_Check(L);
 
-        lua_pushnumber(L, scene->m_Context->m_Width);
+        lua_pushnumber(L, scene->m_Width);
         return 1;
     }
 
@@ -2042,7 +2058,7 @@ namespace dmGui
     {
         Scene* scene = GuiScriptInstance_Check(L);
 
-        lua_pushnumber(L, scene->m_Context->m_Height);
+        lua_pushnumber(L, scene->m_Height);
         return 1;
     }
 
@@ -2832,10 +2848,9 @@ namespace dmGui
     void SetDefaultNewContextParams(NewContextParams* params)
     {
         memset(params, 0, sizeof(*params));
-        params->m_Width = 640;
-        params->m_Height = 960;
         params->m_PhysicalWidth = 640;
         params->m_PhysicalHeight = 960;
+        params->m_Dpi = 360;
     }
 
     /*# gets the node screen position
@@ -2848,7 +2863,7 @@ namespace dmGui
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
         Scene* scene = GuiScriptInstance_Check(L);
-        Vector4 scale = CalculateReferenceScale(scene->m_Context);
+        Vector4 scale = CalculateReferenceScale(scene);
         Matrix4 node_transform;
         Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
         CalculateNodeTransform(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), node_transform);
@@ -2897,6 +2912,7 @@ namespace dmGui
         {"set_font",        LuaSetFont},
         {"get_layer",        LuaGetLayer},
         {"set_layer",        LuaSetLayer},
+        {"get_layout",        LuaGetLayout},
         {"get_text_metrics",LuaGetTextMetrics},
         {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},

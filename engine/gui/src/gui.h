@@ -45,6 +45,11 @@ namespace dmGui
     const dmhash_t DEFAULT_LAYER = dmHashString64("");
 
     /**
+     * Default layout id
+     */
+    const dmhash_t DEFAULT_LAYOUT = dmHashString64("");
+
+    /**
      * Animation
      */
     enum Playback
@@ -109,6 +114,16 @@ namespace dmGui
 
 
     /**
+     * Callback to set node from node descriptor
+     */
+    typedef void (*SetNodeCallback)(const HScene scene, HNode node, const void *node_desc);
+
+    /**
+     * Callback when display window size changes
+     */
+    typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
+
+    /**
      * Scene creation
      */
     struct NewSceneParams;
@@ -122,7 +137,10 @@ namespace dmGui
         uint32_t m_MaxFonts;
         uint32_t m_MaxLayers;
         void*    m_UserData;
+        uint32_t m_Width;
+        uint32_t m_Height;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
+        OnWindowResizeCallback m_OnWindowResizeCallback;
 
         NewSceneParams()
         {
@@ -186,10 +204,9 @@ namespace dmGui
         GetUserDataCallback     m_GetUserDataCallback;
         ResolvePathCallback     m_ResolvePathCallback;
         GetTextMetricsCallback  m_GetTextMetricsCallback;
-        uint32_t                m_Width;
-        uint32_t                m_Height;
         uint32_t                m_PhysicalWidth;
         uint32_t                m_PhysicalHeight;
+        uint32_t                m_Dpi;
         dmHID::HContext         m_HidContext;
         dmResource::HFactory    m_Factory;
 
@@ -411,9 +428,13 @@ namespace dmGui
 
     void DeleteContext(HContext context, dmScript::HContext script_context);
 
-    void SetResolution(HContext context, uint32_t width, uint32_t height);
-
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height);
+
+    void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height);
+
+    uint32_t GetDisplayDpi(HContext context);
+
+    void SetDisplayProfiles(HContext context, void* display_profiles);
 
     void SetDefaultFont(HContext context, void* font);
 
@@ -424,6 +445,16 @@ namespace dmGui
     void SetSceneUserData(HScene scene, void* user_data);
 
     void* GetSceneUserData(HScene scene);
+
+    void SetSceneResolution(HScene, uint32_t width, uint32_t height);
+
+    void GetSceneResolution(HScene, uint32_t &width, uint32_t &height);
+
+    void GetPhysicalResolution(HScene scene, uint32_t& width, uint32_t& height);
+
+    uint32_t GetDisplayDpi(HScene scene);
+
+    void* GetDisplayProfiles(HScene scene);
 
     /**
      * Adds a texture and optional textureset with the specified name to the scene.
@@ -529,6 +560,73 @@ namespace dmGui
      * @return Outcome of the operation
      */
     Result AddLayer(HScene scene, const char* layer_name);
+
+    /**
+     * Allocates memory needed to hold nr of layers with nr of nodes for the scene.
+     * @param scene Scene to allocate for
+     * @param node_count Number of nodes in the scene (not including dynamic nodes)
+     * @param layouts_count Number of layouts in the scene
+     */
+    void AllocateLayouts(HScene scene, size_t node_count, size_t layouts_count);
+
+    /**
+     * Free layout resources and reset to scene contain only the system default layout
+     * @param scene Scene to reset layouts for
+     */
+    void ClearLayouts(HScene scene);
+
+    /**
+     * Adds a layout with id to the scene.
+     *
+     * @note dmGui::AllocateLayouts must be called prior to calling this function
+     * @param scene Scene to add the layout to
+     * @param layout_id Unique id of the layout. If the id exists, it will be replaced
+     * @return Outcome of the operation
+     */
+    Result AddLayout(HScene scene, const char* layout_id);
+
+    /**
+     * Get current layout id.
+     * @param scene Scene of which to get layout
+     * @return layout_id id of the layout
+     */
+    dmhash_t GetLayout(const HScene scene);
+
+    /**
+     * Get a pointer to the array of existing layout id's.
+     * @param scene Scene of which to get layouts
+     * @return pointer to array of layout_ids
+     */
+    const dmArray<dmhash_t>* GetLayouts(const HScene scene);
+
+    /**
+     * Get index of layer with id in a scene.
+     * @param scene Scene to get the layer id from
+     * @param layout_id hashed id of layout to get index of
+     * @return index, or 0 if not found refering the the default layout.
+     */
+    uint16_t GetLayoutIndex(const HScene scene, dmhash_t layout_id);
+
+    /**
+     * Set the desc for node using layouts with index in range start to end.
+     * @note dmGui::AllocateLayouts must be called prior to calling this function
+     * @param scene Scene
+     * @param node Node to set desc to
+     * @param desc Desc
+     * @param layout_index_start first index to set in range
+     * @param layout_index_end last index to set in range
+     * @return Outcome of the operation
+     */
+    Result SetNodeLayoutDesc(const HScene scene, HNode node, const void *desc, uint16_t layout_index_start, uint16_t layout_index_end);
+
+    /**
+     * Set a layout with id.
+     * @param scene Scene of which to set layout
+     * @param layout_id id of the layout.
+     * @param set_node_callback Callback function that will set node from node descriptor
+     * @return Outcome of the operation
+     */
+    Result SetLayout(const HScene scene, dmhash_t layout_id, SetNodeCallback set_node_callback);
 
     /** Renders a gui scene
      * Renders a gui scene by calling the callback function render_nodes and supplying an array of nodes.

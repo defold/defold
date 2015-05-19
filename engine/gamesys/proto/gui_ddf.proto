@@ -74,12 +74,12 @@ message NodeDesc
         PIEBOUNDS_ELLIPSE   = 1 [(displayName) = "Ellipse"];
     };
 
-    required dmMath.Vector4 position = 1;
-    required dmMath.Vector4 rotation = 2;
-    required dmMath.Vector4 scale    = 3;
-    required dmMath.Vector4 size     = 4;
-    required dmMath.Vector4 color    = 5;
-    required Type       type         = 6;
+    optional dmMath.Vector4 position = 1;
+    optional dmMath.Vector4 rotation = 2;
+    optional dmMath.Vector4 scale    = 3;
+    optional dmMath.Vector4 size     = 4;
+    optional dmMath.Vector4 color    = 5;
+    optional Type       type         = 6;
     optional BlendMode  blend_mode   = 7 [default = BLEND_MODE_ALPHA];
     optional string     text         = 8;
     optional string     texture      = 9;
@@ -106,6 +106,12 @@ message NodeDesc
     optional ClippingMode clipping_mode  = 27 [default = CLIPPING_MODE_NONE];
     optional bool       clipping_visible = 28 [default = true];
     optional bool       clipping_inverted = 29 [default = false];
+
+    optional float alpha              = 30 [default = 1.0];
+    optional float outline_alpha      = 31 [default = 1.0];
+    optional float shadow_alpha       = 32 [default = 1.0];
+
+    repeated uint32 overridden_fields = 33;
 }
 
 message SceneDesc
@@ -124,6 +130,11 @@ message SceneDesc
     {
         required string name    = 1;
     }
+    message LayoutDesc
+    {
+        required string   name  = 1;
+        repeated NodeDesc nodes = 2;
+    }
 
     required string      script                  = 1 [(resource)=true];
     repeated FontDesc    fonts                   = 2;
@@ -134,4 +145,12 @@ message SceneDesc
     repeated LayerDesc   layers                  = 7;
 
     optional string      material                = 8 [(resource)=true, default="/builtins/materials/gui.material"];
+
+    repeated LayoutDesc  layouts                 = 9;
+}
+
+message LayoutChanged
+{
+    required uint64 id = 1;
+    required uint64 previous_id = 2;
 }

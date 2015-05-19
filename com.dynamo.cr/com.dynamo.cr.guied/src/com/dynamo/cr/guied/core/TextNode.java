@@ -19,12 +19,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.guied.Activator;
+import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextRendererHandle;
+import com.dynamo.cr.sceneed.core.util.LoaderUtil;
+import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.render.proto.Font;
 import com.google.protobuf.TextFormat;
 
@@ -64,6 +67,15 @@ public class TextNode extends GuiNode {
 
     public void setText(String text) {
         this.text = text;
+        GuiNodeStateBuilder.setField(this, "Text", text);
+    }
+
+    public void resetText() {
+        this.text = (String)GuiNodeStateBuilder.resetField(this, "Text");
+    }
+
+    public boolean isTextOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Text", this.text);
     }
 
     public boolean isLineBreak() {
@@ -72,6 +84,15 @@ public class TextNode extends GuiNode {
 
     public void setLineBreak(boolean lineBreak) {
         this.lineBreak = lineBreak;
+        GuiNodeStateBuilder.setField(this, "LineBreak", lineBreak);
+    }
+
+    public void resetLineBreak() {
+        this.lineBreak = (Boolean)GuiNodeStateBuilder.resetField(this, "LineBreak");
+    }
+
+    public boolean isLineBreakOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "LineBreak", this.lineBreak);
     }
 
     public String getFont() {
@@ -81,6 +102,16 @@ public class TextNode extends GuiNode {
     public void setFont(String font) {
         this.font = font;
         updateFont();
+        GuiNodeStateBuilder.setField(this, "Font", font);
+    }
+
+    public void resetFont() {
+        this.font = (String)GuiNodeStateBuilder.resetField(this, "Font");
+        updateFont();
+    }
+
+    public boolean isFontOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Font", this.font);
     }
 
     public Object[] getFontOptions() {
@@ -100,6 +131,15 @@ public class TextNode extends GuiNode {
         this.outline.red = outline.red;
         this.outline.green = outline.green;
         this.outline.blue = outline.blue;
+        GuiNodeStateBuilder.setField(this, "Outline", LoaderUtil.toVector4(this.outline, 0.0));
+    }
+
+    public void resetOutline() {
+        this. outline = LoaderUtil.toRGB((Vector4)GuiNodeStateBuilder.resetField(this, "Outline"));
+    }
+
+    public boolean isOutlineOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Outline", LoaderUtil.toVector4(this.outline, 0.0));
     }
 
     public double getOutlineAlpha() {
@@ -108,6 +148,15 @@ public class TextNode extends GuiNode {
 
     public void setOutlineAlpha(double outlineAlpha) {
         this.outlineAlpha = outlineAlpha;
+        GuiNodeStateBuilder.setField(this, "OutlineAlpha", (float) outlineAlpha);
+    }
+
+    public void resetOutlineAlpha() {
+        this.outlineAlpha = (Float)GuiNodeStateBuilder.resetField(this, "OutlineAlpha");
+    }
+
+    public boolean isOutlineAlphaOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "OutlineAlpha", (float)this.outlineAlpha);
     }
 
     public RGB getShadow() {
@@ -118,6 +167,15 @@ public class TextNode extends GuiNode {
         this.shadow.red = shadow.red;
         this.shadow.green = shadow.green;
         this.shadow.blue = shadow.blue;
+        GuiNodeStateBuilder.setField(this, "Shadow", LoaderUtil.toVector4(this.shadow, 0.0));
+    }
+
+    public void resetShadow() {
+        this.shadow = LoaderUtil.toRGB((Vector4)GuiNodeStateBuilder.resetField(this, "Shadow"));
+    }
+
+    public boolean isShadowOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Shadow", LoaderUtil.toVector4(this.shadow, 0.0));
     }
 
     public double getShadowAlpha() {
@@ -126,6 +184,15 @@ public class TextNode extends GuiNode {
 
     public void setShadowAlpha(double shadowAlpha) {
         this.shadowAlpha = shadowAlpha;
+        GuiNodeStateBuilder.setField(this, "ShadowAlpha", (float) shadowAlpha);
+    }
+
+    public void resetShadowAlpha() {
+        this.shadowAlpha = (Float)GuiNodeStateBuilder.resetField(this, "ShadowAlpha");
+    }
+
+    public boolean isShadowAlphaOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "ShadowAlpha", (float)this.shadowAlpha);
     }
 
     public TextRendererHandle getTextRendererHandle() {
@@ -189,6 +256,9 @@ public class TextNode extends GuiNode {
 
     @Override
     public Image getIcon() {
+        if(GuiNodeStateBuilder.isStateSet(this)) {
+            return Activator.getDefault().getImageRegistry().get(Activator.TEXT_NODE_OVERRIDDEN_IMAGE_ID);
+        }
         return Activator.getDefault().getImageRegistry().get(Activator.TEXT_NODE_IMAGE_ID);
     }
 

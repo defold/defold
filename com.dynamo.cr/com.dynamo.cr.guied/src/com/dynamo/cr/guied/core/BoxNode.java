@@ -7,9 +7,12 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.guied.Activator;
+import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.util.LoaderUtil;
+import com.dynamo.proto.DdfMath.Vector4;
 
 @SuppressWarnings("serial")
 public class BoxNode extends ClippingNode {
@@ -37,6 +40,16 @@ public class BoxNode extends ClippingNode {
     public void setTexture(String texture) {
         this.texture = texture;
         updateTexture();
+        GuiNodeStateBuilder.setField(this, "Texture", texture);
+    }
+
+    public void resetTexture() {
+        this.texture = (String)GuiNodeStateBuilder.resetField(this, "Texture");
+        updateTexture();
+    }
+
+    public boolean isTextureOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Texture", this.texture);
     }
 
     private void updateTexture() {
@@ -87,6 +100,9 @@ public class BoxNode extends ClippingNode {
 
     @Override
     public Image getIcon() {
+        if(GuiNodeStateBuilder.isStateSet(this)) {
+            return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_OVERRIDDEN_IMAGE_ID);
+        }
         return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_IMAGE_ID);
     }
 
@@ -98,6 +114,15 @@ public class BoxNode extends ClippingNode {
     public void setSlice9(Vector4d slice9)
     {
         this.slice9.set(slice9);
+        GuiNodeStateBuilder.setField(this, "Slice9", LoaderUtil.toVector4(slice9));
     }
 
+    public void resetSlice9() {
+        this.slice9.set(LoaderUtil.toVector4((Vector4)GuiNodeStateBuilder.resetField(this, "Slice9")));
+    }
+
+
+    public boolean isSlice9Overridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Slice9", LoaderUtil.toVector4(this.slice9));
+    }
 }

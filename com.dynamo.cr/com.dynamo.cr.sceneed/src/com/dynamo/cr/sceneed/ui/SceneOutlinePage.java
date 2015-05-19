@@ -19,13 +19,17 @@ import org.eclipse.jface.viewers.StyledString;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerCell;
+import org.eclipse.jface.viewers.StyledString.*;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.dnd.DND;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.graphics.Font;
+import org.eclipse.swt.graphics.FontData;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.TextStyle;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
@@ -250,6 +254,15 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
             return true;
         }
 
+        private StyledString.Styler createStyledTextStyler(final String fontName, final int fontHeight, final int fontStyle){
+            Styler result = new StyledString.Styler(){
+                @Override public void applyStyles(TextStyle textstyle){
+                  textstyle.font = new Font(null, fontName, fontHeight, fontStyle);
+                }
+            };
+            return result;
+        }
+
         @Override
         public StyledString getStyledText(Object element) {
             if (element instanceof Node) {
@@ -260,6 +273,12 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
                     // "Identifier for the color used to show extra informations in labels, as a qualified name.
                     // For example in 'Foo.txt - myproject/bar', the qualifier is '- myproject/bar'."
                     return new StyledString(getText(node), StyledString.QUALIFIER_STYLER);
+                }
+                int style = node.getLabelTextStyle();
+                if(style != SWT.NORMAL) {
+                    TreeViewer viewer = getTreeViewer();
+                    FontData fontData = viewer.getControl().getDisplay().getSystemFont().getFontData()[0];
+                    return new StyledString(getText(node), createStyledTextStyler(fontData.getName(), fontData.getHeight(), fontData.getStyle() | style));
                 }
             }
             return new StyledString(getText(element));

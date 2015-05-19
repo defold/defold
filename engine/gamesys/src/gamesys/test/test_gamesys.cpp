@@ -407,6 +407,17 @@ ResourceFailParams invalid_rs_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(RenderScript, ResourceFailTest, ::testing::ValuesIn(invalid_rs_resources));
 
+/* Display Profiles */
+
+const char* valid_dp_resources[] = {"/display_profiles/valid.display_profilesc"};
+INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceTest, ::testing::ValuesIn(valid_dp_resources));
+
+ResourceFailParams invalid_dp_resources[] =
+{
+    {"/display_profiles/valid.display_profilesc", "/display_profiles/missing.display_profilesc"},
+};
+INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceFailTest, ::testing::ValuesIn(invalid_dp_resources));
+
 /* Script */
 
 const char* valid_script_resources[] = {"/script/valid.scriptc"};

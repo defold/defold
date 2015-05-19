@@ -18,6 +18,7 @@ namespace dmGraphics
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
         uint32_t                m_WindowHeight;
+        uint32_t                m_Dpi;
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
         // Counter to keep track of various modifications. Used for cache flush etc
