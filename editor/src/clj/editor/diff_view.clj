@@ -3,14 +3,17 @@
             [clojure.string :as str]
             [editor.ui :as ui]
             [service.log :as log])
-  (:import [javafx.scene Parent Scene]
+  (:import [javafx.scene Parent Scene Group]
            [javafx.stage Stage]
            [javafx.scene.paint Paint]
+           [javafx.scene.control Control ScrollBar]
            [javafx.scene.layout Pane]
            [javafx.scene.shape Line Rectangle]
            [javafx.scene.text Font Text]
            [javafx.fxml FXMLLoader]
            [org.eclipse.jgit.diff Edit Edit$Type HistogramDiff RawTextComparator RawText]))
+
+(set! *warn-on-reflection* true)
 
 (defn- diff-strings [^String str-left ^String str-right]
   (.diff (HistogramDiff.) RawTextComparator/DEFAULT (RawText. (.getBytes str-left)) (RawText. (.getBytes str-right))))
@@ -61,37 +64,49 @@
   (let [s (str/join "\n" (subvec lines begin end))
         t (Text. s)]
     (.setFont t font)
-    (if (= begin end) (Rectangle. 100000 0) t)))
+    (if (= begin end) (Rectangle. 10 0) t)))
 
-(defn- make-texts [^Pane box lines edits selector]
+(defn- make-texts [^Group box lines edits selector]
   (let [font (Font. "Courier New" 13)
         texts (mapv (fn [e] (make-text font lines (selector e))) edits)
-        heights (reductions (fn [sum t] (+ sum (.getHeight (.getBoundsInLocal t)))) 0 texts)]
+        heights (reductions (fn [sum t] (+ sum (:height (ui/local-bounds t)))) 0 texts)]
     (doseq [[t y] (map vector texts heights)]
-      (.setY t (+ (- (.getMinY (.getBoundsInLocal t))) y))
+      (.setY t (+ (- (:miny (ui/local-bounds t))) y))
       (.add (.getChildren box) t))
     texts))
 
 (defn- make-boxes [^Pane box texts edits selector]
   (doseq [[text edit] (map vector texts edits)]
     (when-not (= (:type edit) :nop)
-      (let [b (.getBoundsInLocal text)
-            r (Rectangle. (.getMinX b) (.getMinY b) (.getWidth b) (.getHeight b))]
+      (let [b (ui/local-bounds text)
+            r (Rectangle. (:minx b) (:miny b) (:width b) (:height b))]
         (.setFill r (Paint/valueOf "#cccccc55"))
         (.setStroke r (Paint/valueOf "#000000"))
         (.bind (.widthProperty r) (.widthProperty box))
         (.add (.getChildren box) r)))))
 
 (defn- make-line [^Text r1 ^Text r2 left right]
-  (let [b1 (.getBoundsInLocal r1)
-        b2 (.getBoundsInLocal r2)]
-    (Line. left (+ (.getMinY b1) (* 0.5 (.getHeight b1))) right (+ (.getMinY b2) (* 0.5 (.getHeight b2))))))
+  (let [b1 (ui/local-bounds r1)
+        b2 (ui/local-bounds r2)]
+    (Line. left (+ (:miny b1) (* 0.5 (:height b1))) right (+ (:miny b2) (* 0.5 (:height b2))))))
 
 (defn- make-lines [^Pane box texts-left texts-right edits]
   (doseq [[t-left t-right edit] (map vector texts-left texts-right edits)]
     (when-not (= (:type edit) :nop)
       (let [line (make-line t-left t-right 1 40)]
         (.add (.getChildren box) line)))))
+
+(defn- clip-control! [^Control control]
+  (let [clip (Rectangle.)]
+        (.setClip control clip)
+        (.bind (.widthProperty clip) (.widthProperty control))
+        (.bind (.heightProperty clip) (.heightProperty control))))
+
+(defn- update-scrollbar [^ScrollBar scroll ^Pane pane total-width]
+  (let [w (:width (ui/local-bounds pane))
+        m (- total-width w)]
+    (.setMax scroll m)
+    (.setVisibleAmount scroll (/ (* m w) total-width))))
 
 (defn- make-diff-viewer [str-left str-right]
   (let [root ^Parent (FXMLLoader/load (io/resource "diff.fxml"))
@@ -106,13 +121,32 @@
     (let [^Pane left (.lookup root "#left")
           ^Pane right (.lookup root "#right")
           ^Pane markers (.lookup root "#markers")
-          texts-left (make-texts left lines-left edits :left)
-          texts-right (make-texts right lines-right edits :right)]
+          left-group (Group.)
+          right-group (Group.)
+          ^ScrollBar hscroll (.lookup root "#hscroll")
+          texts-left (make-texts left-group lines-left edits :left)
+          texts-right (make-texts right-group lines-right edits :right)]
+
+      (.add (.getChildren left) left-group)
+      (.add (.getChildren right) right-group)
+
+      (clip-control! left)
+      (clip-control! right)
+
+      (let [max-w #(reduce (fn [m t] (max m (:width (ui/local-bounds t)))) 0 %)
+            total-width (max (max-w texts-left) (max-w texts-right))]
+
+        (update-scrollbar hscroll left total-width)
+        (ui/observe (.widthProperty left) (fn [_ old new] (update-scrollbar hscroll left total-width)))
+        (ui/observe (.valueProperty hscroll) (fn [_ old new]
+                                               (.setTranslateX left-group (- new))
+                                               (.setTranslateX right-group (- new)))))
+
       (make-boxes left texts-left edits :left)
       (make-boxes right texts-right edits :right)
       (make-lines markers texts-left texts-right edits))))
 
 ; TODO: Remove soon
 #_(ui/run-later (make-diff-viewer "1\n2\n3\n4\n5\n6\n7\n8....\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n"
-                              "XXX\n2\n3\n4\n6\n7\n8\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\nNEW STUFF\n"))
+                             "XXX\n2\n3\n4\n6\n7\n8\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\nNEW STUFF\n"))
 #_(ui/run-later (make-diff-viewer (slurp "a.txt") (slurp "b.txt")))
