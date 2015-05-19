@@ -21,8 +21,6 @@
 
 #include <render/display_profiles.h>
 
-#include <gamesys/gui_ddf.h>
-
 #include "gui_private.h"
 #include "gui_script.h"
 
