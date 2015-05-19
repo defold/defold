@@ -127,8 +127,6 @@ namespace dmRender
         uint8_t                         m_FragmentConstantMask;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
-        // Set to true if RenderKey.m_Depth should be filled in
-        uint8_t                         m_CalculateDepthKey : 1;
     };
 
     struct RenderContextParams
@@ -165,6 +163,7 @@ namespace dmRender
         Point3 m_WorldPosition;
         uint32_t m_Order;
         uint32_t m_BatchKey;
+        uint32_t m_TagMask;
         uintptr_t m_UserData;
         uint32_t m_MajorOrder:2;
         uint32_t m_Dispatch:8;
