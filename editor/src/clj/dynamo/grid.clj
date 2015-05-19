@@ -75,7 +75,7 @@
       (render-grid-sizes dir grids)
       (render-primary-axes (apply geom/aabb-union (:aabbs grids))))))
 
-(g/defnk grid-renderable :- t/RenderData
+(g/defnk grid-renderable :- pass/RenderData
   [camera grids]
   {pass/transparent
    [{:world-transform geom/Identity4d
@@ -159,4 +159,4 @@
   (property fixed-grid-size dp/NonNegativeInt (default 0))
 
   (output grids      t/Any :cached update-grids)
-  (output renderable t/RenderData  grid-renderable))
+  (output renderable pass/RenderData  grid-renderable))
