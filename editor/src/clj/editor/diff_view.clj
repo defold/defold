@@ -108,7 +108,7 @@
     (.setMax scroll m)
     (.setVisibleAmount scroll (/ (* m w) total-width))))
 
-(defn- make-diff-viewer [str-left str-right]
+(defn make-diff-viewer [str-left str-right]
   (let [root ^Parent (FXMLLoader/load (io/resource "diff.fxml"))
         stage (Stage.)
         scene (Scene. root)
