@@ -236,7 +236,6 @@
       (-> ctx
           (mark-activated target-id target-label)
           (assoc
-           :graphs-modified  (conj graphs-modified (gt/node-id->graph-id source-id))
            :basis            (gt/connect basis source-id source-label target-id target-label)
            :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))
       ctx)
@@ -250,7 +249,6 @@
       (-> ctx
           (mark-activated target-id target-label)
           (assoc
-           :graphs-modified  (conj graphs-modified (gt/node-id->graph-id source-id))
            :basis            (gt/disconnect basis source-id source-label target-id target-label)
            :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))
       ctx)
@@ -372,9 +370,10 @@
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
-  [ctx]
-  (assoc (select-keys ctx tx-report-keys)
-         :status (if (empty? (:completed ctx)) :empty :ok)))
+  [{:keys [nodes-modified graphs-modified] :as ctx}]
+  (-> (select-keys ctx tx-report-keys)
+      (assoc :status (if (empty? (:completed ctx)) :empty :ok)
+             :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified)))))
 
 (defn new-transaction-context
   [basis actions]
