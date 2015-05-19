@@ -39,11 +39,12 @@
   (enabled? [selection] (= 1 (count selection)))
   (run [selection git list-view]
        (let [status (first selection)
-             file-name (or (:new-path status) (:old-path status))
+             old-name (or (:old-path status) (:new-path status) )
+             new-name (or (:new-path status) (:old-path status) )
              work-tree (.getWorkTree (.getRepository git))
-             old (String. (git/show-file git file-name))
-             new (slurp (io/file work-tree file-name))]
-         (diff-view/make-diff-viewer (:old-path status) old (:new-path status) new))))
+             old (String. (git/show-file git old-name))
+             new (slurp (io/file work-tree new-name))]
+         (diff-view/make-diff-viewer old-name old new-name new))))
 
 (g/defnode ChangesView
   (inherits core/Scope)
