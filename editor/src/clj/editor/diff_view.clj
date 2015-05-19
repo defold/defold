@@ -108,7 +108,7 @@
     (.setMax scroll m)
     (.setVisibleAmount scroll (/ (* m w) total-width))))
 
-(defn make-diff-viewer [str-left str-right]
+(defn make-diff-viewer [left-name str-left right-name str-right]
   (let [root ^Parent (FXMLLoader/load (io/resource "diff.fxml"))
         stage (Stage.)
         scene (Scene. root)
@@ -126,6 +126,9 @@
           ^ScrollBar hscroll (.lookup root "#hscroll")
           texts-left (make-texts left-group lines-left edits :left)
           texts-right (make-texts right-group lines-right edits :right)]
+
+      (ui/text! (.lookup root "#left-file") left-name)
+      (ui/text! (.lookup root "#right-file") right-name)
 
       (.add (.getChildren left) left-group)
       (.add (.getChildren right) right-group)
@@ -147,6 +150,6 @@
       (make-lines markers texts-left texts-right edits))))
 
 ; TODO: Remove soon
-#_(ui/run-later (make-diff-viewer "1\n2\n3\n4\n5\n6\n7\n8....\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n"
-                             "XXX\n2\n3\n4\n6\n7\n8\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\nNEW STUFF\n"))
-#_(ui/run-later (make-diff-viewer (slurp "a.txt") (slurp "b.txt")))
+#_(ui/run-later (make-diff-viewer "" "1\n2\n3\n4\n5\n6\n7\n8....\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n"
+                                  "" "XXX\n2\n3\n4\n6\n7\n8\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\nNEW STUFF\n"))
+#_(ui/run-later (make-diff-viewer "a.txt" (slurp "a.txt") "b.txt" (slurp "b.txt")))

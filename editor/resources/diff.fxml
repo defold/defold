@@ -10,6 +10,17 @@
 
 <VBox xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
+      <AnchorPane>
+         <children>
+            <HBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+               <children>
+                  <Label id="left-file" maxWidth="1.7976931348623157E308" text="Left file" HBox.hgrow="ALWAYS" />
+                  <Pane prefWidth="40.0" />
+                  <Label id="right-file" maxWidth="1.7976931348623157E308" text="Right file" HBox.hgrow="ALWAYS" />
+               </children>
+            </HBox>
+         </children>
+      </AnchorPane>
       <ScrollPane fitToWidth="true" hbarPolicy="NEVER" prefHeight="768.0" prefWidth="1024.0" VBox.vgrow="ALWAYS">
          <content>
             <AnchorPane>
@@ -21,11 +32,11 @@
                               <Pane id="left" minHeight="300.0" minWidth="300.0" prefWidth="300.0" style="-fx-background-color: white;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                            </children>
                         </AnchorPane>
-                        <VBox maxWidth="40.0" minWidth="40.0" prefWidth="40.0">
+                        <VBox>
                            <children>
                               <AnchorPane VBox.vgrow="ALWAYS">
                                  <children>
-                                    <Pane id="markers" style="-fx-background-color: #cccccc;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                    <Pane id="markers" maxWidth="40.0" minWidth="40.0" prefWidth="40.0" style="-fx-background-color: #cccccc;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                  </children>
                               </AnchorPane>
                            </children>
