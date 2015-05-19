@@ -88,7 +88,6 @@
   [g source source-label target target-label]
   (let [from (node g source)]
     (assert (not (nil? from)) (str "Attempt to connect " (pr-str source source-label target target-label)))
-    #_(assert (some #{source-label} (gt/outputs from)) (str "No label " source-label " exists on node " source " type " (:name (gt/node-type from))))
     (update-in g [:sarcs source] conjv (arc source target source-label target-label))))
 
 (defn connect-target
