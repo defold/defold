@@ -165,6 +165,13 @@
   (reduce-kv (fn [m k v]
                (assoc m k (if (nil? v) s/Any v))) {} m))
 
+(defn- warn [node-id node-type label input-schema error]
+  (println "WARNING: node " node-id
+           "- type:" (:name node-type)
+           "input label for" label
+           "expected" input-schema
+           "and had the problem:" error ))
+
 (defn- produce-with-schema
   "Helper function: if the production function has schema information,
   use it to collect the required arguments."
@@ -178,8 +185,8 @@
     (if-let [validation-error (if  (gt/error? input)
                                 (do (println "Carin error input already " node-id  " " label ) input)
                                 (s/check cleaned-schema input))]
-      (let [error (gt/error validation-error node-id label)
-            _ (println "WARNING: node " node-id "- type:" (:name node-type) "input label for" label "expected" input-schema "and had the problem:" error )]
+      (let [error (gt/error validation-error node-id label)]
+        (warn node-id node-type label input-schema error)
         (if (multivalued? input-cardinality) [error] error))
       (production-fn input))))
 
@@ -310,7 +317,7 @@
                             world-evaluation-chain)
                      world-evaluation-chain)
         result     (chain-eval evaluators basis [] node-id label)]
-    (when (gt/error? result)
+    (when (some gt/error? (collify result))
       (throw (Exception. (str "Error Value Found in Node.  Reason: " (pr-str result)))))
     (when cache
       (c/cache-hit cache @hits)

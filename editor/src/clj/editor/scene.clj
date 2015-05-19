@@ -512,7 +512,7 @@
   (property start (t/maybe t/Vec3))
   (property current (t/maybe t/Vec3))
   (property op-seq t/Any)
-  (property mode (t/enum :direct :toggle))
+  (property mode (t/maybe (t/enum :direct :toggle)))
   (property prev-selection-set t/Any)
 
   (input selection t/Any)
