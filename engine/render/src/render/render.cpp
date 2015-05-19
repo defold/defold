@@ -114,8 +114,6 @@ namespace dmRender
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
 
-        context->m_RenderListSortTarget = 0;
-
         return context;
     }
 
@@ -208,11 +206,8 @@ namespace dmRender
     void RenderListEnd(HRenderContext render_context)
     {
         // These will be sorted into when dispatched.
-        render_context->m_RenderListSortBuffers[0].SetCapacity(render_context->m_RenderListSortIndices.Capacity());
-        render_context->m_RenderListSortBuffers[0].SetSize(0);
-        render_context->m_RenderListSortBuffers[1].SetCapacity(render_context->m_RenderListSortIndices.Capacity());
-        render_context->m_RenderListSortBuffers[1].SetSize(0);
-        render_context->m_RenderListSortTarget = 0;
+        render_context->m_RenderListSortBuffer.SetCapacity(render_context->m_RenderListSortIndices.Capacity());
+        render_context->m_RenderListSortBuffer.SetSize(0);
     }
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
@@ -325,7 +320,8 @@ namespace dmRender
         }
     }
 
-    static void MakeSortValues(HRenderContext context)
+    // Compute new sort values for everything that matches tag_mask
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_mask)
     {
         const uint32_t count = context->m_RenderListSortIndices.Size();
 
@@ -340,12 +336,16 @@ namespace dmRender
         float minZW = FLT_MAX;
         float maxZW = -FLT_MAX;
 
+        context->m_RenderListSortBuffer.SetSize(0);
+
         // Write z values and compute range
         int c = 0;
         for (uint32_t i=0;i!=count;i++)
         {
             uint32_t idx = context->m_RenderListSortIndices[i];
             RenderListEntry *entry = &base[idx];
+            if ((entry->m_TagMask & tag_mask) != tag_mask)
+                continue;
             if (entry->m_MajorOrder != RENDER_ORDER_WORLD)
                 continue;
 
@@ -367,6 +367,8 @@ namespace dmRender
         {
             uint32_t idx = context->m_RenderListSortIndices[i];
             RenderListEntry *entry = &base[idx];
+            if ((entry->m_TagMask & tag_mask) != tag_mask)
+                continue;
 
             sort_values[idx].m_MajorOrder = entry->m_MajorOrder;
             if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
@@ -379,52 +381,28 @@ namespace dmRender
                 // use the integer value provided.
                 sort_values[idx].m_Order = entry->m_Order;
             }
-
             sort_values[idx].m_BatchKey = entry->m_BatchKey & 0xffffff;
             sort_values[idx].m_Dispatch = entry->m_Dispatch;
+            context->m_RenderListSortBuffer.Push(idx);
         }
     }
 
     Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
     {
-        uint32_t target = context->m_RenderListSortTarget;
-        dmArray<uint32_t>* sort_target   = &context->m_RenderListSortBuffers[target];
-        dmArray<uint32_t>* sort_previous = &context->m_RenderListSortBuffers[1-target];
+        DM_PROFILE(Render, "DrawRenderList");
 
-        if (sort_previous->Size() == 0)
-        {
-            // First time drawing, set up sort keys.
-            MakeSortValues(context);
-        }
-        else if (!memcmp(&context->m_RenderListDispatchedForViewProj, &context->m_ViewProj, sizeof(Matrix4)))
-        {
-            // Re-use same render object set if projection/view is exactly the same.
-            return Draw(context, predicate, constant_buffer);
-        }
+        uint32_t tag_mask = 0;
+        if (predicate != 0x0)
+            tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
 
-        MakeSortValues(context);
-
-        // Now to the actual sorting.
-        const uint32_t count = context->m_RenderListSortIndices.Size();
-        uint32_t* sort_indices = sort_target->Begin();
-        memcpy(sort_indices, context->m_RenderListSortIndices.Begin(), sizeof(uint32_t) * count);
-        sort_target->SetSize(count);
+        MakeSortBuffer(context, tag_mask);
 
         RenderListSorter sort;
         sort.values = context->m_RenderListSortValues.Begin();
-        std::sort(sort_indices, sort_indices + count, sort);
+        std::sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
 
-        // If previous sorting existed which is the same, use that
-        if (sort_previous->Size() == sort_target->Size() && !memcmp(sort_previous->Begin(), sort_target->Begin(), sizeof(uint32_t) * count))
-        {
-            return Draw(context, predicate, constant_buffer);
-        }
-
-        context->m_RenderListDispatchedForViewProj = context->m_ViewProj;
+        // Construct render objects
         context->m_RenderObjects.SetSize(0);
-
-        // No previous; swap buffers and build
-        context->m_RenderListSortTarget ^= 1;
 
         RenderListDispatchParams params;
         memset(&params, 0x00, sizeof(params));
@@ -444,11 +422,12 @@ namespace dmRender
 
         // Make batches for matching dispatch & batch key
         RenderListEntry *base = context->m_RenderList.Begin();
-        uint32_t *last = sort_indices;
+        uint32_t *last = context->m_RenderListSortBuffer.Begin();
+        uint32_t count = context->m_RenderListSortBuffer.Size();
 
         for (uint32_t i=1;i<=count;i++)
         {
-            uint32_t *idx = &sort_indices[i];
+            uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
             const RenderListEntry *last_entry = &base[*last];
 
             // continue batch on match, or dispatch
