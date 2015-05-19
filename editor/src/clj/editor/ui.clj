@@ -4,7 +4,8 @@
             [editor.jfx :as jfx]
             [editor.handler :as handler]
             [service.log :as log])
-  (:import [javafx.scene Parent Node Scene]
+  (:import [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.scene Parent Node Scene]
            [javafx.stage Stage Modality Window]
            [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar]
            [javafx.scene.layout AnchorPane Pane]
@@ -55,6 +56,20 @@
   (AnchorPane/setBottomAnchor control 0.0)
   (AnchorPane/setLeftAnchor control 0.0)
   (AnchorPane/setRightAnchor control 0.0))
+
+(defn local-bounds [^Node node]
+  (let [b (.getBoundsInLocal node)]
+    {:minx (.getMinX b)
+     :miny (.getMinY b)
+     :maxx (.getMaxX b)
+     :maxy (.getMaxY b)
+     :width (.getWidth b)
+     :height (.getHeight b)}))
+
+(defn observe [^ObservableValue observable listen-fn]
+  (.addListener observable (reify ChangeListener
+                        (changed [this observable old new]
+                          (listen-fn observable old new)))))
 
 (defn do-run-now [f]
   (if (Platform/isFxApplicationThread)

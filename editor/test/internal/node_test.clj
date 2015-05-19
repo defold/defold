@@ -161,10 +161,10 @@
       (testing "defnk inputs from node inputs"
         (is (nil?              (g/node-value node0 :defnk-in)))
         (is (= :node0          (g/node-value node1 :defnk-in)))
-        (is (#{:node0 :node1}  (g/node-value node2 :defnk-in)))
+        (is (#{:node0 :node1}  (g/node-value node2 :defnk-in))) ;; TODO - this should just be :node1
         (is (= []              (g/node-value node0 :defnk-in-multi)))
         (is (= [:node0]        (g/node-value node1 :defnk-in-multi)))
-        (is (= [:node0 :node1] (g/node-value node2 :defnk-in-multi)))))))
+        (is (= #{:node0 :node1} (into #{} (g/node-value node2 :defnk-in-multi))))))))
 
 (deftest node-properties-as-node-outputs
   (testing "every property automatically creates an output that produces the property's value"
