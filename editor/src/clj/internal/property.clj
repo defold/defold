@@ -1,7 +1,8 @@
 (ns internal.property
   (:require [clojure.core.match :refer [match]]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]))
+            [dynamo.util :refer :all]
+            [internal.graph.types :as gt]))
 
 (def ^:private default-validation-fn (constantly true))
 
@@ -75,7 +76,7 @@
          override-props# ~(mapv compile-defproperty-form body-forms)
          props#          (reduce merge-props base-props# override-props#)
          ; protocol detection heuristic based on private function `clojure.core/protocol?`
-         protocol?#      (fn [~'p] (and (map? ~'p) (contains? ~'p :on-interface)))]
+         protocol?#      (fn [~'p] (gt/protocol? ~'p))]
      (assert (not (protocol?# value-type#)) (str "Property " '~name-sym " type " '~value-type " looks like a protocol; try (schema.core/protocol " '~value-type ") instead."))
      (map->PropertyTypeImpl props#)))
 

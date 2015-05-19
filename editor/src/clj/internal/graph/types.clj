@@ -67,6 +67,8 @@
 
      Returns a collection of [node-id output-label] pairs."))
 
+(defn protocol? [x] (and (map? x) (contains? x :on-interface)))
+
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
