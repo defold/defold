@@ -129,8 +129,12 @@
       (exists? input-type)
       (s/maybe input-type)
 
+      (has-property? node label)
+      (let [schema (gt/property-type node-type label)]
+       (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema))
+
       (= :this label)
-      (type node)
+      (class node)
 
       (has-output? node label)
       (gt/output-type node-type label))))
@@ -161,20 +165,23 @@
   (reduce-kv (fn [m k v]
                (assoc m k (if (nil? v) s/Any v))) {} m))
 
-
 (defn- produce-with-schema
   "Helper function: if the production function has schema information,
   use it to collect the required arguments."
   [^IBasis basis in-production node-id label chain-head production-fn]
-  (let [input-schema (collect-input-schema basis in-production node-id label production-fn)
-        cleaned-schema (if (map? input-schema) (clean-schema input-schema) input-schema)
-        input        (collect-inputs basis in-production node-id label chain-head input-schema)
+  (let [input-schema      (collect-input-schema basis in-production node-id label production-fn)
+        cleaned-schema    (if (map? input-schema) (clean-schema input-schema) input-schema)
+        input             (collect-inputs basis in-production node-id label chain-head input-schema)
         node              (gt/node-by-id basis node-id)
         node-type         (some-> node gt/node-type)
         input-cardinality (gt/input-cardinality node-type label)]
-    (if-not (s/check cleaned-schema input)
-      (production-fn input)
-      (if  (multivalued? input-cardinality) [(gt/error)] (gt/error)))))
+    (if-let [validation-error (if  (gt/error? input)
+                                (do (println "Carin error input already " node-id  " " label ) input)
+                                (s/check cleaned-schema input))]
+      (let [error (gt/error validation-error node-id label)
+            _ (println "WARNING: node " node-id "- type:" (:name node-type) "input label for" label "expected" input-schema "and had the problem:" error )]
+        (if (multivalued? input-cardinality) [error] error))
+      (production-fn input))))
 
 (defn apply-transform-or-substitute
   "Attempt to invoke the production function for an output. If it
@@ -303,6 +310,8 @@
                             world-evaluation-chain)
                      world-evaluation-chain)
         result     (chain-eval evaluators basis [] node-id label)]
+    (when (gt/error? result)
+      (throw (Exception. (str "Error Value Found in Node.  Reason: " (pr-str result)))))
     (when cache
       (c/cache-hit cache @hits)
       (c/cache-encache cache @deltas))
@@ -312,7 +321,7 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities property-types]
 
   gt/NodeType
   (supertypes           [_] supertypes)
@@ -332,7 +341,8 @@
   (substitute-for'      [_ input] (get substitutes input))
   (input-type           [_ input] (get inputs input))
   (input-cardinality    [_ input] (get cardinalities input))
-  (output-type          [_ output] (get transform-types output)))
+  (output-type          [_ output] (get transform-types output))
+  (property-type        [_ output] (get property-types output)))
 
 (defmethod print-method NodeTypeImpl
   [^NodeTypeImpl v ^java.io.Writer w]
@@ -400,6 +410,7 @@ not called directly."
     (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description gt/triggers))
     (update-in [:substitutes]         combine-with merge      {} (from-supertypes description :substitutes))
     (update-in [:cardinalities]       combine-with merge      {} (from-supertypes description :cardinalities))
+    (update-in [:property-types]      combine-with merge      {} (from-supertypes description :property-types))
     attach-input-dependencies
     map->NodeTypeImpl))
 
@@ -466,6 +477,9 @@ not called directly."
 
     (resource-property? property-type)
     (assoc-in [:inputs label] property-type)
+
+    true
+    (assoc-in [:property-types label] property-type)
 
     true
     (update-in [:transforms] assoc-in [label] passthrough)

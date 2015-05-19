@@ -289,16 +289,16 @@
 
 (g/defnode ToolController
   (property active-tool t/Keyword)
-  (property start Vector3d)
+  (property start (t/maybe Vector3d))
   (property originals t/Any)
   
-  (property hot-manip t/Keyword)
-  (property active-manip t/Keyword (default :screen))
+  (property hot-manip (t/maybe t/Keyword))
+  (property active-manip (t/maybe t/Keyword) (default :screen))
   (property op-seq t/Any)
   
   (input camera t/Any)
   (input viewport t/Any)
   (input selected-renderables t/Any)
 
-  (output renderables t/RenderData :cached produce-renderables)
+  (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/fnk [] handle-input)))
