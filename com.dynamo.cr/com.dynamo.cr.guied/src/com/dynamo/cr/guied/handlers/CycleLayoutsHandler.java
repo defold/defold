@@ -16,6 +16,8 @@ import com.dynamo.cr.guied.core.GuiSceneNode;
 import com.dynamo.cr.guied.core.LayoutNode;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
+import com.dynamo.cr.sceneed.core.operations.SelectOperation;
+import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 
 public class CycleLayoutsHandler extends AbstractHandler {
 
@@ -43,11 +45,12 @@ public class CycleLayoutsHandler extends AbstractHandler {
                 layoutNode = (LayoutNode) childList.get(childIndex);
                 IStructuredSelection selection = new StructuredSelection(layoutNode);
                 IPresenter presenter = (IPresenter) sceneEditor.getScenePresenter();
-                presenter.onSelect(sceneEditor.getPresenterContext(), selection);
+                IPresenterContext context = sceneEditor.getPresenterContext();
+                context.executeOperation(new SelectOperation(currentSelection, selection, context));
                 if(!currentSelection.isEmpty()) {
                     if(currentSelection.getFirstElement() instanceof GuiNode) {
                         presenter.onRefreshSceneView();
-                        presenter.onSelect(sceneEditor.getPresenterContext(), currentSelection);
+                        context.executeOperation(new SelectOperation(selection, currentSelection, context));
                         presenter.onRefreshSceneView();
                     }
                 }

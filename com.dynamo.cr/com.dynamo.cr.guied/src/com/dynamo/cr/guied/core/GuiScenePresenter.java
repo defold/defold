@@ -16,6 +16,7 @@ import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.SelectOperation;
 
 public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode> {
 
@@ -110,7 +111,7 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
         LayoutsNode layoutsNode = ((LayoutsNode)scene.getLayoutsNode());
         List<String> layouts = layoutsNode.getLayouts();
         if(layouts.contains(id)) {
-            context.setSelection(new StructuredSelection(((LayoutsNode) scene.getLayoutsNode()).getLayoutNode(id)));
+            context.executeOperation(new SelectOperation(context.getSelection(), new StructuredSelection(((LayoutsNode) scene.getLayoutsNode()).getLayoutNode(id)), context));
         } else {
             List<Node> nodes = Collections.singletonList((Node) new LayoutNode(id));
             Node nodesNode = scene.getNodesNode();

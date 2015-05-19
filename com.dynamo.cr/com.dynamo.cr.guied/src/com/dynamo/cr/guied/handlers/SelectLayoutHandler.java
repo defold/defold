@@ -38,11 +38,9 @@ public class SelectLayoutHandler extends AbstractHandler implements IElementUpda
 
             if(!currentSelection.isEmpty()) {
                 if(currentSelection.getFirstElement() instanceof GuiNode) {
-                    sceneEditor.getScenePresenter().onRefreshSceneView();
                     sceneEditor.getScenePresenter().onSelect(sceneEditor.getPresenterContext(), currentSelection);
                 }
             }
-            sceneEditor.getScenePresenter().onRefreshSceneView();
         }
         return null;
     }

@@ -14,6 +14,8 @@ import com.dynamo.cr.guied.core.GuiNode;
 import com.dynamo.cr.guied.core.GuiSceneNode;
 import com.dynamo.cr.sceneed.core.ISceneEditor;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenter;
+import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.operations.SelectOperation;
 import com.dynamo.cr.sceneed.core.Node;
 
 public class SelectPreviousLayoutHandler extends AbstractHandler {
@@ -34,11 +36,12 @@ public class SelectPreviousLayoutHandler extends AbstractHandler {
                 if(prevNode != null) {
                     IStructuredSelection selection = new StructuredSelection(prevNode);
                     IPresenter presenter = (IPresenter) sceneEditor.getScenePresenter();
-                    presenter.onSelect(sceneEditor.getPresenterContext(), selection);
+                    IPresenterContext context = sceneEditor.getPresenterContext();
+                    context.executeOperation(new SelectOperation(currentSelection, selection, context));
                     if(!currentSelection.isEmpty()) {
                         if(currentSelection.getFirstElement() instanceof GuiNode) {
                             presenter.onRefreshSceneView();
-                            presenter.onSelect(sceneEditor.getPresenterContext(), currentSelection);
+                            context.executeOperation(new SelectOperation(selection, currentSelection, context));
                             presenter.onRefreshSceneView();
                         }
                     }
