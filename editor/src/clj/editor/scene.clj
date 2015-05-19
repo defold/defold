@@ -269,7 +269,7 @@
   (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
                                                       (.order (ByteOrder/nativeOrder))
                                                       (.asIntBuffer))))
-  (output drawable GLAutoDrawable :cached produce-drawable)
+  (output drawable (t/maybe GLAutoDrawable) :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
   (output frame BufferedImage :cached produce-frame)
   (output picking-selection t/Any :cached produce-selection)
