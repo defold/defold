@@ -21,6 +21,8 @@ There's there different functions in this namespace
            [org.eclipse.jgit.treewalk.filter PathFilter]
            [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]))
 
+; TODO: Renamed, modified but not staged is broken (missing blob)
+
 (set! *warn-on-reflection* true)
 
 (defn show-file [^Git git name]
