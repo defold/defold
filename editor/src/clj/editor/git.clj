@@ -89,15 +89,26 @@ There's there different functions in this namespace
       (merge (to-map deleted :deleted))
       (merge (to-map modified :modified)))))
 
+(defn- find-original-for-renamed [ustatus file]
+  (->> ustatus
+    (filter (fn [e] (= (:new-path file))))
+    (map :old-path)
+    (first)))
+
 ; "High level" revert
 ; * Changed files are checked out
 ; * New files are removed
 ; * Deleted files are checked out
 ; NOTE: Not to be confused with "git revert"
 (defn revert [^Git git files]
-  (let [co (-> git (.checkout))
+  (let [us (unified-status git)
+        extra (->> files
+                (map (fn [f] (find-original-for-renamed  us f)))
+                (remove nil?))
+        co (-> git (.checkout))
         reset (-> git (.reset) (.setRef "HEAD"))]
-    (doseq [f files]
+
+    (doseq [f (concat files extra)]
       (.addPath co f)
       (.addPath reset f))
     (.call reset)
