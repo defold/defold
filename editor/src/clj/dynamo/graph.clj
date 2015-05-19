@@ -38,28 +38,32 @@
 
 (defn graph [gid] (is/graph @*the-system* gid))
 
-(defn- merge-graphs [sys basis tx-graphs gids outputs-modified]
-  (doseq [gid  gids
-          :let [graph (get tx-graphs gid)]]
-    (let [start-tx    (:tx-id graph -1)
-          sidereal-tx (is/graph-time sys gid)]
-      (if (< start-tx sidereal-tx)
-        ;; graph was modified concurrently by a different transaction.
-        (throw (ex-info "Concurrent modification of graph"
-                        {:_gid gid :start-tx start-tx :sidereal-tx sidereal-tx}))
-        (let [gref      (is/graph-ref sys gid)
-              href      (is/graph-history sys gid)
-              prior     @gref
-              posterior (update-in graph [:tx-id] safe-inc)]
-          (when href
-            (alter href is/merge-or-push-history gref prior posterior (filter #(= gid (node-id->graph-id (first %))) outputs-modified)))
-          (ref-set gref posterior))))))
+(defn- has-history? [sys gid] (not (nil? (is/graph-history sys gid))))
+(def ^:private meaningful-change? contains?)
 
-(defn- graphs-touched
-  [tx-result]
-  (distinct
-   (concat (:graphs-modified tx-result)
-           (map gt/node-id->graph-id (:nodes-modified tx-result)))))
+(defn- remember-change
+  [sys gid before after outputs-modified]
+  (alter (is/graph-history sys gid) is/merge-or-push-history (is/graph-ref sys gid) before after outputs-modified))
+
+(defn- merge-graphs
+  [sys basis post-tx-graphs significantly-modified-graphs outputs-modified]
+  (let [outputs-modified (group-by #(node-id->graph-id (first %)) outputs-modified)]
+    (doseq [[gid graph] post-tx-graphs]
+      (let [start-tx    (:tx-id graph -1)
+            sidereal-tx (is/graph-time sys gid)]
+        (if (< start-tx sidereal-tx)
+          ;; graph was modified concurrently by a different transaction.
+          (throw (ex-info "Concurrent modification of graph"
+                          {:_gid gid :start-tx start-tx :sidereal-tx sidereal-tx}))
+          (let [gref   (is/graph-ref sys gid)
+                before @gref
+                after  (update-in graph [:tx-id] safe-inc)
+                after  (if (not (meaningful-change? significantly-modified-graphs gid))
+                         (assoc after :tx-sequence-label (:tx-sequence-label before))
+                         after)]
+            (when (and (has-history? sys gid) (meaningful-change? significantly-modified-graphs gid))
+              (remember-change sys gid before after (outputs-modified gid)))
+            (ref-set gref after)))))))
 
 (defn transact
   [txs]
@@ -67,7 +71,7 @@
         tx-result (it/transact* (it/new-transaction-context basis txs))]
     (when (= :ok (:status tx-result))
       (dosync
-       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (graphs-touched tx-result) (:outputs-modified tx-result)))
+       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result)))
       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))
       (doseq [l (:old-event-loops tx-result)]
         (is/stop-event-loop! @*the-system* l))
@@ -562,8 +566,9 @@ for all properties of this node."
 
 (defn undo
   [graph]
-  (when-let [ks (is/undo-history (is/graph-history @*the-system* graph))]
-    (invalidate! ks)))
+  (let [snapshot @*the-system*]
+   (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
+     (invalidate! ks))))
 
 (defn undo-stack
   [graph]
@@ -575,8 +580,9 @@ for all properties of this node."
 
 (defn redo
   [graph]
-  (when-let [ks (is/redo-history (is/graph-history @*the-system* graph))]
-    (invalidate! ks)))
+  (let [snapshot @*the-system*]
+    (when-let [ks (is/redo-history (is/graph-history snapshot graph) snapshot)]
+      (invalidate! ks))))
 
 (defn redo-stack
   [graph]
