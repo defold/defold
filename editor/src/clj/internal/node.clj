@@ -157,16 +157,22 @@
     (transient {})
     input-schema)))
 
+(defn- clean-schema [m]
+  (reduce-kv (fn [m k v]
+               (assoc m k (if (nil? v) s/Any v))) {} m))
+
+
 (defn- produce-with-schema
   "Helper function: if the production function has schema information,
   use it to collect the required arguments."
   [^IBasis basis in-production node-id label chain-head production-fn]
   (let [input-schema (collect-input-schema basis in-production node-id label production-fn)
+        cleaned-schema (if (map? input-schema) (clean-schema input-schema) input-schema)
         input        (collect-inputs basis in-production node-id label chain-head input-schema)
         node              (gt/node-by-id basis node-id)
         node-type         (some-> node gt/node-type)
         input-cardinality (gt/input-cardinality node-type label)]
-    (if-not (s/check input-schema input)
+    (if-not (s/check cleaned-schema input)
       (production-fn input)
       (if  (multivalued? input-cardinality) [(gt/error)] (gt/error)))))
 
