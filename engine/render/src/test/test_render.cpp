@@ -231,6 +231,7 @@ TEST_F(dmRenderTest, TestRenderListDraw)
         dmRender::RenderListEntry & entry = out[i];
         entry.m_WorldPosition = Point3(0,0,orders[i]);
         entry.m_MajorOrder = majors[i % 3];
+        entry.m_TagMask = 0;
         entry.m_Order = orders[i];
         entry.m_BatchKey = i & 3; // no particular system
         entry.m_Dispatch = dispatch;

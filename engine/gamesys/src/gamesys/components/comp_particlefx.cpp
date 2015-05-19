@@ -223,7 +223,10 @@ namespace dmGameSystem
         if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
+            {
+                dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
                 dmRender::AddToRender(params.m_Context, (dmRender::RenderObject*) params.m_Buf[*i].m_UserData);
+            }
         }
     }
 
@@ -245,6 +248,7 @@ namespace dmGameSystem
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &render_objects[i];
             write_ptr->m_BatchKey = 0;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(render_objects[i].m_Material);
             write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
@@ -423,7 +427,6 @@ namespace dmGameSystem
             ro.m_VertexBuffer = world->m_VertexBuffer;
             ro.m_VertexDeclaration = world->m_VertexDeclaration;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-            ro.m_CalculateDepthKey = 1;
             ro.m_WorldTransform = world_transform;
             ro.m_SetBlendFactors = 1;
             SetBlendFactors(&ro, blend_mode);
