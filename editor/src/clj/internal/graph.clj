@@ -99,11 +99,13 @@
 
 (defn source-connected?
   [g source source-label target target-label]
-  (some #{[target target-label]} (targets g source source-label)))
-
-(defn target-connected?
-  [g source source-label target target-label]
-  (some #{[source source-label]} (sources g target target-label)))
+  (not
+   (empty?
+    (filter (fn [^ArcBase arc]
+              (and (= source-label (.sourceLabel arc))
+                   (= target-label (.targetLabel arc))
+                   (= target       (.target arc))))
+            (get-in g [:sarcs source])))))
 
 (defn disconnect-source
   [g source source-label target target-label]
