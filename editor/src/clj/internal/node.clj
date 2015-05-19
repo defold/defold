@@ -162,10 +162,13 @@
   use it to collect the required arguments."
   [^IBasis basis in-production node-id label chain-head production-fn]
   (let [input-schema (collect-input-schema basis in-production node-id label production-fn)
-        input        (collect-inputs basis in-production node-id label chain-head input-schema)] 
+        input        (collect-inputs basis in-production node-id label chain-head input-schema)
+        node              (gt/node-by-id basis node-id)
+        node-type         (some-> node gt/node-type)
+        input-cardinality (gt/input-cardinality node-type label)]
     (if-not (s/check input-schema input)
       (production-fn input)
-      (gt/error))))
+      (if  (multivalued? input-cardinality) [(gt/error)] (gt/error)))))
 
 (defn apply-transform-or-substitute
   "Attempt to invoke the production function for an output. If it

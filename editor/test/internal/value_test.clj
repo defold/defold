@@ -259,7 +259,9 @@
 
 (g/defnode ConstantNode
   (property value t/Any)
-  (output source t/Int (g/fnk [value] value)))
+  (output source t/Int (g/fnk [value] value))
+  (property array-value [t/Any])
+  (output array-source [t/Int] (g/fnk [value] value)))
 
 (defn arrange-error-value-call
   [world label connected? source-sends]
@@ -270,25 +272,24 @@
     (g/node-value receiver label)))
 
 (deftest error-value-replacement
-  (with-clean-system
-    (are [label connected? source-sends expected-pfn-val]
-      (= expected-pfn-val (arrange-error-value-call world label connected? source-sends))
-      ;; output-label connected? source-sends  expected-pfn
-      :unary-no-sub   false      :dontcare     nil
-      :multi-no-sub   false      :dontcare     '()
-      :unary-with-sub false      :dontcare     99
-      :multi-with-sub false      :dontcare     '()
+  (testing "Singular Constant Values"
+   (with-clean-system
+     (are [label connected? source-sends expected-pfn-val]
+       (= expected-pfn-val (arrange-error-value-call world label connected? source-sends))
+       ;; output-label connected? source-sends  expected-pfn
+       :unary-no-sub   false      :dontcare     nil
+       :multi-no-sub   false      :dontcare     '()
+       :unary-with-sub false      :dontcare     99
+       :multi-with-sub false      :dontcare     '()
 
-      :unary-no-sub   true       nil           nil
-      :unary-with-sub true       nil           nil
+       :unary-no-sub   true       nil           nil
+       :unary-with-sub true       nil           nil
 
-      :multi-no-sub   true       1             '(1)
-      :multi-with-sub true       42            '(42)
-      :multi-no-sub   true       '(nil 1 2 3)  '[(nil 1 2 3)]
-      :multi-with-sub true       '(nil 1 2 3)  '[(nil 1 2 3)]
+       :multi-no-sub   true       1             '(1)
+       :multi-with-sub true       42            '(42)
 
-      :unary-no-sub   true       (g/error)      (g/error)
-      :unary-with-sub true       (g/error)      99
+       :unary-no-sub   true       (g/error)      (g/error)
+       :unary-with-sub true       (g/error)      99
 
-      :multi-no-sub   true       (g/error)      [(g/error)]
-      :multi-with-sub true       (g/error)      [4848])))
+       :multi-no-sub   true       (g/error)      [(g/error)]
+       :multi-with-sub true       (g/error)      [4848]))))
