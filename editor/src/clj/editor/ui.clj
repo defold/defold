@@ -57,6 +57,15 @@
   (AnchorPane/setLeftAnchor control 0.0)
   (AnchorPane/setRightAnchor control 0.0))
 
+(defn local-bounds [^Node node]
+  (let [b (.getBoundsInLocal node)]
+    {:minx (.getMinX b)
+     :miny (.getMinY b)
+     :maxx (.getMaxX b)
+     :maxy (.getMaxY b)
+     :width (.getWidth b)
+     :height (.getHeight b)}))
+
 (defn observe [^ObservableValue observable listen-fn]
   (.addListener observable (reify ChangeListener
                         (changed [this observable old new]
