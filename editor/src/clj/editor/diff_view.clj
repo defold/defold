@@ -6,6 +6,7 @@
   (:import [javafx.scene Parent Scene Group]
            [javafx.stage Stage]
            [javafx.scene.paint Paint]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.control Control ScrollBar]
            [javafx.scene.layout Pane]
            [javafx.scene.shape Line Rectangle]
@@ -121,6 +122,10 @@
         lines-left (split-lines str-left)
         lines-right (split-lines str-right)
         edits (diff str-left str-right)]
+
+    (ui/title! stage "Diff")
+    (.setOnKeyPressed scene (ui/event-handler event (when (= (.getCode ^KeyEvent event) KeyCode/ESCAPE) (.close stage))))
+
     (.setScene stage scene)
     (.show stage)
 
