@@ -42,7 +42,7 @@
   (input outline t/Any)
 
   (output active-outline t/Any :cached (g/fnk [outline] outline))
-  (output active-resource workspace/Resource (g/fnk [^TabPane tab-pane] (when-let [^Tab tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))] (:resource (.getUserData tab)))))
+  (output active-resource (t/protocol workspace/Resource) (g/fnk [^TabPane tab-pane] (when-let [^Tab tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))] (:resource (.getUserData tab)))))
   (output open-resources t/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]

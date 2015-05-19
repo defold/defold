@@ -436,21 +436,23 @@ not called directly."
   "Update the node type description with the given input."
   [description label schema flags options & [args]]
   (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
-(let [property-schema (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)]
-  (cond->
-      (assoc-in description [:inputs label] property-schema)
+  (assert (not (gt/protocol? schema))
+          (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (t/protocol) instead" label (:name description)))
+  (let [property-schema (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)]
+    (cond->
+        (assoc-in description [:inputs label] property-schema)
 
-    (some #{:inject} flags)
-    (update-in [:injectable-inputs] #(conj (or % #{}) label))
+      (some #{:inject} flags)
+      (update-in [:injectable-inputs] #(conj (or % #{}) label))
 
-    (:substitute options)
-    (update-in [:substitutes] assoc label (:substitute options))
+      (:substitute options)
+      (update-in [:substitutes] assoc label (:substitute options))
 
-    (not (some #{:array} flags))
-    (update-in [:cardinalities] assoc label :one)
+      (not (some #{:array} flags))
+      (update-in [:cardinalities] assoc label :one)
 
-    (some #{:array} flags)
-    (update-in [:cardinalities] assoc label :many))))
+      (some #{:array} flags)
+      (update-in [:cardinalities] assoc label :many))))
 
 (defn- abstract-function
   [label type]
