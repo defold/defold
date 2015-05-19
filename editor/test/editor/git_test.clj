@@ -213,5 +213,34 @@
     (git/autostage git)
     (git/revert git ["src/main.cpp"])
     (is (= #{} (all-files (git/status git))))
+    (delete-git git))
+
+  ; renamed and staged
+  (let [git (new-git)]
+    (create-file git "/src/main.cpp" "void main() {}")
+    (commit-src git)
+
+    (create-file git "/src/foo.cpp" "void main() {}")
+    (delete-file git "src/main.cpp")
+
+    (is (= #{"src/main.cpp"} (:missing (git/status git))))
+    (is (= #{"src/foo.cpp"} (:untracked (git/status git))))
+    ;(git/autostage git)
+    (git/revert git ["src/foo.cpp"])
+    (is (= #{} (all-files (git/status git))))
+    (delete-git git))
+
+  (let [git (new-git)]
+    (create-file git "/src/main.cpp" "void main() {}")
+    (commit-src git)
+
+    (create-file git "/src/foo.cpp" "void main() {}")
+    (delete-file git "src/main.cpp")
+
+    (is (= #{"src/main.cpp"} (:missing (git/status git))))
+    (is (= #{"src/foo.cpp"} (:untracked (git/status git))))
+    (git/autostage git)
+    (git/revert git ["src/foo.cpp"])
+    (is (= #{} (all-files (git/status git))))
     (delete-git git)))
 

@@ -3,6 +3,7 @@
             [editor.core :as core]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.diff-view :as diff-view]
             [editor.ui :as ui]
             [dynamo.graph :as g]
             [dynamo.types :as t]
@@ -21,7 +22,9 @@
   {:text (format "[%s]%s" ((:change-type status) short-status) (or (:new-path status) (:old-path status)))})
 
 (ui/extend-menu ::changes-menu nil
-                [{:label "Revert"
+                [{:label "Diff"
+                  :command :diff}
+                 {:label "Revert"
                   :icon "icons/site_backup_and_restore.png"
                   :command :revert}])
 
@@ -31,6 +34,17 @@
        (doseq [status selection]
          (git/revert git [(or (:new-path status) (:old-path status))]))
        (refresh! git list-view)))
+
+(handler/defhandler :diff
+  (enabled? [selection] (= 1 (count selection)))
+  (run [selection git list-view]
+       (let [status (first selection)
+             old-name (or (:old-path status) (:new-path status) )
+             new-name (or (:new-path status) (:old-path status) )
+             work-tree (.getWorkTree (.getRepository git))
+             old (String. (git/show-file git old-name))
+             new (slurp (io/file work-tree new-name))]
+         (diff-view/make-diff-viewer old-name old new-name new))))
 
 (g/defnode ChangesView
   (inherits core/Scope)
