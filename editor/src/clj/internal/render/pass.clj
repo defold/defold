@@ -31,6 +31,18 @@
   icon           false false
   icon-selection true false)
 
+(def RenderData {(t/optional-key background)            t/Any
+                 (t/optional-key opaque)                t/Any
+                 (t/optional-key transparent)           t/Any
+                 (t/optional-key icon-outline)          t/Any
+                 (t/optional-key outline)               t/Any
+                 (t/optional-key manipulator)           t/Any
+                 (t/optional-key overlay)               t/Any
+                 (t/optional-key selection)             t/Any
+                 (t/optional-key manipulator-selection) t/Any
+                 (t/optional-key icon)                  t/Any
+                 (t/optional-key icon-selection)        t/Any})
+
 (defmulti prepare-gl (fn [pass gl glu] pass))
 
 (defmethod prepare-gl background
