@@ -35,10 +35,13 @@
   [coll x]
   (conj (or coll []) x))
 
-(defn- rebuild-sarcs [basis gid]
+(defn- rebuild-sarcs
+  [basis gid]
   (let [all-arcs (->> (:graphs basis)
-                      (mapcat :tarcs)
-                      (keep #(= (gt/node-id->graph-id (.source arc)) gid)))]
+                      vals
+                      (mapcat (comp vals :tarcs deref))
+                      flatten
+                      (filter (fn [^ArcBase arc] (= (gt/node-id->graph-id (.source arc)) gid))))]
     (reduce
      (fn [sarcs arc] (update sarcs (.source arc) conjv arc))
      {}
