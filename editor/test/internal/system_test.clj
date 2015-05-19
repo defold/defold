@@ -80,10 +80,11 @@
             tx-report    (g/transact [(g/set-property root :touched 1)
                                       (g/operation-label "Increment touch count")])
             undos-after  (is/undo-stack (graph-history pgraph-id))
-            redos-after  (is/redo-stack (graph-history pgraph-id))]
+            redos-after  (is/redo-stack (graph-history pgraph-id))
+            snapshot     @g/*the-system*]
         (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
         (is (= []                                     (mapv :label redos-after)))
-        (is/undo-history (graph-history pgraph-id))
+        (is/undo-history (graph-history pgraph-id) snapshot)
 
         (let [undos-after-undo  (is/undo-stack (graph-history pgraph-id))
               redos-after-undo  (is/redo-stack (graph-history pgraph-id))]

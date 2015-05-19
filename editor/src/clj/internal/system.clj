@@ -9,6 +9,8 @@
             [service.log :as log])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
+(declare graphs)
+
 (def ^:private maximum-cached-items     10000)
 (def ^:private maximum-disposal-backlog 2500)
 (def ^:private history-size-max         60)
@@ -98,16 +100,16 @@
        (mapv history-state-map)))
 
 (defn undo-history
-  [history-ref]
+  [history-ref system-snapshot]
   (dosync
    (let [{:keys [state tape]} @history-ref
          last-change          (h/ivalue tape)
          tape                 (h/iprev tape)
          undo-to              (h/ivalue tape)]
      (when undo-to
-        (ref-set state (history-state-graph undo-to))
-        (alter history-ref assoc :tape tape)
-        (into (history-state-cache-keys last-change) (history-state-cache-keys undo-to))))))
+       (ref-set state (ig/hydrate-after-undo (graphs system-snapshot) (history-state-graph undo-to)))
+       (alter history-ref assoc :tape tape)
+       (into (history-state-cache-keys last-change) (history-state-cache-keys undo-to))))))
 
 (defn redo-stack [history-ref]
   (->> history-ref
@@ -116,14 +118,15 @@
        h/after
        (mapv history-state-map)))
 
-(defn redo-history [history-ref]
+(defn redo-history
+  [history-ref system-snapshot]
   (dosync
    (let [{:keys [state tape]} @history-ref
          previous-change      (h/ivalue tape)
          tape                 (h/inext tape)
          redo-to              (h/ivalue tape)]
      (when redo-to
-       (ref-set state (history-state-graph redo-to))
+       (ref-set state (ig/hydrate-after-undo (graphs system-snapshot) (history-state-graph redo-to)))
        (alter history-ref assoc :tape tape)
        (into (history-state-cache-keys previous-change) (history-state-cache-keys redo-to))))))
 

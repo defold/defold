@@ -31,6 +31,19 @@
   [source target source-label target-label]
   `(ArcBase. ~source ~target ~source-label ~target-label))
 
+(defn- conjv
+  [coll x]
+  (conj (or coll []) x))
+
+(defn- rebuild-sarcs [basis gid]
+  (let [all-arcs (->> (:graphs basis)
+                      (mapcat :tarcs)
+                      (keep #(= (gt/node-id->graph-id (.source arc)) gid)))]
+    (reduce
+     (fn [sarcs arc] (update sarcs (.source arc) conjv arc))
+     {}
+     all-arcs)))
+
 (defn empty-graph
   []
   {:nodes   {}
@@ -76,14 +89,14 @@
   (let [from (node g source)]
     (assert (not (nil? from)) (str "Attempt to connect " (pr-str source source-label target target-label)))
     #_(assert (some #{source-label} (gt/outputs from)) (str "No label " source-label " exists on node " source " type " (:name (gt/node-type from))))
-    (update-in g [:sarcs source] #(conj (or % []) (arc source target source-label target-label)))))
+    (update-in g [:sarcs source] conjv (arc source target source-label target-label))))
 
 (defn connect-target
   [g source source-label target target-label]
   (let [to (node g target)]
     (assert (not (nil? to)) (str "Attempt to connect " (pr-str source source-label target target-label)))
     (assert (some #{target-label} (gt/inputs to))    (str "No label " target-label " exists on node " to))
-    (update-in g [:tarcs target] #(conj (or % []) (arc source target source-label target-label)))))
+    (update-in g [:tarcs target] conjv (arc source target source-label target-label))))
 
 (defn source-connected?
   [g source source-label target target-label]
@@ -282,3 +295,7 @@
 (defn multigraph-basis
   [graphs]
   (MultigraphBasis. graphs))
+
+(defn hydrate-after-undo
+  [graphs graph-state]
+  (assoc graph-state :sarcs (rebuild-sarcs (multigraph-basis graphs) (:_gid graph-state))))
