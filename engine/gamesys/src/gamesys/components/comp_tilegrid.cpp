@@ -187,7 +187,6 @@ namespace dmGameSystem
             ro->m_VertexBuffer = 0;
             ro->m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             ro->m_Material = material;
-            ro->m_CalculateDepthKey = 1;
         }
 
         world->m_TileGrids.Push(component);
@@ -477,6 +476,7 @@ namespace dmGameSystem
             const Vector4 trans = tile_grid->m_RenderWorldTransform.getCol(3);
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) tile_grid;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(tile_grid->m_TileGridResource->m_Material);
             write_ptr->m_BatchKey = i;
             write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;

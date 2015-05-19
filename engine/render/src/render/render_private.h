@@ -187,10 +187,8 @@ namespace dmRender
         dmArray<RenderListEntry>    m_RenderList;
         dmArray<RenderListDispatch> m_RenderListDispatch;
         dmArray<RenderListSortValue>m_RenderListSortValues;
-        dmArray<uint32_t>           m_RenderListSortBuffers[2];
-        uint32_t                    m_RenderListSortTarget;
+        dmArray<uint32_t>           m_RenderListSortBuffer;
         dmArray<uint32_t>           m_RenderListSortIndices;
-        Matrix4                     m_RenderListDispatchedForViewProj;
 
         HFontMap                    m_SystemFontMap;
 
