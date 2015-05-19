@@ -562,8 +562,9 @@ for all properties of this node."
 
 (defn undo
   [graph]
-  (when-let [ks (is/undo-history (is/graph-history @*the-system* graph))]
-    (invalidate! ks)))
+  (let [snapshot @*the-system*]
+   (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
+     (invalidate! ks))))
 
 (defn undo-stack
   [graph]
@@ -575,8 +576,9 @@ for all properties of this node."
 
 (defn redo
   [graph]
-  (when-let [ks (is/redo-history (is/graph-history @*the-system* graph))]
-    (invalidate! ks)))
+  (let [snapshot @*the-system*]
+    (when-let [ks (is/redo-history (is/graph-history snapshot graph) snapshot)]
+      (invalidate! ks))))
 
 (defn redo-stack
   [graph]
