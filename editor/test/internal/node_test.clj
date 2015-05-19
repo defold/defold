@@ -180,22 +180,6 @@
           (-> ProductionFunctionInputsNode g/properties' :prop :value-type)))))
 
 
-;; flow
-
-;; A:keyword ---> B:keyword
-;; A:string  ---> B:keyword
-
-;; calling node-value on B
-;; A delivers value of incorrect type to B's input.
-
-;; Inputs to B
-;;; single keyword
-;;; array of keywords
-
-;; Outputs from A
-;;; Properties: one keyword, many keywords. BUT constructed with
-;;String instead of keyword
-
 (g/defnode AKeywordNode
   (property prop t/Keyword))
 
@@ -210,12 +194,13 @@
 
 (deftest node-validate-input-production-functions
   (testing "inputs to production functions are validated to be the same type as expected to the fnk"
-    (with-clean-system
-      (let [[source target] (tx-nodes
-                            (g/make-node world AKeywordNode :prop "a-string")
-                            (g/make-node world BOutputNode))
-            _ (g/transact  (g/connect source :prop target :keyword-input))]
-        (is (g/error? (g/node-value target :keyword-output)))))))
+    (with-redefs [in/warn (constantly "noop")]
+     (with-clean-system
+       (let [[source target] (tx-nodes
+                              (g/make-node world AKeywordNode :prop "a-string")
+                              (g/make-node world BOutputNode))
+             _ (g/transact  (g/connect source :prop target :keyword-input))]
+         (is (thrown? Exception (g/node-value target :keyword-output))))))))
 
 
 (g/defnode DependencyNode
