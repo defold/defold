@@ -18,9 +18,28 @@ There's there different functions in this namespace
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.treewalk TreeWalk FileTreeIterator]
            [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
+           [org.eclipse.jgit.treewalk.filter PathFilter]
            [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]))
 
 (set! *warn-on-reflection* true)
+
+(defn show-file [^Git git name]
+  (let [repo (.getRepository git)
+        lastCommitId (.resolve repo "HEAD")
+        rw (RevWalk. repo)
+        commit (.parseCommit rw lastCommitId)
+        tree (.getTree commit)
+        tw (TreeWalk. repo)]
+    (.addTree tw tree)
+    (.setRecursive tw true)
+    (.setFilter tw (PathFilter/create name))
+    (.next tw)
+    (let [id (.getObjectId tw 0)
+          loader (.open repo id)
+          ret (.getBytes loader)]
+      (.dispose rw)
+      (.close repo)
+      ret)))
 
 (defn- get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
