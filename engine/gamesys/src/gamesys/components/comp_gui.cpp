@@ -1199,6 +1199,8 @@ namespace dmGameSystem
             write_ptr->m_Order = dmGui::GetRenderOrder(c->m_Scene);
             write_ptr->m_UserData = (uintptr_t) c;
             write_ptr->m_BatchKey = i;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(((dmRender::HMaterial)dmGui::GetMaterial(c->m_Scene)));
+
             write_ptr->m_Dispatch = dispatch;
             ++write_ptr;
         }

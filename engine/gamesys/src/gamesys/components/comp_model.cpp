@@ -162,6 +162,7 @@ namespace dmGameSystem
 
             write_ptr->m_WorldPosition = dmGameObject::GetWorldPosition(component.m_Instance);
             write_ptr->m_UserData = (uintptr_t) &component;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Model->m_Material);
             write_ptr->m_BatchKey = 0;
             write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
