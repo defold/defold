@@ -64,6 +64,28 @@ TEST_F(ScriptVmathTest, TestNumber)
     ASSERT_TRUE(RunFile(L, "test_number.luac"));
 }
 
+TEST_F(ScriptVmathTest, TestVector)
+{
+
+    ASSERT_TRUE(RunFile(L, "test_vector.luac"));
+
+}
+
+TEST_F(ScriptVmathTest, TestVectorFail)
+{
+    // empty constructor and index
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector()\nlocal a = v[1]"));
+
+    // string as constructor
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector(\"foo\")"));
+
+    // index
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector( { 1, 2, 3 } )\nlocal a = v[4]"));
+
+    // new index
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector( { 1, 2, 3 } )\nv[4] = 4"));
+}
+
 TEST_F(ScriptVmathTest, TestVector3)
 {
     int top = lua_gettop(L);

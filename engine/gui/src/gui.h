@@ -814,7 +814,7 @@ namespace dmGui
     void AnimateNodeHash(HScene scene, HNode node,
                          dmhash_t property,
                          const Vector4& to,
-                         dmEasing::Type easing,
+                         dmEasing::Curve easing,
                          Playback playback,
                          float duration,
                          float delay,

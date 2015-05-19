@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
+#include <dlib/vmath.h>
 
 #include <dlib/dstrings.h>
 
@@ -15,10 +16,112 @@ extern "C"
 namespace dmScript
 {
 #define SCRIPT_LIB_NAME "vmath"
+#define SCRIPT_TYPE_NAME_VECTOR "vector" // Vector of unspecific length
 #define SCRIPT_TYPE_NAME_VECTOR3 "vector3"
 #define SCRIPT_TYPE_NAME_VECTOR4 "vector4"
 #define SCRIPT_TYPE_NAME_QUAT "quat"
 #define SCRIPT_TYPE_NAME_MATRIX4 "matrix4"
+
+    bool IsVector(lua_State *L, int index)
+    {
+        void *p = lua_touserdata(L, index);
+        bool result = false;
+        if (p != 0x0)
+        {
+            if (lua_getmetatable(L, index))
+            {
+                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_VECTOR);
+                if (lua_rawequal(L, -1, -2))
+                {
+                    result = true;
+                }
+                lua_pop(L, 2);
+            }
+        }
+        return result;
+    }
+
+    static const luaL_reg Vector_methods[] =
+    {
+        {0,0}
+    };
+
+    static int Vector_len(lua_State *L)
+    {
+        dmVMath::FloatVector* v = CheckVector(L, 1);
+
+        lua_pushnumber(L, v->size);
+        return 1;
+    }
+
+    static int Vector_index(lua_State *L)
+    {
+        dmVMath::FloatVector* v = CheckVector(L, 1);
+
+        int key = luaL_checkinteger(L, 2);
+        if (key > 0 && key <= v->size)
+        {
+            lua_pushnumber(L, v->values[key-1]);
+            return 1;
+        }
+        else
+        {
+            if (v->size > 0)
+            {
+                return luaL_error(L, "%s.%s only has valid indices between 1 and %d.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
+            }
+
+            return luaL_error(L, "%s.%s has no addressable indices, size is 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR);
+        }
+    }
+
+    static int Vector_newindex(lua_State *L)
+    {
+        dmVMath::FloatVector* v = CheckVector(L, 1);
+
+        int key = luaL_checkinteger(L, 2);
+        if (key > 0 && key <= v->size)
+        {
+            v->values[key-1] = (float)luaL_checknumber(L, 3);
+        }
+        else
+        {
+            if (v->size > 0)
+            {
+                return luaL_error(L, "%s.%s only has valid indices between 1 and %d.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
+            }
+
+            return luaL_error(L, "%s.%s has no addressable indices, size is 0.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR);
+        }
+        return 0;
+    }
+
+    static int Vector_tostring(lua_State *L)
+    {
+        dmVMath::FloatVector* v = CheckVector(L, 1);
+        lua_pushfstring(L, "%s.%s (size: %d)", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
+        return 1;
+    }
+
+    static int Vector_gc(lua_State *L)
+    {
+        dmVMath::FloatVector* v = CheckVector(L, 1);
+        free(v->values);
+        memset(v, 0, sizeof(*v));
+        (void) v;
+        assert(v);
+        return 0;
+    }
+
+    static const luaL_reg Vector_meta[] =
+    {
+        {"__gc",        Vector_gc},
+        {"__tostring",  Vector_tostring},
+        {"__len",       Vector_len},
+        {"__index",     Vector_index},
+        {"__newindex",  Vector_newindex},
+        {0,0}
+    };
 
     bool IsVector3(lua_State *L, int index)
     {
@@ -670,6 +773,38 @@ namespace dmScript
         {"__eq",        Matrix4_eq},
         {0,0}
     };
+
+    /*# creates a new vector from a table of values
+     *
+     * @name vmath.vector
+     * @param t table of numbers
+     * @return new vector (vector)
+     */
+    static int Vector_new(lua_State* L)
+    {
+        dmVMath::FloatVector v;
+        if (lua_gettop(L) == 0)
+        {
+            v = dmVMath::FloatVector();
+        }
+        else
+        {
+            luaL_checktype(L, 1, LUA_TTABLE);
+            int array_size = lua_objlen(L, 1);
+            v = dmVMath::FloatVector(array_size);
+
+            for (int i = 0; i < array_size; i++)
+            {
+                lua_pushnumber(L, i+1);
+                lua_gettable(L, 1);
+                v.values[i] = (float) lua_tonumber(L, -1);
+                lua_pop(L, 1);
+            }
+        }
+
+        PushVector(L, v);
+        return 1;
+    }
 
     /*# creates a new zero vector
      *
@@ -1399,6 +1534,7 @@ namespace dmScript
 
     static const luaL_reg methods[] =
     {
+        {SCRIPT_TYPE_NAME_VECTOR, Vector_new},
         {SCRIPT_TYPE_NAME_VECTOR3, Vector3_new},
         {SCRIPT_TYPE_NAME_VECTOR4, Vector4_new},
         {SCRIPT_TYPE_NAME_QUAT, Quat_new},
@@ -1437,7 +1573,7 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        const uint32_t type_count = 4;
+        const uint32_t type_count = 5;
         struct
         {
             const char* m_Name;
@@ -1445,6 +1581,7 @@ namespace dmScript
             const luaL_reg* m_Metatable;
         } types[type_count] =
         {
+            {SCRIPT_TYPE_NAME_VECTOR, Vector_methods, Vector_meta},
             {SCRIPT_TYPE_NAME_VECTOR3, Vector3_methods, Vector3_meta},
             {SCRIPT_TYPE_NAME_VECTOR4, Vector4_methods, Vector4_meta},
             {SCRIPT_TYPE_NAME_QUAT, Quat_methods, Quat_meta},
@@ -1471,6 +1608,24 @@ namespace dmScript
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
+    }
+
+    void PushVector(lua_State* L, const dmVMath::FloatVector& v)
+    {
+        dmVMath::FloatVector* vp = (dmVMath::FloatVector*)lua_newuserdata(L, sizeof(dmVMath::FloatVector));
+        *vp = v;
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR);
+        lua_setmetatable(L, -2);
+    }
+
+    dmVMath::FloatVector* CheckVector(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TUSERDATA)
+        {
+            return (dmVMath::FloatVector*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_VECTOR);
+        }
+        luaL_typerror(L, index, SCRIPT_TYPE_NAME_VECTOR);
+        return 0x0;
     }
 
     void PushVector3(lua_State* L, const Vectormath::Aos::Vector3& v)

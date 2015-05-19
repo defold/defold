@@ -991,6 +991,10 @@ namespace dmGui
                             anim->m_Backwards ^= 1;
                         }
                     } else {
+                        if (anim->m_Easing.release_callback != 0x0)
+                        {
+                            anim->m_Easing.release_callback(&anim->m_Easing);
+                        }
                         if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                         {
                             // NOTE: Very important to set m_AnimationCompleteCalled to 1
@@ -2134,7 +2138,7 @@ namespace dmGui
                                  HNode node,
                                  float* value,
                                  float to,
-                                 dmEasing::Type easing,
+                                 dmEasing::Curve easing,
                                  Playback playback,
                                  float duration,
                                  float delay,
@@ -2196,7 +2200,7 @@ namespace dmGui
                          HNode node,
                          dmhash_t property,
                          const Vector4& to,
-                         dmEasing::Type easing,
+                         dmEasing::Curve easing,
                          Playback playback,
                          float duration,
                          float delay,
@@ -2233,7 +2237,7 @@ namespace dmGui
                      HNode node,
                      Property property,
                      const Vector4& to,
-                     dmEasing::Type easing,
+                     dmEasing::Curve easing,
                      Playback playback,
                      float duration,
                      float delay,
@@ -2333,7 +2337,7 @@ namespace dmGui
                 node,
                 &n->m_Node.m_FlipbookAnimPosition,
                 1.0f,
-                dmEasing::TYPE_LINEAR,
+                dmEasing::Curve(dmEasing::TYPE_LINEAR),
                 (Playback) anim_desc.m_Playback,
                 anim_frames / (float) anim_desc.m_FPS,
                 0.0f,
