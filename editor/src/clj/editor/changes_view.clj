@@ -43,7 +43,7 @@
              work-tree (.getWorkTree (.getRepository git))
              old (String. (git/show-file git file-name))
              new (slurp (io/file work-tree file-name))]
-         (diff-view/make-diff-viewer old new))))
+         (diff-view/make-diff-viewer (:old-path status) old (:new-path status) new))))
 
 (g/defnode ChangesView
   (inherits core/Scope)
