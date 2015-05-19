@@ -164,13 +164,13 @@ namespace dmSocket
 
         if (s < 0)
         {
-            *address = ntohl(sock_addr.sin_addr.s_addr);
             *accept_socket = s;
             return NativeToResult(DM_SOCKET_ERRNO);
         }
         else
         {
             *accept_socket = s;
+            *address = ntohl(sock_addr.sin_addr.s_addr);
             return RESULT_OK;
         }
     }
