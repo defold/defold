@@ -925,14 +925,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 -(NSUInteger)supportedInterfaceOrientations {
     // NOTE: Only for iOS6
-    if (_glfwWin.portrait)
-    {
-        return UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
-    }
-    else
-    {
-        return UIInterfaceOrientationMaskLandscape;
-    }
+    return UIInterfaceOrientationMaskLandscape | UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
 }
 
 #pragma mark UIContentContainer

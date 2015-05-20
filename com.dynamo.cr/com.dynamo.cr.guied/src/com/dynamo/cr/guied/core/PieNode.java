@@ -6,12 +6,14 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.guied.Activator;
+import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.PieBounds;
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
 
 @SuppressWarnings("serial")
 public class PieNode extends ClippingNode {
@@ -49,6 +51,15 @@ public class PieNode extends ClippingNode {
 
     public void setInnerRadius(float value) {
         innerRadius = value;
+        GuiNodeStateBuilder.setField(this, "InnerRadius", value);
+    }
+
+    public void resetInnerRadius() {
+        this.innerRadius = (Float)GuiNodeStateBuilder.resetField(this, "InnerRadius");
+    }
+
+    public boolean isInnerRadiusOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "InnerRadius", this.innerRadius);
     }
 
     public NodeDesc.PieBounds getOuterBounds() {
@@ -57,6 +68,15 @@ public class PieNode extends ClippingNode {
 
     public void setOuterBounds(NodeDesc.PieBounds value) {
         outerBounds = value;
+        GuiNodeStateBuilder.setField(this, "OuterBounds", value);
+    }
+
+    public void resetOuterBounds() {
+        this.outerBounds = NodeDesc.PieBounds.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "OuterBounds"));
+    }
+
+    public boolean isOuterBoundsOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "OuterBounds", this.outerBounds);
     }
 
     public int getPerimeterVertices() {
@@ -65,6 +85,15 @@ public class PieNode extends ClippingNode {
 
     public void setPerimeterVertices(int value) {
         perimeterVertices = value;
+        GuiNodeStateBuilder.setField(this, "PerimeterVertices", value);
+    }
+
+    public void resetPerimeterVertices() {
+        this.perimeterVertices = (Integer)GuiNodeStateBuilder.resetField(this, "PerimeterVertices");
+    }
+
+    public boolean isPerimeterVerticesOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "PerimeterVertices", this.perimeterVertices);
     }
 
     public float getPieFillAngle() {
@@ -73,6 +102,15 @@ public class PieNode extends ClippingNode {
 
     public void setPieFillAngle(float value) {
         pieFillAngle = value;
+        GuiNodeStateBuilder.setField(this, "PieFillAngle", value);
+    }
+
+    public void resetPieFillAngle() {
+        this.pieFillAngle = (Float)GuiNodeStateBuilder.resetField(this, "PieFillAngle");
+    }
+
+    public boolean isPieFillAngleOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "PieFillAngle", this.pieFillAngle);
     }
 
     public String getTexture() {
@@ -82,6 +120,16 @@ public class PieNode extends ClippingNode {
     public void setTexture(String texture) {
         this.texture = texture;
         updateTexture();
+        GuiNodeStateBuilder.setField(this, "Texture", texture);
+    }
+
+    public void resetTexture() {
+        this.texture = (String)GuiNodeStateBuilder.resetField(this, "Texture");
+        updateTexture();
+    }
+
+    public boolean isTextureOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Texture", this.texture);
     }
 
     private void updateTexture() {
@@ -132,6 +180,9 @@ public class PieNode extends ClippingNode {
 
     @Override
     public Image getIcon() {
+        if(GuiNodeStateBuilder.isStateSet(this)) {
+            return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_OVERRIDDEN_IMAGE_ID);
+        }
         return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_IMAGE_ID);
     }
 }

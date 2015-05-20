@@ -77,6 +77,7 @@ namespace dmGraphics
         context->m_Height = params->m_Height;
         context->m_WindowWidth = params->m_Width;
         context->m_WindowHeight = params->m_Height;
+        context->m_Dpi = 0;
         context->m_WindowOpened = 1;
         uint32_t buffer_size = 4 * context->m_WindowWidth * context->m_WindowHeight;
         context->m_MainFrameBuffer.m_ColorBuffer = new char[buffer_size];
@@ -133,6 +134,12 @@ namespace dmGraphics
             default:
                 return 0;
         }
+    }
+
+    uint32_t GetDisplayDpi(HContext context)
+    {
+        assert(context);
+        return context->m_Dpi;
     }
 
     uint32_t GetWidth(HContext context)

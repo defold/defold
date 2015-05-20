@@ -40,6 +40,8 @@ Here is a run-through of the most common settings (categories in *bold*):
 ** _fullscreen_ - if the application should start full screen or not, 1 for fullscreen or 0 (default) for windowed
 ** _update_frequency_ - frame update frequency, 60 by default. Valid values are 60, 30, 20, 15, 12, 10, 6, 5, 4, 3, 2 and 1
 ** _variable_dt_ - if the frame time step should be measured against actual time or be fixed (set to update_frequency)
+** _display_profiles_ - file reference of the display profiles to use for the application, +/builtins/render/default.display_profiles+ by default
+** _dynamic_orientation_ - if application supports dynamic screen orientation support
 * *sound*
 ** _gain_ - global gain (volume), 0 - 1, 1 by default
 * *physics*

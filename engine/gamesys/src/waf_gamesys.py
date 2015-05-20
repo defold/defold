@@ -313,6 +313,7 @@ proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegr
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('spinemodel', 'spine_ddf_pb2', 'SpineModelDesc', '.spinemodel', '.spinemodelc', transform_spine_model)
+proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('emitter', '.emitter', '.emitterc')

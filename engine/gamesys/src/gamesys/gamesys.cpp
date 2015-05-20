@@ -35,6 +35,7 @@
 #include "resources/res_tilegrid.h"
 #include "resources/res_spine_scene.h"
 #include "resources/res_spine_model.h"
+#include "resources/res_display_profiles.h"
 
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
@@ -111,6 +112,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
         REGISTER_RESOURCE_TYPE("spinescenec", 0, ResSpineSceneCreate, ResSpineSceneDestroy, ResSpineSceneRecreate);
         REGISTER_RESOURCE_TYPE(SPINE_MODEL_EXT, 0, ResSpineModelCreate, ResSpineModelDestroy, ResSpineModelRecreate);
+        REGISTER_RESOURCE_TYPE("display_profilesc", render_context, ResDisplayProfilesCreate, ResDisplayProfilesDestroy, ResDisplayProfilesRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 

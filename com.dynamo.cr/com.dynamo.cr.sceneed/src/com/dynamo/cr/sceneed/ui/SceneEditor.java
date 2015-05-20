@@ -31,7 +31,6 @@ import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IPartListener;
-import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
@@ -106,7 +105,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     private ISceneView sceneView;
 
     private boolean dirty;
-    private SceneRenderViewProvider sceneRenderViewProvider;
+    protected SceneRenderViewProvider sceneRenderViewProvider;
     @SuppressWarnings("unused")
     private CameraController cameraController;
     private ManipulatorController manipulatorController;
@@ -514,4 +513,7 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         return this.injector;
     }
 
+    public ISceneModel getModel() {
+        return this.sceneModel;
+    }
 }

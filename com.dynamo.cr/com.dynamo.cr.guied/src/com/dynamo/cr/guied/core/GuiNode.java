@@ -1,20 +1,29 @@
 package com.dynamo.cr.guied.core;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import javax.vecmath.Point3d;
+import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.swt.graphics.RGB;
 
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
+
+import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
@@ -22,6 +31,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
 import com.dynamo.gui.proto.Gui.NodeDesc.YAnchor;
+import com.dynamo.proto.DdfMath.Vector4;
 
 @SuppressWarnings("serial")
 public class GuiNode extends Node implements Identifiable {
@@ -94,11 +104,77 @@ public class GuiNode extends Node implements Identifiable {
     private String layer = "";
 
     private transient int renderKey = 0;
+    protected GuiNodeStateBuilder nodeStates = new GuiNodeStateBuilder();
 
     public GuiNode() {
         super();
         setTransformable(true);
         setFlags(Flags.COMPONENT_SCALABLE);
+    }
+
+    @Override
+    public boolean isOverridable() {
+        return GuiNodeStateBuilder.isOverridable(this);
+    }
+
+    @Override
+    public void setTranslation(Point3d translation) {
+        super.setTranslation(translation);
+        GuiNodeStateBuilder.setField(this, "Position", LoaderUtil.toVector4(translation));
+    }
+
+    public void resetTranslation() {
+        super.setTranslation(LoaderUtil.toPoint3d((Vector4)GuiNodeStateBuilder.resetField(this, "Position")));
+    }
+
+    public void resetPosition() {
+        super.setTranslation(LoaderUtil.toPoint3d((Vector4)GuiNodeStateBuilder.resetField(this, "Position")));
+    }
+
+    public boolean isTranslationOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Position", LoaderUtil.toVector4(translation));
+    }
+
+    @Override
+    public void setRotation(Quat4d rotation) {
+        super.setRotation(rotation);
+        GuiNodeStateBuilder.setField(this, "Rotation", LoaderUtil.toVector4(this.getEuler()));
+    }
+
+    public boolean isRotationOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Rotation", LoaderUtil.toVector4(this.getEuler()));
+    }
+
+    public void resetRotation() {
+        super.setEuler(LoaderUtil.toVector3((Vector4)GuiNodeStateBuilder.resetField(this, "Rotation")));
+    }
+
+    @Override
+    public void setEuler(Vector3d euler) {
+        super.setEuler(euler);
+        GuiNodeStateBuilder.setField(this, "Rotation", LoaderUtil.toVector4(euler));
+    }
+
+    public void resetEuler() {
+        super.setEuler(LoaderUtil.toVector3((Vector4)GuiNodeStateBuilder.resetField(this, "Rotation")));
+    }
+
+    public boolean isEulerOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Rotation", LoaderUtil.toVector4(this.getEuler()));
+    }
+
+    @Override
+    public void setComponentScale(Vector3d componentScale) {
+        super.setComponentScale(componentScale);
+        GuiNodeStateBuilder.setField(this, "Scale", LoaderUtil.toVector4(componentScale));
+    }
+
+    public void resetComponentScale() {
+        super.setComponentScale(LoaderUtil.toVector3((Vector4)GuiNodeStateBuilder.resetField(this, "Scale")));
+    }
+
+    public boolean isComponentScaleOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Scale", LoaderUtil.toVector4(this.getComponentScale()));
     }
 
     public String getId() {
@@ -115,16 +191,34 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setSize(Vector3d size) {
         this.size = size;
+        GuiNodeStateBuilder.setField(this, "Size", LoaderUtil.toVector4(size));
+    }
+
+    public void resetSize() {
+        this.size = LoaderUtil.toVector3((Vector4)GuiNodeStateBuilder.resetField(this, "Size"));
+    }
+
+    public boolean isSizeOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Size", LoaderUtil.toVector4(this.size));
     }
 
     public RGB getColor() {
-        return this.color;
+        return new RGB(color.red, color.green, color.blue);
     }
 
     public void setColor(RGB color) {
         this.color.red = color.red;
         this.color.green = color.green;
         this.color.blue = color.blue;
+        GuiNodeStateBuilder.setField(this, "Color", LoaderUtil.toVector4(color, 1.0));
+    }
+
+    public void resetColor() {
+        this.color = LoaderUtil.toRGB((Vector4)GuiNodeStateBuilder.resetField(this, "Color"));
+    }
+
+    public boolean isColorOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Color", LoaderUtil.toVector4(this.color, 1.0));
     }
 
     public double getAlpha() {
@@ -133,6 +227,15 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setAlpha(double alpha) {
         this.alpha = alpha;
+        GuiNodeStateBuilder.setField(this, "Alpha", (float)alpha);
+    }
+
+    public void resetAlpha() {
+        this.alpha = (Float)GuiNodeStateBuilder.resetField(this, "Alpha");
+    }
+
+    public boolean isAlphaOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Alpha", (float)this.alpha);
     }
 
     public BlendMode getBlendMode() {
@@ -141,6 +244,15 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setBlendMode(BlendMode blendMode) {
         this.blendMode = blendMode;
+        GuiNodeStateBuilder.setField(this, "BlendMode", blendMode);
+    }
+
+    public void resetBlendMode() {
+        this.blendMode = BlendMode.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "BlendMode"));
+    }
+
+    public boolean isBlendModeOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "BlendMode", this.blendMode);
     }
 
     public Pivot getPivot() {
@@ -149,6 +261,15 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setPivot(Pivot pivot) {
         this.pivot = pivot;
+        GuiNodeStateBuilder.setField(this, "Pivot", pivot);
+    }
+
+    public void resetPivot() {
+        this.pivot = Pivot.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "Pivot"));
+    }
+
+    public boolean isPivotOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Pivot", this.pivot);
     }
 
     public XAnchor getXanchor() {
@@ -157,6 +278,15 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setXanchor(XAnchor xAnchor) {
         this.xanchor = xAnchor;
+        GuiNodeStateBuilder.setField(this, "Xanchor", xAnchor);
+    }
+
+    public void resetXanchor() {
+        this.xanchor = XAnchor.valueOf((EnumValueDescriptor) GuiNodeStateBuilder.resetField(this, "Xanchor"));
+    }
+
+    public boolean isXanchorOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Xanchor", this.xanchor);
     }
 
     public YAnchor getYanchor() {
@@ -165,6 +295,15 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setYanchor(YAnchor yAnchor) {
         this.yanchor = yAnchor;
+        GuiNodeStateBuilder.setField(this, "Yanchor", yAnchor);
+    }
+
+    public void resetYanchor() {
+        this.yanchor = YAnchor.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "Yanchor"));
+    }
+
+    public boolean isYanchorOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Yanchor", this.yanchor);
     }
 
     public AdjustMode getAdjustMode() {
@@ -173,6 +312,15 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setAdjustMode(AdjustMode adjustMode) {
         this.adjustMode = adjustMode;
+        GuiNodeStateBuilder.setField(this, "AdjustMode", adjustMode);
+    }
+
+    public void resetAdjustMode() {
+        this.adjustMode = AdjustMode.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "AdjustMode"));
+    }
+
+    public boolean isAdjustModeOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "AdjustMode", this.adjustMode);
     }
 
     public String getLayer() {
@@ -181,14 +329,36 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setLayer(String layer) {
         this.layer = layer;
+        GuiNodeStateBuilder.setField(this, "Layer", layer);
+    }
+
+    public void resetLayer() {
+        this.layer = (String)GuiNodeStateBuilder.resetField(this, "Layer");
+    }
+
+    public boolean isLayerOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Layer", this.layer);
     }
 
     public boolean isInheritAlpha() {
         return this.inheritAlpha;
     }
 
+    public boolean getInheritAlpha() {
+        return this.inheritAlpha;
+    }
+
     public void setInheritAlpha(boolean inheritAlpha) {
         this.inheritAlpha = inheritAlpha;
+        GuiNodeStateBuilder.setField(this, "InheritAlpha", inheritAlpha);
+    }
+
+    public void resetInheritAlpha() {
+        this.inheritAlpha = (Boolean)GuiNodeStateBuilder.resetField(this, "InheritAlpha");
+    }
+
+    public boolean isInheritAlphaOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "InheritAlpha", this.inheritAlpha);
     }
 
     public void setClippingMode(ClippingMode mode) {
@@ -302,5 +472,23 @@ public class GuiNode extends Node implements Identifiable {
         }
         return null;
     }
+
+    public GuiNodeStateBuilder getStateBuilder() {
+        return this.nodeStates;
+    }
+
+    public void setStateBuilder(GuiNodeStateBuilder nodeStates) {
+        this.nodeStates = nodeStates;
+    }
+
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        GuiNodeStateBuilder.storeState(this);
+        out.defaultWriteObject();
+    }
+
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+    }
+
 }
 

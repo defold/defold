@@ -19,6 +19,8 @@
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
 
+#include <render/display_profiles.h>
+
 #include "gui_private.h"
 #include "gui_script.h"
 
@@ -130,10 +132,9 @@ namespace dmGui
         context->m_GetUserDataCallback = params->m_GetUserDataCallback;
         context->m_ResolvePathCallback = params->m_ResolvePathCallback;
         context->m_GetTextMetricsCallback = params->m_GetTextMetricsCallback;
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
+        context->m_Dpi = params->m_Dpi;
         context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
 
@@ -146,10 +147,39 @@ namespace dmGui
         delete context;
     }
 
-    void SetResolution(HContext context, uint32_t width, uint32_t height)
+    void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height)
     {
-        context->m_Width = width;
-        context->m_Height = height;
+        width = context->m_PhysicalWidth;
+        height = context->m_PhysicalHeight;
+    }
+
+    uint32_t GetDisplayDpi(HContext context)
+    {
+        return context->m_Dpi;
+    }
+
+    void GetSceneResolution(HScene scene, uint32_t& width, uint32_t& height)
+    {
+        width = scene->m_Width;
+        height = scene->m_Height;
+    }
+
+    void SetSceneResolution(HScene scene, uint32_t width, uint32_t height)
+    {
+        scene->m_Width = width;
+        scene->m_Height = height;
+        scene->m_ResChanged = 1;
+    }
+
+    void GetPhysicalResolution(HScene scene, uint32_t& width, uint32_t& height)
+    {
+        width = scene->m_Context->m_PhysicalWidth;
+        height = scene->m_Context->m_PhysicalHeight;
+    }
+
+    uint32_t GetDisplayDpi(HScene scene)
+    {
+        return scene->m_Context->m_Dpi;
     }
 
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height)
@@ -158,10 +188,26 @@ namespace dmGui
         context->m_PhysicalHeight = height;
         dmArray<HScene>& scenes = context->m_Scenes;
         uint32_t scene_count = scenes.Size();
+
         for (uint32_t i = 0; i < scene_count; ++i)
         {
-            scenes[i]->m_ResChanged = 1;
+            Scene* scene = scenes[i];
+            scene->m_ResChanged = 1;
+            if(scene->m_OnWindowResizeCallback)
+            {
+                scene->m_OnWindowResizeCallback(scene, width, height);
+            }
         }
+    }
+
+    void* GetDisplayProfiles(HScene scene)
+    {
+        return scene->m_Context->m_DisplayProfiles;
+    }
+
+    void SetDisplayProfiles(HContext context, void* display_profiles)
+    {
+        context->m_DisplayProfiles = display_profiles;
     }
 
     void SetDefaultFont(HContext context, void* font)
@@ -220,15 +266,21 @@ namespace dmGui
         scene->m_Material = 0;
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
+        scene->m_Layouts.SetCapacity(1);
         scene->m_DefaultFont = 0;
         scene->m_UserData = params->m_UserData;
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NextVersionNumber = 0;
         scene->m_RenderOrder = 0;
+        scene->m_Width = params->m_Width;
+        scene->m_Height = params->m_Height;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
+        scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
+
+        ClearLayouts(scene);
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -483,15 +535,113 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    void AllocateLayouts(HScene scene, size_t node_count, size_t layouts_count)
+    {
+        layouts_count++;
+        size_t capacity = dmMath::Max((uint32_t) layouts_count, scene->m_Layouts.Capacity());
+        scene->m_Layouts.SetCapacity(capacity);
+        scene->m_LayoutsNodeDescs.SetCapacity(layouts_count*node_count);
+        scene->m_LayoutsNodeDescs.SetSize(0);
+    }
+
+    void ClearLayouts(HScene scene)
+    {
+        scene->m_LayoutId = DEFAULT_LAYOUT;
+        scene->m_Layouts.SetSize(0);
+        scene->m_Layouts.Push(DEFAULT_LAYOUT);
+        scene->m_LayoutsNodeDescs.SetCapacity(0);
+    }
+
+    Result AddLayout(HScene scene, const char* layout_id)
+    {
+        if (scene->m_Layouts.Full())
+        {
+            dmLogError("Could not add layout to scene since the buffer is full (%d).", scene->m_Layouts.Capacity());
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        uint64_t layout_hash = dmHashString64(layout_id);
+        scene->m_Layouts.Push(layout_hash);
+        return RESULT_OK;
+    }
+
+    dmhash_t GetLayout(const HScene scene)
+    {
+        return scene->m_LayoutId;
+    }
+
+    uint16_t GetLayoutCount(const HScene scene)
+    {
+        return (uint16_t)scene->m_Layouts.Size();
+    }
+
+    Result GetLayoutId(const HScene scene, uint16_t layout_index, dmhash_t& layout_id_out)
+    {
+        if(layout_index >= (uint16_t)scene->m_Layouts.Size())
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        layout_id_out = scene->m_Layouts[layout_index];
+        return RESULT_OK;
+    }
+
+    uint16_t GetLayoutIndex(const HScene scene, dmhash_t layout_id)
+    {
+        uint32_t i;
+        for(i = 0; i < scene->m_Layouts.Size(); ++i) {
+            if(layout_id == scene->m_Layouts[i])
+                break;
+        }
+        if(i == scene->m_Layouts.Size())
+        {
+            const char *str = (const char*) dmHashReverse64(layout_id, 0x0);
+            dmLogError("Could not get index for layout %s", (str == 0x0 ? "<unknown>" : str));
+            return 0;
+        }
+        return i;
+    }
+
+    Result SetNodeLayoutDesc(const HScene scene, HNode node, const void *desc, uint16_t layout_index_start, uint16_t layout_index_end)
+    {
+        InternalNode* n = GetNode(scene, node);
+        void **table = n->m_Node.m_NodeDescTable;
+        if(table == 0)
+        {
+            if(scene->m_LayoutsNodeDescs.Full())
+                return RESULT_OUT_OF_RESOURCES;
+            size_t table_index = scene->m_LayoutsNodeDescs.Size();
+            scene->m_LayoutsNodeDescs.SetSize(table_index + scene->m_Layouts.Size());
+            n->m_Node.m_NodeDescTable = table = &scene->m_LayoutsNodeDescs[table_index];
+        }
+        assert(layout_index_end < scene->m_Layouts.Size());
+        for(uint16_t i = layout_index_start; i <= layout_index_end; ++i)
+            table[i] = (void*) desc;
+        return RESULT_OK;
+    }
+
+    Result SetLayout(const HScene scene, dmhash_t layout_id, SetNodeCallback set_node_callback)
+    {
+        scene->m_LayoutId = layout_id;
+        uint16_t index = GetLayoutIndex(scene, layout_id);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            InternalNode *n = &scene->m_Nodes[i];
+            if(!n->m_Node.m_NodeDescTable)
+                continue;
+            set_node_callback(scene, GetNodeHandle(n), n->m_Node.m_NodeDescTable[index]);
+            n->m_Node.m_DirtyLocal = 1;
+        }
+        return RESULT_OK;
+    }
+
     HNode GetNodeHandle(InternalNode* node)
     {
         return ((uint32_t) node->m_Version) << 16 | node->m_Index;
     }
 
-    Vector4 CalculateReferenceScale(HContext context)
+    Vector4 CalculateReferenceScale(HScene scene)
     {
-        float scale_x = (float) context->m_PhysicalWidth / (float) context->m_Width;
-        float scale_y = (float) context->m_PhysicalHeight / (float) context->m_Height;
+        float scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
+        float scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
         return Vector4(scale_x, scale_y, 1, 1);
     }
 
@@ -841,7 +991,7 @@ namespace dmGui
         UpdateDynamicTextures(scene, params, context);
         DeferredDeleteDynamicTextures(scene, params, context);
 
-        Vector4 scale = CalculateReferenceScale(c);
+        Vector4 scale = CalculateReferenceScale(scene);
         c->m_RenderNodes.SetSize(0);
         c->m_RenderTransforms.SetSize(0);
         c->m_RenderColors.SetSize(0);
@@ -1292,6 +1442,7 @@ namespace dmGui
             }
         }
 
+        ClearLayouts(scene);
         return result;
     }
 
@@ -1444,6 +1595,7 @@ namespace dmGui
             node->m_Node.m_Font = 0;
             node->m_Node.m_LayerHash = DEFAULT_LAYER;
             node->m_Node.m_LayerIndex = 0;
+            node->m_Node.m_NodeDescTable = 0;
             node->m_Version = version;
             node->m_Index = index;
             node->m_PrevIndex = INVALID_INDEX;
@@ -1688,7 +1840,7 @@ namespace dmGui
             }
 
             Context* context = scene->m_Context;
-            Vector4 screen_dims((float) context->m_Width, (float) context->m_Height, 0.0f, 1.0f);
+            Vector4 screen_dims((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
             Vector4 adjusted_dims = mulPerElem(screen_dims, adjust_scale);
             Vector4 offset = (Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f) - adjusted_dims) * 0.5f;
             // Apply anchoring
@@ -1701,13 +1853,13 @@ namespace dmGui
             else if (node.m_XAnchor == XANCHOR_RIGHT)
             {
                 offset.setX(0.0f);
-                float distance = (context->m_Width - position.getX()) * reference_scale.getX();
+                float distance = (scene->m_Width - position.getX()) * reference_scale.getX();
                 scaled_position.setX(context->m_PhysicalWidth - distance);
             }
             if (node.m_YAnchor == YANCHOR_TOP)
             {
                 offset.setY(0.0f);
-                float distance = (context->m_Height - position.getY()) * reference_scale.getY();
+                float distance = (scene->m_Height - position.getY()) * reference_scale.getY();
                 scaled_position.setY(context->m_PhysicalHeight - distance);
             }
             else if (node.m_YAnchor == YANCHOR_BOTTOM)
@@ -2473,7 +2625,7 @@ namespace dmGui
 
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
-        Vector4 scale = CalculateReferenceScale(scene->m_Context);
+        Vector4 scale = CalculateReferenceScale(scene);
         Matrix4 transform;
         InternalNode* n = GetNode(scene, node);
         CalculateNodeTransform(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
