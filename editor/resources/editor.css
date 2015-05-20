@@ -31,3 +31,17 @@
 .titled-pane .content AnchorPane {
     -fx-padding: 0em ;
 }
+
+/* See modena.css for progress bar styling */
+.small-progress-bar > .bar {
+    -fx-background-color: #3492ac;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 1em; /* 12 */
+}
+
+.small-progress-bar > .track {
+    -fx-background-color: darkgray;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}

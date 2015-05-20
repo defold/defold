@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.scene.shape.*?>
 <?import javafx.scene.image.*?>
 <?import javafx.scene.web.*?>
 <?import javafx.geometry.*?>
@@ -18,17 +19,32 @@
   </stylesheets>
    <children>
       <MenuBar id="menu-bar" />
-      <HBox id="toolbar" spacing="4.0">
+      <HBox alignment="CENTER_LEFT">
          <children>
-            <Separator orientation="VERTICAL" />
-            <Pane HBox.hgrow="ALWAYS">
+            <HBox id="toolbar" alignment="CENTER_LEFT" spacing="4.0">
                <children>
-                  <Button mnemonicParsing="false" text="Button" />
-               </children></Pane>
+                  <Button mnemonicParsing="false" text="Placeholder" />
+               </children>
+            </HBox>
+            <Pane prefWidth="16.0" />
+            <BorderPane style="-fx-background-color: #ccc; -fx-background-radius: 4;">
+               <bottom>
+                  <ProgressBar minHeight="6.0" prefHeight="6.0" prefWidth="200.0" progress="0.3" styleClass="small-progress-bar" BorderPane.alignment="CENTER" />
+               </bottom>
+               <center>
+                  <Label text="Ready" BorderPane.alignment="CENTER">
+                     <font>
+                        <Font size="10.0" />
+                     </font>
+                  </Label>
+               </center>
+            </BorderPane>
+            <VBox style="-fx-background-color: #ddd; -fx-background-radius: 5px; -fx-padding_: 8 0 0 0;" />
+            <Pane HBox.hgrow="ALWAYS" />
             <ComboBox focusTraversable="false" prefWidth="150.0" />
          </children>
          <VBox.margin>
-            <Insets bottom="4.0" left="4.0" right="4.0" top="4.0" />
+            <Insets bottom="6.0" left="6.0" right="6.0" top="6.0" />
          </VBox.margin>
       </HBox>
       <SplitPane dividerPositions="0.228595178719867, 0.7406483790523691" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
@@ -98,6 +114,27 @@
                                                 </VBox>
                                              </children>
                                           </AnchorPane>
+                                      </content>
+                                    </Tab>
+                                    <Tab text="Changed Files">
+                                      <content>
+                                        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <VBox id="changes-container" layoutX="64.0" layoutY="34.0" prefHeight="200.0" prefWidth="100.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                   <children>
+                                                      <ToolBar prefHeight="40.0" prefWidth="200.0">
+                                                        <items>
+                                                          <Button id="changes-refresh" mnemonicParsing="false" text="Refresh" />
+                                                        </items>
+                                                      </ToolBar>
+                                                      <AnchorPane VBox.vgrow="ALWAYS">
+                                                         <children>
+                                                            <ListView id="changes" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                                         </children>
+                                                      </AnchorPane>
+                                                   </children>
+                                                </VBox>
+                                             </children></AnchorPane>
                                       </content>
                                     </Tab>
                                 </tabs>

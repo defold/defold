@@ -260,16 +260,16 @@
   (input selection t/Any)
   (input viewport Region)
   (input camera Camera)
-  (input renderables t/RenderData :array)
-  (input selection-renderables t/RenderData :array)
+  (input renderables pass/RenderData :array)
+  (input selection-renderables pass/RenderData :array)
   (input picking-rect Rect)
   (input tool-picking-rect Rect)
 
-  (output renderables t/RenderData :cached produce-renderables)
+  (output renderables pass/RenderData :cached produce-renderables)
   (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
                                                       (.order (ByteOrder/nativeOrder))
                                                       (.asIntBuffer))))
-  (output drawable GLAutoDrawable :cached produce-drawable)
+  (output drawable (t/maybe GLAutoDrawable) :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
   (output frame BufferedImage :cached produce-frame)
   (output picking-selection t/Any :cached produce-selection)
@@ -333,8 +333,8 @@
   (input active-tool t/Keyword)
   (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
 
-  (output renderables t/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
-  (output selection-renderables t/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
+  (output renderables pass/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
+  (output selection-renderables pass/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
 ;;  (output viewport Region (g/fnk [viewport] viewport))
   (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
   (output aabb AABB :cached produce-aabb) ; TODO - base aabb on selection
@@ -432,8 +432,8 @@
   (input active-tool t/Keyword)
   (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
 
-  (output renderables t/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
-  (output selection-renderables t/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
+  (output renderables pass/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
+  (output selection-renderables pass/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene)))
@@ -531,10 +531,10 @@
 
 (g/defnode SelectionController
   (property select-fn Runnable)
-  (property start t/Vec3)
-  (property current t/Vec3)
+  (property start (t/maybe t/Vec3))
+  (property current (t/maybe t/Vec3))
   (property op-seq t/Any)
-  (property mode (t/enum :direct :toggle))
+  (property mode (t/maybe (t/enum :direct :toggle)))
   (property prev-selection-set t/Any)
 
   (input selection t/Any)
@@ -542,7 +542,7 @@
   (input scene t/Any)
 
   (output picking-rect Rect :cached produce-picking-rect)
-  (output renderable t/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d) :render-fn (g/fnk [gl] (render-selection-box gl start current))}]}))
+  (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d) :render-fn (g/fnk [gl] (render-selection-box gl start current))}]}))
   (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
 
 (defn setup-view [view resource-node opts]

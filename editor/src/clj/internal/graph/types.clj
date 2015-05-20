@@ -23,7 +23,8 @@
   (substitute-for'      [this input])
   (input-type           [this input])
   (input-cardinality    [this input])
-  (output-type          [this output]))
+  (output-type          [this output])
+  (property-type        [this output]))
 
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
@@ -66,6 +67,8 @@
 
      Returns a collection of [node-id output-label] pairs."))
 
+(defn protocol? [x] (and (map? x) (contains? x :on-interface)))
+
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
@@ -93,7 +96,7 @@
 ;; ---------------------------------------------------------------------------
 ;; The Error type
 ;; ---------------------------------------------------------------------------
-(defonce ^:private the-error (proxy [Object] []
-                               (toString [] "#Error")))
-(defn error [] the-error)
-(defn error? [x] (identical? the-error x))
+(defrecord ErrorValue [reason])
+
+(defn error [& reason] (->ErrorValue reason))
+(defn error? [x] (instance? ErrorValue x))

@@ -16,10 +16,12 @@
   (count [this]   (+ (count left) (count right)))
   (cons  [this o] (PaperTape. limit limiter on-drop (limiter (conj left o)) []))
   (empty [this]   (PaperTape. limit limiter on-drop [] []))
-  (equiv [this o] (and (instance? PaperTape o)
-                       (= limit (.limit o))
-                       (= left  (.left o))
-                       (= right (.right o))))
+  (equiv [this o] (let [is-paper-tape? (and (instance? PaperTape o) o)
+                        ^PaperTape that (when is-paper-tape? o)]
+                    (when that
+                      (= limit (.limit that))
+                      (= left  (.left that))
+                      (= right (.right that)))))
 
   Iterator
   ;; Move one from right to left

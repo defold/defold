@@ -76,7 +76,8 @@
 
 (def Properties {Keyword {:value Any :type (protocol PropertyType)}})
 
-(def Int32   (pred #(instance? java.lang.Integer %) 'int32?))
+(def Int32   (s/both s/Int (pred #(< Integer/MIN_VALUE % Integer/MAX_VALUE) 'int32?)))
+
 (def Icon    Str)
 
 (def Color   [Num])
@@ -85,7 +86,7 @@
               (one Num "y")
               (one Num "z")])
 
-(defn Point3d->Vec3 [p]
+(defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])
 
 (def MouseType (enum :one-button :three-button))
@@ -188,8 +189,6 @@
 (defprotocol Pass
   (selection?       [this])
   (model-transform? [this]))
-
-(def RenderData {(required-key Pass) Any})
 
 (sm/defrecord Region
   [left   :- Num

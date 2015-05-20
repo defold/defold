@@ -6,12 +6,13 @@
             [dynamo.graph :as g]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
+            [editor.math :as math]
             [editor.project :as project]
             [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.math :as math])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc GameObject$ComponentDesc GameObject$EmbeddedComponentDesc]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc  GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc$Builder]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
+           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -20,28 +21,33 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
+
 (def game-object-icon "icons/brick.png")
 
-(defn- gen-ref-ddf [id position rotation save-data]
-  (.build (doto (GameObject$ComponentDesc/newBuilder)
-            (.setId id)
-            (.setPosition (protobuf/vecmath->pb (Point3d. position)))
-            (.setRotation (protobuf/vecmath->pb rotation))
-            (.setComponent (workspace/proj-path (:resource save-data))))))
+(defn- gen-ref-ddf [id ^Vector3d position ^Vector3d rotation save-data]
+  (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
+        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
+    (.build (doto (GameObject$ComponentDesc/newBuilder)
+              (.setId id)
+              (.setPosition protobuf-position)
+              (.setRotation protobuf-rotation)
+              (.setComponent (workspace/proj-path (:resource save-data)))))))
 
-(defn- gen-embed-ddf [id position rotation save-data]
-  (.build (doto (GameObject$EmbeddedComponentDesc/newBuilder)
-            (.setId id)
-            (.setType (:ext (workspace/resource-type (:resource save-data))))
-            (.setPosition (protobuf/vecmath->pb (Point3d. position)))
-            (.setRotation (protobuf/vecmath->pb rotation))
-            (.setData (:content save-data)))))
+(defn- gen-embed-ddf [id ^Vector3d position ^Vector3d rotation save-data]
+  (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
+        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
+    (.build (doto (GameObject$EmbeddedComponentDesc/newBuilder)
+              (.setId id)
+              (.setType (:ext (workspace/resource-type (:resource save-data))))
+              (.setPosition protobuf-position)
+              (.setRotation protobuf-rotation)
+              (.setData (:content save-data))))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
 
   (property id t/Str)
-  (property embedded t/Bool (visible false))
+  (property embedded (t/maybe t/Bool) (visible false))
 
   (input source t/Any)
   (input outline t/Any)
@@ -61,10 +67,10 @@
 (g/defnk produce-save-data [resource ref-ddf embed-ddf]
   {:resource resource
    :content (protobuf/pb->str
-              (let [builder (GameObject$PrototypeDesc/newBuilder)]
-                (doseq [ddf ref-ddf]
+              (let [^GameObject$PrototypeDesc$Builder builder (GameObject$PrototypeDesc/newBuilder)]
+                (doseq [^GameObject$ComponentDesc ddf ref-ddf]
                   (.addComponents builder ddf))
-                (doseq [ddf embed-ddf]
+                (doseq [^GameObject$EmbeddedComponentDesc ddf embed-ddf]
                   (.addEmbeddedComponents builder ddf))
                 (.build builder)))})
 

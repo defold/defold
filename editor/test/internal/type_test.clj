@@ -2,9 +2,6 @@
   (:require [clojure.test :refer :all]
             [internal.graph.types :refer [error error?]]))
 
-(deftest error-is-singleton
-  (is (identical? (error) (error))))
-
 (deftest error-is-identifiable
   (is (error? (error)))
   (is (not (error? 0)))
