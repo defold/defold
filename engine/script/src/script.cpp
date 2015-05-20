@@ -486,33 +486,71 @@ namespace dmScript
     static int BacktraceErrorHandler(lua_State *m_state) {
         if (!lua_isstring(m_state, 1))
             return 1;
+
+        lua_createtable(m_state, 0, 2);
+        lua_pushvalue(m_state, 1);
+        lua_setfield(m_state, -2, "error");
+
         lua_getfield(m_state, LUA_GLOBALSINDEX, "debug");
         if (!lua_istable(m_state, -1)) {
-            lua_pop(m_state, 1);
+            lua_pop(m_state, 2);
             return 1;
         }
         lua_getfield(m_state, -1, "traceback");
         if (!lua_isfunction(m_state, -1)) {
-            lua_pop(m_state, 2);
+            lua_pop(m_state, 3);
             return 1;
         }
-        lua_pushvalue(m_state, 1);  /* pass error message */
+
+        lua_pushstring(m_state, "");
         lua_pushinteger(m_state, 2);
         lua_call(m_state, 2, 1);  /* call debug.traceback */
-
+        lua_setfield(m_state, -3, "traceback");
+        lua_pop(m_state, 1);
         return 1;
     }
 
-    int PCall(lua_State* L, int nargs, int nresult) {
+    static int PCallInternal(lua_State* L, int nargs, int nresult, int in_error_handler) {
         lua_pushcfunction(L, BacktraceErrorHandler);
         int err_index = lua_gettop(L) - nargs - 1;
         lua_insert(L, err_index);
         int result = lua_pcall(L, nargs, nresult, err_index);
         lua_remove(L, err_index);
         if (result != 0) {
-            dmLogError("%s", lua_tostring(L,-1));
-            lua_pop(L, 1);
+            // extract the individual fields for printing and passing
+            lua_getfield(L, -1, "error");
+            lua_getfield(L, -2, "traceback");
+            // if handling error that happened during the error handling, print it and clean up and exit
+            if (in_error_handler) {
+                dmLogError("In error handler: %s%s", lua_tostring(L, -2), lua_tostring(L, -1));
+                lua_pop(L, 3);
+                return result;
+            }
+            // print before calling the error handler
+            dmLogError("%s%s", lua_tostring(L, -2), lua_tostring(L, -1));
+            lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+            if (lua_istable(L, -1)) {
+                lua_pushstring(L, SCRIPT_ERROR_HANDLER_VAR);
+                lua_rawget(L, -2);
+                if (lua_isfunction(L, -1)) {
+                    lua_pushstring(L, "lua"); // 1st arg: source = 'lua'
+                    lua_pushvalue(L, -5);     // 2nd arg: error
+                    lua_pushvalue(L, -5);     // 3rd arg: traceback
+                    PCallInternal(L, 3, 0, 1);
+                } else {
+                    if (!lua_isnil(L, -1)) {
+                        dmLogError("Registered error handler is not a function");
+                    }
+                    lua_pop(L, 1);
+                }
+            }
+            lua_pop(L, 4); // debug value, traceback, error, table
         }
         return result;
     }
+
+    int PCall(lua_State* L, int nargs, int nresult) {
+        return PCallInternal(L, nargs, nresult, 0);
+    }
+
 }

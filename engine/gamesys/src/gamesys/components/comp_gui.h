@@ -79,6 +79,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
+    dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params);
+
     dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params);

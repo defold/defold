@@ -12,6 +12,7 @@
 #include <dlib/math.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <dlib/http_client.h>
 #include <extension/extension.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
@@ -162,6 +163,8 @@ namespace dmEngine
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
         dmGameObject::PostUpdate(engine->m_Register);
+
+        dmHttpClient::ShutdownConnectionPool();
 
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
@@ -864,6 +867,11 @@ bail:
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
 
+                    // Make the render list that will be used later.
+                    dmRender::RenderListBegin(engine->m_RenderContext);
+                    dmGameObject::Render(engine->m_MainCollection);
+                    dmRender::RenderListEnd(engine->m_RenderContext);
+
                     if (engine->m_RenderScriptPrototype)
                     {
                         dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
@@ -872,7 +880,7 @@ bail:
                     {
                         dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
                         dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0, 0);
-                        dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
                     }
 
                     dmGameObject::PostUpdate(engine->m_MainCollection);

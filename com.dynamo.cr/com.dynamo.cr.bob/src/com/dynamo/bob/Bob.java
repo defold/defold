@@ -123,6 +123,19 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    public static String getLibExecPath(String filename) throws IOException {
+        init();
+        URL url = Bob.class.getResource("/libexec/" + filename);
+        if (url == null) {
+            throw new RuntimeException(String.format("/libexec/%s not found", filename));
+        }
+        File f = new File(rootFolder, filename);
+        if (!f.exists()) {
+            FileUtils.copyURLToFile(url, f);
+        }
+        return f.getAbsolutePath();
+    }
+
     public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
         if(debug) {
             return getExe(platform, "dmengine");

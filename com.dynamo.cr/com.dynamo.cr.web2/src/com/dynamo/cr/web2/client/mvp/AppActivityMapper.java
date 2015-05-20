@@ -9,7 +9,6 @@ import com.dynamo.cr.web2.client.activity.NewProjectActivity;
 import com.dynamo.cr.web2.client.activity.OAuthActivity;
 import com.dynamo.cr.web2.client.activity.ProjectActivity;
 import com.dynamo.cr.web2.client.activity.SettingsActivity;
-import com.dynamo.cr.web2.client.activity.SubscriptionActivity;
 import com.dynamo.cr.web2.client.place.DashboardPlace;
 import com.dynamo.cr.web2.client.place.DownloadsPlace;
 import com.dynamo.cr.web2.client.place.InvitePlace;
@@ -18,7 +17,6 @@ import com.dynamo.cr.web2.client.place.NewProjectPlace;
 import com.dynamo.cr.web2.client.place.OAuthPlace;
 import com.dynamo.cr.web2.client.place.ProjectPlace;
 import com.dynamo.cr.web2.client.place.SettingsPlace;
-import com.dynamo.cr.web2.client.place.SubscriptionPlace;
 import com.google.gwt.activity.shared.Activity;
 import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.place.shared.Place;
@@ -61,8 +59,6 @@ public class AppActivityMapper implements ActivityMapper {
             return new InviteActivity((InvitePlace) place, clientFactory);
         else if (place instanceof DownloadsPlace)
             return new DownloadsActivity((DownloadsPlace) place, clientFactory);
-        else if (place instanceof SubscriptionPlace)
-            return new SubscriptionActivity((SubscriptionPlace) place, clientFactory);
         else if (place instanceof SettingsPlace)
             return new SettingsActivity((SettingsPlace) place, clientFactory);
 

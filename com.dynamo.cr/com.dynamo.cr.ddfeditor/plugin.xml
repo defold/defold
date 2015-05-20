@@ -520,6 +520,14 @@
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SoundRefactorParticipant"
             template-data="sound: &quot;&quot; "
             type-class="component">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.WavSound">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.OggSound">
+            </reference-resource-type>
+         </references>
       </resource-type>
       <resource-type
             file-extension="ttf"
@@ -562,6 +570,11 @@
             name="Display Profiles"
             proto-message-class="com.dynamo.render.proto.Render$DisplayProfiles"
             template-data="profiles { name: &apos;Default&apos; qualifiers { width: 1280 height: 720 dpi: 360 } }">
+      </resource-type>
+      <resource-type
+            file-extension="ogg"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.OggSound"
+            name="Ogg sound">
       </resource-type>
     </extension>
    <extension

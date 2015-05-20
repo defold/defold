@@ -106,21 +106,18 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
-        ModelWorld* model_world = (ModelWorld*)params.m_World;
-        dmArray<ModelComponent>& components = model_world->m_Components.m_Objects;
-        uint32_t n = components.Size();
-        Model* model;
-        Mesh* mesh;
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            ModelComponent& component = components[i];
-            if (component.m_Instance == 0 || !component.m_AddedToUpdate)
-                continue;
-            model = component.m_Model;
-            mesh = model->m_Mesh;
-            dmRender::RenderObject& ro = component.m_RenderObject;
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
 
+    static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        for (uint32_t* i=params.m_Begin;i!=params.m_End;i++)
+        {
+            ModelComponent& component = *((ModelComponent*) params.m_Buf[*i].m_UserData);
+            Model* model = component.m_Model;
+            Mesh* mesh = model->m_Mesh;
+
+            dmRender::RenderObject& ro = component.m_RenderObject;
             dmTransform::Transform world = dmGameObject::GetWorldTransform(component.m_Instance);
             dmTransform::Transform local(Vector3(component.m_Position), component.m_Rotation, 1.0f);
             if (dmGameObject::ScaleAlongZ(component.m_Instance))
@@ -142,9 +139,37 @@ namespace dmGameSystem
             ro.m_VertexCount = mesh->m_VertexCount;
             ro.m_TextureTransform = Matrix4::identity();
             ro.m_WorldTransform = dmTransform::ToMatrix4(world);
-            ro.m_CalculateDepthKey = 1;
-            dmRender::AddToRender(render_context, &component.m_RenderObject);
+            dmRender::AddToRender(params.m_Context, &component.m_RenderObject);
         }
+    }
+
+    dmGameObject::UpdateResult CompModelRender(const dmGameObject::ComponentsRenderParams& params)
+    {
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
+        ModelWorld* world = (ModelWorld*)params.m_World;
+        dmArray<ModelComponent>& components = world->m_Components.m_Objects;
+        uint32_t n = components.Size();
+
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, n);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::RenderListEntry* write_ptr = render_list;
+
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            ModelComponent& component = components[i];
+            if (component.m_Instance == 0 || !component.m_AddedToUpdate)
+                continue;
+
+            write_ptr->m_WorldPosition = dmGameObject::GetWorldPosition(component.m_Instance);
+            write_ptr->m_UserData = (uintptr_t) &component;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Model->m_Material);
+            write_ptr->m_BatchKey = 0;
+            write_ptr->m_Dispatch = dispatch;
+            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+            ++write_ptr;
+        }
+
+        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

@@ -386,6 +386,7 @@ class Configuration(object):
             engine = join(bin_dir, exe_prefix + n + exe_ext)
             self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
             if self.target_platform == 'js-web':
+                self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
                 engine_mem = join(bin_dir, exe_prefix + n + exe_ext + '.mem')
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
@@ -506,7 +507,8 @@ class Configuration(object):
         return join(os.getcwd(), 'com.dynamo.cr/com.dynamo.cr.%s-product' % product)
 
     def build_server(self):
-        self._build_cr('server')
+        cwd = join(self.defold_root, 'server')
+        self.exec_env_command(['./gradlew', 'clean', 'test', 'distZip'], cwd = cwd)
 
     def build_editor(self):
         import xml.etree.ElementTree as ET
@@ -579,8 +581,12 @@ instructions.configure=\
         self._archive_cr('editor', build_dir)
 
     def archive_server(self):
-        build_dir = self._get_cr_builddir('server')
-        self._archive_cr('server', build_dir)
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'server').replace('\\', '/') + '/'
+        host, path = full_archive_path.split(':', 1)
+        build_dir = join(self.defold_root, 'server')
+        for p in glob(join(build_dir, 'build/distributions/*.zip')):
+            self.upload_file(p, full_archive_path)
 
     def _build_cr(self, product):
         self._sync_archive()

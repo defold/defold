@@ -529,7 +529,6 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext    m_RenderContext;
         GuiWorld*                   m_GuiWorld;
-        uint32_t                    m_NextZ;
     };
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
@@ -618,7 +617,7 @@ namespace dmGameSystem
             params.m_ShadowColor = shadow;
             params.m_Text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
-            params.m_Depth = gui_context->m_NextZ;
+            params.m_Depth = 0;
             params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
@@ -667,6 +666,8 @@ namespace dmGameSystem
             }
             dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
         }
+
+        dmRender::FlushTexts(gui_context->m_RenderContext, false);
     }
 
     void RenderBoxNodes(dmGui::HScene scene,
@@ -704,7 +705,6 @@ namespace dmGameSystem
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = vertex_count * node_count;
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
-        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);
@@ -728,7 +728,6 @@ namespace dmGameSystem
             const Vector4& color = node_colors[i];
             const dmGui::HNode node = entries[i].m_Node;
 
-            ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
             // Pre-multiplied alpha
             Vector4 pm_color(color);
             pm_color.setX(color.getX() * color.getW());
@@ -777,12 +776,12 @@ namespace dmGameSystem
                     const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
                     const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
                     us[uI[0]] = tc[0];
-                    us[uI[1]] = tc[0] + (sv * slice9.getW());
-                    us[uI[2]] = tc[2] - (sv * slice9.getY());
+                    us[uI[1]] = tc[0] + (su * slice9.getW());
+                    us[uI[2]] = tc[2] - (su * slice9.getY());
                     us[uI[3]] = tc[2];
                     vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] + (su * slice9.getX());
-                    vs[vI[2]] = tc[5] - (su * slice9.getZ());
+                    vs[vI[1]] = tc[1] + (sv * slice9.getX());
+                    vs[vI[2]] = tc[5] - (sv * slice9.getZ());
                     vs[vI[3]] = tc[5];
                 }
                 else
@@ -921,7 +920,6 @@ namespace dmGameSystem
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = 0;
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
-        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);
@@ -948,8 +946,6 @@ namespace dmGameSystem
 
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
-
-            ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
 
             // Pre-multiplied alpha
             Vector4 pm_color(color);
@@ -1153,8 +1149,6 @@ namespace dmGameSystem
             prev_font = font;
             prev_stencil_scope = stencil_scope;
 
-            gui_context->m_NextZ++;
-
             ++i;
         }
 
@@ -1300,31 +1294,77 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        GuiContext* gui_context = (GuiContext*)params.m_Context;
 
-        // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* gui_component = gui_world->m_Components[i];
-            if (gui_component->m_Enabled && gui_component->m_AddedToUpdate) {
+            if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)
+            {
                 dmGui::UpdateScene(gui_component->m_Scene, params.m_UpdateContext->m_DT);
             }
         }
 
-        RenderGuiContext render_gui_context;
-        render_gui_context.m_RenderContext = gui_context->m_RenderContext;
-        render_gui_context.m_GuiWorld = gui_world;
-        render_gui_context.m_NextZ = 0;
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        GuiWorld *gui_world = (GuiWorld *) params.m_UserData;
+
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
+        {
+            gui_world->m_GuiRenderObjects.SetSize(0);
+            gui_world->m_ClientVertexBuffer.SetSize(0);
+        }
+        else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        {
+            dmGui::RenderSceneParams rp;
+            rp.m_RenderNodes = &RenderNodes;
+            rp.m_NewTexture = &NewTexture;
+            rp.m_DeleteTexture = &DeleteTexture;
+            rp.m_SetTextureData = &SetTextureData;
+
+            RenderGuiContext render_gui_context;
+            render_gui_context.m_RenderContext = params.m_Context;
+            render_gui_context.m_GuiWorld = gui_world;
+
+            for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
+            {
+                GuiComponent* c = (GuiComponent*) params.m_Buf[*i].m_UserData;
+                dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
+            }
+        }
+    }
+
+    dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
+    {
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiContext* gui_context = (GuiContext*)params.m_Context;
+
+        // Each component instance gets its own entry
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(gui_context->m_RenderContext, gui_world->m_Components.Size());
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(gui_context->m_RenderContext, &RenderListDispatch, gui_world);
+        dmRender::RenderListEntry* write_ptr = render_list;
 
         uint32_t total_node_count = 0;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled && c->m_AddedToUpdate)
-            {
-                total_node_count += dmGui::GetNodeCount(c->m_Scene);
-            }
+            if (!c->m_Enabled || !c->m_AddedToUpdate)
+                continue;
+
+            total_node_count += dmGui::GetNodeCount(c->m_Scene);
+            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+            write_ptr->m_Order = dmGui::GetRenderOrder(c->m_Scene);
+            write_ptr->m_UserData = (uintptr_t) c;
+            write_ptr->m_BatchKey = i;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(((dmRender::HMaterial)dmGui::GetMaterial(c->m_Scene)));
+
+            write_ptr->m_Dispatch = dispatch;
+            ++write_ptr;
         }
+
+        dmRender::RenderListSubmit(gui_context->m_RenderContext, render_list, write_ptr);
 
         uint32_t total_gui_render_objects_count = (total_node_count<<1) + (total_node_count>>3);
         if (gui_world->m_GuiRenderObjects.Capacity() < total_gui_render_objects_count)
@@ -1334,20 +1374,6 @@ namespace dmGameSystem
             // Given batching the capacity is perhaps a bit over the top
             // We also need to include one possible state per node + worst case batching every 8th
             gui_world->m_GuiRenderObjects.SetCapacity(total_gui_render_objects_count);
-        }
-        gui_world->m_GuiRenderObjects.SetSize(0);
-        gui_world->m_ClientVertexBuffer.SetSize(0);
-        for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
-        {
-            GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled && c->m_AddedToUpdate) {
-                dmGui::RenderSceneParams rp;
-                rp.m_RenderNodes = &RenderNodes;
-                rp.m_NewTexture = &NewTexture;
-                rp.m_DeleteTexture = &DeleteTexture;
-                rp.m_SetTextureData = &SetTextureData;
-                dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
-            }
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

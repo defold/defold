@@ -2083,6 +2083,32 @@ namespace dmGameObject
         return ret;
     }
 
+    bool Render(HCollection collection)
+    {
+        DM_PROFILE(GameObject, "Render");
+        assert(collection != 0x0);
+
+        bool ret = true;
+        uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
+        for (uint32_t i = 0; i < component_types; ++i)
+        {
+            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+            if (component_type->m_RenderFunction)
+            {
+                DM_PROFILE(GameObject, component_type->m_Name);
+                ComponentsRenderParams params;
+                params.m_Collection = collection;
+                params.m_World = collection->m_ComponentWorlds[update_index];
+                params.m_Context = component_type->m_Context;
+                UpdateResult res = component_type->m_RenderFunction(params);
+                if (res != UPDATE_RESULT_OK)
+                    ret = false;
+            }
+        }
+        return ret;
+    }
+
     static bool DispatchAllSockets(HCollection collection) {
         bool result = true;
         dmMessage::HSocket sockets[] =

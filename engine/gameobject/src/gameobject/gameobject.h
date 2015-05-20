@@ -420,6 +420,26 @@ namespace dmGameObject
     typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params);
 
     /**
+     * Parameters to ComponentsRender callback.
+     */
+    struct ComponentsRenderParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+    };
+
+    /**
+     * Component render function.
+     * @param params Input parameters
+     * @return UPDATE_RESULT_OK on success
+     */
+    typedef UpdateResult (*ComponentsRender)(const ComponentsRenderParams& params);
+
+    /**
      * Parameters for ComponentsPostUpdate callback.
      */
     struct ComponentsPostUpdateParams
@@ -590,6 +610,7 @@ namespace dmGameObject
         ComponentFinal          m_FinalFunction;
         ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentsUpdate        m_UpdateFunction;
+        ComponentsRender        m_RenderFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
         ComponentOnInput        m_OnInputFunction;
@@ -898,6 +919,13 @@ namespace dmGameObject
     bool Update(HCollection collection, const UpdateContext* update_context);
 
     /**
+     * Render all components in all game objects.
+     * @param collection Collection to be rendered
+     * @return True on success
+     */
+    bool Render(HCollection collection);
+
+    /**
      * Performs clean up of the collection after update, such as deleting all instances scheduled for delete.
      * @param collection Game object collection
      * @return True on success
@@ -1115,7 +1143,7 @@ namespace dmGameObject
                      dmhash_t property_id,
                      Playback playback,
                      const PropertyVar& to,
-                     dmEasing::Type easing,
+                     dmEasing::Curve easing,
                      float duration,
                      float delay,
                      AnimationStopped animation_stopped,

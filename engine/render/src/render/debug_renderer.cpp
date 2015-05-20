@@ -63,7 +63,6 @@ namespace dmRender
             ro.m_VertexBuffer = debug_renderer.m_VertexBuffer;
             ro.m_VertexDeclaration = debug_renderer.m_VertexDeclaration;
             ro.m_VertexCount = 0;
-            ro.m_RenderKey.m_Depth = i;
             DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
             type_data.m_RenderObject = ro;
             type_data.m_ClientBuffer = new char[buffer_size];
@@ -118,12 +117,6 @@ namespace dmRender
         }
     }
 
-#define ADD_TO_RENDER(object)\
-    if (object.m_VertexCount == 0)\
-    {\
-        dmRender::AddToRender(context, &object);\
-    }\
-
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color)
     {
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D];
@@ -131,7 +124,6 @@ namespace dmRender
         const uint32_t vertex_count = 6;
         if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
-            ADD_TO_RENDER(ro);
             DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
             v[1].m_Position = Vector4(x0, y1, 0.0f, 0.0f);
@@ -158,7 +150,6 @@ namespace dmRender
         const uint32_t vertex_count = 3;
         if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
-            ADD_TO_RENDER(ro);
             DebugVertex v[vertex_count];
             for (uint32_t i = 0; i < vertex_count; ++i)
             {
@@ -182,7 +173,6 @@ namespace dmRender
         const uint32_t vertex_count = 2;
         if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
-            ADD_TO_RENDER(ro);
             DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(x0, y0, 0.0f, 0.0f);
             v[0].m_Color = color0;
@@ -205,7 +195,6 @@ namespace dmRender
         const uint32_t vertex_count = 2;
         if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
-            ADD_TO_RENDER(ro);
             DebugVertex v[vertex_count];
             v[0].m_Position = Vector4(start);
             v[0].m_Color = start_color;
@@ -221,8 +210,6 @@ namespace dmRender
         }
     }
 
-#undef ADD_TO_RENDER
-
     void FlushDebug(HRenderContext render_context)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
@@ -237,6 +224,7 @@ namespace dmRender
             {
                 ro.m_VertexStart = total_vertex_count;
                 total_vertex_count += vertex_count;
+                dmRender::AddToRender(render_context, &ro);
             }
         }
         dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
@@ -248,6 +236,7 @@ namespace dmRender
             if (vertex_count > 0)
             {
                 dmGraphics::SetVertexBufferSubData(debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), vertex_count * sizeof(DebugVertex), type_data.m_ClientBuffer);
+                dmRender::AddToRender(render_context, &ro);
             }
         }
     }

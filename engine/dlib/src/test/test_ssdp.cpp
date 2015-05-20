@@ -22,7 +22,7 @@ static const char* DEVICE_DESC =
 "        <friendlyName>Defold System</friendlyName>\n"
 "        <manufacturer>Defold</manufacturer>\n"
 "        <modelName>Defold Engine 1.0</modelName>\n"
-"        <UDN>${UDN}</UDN>\n"
+"        <UDN>uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8</UDN>\n"
 "    </device>\n"
 "</root>\n";
 

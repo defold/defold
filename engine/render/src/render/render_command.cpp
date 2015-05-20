@@ -152,7 +152,7 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DRAW:
                 {
-                    dmRender::Draw(render_context, (dmRender::Predicate*)c->m_Operands[0], (dmRender::HNamedConstantBuffer)c->m_Operands[1]);
+                    dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0], (dmRender::HNamedConstantBuffer)c->m_Operands[1]);
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG3D:

@@ -1,6 +1,8 @@
 #ifndef DM_EASING
 #define DM_EASING
 
+#include "vmath.h"
+
 namespace dmEasing
 {
     /**
@@ -49,7 +51,36 @@ namespace dmEasing
         TYPE_OUTBOUNCE = 38,   //!< TYPE_OUTBOUNCE
         TYPE_INOUTBOUNCE = 39, //!< TYPE_INOUTBOUNCE
         TYPE_OUTINBOUNCE = 40, //!< TYPE_OUTINBOUNCE
-        TYPE_COUNT = 41,       //!< TYPE_COUNT
+        TYPE_FLOAT_VECTOR = 41,//!< TYPE_FLOAT_VECTOR
+        TYPE_COUNT = 42,       //!< TYPE_COUNT
+    };
+
+    struct Curve;
+    typedef void (*ReleaseCurve)(Curve* curve);
+
+    struct Curve
+    {
+        Type type;
+        dmVMath::FloatVector* vector;
+
+        ReleaseCurve release_callback;
+        void* userdata1;
+        void* userdata2;
+
+        Curve() {
+            type             = TYPE_LINEAR;
+            vector           = 0x0;
+            userdata1        = 0x0;
+            userdata2        = 0x0;
+            release_callback = 0x0;
+        };
+        Curve(Type curve_type) {
+            type             = curve_type;
+            vector           = 0x0;
+            userdata1        = 0x0;
+            userdata2        = 0x0;
+            release_callback = 0x0;
+        };
     };
 
     /**
@@ -59,6 +90,7 @@ namespace dmEasing
      * @return curve value
      */
     float GetValue(Type type, float t);
+    float GetValue(Curve curve, float t);
 }
 
 #endif // DM_EASING

@@ -478,6 +478,7 @@ namespace dmGameSystem
 
     void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)
     {
+        CollisionWorld* world = (CollisionWorld*)user_data;
         CollisionComponent* component_a = (CollisionComponent*)trigger_enter.m_UserDataA;
         CollisionComponent* component_b = (CollisionComponent*)trigger_enter.m_UserDataB;
         dmGameObject::HInstance instance_a = component_a->m_Instance;
@@ -490,15 +491,18 @@ namespace dmGameSystem
 
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
+        ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupB);
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
+        ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupA);
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
     void TriggerExitedCallback(const dmPhysics::TriggerExit& trigger_exit, void* user_data)
     {
+        CollisionWorld* world = (CollisionWorld*)user_data;
         CollisionComponent* component_a = (CollisionComponent*)trigger_exit.m_UserDataA;
         CollisionComponent* component_b = (CollisionComponent*)trigger_exit.m_UserDataB;
         dmGameObject::HInstance instance_a = component_a->m_Instance;
@@ -511,10 +515,12 @@ namespace dmGameSystem
 
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
+        ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupB);
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
+        ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupA);
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
@@ -690,7 +696,9 @@ namespace dmGameSystem
         step_world_context.m_ContactPointCallback = ContactPointCallback;
         step_world_context.m_ContactPointUserData = &contact_user_data;
         step_world_context.m_TriggerEnteredCallback = TriggerEnteredCallback;
+        step_world_context.m_TriggerEnteredUserData = world;
         step_world_context.m_TriggerExitedCallback = TriggerExitedCallback;
+        step_world_context.m_TriggerExitedUserData = world;
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
 

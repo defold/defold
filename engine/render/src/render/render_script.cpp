@@ -106,9 +106,20 @@ namespace dmRender
 
     /*# create a new constant buffer.
      *
-     * Constant buffers are used to set shader program variables and are optionally passed to the render.draw function.
+     * Constant buffers are used to set shader program variables and are optionally passed to the render.draw function. The buffer's constant elements can be indexed like an ordinary Lua table, but you can't iterate
+     * over them with pairs() or ipairs().
      * @name render.constant_buffer
      * @return new constant buffer
+     * @examples
+     * <p>Set a "tint" constant in a constant buffer in the render script:</p>
+     * <pre>
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 1, 1, 1)
+     * </pre>
+     * <p>Then use the constant buffer when drawing a predicate:</p>
+     * <pre>
+     * render.draw(self.my_pred, constants)
+     * </pre>
      */
     int RenderScript_ConstantBuffer(lua_State* L)
     {

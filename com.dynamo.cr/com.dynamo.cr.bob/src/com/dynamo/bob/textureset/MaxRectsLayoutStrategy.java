@@ -57,7 +57,9 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         for(Page page : pages) {
             ArrayList<Rect> rects = new ArrayList<Rect>(page.outputRects.size());
             for(RectNode node : page.outputRects) {
-                rects.add(node.rect);
+                Rect finalRect = new Rect(node.rect.id, node.rect.x, node.rect.y, node.rect.width - settings.paddingX, node.rect.height - settings.paddingY);
+                finalRect.rotated = node.rect.rotated;
+                rects.add(finalRect);
             }
             int layoutWidth = 1 << getExponentNextOrMatchingPowerOfTwo(page.width);
             int layoutHeight = 1 << getExponentNextOrMatchingPowerOfTwo(page.height);

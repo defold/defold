@@ -200,12 +200,12 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
         if(uvRotated)
         {
             us[vI[0]] = u0;
-            us[vI[1]] = u0 + (sV * node.getSlice9().w);
-            us[vI[2]] = u1 - (sV * node.getSlice9().y);
+            us[vI[1]] = u0 + (sU * node.getSlice9().w);
+            us[vI[2]] = u1 - (sU * node.getSlice9().y);
             us[vI[3]] = u1;
             vs[uI[0]] = v0;
-            vs[uI[1]] = v0 + (sU * node.getSlice9().x);
-            vs[uI[2]] = v1 - (sU * node.getSlice9().z);
+            vs[uI[1]] = v0 + (sV * node.getSlice9().x);
+            vs[uI[2]] = v1 - (sV * node.getSlice9().z);
             vs[uI[3]] = v1;
             for (int i=0;i<3;i++)
             {

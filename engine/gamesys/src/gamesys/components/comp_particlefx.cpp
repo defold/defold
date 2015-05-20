@@ -192,12 +192,6 @@ namespace dmGameSystem
         dmGraphics::SetVertexBufferData(w->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::SetVertexBufferData(w->m_VertexBuffer, vertex_buffer_size, w->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmRender::HRenderContext render_context = ctx->m_RenderContext;
-        uint32_t n = w->m_RenderObjects.Size();
-        dmArray<dmRender::RenderObject>& render_objects = w->m_RenderObjects;
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            dmRender::AddToRender(render_context, &render_objects[i]);
-        }
 
         if (ctx->m_Debug)
         {
@@ -223,6 +217,47 @@ namespace dmGameSystem
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
+
+    static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        {
+            for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
+            {
+                dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                dmRender::AddToRender(params.m_Context, (dmRender::RenderObject*) params.m_Buf[*i].m_UserData);
+            }
+        }
+    }
+
+    dmGameObject::UpdateResult CompParticleFXRender(const dmGameObject::ComponentsRenderParams& params)
+    {
+        ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
+        ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
+
+        dmArray<dmRender::RenderObject>& render_objects = w->m_RenderObjects;
+        const uint32_t n = w->m_RenderObjects.Size();
+
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(ctx->m_RenderContext, n);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, 0);
+        dmRender::RenderListEntry* write_ptr = render_list;
+
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const Vector4 trans = render_objects[i].m_WorldTransform.getCol(3);
+            write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+            write_ptr->m_UserData = (uintptr_t) &render_objects[i];
+            write_ptr->m_BatchKey = 0;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(render_objects[i].m_Material);
+            write_ptr->m_Dispatch = dispatch;
+            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+            ++write_ptr;
+        }
+
+        dmRender::RenderListSubmit(ctx->m_RenderContext, render_list, write_ptr);
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
 
     static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, ParticleFXComponentPrototype* prototype)
     {
@@ -392,7 +427,6 @@ namespace dmGameSystem
             ro.m_VertexBuffer = world->m_VertexBuffer;
             ro.m_VertexDeclaration = world->m_VertexDeclaration;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-            ro.m_CalculateDepthKey = 1;
             ro.m_WorldTransform = world_transform;
             ro.m_SetBlendFactors = 1;
             SetBlendFactors(&ro, blend_mode);

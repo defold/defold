@@ -29,3 +29,4 @@ copy armv7-android/libdmengine.so engine/android/libdmengine.so
 copy armv7-android/libdmengine_release.so engine/android/libdmengine_release.so
 copy js-web/dmengine.js engine/js-web/dmengine.js
 copy js-web/dmengine_release.js engine/js-web/dmengine_release.js
+copy js-web/defold_sound.swf engine/js-web/defold_sound.swf

@@ -171,11 +171,15 @@ namespace dmRender
     void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params);
 
     /**
-     * Flushes the drawn texts, i.e. sends them to gpu-memory.
+     * Produces render objects for all the previously DrawText:ed texts.
+     * Multiple calls can be made with final=false, but one (last) call
+     * with final=true must be made, so that the vertex buffers will be
+     * written.
      *
+     * @param final If this is the last call.
      * @param render_context Context to use when rendering
      */
-    void FlushTexts(HRenderContext render_context);
+    void FlushTexts(HRenderContext render_context, bool final);
 
     /**
      * Get text metrics for string

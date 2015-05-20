@@ -1353,6 +1353,23 @@ static void LogFrameBufferError(GLenum status)
         delete texture;
     }
 
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    {
+        GLenum type = (GLenum) texture->m_Type;
+
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, minfilter);
+        CHECK_GL_ERROR
+
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, magfilter);
+        CHECK_GL_ERROR
+
+        glTexParameteri(type, GL_TEXTURE_WRAP_S, uwrap);
+        CHECK_GL_ERROR
+
+        glTexParameteri(type, GL_TEXTURE_WRAP_T, vwrap);
+        CHECK_GL_ERROR
+    }
+
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         // validate write accessibility for format. Some format are not garuanteed to be writeable
@@ -1394,17 +1411,8 @@ static void LogFrameBufferError(GLenum status)
         glBindTexture(type, texture->m_Texture);
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, params.m_MinFilter);
-        CHECK_GL_ERROR
-
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, params.m_MagFilter);
-        CHECK_GL_ERROR
-
-        glTexParameteri(type, GL_TEXTURE_WRAP_S, params.m_UWrap);
-        CHECK_GL_ERROR
-
-        glTexParameteri(type, GL_TEXTURE_WRAP_T, params.m_VWrap);
-        CHECK_GL_ERROR
+        texture->m_Params = params;
+        SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
 
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
@@ -1568,6 +1576,8 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBindTexture((GLenum) texture->m_Type, texture->m_Texture);
         CHECK_GL_ERROR
+
+        SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
     }
 
     void DisableTexture(HContext context, uint32_t unit, HTexture texture)

@@ -786,6 +786,11 @@ namespace dmGraphics
         delete t;
     }
 
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    {
+        assert(texture);
+    }
+
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         assert(texture);

@@ -25,18 +25,6 @@
 using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
-
-    union SortKey
-    {
-        struct
-        {
-            uint64_t m_Index : 16;  // Index is used to ensure stable sort
-            uint64_t m_MixedHash : 32;
-            uint64_t m_Z : 16; // Quantified relative z
-        };
-        uint64_t     m_Key;
-    };
-
     const uint32_t MAX_CONSTANTS = 4;
 
     struct SpriteComponent
@@ -46,7 +34,6 @@ namespace dmGameSystem
         Quat                        m_Rotation;
         Vector3                     m_Scale;
         Matrix4                     m_World;
-        SortKey                     m_SortKey;
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
         uint32_t                    m_MixedHash;
@@ -71,19 +58,6 @@ namespace dmGameSystem
         uint16_t                    m_Padding : 3;
     };
 
-    struct SpriteWorld
-    {
-        dmObjectPool<SpriteComponent>   m_Components;
-        dmArray<dmRender::RenderObject> m_RenderObjects;
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
-        void*                           m_VertexBufferData;
-
-        dmArray<uint32_t>               m_RenderSortBuffer;
-        float                           m_MinZ;
-        float                           m_MaxZ;
-    };
-
     struct SpriteVertex
     {
         float x;
@@ -93,6 +67,15 @@ namespace dmGameSystem
         float v;
     };
 
+    struct SpriteWorld
+    {
+        dmObjectPool<SpriteComponent>   m_Components;
+        dmArray<dmRender::RenderObject> m_RenderObjects;
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        SpriteVertex*                   m_VertexBufferData;
+        SpriteVertex*                   m_VertexBufferWritePtr;
+    };
 
     struct PropVector3
     {
@@ -138,15 +121,6 @@ namespace dmGameSystem
         memset(sprite_world->m_Components.m_Objects.Begin(), 0, sizeof(SpriteComponent) * sprite_context->m_MaxSpriteCount);
         sprite_world->m_RenderObjects.SetCapacity(sprite_context->m_MaxSpriteCount);
 
-        sprite_world->m_RenderSortBuffer.SetCapacity(sprite_context->m_MaxSpriteCount);
-        sprite_world->m_RenderSortBuffer.SetSize(sprite_context->m_MaxSpriteCount);
-        for (uint32_t i = 0; i < sprite_context->m_MaxSpriteCount; ++i)
-        {
-            sprite_world->m_RenderSortBuffer[i] = i;
-        }
-        sprite_world->m_MinZ = 0;
-        sprite_world->m_MaxZ = 0;
-
         dmGraphics::VertexElement ve[] =
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
@@ -156,7 +130,7 @@ namespace dmGameSystem
         sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        sprite_world->m_VertexBufferData = malloc(sizeof(SpriteVertex) * 6 * sprite_world->m_Components.Capacity());
+        sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 6 * sprite_world->m_Components.Capacity());
 
         *params.m_World = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -262,66 +236,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    struct SortPred
-    {
-        SortPred(SpriteWorld* sprite_world) : m_Objects(sprite_world->m_Components.m_Objects) {}
-
-        dmArray<SpriteComponent>& m_Objects;
-
-        inline bool operator () (const uint32_t x, const uint32_t y)
-        {
-            SpriteComponent* c1 = &m_Objects[x];
-            SpriteComponent* c2 = &m_Objects[y];
-            return c1->m_SortKey.m_Key < c2->m_SortKey.m_Key;
-        }
-
-    };
-
-    void GenerateKeys(SpriteWorld* sprite_world)
-    {
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
-        uint32_t n = components.Size();
-
-        float min_z = sprite_world->m_MinZ;
-        float range = 1.0f / (sprite_world->m_MaxZ - sprite_world->m_MinZ);
-
-        SpriteComponent* first = components.Begin();
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            SpriteComponent* c = &components[i];
-            uint32_t index = c - first;
-            if (c->m_Resource && c->m_Enabled && c->m_AddedToUpdate)
-            {
-                float z = (c->m_World.getElem(3, 2) - min_z) * range * 65535;
-                z = dmMath::Clamp(z, 0.0f, 65535.0f);
-                uint16_t zf = (uint16_t) z;
-                c->m_SortKey.m_Z = zf;
-                c->m_SortKey.m_Index = index;
-                c->m_SortKey.m_MixedHash = c->m_MixedHash;
-            }
-            else
-            {
-                c->m_SortKey.m_Key = 0xffffffffffffffffULL;
-            }
-        }
-    }
-
-    void SortSprites(SpriteWorld* sprite_world)
-    {
-        DM_PROFILE(Sprite, "Sort");
-        dmArray<uint32_t>* buffer = &sprite_world->m_RenderSortBuffer;
-
-        uint32_t n = sprite_world->m_Components.Size();
-        sprite_world->m_RenderSortBuffer.SetSize(n);
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            sprite_world->m_RenderSortBuffer[i] = i;
-        }
-
-        SortPred pred(sprite_world);
-        std::sort(buffer->Begin(), buffer->Begin() + n, pred);
-    }
-
     static uint32_t GetCurrentTile(const SpriteComponent* component, const dmGameSystemDDF::TextureSetAnimation* anim_ddf)
     {
         float t = component->m_AnimTimer;
@@ -368,26 +282,22 @@ namespace dmGameSystem
         return result;
     }
 
-    void CreateVertexData(SpriteWorld* sprite_world, void* vertex_buffer, TextureSetResource* texture_set, uint32_t start_index, uint32_t end_index)
+    SpriteVertex* CreateVertexData(SpriteWorld* sprite_world, SpriteVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Sprite, "CreateVertexData");
         static int tex_coord_order[] = {
             0,1,2,2,3,0,
-            3,2,1,1,0,3,	//h
-            1,0,3,3,2,1,	//v
-            2,3,0,0,1,2		//hv
+            3,2,1,1,0,3,    //h
+            1,0,3,3,2,1,    //v
+            2,3,0,0,1,2     //hv
         };
 
-        const dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
-        const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
-
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-
         const float* tex_coords = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
 
-        for (uint32_t i = start_index; i < end_index; ++i)
+        for (uint32_t *i = begin;i != end; ++i)
         {
-            const SpriteComponent* component = &components[sort_buffer[i]];
+            const SpriteComponent* component = (SpriteComponent*) buf[*i].m_UserData;
 
             uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
             if (!anim_id)
@@ -396,8 +306,6 @@ namespace dmGameSystem
             }
 
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
-
-            SpriteVertex *v = (SpriteVertex*)((vertex_buffer)) + i * 6;
 
             const float* tc = &tex_coords[GetCurrentTile(component, animation_ddf) * 8];
             uint32_t flip_flag = 0;
@@ -418,85 +326,76 @@ namespace dmGameSystem
             const Matrix4& w = component->m_World;
 
             Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
-            v[0].x = p0.getX();
-            v[0].y = p0.getY();
-            v[0].z = p0.getZ();
-            v[0].u = tc[tex_lookup[0] * 2];
-            v[0].v = tc[tex_lookup[0] * 2 + 1];
+            where[0].x = p0.getX();
+            where[0].y = p0.getY();
+            where[0].z = p0.getZ();
+            where[0].u = tc[tex_lookup[0] * 2];
+            where[0].v = tc[tex_lookup[0] * 2 + 1];
 
             Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
-            v[1].x = p1.getX();
-            v[1].y = p1.getY();
-            v[1].z = p1.getZ();
-            v[1].u = tc[tex_lookup[1] * 2];
-            v[1].v = tc[tex_lookup[1] * 2 + 1];
+            where[1].x = p1.getX();
+            where[1].y = p1.getY();
+            where[1].z = p1.getZ();
+            where[1].u = tc[tex_lookup[1] * 2];
+            where[1].v = tc[tex_lookup[1] * 2 + 1];
 
             Vector4 p2 = w * Point3(0.5f, 0.5f, 0.0f);
-            v[2].x = p2.getX();
-            v[2].y = p2.getY();
-            v[2].z = p2.getZ();
-            v[2].u = tc[tex_lookup[2] * 2];
-            v[2].v = tc[tex_lookup[2] * 2 + 1];
+            where[2].x = p2.getX();
+            where[2].y = p2.getY();
+            where[2].z = p2.getZ();
+            where[2].u = tc[tex_lookup[2] * 2];
+            where[2].v = tc[tex_lookup[2] * 2 + 1];
 
-            v[3].x = p2.getX();
-            v[3].y = p2.getY();
-            v[3].z = p2.getZ();
-            v[3].u = tc[tex_lookup[3] * 2];
-            v[3].v = tc[tex_lookup[3] * 2 + 1];
+            where[3].x = p2.getX();
+            where[3].y = p2.getY();
+            where[3].z = p2.getZ();
+            where[3].u = tc[tex_lookup[3] * 2];
+            where[3].v = tc[tex_lookup[3] * 2 + 1];
 
             Vector4 p3 = w * Point3(0.5f, -0.5f, 0.0f);
-            v[4].x = p3.getX();
-            v[4].y = p3.getY();
-            v[4].z = p3.getZ();
-            v[4].u = tc[tex_lookup[4] * 2];
-            v[4].v = tc[tex_lookup[4] * 2 + 1];
+            where[4].x = p3.getX();
+            where[4].y = p3.getY();
+            where[4].z = p3.getZ();
+            where[4].u = tc[tex_lookup[4] * 2];
+            where[4].v = tc[tex_lookup[4] * 2 + 1];
 
-            v[5].x = v[0].x;
-            v[5].y = v[0].y;
-            v[5].z = v[0].z;
-            v[5].u = tc[tex_lookup[5] * 2];
-            v[5].v = tc[tex_lookup[5] * 2 + 1];
+            where[5].x = where[0].x;
+            where[5].y = where[0].y;
+            where[5].z = where[0].z;
+            where[5].u = tc[tex_lookup[5] * 2];
+            where[5].v = tc[tex_lookup[5] * 2 + 1];
+
+            where += 6;
         }
+
+        return where;
     }
 
-    static uint32_t RenderBatch(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, void* vertex_buffer, uint32_t start_index)
+    static void RenderBatch(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Sprite, "RenderBatch");
-        uint32_t n = sprite_world->m_Components.Size();
 
-        const dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
-        const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
-
-        const SpriteComponent* first = &components[sort_buffer[start_index]];
+        const SpriteComponent* first = (SpriteComponent*) buf[*begin].m_UserData;
         assert(first->m_Enabled);
+
         TextureSetResource* texture_set = first->m_Resource->m_TextureSet;
-        uint32_t hash = first->m_MixedHash;
 
-        uint32_t end_index = n;
-        for (uint32_t i = start_index; i < n; ++i)
-        {
-            const SpriteComponent* c = &components[sort_buffer[i]];
-            if (!c->m_Enabled || c->m_MixedHash != hash || !c->m_AddedToUpdate)
-            {
-                end_index = i;
-                break;
-            }
-        }
+        // Ninja in-place writing of render object.
+        dmRender::RenderObject& ro = *sprite_world->m_RenderObjects.End();
+        sprite_world->m_RenderObjects.SetSize(sprite_world->m_RenderObjects.Size()+1);
 
-        // Render object
-        dmRender::RenderObject ro;
+        // Fill in vertex buffer
+        SpriteVertex *vb_begin = sprite_world->m_VertexBufferWritePtr;
+        sprite_world->m_VertexBufferWritePtr = CreateVertexData(sprite_world, vb_begin, texture_set, buf, begin, end);
+
+        ro.Init();
         ro.m_VertexDeclaration = sprite_world->m_VertexDeclaration;
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart = start_index * 6;
-        ro.m_VertexCount = (end_index - start_index) * 6;
+        ro.m_VertexStart = vb_begin - sprite_world->m_VertexBufferData;
+        ro.m_VertexCount = (sprite_world->m_VertexBufferWritePtr - vb_begin);
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_Textures[0] = texture_set->m_Texture;
-        // The first transform is used for the batch. Mean-value might be better?
-        // NOTE: The position is already transformed, see CreateVertexData, but set for sorting.
-        // See also sprite.vp
-        ro.m_WorldTransform = first->m_World;
-        ro.m_CalculateDepthKey = 1;
 
         const dmRender::Constant* constants = first->m_RenderConstants;
         uint32_t size = first->m_ConstantCount;
@@ -530,14 +429,10 @@ namespace dmGameSystem
                 assert(0);
             break;
         }
+
         ro.m_SetBlendFactors = 1;
 
-        sprite_world->m_RenderObjects.Push(ro);
-
-        dmRender::AddToRender(render_context, &sprite_world->m_RenderObjects[sprite_world->m_RenderObjects.Size() - 1]);
-
-        CreateVertexData(sprite_world, vertex_buffer, texture_set, start_index, end_index);
-        return end_index;
+        dmRender::AddToRender(render_context, &ro);
     }
 
     void UpdateTransforms(SpriteWorld* sprite_world, bool sub_pixels)
@@ -546,8 +441,6 @@ namespace dmGameSystem
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
-        float min_z = FLT_MAX;
-        float max_z = -FLT_MAX;
         for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* c = &components[i];
@@ -578,24 +471,10 @@ namespace dmGameSystem
                     position.setX((int) position.getX());
                     position.setY((int) position.getY());
                 }
-                float z = position.getZ();
-                min_z = dmMath::Min(min_z, z);
-                max_z = dmMath::Max(max_z, z);
                 w.setCol3(position);
                 c->m_World = w;
             }
         }
-
-        if (n == 0)
-        {
-            // NOTE: Avoid large numbers and risk of de-normalized etc.
-            // if n == 0 the actual values of min/max-z doens't matter
-            min_z = 0;
-            max_z = 1;
-        }
-
-        sprite_world->m_MinZ = min_z;
-        sprite_world->m_MaxZ = max_z;
     }
 
     static void PostMessages(SpriteWorld* sprite_world)
@@ -726,88 +605,88 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         /*
-         * All sprites are sorted, using the m_RenderSortBuffer, with respect to the:
-         *
-         *     - hash value of m_Resource, i.e. equal iff the sprite is rendering with identical tile-source
-         *     - z-value
-         *     - component index
-         *  or
-         *     - 0xffffffff (or corresponding 64-bit value) if not enabled
-         * such that all non-enabled sprites ends up last in the array
-         * and sprites with equal tileset and depth consecutively
-         *
-         * The z-sorting is considered a hack as we assume a camera pointing along the z-axis. We currently
-         * have no access, by design as render-data currently should be invariant to camera parameters,
-         * to the transformation matrices when generating render-data. The render-system and go-system should probably
-         * be changed such that unique render-objects are created when necessary and on-demand instead of up-front as
-         * currently. Another option could be a call-back when the actual rendering occur.
-         *
-         * The sorted array of indices are grouped into batches, using z and resource-hash as predicates, and every
-         * batch is rendered using a single draw-call. Note that the world transform
-         * is set to first sprite transform for correct batch sorting. The actual vertex transformation is performed in code
-         * and standard world-transformation is removed from vertex-program.
-         *
          * NOTES:
          * * When/if transparency the batching predicates must be updated in order to
          *   support per sprite correct sorting.
          */
 
-        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
-        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteContext* context = (SpriteContext*)params.m_Context;
+        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        UpdateTransforms(world, context->m_Subpixels);
+        Animate(world, params.m_UpdateContext->m_DT);
 
-        dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * sprite_world->m_Components.Size(), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-        void* vertex_buffer = sprite_world->m_VertexBufferData;
+        PostMessages(world);
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        SpriteWorld *world = (SpriteWorld *) params.m_UserData;
+
+        switch (params.m_Operation)
+        {
+            case dmRender::RENDER_LIST_OPERATION_BEGIN:
+                world->m_VertexBufferWritePtr = world->m_VertexBufferData;
+                world->m_RenderObjects.SetSize(0);
+                break;
+            case dmRender::RENDER_LIST_OPERATION_END:
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpriteVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData),
+                                                world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                DM_COUNTER("SpriteVertexBuffer", (world->m_VertexBufferWritePtr - world->m_VertexBufferData) * sizeof(SpriteVertex));
+                break;
+            default:
+                assert(params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH);
+                RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
+        }
+    }
+
+    dmGameObject::UpdateResult CompSpriteRender(const dmGameObject::ComponentsRenderParams& params)
+    {
+        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t sprite_count = components.Size();
+
+        if (!sprite_count)
+            return dmGameObject::UPDATE_RESULT_OK;
+
+        // Submit all sprites as entries in the render list for sorting.
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, sprite_count);
+        dmRender::HRenderListDispatch sprite_dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, sprite_world);
+        dmRender::RenderListEntry* write_ptr = render_list;
+
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpriteComponent& component = components[i];
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
+
             uint32_t const_count = component.m_ConstantCount;
             for (uint32_t const_i = 0; const_i < const_count; ++const_i)
             {
-                float diff_sq = lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]);
-                if (diff_sq > 0)
+                if (lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]) > 0)
                 {
                     ReHash(&component);
                     break;
                 }
             }
-        }
-        UpdateTransforms(sprite_world, sprite_context->m_Subpixels);
-        GenerateKeys(sprite_world);
-        SortSprites(sprite_world);
 
-        sprite_world->m_RenderObjects.SetSize(0);
-
-        const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
-
-        Animate(sprite_world, params.m_UpdateContext->m_DT);
-
-        uint32_t n = components.Size();
-        if (n > 0) {
-            uint32_t start_index = 0;
-            SpriteComponent* component = &components[sort_buffer[start_index]];
-            while (start_index < n && component->m_Enabled && component->m_AddedToUpdate)
-            {
-                start_index = RenderBatch(sprite_world, render_context, vertex_buffer, start_index);
-                if (start_index >= n) {
-                    break;
-                }
-                component = &components[sort_buffer[start_index]];
-            }
-
-            dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * start_index, sprite_world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            const Vector4 trans = component.m_World.getCol(3);
+            write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+            write_ptr->m_UserData = (uintptr_t) &component;
+            write_ptr->m_BatchKey = component.m_MixedHash;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
+            write_ptr->m_Dispatch = sprite_dispatch;
+            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+            ++write_ptr;
         }
 
-        PostMessages(sprite_world);
-
+        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
     }
-
 
     static bool CompSpriteGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {

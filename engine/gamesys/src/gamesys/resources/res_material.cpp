@@ -11,6 +11,35 @@
 
 namespace dmGameSystem
 {
+    static dmGraphics::TextureWrap wrap_lut[] = {dmGraphics::TEXTURE_WRAP_REPEAT,
+                                                 dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT,
+                                                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE};
+
+    static dmGraphics::TextureFilter filter_lut[] = {dmGraphics::TEXTURE_FILTER_NEAREST,
+                                                     dmGraphics::TEXTURE_FILTER_LINEAR,
+                                                     dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST,
+                                                     dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR,
+                                                     dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST,
+                                                     dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR};
+
+    static dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
+    {
+        assert(wrap_mode <= dmRenderDDF::MaterialDesc::WRAP_MODE_CLAMP_TO_EDGE);
+        return wrap_lut[wrap_mode];
+    }
+
+    static dmGraphics::TextureFilter FilterMinFromDDF(dmRenderDDF::MaterialDesc::FilterModeMin min_filter)
+    {
+        assert(min_filter <= dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR);
+        return filter_lut[min_filter];
+    }
+
+    static dmGraphics::TextureFilter FilterMagFromDDF(dmRenderDDF::MaterialDesc::FilterModeMag mag_filter)
+    {
+        assert(mag_filter <= dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_LINEAR);
+        return filter_lut[mag_filter];
+    }
+
     struct MaterialResources
     {
         MaterialResources() : m_DDF(0x0), m_FragmentProgram(0), m_VertexProgram(0) {}
@@ -96,10 +125,29 @@ namespace dmGameSystem
 
         const char** textures = resources->m_DDF->m_Textures.m_Data;
         uint32_t texture_count = resources->m_DDF->m_Textures.m_Count;
-        for (uint32_t i = 0; i < texture_count; i++)
+        if (texture_count > 0)
         {
-            dmhash_t name_hash = dmHashString64(textures[i]);
-            dmRender::SetMaterialSampler(material, name_hash, i);
+            dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
+            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+            for (uint32_t i = 0; i < texture_count; i++)
+            {
+                dmhash_t name_hash = dmHashString64(textures[i]);
+                dmRender::SetMaterialSampler(material, name_hash, i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_DEFAULT, dmGraphics::TEXTURE_FILTER_DEFAULT);
+            }
+        }
+
+        dmRenderDDF::MaterialDesc::Sampler* sampler = resources->m_DDF->m_Samplers.m_Data;
+        uint32_t sampler_count = resources->m_DDF->m_Samplers.m_Count;
+        for (uint32_t i = 0; i < sampler_count; i++)
+        {
+            dmhash_t name_hash = dmHashString64(sampler[i].m_Name);
+            dmGraphics::TextureWrap uwrap = WrapFromDDF(sampler[i].m_WrapU);
+            dmGraphics::TextureWrap vwrap = WrapFromDDF(sampler[i].m_WrapV);
+            dmGraphics::TextureFilter minfilter = FilterMinFromDDF(sampler[i].m_FilterMin);
+            dmGraphics::TextureFilter magfilter = FilterMagFromDDF(sampler[i].m_FilterMag);
+
+            dmRender::SetMaterialSampler(material, name_hash, i, uwrap, vwrap, minfilter, magfilter);
         }
 
         dmDDF::FreeMessage(resources->m_DDF);

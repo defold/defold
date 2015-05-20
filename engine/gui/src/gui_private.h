@@ -171,7 +171,7 @@ namespace dmGui
         float    m_Delay;
         float    m_Elapsed;
         float    m_Duration;
-        dmEasing::Type m_Easing;
+        dmEasing::Curve m_Easing;
         Playback m_Playback;
         AnimationComplete m_AnimationComplete;
         void*    m_Userdata1;

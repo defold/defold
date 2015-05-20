@@ -324,14 +324,14 @@ namespace dmGameObject
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
         {
-            if (sender.m_Socket != dmGameObject::GetMessageSocket(collection))
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, index, &receiver, &sender);
+            if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
                 return; // Actually never reached
             }
 
-            dmMessage::URL receiver;
-            dmScript::ResolveURL(L, index, &receiver, &sender);
             HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
@@ -812,6 +812,20 @@ namespace dmGameObject
         return instance->m_Script->m_LuaState;
     }
 
+    void LuaCurveRelease(dmEasing::Curve* curve)
+    {
+        ScriptInstance* script_instance = (ScriptInstance*)curve->userdata1;
+        lua_State* L = GetLuaState(script_instance);
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+        assert(top == lua_gettop(L));
+    }
+
     void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
@@ -926,9 +940,29 @@ namespace dmGameObject
         {
             return luaL_error(L, "only numerical values can be used as target values for animation");
         }
-        lua_Integer easing = luaL_checkinteger(L, 5);
-        if (easing >= dmEasing::TYPE_COUNT)
-            return luaL_error(L, "invalid playback mode when starting an animation");
+
+        dmEasing::Curve curve;
+        if (lua_isnumber(L, 5))
+        {
+            curve.type = (dmEasing::Type)luaL_checkinteger(L, 5);
+            if (curve.type >= dmEasing::TYPE_COUNT)
+                return luaL_error(L, "invalid easing constant");
+        }
+        else if (dmScript::IsVector(L, 5))
+        {
+            curve.type = dmEasing::TYPE_FLOAT_VECTOR;
+            curve.vector = dmScript::CheckVector(L, 5);
+
+            lua_pushvalue(L, 5);
+            curve.release_callback = LuaCurveRelease;
+            curve.userdata1 = i;
+            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        else
+        {
+            return luaL_error(L, "easing must be either a easing constant or a vmath.vector");
+        }
+
         float duration = (float) luaL_checknumber(L, 6);
         float delay = 0.0f;
         if (top > 6)
@@ -947,7 +981,7 @@ namespace dmGameObject
         }
 
         result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
-                (Playback)playback, property_var, (dmEasing::Type)easing, duration, delay, stopped, userdata1, userdata2);
+                (Playback)playback, property_var, curve, duration, delay, stopped, userdata1, userdata2);
         switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:
@@ -1080,7 +1114,7 @@ namespace dmGameObject
      * </p>
      * <pre>
      * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
-     * go.detele(id) -- delete the game object
+     * go.delete(id) -- delete the game object
      * </pre>
      */
     int Script_Delete(lua_State* L)
@@ -1105,7 +1139,7 @@ namespace dmGameObject
      * An example how to delete game objects listed in a table
      * </p>
      * <pre>
-     * -- List the objects to be deleted 
+     * -- List the objects to be deleted
      * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
      * go.delete_all(ids)
      * </pre>
@@ -1889,8 +1923,12 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
      *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_x</code></td><td>The screen space x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_y</code></td><td>The screen space y value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_dx</code></td><td>The change in screen space x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_dy</code></td><td>The change in screen space y value of a pointer device, if present.</td></tr>
      *   <tr><td><code>touch</code></td><td>List of touch input, one element per finger, if present. See table below about touch input</td></tr>
      * </table>
      *

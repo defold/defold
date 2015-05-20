@@ -47,15 +47,6 @@ namespace dmGameSystem
         world->m_Components.SetCapacity(context->m_MaxSpineModelCount);
         world->m_RenderObjects.SetCapacity(context->m_MaxSpineModelCount);
 
-        world->m_RenderSortBuffer.SetCapacity(context->m_MaxSpineModelCount);
-        world->m_RenderSortBuffer.SetSize(context->m_MaxSpineModelCount);
-        for (uint32_t i = 0; i < context->m_MaxSpineModelCount; ++i)
-        {
-            world->m_RenderSortBuffer[i] = i;
-        }
-        world->m_MinZ = 0;
-        world->m_MaxZ = 0;
-
         dmGraphics::VertexElement ve[] =
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
@@ -64,8 +55,8 @@ namespace dmGameSystem
         };
 
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
-
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
         // Assume 4 vertices per mesh
         world->m_VertexBufferData.SetCapacity(4 * world->m_Components.Capacity());
 
@@ -314,6 +305,7 @@ namespace dmGameSystem
         AllocateMeshProperties(mesh_set, component->m_MeshProperties);
         component->m_MeshEntry = FindMeshEntry(&component->m_Resource->m_Scene->m_SpineScene->m_MeshSet, component->m_Skin);
         component->m_World = Matrix4::identity();
+        component->m_DoRender = 0;
 
         dmGameObject::CreateResult result = CreatePose(world, component);
         if (result != dmGameObject::CREATE_RESULT_OK) {
@@ -349,66 +341,6 @@ namespace dmGameSystem
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         DestroyComponent(world, *params.m_UserData);
         return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    struct SortPredSpine
-    {
-        SortPredSpine(SpineModelWorld* world) : m_Objects(world->m_Components.m_Objects) {}
-
-        dmArray<SpineModelComponent*>& m_Objects;
-
-        inline bool operator () (const uint32_t x, const uint32_t y)
-        {
-            SpineModelComponent* c1 = m_Objects[x];
-            SpineModelComponent* c2 = m_Objects[y];
-            return c1->m_SortKey.m_Key < c2->m_SortKey.m_Key;
-        }
-
-    };
-
-    static void GenerateKeys(SpineModelWorld* world)
-    {
-        dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
-        uint32_t n = components.Size();
-
-        float min_z = world->m_MinZ;
-        float range = 1.0f / (world->m_MaxZ - world->m_MinZ);
-
-        SpineModelComponent** first = world->m_Components.m_Objects.Begin();
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            SpineModelComponent* c = components[i];
-            uint32_t index = &components[i] - first;
-            if (c->m_Resource && c->m_Enabled && c->m_AddedToUpdate)
-            {
-                float z = (c->m_World.getElem(3, 2) - min_z) * range * 65535;
-                z = dmMath::Clamp(z, 0.0f, 65535.0f);
-                uint16_t zf = (uint16_t) z;
-                c->m_SortKey.m_Z = zf;
-                c->m_SortKey.m_Index = index;
-                c->m_SortKey.m_MixedHash = c->m_MixedHash;
-            }
-            else
-            {
-                c->m_SortKey.m_Key = 0xffffffffffffffffULL;
-            }
-        }
-    }
-
-    static void Sort(SpineModelWorld* world)
-    {
-        DM_PROFILE(SpineModel, "Sort");
-        dmArray<uint32_t>* buffer = &world->m_RenderSortBuffer;
-
-        uint32_t n = world->m_Components.Size();
-        world->m_RenderSortBuffer.SetSize(n);
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            world->m_RenderSortBuffer[i] = i;
-        }
-
-        SortPredSpine pred(world);
-        std::sort(buffer->Begin(), buffer->Begin() + n, pred);
     }
 
 #define TO_BYTE(val) (uint8_t)(val * 255.0f)
@@ -450,26 +382,22 @@ namespace dmGameSystem
         }
     }
 
-    static void CreateVertexData(SpineModelWorld* world, dmArray<SpineModelVertex>& vertex_buffer, TextureSetResource* texture_set, uint32_t start_index, uint32_t end_index)
+    SpineModelVertex* CreateVertexData(SpineModelWorld* world, SpineModelVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(SpineModel, "CreateVertexData");
 
-        const dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
-        const dmArray<uint32_t>& sort_buffer = world->m_RenderSortBuffer;
-
-        for (uint32_t i = start_index; i < end_index; ++i)
+        for (uint32_t *i=begin;i!=end;++i)
         {
-            const SpineModelComponent* component = components[sort_buffer[i]];
-
-            dmGameSystemDDF::MeshEntry* mesh_entry = component->m_MeshEntry;
-            if (mesh_entry == 0x0)
-                continue;
-
+            const SpineModelComponent* component = (SpineModelComponent*) buf[*i].m_UserData;
             const Matrix4& w = component->m_World;
-
             dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
+            dmGameSystemDDF::MeshEntry* mesh_entry = component->m_MeshEntry;
 
             uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
+
+            if (world->m_DrawOrderToMesh.Capacity() < mesh_count)
+                world->m_DrawOrderToMesh.SetCapacity(mesh_count);
+
             UpdateMeshDrawOrder(world, component, mesh_count);
             for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
                 uint32_t mesh_index = world->m_DrawOrderToMesh[draw_index];
@@ -479,11 +407,8 @@ namespace dmGameSystem
                     continue;
                 }
                 uint32_t index_count = mesh->m_Indices.m_Count;
-                uint32_t buffer_offset = vertex_buffer.Size();
-                vertex_buffer.SetSize(buffer_offset + index_count);
                 for (uint32_t ii = 0; ii < index_count; ++ii)
                 {
-                    SpineModelVertex& v = vertex_buffer[buffer_offset + ii];
                     uint32_t vi = mesh->m_Indices[ii];
                     uint32_t e = vi*3;
                     Point3 in_p(mesh->m_Positions[e+0], mesh->m_Positions[e+1], mesh->m_Positions[e+2]);
@@ -500,74 +425,69 @@ namespace dmGameSystem
                         }
                     }
                     Vector4 posed_vertex = w * out_p;
-                    v.x = posed_vertex[0];
-                    v.y = posed_vertex[1];
-                    v.z = posed_vertex[2];
+                    where->x = posed_vertex[0];
+                    where->y = posed_vertex[1];
+                    where->z = posed_vertex[2];
                     e = vi*2;
-                    v.u = TO_SHORT(mesh->m_Texcoord0[e+0]);
-                    v.v = TO_SHORT(mesh->m_Texcoord0[e+1]);
-                    v.r = TO_BYTE(properties->m_Color[0]);
-                    v.g = TO_BYTE(properties->m_Color[1]);
-                    v.b = TO_BYTE(properties->m_Color[2]);
-                    v.a = TO_BYTE(properties->m_Color[3]);
+                    where->u = TO_SHORT(mesh->m_Texcoord0[e+0]);
+                    where->v = TO_SHORT(mesh->m_Texcoord0[e+1]);
+                    where->r = TO_BYTE(properties->m_Color[0]);
+                    where->g = TO_BYTE(properties->m_Color[1]);
+                    where->b = TO_BYTE(properties->m_Color[2]);
+                    where->a = TO_BYTE(properties->m_Color[3]);
+                    ++where;
                 }
             }
         }
+
+        return where;
     }
 
 #undef TO_BYTE
 #undef TO_SHORT
 
-    static uint32_t RenderBatch(SpineModelWorld* world, dmRender::HRenderContext render_context, dmArray<SpineModelVertex>& vertex_buffer, uint32_t start_index)
+    static void RenderBatch(SpineModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(SpineModel, "RenderBatch");
-        uint32_t n = world->m_Components.Size();
 
-        const dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
-        const dmArray<uint32_t>& sort_buffer = world->m_RenderSortBuffer;
+        const SpineModelComponent* first = (SpineModelComponent*) buf[*begin].m_UserData;
 
-        const SpineModelComponent* first = components[sort_buffer[start_index]];
-        assert(first->m_Enabled);
         TextureSetResource* texture_set = first->m_Resource->m_Scene->m_TextureSet;
-        uint32_t hash = first->m_MixedHash;
 
         uint32_t vertex_count = 0;
-        uint32_t end_index = n;
-        for (uint32_t i = start_index; i < n; ++i)
+        for (uint32_t *i=begin;i!=end;i++)
         {
-            const SpineModelComponent* c = components[sort_buffer[i]];
-            if (!c->m_Enabled || c->m_MixedHash != hash || !c->m_AddedToUpdate)
-            {
-                end_index = i;
-                break;
-            }
-            if (c->m_MeshEntry != 0x0) {
-                uint32_t mesh_count = c->m_MeshEntry->m_Meshes.m_Count;
-                for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
-                    if (c->m_MeshProperties[mesh_index].m_Visible) {
-                        vertex_count += c->m_MeshEntry->m_Meshes[mesh_index].m_Indices.m_Count;
-                    }
+            const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
+            uint32_t mesh_count = c->m_MeshEntry->m_Meshes.m_Count;
+            for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
+                if (c->m_MeshProperties[mesh_index].m_Visible) {
+                    vertex_count += c->m_MeshEntry->m_Meshes[mesh_index].m_Indices.m_Count;
                 }
             }
         }
 
+        dmArray<SpineModelVertex> &vertex_buffer = world->m_VertexBufferData;
         if (vertex_buffer.Remaining() < vertex_count)
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
 
-        // Render object
-        dmRender::RenderObject ro;
+        // Fill in vertex buffer
+        SpineModelVertex *vb_begin = vertex_buffer.End();
+        SpineModelVertex *vb_end = CreateVertexData(world, vb_begin, texture_set, buf, begin, end);
+        vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
+
+        // Ninja in-place writing of render object.
+        dmRender::RenderObject& ro = *world->m_RenderObjects.End();
+        world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
+
+        ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
         ro.m_VertexBuffer = world->m_VertexBuffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart = vertex_buffer.Size();
-        ro.m_VertexCount = vertex_count;
+        ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
+        ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_Textures[0] = texture_set->m_Texture;
-        // The first transform is used for the batch. Mean-value might be better?
-        // NOTE: The position is already transformed, see CreateVertexData, but set for sorting.
-        // See also sprite.vp
         ro.m_WorldTransform = first->m_World;
-        ro.m_CalculateDepthKey = 1;
 
         const dmArray<dmRender::Constant>& constants = first->m_RenderConstants;
         uint32_t size = constants.Size();
@@ -600,13 +520,10 @@ namespace dmGameSystem
                 assert(0);
             break;
         }
+
         ro.m_SetBlendFactors = 1;
 
-        world->m_RenderObjects.Push(ro);
-        dmRender::AddToRender(render_context, &world->m_RenderObjects[world->m_RenderObjects.Size() - 1]);
-
-        CreateVertexData(world, vertex_buffer, texture_set, start_index, end_index);
-        return end_index;
+        dmRender::AddToRender(render_context, &ro);
     }
 
     void UpdateTransforms(SpineModelWorld* world)
@@ -615,8 +532,6 @@ namespace dmGameSystem
 
         dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();
-        float min_z = FLT_MAX;
-        float max_z = -FLT_MAX;
         for (uint32_t i = 0; i < n; ++i)
         {
             SpineModelComponent* c = components[i];
@@ -638,24 +553,10 @@ namespace dmGameSystem
                 }
                 Matrix4 w = dmTransform::ToMatrix4(world);
                 Vector4 position = w.getCol3();
-                float z = position.getZ();
-                min_z = dmMath::Min(min_z, z);
-                max_z = dmMath::Max(max_z, z);
                 w.setCol3(position);
                 c->m_World = w;
             }
         }
-
-        if (n == 0)
-        {
-            // NOTE: Avoid large numbers and risk of de-normalized etc.
-            // if n == 0 the actual values of min/max-z doens't matter
-            min_z = 0;
-            max_z = 1;
-        }
-
-        world->m_MinZ = min_z;
-        world->m_MaxZ = max_z;
     }
 
     static Vector3 SampleVec3(uint32_t sample, float frac, float* data)
@@ -1057,7 +958,8 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+    dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+    {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         uint32_t index = (uint32_t)*params.m_UserData;
         SpineModelComponent* component = world->m_Components.Get(index);
@@ -1067,58 +969,29 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
-        /*
-         * All spine models are sorted, using the m_RenderSortBuffer, with respect to the:
-         *
-         *     - hash value of m_Resource, i.e. equal iff the sprite is rendering with identical atlas
-         *     - z-value
-         *     - component index
-         *  or
-         *     - 0xffffffff (or corresponding 64-bit value) if not enabled
-         * such that all non-enabled spine models ends up last in the array
-         * and spine models with equal atlas and depth consecutively
-         *
-         * The z-sorting is considered a hack as we assume a camera pointing along the z-axis. We currently
-         * have no access, by design as render-data currently should be invariant to camera parameters,
-         * to the transformation matrices when generating render-data. The render-system and go-system should probably
-         * be changed such that unique render-objects are created when necessary and on-demand instead of up-front as
-         * currently. Another option could be a call-back when the actual rendering occur.
-         *
-         * The sorted array of indices are grouped into batches, using z and resource-hash as predicates, and every
-         * batch is rendered using a single draw-call. Note that the world transform
-         * is set to first sprite transform for correct batch sorting. The actual vertex transformation is performed in code
-         * and standard world-transformation is removed from vertex-program.
-         *
-         * NOTES:
-         * * When/if transparency the batching predicates must be updated in order to
-         *   support per sprite correct sorting.
-         */
-
-        SpineModelContext* context = (SpineModelContext*)params.m_Context;
-        dmRender::HRenderContext render_context = context->m_RenderContext;
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
 
-        dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 6 * sizeof(SpineModelVertex) * world->m_Components.Size(), 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-        dmArray<SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
-        vertex_buffer.SetSize(0);
-
         dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
-        uint32_t sprite_count = components.Size();
-        for (uint32_t i = 0; i < sprite_count; ++i)
+        const uint32_t count = components.Size();
+
+        for (uint32_t i = 0; i < count; ++i)
         {
             SpineModelComponent& component = *components[i];
+            component.m_DoRender = 0;
+
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
+
             uint32_t const_count = component.m_RenderConstants.Size();
             for (uint32_t const_i = 0; const_i < const_count; ++const_i)
             {
-                float diff_sq = lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]);
-                if (diff_sq > 0)
+                if (lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]) > 0)
                 {
                     ReHash(&component);
                     break;
                 }
             }
+
             if (component.m_MeshEntry != 0x0) {
                 uint32_t mesh_count = component.m_MeshEntry->m_Meshes.m_Count;
                 component.m_MeshProperties.SetSize(mesh_count);
@@ -1133,43 +1006,82 @@ namespace dmGameSystem
                     properties->m_Order = mesh->m_DrawOrder;
                     properties->m_Visible = mesh->m_Visible;
                 }
-                if (world->m_DrawOrderToMesh.Capacity() < mesh_count) {
-                    world->m_DrawOrderToMesh.SetCapacity(mesh_count);
-                }
+                component.m_DoRender = 1;
             } else {
                 component.m_MeshProperties.SetSize(0);
             }
         }
+
         UpdateTransforms(world);
-        GenerateKeys(world);
-        Sort(world);
-
-        world->m_RenderObjects.SetSize(0);
-
-        const dmArray<uint32_t>& sort_buffer = world->m_RenderSortBuffer;
 
         Animate(world, params.m_UpdateContext->m_DT);
 
-        uint32_t n = components.Size();
-        if (n > 0) {
-            uint32_t start_index = 0;
-            SpineModelComponent* component = components[sort_buffer[start_index]];
-            while (start_index < n && component->m_Enabled && component->m_AddedToUpdate)
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        SpineModelWorld *world = (SpineModelWorld *) params.m_UserData;
+
+        switch (params.m_Operation)
+        {
+            case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
-                start_index = RenderBatch(world, render_context, vertex_buffer, start_index);
-                if (start_index >= n) {
-                    break;
-                }
-                component = components[sort_buffer[start_index]];
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                world->m_RenderObjects.SetSize(0);
+                dmArray<SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
+                vertex_buffer.SetSize(0);
+                break;
             }
-
-            void* vertex_buffer_data = 0x0;
-            if (!vertex_buffer.Empty())
-                vertex_buffer_data = (void*)&(vertex_buffer[0]);
-            dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_buffer.Size() * sizeof(SpineModelVertex), vertex_buffer_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            case dmRender::RENDER_LIST_OPERATION_BATCH:
+            {
+                RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
+                break;
+            }
+            case dmRender::RENDER_LIST_OPERATION_END:
+            {
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpineModelVertex) * world->m_VertexBufferData.Size(),
+                                                world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                DM_COUNTER("SpineVertexBuffer", world->m_VertexBufferData.Size() * sizeof(SpineModelVertex));
+                break;
+            }
+            default:
+                assert(false);
+                break;
         }
-        DM_COUNTER("SpineVertexBuffer", vertex_buffer.Size() * sizeof(SpineModelVertex));
+    }
 
+    dmGameObject::UpdateResult CompSpineModelRender(const dmGameObject::ComponentsRenderParams& params)
+    {
+        SpineModelContext* context = (SpineModelContext*)params.m_Context;
+        dmRender::HRenderContext render_context = context->m_RenderContext;
+        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+
+        dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
+        const uint32_t count = components.Size();
+
+        // Prepare list submit
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::RenderListEntry* write_ptr = render_list;
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            SpineModelComponent& component = *components[i];
+            if (!component.m_DoRender)
+                continue;
+
+            const Vector4 trans = component.m_World.getCol(3);
+            write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+            write_ptr->m_UserData = (uintptr_t) &component;
+            write_ptr->m_BatchKey = component.m_MixedHash;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
+            write_ptr->m_Dispatch = dispatch;
+            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+            ++write_ptr;
+        }
+
+        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

@@ -86,7 +86,7 @@ TEST_F(AnimTest, AnimateAndStop)
     float duration = 1.0f;
     float delay = 0.f;
     dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id,
-            dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR,
+            dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR),
             duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -117,7 +117,7 @@ TEST_F(AnimTest, Playback)
     Point3 pos;
 
 #define ANIM(playback)\
-    Animate(m_Collection, go, 0, id, playback, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    Animate(m_Collection, go, 0, id, playback, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
 
 #define ASSERT_FRAME(expected)\
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));\
@@ -169,11 +169,14 @@ TEST_F(AnimTest, Playback)
 
     dmGameObject::SetPosition(go, Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_LOOP_PINGPONG);
-    ASSERT_FRAME(2.5f);
     ASSERT_FRAME(5.0f);
-    ASSERT_FRAME(7.5f);
     ASSERT_FRAME(10.0f);
-    ASSERT_FRAME(7.5f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(0.0f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(10.0f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(0.0f);
 
     ASSERT_EQ(3u, this->m_FinishCount);
     ASSERT_EQ(3u, this->m_CancelCount);
@@ -194,7 +197,7 @@ TEST_F(AnimTest, Cancel)
     float duration = 1.0f;
     float delay = 0.f;
 
-    Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, id));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -218,7 +221,7 @@ TEST_F(AnimTest, AnimateEuler)
     // Higher epsilon because of low precision euler conversions
     const float epsilon = 0.0001f;
     dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id,
-            dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR,
+            dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR),
             duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     Quat r;
@@ -276,7 +279,7 @@ TEST_F(AnimTest, DeleteInAnim)
 
     for (uint32_t i = 0; i < instance_count; ++i)
     {
-        Animate(m_Collection, gos[i], 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStoppedToDelete, this, &instance_id);
+        Animate(m_Collection, gos[i], 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStoppedToDelete, this, &instance_id);
     }
 
     for (uint32_t i = 0; i < instance_count; ++i)
@@ -305,7 +308,7 @@ TEST_F(AnimTest, ZeroDuration)
     float duration = 0.0f;
     float delay = 0.0f;
 
-    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -324,7 +327,7 @@ TEST_F(AnimTest, Delay)
     float duration = 1.0f;
     float delay = 1.0f;
 
-    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
 
     Point3 pos;
@@ -357,7 +360,7 @@ TEST_F(AnimTest, DelayAboveDuration)
     float duration = 1.0f;
     float delay = 2.0f;
 
-    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
 
     Point3 pos;
@@ -386,9 +389,9 @@ TEST_F(AnimTest, DelayedNotStopped)
     float duration = 0.75f;
     float delay = 0.25f;
 
-    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var_delay, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var_delay, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
-    result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var_immediate, dmEasing::TYPE_LINEAR, duration, 0.0f, AnimationStopped, this, 0x0);
+    result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var_immediate, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, 0.0f, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
 
     Point3 pos;
@@ -418,7 +421,7 @@ TEST_F(AnimTest, LoadTest)
     for (uint32_t i = 0; i < count; ++i)
     {
         gos[i] = dmGameObject::New(m_Collection, "/dummy.goc");
-        dmGameObject::PropertyResult result = Animate(m_Collection, gos[i], 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+        dmGameObject::PropertyResult result = Animate(m_Collection, gos[i], 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     }
 
@@ -453,9 +456,9 @@ TEST_F(AnimTest, LinkedList)
 
 #define ANIM\
     dmGameObject::SetPosition(go, Point3(0, 0, 0));\
-    Animate(m_Collection, go, 0, ids[0], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);\
-    Animate(m_Collection, go, 0, ids[1], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);\
-    Animate(m_Collection, go, 0, ids[2], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    Animate(m_Collection, go, 0, ids[0], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);\
+    Animate(m_Collection, go, 0, ids[1], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);\
+    Animate(m_Collection, go, 0, ids[2], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
 #define ASSERT_FRAME(x, y, z)\
     dmGameObject::Update(m_Collection, &m_UpdateContext);\
     p = dmGameObject::GetPosition(go);\
@@ -596,6 +599,20 @@ TEST_F(AnimTest, ScriptedDelayedCompositeCallback)
     }
 }
 
+
+TEST_F(AnimTest, ScriptedCustomEasing)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::PropertyVar var(1.0f);
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/custom_easing.goc", hash("custom_easing"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_NE((void*)0, go);
+
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+}
+
 // Test that the 3 component scale can be animated as a uniform scale (legacy)
 TEST_F(AnimTest, UniformScale)
 {
@@ -607,7 +624,7 @@ TEST_F(AnimTest, UniformScale)
     float duration = 0.25f;
     float delay = 0.0f;
 
-    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, 0x0, this, 0x0);
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);

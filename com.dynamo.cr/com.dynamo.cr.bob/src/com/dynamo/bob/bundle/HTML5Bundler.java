@@ -208,6 +208,8 @@ public class HTML5Bundler implements IBundler {
 
         // Copy engine
         FileUtils.copyFile(new File(js), new File(appDir, String.format("%s.js", title)));
+        // Flash audio swf
+        FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
         // Memory initialisation file
         File jsMemFile = new File(jsMemInit);

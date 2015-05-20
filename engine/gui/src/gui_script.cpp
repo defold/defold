@@ -456,6 +456,19 @@ namespace dmGui
         return 0;
     }
 
+    void LuaCurveRelease(dmEasing::Curve* curve)
+    {
+        lua_State* L = (lua_State*)curve->userdata1;
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+        assert(top == lua_gettop(L));
+    }
+
     void LuaAnimationComplete(HScene scene, HNode node, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
@@ -840,7 +853,29 @@ namespace dmGui
         {
             to = *dmScript::CheckVector4(L, 3);
         }
-        int easing = (int) luaL_checknumber(L, 4);
+
+        dmEasing::Curve curve;
+        if (lua_isnumber(L, 4))
+        {
+            curve.type = (dmEasing::Type)luaL_checkinteger(L, 4);
+            if (curve.type >= dmEasing::TYPE_COUNT)
+                return luaL_error(L, "invalid easing constant");
+        }
+        else if (dmScript::IsVector(L, 4))
+        {
+            curve.type = dmEasing::TYPE_FLOAT_VECTOR;
+            curve.vector = dmScript::CheckVector(L, 4);
+
+            lua_pushvalue(L, 4);
+            curve.release_callback = LuaCurveRelease;
+            curve.userdata1 = (void*)L;
+            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        else
+        {
+            return luaL_error(L, "easing must be either a easing constant or a vmath.vector");
+        }
+
         lua_Number duration = luaL_checknumber(L, 5);
         float delay = 0.0f;
         int node_ref = LUA_NOREF;
@@ -865,15 +900,10 @@ namespace dmGui
             playback = (Playback) luaL_checkinteger(L, 8);
         }
 
-        if (easing >= dmEasing::TYPE_COUNT)
-        {
-            luaL_error(L, "Invalid easing: %d", easing);
-        }
-
         if (animation_complete_ref == LUA_NOREF) {
-            AnimateNodeHash(scene, hnode, property_hash, to, (dmEasing::Type) easing, playback, (float) duration, delay, 0, 0, 0);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, 0, 0, 0);
         } else {
-            AnimateNodeHash(scene, hnode, property_hash, to, (dmEasing::Type) easing, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
 
         assert(top== lua_gettop(L));
@@ -2062,6 +2092,53 @@ namespace dmGui
         return 1;
     }
 
+    /*# set the slice9 configuration for the node
+     *
+     * @name gui.set_slice9
+     * @param node node to manipulate
+     * @param params new value (vector4)
+     */
+    static int LuaSetSlice9(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        if (dmScript::IsVector4(L, 2))
+        {
+            const Vector4 value = *(dmScript::CheckVector4(L, 2));
+            Scene* scene = GuiScriptInstance_Check(L);
+            dmGui::SetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9, value);
+        }
+        else
+        {
+            luaL_error(L, "invalid parameter given");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# get the slice9 values for the node
+     *
+     * @name gui.get_slice9
+     * @param node node to manipulate
+     * @return vector4 with configuration values
+     */
+    static int LuaGetSlice9(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmScript::PushVector4(L, dmGui::GetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9));
+        return 1;
+    }
+
     /*# sets the number of generarted vertices around the perimeter
      *
      * @name gui.set_perimeter_vertices
@@ -2113,6 +2190,7 @@ namespace dmGui
     /*# sets the angle for the filled pie sector
      *
      * @name gui.set_fill_angle
+     * @param node node to set the fill angle for (node)
      * @param sector angle
      */
     static int LuaSetPieFillAngle(lua_State* L)
@@ -2139,6 +2217,7 @@ namespace dmGui
     /*# gets the angle for the filled pie sector
      *
      * @name gui.get_fill_angle
+     * @param node node from which to get the fill angle (node)
      * @return sector angle
      */
     static int LuaGetPieFillAngle(lua_State* L)
@@ -2161,6 +2240,7 @@ namespace dmGui
     /*# sets the pie inner radius (defined along the x dimension)
      *
      * @name gui.set_inner_radius
+     * @param node node to set the inner radius for (node)
      * @param inner radius
      */
     static int LuaSetInnerRadius(lua_State* L)
@@ -2187,6 +2267,7 @@ namespace dmGui
     /*# gets the pie inner radius (defined along the x dimension)
      *
      * @name gui.get_inner_radius
+     * @param node node from where to get the inner radius (node)
      * @return inner radius
      */
     static int LuaGetInnerRadius(lua_State* L)
@@ -2209,6 +2290,7 @@ namespace dmGui
     /*# sets the pie outer bounds mode
      *
      * @name gui.set_outer_bounds
+     * @param node node for which to set the outer bounds mode (node)
      * @param BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
      */
     static int LuaSetOuterBounds(lua_State* L)
@@ -2235,6 +2317,7 @@ namespace dmGui
     /*# gets the pie outer bounds mode
      *
      * @name gui.get_outer_bounds
+     * @param node node from where to get the outer bounds mode (node)
      * @return BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
      */
     static int LuaGetOuterBounds(lua_State* L)
@@ -2923,6 +3006,8 @@ namespace dmGui
         {"set_pivot",       LuaSetPivot},
         {"get_width",       LuaGetWidth},
         {"get_height",      LuaGetHeight},
+        {"get_slice9",      LuaGetSlice9},
+        {"set_slice9",      LuaSetSlice9},
         {"pick_node",       LuaPickNode},
         {"is_enabled",      LuaIsEnabled},
         {"set_enabled",     LuaSetEnabled},
@@ -3461,8 +3546,31 @@ namespace dmGui
      *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
      *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_x</code></td><td>The screen space x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_y</code></td><td>The screen space y value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_dx</code></td><td>The change in screen space x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_dy</code></td><td>The change in screen space y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>touch</code></td><td>List of touch input, one element per finger, if present. See table below about touch input</td></tr>
+     * </table>
+     *
+     * <p>
+     * Touch input table:
+     * </p>
+     * <table>
+     *   <th>Field</th>
+     *   <th>Description</th>
+     *   <tr><td><code>pressed</code></td><td>True if the finger was pressed this frame.</td></tr>
+     *   <tr><td><code>released</code></td><td>True if the finger was released this frame.</td></tr>
+     *   <tr><td><code>tap_count</code></td><td>Number of taps, one for single, two for double-tap, etc</td></tr>
+     *   <tr><td><code>x</code></td><td>The x touch location.</td></tr>
+     *   <tr><td><code>y</code></td><td>The y touch location.</td></tr>
+     *   <tr><td><code>dx</code></td><td>The change in x value.</td></tr>
+     *   <tr><td><code>dy</code></td><td>The change in y value.</td></tr>
+     *   <tr><td><code>acc_x</code></td><td>Accelerometer x value (if present).</td></tr>
+     *   <tr><td><code>acc_y</code></td><td>Accelerometer y value (if present).</td></tr>
+     *   <tr><td><code>acc_z</code></td><td>Accelerometer z value (if present).</td></tr>
      * </table>
      *
      * @name on_input

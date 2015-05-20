@@ -157,8 +157,8 @@ public class TextureSetLayout {
         // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
         int maxLengthScale = 0;
         for (Rect r : rectangles) {
-            maxLengthScale = Math.max(maxLengthScale, r.width + 2 * margin);
-            maxLengthScale = Math.max(maxLengthScale, r.height + 2 * margin);
+            maxLengthScale = Math.max(maxLengthScale, r.width + margin);
+            maxLengthScale = Math.max(maxLengthScale, r.height + margin);
         }
         settings.maxPageHeight = Math.max(settings.maxPageHeight, maxLengthScale);
         settings.maxPageWidth = Math.max(settings.maxPageWidth, maxLengthScale);
