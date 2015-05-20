@@ -212,14 +212,14 @@ TEST_F(PropsTest, PropsSpawn)
     ASSERT_EQ(top, lua_gettop(L));
     ASSERT_LT(0u, size_used);
     ASSERT_LT(size_used, buffer_size);
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_spawn.goc", dmHashString64("test_id"), buffer, buffer_size, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), 1.0f);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_spawn.goc", dmHashString64("test_id"), buffer, buffer_size, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
 }
 
 TEST_F(PropsTest, PropsSpawnNoProperties)
 {
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), 1.0f);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
 }
@@ -478,7 +478,7 @@ TEST_F(PropsTest, PropsGetSetScript)
 }
 
 #define ASSERT_SPAWN_FAILS(path)\
-    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, path, dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1.0f);\
+    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, path, dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));\
     ASSERT_EQ(0, i);
 
 TEST_F(PropsTest, PropsGetBadURL)
