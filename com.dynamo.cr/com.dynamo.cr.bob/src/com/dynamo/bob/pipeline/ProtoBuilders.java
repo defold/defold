@@ -198,7 +198,20 @@ public class ProtoBuilders {
                 }
                 layerNames.add(f.getName());
             }
+
+            int nodeIndex = 0;
             for (NodeDesc n : messageBuilder.getNodesList()) {
+                if(!n.hasAlpha()) {
+                    // We copy the color Vector4 W component from the old gui file format to the new separate alpha fields for color, outline and shadow.
+                    // They need to be separate fields as they can be separately overridden from their corresponding color property.
+                    // We distinct the new color/alpha separation by the fact that the alpha field (color alpha) is always present in the new format.
+                    NodeDesc.Builder newNode = n.toBuilder();
+                    newNode.setAlpha(newNode.getColor().getW());
+                    newNode.setShadowAlpha(newNode.getShadow().getW());
+                    newNode.setOutlineAlpha(newNode.getOutline().getW());
+                    messageBuilder.setNodes(nodeIndex, newNode.build());
+                }
+
                 if (n.hasTexture() && !n.getTexture().isEmpty()) {
                     if (!textureNames.contains(n.getTexture().split("/")[0])) {
                         throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture().split("/")[0]));
@@ -218,6 +231,7 @@ public class ProtoBuilders {
                     }
                 }
 
+                nodeIndex++;
             }
 
             return messageBuilder;
