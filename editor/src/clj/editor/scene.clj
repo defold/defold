@@ -611,14 +611,26 @@
                                                              :make-view-fn make-view
                                                              :make-preview-fn make-preview))
 
+(g/defnk produce-transform [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (let [transform ^Matrix4d (Matrix4d. rotation position 1.0)
+        s [(.x scale) (.y scale) (.z scale)]
+        col (Vector4d.)]
+    (doseq [^Integer i (range 3)
+            :let [s (nth s i)]]
+      (.getColumn transform i col)
+      (.scale col s)
+      (.setColumn transform i col))
+    transform))
+
 (g/defnode SceneNode
   (property position t/Vec3 (default [0 0 0]))
   (property rotation t/Vec3 (default [0 0 0]))
-  (property scale t/Num (default 1.0)) ; TODO - non-uniform scale
+  (property scale t/Vec3 (default [1 1 1]))
 
   (output position Vector3d :cached (g/fnk [position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [rotation] (math/euler->quat rotation)))
-  (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation ^double scale] (Matrix4d. rotation position scale)))
+  (output scale Vector3d :cached (g/fnk [scale] (Vector3d. (double-array scale))))
+  (output transform Matrix4d :cached produce-transform)
   (output scene t/Any :cached (g/fnk [self transform] {:id (g/node-id self) :transform transform}))
   (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
   
@@ -628,4 +640,11 @@
   scene-tools/Rotatable
   (scene-tools/rotate [self delta] (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (:rotation self))) (.mul delta))
                                          new-euler (math/quat->euler new-rotation)]
-                                     (g/set-property self :rotation new-euler))))
+                                     (g/set-property self :rotation new-euler)))
+  scene-tools/Scalable
+  (scene-tools/scale [self delta] (let [s (Vector3d. (double-array (:scale self)))
+                                        ^Vector3d d delta]
+                                    (.setX s (* (.x s) (.x d)))
+                                    (.setY s (* (.y s) (.y d)))
+                                    (.setZ s (* (.z s) (.z d)))
+                                    (g/set-property self :scale [(.x s) (.y s) (.z s)]))))
