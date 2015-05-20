@@ -270,33 +270,39 @@ TEST_F(dmGuiTest, Layouts)
     // layout creation and access
     dmGui::Result r;
     const char *l1_name = "layout1";
-    dmhash_t l1_hash = dmHashString64(l1_name);
     const char *l2_name = "layout2";
-    dmhash_t l2_hash = dmHashString64(l2_name);
     dmGui::AllocateLayouts(m_Scene, 2, 2);
     r = dmGui::AddLayout(m_Scene, l1_name);
     ASSERT_EQ(r, dmGui::RESULT_OK);
     r = dmGui::AddLayout(m_Scene, l2_name);
     ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmhash_t ld_hash, l1_hash, l2_hash;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetLayoutId(m_Scene, 0, ld_hash));
+    ASSERT_EQ(dmGui::DEFAULT_LAYOUT, ld_hash);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetLayoutId(m_Scene, 1, l1_hash));
+    ASSERT_EQ(dmHashString64(l1_name), l1_hash);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetLayoutId(m_Scene, 2, l2_hash));
+    ASSERT_EQ(dmHashString64(l2_name), l2_hash);
+
     uint16_t ld_index = dmGui::GetLayoutIndex(m_Scene, dmGui::DEFAULT_LAYOUT);
     ASSERT_EQ(0, ld_index);
     uint16_t l1_index = dmGui::GetLayoutIndex(m_Scene, l1_hash);
     ASSERT_EQ(1, l1_index);
     uint16_t l2_index = dmGui::GetLayoutIndex(m_Scene, l2_hash);
     ASSERT_EQ(2, l2_index);
-    const dmArray<dmhash_t>* layouts = GetLayouts(m_Scene);
-    ASSERT_EQ(3, layouts->Size());
+    ASSERT_EQ(3, dmGui::GetLayoutCount(m_Scene));
 
     Point3 p0(0,0,0);
     Point3 p1(1,0,0);
     Point3 p2(2,0,0);
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(3,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_BOX);
     ASSERT_NE((dmGui::HNode) 0, node);
-    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 3);
+    ASSERT_EQ(3, dmGui::GetNodePosition(m_Scene, node).getX());
 
     // set data for layout index range 0-2
     r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p0, 0, 2);
-    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 
     // test all layouts
     dmGui::SetLayout(m_Scene, dmGui::DEFAULT_LAYOUT, SetNodeCallback);
@@ -313,9 +319,9 @@ TEST_F(dmGuiTest, Layouts)
 
     // set data for layout independently index 0,1,2
     r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p1, 1, 1);
-    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p2, 2, 2);
-    ASSERT_EQ(r, dmGui::RESULT_OK);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 
     // test all layouts
     dmGui::SetLayout(m_Scene, dmGui::DEFAULT_LAYOUT, SetNodeCallback);

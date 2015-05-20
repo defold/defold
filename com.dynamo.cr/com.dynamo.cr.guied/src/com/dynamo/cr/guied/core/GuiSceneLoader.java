@@ -102,9 +102,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             TextNode text = (TextNode)node;
             builder.setText(text.getText());
             builder.setFont(text.getFont());
-            builder.setOutline(LoaderUtil.toVector4(text.getOutline(), 0));
+            builder.setOutline(LoaderUtil.toVector4(text.getOutline(), 1));
             builder.setOutlineAlpha((float)text.getOutlineAlpha());
-            builder.setShadow(LoaderUtil.toVector4(text.getShadow(), 0));
+            builder.setShadow(LoaderUtil.toVector4(text.getShadow(), 1));
             builder.setShadowAlpha((float)text.getShadowAlpha());
             builder.setLineBreak(text.isLineBreak());
         }
@@ -113,7 +113,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         builder.setRotation(LoaderUtil.toVector4(node.getEuler()));
         builder.setScale(LoaderUtil.toVector4(node.getComponentScale()));
         builder.setSize(LoaderUtil.toVector4(node.getSize()));
-        builder.setColor(LoaderUtil.toVector4(node.getColor(), 0));
+        builder.setColor(LoaderUtil.toVector4(node.getColor(), 1));
         builder.setAlpha((float)node.getAlpha());
         builder.setBlendMode(node.getBlendMode());
         builder.setPivot(node.getPivot());
@@ -267,7 +267,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
                 continue;
             }
             builder = builder.clone();
-            if(layoutId.compareTo(GuiNodeStateBuilder.getDefaultStateId())==0) {
+            if(layoutId.equals(GuiNodeStateBuilder.getDefaultStateId())) {
                 if (parent != null) {
                     builder.setParent(parent);
                 }

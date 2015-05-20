@@ -64,17 +64,19 @@ public class GuiSceneRenderer implements INodeRenderer<GuiSceneNode> {
             gl.glEnd();
         } else if (renderData.getPass() == Pass.OVERLAY) {
             if(getShowLayoutInfo()) {
-                TextRenderer textRenderer = renderContext.getSmallTextRenderer();
-                gl.glPushMatrix();
-                gl.glScaled(1, -1, 1);
-                textRenderer.setColor(1, 1, 1, 1);
-                textRenderer.begin3DRendering();
-                String text = String.format("Layout: %s", node.getCurrentLayout().getId());
-                float x0 = 12;
-                float y0 = -22;
-                textRenderer.draw3D(text, x0, y0, 1, 1);
-                textRenderer.end3DRendering();
-                gl.glPopMatrix();
+                    if(node.getCurrentLayout() != null) {
+                    TextRenderer textRenderer = renderContext.getSmallTextRenderer();
+                    gl.glPushMatrix();
+                    gl.glScaled(1, -1, 1);
+                    textRenderer.setColor(1, 1, 1, 1);
+                    textRenderer.begin3DRendering();
+                    String text = String.format("Layout: %s", node.getCurrentLayout().getId());
+                    float x0 = 12;
+                    float y0 = -22;
+                    textRenderer.draw3D(text, x0, y0, 1, 1);
+                    textRenderer.end3DRendering();
+                    gl.glPopMatrix();
+                }
             }
         }
     }

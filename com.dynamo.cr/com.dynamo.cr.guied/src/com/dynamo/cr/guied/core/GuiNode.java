@@ -113,6 +113,11 @@ public class GuiNode extends Node implements Identifiable {
     }
 
     @Override
+    public boolean isOverridable() {
+        return GuiNodeStateBuilder.isOverridable(this);
+    }
+
+    @Override
     public void setTranslation(Point3d translation) {
         super.setTranslation(translation);
         GuiNodeStateBuilder.setField(this, "Position", LoaderUtil.toVector4(translation));
@@ -134,6 +139,14 @@ public class GuiNode extends Node implements Identifiable {
     public void setRotation(Quat4d rotation) {
         super.setRotation(rotation);
         GuiNodeStateBuilder.setField(this, "Rotation", LoaderUtil.toVector4(this.getEuler()));
+    }
+
+    public boolean isRotationOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Rotation", LoaderUtil.toVector4(this.getEuler()));
+    }
+
+    public void resetRotation() {
+        super.setEuler(LoaderUtil.toVector3((Vector4)GuiNodeStateBuilder.resetField(this, "Rotation")));
     }
 
     @Override
@@ -197,7 +210,7 @@ public class GuiNode extends Node implements Identifiable {
         this.color.red = color.red;
         this.color.green = color.green;
         this.color.blue = color.blue;
-        GuiNodeStateBuilder.setField(this, "Color", LoaderUtil.toVector4(color, 0.0));
+        GuiNodeStateBuilder.setField(this, "Color", LoaderUtil.toVector4(color, 1.0));
     }
 
     public void resetColor() {
@@ -205,7 +218,7 @@ public class GuiNode extends Node implements Identifiable {
     }
 
     public boolean isColorOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "Color", LoaderUtil.toVector4(this.color, 0.0));
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Color", LoaderUtil.toVector4(this.color, 1.0));
     }
 
     public double getAlpha() {

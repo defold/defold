@@ -131,7 +131,7 @@ public class TextNode extends GuiNode {
         this.outline.red = outline.red;
         this.outline.green = outline.green;
         this.outline.blue = outline.blue;
-        GuiNodeStateBuilder.setField(this, "Outline", LoaderUtil.toVector4(this.outline, 0.0));
+        GuiNodeStateBuilder.setField(this, "Outline", LoaderUtil.toVector4(this.outline, 1.0));
     }
 
     public void resetOutline() {
@@ -139,7 +139,7 @@ public class TextNode extends GuiNode {
     }
 
     public boolean isOutlineOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "Outline", LoaderUtil.toVector4(this.outline, 0.0));
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Outline", LoaderUtil.toVector4(this.outline, 1.0));
     }
 
     public double getOutlineAlpha() {
@@ -167,7 +167,7 @@ public class TextNode extends GuiNode {
         this.shadow.red = shadow.red;
         this.shadow.green = shadow.green;
         this.shadow.blue = shadow.blue;
-        GuiNodeStateBuilder.setField(this, "Shadow", LoaderUtil.toVector4(this.shadow, 0.0));
+        GuiNodeStateBuilder.setField(this, "Shadow", LoaderUtil.toVector4(this.shadow, 1.0));
     }
 
     public void resetShadow() {
@@ -175,7 +175,7 @@ public class TextNode extends GuiNode {
     }
 
     public boolean isShadowOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "Shadow", LoaderUtil.toVector4(this.shadow, 0.0));
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Shadow", LoaderUtil.toVector4(this.shadow, 1.0));
     }
 
     public double getShadowAlpha() {

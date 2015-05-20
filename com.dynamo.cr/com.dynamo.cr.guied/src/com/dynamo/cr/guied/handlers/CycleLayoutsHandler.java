@@ -37,8 +37,7 @@ public class CycleLayoutsHandler extends AbstractHandler {
         for(Node node : childList) {
             childIndex++;
             LayoutNode layoutNode = (LayoutNode) node;
-            if(layoutNode.getId().compareTo(currentLayoutId)==0)
-            {
+            if(layoutNode.getId().equals(currentLayoutId)) {
                 if(childIndex == childList.size()) {
                     childIndex = 0;
                 }

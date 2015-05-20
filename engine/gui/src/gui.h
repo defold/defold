@@ -593,11 +593,20 @@ namespace dmGui
     dmhash_t GetLayout(const HScene scene);
 
     /**
-     * Get a pointer to the array of existing layout id's.
-     * @param scene Scene of which to get layouts
-     * @return pointer to array of layout_ids
+     * Get number of layouts.
+     * @param scene Scene of which to get layout count
+     * @return number of layouts
      */
-    const dmArray<dmhash_t>* GetLayouts(const HScene scene);
+    uint16_t GetLayoutCount(const HScene scene);
+
+    /**
+     * Get hashed id of layout with index.
+     * @param scene Scene of which to get layout id
+     * @param layout_index index of layout. Must be smaller than layout count.
+     * @param layout_id reference to dmhash_t to receive the id
+     * @return Outcome of the operation
+     */
+    Result GetLayoutId(const HScene scene, uint16_t layout_index, dmhash_t& layout_id_out);
 
     /**
      * Get index of layer with id in a scene.

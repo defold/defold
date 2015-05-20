@@ -569,9 +569,19 @@ namespace dmGui
         return scene->m_LayoutId;
     }
 
-    const dmArray<dmhash_t>* GetLayouts(const HScene scene)
+    uint16_t GetLayoutCount(const HScene scene)
     {
-        return &scene->m_Layouts;
+        return (uint16_t)scene->m_Layouts.Size();
+    }
+
+    Result GetLayoutId(const HScene scene, uint16_t layout_index, dmhash_t& layout_id_out)
+    {
+        if(layout_index >= (uint16_t)scene->m_Layouts.Size())
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        layout_id_out = scene->m_Layouts[layout_index];
+        return RESULT_OK;
     }
 
     uint16_t GetLayoutIndex(const HScene scene, dmhash_t layout_id)

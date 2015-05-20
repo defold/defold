@@ -22,12 +22,6 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    void ReleaseResources(dmResource::HFactory factory, dmRender::HDisplayProfiles profiles)
-    {
-        dmRender::DisplayProfilesParams params;
-        dmRender::SetDisplayProfiles(profiles, params);
-    }
-
     dmResource::Result ResDisplayProfilesCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
@@ -51,7 +45,7 @@ namespace dmGameSystem
                                             void* context,
                                             dmResource::SResourceDescriptor* resource)
     {
-        ReleaseResources(factory, (dmRender::HDisplayProfiles)resource->m_Resource);
+        dmRender::DeleteDisplayProfiles((dmRender::HDisplayProfiles)resource->m_Resource);
         return dmResource::RESULT_OK;
     }
 

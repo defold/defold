@@ -252,9 +252,23 @@ namespace dmGameSystem
 
     void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
     {
-        const dmArray<dmhash_t>* scene_layouts = dmGui::GetLayouts(scene);
+        dmArray<dmhash_t> scene_layouts;
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        scene_layouts.SetCapacity(layout_count);
+        for(uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            dmGui::Result r = dmGui::GetLayoutId(scene, i, id);
+            if(r != dmGui::RESULT_OK)
+            {
+                dmLogError("GetLayoutId failed(%d). Index out of range", r);
+                break;
+            }
+            scene_layouts.Push(id);
+        }
+
         dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
-        dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), scene_layouts);
+        dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), &scene_layouts);
         if(layout_id != GetLayout(scene))
         {
             dmhash_t current_layout_id = GetLayout(scene);
@@ -396,10 +410,24 @@ namespace dmGameSystem
             }
 
             // we might have any resolution starting the scene, so let's set the best alternative layout directly
+            dmArray<dmhash_t> scene_layouts;
+            scene_layouts.SetCapacity(layouts_count+1);
+            for(uint16_t i = 0; i < layouts_count+1; ++i)
+            {
+                dmhash_t id;
+                dmGui::Result r = dmGui::GetLayoutId(scene, i, id);
+                if(r != dmGui::RESULT_OK)
+                {
+                    dmLogError("GetLayoutId failed(%d). Index out of range", r);
+                    break;
+                }
+                scene_layouts.Push(id);
+            }
+
             uint32_t display_width, display_height;
             dmGui::GetPhysicalResolution(scene, display_width, display_height);
             dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles)dmGui::GetDisplayProfiles(scene);
-            dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, display_width, display_height, 0, dmGui::GetLayouts(scene));
+            dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, display_width, display_height, 0, &scene_layouts);
             if(layout_id != dmGui::DEFAULT_LAYOUT)
             {
                 dmRender::DisplayProfileDesc profile_desc;
@@ -1327,17 +1355,15 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
-            GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
             gui_component->m_Enabled = 1;
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
-            GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
             gui_component->m_Enabled = 0;
         }
-        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
         if (result != dmGui::RESULT_OK)
         {

@@ -17,7 +17,9 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.guied.core.GuiSceneNode;
+import com.dynamo.cr.guied.core.GuiScenePresenter;
 import com.dynamo.cr.guied.core.LayoutNode;
+import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.sceneed.ui.SceneEditor;
 import com.dynamo.cr.sceneed.ui.SceneOutlinePage;
 
@@ -35,6 +37,8 @@ public class GuiSceneEditor extends SceneEditor implements ISelectionChangedList
     @Override
     protected void handleProjectPropertiesChanged(ProjectProperties properties) {
         super.handleProjectPropertiesChanged(properties);
+        GuiScenePresenter presenter = (GuiScenePresenter) getNodePresenter(GuiSceneNode.class);
+        presenter.onSelectLayoutNode(getPresenterContext(), GuiNodeStateBuilder.getDefaultStateId());
         getScenePresenter().onRefreshSceneView();
     }
 
@@ -49,7 +53,8 @@ public class GuiSceneEditor extends SceneEditor implements ISelectionChangedList
                     if(resource != null) {
                         String ext = resource.getFileExtension();
                         if (ext != null && ext.equals("display_profiles")) {
-                            getScenePresenter().onRefreshSceneView();
+                            GuiScenePresenter presenter = (GuiScenePresenter) getNodePresenter(GuiSceneNode.class);
+                            presenter.onSelectLayoutNode(getPresenterContext(), GuiNodeStateBuilder.getDefaultStateId());
                             return false;
                         }
                     }

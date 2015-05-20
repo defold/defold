@@ -54,7 +54,7 @@ public class SelectLayoutHandler extends AbstractHandler implements IElementUpda
         GuiSceneNode scene  = (GuiSceneNode)((GuiSceneEditor)editorPart).getModel().getRoot();
         assert((scene instanceof GuiSceneNode) == true);
         String Id = (String) parameters.get("org.eclipse.ui.commands.radioStateParameter");
-        element.setChecked(Id.compareTo(scene.getCurrentLayout().getId())==0 ? true : false);
+        element.setChecked(Id.equals(scene.getCurrentLayout().getId()) ? true : false);
     }
 
 }

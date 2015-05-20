@@ -163,7 +163,7 @@ public class GuiSceneNode extends ComponentTypeNode {
     }
 
     public boolean isCurrentLayoutDefault() {
-        return this.currentLayout.getId().compareTo(getDefaultLayout().getId())==0;
+        return this.currentLayout.getId().equals(getDefaultLayout().getId());
     }
 
     public Layouts.Layout getCurrentLayout() {
@@ -176,7 +176,7 @@ public class GuiSceneNode extends ComponentTypeNode {
             return false;
         }
         if(this.currentLayout != null) {
-            if(this.currentLayout.getId().compareTo(layout.getId())==0) {
+            if(this.currentLayout.getId().equals(layout.getId())) {
                 return true;
             }
             GuiNodeStateBuilder.storeStates(this.getNodesNode().getChildren());
@@ -226,8 +226,9 @@ public class GuiSceneNode extends ComponentTypeNode {
             return;
         }
 
-        this.defaultWidth = (float) projectProperties.getIntValue("display", "width");
-        this.defaultHeight = (float) projectProperties.getIntValue("display", "height");
+        this.defaultWidth = this.width = (float) projectProperties.getIntValue("display", "width");
+        this.defaultHeight = this.height = (float) projectProperties.getIntValue("display", "height");
+        setDimensions(this.defaultWidth, this.defaultHeight);
         try {
             IProject project = EditorUtil.getProject();
             IPath dPPath = new Path(projectProperties.getStringValue("display", "display_profiles", "/builtins/render/default.display_profilesc")).removeFileExtension().addFileExtension("display_profiles");

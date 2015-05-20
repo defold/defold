@@ -79,7 +79,7 @@ public abstract class Node implements IAdaptable, Serializable {
     // Cached status
     private transient IStatus status = Status.OK_STATUS;
 
-    public static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
+    private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
 
     public void dispose(GL2 gl) {
@@ -218,22 +218,34 @@ public abstract class Node implements IAdaptable, Serializable {
         setRotation(rotation);
     }
 
-    public void setTranslation(Point3d translation) {
+    public boolean isOverridable() {
+        return false;
+    }
+
+    public void applyTranslation(Point3d translation) {
         this.translation.set(translation);
         setAABBDirty();
         transformChanged();
+    }
+
+    public void setTranslation(Point3d translation) {
+        this.applyTranslation(translation);
     }
 
     public Point3d getTranslation() {
         return new Point3d(this.translation);
     }
 
-    public void setRotation(Quat4d rotation) {
+    public void applyRotation(Quat4d rotation) {
         this.rotation.set(rotation);
         this.rotation.normalize();
         quatToEuler(this.rotation, euler);
         setAABBDirty();
         transformChanged();
+    }
+
+    public void setRotation(Quat4d rotation) {
+        this.applyRotation(rotation);
     }
 
     public Quat4d getRotation() {
@@ -585,6 +597,8 @@ public abstract class Node implements IAdaptable, Serializable {
 
         if (adapter == IPropertyModel.class) {
             return new PropertyIntrospectorModel<Node, ISceneModel>(this, getModel(), introspector);
+        } else if (adapter == PropertyIntrospector.class) {
+            return introspector;
         }
         return null;
     }
