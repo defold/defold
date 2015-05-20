@@ -406,8 +406,8 @@
   (property prev-action t/Any)
   (property original-values t/Any)
   
-  (property hot-manip t/Keyword)
-  (property active-manip t/Keyword (default :move-screen))
+  (property hot-manip t/Any)
+  (property active-manip t/Any)
   (property op-seq t/Any)
   
   (input active-tool t/Keyword)

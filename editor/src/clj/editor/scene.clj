@@ -336,7 +336,7 @@
   (output renderables pass/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
   (output selection-renderables pass/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
 ;;  (output viewport Region (g/fnk [viewport] viewport))
-  (output image WritableImage :cached (g/fnk [frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
+  (output image WritableImage :cached (g/fnk [^BufferedImage frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
   (output aabb AABB :cached produce-aabb) ; TODO - base aabb on selection
   (output selection t/Any :cached (g/fnk [selection] selection))
   (output picking-rect Rect :cached (g/fnk [picking-rect] picking-rect))
