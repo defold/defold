@@ -28,6 +28,14 @@ namespace dmVMath
             else
                 values = NULL;
         };
+
+        ~FloatVector() {
+            if (size > 0 && values)
+            {
+                free(values);
+                values = NULL;
+            }
+        }
     };
 
     /**

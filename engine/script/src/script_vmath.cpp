@@ -106,10 +106,7 @@ namespace dmScript
     static int Vector_gc(lua_State *L)
     {
         dmVMath::FloatVector* v = CheckVector(L, 1);
-        free(v->values);
-        memset(v, 0, sizeof(*v));
-        (void) v;
-        assert(v);
+        delete v;
         return 0;
     }
 
@@ -782,22 +779,22 @@ namespace dmScript
      */
     static int Vector_new(lua_State* L)
     {
-        dmVMath::FloatVector v;
+        dmVMath::FloatVector *v;
         if (lua_gettop(L) == 0)
         {
-            v = dmVMath::FloatVector();
+            v = new dmVMath::FloatVector(0);
         }
         else
         {
             luaL_checktype(L, 1, LUA_TTABLE);
             int array_size = lua_objlen(L, 1);
-            v = dmVMath::FloatVector(array_size);
+            v = new dmVMath::FloatVector(array_size);
 
             for (int i = 0; i < array_size; i++)
             {
                 lua_pushnumber(L, i+1);
                 lua_gettable(L, 1);
-                v.values[i] = (float) lua_tonumber(L, -1);
+                v->values[i] = (float) lua_tonumber(L, -1);
                 lua_pop(L, 1);
             }
         }
@@ -1610,9 +1607,9 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    void PushVector(lua_State* L, const dmVMath::FloatVector& v)
+    void PushVector(lua_State* L, dmVMath::FloatVector* v)
     {
-        dmVMath::FloatVector* vp = (dmVMath::FloatVector*)lua_newuserdata(L, sizeof(dmVMath::FloatVector));
+        dmVMath::FloatVector** vp = (dmVMath::FloatVector**)lua_newuserdata(L, sizeof(dmVMath::FloatVector*));
         *vp = v;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR);
         lua_setmetatable(L, -2);
@@ -1622,7 +1619,7 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            return (dmVMath::FloatVector*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_VECTOR);
+            return *((dmVMath::FloatVector**)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_VECTOR));
         }
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_VECTOR);
         return 0x0;
