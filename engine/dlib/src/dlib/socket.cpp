@@ -124,7 +124,7 @@ namespace dmSocket
     {
         struct in_addr if_addr;
         if_addr.s_addr = htonl(address);
-        int ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, &if_addr, sizeof(if_addr));
+        int ret = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *)&if_addr, sizeof(if_addr));
         if (ret != 0)
             return NativeToResult(DM_SOCKET_ERRNO);
         return RESULT_OK;
