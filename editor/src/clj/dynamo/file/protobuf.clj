@@ -7,6 +7,8 @@
            [com.dynamo.proto DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.io Reader]))
 
+(set! *warn-on-reflection* true)
+
 (defmacro set-if-present
   "Use this macro to set an optional field on a protocol buffer message.
 props must be a maplike data structure, and k is a key into it. k will also
@@ -47,73 +49,83 @@ placed into the protocol buffer."
   [^Descriptors$EnumValueDescriptor val]
   (keyword (.getName val)))
 
-(defn- msg->vecmath [^Message pb v]
-  (let [cls (class pb)]
-    (cond
-      (= cls DdfMath$Point3)
-      (Point3d. (:x v) (:y v) (:z v))
+(defprotocol PbConverter
+  (msg->vecmath [^Message pb v] "Return the javax.vecmath equivalent for the Protocol Buffer message"))
 
-      (= cls DdfMath$Vector3)
-      (Vector3d. (:x v) (:y v) (:z v))
+(extend-protocol PbConverter
+  DdfMath$Point3
+  (msg->vecmath [pb v] (Point3d. (:x v) (:y v) (:z v)))
 
-      (= cls DdfMath$Vector4)
-      (Vector4d. (:x v) (:y v) (:z v) (:w v))
+  DdfMath$Vector3
+  (msg->vecmath [pb v] (Vector3d. (:x v) (:y v) (:z v)))
 
-      (= cls DdfMath$Quat)
-      (Quat4d. (:x v) (:y v) (:z v) (:w v))
+  DdfMath$Vector4
+  (msg->vecmath [pb v] (Vector4d. (:x v) (:y v) (:z v) (:w v)))
 
-      (= cls DdfMath$Matrix4)
-      (Matrix4d. (:m00 v) (:m01 v) (:m02 v) (:m03 v)
-                 (:m10 v) (:m11 v) (:m12 v) (:m13 v)
-                 (:m20 v) (:m21 v) (:m22 v) (:m23 v)
-                 (:m30 v) (:m31 v) (:m32 v) (:m33 v))
+  DdfMath$Quat
+  (msg->vecmath [pb v] (Quat4d. (:x v) (:y v) (:z v) (:w v)))
 
-      :else v)))
+  DdfMath$Matrix4
+  (msg->vecmath [pb v]
+    (Matrix4d. (:m00 v) (:m01 v) (:m02 v) (:m03 v)
+               (:m10 v) (:m11 v) (:m12 v) (:m13 v)
+               (:m20 v) (:m21 v) (:m22 v) (:m23 v)
+               (:m30 v) (:m31 v) (:m32 v) (:m33 v)))
 
-(defmulti vecmath->pb (fn [v] (class v)))
+  Message
+  (msg->vecmath [pb v] v))
 
-(defmethod vecmath->pb Point3d [v]
-  (->
-    (doto (DdfMath$Point3/newBuilder)
-      (.setX (.getX v))
-      (.setY (.getY v))
-      (.setZ (.getZ v)))
-    (.build)))
+(defprotocol VecmathConverter
+  (vecmath->pb [v] "Return the Protocol Buffer equivalent for the given javax.vecmath value"))
 
-(defmethod vecmath->pb Vector3d [v]
-  (->
-    (doto (DdfMath$Vector3/newBuilder)
-      (.setX (.getX v))
-      (.setY (.getY v))
-      (.setZ (.getZ v)))
-    (.build)))
+(extend-protocol VecmathConverter
+  Point3d
+  (vecmath->pb [v]
+    (->
+     (doto (DdfMath$Point3/newBuilder)
+       (.setX (.getX v))
+       (.setY (.getY v))
+       (.setZ (.getZ v)))
+     (.build)))
 
-(defmethod vecmath->pb Vector4d [v]
-  (->
-    (doto (DdfMath$Vector4/newBuilder)
-      (.setX (.getX v))
-      (.setY (.getY v))
-      (.setZ (.getZ v))
-      (.setW (.getW v)))
-    (.build)))
+  Vector3d
+  (vecmath->pb [v]
+    (->
+     (doto (DdfMath$Vector3/newBuilder)
+       (.setX (.getX v))
+       (.setY (.getY v))
+       (.setZ (.getZ v)))
+     (.build)))
 
-(defmethod vecmath->pb Quat4d [v]
-  (->
-    (doto (DdfMath$Quat/newBuilder)
-      (.setX (.getX v))
-      (.setY (.getY v))
-      (.setZ (.getZ v))
-      (.setW (.getW v)))
-    (.build)))
+  Vector4d
+  (vecmath->pb [v]
+    (->
+     (doto (DdfMath$Vector4/newBuilder)
+       (.setX (.getX v))
+       (.setY (.getY v))
+       (.setZ (.getZ v))
+       (.setW (.getW v)))
+     (.build)))
 
-(defmethod vecmath->pb Matrix4d [v]
-  (->
-    (doto (DdfMath$Point3/newBuilder)
-      (.setM00 (.getElement 0 0 v)) (.setM01 (.getElement 0 1 v)) (.setM02 (.getElement 0 2 v)) (.setM03 (.getElement 0 3 v))
-      (.setM10 (.getElement 1 0 v)) (.setM11 (.getElement 1 1 v)) (.setM12 (.getElement 1 2 v)) (.setM13 (.getElement 1 3 v))
-      (.setM20 (.getElement 2 0 v)) (.setM21 (.getElement 2 1 v)) (.setM22 (.getElement 2 2 v)) (.setM23 (.getElement 2 3 v))
-      (.setM30 (.getElement 3 0 v)) (.setM31 (.getElement 3 1 v)) (.setM32 (.getElement 3 2 v)) (.setM33 (.getElement 3 3 v)))
-    (.build)))
+  Quat4d
+  (vecmath->pb [v]
+    (->
+     (doto (DdfMath$Quat/newBuilder)
+       (.setX (.getX v))
+       (.setY (.getY v))
+       (.setZ (.getZ v))
+       (.setW (.getW v)))
+     (.build)))
+
+  Matrix4d
+  (vecmath->pb [v]
+    (->
+     (doto (DdfMath$Matrix4/newBuilder)
+       (.setM00 (.getElement v 0 0)) (.setM01 (.getElement v 0 1)) (.setM02 (.getElement v 0 2)) (.setM03 (.getElement v 0 3))
+       (.setM10 (.getElement v 1 0)) (.setM11 (.getElement v 1 1)) (.setM12 (.getElement v 1 2)) (.setM13 (.getElement v 1 3))
+       (.setM20 (.getElement v 2 0)) (.setM21 (.getElement v 2 1)) (.setM22 (.getElement v 2 2)) (.setM23 (.getElement v 2 3))
+       (.setM30 (.getElement v 3 0)) (.setM31 (.getElement v 3 1)) (.setM32 (.getElement v 3 2)) (.setM33 (.getElement v 3 3)))
+     (.build))))
 
 (defn pb->map
   [^Message pb]

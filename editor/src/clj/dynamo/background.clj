@@ -24,4 +24,4 @@
       (gl/gl-vertex-2f x0 y0))))
 
 (g/defnode Gradient
-  (output renderable t/RenderData (fnk [this] {p/background [{:world-transform geom/Identity4d :render-fn #'render-gradient}]})))
+  (output renderable p/RenderData (fnk [this] {p/background [{:world-transform geom/Identity4d :render-fn #'render-gradient}]})))

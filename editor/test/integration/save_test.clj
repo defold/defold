@@ -1,4 +1,4 @@
-(ns ^:integration integration.save-test
+(ns integration.save-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer [with-clean-system]]

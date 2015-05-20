@@ -106,5 +106,3 @@
           c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
       (is (= 2 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))))
-
-

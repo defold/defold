@@ -1,4 +1,4 @@
-(ns ^:integration integration.scene-test
+(ns integration.scene-test
   (:require [clojure.test :refer :all]
             [clojure.pprint :refer [pprint]]
             [dynamo.graph :as g]

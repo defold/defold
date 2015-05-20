@@ -3,10 +3,12 @@
             [dynamo.graph :as g]
             [editor.ui :as ui])
   (:import [javafx.application Platform]
-           [javafx.scene.image Image]
+           [javafx.scene Parent]
+           [javafx.scene.control Button ScrollPane]
+           [javafx.scene.image Image ImageView]
            [java.io File]))
 
-(defn- node-label [node]
+(defn- ^String node-label [^Object node]
   (.getSimpleName (.getClass node)))
 
 ; TODO: How to check for interface instead?
@@ -59,7 +61,7 @@
       (.write w "}\n"))
     dot-file))
 
-(defn- update-graph-view [root graph-id]
+(defn- update-graph-view [^Parent root graph-id]
   (let [graph     (g/graph graph-id)
         dot-file  (write-dot-graph graph)
         dot-image (File/createTempFile "graph" ".png")
@@ -67,8 +69,8 @@
     (.waitFor process)
     (Platform/runLater
       (fn []
-        (let [image-view  (.lookup root "#graph-image")
-              scroll-pane (.getParent image-view)
+        (let [^ImageView image-view  (.lookup root "#graph-image")
+              ^ScrollPane scroll-pane (.getParent image-view)
               image       (Image. (format "file://%s" (.getAbsolutePath dot-image)))
               width       (.getWidth image)
               height      (.getHeight image)]
@@ -85,7 +87,7 @@
           (.setFitHeight image-view height)
           (.setImage image-view image))))))
 
-(defn setup-graph-view [root graph-id]
-  (let [button  (.lookup root "#graph-refresh")
+(defn setup-graph-view [^Parent root graph-id]
+  (let [^Button button  (.lookup root "#graph-refresh")
         handler (ui/event-handler event (update-graph-view root graph-id))]
     (.setOnAction button handler)))

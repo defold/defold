@@ -4,12 +4,15 @@
             [editor.jfx :as jfx]
             [editor.handler :as handler]
             [service.log :as log])
-  (:import [javafx.scene Node Scene]
-           [javafx.stage Stage Modality]
-           [javafx.scene.control ButtonBase Control ContextMenu SeparatorMenuItem ToggleButton TreeView TreeItem Menu MenuBar MenuItem]
-           [javafx.stage FileChooser FileChooser$ExtensionFilter]
+  (:import [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.scene Parent Node Scene]
+           [javafx.stage Stage Modality Window]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar]
+           [javafx.scene.layout AnchorPane Pane]
+           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.application Platform]
            [javafx.fxml FXMLLoader]
+           [javafx.util Callback]
            [javafx.event ActionEvent EventHandler]
            [javafx.scene.input KeyCombination ContextMenuEvent]))
 
@@ -18,15 +21,55 @@
 (defonce ^:dynamic *menus* (atom {}))
 (defonce ^:dynamic *main-stage* (atom nil))
 
+; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
-(defn choose-file [title ext-descr exts]
-  (let [chooser (FileChooser.)]
+(defn choose-file [title ^String ext-descr exts]
+  (let [chooser (FileChooser.)
+        ext-array (into-array exts)]
     (.setTitle chooser title)
-    (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. ext-descr (java.util.ArrayList. exts)))
+    (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. ext-descr ^"[Ljava.lang.String;" ext-array))
     (let [file (.showOpenDialog chooser nil)]
       (if file (.getAbsolutePath file)))))
+
+(defn choose-directory
+  ([title] (choose-directory title @*main-stage*))
+  ([title parent]
+    (let [chooser (DirectoryChooser.)]
+      (.setTitle chooser title)
+      (let [file (.showDialog chooser parent)]
+        (when file (.getAbsolutePath file))))))
+
+(defn collect-controls [^Parent root keys]
+  (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
+        missing (->> controls
+                  (filter (fn [[k v]] (when (nil? v) k)))
+                  (map first))]
+    (when (seq missing)
+      (throw (Exception. (format "controls %s are missing" missing))))
+    controls))
+
+; TODO: Better name?
+(defn fill-control [control]
+  (AnchorPane/setTopAnchor control 0.0)
+  (AnchorPane/setBottomAnchor control 0.0)
+  (AnchorPane/setLeftAnchor control 0.0)
+  (AnchorPane/setRightAnchor control 0.0))
+
+(defn local-bounds [^Node node]
+  (let [b (.getBoundsInLocal node)]
+    {:minx (.getMinX b)
+     :miny (.getMinY b)
+     :maxx (.getMaxX b)
+     :maxy (.getMaxY b)
+     :width (.getWidth b)
+     :height (.getHeight b)}))
+
+(defn observe [^ObservableValue observable listen-fn]
+  (.addListener observable (reify ChangeListener
+                        (changed [this observable old new]
+                          (listen-fn observable old new)))))
 
 (defn do-run-now [f]
   (if (Platform/isFxApplicationThread)
@@ -65,12 +108,116 @@
      (handle [this ~event]
        ~@body)))
 
+(defn scene [^Node node]
+  (.getScene node))
+
+(defn visible! [^Node node v]
+  (.setVisible node v))
+
+(defn managed! [^Node node m]
+  (.setManaged node m))
+
+(defn disable! [^Node node d]
+  (.setDisable node d))
+
+(defn window [^Scene scene]
+  (.getWindow scene))
+
+(defn close! [^Stage window]
+  (.close window))
+
+(defn title! [^Stage window t]
+  (.setTitle window t))
+
+(defn show! [^Stage stage]
+  (.show stage))
+
+(defn show-and-wait! [^Stage stage]
+  (.showAndWait stage))
+
+(defprotocol Text
+  (text [this])
+  (text! [this val]))
+
+(defprotocol HasAction
+  (on-action! [this fn]))
+
+(defprotocol HasChildren
+  (children! [this c]))
+
+(defprotocol CollectionView
+  (selection [this])
+  (items [this])
+  (items! [this items])
+  (cell-factory! [this render-fn]))
+
+(extend-type TextInputControl
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
+
+(extend-type Labeled
+  Text
+  (text [this] (.getText this))
+  (text! [this val] (.setText this val)))
+
+(extend-type Pane
+  HasChildren
+  (children! [this c]
+    (doto
+      (.getChildren this)
+      (.clear)
+      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c)))))
+
+(defn- make-list-cell [render-fn]
+  (proxy [ListCell] []
+    (updateItem [object empty]
+      (let [this ^ListCell this]
+        (proxy-super updateItem (and object (:text (render-fn object))) empty)
+        (let [name (or (and (not empty) (:text (render-fn object))) nil)]
+          (proxy-super setText name))))))
+
+(defn- make-list-cell-factory [render-fn]
+  (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
+
+(extend-type ButtonBase
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+
+(extend-type ComboBox
+  CollectionView
+  (selection [this] (when-let [item (.getSelectedItem (.getSelectionModel this))] [item]))
+  (items [this] (.getItems this))
+  (items! [this ^java.util.Collection items] (let [l (.getItems this)]
+                                               (.clear l)
+                                               (.addAll l items)))
+  (cell-factory! [this render-fn]
+    (.setButtonCell this (make-list-cell render-fn))
+    (.setCellFactory this (make-list-cell-factory render-fn))))
+
+(extend-type ListView
+  CollectionView
+  (selection [this] (when-let [items (.getSelectedItems (.getSelectionModel this))] items))
+  (items [this] (.getItems this))
+  (items! [this ^java.util.Collection items] (let [l (.getItems this)]
+                                               (.clear l)
+                                               (.addAll l items)))
+  (cell-factory! [this render-fn]
+    (.setCellFactory this (make-list-cell-factory render-fn))))
+
 (extend-type TreeView
   workspace/SelectionProvider
   (selection [this] (->> this
                       (.getSelectionModel)
                       (.getSelectedItems)
                       (map #(.getValue ^TreeItem %)))))
+
+(extend-type ListView
+  workspace/SelectionProvider
+  (selection [this] (->> this
+                      (.getSelectionModel)
+                      (.getSelectedItems)
+                      (vec))))
 
 (defn extend-menu [id location menu]
   (swap! *menus* assoc id {:location location
@@ -121,7 +268,7 @@
       (.setOnAction menu-item (event-handler event (handler/run command (make-command-context desc)) ))
       menu-item)))
 
-(defn- make-menu [desc menu]
+(defn- ^MenuItem make-menu [desc menu]
   (let [command-context (make-command-context desc)]
     (->> menu
       (mapv (fn [item] (if (= :separator (:label item))
@@ -130,11 +277,10 @@
 
 (defn- populate-context-menu [^ContextMenu context-menu desc menu]
   (let [items (make-menu desc menu)]
-    (.addAll (.getItems context-menu) items)))
+    (.addAll (.getItems context-menu) (to-array items))))
 
-(defn register-context-menu [^Control control selection-provider menu-id]
-  ;; TODO: command-context
-  (let [desc (make-desc control menu-id {} selection-provider)]
+(defn register-context-menu [^Control control command-context selection-provider menu-id]
+  (let [desc (make-desc control menu-id command-context selection-provider)]
     (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
       (event-handler event
                      (when-not (.isConsumed event)
@@ -156,18 +302,18 @@
 
 (defn- refresh-menubar [md]
  (let [menu (realize-menu (:menu-id md))
-       control (:control md)]
+       control ^MenuBar (:control md)]
    (when-not (= menu (get-user-data control ::menu))
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
-     (.addAll (.getMenus control) (make-menu md menu))
+     (.addAll (.getMenus control) (to-array (make-menu md menu)))
      (set-user-data control ::menu menu))))
 
 (defn- refresh-menu-state [^Menu menu command-context]
   (doseq [m (.getItems menu)]
     (if (instance? Menu m)
       (refresh-menu-state m command-context)
-      (.setDisable m (not (handler/enabled? (keyword (.getId m)) command-context))))))
+      (.setDisable ^Menu m (not (handler/enabled? (keyword (.getId ^Menu m)) command-context))))))
 
 (defn- refresh-menubar-state [^MenuBar menubar command-context]
   (doseq [m (.getMenus menubar)]
@@ -182,7 +328,7 @@
 
 (defn- refresh-toolbar [td]
  (let [menu (realize-menu (:menu-id td))
-       control (:control td)]
+       ^Pane control (:control td)]
    (when-not (= menu (get-user-data control ::menu))
      (.clear (.getChildren control))
      (set-user-data control ::menu menu)
@@ -198,15 +344,15 @@
                                                                   (make-command-context td)))))
          (.add (.getChildren control) button))))))
 
-(defn- refresh-toolbar-state [toolbar command-context]
+(defn- refresh-toolbar-state [^Pane toolbar command-context]
   (let [nodes (.getChildren toolbar)
-        ids (map #(.getId %) nodes)]
-    (doseq [n nodes]
+        ids (map #(.getId ^Node %) nodes)]
+    (doseq [^Node n nodes]
       (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-context)))
       (when (instance? ToggleButton n)
         (if (handler/state (keyword (.getId n)) command-context)
-         (.setSelected n true)
-         (.setSelected n false))))))
+         (.setSelected ^Toggle n true)
+         (.setSelected ^Toggle n false))))))
 
 (defn refresh [^Scene scene]
  (let [root (.getRoot scene)
@@ -220,12 +366,12 @@
 
 (defn modal-progress [title total-work worker-fn]
   (run-now
-    (let [root (FXMLLoader/load (io/resource "progress.fxml"))
+    (let [root ^Parent (FXMLLoader/load (io/resource "progress.fxml"))
           stage (Stage.)
           scene (Scene. root)
-          title-control (.lookup root "#title")
-          progress-control (.lookup root "#progress")
-          message-control (.lookup root "#message")
+          title-control ^Label (.lookup root "#title")
+          progress-control ^ProgressBar (.lookup root "#progress")
+          message-control ^Label (.lookup root "#message")
           worked (atom 0)
           return (atom nil)
           report-fn (fn [work msg]

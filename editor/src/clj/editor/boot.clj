@@ -11,8 +11,10 @@
             [editor.game-object :as game-object]
             [editor.graph-view :as graph-view]
             [editor.image :as image]
+            [editor.import :as import]
             [editor.prefs :as prefs]
             [editor.jfx :as jfx]
+            [editor.changes-view :as changes-view]
             [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
             [editor.project :as project]
@@ -35,7 +37,8 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label ListCell TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button Control ColorPicker Label ListCell ListView TextField
+            TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority VBox]
@@ -44,19 +47,19 @@
            [javafx.util Callback]
            [java.io File]
            [java.nio.file Paths]
-           [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
-(defn- setup-console [root]
-  (.appendText (.lookup root "#console") "Hello Console"))
+(defn- setup-console [^VBox root]
+  (let [^TextArea node (.lookup root "#console")]
+   (.appendText node "Hello Console")))
 
 ; Editors
 (g/defnode CurveEditor
   (inherits core/Scope)
   (on :create
       (let [btn (Button.)]
-        (.setText btn "Curve Editor WIP!")
-        (.add (.getChildren (:parent event)) btn)))
+        (ui/text! btn "Curve Editor WIP!")
+        (.add (.getChildren ^VBox (:parent event)) btn)))
 
   t/IDisposable
   (dispose [this]))
@@ -70,14 +73,14 @@
 
 (def the-root (atom nil))
 
-(defn load-stage [workspace project]
-  (let [root (FXMLLoader/load (io/resource "editor.fxml"))
+(defn load-stage [workspace project prefs]
+  (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
-    (.show stage)
+    (ui/show! stage)
 
     (let [close-handler (ui/event-handler event
                           (g/transact
@@ -87,20 +90,24 @@
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
-    (let [app-view (app-view/make-app-view *view-graph* *project-graph* project stage (.lookup root "#menu-bar") (.lookup root "#editor-tabs"))
-          outline-view (outline-view/make-outline-view *view-graph* (.lookup root "#outline") (fn [items] (on-outline-selection-fn project items)))]
+    (let [^MenuBar menu-bar (.lookup root "#menu-bar")
+          ^TabPane editor-tabs (.lookup root "#editor-tabs")
+          ^TreeView outline (.lookup root "#outline")
+          ^Tab assets (.lookup root "#assets")
+          app-view (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
+          outline-view (outline-view/make-outline-view *view-graph* outline (fn [items] (on-outline-selection-fn project items)))]
       (g/transact
         (concat
           (g/connect project :selection outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
-      (asset-browser/make-asset-browser workspace (.lookup root "#assets") (fn [resource] (app-view/open-resource app-view workspace project resource))))
+      (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
 
-(defn- create-view [game-project root place node-type]
+(defn- create-view [game-project ^VBox root place node-type]
   (let [node (g/make-node! (g/node->graph-id game-project) node-type)]
     (g/dispatch-message (g/now) node :create :parent (.lookup root place))))
 
@@ -125,90 +132,102 @@
 
 
 (defn open-project
-  [^File game-project-file]
+  [^File game-project-file prefs]
   (let [progress-bar nil
         project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         project      (project/make-project *project-graph* workspace)
         project      (project/load-project project)
-        root         (ui/run-now (load-stage workspace project))
+        ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
+        changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
         properties   (ui/run-now (properties-view/make-properties-view *view-graph* (.lookup root "#properties")))]
     (g/transact (g/connect project :selection properties :selection))
     (g/reset-undo! *project-graph*)))
 
-
-(defn- add-to-recent-projects [project-file]
-  (let [recent (->> (prefs/get-prefs "recent-projects" [])
+(defn- add-to-recent-projects [prefs project-file]
+  (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
                  (remove #(= % (str project-file)))
                  (cons (str project-file))
                  (take 3))]
-    (prefs/set-prefs "recent-projects" recent)))
+    (prefs/set-prefs prefs "recent-projects" recent)))
 
-(defn- make-list-cell [file]
+(defn- make-list-cell [^File file]
   (let [path (.toPath file)
         parent (.getParent path)
         vbox (VBox.)
         project-label (Label. (str (.getFileName parent)))
-        path-label (Label. (str (.getParent parent)))]
+        path-label (Label. (str (.getParent parent)))
+        ^"[Ljavafx.scene.control.Control;" controls (into-array Control [project-label path-label])]
     ; TODO: Should be css stylable
     (.setStyle path-label "-fx-text-fill: grey; -fx-font-size: 10px;")
-    (.addAll (.getChildren vbox) [project-label path-label])
+    (.addAll (.getChildren vbox) controls)
     vbox))
 
 (def main)
 
-(defn open-welcome []
-  (let [root (FXMLLoader/load (io/resource "welcome.fxml"))
+
+(defn open-welcome [prefs]
+  (let [^VBox root (FXMLLoader/load (io/resource "welcome.fxml"))
         stage (Stage.)
         scene (Scene. root)
-        recent-projects (.lookup root "#recent-projects")
-        open-project (.lookup root "#open-project")]
-    (.setOnAction open-project (ui/event-handler event (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
-                                                         (.close stage)
-                                                         ; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
-                                                         ; In other words, we can't reuse the welcome page and it has to be closed.
-                                                         ; We should potentially changed this when we have uberjar support and hence
-                                                         ; faster loading.
-                                                         (main [file-name]))))
+        ^ListView recent-projects (.lookup root "#recent-projects")
+        ^Button open-project (.lookup root "#open-project")
+        import-project (.lookup root "#import-project")]
+    (ui/set-main-stage stage)
+    (ui/on-action! open-project (fn [_] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
+                                          (ui/close! stage)
+                                          ; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
+                                          ; In other words, we can't reuse the welcome page and it has to be closed.
+                                          ; We should potentially changed this when we have uberjar support and hence
+                                          ; faster loading.
+                                          (main [file-name]))))
 
-    (.setOnMouseClicked recent-projects (ui/event-handler e (when (= 2 (.getClickCount e))
+    (ui/on-action! import-project (fn [_] (when-let [file-name (import/open-import-dialog prefs)]
+                                            (ui/close! stage)
+                                            ; See comment above about main and class-loaders
+                                            (main [file-name]))))
+
+    (.setOnMouseClicked recent-projects (ui/event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                                               (when-let [file (-> recent-projects (.getSelectionModel) (.getSelectedItem))]
-                                                                (.close stage)
+                                                                (ui/close! stage)
                                                                 ; See comment above about main and class-loaders
-                                                                (main [(.getAbsolutePath file)])))))
+                                                                (main [(.getAbsolutePath ^File file)])))))
     (.setCellFactory recent-projects (reify Callback (call ^ListCell [this view]
                                                        (proxy [ListCell] []
                                                          (updateItem [file empty]
-                                                           (proxy-super updateItem file empty)
-                                                           (if (or empty (nil? file))
-                                                             (proxy-super setText nil)
-                                                             (proxy-super setGraphic (make-list-cell file))))))))
+                                                           (let [this ^ListCell this]
+                                                             (proxy-super updateItem file empty)
+                                                             (if (or empty (nil? file))
+                                                               (proxy-super setText nil)
+                                                               (proxy-super setGraphic (make-list-cell file)))))))))
     (let [recent (->>
-                   (prefs/get-prefs "recent-projects" [])
+                   (prefs/get-prefs prefs "recent-projects" [])
                    (map io/file)
-                   (filter #(.isFile %)))]
-      (.addAll (.getItems recent-projects) recent))
+                   (filter (fn [^File f] (.isFile f)))
+                   (into-array File))]
+      (.addAll (.getItems recent-projects) ^"[Ljava.io.File;" recent))
     (.setScene stage scene)
     (.setResizable stage false)
-    (.show stage)))
+    (ui/show! stage)))
 
 (defn main [args]
-  (if (= (count args) 0)
-    (ui/run-later (open-welcome))
-    (try
-      (ui/modal-progress "Loading project" 100
-                         (fn [report-fn]
-                           (report-fn -1 "loading assets")
-                           (when (nil? @the-root)
-                             (g/initialize {})
-                             (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-                             (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
-                             (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
-                           (let [project-file (first args)]
-                             (add-to-recent-projects project-file)
-                             (open-project (io/file project-file)))))
-      (catch Throwable t
-        (stack/print-stack-trace t)
-        (.flush *out*)
-        (System/exit -1)))))
+  (let [prefs (prefs/make-prefs "defold")]
+    (if (= (count args) 0)
+      (ui/run-later (open-welcome prefs))
+      (try
+        (ui/modal-progress "Loading project" 100
+                           (fn [report-fn]
+                             (report-fn -1 "loading assets")
+                             (when (nil? @the-root)
+                               (g/initialize {})
+                               (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
+                               (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
+                               (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))
+                             (let [project-file (first args)]
+                               (add-to-recent-projects prefs project-file)
+                               (open-project (io/file project-file) prefs))))
+        (catch Throwable t
+          (stack/print-stack-trace t)
+          (.flush *out*)
+          (System/exit -1))))))

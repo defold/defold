@@ -415,5 +415,5 @@
   (input viewport t/Any)
   (input selected-renderables t/Any)
 
-  (output renderables t/RenderData :cached produce-renderables)
+  (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/fnk [] handle-input)))

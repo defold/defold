@@ -20,6 +20,10 @@
                        editor.project-test
                        editor.scope-test
                        editor.ui-test
+                       integration.undo-test
+                       integration.asset-browser-test
+                       integration.save-test
+                       integration.scene-test
                        internal.cache-test
                        internal.connection-rules
                        internal.dependency-test
@@ -34,11 +38,6 @@
                        internal.value-test
                        potemkin.imports-test
                        potemkin.namespaces-test])
-
-(def integration-test-namespaces '[integration.undo-test
-                                   integration.asset-browser-test
-                                   integration.save-test
-                                   integration.scene-test])
 
 (def builtin-basedir (io/file "../com.dynamo.cr/com.dynamo.cr.builtins"))
 
@@ -58,8 +57,3 @@
   (doseq [n test-namespaces]
     (require n))
   (apply test/run-tests test-namespaces))
-
-(defn integration-tests []
-  (doseq [n integration-test-namespaces]
-    (require n))
-  (apply test/run-tests integration-test-namespaces))

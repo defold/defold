@@ -1,4 +1,4 @@
-(ns ^:integration integration.undo-test
+(ns integration.undo-test
   (:require [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
@@ -100,19 +100,24 @@
 
 (deftest undo-node-deletion-reconnects-editor
   (testing "Undoing the deletion of a node reconnects it to its editor"
-           (with-clean-system
-             (let [workspace     (load-test-workspace world)
-                   project-graph (g/make-graph! :history true :volatility 1)
-                   project       (load-test-project workspace project-graph)]
-               (let [atlas-nodes (project/find-resources project "**/*.atlas")
-                     atlas-node  (second (first atlas-nodes))
-                     view        (headless-create-view workspace project atlas-node)
-                     camera      (g/graph-value (g/node->graph-id view) :camera)]
-                 (is (not-nil? (g/node-value camera :aabb)))
-                 (g/transact (g/delete-node (g/node-id atlas-node)))
-                 (is (nil? (g/node-value camera :aabb)))
-                 (g/undo project-graph)
-                 (is (not-nil? (g/node-value camera :aabb))))))))
+    (with-clean-system
+      (let [workspace                 (load-test-workspace world)
+            project-graph             (g/make-graph! :history true :volatility 1)
+            project                   (load-test-project workspace project-graph)
+            atlas-nodes               (project/find-resources project "**/*.atlas")
+            atlas-node                (second (first atlas-nodes))
+            atlas-id                  (g/node-id atlas-node)
+            view                      (headless-create-view workspace project atlas-node)
+            view-id                   (g/node-id view)
+            check-conn                #(g/connected? (g/now) atlas-id :scene view-id :scene)
+            connected-after-open (check-conn)]
+        (g/transact (g/delete-node atlas-id))
+        (let [connected-after-delete (check-conn)]
+          (g/undo project-graph)
+          (let [connected-after-undo (g/connected? (g/now) atlas-id :scene view-id :scene)]
+            (is connected-after-open)
+            (is (not connected-after-delete))
+            (is connected-after-undo)))))))
 
 (defn outline-children [node] (:children (g/node-value node :outline)))
 
