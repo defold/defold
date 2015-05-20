@@ -36,7 +36,7 @@
   (property tab-pane TabPane)
   (property refresh-timer AnimationTimer)
   (property auto-pulls t/Any)
-  (property active-tool t/Any)
+  (property active-tool t/Keyword)
 
   (input outline t/Any)
 
@@ -71,18 +71,18 @@
 
 (handler/defhandler :move-tool
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :move-tool)))
-  (state [app-view] (= (:active-tool (g/refresh app-view)) :move-tool)))
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
+  (state [app-view] (= (:active-tool (g/refresh app-view)) :move)))
 
 (handler/defhandler :scale-tool
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale-tool)))
-  (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale-tool)))
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
+  (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale)))
 
 (handler/defhandler :rotate-tool
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate-tool)))
-  (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate-tool)))
+  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
+  (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate)))
 
 (ui/extend-menu ::toolbar nil
                 [{:label "Move"
@@ -130,7 +130,7 @@
 (defn make-app-view [view-graph project-graph project stage menu-bar tab-pane]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
-  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move-tool))))
+  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))
         command-context {:app-view app-view
                          :project project
                          :project-graph project-graph}]
@@ -174,7 +174,10 @@
             tabs       (doto (.getTabs tab-pane) (.add tab))
             view-graph (g/make-graph! :history false :volatility 2)
             view       (make-view-fn view-graph parent resource-node (assoc ((:id view-type) (:view-opts resource-type)) :select-fn (fn [selection op-seq] (project/select project selection op-seq))))]
-        (g/transact (g/connect project :selection view :selection))
+        (g/transact
+          (concat
+            (g/connect project :selection view :selection)
+            (g/connect app-view :active-tool view :active-tool)))
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
         (.select (.getSelectionModel tab-pane) tab))
