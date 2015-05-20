@@ -330,6 +330,8 @@
   (input input-handlers Runnable :array)
   (input selection t/Any)
   (input selected-tool-renderables t/Any)
+  (input active-tool t/Keyword)
+  (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
 
   (output renderables t/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
   (output selection-renderables t/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
@@ -361,6 +363,13 @@
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
     (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
+(defn- screen->world [view ^Vector3d screen-pos] ^Vector3d
+  (let [view-graph (g/node->graph-id view)
+        camera (g/node-value (g/graph-value view-graph :camera) :camera)
+        viewport (g/node-value view :viewport)
+        w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
+    (Vector3d. (.x w4) (.y w4) (.z w4))))
+
 (defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
@@ -370,7 +379,18 @@
                                                 (let [now (g/now)
                                                       self (g/node-by-id now self-ref)
                                                       action (i/action-from-jfx e)
-                                                      pos [(:x action) (:y action) 0.0]
+                                                      x (:x action)
+                                                      y (:y action)
+                                                      screen-pos (Vector3d. x y 1)
+                                                      world-pos (Point3d. ^Vector3d (screen->world self screen-pos))
+                                                      world-dir (doto ^Vector3d (screen->world self (doto (Vector3d. screen-pos) (.setZ 0)))
+                                                                  (.sub world-pos)
+                                                                  (.normalize))
+                                                      action (assoc action
+                                                                    :screen-pos screen-pos
+                                                                    :world-pos world-pos
+                                                                    :world-dir world-dir)
+                                                      pos [x y 0.0]
                                                       picking-rect (calc-picking-rect pos pos)]
                                                   (g/transact (g/set-property self :picking-rect picking-rect))
                                                   (dispatch-input (g/sources-of now self :input-handlers) action (g/node-value self :selected-tool-renderables)))))
@@ -409,6 +429,8 @@
   (input scene t/Any :array)
   (input frame BufferedImage)
   (input input-handlers Runnable :array)
+  (input active-tool t/Keyword)
+  (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
 
   (output renderables t/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
   (output selection-renderables t/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
@@ -532,7 +554,7 @@
                    camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
                    grid       grid/Grid
                    tool-controller [scene-tools/ToolController :active-tool :move]]
-                  (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
+                  #_(g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                   (g/connect resource-node :scene view :scene)
                   (g/connect resource-node :scene selection :scene)
@@ -564,6 +586,7 @@
                   (g/connect camera :camera     grid     :camera)
 
                   (g/connect tool-controller :renderables renderer :renderables)
+                  (g/connect view :active-tool tool-controller :active-tool)
                   (g/connect view :viewport    tool-controller          :viewport)
                   (g/connect camera :camera tool-controller :camera)
                   (g/connect renderer :selected-renderables tool-controller :selected-renderables)
@@ -592,9 +615,6 @@
   (property position t/Vec3 (default [0 0 0]))
   (property rotation t/Vec3 (default [0 0 0]))
   (property scale t/Num (default 1.0)) ; TODO - non-uniform scale
-  (property manip-fns t/Any (default {:move (fn [self translation]
-                                              (let [p (doto (Vector3d. (double-array (:position self))) (.add translation))]
-                                                (g/set-property self :position [(.x p) (.y p) (.z p)])))}))
 
   (output position Vector3d :cached (g/fnk [position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [rotation] (math/euler->quat rotation)))
@@ -602,5 +622,10 @@
   (output scene t/Any :cached (g/fnk [self transform] {:id (g/node-id self) :transform transform}))
   (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
   
-  scene-tools/Manipulatable
-  (scene-tools/manip-fn [self type] (get (:manip-fns self) type)))
+  scene-tools/Movable
+  (scene-tools/move [self delta] (let [p (doto (Vector3d. (double-array (:position self))) (.add delta))]
+                                   (g/set-property self :position [(.x p) (.y p) (.z p)])))
+  scene-tools/Rotatable
+  (scene-tools/rotate [self delta] (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (:rotation self))) (.mul delta))
+                                         new-euler (math/quat->euler new-rotation)]
+                                     (g/set-property self :rotation new-euler))))
