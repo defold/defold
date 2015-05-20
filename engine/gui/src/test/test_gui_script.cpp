@@ -506,6 +506,8 @@ TEST_F(dmGuiScriptTest, TestCustomEasingAnimation)
 	params.m_MaxNodes = 64;
 	params.m_MaxAnimations = 32;
 	params.m_UserData = this;
+	params.m_Width = 1;
+	params.m_Height = 1;
 
 	dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
 	dmGui::SetSceneScript(scene, script);
