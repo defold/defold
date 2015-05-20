@@ -540,19 +540,49 @@ namespace dmRender
         }
 
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
-        AddToRender(render_context, ro);
     }
 
-    void FlushTexts(HRenderContext render_context, bool final)
+    static void FontRenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        {
+            for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
+            {
+                dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                dmRender::AddToRender(params.m_Context, ro);
+            }
+        }
+    }
+
+    void FlushTexts(HRenderContext render_context, uint32_t render_order, bool final)
     {
         DM_PROFILE(Render, "FlushTexts");
+
         TextContext& text_context = render_context->m_TextContext;
 
         if (text_context.m_Batches.Size() > 0) {
+
+            RenderObject* ro_begin = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex];
             text_context.m_Batches.Iterate(CreateFontVertexData, render_context);
-            // This might be called multiple times so clear the batch table
-            // This function should however only be called once. See case 2261
             text_context.m_Batches.Clear();
+            RenderObject* ro_end = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex];
+
+            const uint32_t count = ro_end - ro_begin;
+
+            dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
+            dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &FontRenderListDispatch, 0);
+            dmRender::RenderListEntry* write_ptr = render_list;
+            for (RenderObject* ro=ro_begin;ro!=ro_end;ro++)
+            {
+                write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+                write_ptr->m_Order = render_order;
+                write_ptr->m_UserData = (uintptr_t) ro;
+                write_ptr->m_BatchKey = 0;
+                write_ptr->m_TagMask = dmRender::GetMaterialTagMask(ro->m_Material);
+                write_ptr->m_Dispatch = dispatch;
+                write_ptr++;
+            }
+            dmRender::RenderListSubmit(render_context, render_list, write_ptr);
         }
 
         if (final)
