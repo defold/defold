@@ -185,7 +185,7 @@ namespace dmScript
      * @param L Lua state
      * @param v Vector3 value to push
      */
-    void PushVector(lua_State* L, const dmVMath::FloatVector& v);
+    void PushVector(lua_State* L, dmVMath::FloatVector* v);
 
     /**
 	 * Check if the value in the supplied index on the lua stack is a Vector.
