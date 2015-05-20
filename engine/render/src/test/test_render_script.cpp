@@ -593,7 +593,7 @@ TEST_F(dmRenderScriptTest, TestDrawText)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
-    dmRender::FlushTexts(m_Context, true);
+    dmRender::FlushTexts(m_Context, 0, true);
 
     ASSERT_NE(0u, m_Context->m_TextContext.m_VertexIndex);
 

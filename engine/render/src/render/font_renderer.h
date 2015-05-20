@@ -171,15 +171,16 @@ namespace dmRender
     void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params);
 
     /**
-     * Produces render objects for all the previously DrawText:ed texts.
+     * Produces render list entries for all the previously DrawText:ed texts.
      * Multiple calls can be made with final=false, but one (last) call
      * with final=true must be made, so that the vertex buffers will be
      * written.
      *
      * @param final If this is the last call.
+     * @param render_order Render order to write for the rendering
      * @param render_context Context to use when rendering
      */
-    void FlushTexts(HRenderContext render_context, bool final);
+    void FlushTexts(HRenderContext render_context, uint32_t render_order, bool final);
 
     /**
      * Get text metrics for string

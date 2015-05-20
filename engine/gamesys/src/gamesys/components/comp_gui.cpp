@@ -529,7 +529,18 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext    m_RenderContext;
         GuiWorld*                   m_GuiWorld;
+
+        // This order value is increased during rendering for each
+        // render object generated, then used to make sure the final
+        // draw order will follow the order objects are generated in,
+        // and to allow font rendering to be sorted into the right place.
+        uint32_t                    m_NextSortOrder;
     };
+
+    inline uint32_t MakeFinalRenderOrder(uint32_t scene_order, uint32_t sub_order)
+    {
+        return (scene_order << 16) + sub_order;
+    }
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
     {
@@ -667,7 +678,7 @@ namespace dmGameSystem
             dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
         }
 
-        dmRender::FlushTexts(gui_context->m_RenderContext, false);
+        dmRender::FlushTexts(gui_context->m_RenderContext, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     void RenderBoxNodes(dmGui::HScene scene,
@@ -687,7 +698,11 @@ namespace dmGameSystem
 
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
-        dmRender::RenderObject& ro = gui_world->m_GuiRenderObjects[ro_count];
+
+        GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
+        dmRender::RenderObject& ro = gro.m_RenderObject;
+        gro.m_SortOrder = gui_context->m_NextSortOrder++;
+
         // NOTE: ro might be uninitialized and we don't want to create a stack allocated temporary
         // See case 2264
         ro.Init();
@@ -866,8 +881,6 @@ namespace dmGameSystem
                 }
             }
         }
-
-        dmRender::AddToRender(gui_context->m_RenderContext, &ro);
     }
 
     // Computes max vertices required in the vertex buffer to draw a pie node with a
@@ -903,7 +916,10 @@ namespace dmGameSystem
 
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
-        dmRender::RenderObject& ro = gui_world->m_GuiRenderObjects[ro_count];
+
+        GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
+        dmRender::RenderObject& ro = gro.m_RenderObject;
+        gro.m_SortOrder = gui_context->m_NextSortOrder++;
 
         // NOTE: ro might be uninitialized and we don't want to create a stack allocated temporary
         // See case 2264
@@ -1083,8 +1099,6 @@ namespace dmGameSystem
         }
 
         ro.m_VertexCount = gui_world->m_ClientVertexBuffer.Size() - ro.m_VertexStart;
-
-        dmRender::AddToRender(gui_context->m_RenderContext, &ro);
     }
 
     void RenderNodes(dmGui::HScene scene,
@@ -1309,29 +1323,12 @@ namespace dmGameSystem
 
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
-        GuiWorld *gui_world = (GuiWorld *) params.m_UserData;
-
-        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
-            gui_world->m_GuiRenderObjects.SetSize(0);
-            gui_world->m_ClientVertexBuffer.SetSize(0);
-        }
-        else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
-        {
-            dmGui::RenderSceneParams rp;
-            rp.m_RenderNodes = &RenderNodes;
-            rp.m_NewTexture = &NewTexture;
-            rp.m_DeleteTexture = &DeleteTexture;
-            rp.m_SetTextureData = &SetTextureData;
-
-            RenderGuiContext render_gui_context;
-            render_gui_context.m_RenderContext = params.m_Context;
-            render_gui_context.m_GuiWorld = gui_world;
-
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
-                GuiComponent* c = (GuiComponent*) params.m_Buf[*i].m_UserData;
-                dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
+                dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                dmRender::AddToRender(params.m_Context, ro);
             }
         }
     }
@@ -1341,10 +1338,16 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         GuiContext* gui_context = (GuiContext*)params.m_Context;
 
-        // Each component instance gets its own entry
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(gui_context->m_RenderContext, gui_world->m_Components.Size());
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(gui_context->m_RenderContext, &RenderListDispatch, gui_world);
-        dmRender::RenderListEntry* write_ptr = render_list;
+        dmGui::RenderSceneParams rp;
+        rp.m_RenderNodes = &RenderNodes;
+        rp.m_NewTexture = &NewTexture;
+        rp.m_DeleteTexture = &DeleteTexture;
+        rp.m_SetTextureData = &SetTextureData;
+
+        RenderGuiContext render_gui_context;
+        render_gui_context.m_RenderContext = gui_context->m_RenderContext;
+        render_gui_context.m_GuiWorld = gui_world;
+        render_gui_context.m_NextSortOrder = 0;
 
         uint32_t total_node_count = 0;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
@@ -1352,28 +1355,48 @@ namespace dmGameSystem
             GuiComponent* c = gui_world->m_Components[i];
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
-
             total_node_count += dmGui::GetNodeCount(c->m_Scene);
-            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
-            write_ptr->m_Order = dmGui::GetRenderOrder(c->m_Scene);
-            write_ptr->m_UserData = (uintptr_t) c;
-            write_ptr->m_BatchKey = i;
-            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(((dmRender::HMaterial)dmGui::GetMaterial(c->m_Scene)));
-
-            write_ptr->m_Dispatch = dispatch;
-            ++write_ptr;
         }
 
-        dmRender::RenderListSubmit(gui_context->m_RenderContext, render_list, write_ptr);
-
         uint32_t total_gui_render_objects_count = (total_node_count<<1) + (total_node_count>>3);
-        if (gui_world->m_GuiRenderObjects.Capacity() < total_gui_render_objects_count)
-        {
-            // NOTE: m_GuiRenderObjects *before* rendering as pointers
-            // to render-objects are passed to the render-system
-            // Given batching the capacity is perhaps a bit over the top
-            // We also need to include one possible state per node + worst case batching every 8th
+        if (gui_world->m_GuiRenderObjects.Capacity() < total_gui_render_objects_count) {
             gui_world->m_GuiRenderObjects.SetCapacity(total_gui_render_objects_count);
+        }
+
+        gui_world->m_GuiRenderObjects.SetSize(0);
+        gui_world->m_ClientVertexBuffer.SetSize(0);
+
+        uint32_t lastEnd = 0;
+
+        for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
+        {
+            GuiComponent* c = gui_world->m_Components[i];
+            if (!c->m_Enabled || !c->m_AddedToUpdate)
+                continue;
+
+            // Render scene and see how many render objects it added, then we add those individually.
+            dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
+            const uint32_t count = gui_world->m_GuiRenderObjects.Size() - lastEnd;
+
+            dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(gui_context->m_RenderContext, count);
+            dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(gui_context->m_RenderContext, &RenderListDispatch, gui_world);
+            dmRender::RenderListEntry* write_ptr = render_list;
+
+            uint32_t render_order = dmGui::GetRenderOrder(c->m_Scene);
+            while (lastEnd < gui_world->m_GuiRenderObjects.Size())
+            {
+                const GuiRenderObject& gro = gui_world->m_GuiRenderObjects[lastEnd];
+                write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+                write_ptr->m_Order = MakeFinalRenderOrder(render_order, gro.m_SortOrder);
+                write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
+                write_ptr->m_BatchKey = lastEnd;
+                write_ptr->m_TagMask = dmRender::GetMaterialTagMask(gro.m_RenderObject.m_Material);
+                write_ptr->m_Dispatch = dispatch;
+                write_ptr++;
+                lastEnd++;
+            }
+
+            dmRender::RenderListSubmit(gui_context->m_RenderContext, render_list, write_ptr);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

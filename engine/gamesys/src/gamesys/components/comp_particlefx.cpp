@@ -225,7 +225,7 @@ namespace dmGameSystem
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
                 dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
-                dmRender::AddToRender(params.m_Context, (dmRender::RenderObject*) params.m_Buf[*i].m_UserData);
+                dmRender::AddToRender(params.m_Context, ro);
             }
         }
     }
