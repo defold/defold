@@ -78,8 +78,8 @@
         texts (mapv (fn [e] (make-text font lines (selector e))) edits)
         heights (reductions (fn [sum t] (+ sum (:height (ui/local-bounds t)))) 0 texts)]
     (doseq [[t y] (map vector texts heights)]
-      (.setY t (+ (- (:miny (ui/local-bounds t))) y))
-      (.add (.getChildren box) t))
+      (.setY t (+ (- (:miny (ui/local-bounds t))) y)))
+    (ui/children! box texts)
     texts))
 
 (defn- make-boxes [^Pane box texts edits selector]
@@ -87,8 +87,7 @@
     (when-not (= (:type edit) :nop)
       (let [b (ui/local-bounds text)
             r (Rectangle. (:minx b) (:miny b) (:width b) (:height b))]
-        (.setFill r (Paint/valueOf "#cccccc55"))
-        (.setStroke r (Paint/valueOf "#000000"))
+        (ui/add-style! r "diff-box")
         (.bind (.widthProperty r) (.widthProperty box))
         (.add (.getChildren box) r)))))
 
@@ -98,10 +97,11 @@
     (Line. left (+ (:miny b1) (* 0.5 (:height b1))) right (+ (:miny b2) (* 0.5 (:height b2))))))
 
 (defn- make-lines [^Pane box texts-left texts-right edits]
-  (doseq [[t-left t-right edit] (map vector texts-left texts-right edits)]
-    (when-not (= (:type edit) :nop)
-      (let [line (make-line t-left t-right 1 40)]
-        (.add (.getChildren box) line)))))
+  (let [lines
+        (for [[t-left t-right edit] (map vector texts-left texts-right edits)
+              :when (not= (:type edit) :nop)]
+          (make-line t-left t-right 1 40))]
+    (ui/children! box lines)))
 
 (defn- clip-control! [^Control control]
   (let [clip (Rectangle.)]
@@ -127,7 +127,7 @@
     (.setOnKeyPressed scene (ui/event-handler event (when (= (.getCode ^KeyEvent event) KeyCode/ESCAPE) (.close stage))))
 
     (.setScene stage scene)
-    (.show stage)
+    (ui/show! stage)
 
     (let [^Pane left (.lookup root "#left")
           ^Pane right (.lookup root "#right")
@@ -141,8 +141,8 @@
       (ui/text! (.lookup root "#left-file") left-name)
       (ui/text! (.lookup root "#right-file") right-name)
 
-      (.add (.getChildren left) left-group)
-      (.add (.getChildren right) right-group)
+      (ui/children! left [left-group])
+      (ui/children! right [right-group])
 
       (clip-control! left)
       (clip-control! right)

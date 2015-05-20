@@ -5,7 +5,7 @@
             [editor.handler :as handler]
             [service.log :as log])
   (:import [javafx.beans.value ChangeListener ObservableValue]
-           [javafx.scene Parent Node Scene]
+           [javafx.scene Parent Node Scene Group]
            [javafx.stage Stage Modality Window]
            [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar]
            [javafx.scene.layout AnchorPane Pane]
@@ -111,6 +111,9 @@
 (defn scene [^Node node]
   (.getScene node))
 
+(defn add-style! [^Node node ^String class]
+  (.add (.getStyleClass node) class))
+
 (defn visible! [^Node node v]
   (.setVisible node v))
 
@@ -162,6 +165,14 @@
   (text! [this val] (.setText this val)))
 
 (extend-type Pane
+  HasChildren
+  (children! [this c]
+    (doto
+      (.getChildren this)
+      (.clear)
+      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c)))))
+
+(extend-type Group
   HasChildren
   (children! [this c]
     (doto

@@ -45,3 +45,11 @@
     -fx-background-insets: 0;
     -fx-background-radius: 0;
 }
+
+/* diff viewer */
+
+.diff-box {
+    -fx-fill: #cccccc55;
+    -fx-stroke: #000000;
+}
+
