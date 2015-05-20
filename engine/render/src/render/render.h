@@ -29,12 +29,18 @@ namespace dmRender
      */
     typedef struct FontMap* HFontMap;
 
+    /**
+     * Display profiles handle
+     */
+    typedef struct DisplayProfiles* HDisplayProfiles;
+
     enum Result
     {
         RESULT_OK = 0,
         RESULT_INVALID_CONTEXT = -1,
         RESULT_OUT_OF_RESOURCES = -2,
         RESULT_BUFFER_IS_FULL = -3,
+        RESULT_INVALID_PARAMETER = -4,
     };
 
     enum RenderScriptResult

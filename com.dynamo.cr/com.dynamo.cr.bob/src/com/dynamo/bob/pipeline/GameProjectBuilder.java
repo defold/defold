@@ -50,6 +50,7 @@ import com.dynamo.proto.DdfExtensions;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.render.proto.Render.DisplayProfiles;
 import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.dynamo.spine.proto.Spine.SpineModelDesc;
 import com.dynamo.spine.proto.Spine.SpineScene;
@@ -101,6 +102,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".camerac", CameraDesc.class);
         extToMessageClass.put(".lightc", LightDesc.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
+        extToMessageClass.put(".display_profilesc", DisplayProfiles.class);
 
         leafResourceTypes.add(".texturec");
         leafResourceTypes.add(".vpc");
@@ -281,7 +283,7 @@ public class GameProjectBuilder extends Builder<Void> {
         } else {
 
             // Root nodes to follow
-            for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}}) {
+            for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}, {"display", "display_profiles"}}) {
                 String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
                 if (path != null) {
                     findResources(project, project.getResource(path), resources);

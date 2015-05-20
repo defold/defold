@@ -1,7 +1,6 @@
 package com.dynamo.cr.editor.handlers;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -127,6 +126,18 @@ public class SignHandler extends AbstractHandler {
                 properties.put("CFBundleDisplayName", projectProperties.getStringValue("project", "title", "Unnamed"));
                 properties.put("CFBundleExecutable", "dmengine");
                 properties.put("CFBundleIdentifier", projectProperties.getStringValue("ios", "bundle_identifier", "dmengine"));
+
+                if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+                    Integer displayWidth = projectProperties.getIntValue("display", "width");
+                    Integer displayHeight = projectProperties.getIntValue("display", "height");
+                    if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                        properties.put("UISupportedInterfaceOrientations",      "UIInterfaceOrientationLandscapeRight");
+                        properties.put("UISupportedInterfaceOrientations~ipad", "UIInterfaceOrientationLandscapeRight");
+                    } else {
+                        properties.put("UISupportedInterfaceOrientations",      "UIInterfaceOrientationPortrait");
+                        properties.put("UISupportedInterfaceOrientations~ipad", "UIInterfaceOrientationPortrait");
+                    }
+                }
 
                 String engineArmv7 = Engine.getDefault().getEnginePath("ios");
                 String engineArm64 = Engine.getDefault().getEnginePath("arm64-ios");

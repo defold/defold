@@ -5,14 +5,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.swt.graphics.RGB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.go.core.ComponentTypeNode;
+import com.dynamo.cr.guied.util.Layouts;
+import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.AABB;
@@ -35,10 +42,17 @@ public class GuiSceneNode extends ComponentTypeNode {
     private LabelNode texturesNode;
     private LabelNode fontsNode;
     private LabelNode layersNode;
+    private LabelNode layoutsNode;
     // Fallback to something sensible if game.project doesn't exists
     // See comment about tests
     private float width = 960;
     private float height = 640;
+    private float defaultWidth = 960;
+    private float defaultHeight = 640;
+    private IPath displayProfilesPath;
+    private Layouts layouts;
+    private Layouts.Layout currentLayout;
+    private Layouts.Layout previousLayout;
 
     public GuiSceneNode() {
         super();
@@ -47,10 +61,12 @@ public class GuiSceneNode extends ComponentTypeNode {
         texturesNode = new TexturesNode();
         fontsNode = new FontsNode();
         layersNode = new LayersNode();
+        layoutsNode = new LayoutsNode();
         addChild(nodesNode);
         addChild(texturesNode);
         addChild(fontsNode);
         addChild(layersNode);
+        addChild(layoutsNode);
     }
 
     public String getScript() {
@@ -93,6 +109,10 @@ public class GuiSceneNode extends ComponentTypeNode {
         return layersNode;
     }
 
+    public Node getLayoutsNode() {
+        return layoutsNode;
+    }
+
     public Map<String, Integer> getLayerToIndexMap() {
         Map<String, Integer> result = new HashMap<String, Integer>();
         // layer indices start at 1 to account for the empty layer ""
@@ -113,6 +133,14 @@ public class GuiSceneNode extends ComponentTypeNode {
         return this.height;
     }
 
+    public float getDefaultWidth() {
+        return this.defaultWidth;
+    }
+
+    public float getDefaultHeight() {
+        return this.defaultHeight;
+    }
+
     public void setDimensions(float width, float height) {
         this.width = width;
         this.height = height;
@@ -122,15 +150,99 @@ public class GuiSceneNode extends ComponentTypeNode {
         setAABB(aabb);
     }
 
+    public Layouts getLayouts() {
+        return this.layouts;
+    }
+
+    public Layouts.Layout getDefaultLayout() {
+        return Layouts.getDefaultLayout(this.layouts);
+    }
+
+    public void setDefaultLayout() {
+        setCurrentLayout(Layouts.getDefaultLayout(this.layouts).getId());
+    }
+
+    public boolean isCurrentLayoutDefault() {
+        return this.currentLayout.getId().equals(getDefaultLayout().getId());
+    }
+
+    public Layouts.Layout getCurrentLayout() {
+        return this.currentLayout;
+    }
+
+    public boolean setCurrentLayout(String id) {
+        Layouts.Layout layout = Layouts.getLayout(this.layouts, id);
+        if(layout == null) {
+            return false;
+        }
+        if(this.currentLayout != null) {
+            if(this.currentLayout.getId().equals(layout.getId())) {
+                return true;
+            }
+            GuiNodeStateBuilder.storeStates(this.getNodesNode().getChildren());
+        }
+        this.previousLayout = this.currentLayout;
+        this.currentLayout = layout;
+        setDimensions(layout.getWidth(), layout.getHeight());
+        GuiNodeStateBuilder.setStateId(id);
+        GuiNodeStateBuilder.restoreStates(this.getNodesNode().getChildren());
+        return true;
+    }
+
+    public String getPreviousLayout() {
+        if(this.previousLayout == null)
+            return null;
+        return this.previousLayout.getId();
+    }
+
+    public void loadLayouts(IFile file) {
+        try {
+            InputStream i = file.getContents();
+            this.layouts = Layouts.load(i, this.defaultWidth, this.defaultHeight);
+            IOUtils.closeQuietly(i);
+        } catch (Exception e) {
+            logger.error("could not read display profiles", e);
+            displayProfilesPath = null;
+            return;
+        }
+
+        // apply new (matching) state to current and default
+        this.previousLayout = null;
+        if(this.currentLayout == null) {
+            this.currentLayout = this.getDefaultLayout();
+        } else {
+            if(!this.getDefaultLayout().equals(this.currentLayout)) {
+                setDefaultLayout();
+            }
+        }
+    }
+
     public void loadProjectProperties(InputStream in) {
         ProjectProperties projectProperties = new ProjectProperties();
         try {
             projectProperties.load(in);
-            float width = (float) projectProperties.getIntValue("display", "width");
-            float height = (float) projectProperties.getIntValue("display", "height");
-            setDimensions(width, height);
         } catch (Exception e) {
-            logger.error("could not update gui scene dimensions from game.project", e);
+            logger.error("could not read game.project", e);
+            return;
+        }
+
+        this.defaultWidth = this.width = (float) projectProperties.getIntValue("display", "width");
+        this.defaultHeight = this.height = (float) projectProperties.getIntValue("display", "height");
+        setDimensions(this.defaultWidth, this.defaultHeight);
+        try {
+            IProject project = EditorUtil.getProject();
+            IPath dPPath = new Path(projectProperties.getStringValue("display", "display_profiles", "/builtins/render/default.display_profilesc")).removeFileExtension().addFileExtension("display_profiles");
+            IFile dPFile = EditorUtil.getContentRoot(project).getFile(dPPath);
+            displayProfilesPath = dPFile.getFullPath();
+            if (dPFile.exists()) {
+                // in cr.integrationstest the root isn't /content and the
+                // file doesn't exists. That's the reason we accept missing display profile file
+                loadLayouts(dPFile);
+            }
+        } catch (Exception e) {
+            logger.error("failed to load display profiles", e);
+            displayProfilesPath = null;
+            return;
         }
     }
 
@@ -141,6 +253,12 @@ public class GuiSceneNode extends ComponentTypeNode {
                 loadProjectProperties(file.getContents());
             } catch (CoreException e) {
                 logger.error("could not update gui scene dimensions from game.project", e);
+            }
+        } else if(displayProfilesPath != null && file.getFullPath().equals(displayProfilesPath)) {
+            try {
+                loadLayouts(file);
+            } catch (Exception e) {
+                logger.error("could not update display profiles used by project (referenced in game.project)", e);
             }
         }
         return super.handleReload(file, childWasReloaded);

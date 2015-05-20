@@ -122,6 +122,7 @@ namespace dmEngine
         dmHID::HContext                             m_HidContext;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
+        dmRender::HDisplayProfiles                  m_DisplayProfiles;
 
         dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 

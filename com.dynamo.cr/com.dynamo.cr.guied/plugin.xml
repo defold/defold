@@ -76,6 +76,17 @@
             id="com.dynamo.cr.guied.nodes.layerNode"
             node="com.dynamo.cr.guied.core.LayerNode">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.guied.nodes.layoutNode"
+            node="com.dynamo.cr.guied.core.LayoutNode">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.guied.nodes.layoutsNode"
+            node="com.dynamo.cr.guied.core.LayoutsNode">
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.nodes.layoutNode">
+         </reference-node-type>
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.editors">
@@ -85,8 +96,8 @@
             default="false"
             extensions="gui"
             icon="icons/text_allcaps.png"
-            id="com.dynamo.cr.guied.ui.guiEditor"
-            name="Scene Editor">
+            id="com.dynamo.cr.guied.GuiSceneEditor"
+            name="Gui Editor">
       </editor>
    </extension>
    <extension
@@ -199,6 +210,22 @@
                </or>
             </visibleWhen>
          </command>
+         <menu
+               commandId="com.dynamo.cr.guied.commands.selectLayout"
+               id="com.dynamo.cr.editor.popup.gui.layouts"
+               label="Layout">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.layoutsNodeSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </menu>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -246,6 +273,24 @@
                      label="Clipping Nodes Outline"
                      style="toggle">
                </command>
+               <command
+                     commandId="com.dynamo.cr.guied.commands.showLayoutInfo"
+                     label="Layout Info"
+                     style="toggle">
+               </command>
+               <visibleWhen
+                     checkEnabled="false">
+                  <or>
+                     <reference
+                           definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+                     </reference>
+                  </or>
+               </visibleWhen>
+            </menu>
+            <menu
+                  commandId="com.dynamo.cr.guied.commands.selectLayout"
+                  id="com.dynamo.cr.editor.menus.gui.layouts"
+                  label="Layout">
                <visibleWhen
                      checkEnabled="false">
                   <or>
@@ -265,6 +310,16 @@
             </visibleWhen>
          </menu>
       </menuContribution>
+      <menuContribution
+            allPopups="false"
+            class="com.dynamo.cr.guied.LayoutsMenuContributionFactory"
+            locationURI="menu:com.dynamo.cr.editor.menus.gui.layouts">
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            class="com.dynamo.cr.guied.LayoutsMenuContributionFactory"
+            locationURI="popup:com.dynamo.cr.editor.popup.gui.layouts">
+      </menuContribution>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -273,7 +328,7 @@
          <with
                variable="activeEditorId">
             <equals
-                  value="com.dynamo.cr.guied.ui.guiEditor">
+                  value="com.dynamo.cr.guied.GuiSceneEditor">
             </equals>
          </with>
       </definition>
@@ -338,6 +393,30 @@
          </with>
       </definition>
       <definition
+            id="com.dynamo.cr.guied.core.definitions.layoutNodeSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.guied.core.LayoutNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.guied.core.definitions.layoutsNodeSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.guied.core.LayoutsNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
             id="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
          <with
                variable="selection">
@@ -347,6 +426,15 @@
                      value="com.dynamo.cr.guied.core.GuiNode">
                </instanceof>
             </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.guied.core.definitions.anyNodeSelected">
+         <with
+               variable="selection">
+            <count
+                  value="+">
+            </count>
          </with>
       </definition>
    </extension>
@@ -474,6 +562,21 @@
                </or>
             </and>
          </activeWhen>
+         <enabledWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.layersNodeSelected">
+                  </reference>
+               </or>
+            </and>
+         </enabledWhen>
       </handler>
       <handler
             class="com.dynamo.cr.guied.handlers.ShowClippingNodesHandler"
@@ -486,6 +589,171 @@
             </or>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.ShowLayoutInfoHandler"
+            commandId="com.dynamo.cr.guied.commands.showLayoutInfo">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.SelectLayoutHandler"
+            commandId="com.dynamo.cr.guied.commands.selectLayout">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </or>
+         </activeWhen>
+         <enabledWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.anyNodeSelected">
+               </reference>
+            </or>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.SelectPreviousLayoutHandler"
+            commandId="com.dynamo.cr.guied.commands.selectPreviousLayout">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.CycleLayoutsHandler"
+            commandId="com.dynamo.cr.guied.commands.cycleLayouts">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.DeleteNodesHandler"
+            commandId="org.eclipse.ui.edit.delete">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </and>
+         </activeWhen>
+         <enabledWhen>
+            <with
+                  variable="selection">
+               <and>
+                  <not>
+                     <test
+                           property="com.dynamo.cr.guied.selection.defaultlayout">
+                     </test>
+                  </not>
+                  <not>
+                     <reference
+                           definitionId="com.dynamo.cr.guied.core.definitions.layoutsNodeSelected">
+                     </reference>
+                  </not>
+               </and>
+            </with>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.CutNodesHandler"
+            commandId="org.eclipse.ui.edit.cut">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </and>
+         </activeWhen>
+         <enabledWhen>
+            <and>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.layoutsNodeSelected">
+                  </reference>
+               </not>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.layoutNodeSelected">
+                  </reference></not>
+            </and>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.PasteNodesHandler"
+            commandId="org.eclipse.ui.edit.paste">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </and>
+         </activeWhen>
+         <enabledWhen>
+            <and>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.layoutsNodeSelected">
+                  </reference>
+               </not>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.layoutNodeSelected">
+                  </reference>
+               </not>
+            </and>
+         </enabledWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.sceneed.handlers.CopyNodesHandler"
+            commandId="org.eclipse.ui.edit.copy">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.selectionDeleteable">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </and>
+         </activeWhen>
+         <enabledWhen>
+            <and>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.layoutsNodeSelected">
+                  </reference>
+               </not>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.layoutNodeSelected">
+                  </reference>
+               </not>
+            </and>
+         </enabledWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -496,6 +764,34 @@
       <command
             id="com.dynamo.cr.guied.commands.showClippingNodes"
             name="Show Clipping Nodes">
+      </command>
+      <command
+            id="com.dynamo.cr.guied.commands.showLayoutInfo"
+            name="Show Layout Info">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.guied.handlers.SelectLayoutHandler"
+            id="com.dynamo.cr.guied.commands.selectLayout"
+            name="Select Layout">
+         <state
+               class="org.eclipse.ui.handlers.RadioState:initial"
+               id="org.eclipse.ui.commands.radioState">
+         </state>
+         <commandParameter
+               id="org.eclipse.ui.commands.radioStateParameter"
+               name="Layout"
+               optional="false">
+         </commandParameter>
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.guied.handlers.SelectPreviousLayoutHandler"
+            id="com.dynamo.cr.guied.commands.selectPreviousLayout"
+            name="Select Previous Layout">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.guied.handlers.CycleLayoutsHandler"
+            id="com.dynamo.cr.guied.commands.cycleLayouts"
+            name="Cycle Layouts">
       </command>
    </extension>
    <extension
@@ -520,6 +816,39 @@
             </reference-type-class>
          </references>
       </resource-type>
+   </extension>
+   <extension
+         point="org.eclipse.core.expressions.propertyTesters">
+      <propertyTester
+            class="com.dynamo.cr.guied.core.propertytesters.GuiSelectionPropertyTester"
+            id="com.dynamo.cr.guied.propertyTesters.selection"
+            namespace="com.dynamo.cr.guied.selection"
+            properties="defaultlayout"
+            type="org.eclipse.jface.viewers.IStructuredSelection">
+      </propertyTester>
+   </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <key
+            commandId="com.dynamo.cr.guied.commands.selectPreviousLayout"
+            contextId="com.dynamo.cr.guied.contexts.GuiSceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+L">
+      </key>
+      <key
+            commandId="com.dynamo.cr.guied.commands.cycleLayouts"
+            contextId="com.dynamo.cr.guied.contexts.GuiSceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M3+L">
+      </key>
+   </extension>
+   <extension
+         point="org.eclipse.ui.contexts">
+      <context
+            id="com.dynamo.cr.guied.contexts.GuiSceneEditor"
+            name="Gui Editor"
+            parentId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor">
+      </context>
    </extension>
 
 </plugin>
