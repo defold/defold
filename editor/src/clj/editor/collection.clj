@@ -47,10 +47,11 @@
         (.setScale scale))
     (.build)))
 
-(defn- replace-id-deep [scene new-id]
-  (let [new-scene (assoc scene :id new-id)]
+; TODO - this won't work for game object hierarchies, child go-instances must not be replaced
+(defn- assoc-deep [scene keyword new-value]
+  (let [new-scene (assoc scene keyword new-value)]
     (if (:children scene)
-      (assoc new-scene :children (map #(replace-id-deep % new-id) (:children scene)))
+      (assoc new-scene :children (map #(assoc-deep % keyword new-value) (:children scene)))
       new-scene)))
 
 (g/defnode GameObjectInstanceNode
@@ -70,9 +71,9 @@
   (output ddf-message t/Any :cached (g/fnk [id path embedded position rotation scale save-data]
                                            (if embedded (gen-embed-ddf id position rotation scale save-data) (gen-ref-ddf id position rotation scale save-data))))
   (output scene t/Any :cached (g/fnk [self transform scene]
-                                     (assoc (replace-id-deep scene (g/node-id self))
-                                           :transform transform
-                                           :aabb (geom/aabb-transform (:aabb scene) transform)))))
+                                     (assoc (assoc-deep scene :id (g/node-id self))
+                                            :transform transform
+                                            :aabb (geom/aabb-transform (:aabb scene) transform)))))
 
 (g/defnk produce-save-data [resource name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   {:resource resource

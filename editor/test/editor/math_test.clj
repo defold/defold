@@ -2,7 +2,7 @@
  (:require [clojure.test :refer :all]
            [editor.math :as math])
  (:import [java.lang Math]
-          [javax.vecmath Quat4d]))
+          [javax.vecmath Vector3d Quat4d]))
 
 (def epsilon 0.000001)
 
@@ -21,3 +21,25 @@
         quats (map #(Quat4d. (double-array %)) test-vals)]
     (doseq [result (map eq? quats (map (comp math/euler->quat math/quat->euler) quats))]
       (is result))))
+
+(defn- vec-eq? [^Vector3d lhs ^Vector3d rhs]
+  (let [diff (doto (Vector3d. rhs) (.sub lhs))
+        sq (.dot diff diff)
+        ep-sq (* math/epsilon math/epsilon)]
+    (< sq ep-sq)))
+
+(deftest from-to->quat->vec
+  (let [test-vals [[1 0 0]
+                   [0 1 0]
+                   [0 0 1]
+                   [-1 0 0]
+                   [0 -1 0]
+                   [0 0 -1]]
+        test-vecs (map (fn [[x y z]] (Vector3d. x y z)) test-vals)]
+    (doall
+      (for [from test-vecs
+           to test-vecs
+           :let [q (math/from-to->quat from to)]]
+        (or
+          (vec-eq? from (doto (Vector3d. to) (.negate)))
+          (is (vec-eq? to (math/rotate q from))))))))
