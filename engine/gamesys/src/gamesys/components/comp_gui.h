@@ -53,14 +53,20 @@ namespace dmGameSystem
         uint32_t m_Color;
     };
 
+    struct GuiRenderObject
+    {
+        dmRender::RenderObject m_RenderObject;
+        uint32_t m_SortOrder;
+    };
+
     struct GuiWorld
     {
+        dmArray<GuiRenderObject>         m_GuiRenderObjects;
         dmArray<GuiComponent*>           m_Components;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexBuffer        m_VertexBuffer;
         dmArray<BoxVertex>               m_ClientVertexBuffer;
         dmGraphics::HTexture             m_WhiteTexture;
-        dmArray<dmRender::RenderObject>  m_GuiRenderObjects;
     };
 
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);
