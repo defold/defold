@@ -26,9 +26,8 @@
 
 (def collection-icon "icons/bricks.png")
 
-(defn- gen-embed-ddf [id position rotation scale save-data]
-  (let [^Vector3d position-array position
-        ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
+(defn- gen-embed-ddf [id ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
+  (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
         ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
 (-> (doto (GameObject$EmbeddedInstanceDesc/newBuilder)
          (.setId id)
@@ -37,12 +36,12 @@
          (.setPosition protobuf-position)
          (.setRotation protobuf-rotation)
                                         ; TODO properties
-         (.setScale scale))
+                                        ; TODO - fix non-uniform hax
+         (.setScale (.x scale)))
        (.build))))
 
-(defn- gen-ref-ddf [id position rotation scale save-data]
-  (let [^Vector3d position-array position
-        ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
+(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
+  (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
         ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
     (-> (doto (GameObject$InstanceDesc/newBuilder)
          (.setId id)
@@ -51,7 +50,8 @@
          (.setPosition protobuf-position)
          (.setRotation protobuf-rotation)
                                         ; TODO properties
-         (.setScale scale))
+                                        ; TODO - fix non-uniform hax
+         (.setScale (.x scale)))
        (.build))))
 
 ; TODO - this won't work for game object hierarchies, child go-instances must not be replaced
@@ -75,7 +75,7 @@
   (input scene t/Any)
 
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon game-object/game-object-icon})))
-  (output ddf-message t/Any :cached (g/fnk [id path embedded position rotation scale save-data]
+  (output ddf-message t/Any :cached (g/fnk [id path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded (gen-embed-ddf id position rotation scale save-data) (gen-ref-ddf id position rotation scale save-data))))
   (output scene t/Any :cached (g/fnk [self transform scene]
                                      (assoc (assoc-deep scene :id (g/node-id self))
@@ -120,16 +120,16 @@
   (input scene t/Any)
 
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon collection-icon})))
-  (output ddf-message t/Any :cached (g/fnk [id path position rotation scale]
-                                           (let [^Vector3d position-array position
-                                                 ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
+  (output ddf-message t/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
+                                           (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
                                                  ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
                                             (.build (doto (GameObject$CollectionInstanceDesc/newBuilder)
                                                       (.setId id)
                                                       (.setCollection path)
                                                       (.setPosition protobuf-position)
                                                       (.setRotation protobuf-rotation)
-                                                      (.setScale scale))))))
+                                                      ; TODO - fix non-uniform hax
+                                                      (.setScale (.x scale)))))))
   (output scene t/Any :cached (g/fnk [self transform scene]
                                      (assoc scene
                                            :id (g/node-id self)
@@ -141,10 +141,12 @@
         project-graph (g/node->graph-id project)]
     (concat
       (g/set-property self :name (:name collection))
-      (for [game-object (:instances collection)]
+      (for [game-object (:instances collection)
+            :let [; TODO - fix non-uniform hax
+                  scale (:scale game-object)]]
         (g/make-nodes project-graph
                       [go-node [GameObjectInstanceNode :id (:id game-object) :path (:prototype game-object)
-                                :position (t/Point3d->Vec3 (:position game-object)) :rotation (math/quat->euler (:rotation game-object)) :scale (:scale game-object)]]
+                                :position (t/Point3d->Vec3 (:position game-object)) :rotation (math/quat->euler (:rotation game-object)) :scale [scale scale scale]]]
                       (g/connect go-node :outline self :outline)
                       (if-let [source-node (project/resolve-resource-node self (:prototype game-object))]
                         [(g/connect go-node :ddf-message self :ref-inst-ddf)
@@ -154,12 +156,14 @@
                          (g/connect source-node :save-data go-node :save-data)
                          (g/connect source-node :scene go-node :scene)]
                         [])))
-      (for [embedded (:embedded-instances collection)]
+      (for [embedded (:embedded-instances collection)
+            :let [; TODO - fix non-uniform hax
+                  scale (:scale embedded)]]
         (let [resource (project/make-embedded-resource project "go" (:data embedded))]
           (if-let [resource-type (and resource (workspace/resource-type resource))]
             (g/make-nodes project-graph
                           [go-node [GameObjectInstanceNode :id (:id embedded) :embedded true
-                                    :position (t/Point3d->Vec3 (:position embedded)) :rotation (math/quat->euler (:rotation embedded)) :scale (:scale embedded)]
+                                    :position (t/Point3d->Vec3 (:position embedded)) :rotation (math/quat->euler (:rotation embedded)) :scale [scale scale scale]]
                            source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
                           (g/connect source-node :self       go-node :source)
                           (g/connect source-node :outline    go-node :outline)
@@ -171,10 +175,12 @@
             (g/make-nodes project-graph
                           [go-node [GameObjectInstanceNode :id (:id embedded) :embedded true]]
                           (g/connect go-node :outline self :outline)))))
-      (for [coll-instance (:collection-instances collection)]
+      (for [coll-instance (:collection-instances collection)
+            :let [; TODO - fix non-uniform hax
+                  scale (:scale coll-instance)]]
         (g/make-nodes project-graph
                       [coll-node [CollectionInstanceNode :id (:id coll-instance) :path (:collection coll-instance)
-                                  :position (t/Point3d->Vec3 (:position coll-instance)) :rotation (math/quat->euler (:rotation coll-instance)) :scale (:scale coll-instance)]]
+                                  :position (t/Point3d->Vec3 (:position coll-instance)) :rotation (math/quat->euler (:rotation coll-instance)) :scale [scale scale scale]]]
                       (g/connect coll-node :outline self :outline)
                       (if-let [source-node (project/resolve-resource-node self (:collection coll-instance))]
                         [(g/connect coll-node   :ddf-message  self :ref-coll-ddf)
