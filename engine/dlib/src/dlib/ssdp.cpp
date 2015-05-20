@@ -588,13 +588,13 @@ bail:
         return RESULT_OK;
     }
 
-    static void SendAnnounce(HSSDP ssdp, Device* device, uint32_t interface)
+    static void SendAnnounce(HSSDP ssdp, Device* device, uint32_t iface)
     {
-        assert(interface < ssdp->m_LocalAddrCount);
-        dmLogDebug("SSDP Announcing '%s' on interface %s", device->m_DeviceDesc->m_Id, ssdp->m_LocalAddr[interface].m_Name);
+        assert(iface < ssdp->m_LocalAddrCount);
+        dmLogDebug("SSDP Announcing '%s' on interface %s", device->m_DeviceDesc->m_Id, ssdp->m_LocalAddr[iface].m_Name);
         Replacer replacer1(0, device, ReplaceDeviceVar);
         Replacer replacer2(&replacer1, ssdp, ReplaceSSDPVar);
-        Replacer replacer3(&replacer2, &ssdp->m_LocalAddr[interface].m_Address, ReplaceIfAddrVar);
+        Replacer replacer3(&replacer2, &ssdp->m_LocalAddr[iface].m_Address, ReplaceIfAddrVar);
 
         dmTemplate::Result tr = dmTemplate::Format(&replacer3, (char*) ssdp->m_Buffer, sizeof(ssdp->m_Buffer), SSDP_ALIVE_TMPL, Replacer::Replace);
         if (tr != dmTemplate::RESULT_OK)
@@ -604,14 +604,14 @@ bail:
         }
 
         int sent_bytes;
-        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[interface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR), SSDP_MCAST_PORT);
+        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR), SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogWarning("Failed to send announce message (%d)", sr);
         }
     }
 
-    static void SendUnannounce(HSSDP ssdp, Device* device, uint32_t interface)
+    static void SendUnannounce(HSSDP ssdp, Device* device, uint32_t iface)
     {
         Replacer replacer(0, device, ReplaceDeviceVar);
         dmTemplate::Result tr = dmTemplate::Format(&replacer, (char*) ssdp->m_Buffer, sizeof(ssdp->m_Buffer), SSDP_BYEBYE_TMPL, Replacer::Replace);
@@ -622,7 +622,7 @@ bail:
         }
 
         int sent_bytes;
-        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[interface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR), SSDP_MCAST_PORT);
+        dmSocket::Result sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[iface], ssdp->m_Buffer, strlen((char*) ssdp->m_Buffer), &sent_bytes, dmSocket::AddressFromIPString(SSDP_MCAST_ADDR), SSDP_MCAST_PORT);
         if (sr != dmSocket::RESULT_OK)
         {
             dmLogWarning("Failed to send unannounce message (%d)", sr);
