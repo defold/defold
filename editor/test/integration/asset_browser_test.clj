@@ -1,4 +1,4 @@
-(ns ^:integration integration.asset-browser-test
+(ns integration.asset-browser-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer [with-clean-system]]

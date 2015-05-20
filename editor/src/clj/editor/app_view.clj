@@ -4,6 +4,7 @@
             [editor.jfx :as jfx]
             [editor.project :as project]
             [editor.handler :as handler]
+            [editor.login :as login]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
@@ -41,8 +42,8 @@
   (input outline t/Any)
 
   (output active-outline t/Any :cached (g/fnk [outline] outline))
-  (output active-resource workspace/Resource (g/fnk [tab-pane] (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))] (:resource (.getUserData tab)))))
-  (output open-resources t/Any (g/fnk [tab-pane] (map (fn [tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
+  (output active-resource (t/protocol workspace/Resource) (g/fnk [^TabPane tab-pane] (when-let [^Tab tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))] (:resource (.getUserData tab)))))
+  (output open-resources t/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:refresh-timer self)))))
@@ -108,6 +109,10 @@
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
+(handler/defhandler :logout
+  (enabled? [] true)
+  (run [prefs] (login/logout prefs)))
+
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
@@ -119,6 +124,9 @@
                               :id ::open
                               :acc "Shortcut+O"
                               :command :open}
+                             {:label :separator}
+                             {:label "Logout"
+                              :command :logout}
                              {:label "Quit"
                               :acc "Shortcut+Q"
                               :command :quit}]}])
@@ -127,20 +135,21 @@
   workspace/SelectionProvider
   (selection [this] []))
 
-(defn make-app-view [view-graph project-graph project stage menu-bar tab-pane]
+(defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))
         command-context {:app-view app-view
                          :project project
-                         :project-graph project-graph}]
+                         :project-graph project-graph
+                         :prefs prefs}]
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
       (.addListener
         (reify ChangeListener
           (changed [this observable old-val new-val]
-            (on-selected-tab-changed app-view (when new-val (.getUserData new-val)))))))
+            (on-selected-tab-changed app-view (when new-val (.getUserData ^Tab new-val)))))))
     (-> tab-pane
       (.getTabs)
       (.addListener
@@ -168,7 +177,7 @@
         resource-type (project/get-resource-type resource-node)
         view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
     (if-let [make-view-fn (:make-view-fn view-type)]
-      (let [tab-pane   (:tab-pane app-view)
+      (let [^TabPane tab-pane   (:tab-pane app-view)
             parent     (AnchorPane.)
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
@@ -181,4 +190,4 @@
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
         (.select (.getSelectionModel tab-pane) tab))
-      (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))
+      (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))

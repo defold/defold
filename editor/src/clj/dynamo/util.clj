@@ -80,37 +80,6 @@ into an arglist."
   [stack value]
   (conj (pop stack) value))
 
-(defmacro monitored-task
- [mon nm size & body]
- `(let [m# ~mon]
-    (when m#
-      (.beginTask m# ~nm ~size))
-    (let [res# (do ~@body)]
-      (when m# (.done m#))
-      res#)))
-
-(defmacro monitored-work
-  [mon subtask & body]
-  `(let [m# ~mon]
-     (when m# (.subTask m# ~subtask))
-     (let [res# (do ~@body)]
-       (when m# (.worked m# 1))
-       res#)))
-
-(defmacro doseq-monitored [monitor task-name bindings & body]
-  (assert (= 2 (count bindings)) "Monitored doseq only allows one binding")
-  `(let [items# ~(second bindings)]
-     (.beginTask ~monitor ~task-name (count items#))
-     (loop [continue# true
-            items#     items#]
-       (when continue#
-         (when (seq items#)
-           (let [~(first bindings) (first items#)]
-             ~@body)
-           (.worked ~monitor 1)
-           (recur (.isCanceled ~monitor) (rest items#)))))
-     (.done ~monitor)))
-
 (defn apply-deltas
   [old new removed-f added-f]
   (let [removed (set/difference old new)
@@ -131,3 +100,7 @@ into an arglist."
             (.toLowerCase)
             (.indexOf "mac")
             (>= 0)))
+
+(defn collify
+  [val-or-coll]
+  (if (and (coll? val-or-coll) (not (map? val-or-coll))) val-or-coll [val-or-coll]))

@@ -4,10 +4,10 @@
 
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
-  :plugins          [[lein-protobuf-minimal "0.4.4"]
+  :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.8.10"]]
 
-  :dependencies     [[org.clojure/clojure                         "1.7.0-beta2"]
+  :dependencies     [[org.clojure/clojure                         "1.7.0-beta3"]
                      [org.clojure/core.cache                      "0.6.3"]
                      [org.clojure/core.async                      "0.1.346.0-17112a-alpha"]
                      [org.clojure/core.match                      "0.2.1"]
@@ -27,6 +27,14 @@
                      [org.clojure/tools.nrepl                     "0.2.7" :exclusions [org.clojure/clojure]]
                      [cider/cider-nrepl                           "0.9.0-SNAPSHOT" :exclusions [org.clojure/tools.nrepl]]
 
+                     [com.nanohttpd/nanohttpd                     "2.1.1"]
+                     [com.sun.jersey/jersey-core                  "1.19"]
+                     [com.sun.jersey/jersey-client                "1.19"]
+                     ; NOTE: Ancient libraries
+                     [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
+                     [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
+                     [org.eclipse.jgit/org.eclipse.jgit           "4.0.0.201505050340-m2"]
+
                      [org.projectodd.shimdandy/shimdandy-api "1.1.0"]
                      [org.projectodd.shimdandy/shimdandy-impl "1.1.0"]
 
@@ -39,8 +47,6 @@
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
-
-  :target-path       "target/%s"
 
   :java-source-paths ["src/java"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/java"]
@@ -77,10 +83,6 @@
                       :src-dir-uri               "http://github.com/relevance/defold/blob/clojure-sceneed"
                       :src-linenum-anchor-prefix "L"
                       :doc/format                :markdown}
-
-  :test-selectors    {:default     (fn [m] (not (:integration m)))
-                      :integration :integration
-                      :all         (constantly true)}
 
   :profiles          {:test        {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
                       :uberjar     {:main com.defold.editor.Start

@@ -21,31 +21,38 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
+           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]))
 
 (def collection-icon "icons/bricks.png")
 
 (defn- gen-embed-ddf [id position rotation scale save-data]
-  (-> (doto (GameObject$EmbeddedInstanceDesc/newBuilder)
-        (.setId id)
-        ; TODO children
-        (.setData (:content save-data))
-        (.setPosition (protobuf/vecmath->pb (Point3d. position)))
-        (.setRotation (protobuf/vecmath->pb rotation))
-        ; TODO properties
-        (.setScale scale))
-    (.build)))
+  (let [^Vector3d position-array position
+        ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
+        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
+(-> (doto (GameObject$EmbeddedInstanceDesc/newBuilder)
+         (.setId id)
+                                        ; TODO children
+         (.setData (:content save-data))
+         (.setPosition protobuf-position)
+         (.setRotation protobuf-rotation)
+                                        ; TODO properties
+         (.setScale scale))
+       (.build))))
 
 (defn- gen-ref-ddf [id position rotation scale save-data]
-  (-> (doto (GameObject$InstanceDesc/newBuilder)
-        (.setId id)
-        ; TODO children
-        (.setPrototype (workspace/proj-path (:resource save-data)))
-        (.setPosition (protobuf/vecmath->pb (Point3d. position)))
-        (.setRotation (protobuf/vecmath->pb rotation))
-        ; TODO properties
-        (.setScale scale))
-    (.build)))
+  (let [^Vector3d position-array position
+        ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
+        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
+    (-> (doto (GameObject$InstanceDesc/newBuilder)
+         (.setId id)
+                                        ; TODO children
+         (.setPrototype (workspace/proj-path (:resource save-data)))
+         (.setPosition protobuf-position)
+         (.setRotation protobuf-rotation)
+                                        ; TODO properties
+         (.setScale scale))
+       (.build))))
 
 ; TODO - this won't work for game object hierarchies, child go-instances must not be replaced
 (defn- assoc-deep [scene keyword new-value]
@@ -58,8 +65,8 @@
   (inherits scene/SceneNode)
 
   (property id t/Str)
-  (property path t/Str)
-  (property embedded t/Bool (visible false))
+  (property path (t/maybe t/Str))
+  (property embedded (t/maybe t/Bool) (visible false))
 
   (input source t/Any)
   (input properties t/Any)
@@ -114,12 +121,15 @@
 
   (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon collection-icon})))
   (output ddf-message t/Any :cached (g/fnk [id path position rotation scale]
-                                           (.build (doto (GameObject$CollectionInstanceDesc/newBuilder)
-                                                     (.setId id)
-                                                     (.setCollection path)
-                                                     (.setPosition (protobuf/vecmath->pb (Point3d. position)))
-                                                     (.setRotation (protobuf/vecmath->pb rotation))
-                                                     (.setScale scale)))))
+                                           (let [^Vector3d position-array position
+                                                 ^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position-array))
+                                                 ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
+                                            (.build (doto (GameObject$CollectionInstanceDesc/newBuilder)
+                                                      (.setId id)
+                                                      (.setCollection path)
+                                                      (.setPosition protobuf-position)
+                                                      (.setRotation protobuf-rotation)
+                                                      (.setScale scale))))))
   (output scene t/Any :cached (g/fnk [self transform scene]
                                      (assoc scene
                                            :id (g/node-id self)

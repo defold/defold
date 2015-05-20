@@ -256,7 +256,7 @@
  (input viewport Region)
 
  (output input-handler Runnable     (g/fnk [source camera viewport] (fn [self action] (handle-input self action source camera viewport))))
- (output renderable    t/RenderData produce-controller-renderable))
+ (output renderable    pass/RenderData produce-controller-renderable))
 
 (g/defnk produce-save-data [resource level]
   {:resource resource

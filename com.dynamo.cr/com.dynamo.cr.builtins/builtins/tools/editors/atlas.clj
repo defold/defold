@@ -680,12 +680,12 @@
   (property pending-selection s/Any)
 
   (input glcontext GLContext :inject)
-  (input renderables [t/RenderData])
+  (input renderables [pass/RenderData])
   (input view-camera Camera)
   (input selection-node s/Any :inject)
   (input default-selection s/Any)
 
-  (output renderable t/RenderData selection-box-renderable)
+  (output renderable pass/RenderData selection-box-renderable)
   (output pending-selection s/Any (fnk [pending-selection] pending-selection))
 
   (on :mouse-down

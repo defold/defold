@@ -5,12 +5,13 @@
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.core :as core])
-  (:import [clojure.lang LineNumberingPushbackReader]))
+  (:import [clojure.lang LineNumberingPushbackReader]
+           [java.io File]))
 
 ;; TODO - move this into editor
 
 (defn clojure-source?
-  [f]
+  [^File f]
   (and (.isFile f)
        (.endsWith (.getName f) ".clj")))
 
@@ -23,7 +24,7 @@
 (defn compile-source-node
   [node project path]
   (let [ns-decl     (read-file-ns-decl path)
-        source-file (file/project-file path)]
+        ^File source-file (file/project-file path)]
     (try
       (binding [*warn-on-reflection* true]
         (Compiler/load (io/reader path) (t/local-path path) (.getName source-file)))

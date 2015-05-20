@@ -229,7 +229,7 @@
     ctx))
 
 (defmethod perform :connect
-  [{:keys [basis triggers-to-fire] :as ctx}
+  [{:keys [basis triggers-to-fire graphs-modified] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
   (if-let [source (gt/node-by-id basis source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id basis target-id)] ; nil if target node was deleted in this transaction
@@ -242,7 +242,7 @@
     ctx))
 
 (defmethod perform :disconnect
-  [{:keys [basis triggers-to-fire] :as ctx}
+  [{:keys [basis triggers-to-fire graphs-modified] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
   (if-let [source (gt/node-by-id basis source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id basis target-id)] ; nil if target node was deleted in this transaction
@@ -370,9 +370,10 @@
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
-  [ctx]
-  (assoc (select-keys ctx tx-report-keys)
-         :status (if (empty? (:completed ctx)) :empty :ok)))
+  [{:keys [nodes-modified graphs-modified] :as ctx}]
+  (-> (select-keys ctx tx-report-keys)
+      (assoc :status (if (empty? (:completed ctx)) :empty :ok)
+             :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified)))))
 
 (defn new-transaction-context
   [basis actions]
