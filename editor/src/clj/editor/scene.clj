@@ -17,10 +17,11 @@
             [internal.render.pass :as pass]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util.awt TextRenderer Screenshot]
+           [com.jogamp.opengl.util.awt TextRenderer]
+           [com.jogamp.opengl.util GLPixelStorageModes]
            [dynamo.types Camera AABB Region Rect]
            [java.awt Font]
-           [java.awt.image BufferedImage]
+           [java.awt.image BufferedImage DataBufferByte]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
            [javafx.animation AnimationTimer]
@@ -35,11 +36,23 @@
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane Pane]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]))
 
 (set! *warn-on-reflection* true)
+
+; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
+; We flip in JavaFX instead
+(defn- read-to-buffered-image [^long w ^long h]
+  (let [image (BufferedImage. w h BufferedImage/TYPE_3BYTE_BGR)
+        glc (GLContext/getCurrent)
+        gl (.getGL glc)
+        psm (GLPixelStorageModes.)]
+   (.setPackAlignment psm gl 1)
+   (.glReadPixels gl 0 0 w h GL2GL3/GL_BGR GL/GL_UNSIGNED_BYTE (ByteBuffer/wrap (.getData ^DataBufferByte (.getDataBuffer (.getRaster image)))))
+   (.restore psm gl)
+   image))
 
 (def PASS_SHIFT        32)
 (def INDEX_SHIFT       (+ PASS_SHIFT 4))
@@ -170,7 +183,7 @@
                 :let [id (:id renderable)]]
           (render-node gl pass renderable (assoc render-args :selected (selection-set id)))))
       (let [[w h] (vp-dims viewport)
-            buf-image (Screenshot/readToBufferedImage w h)]
+            buf-image (read-to-buffered-image w h)]
         (.release context)
         buf-image))))
 
@@ -370,6 +383,12 @@
         w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
+
+(defn- flip-y [^Node node height]
+  (let [l (.getTransforms node)]
+    (.clear l)
+    (.add l (javafx.scene.transform.Rotate. 180 0 (/ height 2) 0 (javafx.geometry.Point3D. 1 0 0)))))
+
 (defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
@@ -398,6 +417,7 @@
                                                     (let [bb ^BoundingBox new-val
                                                           w (- (.getMaxX bb) (.getMinX bb))
                                                           h (- (.getMaxY bb) (.getMinY bb))]
+                                                      (flip-y (:image-view (g/node-by-id (g/now) self-ref)) h)
                                                       (g/transact (g/set-property self-ref :viewport (t/->Region 0 w 0 h))))))]
         (.setOnMousePressed parent event-handler)
         (.setOnMouseReleased parent event-handler)
@@ -462,7 +482,7 @@
       (.glVertex3d gl max-x max-y z)
       (.glVertex3d gl max-x min-y z)
       (.glEnd gl)
-      
+
       (.glBegin gl GL2/GL_QUADS)
       (.glColor4d gl (nth c 0) (nth c 1) (nth c 2) 0.2)
       (.glVertex3d gl min-x, min-y, z);
@@ -621,7 +641,7 @@
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation ^double scale] (Matrix4d. rotation position scale)))
   (output scene t/Any :cached (g/fnk [self transform] {:id (g/node-id self) :transform transform}))
   (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
-  
+
   scene-tools/Movable
   (scene-tools/move [self delta] (let [p (doto (Vector3d. (double-array (:position self))) (.add delta))]
                                    (g/set-property self :position [(.x p) (.y p) (.z p)])))
