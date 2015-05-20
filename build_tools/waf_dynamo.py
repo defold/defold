@@ -139,7 +139,7 @@ def default_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
 
     libpath = build_util.get_library_path()
 
