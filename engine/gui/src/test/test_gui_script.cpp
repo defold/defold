@@ -45,6 +45,8 @@ public:
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
+        context_params.m_PhysicalWidth = 1;
+        context_params.m_PhysicalHeight = 1;
         m_Context = dmGui::NewContext(&context_params);
     }
 
@@ -94,6 +96,8 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_Width = 1;
+    params.m_Height = 1;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -415,6 +419,8 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_Width = 1;
+    params.m_Height = 1;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -452,6 +458,8 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
+    params.m_Width = 1;
+    params.m_Height = 1;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 

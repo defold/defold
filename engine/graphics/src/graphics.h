@@ -384,6 +384,14 @@ namespace dmGraphics
     uint32_t GetWindowState(HContext context, WindowState state);
 
     /**
+     * Returns the specified dpi of default monitor.
+     *
+     * @param context Graphics context handle
+     * @return Specified dpi of the default display. If not supported, 0 is returned
+     */
+    uint32_t GetDisplayDpi(HContext context);
+
+    /**
      * Returns the specified width of the opened window, which might differ from the actual window width.
      *
      * @param context Graphics context handle

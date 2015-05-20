@@ -26,6 +26,7 @@ import org.eclipse.core.runtime.IAdaptable;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Entity;
@@ -217,22 +218,34 @@ public abstract class Node implements IAdaptable, Serializable {
         setRotation(rotation);
     }
 
-    public void setTranslation(Point3d translation) {
+    public boolean isOverridable() {
+        return false;
+    }
+
+    public void applyTranslation(Point3d translation) {
         this.translation.set(translation);
         setAABBDirty();
         transformChanged();
+    }
+
+    public void setTranslation(Point3d translation) {
+        this.applyTranslation(translation);
     }
 
     public Point3d getTranslation() {
         return new Point3d(this.translation);
     }
 
-    public void setRotation(Quat4d rotation) {
+    public void applyRotation(Quat4d rotation) {
         this.rotation.set(rotation);
         this.rotation.normalize();
         quatToEuler(this.rotation, euler);
         setAABBDirty();
         transformChanged();
+    }
+
+    public void setRotation(Quat4d rotation) {
+        this.applyRotation(rotation);
     }
 
     public Quat4d getRotation() {
@@ -515,6 +528,10 @@ public abstract class Node implements IAdaptable, Serializable {
         }
     }
 
+    public int getLabelTextStyle() {
+        return SWT.NORMAL;
+    }
+
     public final IStatus getStatus() {
         return this.status;
     }
@@ -580,6 +597,8 @@ public abstract class Node implements IAdaptable, Serializable {
 
         if (adapter == IPropertyModel.class) {
             return new PropertyIntrospectorModel<Node, ISceneModel>(this, getModel(), introspector);
+        } else if (adapter == PropertyIntrospector.class) {
+            return introspector;
         }
         return null;
     }

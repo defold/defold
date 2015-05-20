@@ -22,6 +22,7 @@ def build(bld):
     bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')
+    bld.install_files('${PREFIX}/include/render', 'render/display_profiles.h')
     bld.install_files('${PREFIX}/include/render', 'render/render.h')
 
     bld.install_files('${PREFIX}/lib/python', 'waf_render.py')

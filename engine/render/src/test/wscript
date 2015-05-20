@@ -11,6 +11,15 @@ def build(bld):
 
     test_render.install_path = None
 
+    test_display_profiles = bld.new_task_gen(features = 'cxx cprogram test',
+                                    source = 'test_display_profiles.cpp',
+                                    uselib = libs,
+                                    uselib_local = 'render',
+                                    includes = ['../../src', '../../proto'],
+                                    target = 'test_display_profiles')
+
+    test_display_profiles.install_path = None
+
     test_material = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_material.cpp',
                                     uselib = libs,

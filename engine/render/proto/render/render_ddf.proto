@@ -78,3 +78,20 @@ message ClearColor
 {
     required dmMath.Vector4 color = 1;
 }
+
+message DisplayProfileQualifier
+{
+    required uint32 width   = 1;
+    required uint32 height  = 2;
+}
+
+message DisplayProfile
+{
+    required string name    = 1;
+    repeated DisplayProfileQualifier qualifiers = 2;
+}
+
+message DisplayProfiles
+{
+    repeated DisplayProfile profiles = 1;
+}

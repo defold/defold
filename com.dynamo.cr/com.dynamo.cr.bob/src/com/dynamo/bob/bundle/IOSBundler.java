@@ -128,6 +128,23 @@ public class IOSBundler implements IBundler {
         Map<String, Object> properties = new HashMap<String, Object>();
         properties.put("url-schemes", urlSchemes);
 
+        List<String> orientationSupport = new ArrayList<String>();
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+            Integer displayWidth = projectProperties.getIntValue("display", "width");
+            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                orientationSupport.add("LandscapeRight");
+            } else {
+                orientationSupport.add("Portrait");
+            }
+        } else {
+            orientationSupport.add("Portrait");
+            orientationSupport.add("PortraitUpsideDown");
+            orientationSupport.add("LandscapeLeft");
+            orientationSupport.add("LandscapeRight");
+        }
+        properties.put("orientation-support", orientationSupport);
+
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
 

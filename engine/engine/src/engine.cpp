@@ -130,6 +130,7 @@ namespace dmEngine
     , m_HidContext(0x0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
+    , m_DisplayProfiles(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
     , m_Width(960)
@@ -439,6 +440,7 @@ namespace dmEngine
             return false;
         }
 
+        uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
@@ -558,10 +560,9 @@ namespace dmEngine
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
-        gui_params.m_Width = engine->m_Width;
-        gui_params.m_Height = engine->m_Height;
         gui_params.m_PhysicalWidth = physical_width;
         gui_params.m_PhysicalHeight = physical_height;
+        gui_params.m_Dpi = physical_dpi;
         gui_params.m_HidContext = engine->m_HidContext;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
@@ -654,6 +655,7 @@ namespace dmEngine
         }
 
         dmGui::SetDefaultFont(engine->m_GuiContext.m_GuiContext, engine->m_SystemFontMap);
+        dmGui::SetDisplayProfiles(engine->m_GuiContext.m_GuiContext, engine->m_DisplayProfiles);
 
         if (engine->m_RenderScriptPrototype) {
             dmRender::RenderScriptResult script_result = InitRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
@@ -1167,6 +1169,11 @@ bail:
         if (fact_error != dmResource::RESULT_OK)
             return false;
 
+        const char* display_profiles_path = dmConfigFile::GetString(config, "display.display_profiles", "/builtins/render/default.display_profilesc");
+        fact_error = dmResource::Get(engine->m_Factory, display_profiles_path, (void**)&engine->m_DisplayProfiles);
+        if (fact_error != dmResource::RESULT_OK)
+            return false;
+
         return true;
     }
 
@@ -1178,6 +1185,8 @@ bail:
             dmResource::Release(engine->m_Factory, engine->m_SystemFontMap);
         if (engine->m_GameInputBinding)
             dmResource::Release(engine->m_Factory, engine->m_GameInputBinding);
+        if (engine->m_DisplayProfiles)
+            dmResource::Release(engine->m_Factory, engine->m_DisplayProfiles);
     }
 
     uint32_t GetFrameCount(HEngine engine)

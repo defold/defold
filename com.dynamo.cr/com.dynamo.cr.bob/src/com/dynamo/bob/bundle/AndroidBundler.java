@@ -6,8 +6,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -98,6 +100,18 @@ public class AndroidBundler implements IBundler {
             properties.put("has-icons?", false);
         }
         properties.put("exe-name", exeName);
+
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+            Integer displayWidth = projectProperties.getIntValue("display", "width");
+            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                properties.put("orientation-support", "landscape");
+            } else {
+                properties.put("orientation-support", "portrait");
+            }
+        } else {
+            properties.put("orientation-support", "sensor");
+        }
 
         helper.format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
 
