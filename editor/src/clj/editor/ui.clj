@@ -169,6 +169,10 @@
   (text [this] (.getText this))
   (text! [this val] (.setText this val)))
 
+(extend-type TextInputControl
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+
 (extend-type Labeled
   Text
   (text [this] (.getText this))

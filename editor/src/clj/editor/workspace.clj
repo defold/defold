@@ -111,6 +111,9 @@ ordinary paths."
 (defn resource-icon [resource]
   (and resource (or (:icon (resource-type resource)) (get default-icons (source-type resource)))))
 
+(defn file-resource [workspace path]
+  (FileResource. workspace (File. (str (:root workspace) path)) []))
+
 (defn resolve-resource [base-resource path]
   (let [workspace (:workspace base-resource)]
     ; TODO handle relative paths

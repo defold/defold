@@ -2,7 +2,9 @@
   (:require [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
             [dynamo.types :as t]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [editor.workspace :as workspace]
+            [editor.dialogs :as dialogs])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.animation AnimationTimer]
@@ -40,9 +42,9 @@
 
 (def create-property-control! nil)
 
-(defmulti create-property-control! (fn [t _] t))
+(defmulti create-property-control! (fn [t _ _] t))
 
-(defmethod create-property-control! String [_ on-new-value]
+(defmethod create-property-control! String [_ workspace on-new-value]
   (let [text (TextField.)
         setter #(.setText text (str %))]
     (.setOnAction text (ui/event-handler event (on-new-value (.getText text))))
@@ -54,7 +56,7 @@
     (catch Throwable _
       nil)))
 
-(defmethod create-property-control! t/Int [_ on-new-value]
+(defmethod create-property-control! t/Int [_ workspace on-new-value]
   (let [text (TextField.)
         setter #(.setText text (str %))]
     (.setOnAction text (ui/event-handler event (on-new-value (to-int (.getText text)))))
@@ -66,7 +68,7 @@
     (catch Throwable _
       nil)))
 
-(defmethod create-property-control! t/Vec3 [_ on-new-value]
+(defmethod create-property-control! t/Vec3 [_ workspace on-new-value]
   (let [x (TextField.)
         y (TextField.)
         z (TextField.)
@@ -83,7 +85,7 @@
       (.add (.getChildren box) t))
     [box setter]))
 
-(defmethod create-property-control! t/Color [_ on-new-value]
+(defmethod create-property-control! t/Color [_ workspace on-new-value]
  (let [color-picker (ColorPicker.)
        handler (ui/event-handler event
                                  (let [^Color c (.getValue color-picker)]
@@ -92,11 +94,22 @@
    (.setOnAction color-picker handler)
    [color-picker setter]))
 
-(defmethod create-property-control! :default [_ on-new-value]
+(defmethod create-property-control! :default [_ workspace on-new-value]
   (let [text (TextField.)
         setter #(.setText text (str %))]
     (.setDisable text true)
     [text setter]))
+
+(defmethod create-property-control! (t/protocol workspace/Resource) [_ workspace on-new-value]
+  (let [box (HBox.)
+        button (Button. "...")
+        text (TextField.)
+        setter #(.setText text (when % (workspace/proj-path %)))]
+    (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
+                                     (on-new-value resource))))
+    (ui/children! box [text button])
+    (ui/on-action! text (fn [_] (on-new-value (workspace/file-resource workspace (ui/text text))) ))
+    [box setter]))
 
 (defn- niceify-label
   [k]
@@ -105,7 +118,7 @@
     camel/->Camel_Snake_Case_String
     (clojure.string/replace "_" " ")))
 
-(defn- create-properties-row [^GridPane grid node key property row]
+(defn- create-properties-row [workspace ^GridPane grid node key property row]
   (when (not (false? (:visible property)))
     (let [label (Label. (niceify-label key))
           ; TODO: Possible to solve mutual references without an atom here?
@@ -120,7 +133,8 @@
                                  ;; TODO Apply a label to this transaction for undo menu
                                  (g/transact (g/set-property node key new-val)))
                                (@setter-atom old-val)))))
-          [control setter] (create-property-control! (t/property-value-type property) on-new-value)]
+          [control setter] (create-property-control! (t/property-value-type property) workspace on-new-value)]
+
       (reset! setter-atom setter)
       (setter (get node key))
       (GridPane/setConstraints label 1 row)
@@ -128,7 +142,7 @@
       (.add (.getChildren grid) label)
       (.add (.getChildren grid) control))))
 
-(defn- update-grid [parent node]
+(defn- update-grid [parent workspace node]
   (.clear (.getChildren parent))
   (when node
     (let [properties (g/properties node)
@@ -137,24 +151,25 @@
       (.setHgap grid 4)
       (doseq [[key p] properties]
         (let [row (/ (.size (.getChildren grid)) 2)]
-          (create-properties-row grid node key p row)))
+          (create-properties-row workspace grid node key p row)))
       (.add (.getChildren parent) grid)
       grid)))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property repainter AnimationTimer)
+  (property workspace t/Any)
 
   (input selection t/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view selection] (update-grid parent-view (first selection)))) ; TODO - add multi-selection support for properties view
+  (output grid-pane GridPane :cached (g/fnk [parent-view workspace selection] (update-grid parent-view workspace (first selection)))) ; TODO - add multi-selection support for properties view
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
                                      nil)))
 
-(defn make-properties-view [view-graph parent]
-  (let [view      (g/make-node! view-graph PropertiesView :parent-view parent)
+(defn make-properties-view [workspace view-graph parent]
+  (let [view      (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         self-ref  (g/node-id view)
         repainter (proxy [AnimationTimer] []
                     (handle [now]
