@@ -72,6 +72,7 @@ namespace dmRender
         debug_renderer.m_3dPredicate.m_TagCount = 1;
         debug_renderer.m_2dPredicate.m_Tags[0] = dmHashString32(DEBUG_2D_NAME);
         debug_renderer.m_2dPredicate.m_TagCount = 1;
+        debug_renderer.m_RenderBatchVersion = 0;
     }
 
     void FinalizeDebugRenderer(HRenderContext context)
@@ -104,6 +105,7 @@ namespace dmRender
         {
             context->m_DebugRenderer.m_TypeData[i].m_RenderObject.m_VertexCount = 0;
         }
+        context->m_DebugRenderer.m_RenderBatchVersion = 0;
     }
 
     static void LogVertexWarning(HRenderContext context)
@@ -212,12 +214,17 @@ namespace dmRender
 
     static void DebugRenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
+        DebugRenderer *debug_renderer = (DebugRenderer *)params.m_UserData;
+
         if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
-                dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
-                dmRender::AddToRender(params.m_Context, ro);
+                if (params.m_Buf[*i].m_BatchKey == debug_renderer->m_RenderBatchVersion)
+                {
+                    dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                    dmRender::AddToRender(params.m_Context, ro);
+                }
             }
         }
     }
@@ -244,8 +251,16 @@ namespace dmRender
         dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, total_render_objects);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &DebugRenderListDispatch, 0);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &DebugRenderListDispatch, &debug_renderer);
         dmRender::RenderListEntry* write_ptr = render_list;
+
+        // Upgrade the batch key, since we might submit these render object multiple times
+        // during a frame (because render scripts might draw lines, and then we are forced to flush
+        // debug rendering during command queue execution, and thus submit the same objects again).
+        //
+        // TODO: Rewrite this so we can flush only what has been added since last time.
+        //
+        debug_renderer.m_RenderBatchVersion++;
 
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
@@ -257,7 +272,7 @@ namespace dmRender
                 dmGraphics::SetVertexBufferSubData(debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), vertex_count * sizeof(DebugVertex), type_data.m_ClientBuffer);
                 write_ptr->m_Order = render_order;
                 write_ptr->m_UserData = (uintptr_t) &ro;
-                write_ptr->m_BatchKey = 0;
+                write_ptr->m_BatchKey = debug_renderer.m_RenderBatchVersion;
                 write_ptr->m_TagMask = dmRender::GetMaterialTagMask(ro.m_Material);
                 write_ptr->m_Dispatch = dispatch;
                 write_ptr++;
