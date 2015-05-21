@@ -8,13 +8,195 @@
 }
 */
 
+@font-face {
+    font-family: 'Inconsolata';
+    src: url('Inconsolata.otf');
+}
+
+.root {
+    -fx-base: #292c31;
+    -fx-background: #292c31;
+    -fx-control-inner-background: #292c31;
+
+    -fx-box-border: #484c52;
+
+    /* cells */
+    -fx-selection-bar: #24498f;
+    -fx-cell-focus-inner-border: #24498f;
+
+    /* splitter */
+    -fx-inner-border-horizontal: red_;
+
+    -fx-focus-color: #23488c;
+
+    -fx-outer-border_: red;
+    -fx-inner-border_: red;
+    -fx-body-color_: red;
+    -fx-mark-color_: red;
+
+    -fx-accent_: red;
+
+    -fx-font_: 12px Avenir 100;
+
+    -fx-font-family: Avenir;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+
+.split-pane:horizontal > .split-pane-divider {
+   -fx-background-color: #282b30;
+}
+
+/* vertical the two nodes are placed on top of each other. */
+.split-pane:vertical > .split-pane-divider {
+   -fx-background-color: #282b30;
+}
+
+.split-pane:horizontal  {
+     -fx-border-width: 0;
+     -fx-background-insets: 0;
+}
+
+.split-pane:vertical  {
+     -fx-border-width: 0;
+     -fx-background-insets: 0;
+}
+
+.scroll-bar > .thumb {
+    -fx-background-color: #494a4e; /*, green, blue;*/
+    -fx-background-insets: 4;
+    -fx-background-radius: 5;
+}
+
+/* TODO: Hack. Should be only for .list-view in .title-pane etc */
+.list-view {
+    -fx-background-insets: 0;
+}
+
+/* TODO: Hack. Should be only for .tree-view in .title-pane etc */
+.tree-view {
+    -fx-background-insets: 0;
+}
+
+.scroll-bar:vertical {
+
+    -fx-border-width: 0;
+}
+
+
+/* Remove extra border */
+.list-view > .virtual-flow > .scroll-bar:vertical{
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0;
+}
+
+/* Remove extra border */
+.list-view > .virtual-flow > .scroll-bar:horizontal {
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0;
+}
+
+/* Remove extra border */
+.tree-view > .virtual-flow > .scroll-bar:vertical{
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0;
+}
+
+/* Remove extra border */
+.tree-view > .virtual-flow > .scroll-bar:horizontal {
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0;
+}
+
+/*
+.titled-pane > *.content {
+    -fx-border-width: 0;
+}*/
+
+.titled-pane {
+    -fx-border-color: #4a4b4f;
+    -fx-border-width: 2;
+}
+
+.titled-pane > .title {
+    -fx-background-color: #33363b;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding_: 0.166667em 0.833333em 0.25em 0.833333em; /* 2 10 3 10 */
+    -fx-padding: 6 26 6 16;
+}
+
+.titled-pane > *.content {
+    -fx-border-width: 0;
+}
+
+.tab {
+    -fx-padding: 4 16 4 16;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+
+}
+
+.tab-pane:top {
+    -fx-border-width: 0;
+}
+
+
+.tab-content-area {
+    -fx-background-color_: red;
+    -fx-border-width: 2;
+    -fx-border-color: #4a4b4f;
+}
+
+
+.tab-pane {
+    -fx-border-color: #4a4b4f;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:top {
+    -fx-background-color: #33363b;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: #4a4b4f;
+}
+
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator {
+    -fx-border-width: 1;
+    -fx-border-color: #4a4b4f;
+}
+
+.tab-pane > .tab-header-area > .tab-header-background {
+    /* TODO should not be using text-box-border I tink? */
+    -fx-background-color: #282b30;
+}
+
+
+.root__ {
+    -fx-base: #292C31;
+    -fx-background: #292C31;
+    -fx-control-inner-background: #292C31;
+}
+
+.root_ {
+    -fx-base: rgb(50, 50, 50);
+    -fx-background: rgb(50, 50, 50);
+    -fx-control-inner-background:  rgb(50, 50, 50);
+    -fx-hover-base: rgb(200, 0, 0);
+}
+
 .context-menu {
     -fx-min-width: 10em;
 }
 
+.text-field {
+    -fx-border-color: #494a4e;
+}
+
 .text-area {
     -fx-font-size: 11pt;
-    -fx-font-family: "Consolas";
+    -fx-font-family: "Inconsolata";
 }
 
 .tab-pane {

@@ -13,19 +13,20 @@
 <?import javafx.scene.paint.*?>
 <?import javafx.scene.text.*?>
 
-<VBox prefHeight="774.0" prefWidth="1205.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
-  <stylesheets>
-    <URL value="@editor.css" />
-  </stylesheets>
+<VBox prefHeight="774.0" prefWidth="1205.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <MenuBar id="menu-bar" />
       <HBox alignment="CENTER_LEFT">
          <children>
-            <HBox id="toolbar" alignment="CENTER_LEFT" spacing="4.0">
-               <children>
-                  <Button mnemonicParsing="false" text="Placeholder" />
-               </children>
-            </HBox>
+            <ImageView fitHeight="40.0" pickOnBounds="true" preserveRatio="true">
+               <image>
+                  <Image url="@logo_small.png" />
+               </image>
+               <HBox.margin>
+                  <Insets left="6.0" right="6.0" />
+               </HBox.margin>
+            </ImageView>
+            <HBox id="toolbar" alignment="CENTER_LEFT" spacing="4.0" />
             <Pane prefWidth="16.0" />
             <BorderPane style="-fx-background-color: #ccc; -fx-background-radius: 4;">
                <bottom>
