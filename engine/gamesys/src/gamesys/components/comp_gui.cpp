@@ -459,10 +459,6 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
-        uint32_t scene_width, scene_height;
-        dmGui::GetPhysicalResolution((dmGui::HContext) scene_resource->m_GuiContext, scene_width, scene_height);
-        scene_params.m_Width = scene_width;
-        scene_params.m_Height = scene_height;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);

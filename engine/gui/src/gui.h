@@ -137,8 +137,6 @@ namespace dmGui
         uint32_t m_MaxFonts;
         uint32_t m_MaxLayers;
         void*    m_UserData;
-        uint32_t m_Width;
-        uint32_t m_Height;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
 
@@ -206,6 +204,8 @@ namespace dmGui
         GetTextMetricsCallback  m_GetTextMetricsCallback;
         uint32_t                m_PhysicalWidth;
         uint32_t                m_PhysicalHeight;
+        uint32_t                m_DefaultProjectWidth;
+        uint32_t                m_DefaultProjectHeight;
         uint32_t                m_Dpi;
         dmHID::HContext         m_HidContext;
         dmResource::HFactory    m_Factory;

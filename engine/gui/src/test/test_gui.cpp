@@ -119,9 +119,8 @@ public:
         params.m_UserData = this;
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_OnWindowResizeCallback = OnWindowResizeCallback;
-        params.m_Width = 1;
-        params.m_Height = 1;
         m_Scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneResolution(m_Scene, 1, 1);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
     }
