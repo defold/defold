@@ -14,7 +14,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.util Callback]
            [javafx.event ActionEvent EventHandler]
-           [javafx.scene.input KeyCombination ContextMenuEvent]))
+           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -24,6 +24,9 @@
 ; NOTE: This one might change from welcome to actual project window
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
+
+(defn main-stage []
+  @*main-stage*)
 
 (defn choose-file [title ^String ext-descr exts]
   (let [chooser (FileChooser.)
@@ -138,6 +141,13 @@
 (defn show-and-wait! [^Stage stage]
   (.showAndWait stage))
 
+(defn request-focus! [^Node node]
+  (.requestFocus node))
+
+(defn on-double! [^Node node fn]
+  (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
+                                        (fn e)))))
+
 (defprotocol Text
   (text [this])
   (text! [this val]))
@@ -158,6 +168,10 @@
   Text
   (text [this] (.getText this))
   (text! [this val] (.setText this val)))
+
+(extend-type TextInputControl
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
 
 (extend-type Labeled
   Text
@@ -183,10 +197,12 @@
 (defn- make-list-cell [render-fn]
   (proxy [ListCell] []
     (updateItem [object empty]
-      (let [this ^ListCell this]
-        (proxy-super updateItem (and object (:text (render-fn object))) empty)
-        (let [name (or (and (not empty) (:text (render-fn object))) nil)]
-          (proxy-super setText name))))))
+      (let [this ^ListCell this
+            render-data (and object (render-fn object))]
+        (proxy-super updateItem (and object (:text render-data)) empty)
+        (let [name (or (and (not empty) (:text render-data)) nil)]
+          (proxy-super setText name))
+        (proxy-super setGraphic (jfx/get-image-view (:icon render-data)))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
