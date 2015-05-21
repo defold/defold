@@ -169,7 +169,8 @@ public class GuiNodeStateBuilder implements Serializable {
             Node parent = node.getParent();
             while(parent != null) {
                 if(parent instanceof GuiSceneNode) {
-                    stateId = ((GuiSceneNode) parent).getCurrentLayout().getId();
+                    GuiSceneNode sceneNode = (GuiSceneNode) parent;
+                    stateId = sceneNode.getCurrentLayout() == null ? defaultStateId : sceneNode.getCurrentLayout().getId();
                     break;
                 }
                 parent = parent.getParent();
