@@ -56,17 +56,6 @@ There's there different functions in this namespace
      :old-path (f (.getOldPath de))
      :new-path (f (.getNewPath de))}))
 
-(defn unified-status [^Git git]
-  "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored."
-  (let [repository (.getRepository git)
-        tw (TreeWalk. repository)]
-    (.setRecursive tw true)
-    (.addTree tw (.getTree ^RevCommit (get-commit repository "HEAD")))
-    (.addTree tw (FileTreeIterator. repository))
-    (let [rd (RenameDetector. repository)]
-      (.addAll rd (DiffEntry/scan tw))
-      (mapv diff-entry->map (.compute rd (.getObjectReader tw) nil)))))
-
 (defn status [^Git git]
   (let [s (-> git (.status) (.call))]
     {:added (.getAdded s)
@@ -90,6 +79,23 @@ There's there different functions in this namespace
       (merge (to-map added :added))
       (merge (to-map deleted :deleted))
       (merge (to-map modified :modified)))))
+
+(defn unified-status [^Git git]
+  "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored.
+   NOTE: RenameDetector doesn't seems to take .gitignore into account but we filter out entries as a last step"
+  (let [repository (.getRepository git)
+        tw (TreeWalk. repository)
+        ignored (:ignored-not-in-index (status git))]
+    (.setRecursive tw true)
+    (.addTree tw (.getTree ^RevCommit (get-commit repository "HEAD")))
+    (.addTree tw (FileTreeIterator. repository))
+    (let [rd (RenameDetector. repository)]
+      (.addAll rd (DiffEntry/scan tw))
+      (->>
+        (.compute rd (.getObjectReader tw) nil)
+        (mapv diff-entry->map)
+        (remove (fn [e] (and (= :add (:change-type e)) (contains? ignored (:new-path e)))))
+        (vec)))))
 
 (defn- find-original-for-renamed [ustatus file]
   (->> ustatus

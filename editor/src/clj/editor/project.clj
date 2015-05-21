@@ -84,17 +84,6 @@ ordinary paths."
                   :acc "Shortcut+S"
                   :command :save-all}])
 
-(ui/extend-menu ::menubar :editor.app-view/file
-                [{:label "Edit"
-                  :children [{:label "Undo"
-                              :acc "Shortcut+Z"
-                              :icon "icons/undo.png"
-                              :command :undo}
-                             {:label "Redo"
-                              :acc "Shift+Shortcut+Z"
-                              :icon "icons/redo.png"
-                              :command :redo}]}])
-
 (g/defnode Project
   (inherits core/Scope)
 

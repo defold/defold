@@ -1,10 +1,13 @@
 (ns editor.dialogs
   (:require [clojure.java.io :as io]
             [editor.ui :as ui]
-            [service.log :as log])
+            [service.log :as log]
+            [dynamo.graph :as g]
+            [editor.workspace :as workspace])
   (:import [javafx.fxml FXMLLoader]
            [javafx.stage Stage Modality]
            [javafx.scene Parent Scene]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.control Button ProgressBar TextField]
            [javafx.scene.input KeyEvent]
            [javafx.event ActionEvent EventHandler]
@@ -96,3 +99,43 @@
 
       (assoc dialog :refresh refresh))))
 
+(defn make-resource-dialog [workspace options]
+  (let [root ^Parent (FXMLLoader/load (io/resource "resource-dialog.fxml"))
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["resources" "ok" "search"])
+        return (atom nil)
+        items (filter #(= :file (workspace/source-type %)) (g/node-value workspace :resource-list))
+        close (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
+
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "Select Resource")
+    (ui/items! (:resources controls) items)
+
+    (ui/cell-factory! (:resources controls) (fn [r] {:text (workspace/resource-name r)
+                                                     :icon (workspace/resource-icon r)}))
+
+    (ui/on-action! (:ok controls) (fn [_] (close)))
+    (ui/on-double! (:resources controls) (fn [_] (close)))
+
+    (ui/observe (.textProperty ^TextField (:search controls))
+                (fn [_ _ ^String new] (let [pattern-str (str "^" (.replaceAll new "\\*" ".\\*?"))
+                                    pattern (re-pattern pattern-str)
+                                    filtered-items (filter (fn [r] (re-find pattern (workspace/resource-name r))) items)]
+                                (ui/items! (:resources controls) filtered-items))))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+      (ui/event-handler event
+                        (let [code (.getCode ^KeyEvent event)]
+                          (when (cond
+                                  (= code KeyCode/DOWN) (ui/request-focus! (:resources controls))
+                                  (= code KeyCode/ESCAPE) true
+                                  (= code KeyCode/ENTER) (do (reset! return (ui/selection (:resources controls))) true)
+                                  true false)
+                          (.close stage)))))
+
+    (.initModality stage Modality/WINDOW_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+
+    @return))
