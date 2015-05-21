@@ -228,7 +228,7 @@
     :move-yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
     :move-screen (AxisAngle4d.)
     :rot-x (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
-    :rot-y (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (* 0.5 (Math/PI)))
+    :rot-y (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (- (* 0.5 (Math/PI))))
     :rot-z (AxisAngle4d.)
     :rot-screen (AxisAngle4d.)
     :scale-x (AxisAngle4d.)
@@ -338,20 +338,6 @@
                                (filter filter-fn manips))]
           (reduce #(assoc %1 %2 renderables) {} [pass/manipulator pass/manipulator-selection]))))))
 
-(defn- line->circle [^Point3d line-pos ^Vector3d line-dir ^Point3d manip-pos ^Vector3d manip-normal ^Double radius] ^Point3d
-  (if-let [intersection ^Point3d (math/line-plane-intersection line-pos line-dir manip-pos manip-normal)]
-    (let [dist-sq (.distanceSquared intersection manip-pos)]
-      (when (> dist-sq math/epsilon-sq)
-        (Point3d. (doto (Vector3d. intersection) (.sub manip-pos) (.normalize) (.scaleAdd radius manip-pos)))))
-    (let [closest ^Point3d (math/project-lines manip-pos manip-normal line-pos line-dir)
-          plane-dist (math/project (doto (Vector3d. closest) (.sub manip-pos)) manip-normal)
-          closest (doto (Point3d. manip-normal) (.scaleAdd ^Double (- plane-dist) closest))
-          radius-sq (* radius radius)
-          dist-sq (.distanceSquared closest manip-pos)]
-      (if (< dist-sq radius-sq)
-        (doto (Point3d. line-dir) (.scaleAdd (Math/sqrt (- radius-sq dist-sq)) closest))
-        (Point3d. (doto (Vector3d. closest) (.sub manip-pos) (.normalize) (.scaleAdd (Math/sqrt radius-sq) manip-pos)))))))
-
 (defn- action->line [action]
   [(:world-pos action) (:world-dir action)])
 
@@ -376,7 +362,7 @@
                     (case manip
                       (:rot-x :rot-y :rot-z) axis-rotation-radius
                       :rot-screen screen-rotation-radius))]
-      (fn [pos dir manip-pos manip-dir] (line->circle pos dir manip-pos manip-dir radius)))
+      (fn [pos dir manip-pos manip-dir] (math/project-line-circle pos dir manip-pos manip-dir radius)))
     :scale-uniform identity))
 
 (defn- manip->apply-fn [manip manip-pos original-values]
