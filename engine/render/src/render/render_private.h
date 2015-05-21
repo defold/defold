@@ -97,6 +97,7 @@ namespace dmRender
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         uint32_t                        m_MaxVertexCount;
+        uint32_t                        m_RenderBatchVersion;
     };
 
     struct TextEntry

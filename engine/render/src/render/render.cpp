@@ -207,7 +207,6 @@ namespace dmRender
     {
         // Unflushed leftovers are assumed to be the debug rendering
         // and we give them render orders statically here
-        FlushDebug(render_context, 0xfffffe);
         FlushTexts(render_context, 0xffffff, true);
 
         // These will be sorted into when dispatched.
@@ -395,6 +394,11 @@ namespace dmRender
     Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
     {
         DM_PROFILE(Render, "DrawRenderList");
+
+        // This will add new entries for the most recent debug draw render objects.
+        // The internal dispatch functions knows to only actually use the latest ones.
+        // The sort order is also one below the Texts flush which is only also debug stuff.
+        FlushDebug(context, 0xfffffe);
 
         uint32_t tag_mask = 0;
         if (predicate != 0x0)
