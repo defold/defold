@@ -30,6 +30,17 @@
         sc (if (< D 0.000001) 0.0 (/ (- (* b e) (* c d)) D))]
     (doto (Vector3d. onto-dir) (.scaleAdd sc onto-pos))))
 
+; Implementation based on:
+; http://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
+; In case the line is parallel with the plane, nil is returned.
+(defn line-plane-intersection [^Point3d line-pos ^Vector3d line-dir ^Point3d plane-pos ^Vector3d plane-normal]
+  "Returns the position at which the line intersects the plane. If the line and plane are parallel, nil is returned."
+  (let [norm-dir-dot (.dot line-dir plane-normal)]
+    (when (> (Math/abs norm-dir-dot) epsilon-sq)
+      (let [diff (doto (Vector3d.) (.sub line-pos plane-pos))
+            t (- (/ (.dot diff plane-normal) norm-dir-dot))]
+        (doto (Point3d. line-dir) (.scaleAdd t line-pos))))))
+
 (defn project-line-circle [^Point3d line-pos ^Vector3d line-dir ^Point3d circle-pos ^Vector3d circle-axis ^Double radius] ^Point3d
   (if-let [intersection ^Point3d (line-plane-intersection line-pos line-dir circle-pos circle-axis)]
     (let [dist-sq (.distanceSquared intersection circle-pos)]
@@ -43,17 +54,6 @@
       (if (< dist-sq radius-sq)
         (doto (Point3d. line-dir) (.scaleAdd (- (Math/sqrt (- radius-sq dist-sq))) closest))
         (Point3d. (doto (Vector3d. closest) (.sub circle-pos) (.normalize) (.scaleAdd (Math/sqrt radius-sq) circle-pos)))))))
-
-; Implementation based on:
-; http://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
-; In case the line is parallel with the plane, nil is returned.
-(defn line-plane-intersection [^Point3d line-pos ^Vector3d line-dir ^Point3d plane-pos ^Vector3d plane-normal]
-  "Returns the position at which the line intersects the plane. If the line and plane are parallel, nil is returned."
-  (let [norm-dir-dot (.dot line-dir plane-normal)]
-    (when (> norm-dir-dot epsilon-sq)
-      (let [diff (doto (Vector3d.) (.sub line-pos plane-pos))
-            t (- (/ (.dot diff plane-normal) norm-dir-dot))]
-        (doto (Point3d. line-dir) (.scaleAdd t line-pos))))))
 
 (defn euler->quat [euler]
   ; Implementation based on:

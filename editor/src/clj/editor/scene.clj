@@ -578,7 +578,7 @@
                    camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
                    grid       grid/Grid
                    tool-controller [scene-tools/ToolController :active-tool :move]]
-                  #_(g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
+                  (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                   (g/connect resource-node :scene view :scene)
                   (g/connect resource-node :scene selection :scene)
