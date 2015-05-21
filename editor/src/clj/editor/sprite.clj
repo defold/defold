@@ -129,27 +129,52 @@
    :content (protobuf/pb->str
               (.build
                 (doto (Sprite$SpriteDesc/newBuilder)
-                  (.setTileSet image)
+                  (.setTileSet (workspace/proj-path image))
                   (.setDefaultAnimation default-animation)
-                  (protobuf/set-if-present :material self)
+                  (.setMaterial (workspace/proj-path material))
                   (.setBlendMode (protobuf/val->pb-enum Sprite$SpriteDesc$BlendMode blend-mode)))))})
 
 (g/defnk produce-scene
   [self aabb gpu-texture textureset animation blend-mode]
-  (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-quad 6) shader)
-        outline-vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-outline-quad 4) outline-shader)]
-    {:id (g/node-id self)
-     :aabb aabb
-     :renderable {:render-fn (g/fnk [gl pass selected] (render-sprite gl gpu-texture vertex-binding outline-vertex-binding pass selected blend-mode))
-                  :passes [pass/transparent pass/selection pass/outline]}}))
+  (if animation
+    (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-quad 6) shader)
+          outline-vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-outline-quad 4) outline-shader)]
+      {:id (g/node-id self)
+       :aabb aabb
+       :renderable {:render-fn (g/fnk [gl pass selected] (render-sprite gl gpu-texture vertex-binding outline-vertex-binding pass selected blend-mode))
+                    :passes [pass/transparent pass/selection pass/outline]}})
+    {}))
+
+(defn- connect-atlas [project self image]
+  (if-let [atlas-node (project/get-resource-node project image)]
+    (do
+      [(g/connect atlas-node :textureset self :textureset)
+      (g/connect atlas-node :gpu-texture self :gpu-texture)])
+    []))
+
+(defn- disconnect-all [self label]
+  (let [sources (g/sources-of self label)]
+    (for [[src-node src-label] sources]
+      (g/disconnect src-node src-label self label))))
+
+(defn reconnect [transaction graph self label kind labels]
+  (when (some #{:image} labels)
+    (let [image (:image self)
+          project (:parent self)]
+      (concat
+        (disconnect-all self :textureset)
+        (disconnect-all self :gpu-texture)
+        (connect-atlas project self image)))))
 
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image t/Str)
+  (property image (t/protocol workspace/Resource))
   (property default-animation t/Str)
-  (property material t/Str)
+  (property material (t/protocol workspace/Resource))
   (property blend-mode t/Any (default :BLEND_MODE_ALPHA) (tag Sprite$SpriteDesc$BlendMode))
+
+  (trigger reconnect :property-touched #'reconnect)
 
   (input textureset t/Any)
   (input gpu-texture t/Any)
@@ -157,27 +182,28 @@
   (output textureset t/Any (g/fnk [textureset] textureset))
   (output gpu-texture t/Any (g/fnk [gpu-texture] gpu-texture))
   (output animation t/Any (g/fnk [textureset default-animation] (get (:animations textureset) default-animation))) ; TODO - use placeholder animation
-  (output aabb AABB (g/fnk [animation] (let [hw (* 0.5 (:width animation))
-                                             hh (* 0.5 (:height animation))]
-                                         (-> (geom/null-aabb)
-                                           (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
-                                           (geom/aabb-incorporate (Point3d. hw hh 0))))))
+  (output aabb AABB (g/fnk [animation] (if animation
+                                         (let [hw (* 0.5 (:width animation))
+                                               hh (* 0.5 (:height animation))]
+                                           (-> (geom/null-aabb)
+                                             (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
+                                             (geom/aabb-incorporate (Point3d. hw hh 0))))
+                                         (geom/null-aabb))))
   (output outline t/Any (g/fnk [self] {:self self :label "Sprite" :icon sprite-icon}))
   (output save-data t/Any :cached produce-save-data)
   (output scene t/Any :cached produce-scene))
 
 (defn load-sprite [project self input]
-  (let [sprite (protobuf/pb->map (protobuf/read-text Sprite$SpriteDesc input))]
+  (let [sprite (protobuf/pb->map (protobuf/read-text Sprite$SpriteDesc input))
+        resource (:resource self)
+        image (workspace/resolve-resource resource (:tile-set sprite))
+        material (workspace/resolve-resource resource (:material sprite))]
     (concat
-      (g/set-property self :image (:tile-set sprite))
+      (g/set-property self :image image)
       (g/set-property self :default-animation (:default-animation sprite))
-      (g/set-property self :material (:material sprite))
+      (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
-      (let [atlas-node (project/resolve-resource-node self (:tile-set sprite))]
-        (if atlas-node
-          [(g/connect atlas-node :textureset self :textureset)
-           (g/connect atlas-node :gpu-texture self :gpu-texture)]
-          [])))))
+      (connect-atlas project self image))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
