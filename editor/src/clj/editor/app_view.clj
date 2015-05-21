@@ -5,6 +5,7 @@
             [editor.project :as project]
             [editor.handler :as handler]
             [editor.login :as login]
+            [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
@@ -113,6 +114,10 @@
   (enabled? [] true)
   (run [prefs] (login/logout prefs)))
 
+(handler/defhandler :open-resource
+  (enabled? [] true)
+  (run [workspace] (prn (dialogs/make-resource-dialog workspace {})) ))
+
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
@@ -129,7 +134,21 @@
                               :command :logout}
                              {:label "Quit"
                               :acc "Shortcut+Q"
-                              :command :quit}]}])
+                              :command :quit}]}
+                 {:label "Edit"
+                  :id ::file
+                  :children [{:label "Undo"
+                              :acc "Shortcut+Z"
+                              :icon "icons/undo.png"
+                              :command :undo}
+                             {:label "Redo"
+                              :acc "Shift+Shortcut+Z"
+                              :icon "icons/redo.png"
+                              :command :redo}
+                             {:label :separator}
+                             {:label "Open Resource"
+                              :acc "Shift+Shortcut+R"
+                              :command :open-resource}]}])
 
 (defrecord DummySelectionProvider []
   workspace/SelectionProvider
@@ -142,7 +161,8 @@
         command-context {:app-view app-view
                          :project project
                          :project-graph project-graph
-                         :prefs prefs}]
+                         :prefs prefs
+                         :workspace (:workspace project)}]
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)

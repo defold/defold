@@ -171,7 +171,22 @@
 
       (is (= [{:score 100, :change-type :rename, :old-path "src/main.cpp", :new-path "src/foo.cpp"}] (git/unified-status git)))
 
-      (delete-git git)))
+      (delete-git git))
+
+  ; honor .gitignore
+  (let [git (new-git)
+        expect {:score 0, :change-type :modify, :old-path "src/main.cpp", :new-path "src/main.cpp"}]
+
+    (create-file git "/.gitignore" "*.cpp")
+    (-> git (.add) (.addFilepattern ".gitignore") (.call))
+    (-> git (.commit) (.setMessage "message") (.call))
+
+    (is (= [] (git/unified-status git)))
+
+    (create-file git "/src/main.cpp" "void main() {}")
+    (is (= [] (git/unified-status git)))
+
+    (delete-git git)))
 
 (deftest revert-test
   ; untracked

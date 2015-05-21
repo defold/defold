@@ -141,7 +141,7 @@
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
-        properties   (ui/run-now (properties-view/make-properties-view *view-graph* (.lookup root "#properties")))]
+        properties   (ui/run-now (properties-view/make-properties-view workspace *view-graph* (.lookup root "#properties")))]
     (g/transact (g/connect project :selection properties :selection))
     (g/reset-undo! *project-graph*)))
 
