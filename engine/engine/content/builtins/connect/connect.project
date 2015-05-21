@@ -8,8 +8,8 @@ main_collection = /builtins/connect/connect.collectionc
 game_binding = /builtins/connect/game.input_bindingc
 
 [display]
-width = 960
-height = 640
+width = 1280
+height = 720
 
 [render]
 clear_color_red = 1
