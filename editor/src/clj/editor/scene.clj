@@ -376,31 +376,30 @@
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
     (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
-(defn- screen->world [view ^Vector3d screen-pos] ^Vector3d
-  (let [view-graph (g/node->graph-id view)
-        camera (g/node-value (g/graph-value view-graph :camera) :camera)
-        viewport (g/node-value view :viewport)
-        w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
+(defn- screen->world [camera viewport ^Vector3d screen-pos] ^Vector3d
+  (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
-
-
-(defn- flip-y [^Node node height]
-  (let [l (.getTransforms node)]
-    (.clear l)
-    (.add l (javafx.scene.transform.Rotate. 180 0 (/ height 2) 0 (javafx.geometry.Point3D. 1 0 0)))))
 
 (defn augment-action [view action]
   (let [x (:x action)
         y (:y action)
-        screen-pos (Vector3d. x y 1)
-        world-pos (Point3d. ^Vector3d (screen->world view screen-pos))
-        world-dir (doto ^Vector3d (screen->world view (doto (Vector3d. screen-pos) (.setZ 0)))
+        screen-pos (Vector3d. x y 0)
+        view-graph (g/node->graph-id view)
+        camera (g/node-value (g/graph-value view-graph :camera) :camera)
+        viewport (g/node-value view :viewport)
+        world-pos (Point3d. ^Vector3d (screen->world camera viewport screen-pos))
+        world-dir (doto ^Vector3d (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
                     (.sub world-pos)
                     (.normalize))]
     (assoc action
            :screen-pos screen-pos
            :world-pos world-pos
            :world-dir world-dir)))
+
+(defn- flip-y [^Node node height]
+  (let [l (.getTransforms node)]
+    (.clear l)
+    (.add l (javafx.scene.transform.Rotate. 180 0 (/ height 2) 0 (javafx.geometry.Point3D. 1 0 0)))))
 
 (defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
@@ -579,7 +578,7 @@
                    camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
                    grid       grid/Grid
                    tool-controller [scene-tools/ToolController :active-tool :move]]
-                  (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
+                  #_(g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                   (g/connect resource-node :scene view :scene)
                   (g/connect resource-node :scene selection :scene)
