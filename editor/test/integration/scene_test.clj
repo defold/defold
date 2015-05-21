@@ -22,7 +22,8 @@
   (:import [dynamo.types Region]
            [java.awt.image BufferedImage]
            [java.io File]
-           [javax.vecmath Point3d Matrix4d]))
+           [javax.vecmath Point3d Matrix4d]
+           [javax.imageio ImageIO]))
 
 (def not-nil? (complement nil?))
 
@@ -138,11 +139,15 @@
   ([view type x y]
     (fake-input view type x y []))
   ([view type x y modifiers]
+    (let [pos [x y 0.0]]
+      (g/transact (g/set-property view :picking-rect (scene/calc-picking-rect pos pos))))
     (let [handlers (g/sources-of view :input-handlers)
-          action (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)]
+          user-data (g/node-value view :selected-tool-renderables)
+          action (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)
+          action (scene/augment-action view action)]
       (doseq [[node label] handlers]
         (let [handler-fn (g/node-value node label)]
-          (handler-fn node action nil))))))
+          (handler-fn node action user-data))))))
 
 (defn- is-empty-selection [project]
   (let [sel (g/node-value project :selection)]
@@ -193,3 +198,62 @@
                    (press-fn 64 64 modifiers)
                    (release-fn 64 64)
                    (is-selected project root-node)))))))
+
+(g/defnode DummyAppView
+  (property active-tool t/Keyword))
+
+(defn- set-tool [app-view tool]
+  (g/transact (g/set-property app-view :active-tool tool)))
+
+(defn- pos [node]
+  (g/node-value node :position))
+(defn- rot [node]
+  (g/node-value node :rotation))
+(defn- scale [node]
+  (g/node-value node :scale))
+
+(deftest transform-tools
+  (testing "Transform tools and manipulator interactions"
+           (with-clean-system
+             (let [workspace     (load-test-workspace world)
+                   project-graph (g/make-graph! :history true :volatility 1)
+                   project       (load-test-project workspace project-graph)
+                   view-graph    (g/make-graph! :history false :volatility 2)
+                   query         "**/atlas_sprite.collection"]
+               (let [[resource root-node] (first (project/find-resources project query))
+                     app-view    (g/make-node! view-graph DummyAppView :active-tool :move)
+                     view            (scene/make-preview view-graph root-node {:select-fn (fn [selection op-seq] (project/select project selection op-seq))} 128 128)
+                     press-fn         (fn
+                                        ([x y] (fake-input view :mouse-pressed x y))
+                                        ([x y modifiers] (fake-input view :mouse-pressed x y modifiers)))
+                     move-fn         (fn [x y] (fake-input view :mouse-moved x y))
+                     release-fn (fn [x y] (fake-input view :mouse-released x y))
+                     drag-fn (fn [x0 y0 x1 y1]
+                               (press-fn x0 y0)
+                               (move-fn x1 y1)
+                               (release-fn x1 y1))
+                     go-node (ffirst (g/sources-of root-node :child-scenes))]
+                 (g/transact
+                   (concat
+                     (g/connect project :selection view :selection)
+                     (g/connect app-view :active-tool view :active-tool)))
+                 (is-empty-selection project)
+                 ; Initial selection
+                 (press-fn 64 64)
+                 (release-fn 64 64)
+                 (is-selected project go-node)
+                 ; Move tool
+                 (set-tool app-view :move)
+                 (is (= 0.0 (.x (pos go-node))))
+                 (drag-fn 64 64 68 64)
+                 (is (not= 0.0 (.x (pos go-node))))
+                 ; Rotate tool
+                 (set-tool app-view :rotate)
+                 (is (= 0.0 (.x (rot go-node))))
+                 (drag-fn 64 64 64 68)
+                 (is (not= 0.0 (.x (rot go-node))))
+                 ; Scale tool
+                 (set-tool app-view :scale)
+                 (is (= 1.0 (.x (scale go-node))))
+                 (drag-fn 64 64 68 64)
+                 (is (not= 1.0 (.x (scale go-node)))))))))

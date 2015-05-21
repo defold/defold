@@ -366,7 +366,7 @@
 
 (def ^Integer min-pick-size 10)
 
-(defn- calc-picking-rect [start current]
+(defn calc-picking-rect [start current]
   (let [ps [start current]
         min-fn (fn [^Integer v1 ^Integer v2] (Math/min v1 v2))
         max-fn (fn [^Integer v1 ^Integer v2] (Math/max v1 v2))
@@ -389,6 +389,19 @@
     (.clear l)
     (.add l (javafx.scene.transform.Rotate. 180 0 (/ height 2) 0 (javafx.geometry.Point3D. 1 0 0)))))
 
+(defn augment-action [view action]
+  (let [x (:x action)
+        y (:y action)
+        screen-pos (Vector3d. x y 1)
+        world-pos (Point3d. ^Vector3d (screen->world view screen-pos))
+        world-dir (doto ^Vector3d (screen->world view (doto (Vector3d. screen-pos) (.setZ 0)))
+                    (.sub world-pos)
+                    (.normalize))]
+    (assoc action
+           :screen-pos screen-pos
+           :world-pos world-pos
+           :world-dir world-dir)))
+
 (defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
@@ -397,18 +410,9 @@
             event-handler (reify EventHandler (handle [this e]
                                                 (let [now (g/now)
                                                       self (g/node-by-id now self-ref)
-                                                      action (i/action-from-jfx e)
+                                                      action (augment-action self (i/action-from-jfx e))
                                                       x (:x action)
                                                       y (:y action)
-                                                      screen-pos (Vector3d. x y 1)
-                                                      world-pos (Point3d. ^Vector3d (screen->world self screen-pos))
-                                                      world-dir (doto ^Vector3d (screen->world self (doto (Vector3d. screen-pos) (.setZ 0)))
-                                                                  (.sub world-pos)
-                                                                  (.normalize))
-                                                      action (assoc action
-                                                                    :screen-pos screen-pos
-                                                                    :world-pos world-pos
-                                                                    :world-dir world-dir)
                                                       pos [x y 0.0]
                                                       picking-rect (calc-picking-rect pos pos)]
                                                   (g/transact (g/set-property self :picking-rect picking-rect))
@@ -443,6 +447,7 @@
 
   (property width t/Num)
   (property height t/Num)
+  (property picking-rect Rect)
 
   (input selection t/Any)
   (input selected-tool-renderables t/Any)
@@ -456,9 +461,9 @@
   (output selection-renderables pass/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
-  (output aabb AABB :cached (g/fnk [scene] (:aabb scene)))
+  (output aabb AABB :cached produce-aabb)
   (output selection t/Any :cached (g/fnk [selection] selection))
-  (output picking-rect Rect :cached (g/fnk [] nil)))
+  (output picking-rect Rect :cached (g/fnk [picking-rect] picking-rect)))
 
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView :width width :height height))
