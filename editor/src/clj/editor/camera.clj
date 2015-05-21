@@ -83,8 +83,8 @@
 
     (set! (. m m20) 0.0)
     (set! (. m m21) 0.0)
-    (set! (. m m22) (/ -2.0 (- far near)))
-    (set! (. m m23) (/ (- (+ far near) (- far near))))
+    (set! (. m m22) (/ 2.0 (- near far)))
+    (set! (. m m23) (/ (+ near far) (- near far)))
 
     (set! (. m m30) 0.0)
     (set! (. m m31) 0.0)

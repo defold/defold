@@ -30,6 +30,20 @@
         sc (if (< D 0.000001) 0.0 (/ (- (* b e) (* c d)) D))]
     (doto (Vector3d. onto-dir) (.scaleAdd sc onto-pos))))
 
+(defn project-line-circle [^Point3d line-pos ^Vector3d line-dir ^Point3d circle-pos ^Vector3d circle-axis ^Double radius] ^Point3d
+  (if-let [intersection ^Point3d (line-plane-intersection line-pos line-dir circle-pos circle-axis)]
+    (let [dist-sq (.distanceSquared intersection circle-pos)]
+      (when (> dist-sq epsilon-sq)
+        (Point3d. (doto (Vector3d. intersection) (.sub circle-pos) (.normalize) (.scaleAdd radius circle-pos)))))
+    (let [closest ^Point3d (project-lines circle-pos circle-axis line-pos line-dir)
+          plane-dist (project (doto (Vector3d. closest) (.sub circle-pos)) circle-axis)
+          closest (doto (Point3d. circle-axis) (.scaleAdd ^Double (- plane-dist) closest))
+          radius-sq (* radius radius)
+          dist-sq (.distanceSquared closest circle-pos)]
+      (if (< dist-sq radius-sq)
+        (doto (Point3d. line-dir) (.scaleAdd (- (Math/sqrt (- radius-sq dist-sq))) closest))
+        (Point3d. (doto (Vector3d. closest) (.sub circle-pos) (.normalize) (.scaleAdd (Math/sqrt radius-sq) circle-pos)))))))
+
 ; Implementation based on:
 ; http://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
 ; In case the line is parallel with the plane, nil is returned.
