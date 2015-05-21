@@ -132,6 +132,8 @@ namespace dmGui
         context->m_GetUserDataCallback = params->m_GetUserDataCallback;
         context->m_ResolvePathCallback = params->m_ResolvePathCallback;
         context->m_GetTextMetricsCallback = params->m_GetTextMetricsCallback;
+        context->m_DefaultProjectWidth = params->m_DefaultProjectWidth;
+        context->m_DefaultProjectHeight = params->m_DefaultProjectHeight;
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
@@ -273,8 +275,8 @@ namespace dmGui
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NextVersionNumber = 0;
         scene->m_RenderOrder = 0;
-        scene->m_Width = params->m_Width;
-        scene->m_Height = params->m_Height;
+        scene->m_Width = context->m_DefaultProjectWidth;
+        scene->m_Height = context->m_DefaultProjectHeight;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
 

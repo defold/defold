@@ -96,9 +96,8 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
-    params.m_Width = 1;
-    params.m_Height = 1;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
 
     const char* src = "function init(self)\n"
@@ -419,9 +418,8 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
-    params.m_Width = 1;
-    params.m_Height = 1;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
 
     // Set position
@@ -458,9 +456,8 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
     params.m_MaxNodes = 64;
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
-    params.m_Width = 1;
-    params.m_Height = 1;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
 
     // Set position
@@ -506,10 +503,9 @@ TEST_F(dmGuiScriptTest, TestCustomEasingAnimation)
 	params.m_MaxNodes = 64;
 	params.m_MaxAnimations = 32;
 	params.m_UserData = this;
-	params.m_Width = 1;
-	params.m_Height = 1;
 
 	dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+	dmGui::SetSceneResolution(scene, 1, 1);
 	dmGui::SetSceneScript(scene, script);
 
 	// Create custom curve from vmath.vector and pass along to gui.animate
