@@ -205,8 +205,9 @@ namespace dmRender
 
     void RenderListEnd(HRenderContext render_context)
     {
-        // Whatever text has not been flushed now has the last chance
-        // now. We put it in with a high 2^24-1 sort value so it is last.
+        // Unflushed leftovers are assumed to be the debug rendering
+        // and we give them render orders statically here
+        FlushDebug(render_context, 0xfffffe);
         FlushTexts(render_context, 0xffffff, true);
 
         // These will be sorted into when dispatched.
@@ -474,9 +475,6 @@ namespace dmRender
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
-        // TODO: Move to "BeginFrame()" or similar? See case 2261
-        // TODO: Should really fix this.
-        FlushDebug(render_context);
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {

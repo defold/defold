@@ -210,10 +210,23 @@ namespace dmRender
         }
     }
 
-    void FlushDebug(HRenderContext render_context)
+    static void DebugRenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        {
+            for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
+            {
+                dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                dmRender::AddToRender(params.m_Context, ro);
+            }
+        }
+    }
+
+    void FlushDebug(HRenderContext render_context, uint32_t render_order)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
         uint32_t total_vertex_count = 0;
+        uint32_t total_render_objects = 0;
         dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
@@ -224,10 +237,16 @@ namespace dmRender
             {
                 ro.m_VertexStart = total_vertex_count;
                 total_vertex_count += vertex_count;
-                dmRender::AddToRender(render_context, &ro);
+                total_render_objects++;
             }
         }
+
         dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, total_render_objects);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &DebugRenderListDispatch, 0);
+        dmRender::RenderListEntry* write_ptr = render_list;
+
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
@@ -236,8 +255,15 @@ namespace dmRender
             if (vertex_count > 0)
             {
                 dmGraphics::SetVertexBufferSubData(debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), vertex_count * sizeof(DebugVertex), type_data.m_ClientBuffer);
-                dmRender::AddToRender(render_context, &ro);
+                write_ptr->m_Order = render_order;
+                write_ptr->m_UserData = (uintptr_t) &ro;
+                write_ptr->m_BatchKey = 0;
+                write_ptr->m_TagMask = dmRender::GetMaterialTagMask(ro.m_Material);
+                write_ptr->m_Dispatch = dispatch;
+                write_ptr++;
             }
         }
+
+        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
     }
 }
