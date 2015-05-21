@@ -64,13 +64,18 @@
 
 ; Rendering
 
-(defn render-sprite [^GL2 gl gpu-texture vertex-binding outline-vertex-binding pass selected]
+(defn render-sprite [^GL2 gl gpu-texture vertex-binding outline-vertex-binding pass selected blend-mode]
   (let [color (float-array (scene/select-color pass selected [1.0 1.0 1.0]))]
     (if (= pass pass/outline)
       (gl/with-enabled gl [outline-shader outline-vertex-binding]
         (shader/set-uniform outline-shader gl "color" color)
         (gl/gl-draw-arrays gl GL/GL_LINE_LOOP 0 4))
       (gl/with-enabled gl [gpu-texture shader vertex-binding]
+        (when (= pass pass/transparent)
+          (case blend-mode
+            :BLEND_MODE_ALPHA (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+            (:BLEND_MODE_ADD :BLEND_MODE_ADD_ALPHA) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+            :BLEND_MODE_MULT (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR)))
         (shader/set-uniform shader gl "color" color)
         (shader/set-uniform shader gl "texture" 0)
         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))))
@@ -130,12 +135,12 @@
                   (.setBlendMode (protobuf/val->pb-enum Sprite$SpriteDesc$BlendMode blend-mode)))))})
 
 (g/defnk produce-scene
-  [self aabb gpu-texture textureset animation]
+  [self aabb gpu-texture textureset animation blend-mode]
   (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-quad 6) shader)
         outline-vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-outline-quad 4) outline-shader)]
     {:id (g/node-id self)
      :aabb aabb
-     :renderable {:render-fn (g/fnk [gl pass selected] (render-sprite gl gpu-texture vertex-binding outline-vertex-binding pass selected))
+     :renderable {:render-fn (g/fnk [gl pass selected] (render-sprite gl gpu-texture vertex-binding outline-vertex-binding pass selected blend-mode))
                   :passes [pass/transparent pass/selection pass/outline]}}))
 
 (g/defnode SpriteNode
@@ -144,7 +149,7 @@
   (property image t/Str)
   (property default-animation t/Str)
   (property material t/Str)
-  (property blend-mode t/Any (default :BLEND_MODE_ALPHA))
+  (property blend-mode t/Any (default :BLEND_MODE_ALPHA) (tag Sprite$SpriteDesc$BlendMode))
 
   (input textureset t/Any)
   (input gpu-texture t/Any)
