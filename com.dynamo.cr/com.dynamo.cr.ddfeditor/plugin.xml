@@ -569,7 +569,7 @@
             id="com.dynamo.cr.ddfeditor.resourcetypes.DisplayProfiles"
             name="Display Profiles"
             proto-message-class="com.dynamo.render.proto.Render$DisplayProfiles"
-            template-data="profiles { name: &apos;Default&apos; qualifiers { width: 1280 height: 720 dpi: 360 } }">
+            template-data="profiles { name: &apos;Default&apos; qualifiers { width: 1280 height: 720 } }">
       </resource-type>
       <resource-type
             file-extension="ogg"
