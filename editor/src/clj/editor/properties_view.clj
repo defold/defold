@@ -2,28 +2,32 @@
   (:require [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
             [dynamo.types :as t]
+            [dynamo.file.protobuf :as protobuf]
             [editor.ui :as ui])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.animation AnimationTimer]
            [javafx.application Platform]
+           [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
-           [javafx.util Callback]
+           [javafx.util Callback StringConverter]
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
+           [com.google.protobuf ProtocolMessageEnum]
+           [com.dynamo.proto DdfExtensions]))
 
 
 ; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj
@@ -92,6 +96,30 @@
    (.setOnAction color-picker handler)
    [color-picker setter]))
 
+(defn- proto-display-name [value]
+  (-> value (.getValueDescriptor) (.getOptions) (.getExtension DdfExtensions/displayName)))
+
+(def ^:private ^:dynamic *programmatic-setting* nil)
+
+(defmethod create-property-control! ProtocolMessageEnum [t on-new-value]
+  (let [cb (ChoiceBox.)
+        setter #(binding [*programmatic-setting* true]
+                   (.setValue cb %))]
+    (try
+      (let [values (.getMethod t "values" (into-array Class []))
+            enum-values (.invoke values nil (object-array 0))]
+        (doto (.getItems cb) (.addAll (object-array (map #(protobuf/pb-enum->val (.getValueDescriptor %)) enum-values))))
+        (.setConverter cb (proxy [StringConverter] []
+                            (toString [value]
+                              (proto-display-name (protobuf/val->pb-enum t value)))
+                            (fromString [s]
+                              (when-let [enum-val (first (filter #(= s (proto-display-name %)) enum-values))]
+                                (protobuf/pb-enum->val enum-val)))))
+        (-> cb (.valueProperty) (.addListener (reify ChangeListener (changed [this observable old-val new-val]
+                                                                      (when-not *programmatic-setting*
+                                                                        (on-new-value new-val))))))))
+    [cb setter]))
+
 (defmethod create-property-control! :default [_ on-new-value]
   (let [text (TextField.)
         setter #(.setText text (str %))]
@@ -120,7 +148,9 @@
                                  ;; TODO Apply a label to this transaction for undo menu
                                  (g/transact (g/set-property node key new-val)))
                                (@setter-atom old-val)))))
-          [control setter] (create-property-control! (t/property-value-type property) on-new-value)]
+          ; TODO - hax until property system has more flexibility for meta edit data
+          t (or (first (filter class? (t/property-tags property))) (t/property-value-type property))
+          [control setter] (create-property-control! t on-new-value)]
       (reset! setter-atom setter)
       (setter (get node key))
       (GridPane/setConstraints label 1 row)
