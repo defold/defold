@@ -78,6 +78,7 @@
                    (.setText ^TextField t (str (nth vec i)))))
         handler (ui/event-handler event (on-new-value (mapv #(to-double (.getText ^TextField %)) [x y z])))]
 
+    (.setSpacing box 6)
     (doseq [t [x y z]]
       (.setOnAction ^TextField t handler)
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
@@ -149,6 +150,7 @@
           grid (GridPane.)]
       (.setPadding grid (Insets. 10 10 10 10))
       (.setHgap grid 4)
+      (.setVgap grid 6)
       (doseq [[key p] properties]
         (let [row (/ (.size (.getChildren grid)) 2)]
           (create-properties-row workspace grid node key p row)))
