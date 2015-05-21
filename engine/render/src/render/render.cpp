@@ -537,12 +537,12 @@ namespace dmRender
 
     Result DrawDebug3d(HRenderContext context)
     {
-        return Draw(context, &context->m_DebugRenderer.m_3dPredicate, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0);
     }
 
     Result DrawDebug2d(HRenderContext context)
     {
-        return Draw(context, &context->m_DebugRenderer.m_2dPredicate, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0);
     }
 
     void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vector4& value)
