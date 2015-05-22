@@ -78,7 +78,9 @@
             :BLEND_MODE_MULT (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR)))
         (shader/set-uniform shader gl "color" color)
         (shader/set-uniform shader gl "texture" 0)
-        (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))))
+        (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)
+        (when (= pass pass/transparent)
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
 ; Vertex generation
 
