@@ -358,13 +358,10 @@
 
 (defn- apply-tx-label
   [{:keys [basis label sequence-label] :as ctx}]
-  (cond-> ctx
+  (cond-> (update-in ctx [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))
 
     label
-    (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))
-
-    sequence-label
-    (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))))
+    (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))))
 
 (def tx-report-keys [:basis :new-event-loops :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
 
