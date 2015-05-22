@@ -9,8 +9,7 @@
 <?import javafx.scene.paint.*?>
 <?import javafx.scene.text.*?>
 
-
-<HBox minHeight="160.0" minWidth="490.0" prefHeight="160.0" prefWidth="490.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<HBox minHeight="160.0" minWidth="490.0" prefHeight="160.0" prefWidth="490.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <ImageView pickOnBounds="true" preserveRatio="true">
          <image>
