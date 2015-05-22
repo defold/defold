@@ -6,7 +6,7 @@
             [dynamo.types :refer :all]
             [internal.texture.engine :refer [texture-engine-format-generate]]
             [internal.texture.pack-max-rects :refer [max-rects-packing]]
-            [schema.macros :as sm])
+            [schema.core :as s])
   (:import [dynamo.types Rect Image TexturePacking EngineFormatTexture]
            [java.awt.image BufferedImage]))
 
@@ -28,7 +28,7 @@
 (defn image-from-rect [rect]
   (map->Image (select-keys rect [:path :width :height])))
 
-(sm/defn blank-texture-packing :- TexturePacking
+(s/defn blank-texture-packing :- TexturePacking
   "Create a blank TexturePacking with the specified width w, height h, and color values (r g b). Color values should be between 0 and 1.0."
   ([]
     (blank-texture-packing 64 64 0.9568 0.0 0.6313))
@@ -39,7 +39,7 @@
           animation (animation-from-image image)]
       (TexturePacking. rct img [rct] [rct] [animation]))))
 
-(sm/defn pack-textures :- TexturePacking
+(s/defn pack-textures :- TexturePacking
   "Returns a TexturePacking. Margin and extrusion is applied, then the sources are packed."
   [margin    :- (t/maybe t/Int)
    extrusion :- (t/maybe t/Int)
@@ -52,6 +52,6 @@
         texture-image   (composite (blank-image (:aabb texture-packing)) (:coords texture-packing) sources)]
     (assoc texture-packing :packed-image texture-image)))
 
-(sm/defn ->engine-format :- EngineFormatTexture
+(s/defn ->engine-format :- EngineFormatTexture
   [original :- BufferedImage]
   (texture-engine-format-generate original))

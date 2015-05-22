@@ -1,9 +1,9 @@
 (ns dynamo.property
-  (:require [schema.macros :as sm]
-            [dynamo.types :as t]
+  (:require [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
-            [internal.property :as ip]))
+            [internal.property :as ip]
+            [schema.core :as s]))
 
 (defmacro defproperty [name value-type & body-forms]
   (apply ip/def-property-type-descriptor name value-type body-forms))
@@ -55,13 +55,13 @@
 (def default-presenter
   (->DefaultPresenter))
 
-(sm/defn register-presenter :- t/Registry
+(s/defn register-presenter :- t/Registry
   [registry   :- t/Registry
    type       :- {:value-type t/Any (t/optional-key :tag) t/Keyword}
    presenter  :- (t/protocol Presenter)]
   (assoc registry (merge {:tag nil} type) presenter))
 
-(sm/defn lookup-presenter :- (t/protocol Presenter)
+(s/defn lookup-presenter :- (t/protocol Presenter)
   [registry :- t/Registry
    property :- (t/protocol t/PropertyType)]
   (loop [tags (conj (t/property-tags property) nil)]
