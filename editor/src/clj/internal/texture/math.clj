@@ -1,13 +1,13 @@
 (ns internal.texture.math
   (:require [dynamo.types :as t]
-            [schema.macros :as sm]))
+            [schema.core :as s]))
 
-(sm/defn doubling :- t/Num
+(s/defn doubling :- t/Num
   "Return a lazy infinite sequence of doublings of i"
   ([i :- t/Num]
     (iterate #(bit-shift-left % 1) i)))
 
-(sm/defn closest-power-of-two :- t/Num
+(s/defn closest-power-of-two :- t/Num
   "Return the next higher or preceeding lower power-of-two,
    whichever is nearer the input"
   [x :- t/Num]

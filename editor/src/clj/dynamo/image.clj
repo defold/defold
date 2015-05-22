@@ -2,10 +2,9 @@
   (:require [clojure.java.io :as io]
             [dynamo.geom :refer :all]
             [dynamo.graph :as g]
-            [dynamo.property :as dp]
             [dynamo.types :as t]
             [editor.core :as core]
-            [schema.macros :as sm])
+            [schema.core :as s])
   (:import [dynamo.types Rect Image]
            [java.awt Color]
            [java.awt.image BufferedImage]
@@ -20,18 +19,18 @@
        (.dispose ~(first binding))
        ~rsym)))
 
-(sm/defn make-color :- java.awt.Color
+(s/defn make-color :- java.awt.Color
   "creates a color using rgb values (optional a). Color values between 0 and 1.0"
   ([ r :- Float g :- Float b :- Float]
     (java.awt.Color. r g b))
   ([ r :- Float g :- Float b :- Float a :- Float]
     (java.awt.Color. r g b a)))
 
-(sm/defn make-image :- Image
+(s/defn make-image :- Image
   [nm :- t/Any contents :- BufferedImage]
   (Image. nm contents (.getWidth contents) (.getHeight contents)))
 
-(sm/defn blank-image :- BufferedImage
+(s/defn blank-image :- BufferedImage
   ([space :- Rect]
     (blank-image (.width space) (.height space)))
   ([width :- t/Int height :- t/Int]
@@ -39,7 +38,7 @@
   ([width :- t/Int height :- t/Int t :- t/Int]
     (BufferedImage. width height t)))
 
-(sm/defn flood :- BufferedImage
+(s/defn flood :- BufferedImage
   "Floods the image with the specified color (r g b <a>). Color values between 0 and 1.0."
   [^BufferedImage img :- BufferedImage r :- Float g :- Float b :- Float]
   (let [gfx (.createGraphics img)
@@ -61,11 +60,11 @@
 
   (output content Image :cached (g/fnk [filename] (load-image filename (t/local-path filename)))))
 
-(sm/defn image-color-components :- long
+(s/defn image-color-components :- long
   [src :- BufferedImage]
   (.. src (getColorModel) (getNumComponents)))
 
-(sm/defn image-infer-type :- long
+(s/defn image-infer-type :- long
   [src :- BufferedImage]
   (if (not= 0 (.getType src))
     (.getType src)
@@ -74,12 +73,12 @@
       3 BufferedImage/TYPE_3BYTE_BGR
       1 BufferedImage/TYPE_BYTE_GRAY)))
 
-(sm/defn image-type :- t/Int
+(s/defn image-type :- t/Int
   [src :- BufferedImage]
   (let [t (.getType src)]
     (if (not= 0 t) t (image-infer-type src))))
 
-(sm/defn image-convert-type :- BufferedImage
+(s/defn image-convert-type :- BufferedImage
   [original :- BufferedImage new-type :- t/Int]
   (if (= new-type (image-type original))
     original
@@ -88,11 +87,11 @@
         (.drawImage g2d original 0 0 nil))
       new)))
 
-(sm/defn image-bounds :- Rect
+(s/defn image-bounds :- Rect
   [source :- Image]
   (t/rect (.path source) 0 0 (.width source) (.height source)))
 
-(sm/defn image-pixels :- ints
+(s/defn image-pixels :- ints
   [src :- BufferedImage]
   (let [w      (.getWidth src)
         h      (.getHeight src)
@@ -100,7 +99,7 @@
     (.. src (getRaster) (getPixels 0 0 w h pixels))
     pixels))
 
-(sm/defn image-from-pixels :- BufferedImage
+(s/defn image-from-pixels :- BufferedImage
   [^long width :- t/Int ^long height :- t/Int t :- t/Int pixels :- ints]
   (doto (blank-image width height t)
     (.. (getRaster) (setPixels 0 0 width height pixels))))
@@ -108,7 +107,7 @@
 (defmacro pixel-index [x y step stride]
   `(* ~step (+ ~x (* ~y ~stride))))
 
-(sm/defn extrude-borders :- Image
+(s/defn extrude-borders :- Image
   "Return a new pixel array, larger than the original by `extrusion`
 with the orig-pixels centered in it. The source pixels on the edges
 will bleed into the surrounding empty space. The pixels in the border
@@ -140,7 +139,7 @@ region will be identical to the nearest pixel of the source image."
 (defn- map-by [p coll]
   (zipmap (map p coll) coll))
 
-(sm/defn composite :- BufferedImage
+(s/defn composite :- BufferedImage
   [onto :- BufferedImage placements :- [Rect] sources :- [Image]]
   (let [src-by-path (map-by :path sources)]
     (with-graphics [graphics (.getGraphics onto)]
