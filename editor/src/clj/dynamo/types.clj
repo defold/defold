@@ -1,9 +1,7 @@
 (ns dynamo.types
   "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."
-  (:require [internal.graph.types :as gt]
-            [potemkin.namespaces :refer [import-vars]]
-            [schema.core :as s]
-            [schema.macros :as sm])
+  (:require [potemkin.namespaces :refer [import-vars]]
+            [schema.core :as s])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.dynamo.tile.proto Tile$Playback]
            [java.awt.image BufferedImage]
@@ -93,7 +91,7 @@
 
 (def Registry {Any Any})
 
-(sm/defrecord Rect
+(s/defrecord Rect
   [path     :- Any
    x        :- Int32
    y        :- Int32
@@ -103,7 +101,7 @@
   (width [this] width)
   (height [this] height))
 
-(sm/defrecord AABB [min max]
+(s/defrecord AABB [min max]
   R3Min
   (min-p [this] (.min this))
   R3Max
@@ -113,13 +111,13 @@
   [^AABB v ^java.io.Writer w]
   (.write w (str "<AABB \"min: " (.min v) ", max: " (.max v) "\">")))
 
-(sm/defn ^:always-validate rect :- Rect
+(s/defn ^:always-validate rect :- Rect
   ([x :- Num y :- Num width :- Num height :- Num]
     (rect "" (int  x) (int y) (int width) (int height)))
   ([path :- Any x :- Num y :- Num width :- Num height :- Num]
     (Rect. path (int x) (int y) (int width) (int height))))
 
-(sm/defrecord Image
+(s/defrecord Image
   [path     :- Any
    contents :- BufferedImage
    width    :- Int32
@@ -131,7 +129,7 @@
                              :PLAYBACK_ONCE_PINGPONG :PLAYBACK_LOOP_FORWARD :PLAYBACK_LOOP_BACKWARD
                              :PLAYBACK_LOOP_PINGPONG))
 
-(sm/defrecord Animation
+(s/defrecord Animation
   [id              :- Str
    images          :- [Image]
    fps             :- Int32
@@ -139,19 +137,19 @@
    flip-vertical   :- Int
    playback        :- AnimationPlayback])
 
-(sm/defrecord TexturePacking
+(s/defrecord TexturePacking
   [aabb         :- Rect
    packed-image :- BufferedImage
    coords       :- [Rect]
    sources      :- [Rect]
    animations   :- [Animation]])
 
-(sm/defrecord Vertices
+(s/defrecord Vertices
   [counts   :- [Int32]
    starts   :- [Int32]
    vertices :- [Num]])
 
-(sm/defrecord EngineFormatTexture
+(s/defrecord EngineFormatTexture
   [width           :- Int32
    height          :- Int32
    original-width  :- Int32
@@ -161,7 +159,7 @@
    mipmap-sizes    :- [Int32]
    mipmap-offsets  :- [Int32]])
 
-(sm/defrecord TextureSetAnimationFrame
+(s/defrecord TextureSetAnimationFrame
   [image                :- Image ; TODO: is this necessary?
    vertex-start         :- Num
    vertex-count         :- Num
@@ -170,7 +168,7 @@
    tex-coords-start     :- Num
    tex-coords-count     :- Num])
 
-(sm/defrecord TextureSetAnimation
+(s/defrecord TextureSetAnimation
   [id              :- Str
    width           :- Int32
    height          :- Int32
@@ -180,7 +178,7 @@
    playback        :- AnimationPlayback
    frames          :- [TextureSetAnimationFrame]])
 
-(sm/defrecord TextureSet
+(s/defrecord TextureSet
   [animations       :- {Str TextureSetAnimation}
    vertices         :- Any #_dynamo.gl.vertex/PersistentVertexBuffer
    outline-vertices :- Any #_dynamo.gl.vertex/PersistentVertexBuffer
@@ -190,7 +188,7 @@
   (selection?       [this])
   (model-transform? [this]))
 
-(sm/defrecord Region
+(s/defrecord Region
   [left   :- Num
    right  :- Num
    top    :- Num
@@ -199,7 +197,7 @@
 (defprotocol Viewport
   (viewport ^Region [this]))
 
-(sm/defrecord Camera
+(s/defrecord Camera
   [type           :- (enum :perspective :orthographic)
    position       :- Point3d
    rotation       :- Quat4d
