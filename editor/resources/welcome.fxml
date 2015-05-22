@@ -8,7 +8,7 @@
 <?import java.lang.*?>
 <?import javafx.scene.layout.*?>
 
-<HBox maxHeight="420.0" maxWidth="604.0" minHeight="420.0" minWidth="604.0" prefHeight="420.0" prefWidth="604.0" spacing="16.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<HBox maxHeight="420.0" maxWidth="604.0" minHeight="420.0" minWidth="604.0" prefHeight="420.0" prefWidth="604.0" spacing="16.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <GridPane prefHeight="475.0" prefWidth="361.0" vgap="8.0">
         <columnConstraints>
