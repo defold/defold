@@ -779,7 +779,7 @@ namespace dmGui
      *
      * </p>
      * @param to target property value (vector3|vector4)
-     * @param easing easing to use during animation (constant). See gui.EASING_* constants
+     * @param easing easing to use during animation. Either specify one of the gui.EASING_* constants or provide a vmath.vector with a custom curve. (constant|vector)
      * @param duration duration of the animation (number)
      * @param [delay] delay before the animation starts (number)
      * @param [complete_function] function to call when the animation has completed (function)
