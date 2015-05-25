@@ -5,6 +5,7 @@
             [dynamo.file.protobuf :as protobuf]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [editor.core :as core]
             [editor.dialogs :as dialogs])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -172,17 +173,23 @@
       (.add (.getChildren grid) label)
       (.add (.getChildren grid) control))))
 
+(defn- create-properties [workspace grid node]
+  (let [properties (g/properties node)]
+    (doseq [[key p] properties]
+      (let [row (/ (.size (.getChildren grid)) 2)]
+        (create-properties-row workspace grid node key p row))))
+  (when (satisfies? core/MultiNode node)
+    (doseq [n (core/sub-nodes node)]
+      (create-properties workspace grid n))))
+
 (defn- update-grid [parent workspace node]
   (.clear (.getChildren parent))
   (when node
-    (let [properties (g/properties node)
-          grid (GridPane.)]
+    (let [grid (GridPane.)]
       (.setPadding grid (Insets. 10 10 10 10))
       (.setHgap grid 4)
       (.setVgap grid 6)
-      (doseq [[key p] properties]
-        (let [row (/ (.size (.getChildren grid)) 2)]
-          (create-properties-row workspace grid node key p row)))
+      (create-properties workspace grid node)
       (.add (.getChildren parent) grid)
       grid)))
 

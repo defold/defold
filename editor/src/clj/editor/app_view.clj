@@ -202,7 +202,7 @@
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             view-graph (g/make-graph! :history false :volatility 2)
-            view       (make-view-fn view-graph parent resource-node (assoc ((:id view-type) (:view-opts resource-type)) :select-fn (fn [selection op-seq] (project/select project selection op-seq))))]
+            view       (make-view-fn view-graph parent resource-node (assoc ((:id view-type) (:view-opts resource-type)) :select-fn (fn [selection op-seq] (project/select! project selection op-seq))))]
         (g/transact
           (concat
             (g/connect project :selection view :selection)

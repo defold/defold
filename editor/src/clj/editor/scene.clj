@@ -519,20 +519,18 @@
         mode (g/node-value self :mode)
         cursor-pos [(:x action) (:y action) 0]]
     (case (:type action)
-      :mouse-pressed (if (not (empty? user-data))
-                       action
-                       (let [op-seq (gensym)
-                             toggle (reduce #(or %1 %2) (map #(% action) toggle-modifiers))
-                             mode (if toggle :toggle :direct)]
-                         (g/transact
-                           (concat
-                             (g/set-property self :op-seq op-seq)
-                             (g/set-property self :start cursor-pos)
-                             (g/set-property self :current cursor-pos)
-                             (g/set-property self :mode mode)
-                             (g/set-property self :prev-selection-set (set (map g/node-id (g/node-value self :selection))))))
-                         (select self op-seq mode)
-                         nil))
+      :mouse-pressed (let [op-seq (gensym)
+                           toggle (reduce #(or %1 %2) (map #(% action) toggle-modifiers))
+                           mode (if toggle :toggle :direct)]
+                       (g/transact
+                         (concat
+                           (g/set-property self :op-seq op-seq)
+                           (g/set-property self :start cursor-pos)
+                           (g/set-property self :current cursor-pos)
+                           (g/set-property self :mode mode)
+                           (g/set-property self :prev-selection-set (set (map g/node-id (g/node-value self :selection))))))
+                       (select self op-seq mode)
+                       nil)
       :mouse-released (do
                         (g/transact
                           (concat
@@ -635,26 +633,13 @@
                                                              :make-view-fn make-view
                                                              :make-preview-fn make-preview))
 
-(g/defnk produce-transform [^Vector3d position ^Quat4d rotation ^Vector3d scale]
-  (let [transform ^Matrix4d (Matrix4d. rotation position 1.0)
-        s [(.x scale) (.y scale) (.z scale)]
-        col (Vector4d.)]
-    (doseq [^Integer i (range 3)
-            :let [s (nth s i)]]
-      (.getColumn transform i col)
-      (.scale col s)
-      (.setColumn transform i col))
-    transform))
-
 (g/defnode SceneNode
   (property position t/Vec3 (default [0 0 0]))
   (property rotation t/Vec3 (default [0 0 0]))
-  (property scale t/Vec3 (default [1 1 1]))
 
   (output position Vector3d :cached (g/fnk [position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [rotation] (math/euler->quat rotation)))
-  (output scale Vector3d :cached (g/fnk [scale] (Vector3d. (double-array scale))))
-  (output transform Matrix4d :cached produce-transform)
+  (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
   (output scene t/Any :cached (g/fnk [self transform] {:id (g/node-id self) :transform transform}))
   (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
 
@@ -664,11 +649,4 @@
   scene-tools/Rotatable
   (scene-tools/rotate [self delta] (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (:rotation self))) (.mul delta))
                                          new-euler (math/quat->euler new-rotation)]
-                                     (g/set-property self :rotation new-euler)))
-  scene-tools/Scalable
-  (scene-tools/scale [self delta] (let [s (Vector3d. (double-array (:scale self)))
-                                        ^Vector3d d delta]
-                                    (.setX s (* (.x s) (.x d)))
-                                    (.setY s (* (.y s) (.y d)))
-                                    (.setZ s (* (.z s) (.z d)))
-                                    (g/set-property self :scale [(.x s) (.y s) (.z s)]))))
+                                     (g/set-property self :rotation new-euler))))

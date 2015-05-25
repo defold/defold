@@ -138,3 +138,6 @@ RootScope has no parent."
 (defmethod print-method RootScope__
   [^RootScope__ v ^java.io.Writer w]
   (.write w (str "<RootScope{:_id " (:_id v) "}>")))
+
+(defprotocol MultiNode
+  (sub-nodes [self] "Return all contained nodes"))
