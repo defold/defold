@@ -182,6 +182,8 @@ namespace dmEngine
             }
         }
 
+        dmHttpClient::ReopenConnectionPool();
+
         dmGameObject::DeleteRegister(engine->m_Register);
 
         UnloadBootstrapContent(engine);
