@@ -902,6 +902,22 @@ namespace dmGameObject
      *     go.animate(go.get_id(), "position.x", go.PLAYBACK_ONCE_FORWARD, 10, go.EASING_LINEAR, 1, 0, x_done)
      * end
      * </pre>
+     *
+     * <p>Animate the y positin of a game object using a crazy custom easing curve:</p>
+     * <pre>
+     * function init(self)
+     *     local values = { 0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1 }
+     *      local vec = vmath.vector(values)
+     *      go.animate("go", "position.y", go.PLAYBACK_LOOP_PINGPONG, 100, vec, 2.0)
+     * end
+     * </pre>
      */
     int Script_Animate(lua_State* L)
     {
