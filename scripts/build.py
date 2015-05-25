@@ -707,6 +707,20 @@ instructions.configure=\
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
+    def build_editor2(self):
+        cwd = join(self.defold_root, 'editor')
+        self.exec_env_command(['lein', 'clean'], cwd = cwd)
+        self.exec_env_command(['lein', 'protobuf'], cwd = cwd)
+        self.exec_env_command(['lein', 'test'], cwd = cwd)
+        # NOTE: Only OSX is supported for now
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--version=2.0.0'], cwd = cwd)
+
+    def archive_editor2(self):
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'editor2')
+        for p in glob(join(self.defold_root, 'editor', 'target', 'Defold*.zip')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
     def bump(self):
         sha1 = self._git_sha1()
 
