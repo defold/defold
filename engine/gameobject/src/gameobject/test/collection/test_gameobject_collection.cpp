@@ -4,6 +4,7 @@
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/time.h>
 
 #include "../gameobject.h"
 #include "../gameobject_private.h"
@@ -30,7 +31,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, ACreate, ADestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -59,6 +60,30 @@ protected:
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
     }
+    
+    // dmResource::Get API but with preloader instead
+    dmResource::Result PreloaderGet(dmResource::HFactory factory, const char *ref, void** resource)
+    {
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, ref);
+        dmResource::Result r;
+        for (uint32_t i=0;i<33;i++)
+        {
+            r = dmResource::UpdatePreloader(pr, 30*1000);
+            if (r != dmResource::RESULT_PENDING)
+                break;
+            dmTime::Sleep(30000);
+        }
+        if (r == dmResource::RESULT_OK)
+        {
+            r = dmResource::Get(factory, ref, resource);
+        }
+        else
+        {
+            *resource = 0x0;
+        }
+        dmResource::DeletePreloader(pr);
+        return r;
+    }
 
     static dmResource::FResourceCreate    ACreate;
     static dmResource::FResourceDestroy   ADestroy;
@@ -74,7 +99,7 @@ public:
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
-static dmResource::Result NullResourceCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+static dmResource::Result NullResourceCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     resource->m_Resource = (void*)1; // asserted for != 0 in dmResource
     return dmResource::RESULT_OK;
@@ -113,11 +138,15 @@ dmGameObject::ComponentDestroy CollectionTest::AComponentDestroy = TestComponent
 
 TEST_F(CollectionTest, Collection)
 {
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not m_Collection in CollectionTest
         dmGameObject::HCollection coll;
-        dmResource::Result r = dmResource::Get(m_Factory, "/test.collectionc", (void**) &coll);
+        dmResource::Result r;
+        if (i < 10)
+            r = dmResource::Get(m_Factory, "/test.collectionc", (void**) &coll);
+        else
+            r = PreloaderGet(m_Factory, "/test.collectionc", (void**) &coll);
         ASSERT_EQ(dmResource::RESULT_OK, r);
         ASSERT_NE((void*) 0, coll);
 
@@ -258,7 +287,14 @@ TEST_F(CollectionTest, CollectionFail)
     {
         // NOTE: Coll is local and not collection in CollectionTest
         dmGameObject::HCollection coll;
-        dmResource::Result r = dmResource::Get(m_Factory, "failing_sub.collectionc", (void**) &coll);
+        dmResource::Result r; 
+
+        // Test both with normal loading and preloading
+        if (i < 5)
+            r = dmResource::Get(m_Factory, "failing_sub.collectionc", (void**) &coll);
+        else
+            r = PreloaderGet(m_Factory, "failing_sub.collectionc", (void**) &coll);
+            
         ASSERT_NE(dmResource::RESULT_OK, r);
     }
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
@@ -266,11 +302,17 @@ TEST_F(CollectionTest, CollectionFail)
 
 TEST_F(CollectionTest, CollectionInCollection)
 {
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
         dmGameObject::HCollection coll;
-        dmResource::Result r = dmResource::Get(m_Factory, "/root1.collectionc", (void**) &coll);
+        dmResource::Result r;
+        
+        if (i < 10)
+            r = dmResource::Get(m_Factory, "/root1.collectionc", (void**) &coll);
+        else
+            r = PreloaderGet(m_Factory, "/root1.collectionc", (void**) &coll);
+        
         ASSERT_EQ(dmResource::RESULT_OK, r);
         ASSERT_NE((void*) 0, coll);
 
@@ -328,7 +370,11 @@ TEST_F(CollectionTest, CollectionInCollectionChildFail)
     {
         // NOTE: Coll is local and not collection in CollectionTest
         dmGameObject::HCollection coll;
-        dmResource::Result r = dmResource::Get(m_Factory, "root2.collectionc", (void**) &coll);
+        dmResource::Result r;
+        if (i < 20)
+            r = dmResource::Get(m_Factory, "root2.collectionc", (void**) &coll);
+        else
+            r = PreloaderGet(m_Factory, "root2.collection", (void**) &coll);
         ASSERT_NE(dmResource::RESULT_OK, r);
     }
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);

@@ -42,16 +42,8 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result AcquireResources(dmGraphics::HContext context, const void* buffer, uint32_t buffer_size, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
+    dmResource::Result AcquireResources(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
-        *texture_out = 0;
-        dmGraphics::TextureImage* texture_image;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
         bool found_match = false;
         for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
         {
@@ -124,15 +116,32 @@ namespace dmGameSystem
         }
     }
 
+    dmResource::Result ResTexturePreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+                                           void* context,
+                                           const void* buffer, uint32_t buffer_size,
+                                           void** preload_data,
+                                           const char* filename)
+    {
+        dmGraphics::TextureImage* texture_image;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        *preload_data = texture_image;
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResTextureCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
+                                           void* preload_data,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename)
     {
         dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmGraphics::HTexture texture;
-        dmResource::Result r = AcquireResources(graphics_context, buffer, buffer_size, 0, &texture);
+        dmResource::Result r = AcquireResources(graphics_context, (dmGraphics::TextureImage*) preload_data, 0, &texture);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) texture;
@@ -154,9 +163,16 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
+        dmGraphics::TextureImage* texture_image;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        
         dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmGraphics::HTexture texture = (dmGraphics::HTexture)resource->m_Resource;
-        dmResource::Result r = AcquireResources(graphics_context, buffer, buffer_size, texture, &texture);
+        dmResource::Result r = AcquireResources(graphics_context, texture_image, texture, &texture);
         return r;
     }
 }
