@@ -1,6 +1,6 @@
 #!/bin/bash
 install_file() {
-    mvn install:install-file -Dfile=$1 -DartifactId=$3 -Dversion=$4 -DgroupId=$2 -Dpackaging=jar -DcreateChecksum=true
+    $DYNAMO_HOME/ext/share/maven/bin/mvn install:install-file -Dfile=$1 -DartifactId=$3 -Dversion=$4 -DgroupId=$2 -Dpackaging=jar -DcreateChecksum=true
 }
 
 install_file ../com.dynamo.cr/com.dynamo.cr.common/ext/vecmath.jar javax vecmath        1.5.2
