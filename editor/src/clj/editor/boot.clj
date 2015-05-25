@@ -65,7 +65,7 @@
   (dispose [this]))
 
 (defn on-outline-selection-fn [project items]
-  (project/select project (map :self items)))
+  (project/select! project (map :self items)))
 
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)

@@ -105,7 +105,13 @@
   (output tree-view TreeView :cached update-tree-view))
 
 (ui/extend-menu ::outline-menu nil
-                [{:label "Delete"
+                [{:label "Add"
+                  :icon "icons/plus.png"
+                  :command :add}
+                 {:label "Add From File"
+                  :icon "icons/plus.png"
+                  :command :add-from-file}
+                 {:label "Delete"
                   :icon "icons/cross.png"
                   :command :delete}])
 
