@@ -141,8 +141,8 @@ if __name__ == '__main__':
         is_mac = False
 
     print 'Building editor'
-    exec_command('lein clean')
-    exec_command('lein uberjar')
+    exec_command('./scripts/lein clean')
+    exec_command('./scripts/lein uberjar')
     mkdirs(exe_dir)
     mkdirs(resources_dir)
     mkdirs(packages_dir)
