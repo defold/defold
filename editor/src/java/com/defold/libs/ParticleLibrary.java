@@ -2,6 +2,8 @@ package com.defold.libs;
 
 import java.nio.Buffer;
 import java.nio.FloatBuffer;
+import java.util.Arrays;
+import java.util.List;
 
 import javax.vecmath.Matrix4d;
 
@@ -85,6 +87,12 @@ public class ParticleLibrary {
         public int particles;
         public int maxParticles;
         public int structSize;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("particles", "maxParticles", "structSize");
+        }
+
     }
 
     public static class InstanceStats extends Structure {
@@ -95,6 +103,12 @@ public class ParticleLibrary {
 
         public float time;
         public int structSize;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("time", "structSize");
+        }
+
     }
 
     public static class Vector3 extends Structure {
@@ -116,6 +130,11 @@ public class ParticleLibrary {
         public float y;
         public float z;
         public float pad;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("x", "y", "z");
+        }
     }
 
     public static class Quat extends Structure {
@@ -134,6 +153,11 @@ public class ParticleLibrary {
         public float y;
         public float z;
         public float w;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("x", "y", "z", "w");
+        }
     }
 
     public static class Matrix4 extends Structure {
@@ -181,6 +205,10 @@ public class ParticleLibrary {
         public float m13;
         public float m23;
         public float m33;
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("m00", "m10", "m20", "m30", "m01", "m11", "m21", "m31", "m02", "m12", "m22", "m32", "m03", "m13", "m23", "m33");
+        }
     }
 
     public static interface AnimPlayback {
@@ -202,8 +230,6 @@ public class ParticleLibrary {
     public static class AnimationData extends Structure {
         public AnimationData() {
             super();
-            setFieldOrder(new String[] { "texture", "texCoords", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip",
-                    "vFlip", "structSize" });
         }
 
         public Pointer texture;
@@ -218,5 +244,10 @@ public class ParticleLibrary {
         public int vFlip;
         // Used to validate the struct size in particle.cpp
         public int structSize;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("texture", "texCoords", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip", "vFlip", "structSize");
+        }
     }
 }

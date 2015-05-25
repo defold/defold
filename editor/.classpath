@@ -18,7 +18,6 @@
 	</classpathentry>
 	<classpathentry kind="src" path="src/java"/>
 	<classpathentry kind="src" path="src/clj"/>
-	<classpathentry kind="src" path="target/base+system+user+dev/protosrc"/>
 	<classpathentry kind="lib" path="target/classes">
 		<attributes>
 			<attribute name="optional" value="true"/>
