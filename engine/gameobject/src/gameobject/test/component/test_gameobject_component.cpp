@@ -34,11 +34,11 @@ protected:
 
         // Register dummy physical resource type
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, ACreate, ADestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "b", this, BCreate, BDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "b", this, 0, BCreate, BDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "c", this, CCreate, CDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "c", this, 0, CCreate, CDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -165,7 +165,7 @@ public:
 };
 
 template <typename T>
-dmResource::Result GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void *preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     ComponentTest* game_object_test = (ComponentTest*) context;
     game_object_test->m_CreateCountMap[T::m_DDFHash]++;

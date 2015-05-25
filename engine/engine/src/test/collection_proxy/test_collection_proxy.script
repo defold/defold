@@ -9,6 +9,8 @@ function on_message(self, message_id, message, sender)
     elseif message_id == hash("proxy_unloaded") then
         if self.unload_count < 2 then
             msg.post("#cp1", "load")
+	elseif self.unload_count < 4 then
+	    msg.post("#cp1", "load_async")
         else
             msg.post("main:/main#script", "done")
         end

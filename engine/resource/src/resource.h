@@ -47,6 +47,7 @@ namespace dmResource
         RESULT_CONSTANT_ERROR            = -14,  //!< RESULT_CONSTANT_ERROR
         RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
         RESULT_RESOURCE_LOOP_ERROR       = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
+        RESULT_PENDING                   = -17,  //!< RESULT_PENDING
     };
 
     /**
@@ -89,7 +90,33 @@ namespace dmResource
      */
     typedef struct SResourceFactory* HFactory;
 
+    /**
+     * Preloader handle
+     */
+    typedef struct ResourcePreloader* HPreloader;
+    typedef struct PreloadHintInfo* HPreloadHintInfo;
+
     typedef uintptr_t ResourceType;
+
+    /**
+     * Resource preloading function. This may be called from a separate loading thread
+     * but will not keep any mutexes held while executing the call. During this call
+     * PreloadHint can be called with the supplied hint_info handle.
+     * If RESULT_OK is returned, the resource Create function is guaranteed to be called
+     * with the preload_data value supplied.
+     * @param factory Factory handle
+     * @param context User context
+     * @param buffer Buffer
+     * @param buffer_size Buffer size
+     * @param preload_data Pointer to pass on to the Create function
+     * @return RESULT_OK on success
+     */
+    typedef Result (*FResourcePreload)(HFactory factory,
+                                              HPreloadHintInfo hint_info,
+                                              void* context,
+                                              const void* buffer, uint32_t buffer_size,
+                                              void** preload_data,
+                                              const char* filename);
 
     /**
      * Resource create function
@@ -97,12 +124,14 @@ namespace dmResource
      * @param context User context
      * @param buffer Buffer
      * @param buffer_size Buffer size
+     * @param preload_data Preload data produced in FResourcePreload callback
      * @param resource Resource descriptor
      * @return CREATE_RESULT_OK on success
      */
     typedef Result (*FResourceCreate)(HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
+                                           void* preload_data,
                                            SResourceDescriptor* resource,
                                            const char* filename);
 
@@ -199,6 +228,7 @@ namespace dmResource
      * @param factory Factory handle
      * @param extension File extension for resource
      * @param context User context
+     * @param preload_function Preload function. Optional, 0 if no preloading is used
      * @param create_function Create function pointer
      * @param destroy_function Destroy function pointer
      * @param recreate_function Recreate function pointer. Optional, 0 if recreate is not supported.
@@ -207,6 +237,7 @@ namespace dmResource
     Result RegisterType(HFactory factory,
                                const char* extension,
                                void* context,
+                               FResourcePreload preload_function,
                                FResourceCreate create_function,
                                FResourceDestroy destroy_function,
                                FResourceRecreate recreate_function);
@@ -309,6 +340,39 @@ namespace dmResource
      * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
      */
     void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data);
+
+    /**
+     * Create a new preloader
+     * @param factory Factory handle
+     * @param name Resource to load
+     * @return CREATE_RESULT_OK on success
+     */
+    HPreloader NewPreloader(HFactory factory, const char* name);
+
+    /**
+     * Perform one update tick of the preloader, with a soft time limit for
+     * how much time to spend.
+     * @param preloader Preloader
+     * @param soft_time_limit Time limit in us
+     * @return RESULT_PENDING while still loading, otherwise resource load result.
+     */
+    Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit);
+
+    /**
+     * Destroy the preloader. Note that currently it will spin and block until
+     * all loads have completed, if there still are any pending.
+     * @param preloader Preloader
+     * @return RESULT_PENDING while still loading, otherwise resource load result.
+     */
+    void DeletePreloader(HPreloader preloader);
+
+    /**
+     * Hint the preloader what to load before Create is called on the resource.
+     * The resources are not guaranteed to be loaded before Create is called.
+     * @param name Resource name
+     * @return RESULT_PENDING while still loading, otherwise resource load result.
+     */
+    void PreloadHint(HPreloadHintInfo preloader, const char *name);
 }
 
 #endif // RESOURCE_H

@@ -375,23 +375,23 @@ namespace dmGameObject
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
+        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
+        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "luac", module_context, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
+        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionCreate, &ResCollectionDestroy, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, &ResCollectionDestroy, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "animc", 0, &ResAnimCreate, &ResAnimDestroy, 0x0);
+        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, &ResAnimDestroy, 0x0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 

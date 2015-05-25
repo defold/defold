@@ -7,16 +7,9 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory,  dmGameSystemDDF::TextureSet* texture_set_ddf,
                                         TextureSetResource* tile_set, const char* filename, bool reload)
     {
-        dmGameSystemDDF::TextureSet* texture_set_ddf;
-        dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &texture_set_ddf);
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
         if (reload)
         {
             // Will pick up the actual pointer when running get. This is a poor man's rebuild dependency
@@ -94,15 +87,35 @@ namespace dmGameSystem
             dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
     }
 
+    dmResource::Result ResTextureSetPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            void** preload_data,
+            const char* filename)
+    {
+        dmGameSystemDDF::TextureSet* texture_set_ddf;
+        dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &texture_set_ddf);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmResource::PreloadHint(hint_info, texture_set_ddf->m_Texture);
+
+        *preload_data = texture_set_ddf;
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResTextureSetCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
+            void* preload_data,
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
         TextureSetResource* tile_set = new TextureSetResource();
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, buffer, buffer_size, tile_set, filename, false);
+        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, (dmGameSystemDDF::TextureSet*) preload_data, tile_set, filename, false);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) tile_set;
@@ -131,10 +144,17 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
+        dmGameSystemDDF::TextureSet* texture_set_ddf;
+        dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &texture_set_ddf);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
         TextureSetResource* tile_set = (TextureSetResource*)resource->m_Resource;
         TextureSetResource tmp_tile_set;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, buffer, buffer_size, &tmp_tile_set, filename, true);
+        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, texture_set_ddf, &tmp_tile_set, filename, true);
         if (r == dmResource::RESULT_OK)
         {
             ReleaseResources(factory, tile_set);
