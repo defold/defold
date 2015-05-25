@@ -86,6 +86,7 @@
 
   :profiles          {:test        {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
                       :uberjar     {:main com.defold.editor.Start
+                                    :prep-tasks ["protobuf" "javac" "compile"]
                                     :aot  [editor]}
                       :repl        {:source-paths   ["dev"]
                                     :prep-tasks     ^:replace []

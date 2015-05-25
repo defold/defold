@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+
+<dict>
+	<key>CFBundleExecutable</key><string>Defold</string>
+	<key>CFBundleGetInfoString</key><string>Defold, Copyright Defold AB. 2009-2015. All rights reserved.</string>
+	<key>CFBundleIconFile</key><string>logo.icns</string>
+	<key>CFBundleIdentifier</key><string>com.defold.editor</string>
+	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+	<key>CFBundleName</key><string>Defold</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>2.0</string>
+	<key>CFBundleVersion</key><string>2.0</string>
+	<key>CFBundleSignature</key><string>????</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>CFBundleDevelopmentRegion</key><string>English</string>
+
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>project</string>
+			</array>
+			<key>CFBundleTypeIconFile</key><string>logo.icns</string>
+			<key>CFBundleTypeName</key><string>Defold Project File</string>
+			<key>CFBundleTypeRole</key><string>Editor</string>
+		</dict>
+	</array>
+
+</dict>
+
+</plist>
