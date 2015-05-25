@@ -100,3 +100,4 @@
                                     :proto-paths    ["test/proto"]
                                     :main ^:skip-aot com.defold.editor.Start
                                     :resource-paths ["test/resources"]}})
+
