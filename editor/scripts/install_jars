@@ -4,10 +4,10 @@ install_file() {
 }
 
 install_file ../com.dynamo.cr/com.dynamo.cr.common/ext/vecmath.jar javax vecmath        1.5.2
-install_file ../com.dynamo.cr/javax.inject/javax.inject.jar        javax inject         1.0.0
-install_file ../com.dynamo.cr/com.sun.jna/jna.jar                  com.sun.jna jna      3.4.1
-install_file ../com.dynamo.cr/com.sun.jna/platform.jar             com.sun.jna platform 3.4.1
-install_file ../com.dynamo.cr/com.dynamo.cr.dgit/lib/org.eclipse.jgit-1.2.0.201112221803-r.jar org.eclipse org.eclipse.jgit 1.2.0
-install_file ../com.dynamo.cr/com.dynamo.cr.dgit/lib/org.eclipse.jgit.http.server-1.2.0.201112221803-r.jar org.eclipse org.eclipse.jgit.http.server 1.2.0
-install_file ../com.dynamo.cr/com.dynamo.cr.bob/lib/openmali.jar   net.java openmali    1.0
-install_file ../engine/dlib/build/default/src/upnp.jar             dlib  upnp           0.1
+#install_file ../com.dynamo.cr/javax.inject/javax.inject.jar        javax inject         1.0.0
+#install_file ../com.dynamo.cr/com.sun.jna/jna.jar                  com.sun.jna jna      3.4.1
+#install_file ../com.dynamo.cr/com.sun.jna/platform.jar             com.sun.jna platform 3.4.1
+#install_file ../com.dynamo.cr/com.dynamo.cr.dgit/lib/org.eclipse.jgit-1.2.0.201112221803-r.jar org.eclipse org.eclipse.jgit 1.2.0
+#install_file ../com.dynamo.cr/com.dynamo.cr.dgit/lib/org.eclipse.jgit.http.server-1.2.0.201112221803-r.jar org.eclipse org.eclipse.jgit.http.server 1.2.0
+#install_file ../com.dynamo.cr/com.dynamo.cr.bob/lib/openmali.jar   net.java openmali    1.0
+#install_file ../engine/dlib/build/default/src/upnp.jar             dlib  upnp           0.1

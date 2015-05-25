@@ -709,6 +709,7 @@ instructions.configure=\
 
     def build_editor2(self):
         cwd = join(self.defold_root, 'editor')
+        self.exec_env_command(['./scripts/install_jars'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'clean'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'protobuf'], cwd = cwd)
         # TODO: Temporarily disabled

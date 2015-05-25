@@ -38,12 +38,12 @@
                      [org.projectodd.shimdandy/shimdandy-api "1.1.0"]
                      [org.projectodd.shimdandy/shimdandy-impl "1.1.0"]
 
-                     ;; These are installed in a local repository
                      [javax/vecmath                               "1.5.2"]
-                     [javax/inject                                "1.0.0"]
-                     [com.sun.jna/jna                             "3.4.1"]
-                     [com.sun.jna/platform                        "3.4.1"]
-                     [dlib/upnp                                   "0.1"]]
+                     [net.java.dev.jna/jna                        "4.1.0"]
+                     [net.java.dev.jna/jna-platform               "4.1.0"]
+                     ;; Temporarily removed upnp (not used and not installed by default).
+                     ;; Move source to editor?
+                     #_[dlib/upnp                                   "0.1"]]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
