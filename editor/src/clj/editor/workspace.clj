@@ -38,9 +38,9 @@ ordinary paths."
   (resource-type [this] (get (:resource-types workspace) (second (split-ext file))))
   (source-type [this] (if (.isFile file) :file :folder))
   (read-only? [this] (not (.canWrite file)))
-  (path [this] (relative-path (File. ^String (:root workspace)) file))
+  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String (:root workspace)) file)))
   (abs-path [this] (.getAbsolutePath  file))
-  (proj-path [this] (str "/" (path this)))
+  (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
   (url [this] (relative-path (File. ^String (:root workspace)) file))
   (resource-name [this] (.getName file))
 
@@ -91,12 +91,15 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (:view-types workspace) id))
 
-(defn register-resource-type [workspace & {:keys [ext node-type load-fn icon view-types view-opts]}]
-  (let [resource-type {:node-type node-type
+(defn register-resource-type [workspace & {:keys [ext node-type load-fn icon view-types view-opts tags template]}]
+  (let [resource-type {:ext ext
+                       :node-type node-type
                        :load-fn load-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
-                       :view-opts view-opts}
+                       :view-opts view-opts
+                       :tags tags
+                       :template template}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext ext)]
                          (map (fn [ext] (assoc resource-type :ext ext)) ext))]
@@ -105,6 +108,17 @@ ordinary paths."
 
 (defn get-resource-type [workspace ext]
   (get (:resource-types workspace) ext))
+
+(defn get-resource-types
+  ([workspace]
+    (map second (:resource-types workspace)))
+  ([workspace tag]
+    (filter #(contains? (:tags %) tag) (map second (:resource-types workspace)))))
+
+(defn template [resource-type]
+  (when-let [template-path (:template resource-type)]
+    (with-open [f (io/reader (io/resource template-path))]
+      (slurp f))))
 
 (def default-icons {:file "icons/page_white.png" :folder "icons/folder.png"})
 
@@ -115,9 +129,10 @@ ordinary paths."
   (FileResource. workspace (File. (str (:root workspace) path)) []))
 
 (defn resolve-resource [base-resource path]
-  (let [workspace (:workspace base-resource)]
+  (let [workspace (:workspace base-resource)
+        full-path (if (empty? path) path (str (:root workspace) path))]
     ; TODO handle relative paths
-    (FileResource. workspace (File. (str (:root workspace) path)) [])))
+    (FileResource. workspace (File. full-path) [])))
 
 (g/defnode Workspace
   (property root t/Str)

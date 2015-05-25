@@ -10,6 +10,7 @@
             [editor.game-object :as game-object]
             [editor.project :as project]
             [editor.scene :as scene]
+            [editor.scene-tools :as scene-tools]
             [editor.workspace :as workspace]
             [editor.math :as math])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
@@ -21,7 +22,7 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]))
 
 (def collection-icon "icons/bricks.png")
@@ -61,8 +62,35 @@
       (assoc new-scene :children (map #(assoc-deep % keyword new-value) (:children scene)))
       new-scene)))
 
-(g/defnode GameObjectInstanceNode
+(g/defnk produce-transform [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (let [transform (Matrix4d. rotation position 1.0)
+        s [(.x scale) (.y scale) (.z scale)]
+        col (Vector4d.)]
+    (doseq [^Integer i (range 3)
+            :let [s (nth s i)]]
+      (.getColumn transform i col)
+      (.scale col s)
+      (.setColumn transform i col))
+    transform))
+
+(g/defnode ScalableSceneNode
   (inherits scene/SceneNode)
+
+  (property scale t/Vec3 (default [1 1 1]))
+
+  (output scale Vector3d :cached (g/fnk [scale] (Vector3d. (double-array scale))))
+  (output transform Matrix4d :cached produce-transform)
+
+  scene-tools/Scalable
+  (scene-tools/scale [self delta] (let [s (Vector3d. (double-array (:scale self)))
+                                        ^Vector3d d delta]
+                                    (.setX s (* (.x s) (.x d)))
+                                    (.setY s (* (.y s) (.y d)))
+                                    (.setZ s (* (.z s) (.z d)))
+                                    (g/set-property self :scale [(.x s) (.y s) (.z s)]))))
+
+(g/defnode GameObjectInstanceNode
+  (inherits ScalableSceneNode)
 
   (property id t/Str)
   (property path (t/maybe t/Str))
@@ -109,7 +137,7 @@
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))})))
 
 (g/defnode CollectionInstanceNode
-  (inherits scene/SceneNode)
+  (inherits ScalableSceneNode)
 
   (property id t/Str)
   (property path t/Str)

@@ -138,14 +138,14 @@
 
 (g/defnk produce-scene
   [self aabb gpu-texture textureset animation blend-mode]
-  (if animation
-    (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-quad 6) shader)
-          outline-vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-outline-quad 4) outline-shader)]
-      {:id (g/node-id self)
-       :aabb aabb
-       :renderable {:render-fn (g/fnk [gl pass selected] (render-sprite gl gpu-texture vertex-binding outline-vertex-binding pass selected blend-mode))
-                    :passes [pass/transparent pass/selection pass/outline]}})
-    {}))
+  (let [scene {:id (g/node-id self)
+               :aabb aabb}]
+    (if animation
+      (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-quad 6) shader)
+            outline-vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-outline-quad 4) outline-shader)]
+        (assoc scene :renderable {:render-fn (g/fnk [gl pass selected] (render-sprite gl gpu-texture vertex-binding outline-vertex-binding pass selected blend-mode))
+                                  :passes [pass/transparent pass/selection pass/outline]}))
+     scene)))
 
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
@@ -213,4 +213,6 @@
                                     :node-type SpriteNode
                                     :load-fn load-sprite
                                     :icon sprite-icon
-                                    :view-types [:scene]))
+                                    :view-types [:scene]
+                                    :tags #{:component}
+                                    :template "templates/template.sprite"))

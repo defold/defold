@@ -121,17 +121,22 @@ ordinary paths."
     (get-resource-node project resource)))
 
 (defn select
+  [project nodes]
+    (concat
+      (for [[node label] (g/sources-of (g/now) project :selection)]
+        (g/disconnect node label project :selection))
+      (for [node nodes]
+        (g/connect node :self project :selection))))
+
+(defn select!
   ([project nodes]
-    (select project nodes (gensym)))
+    (select! project nodes (gensym)))
   ([project nodes op-seq]
     (g/transact
       (concat
         (g/operation-sequence op-seq)
         (g/operation-label "Select")
-        (for [[node label] (g/sources-of (g/now) project :selection)]
-           (g/disconnect node label project :selection))
-        (for [node nodes]
-          (g/connect node :self project :selection))))))
+        (select project nodes)))))
 
 (defn make-project [graph workspace]
   (first
