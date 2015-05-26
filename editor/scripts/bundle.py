@@ -13,11 +13,26 @@ import tarfile
 import zipfile
 import ConfigParser
 
+# Keep this version in sync with project.clj
+JOGL_VERSION = "2.0.2"
+
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-linux': 'linux-i586',
                     'x86_64-darwin': 'macosx-x64',
                     'x86-win32': 'windows-i586',
                     'x86_64-win32': 'windows-x64'}
+
+platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
+                      'x86-linux': 'linux',
+                      'x86_64-darwin': 'x86_64-darwin',
+                      'x86-win32': 'win32',
+                      'x86_64-win32': 'x86_64-win32'}
+
+platform_to_jogl = {'x86_64-linux': 'linux-amd64',
+                    'x86-linux': 'linux-i586',
+                    'x86_64-darwin': 'macosx-universal',
+                    'x86-win32': 'windows-i586',
+                    'x86_64-win32': 'windows-amd64'}
 
 def mkdirs(path):
     if not os.path.exists(path):
@@ -85,6 +100,26 @@ def ziptree(path, outfile, directory = None):
     zip.close()
     return outfile
 
+def add_native_libs(platform, in_jar_name, out_jar):
+    with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
+        for zi in in_jar.infolist():
+            if not 'META-INF' in zi.filename:
+                d = in_jar.read(zi)
+                n = 'lib/%s/%s' % (platform, zi.filename)
+                print "adding", n
+                out_jar.writestr(n, d)
+
+def bundle_natives(platform, in_jar_name, out_jar_name):
+    with zipfile.ZipFile(out_jar_name, 'w') as out_jar:
+        jogl_platform = platform_to_jogl[platform]
+        add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
+        add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
+
+        with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
+            for zi in in_jar.infolist():
+                if not (zi.filename.endswith('.so') or zi.filename.endswith('.dll') or zi.filename.endswith('.jnilib')):
+                    d = in_jar.read(zi)
+                    out_jar.writestr(zi, d)
 
 if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)'''
@@ -118,9 +153,14 @@ if __name__ == '__main__':
         sys.exit(5)
 
     # TODO: Hack. We should download from s3 based on platform
-    launcher = download('https://s3-eu-west-1.amazonaws.com/defold-packages/slask/launcher', use_cache = False)
+
+    exe_suffix = ''
+    if 'win32' in options.target_platform:
+        exe_suffix = '.exe'
+    launcher_url = 'http://d.defold.com/archive/f074b4ba22c0ef7b6b183bd4cb09346f80d02c57/engine/%s/launcher%s' % (platform_to_legacy[options.target_platform], exe_suffix)
+    launcher = download(launcher_url, use_cache = False)
     if not launcher:
-        print('Failed to download launcher')
+        print 'Failed to download launcher', launcher_url
         sys.exit(5)
 
     mkdirs('tmp')
@@ -159,9 +199,9 @@ if __name__ == '__main__':
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
 
-    shutil.copy('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/defold-%s.jar' % (packages_dir, options.version))
-    shutil.copy(launcher, '%s/Defold' % exe_dir)
-    exec_command('chmod +x %s/Defold' % exe_dir)
+    bundle_natives(options.target_platform, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/defold-%s.jar' % (packages_dir, options.version))
+    shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
+    exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
 
     extract(jre, 'tmp')
     print 'Creating bundle'
