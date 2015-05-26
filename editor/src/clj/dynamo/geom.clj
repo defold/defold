@@ -238,9 +238,13 @@
 (s/defn aabb-union :- AABB
   ([aabb1 :- AABB] aabb1)
   ([aabb1 :- AABB aabb2 :- AABB]
-    (-> aabb1
-      (aabb-incorporate (min-p aabb2))
-      (aabb-incorporate (max-p aabb2))))
+    (let [null (null-aabb)]
+      (cond
+        (= aabb1 null) aabb2
+        (= aabb2 null) aabb1
+        true (-> aabb1
+                (aabb-incorporate (min-p aabb2))
+                (aabb-incorporate (max-p aabb2))))))
   ([aabb1 :- AABB aabb2 :- AABB & aabbs :- [AABB]]
     (aabb-union (aabb-union aabb1 aabb2) aabbs)))
 

@@ -97,6 +97,7 @@
   (input ref-ddf t/Any :array)
   (input embed-ddf t/Any :array)
   (input child-scenes t/Any :array)
+  (input child-ids t/Str :array)
 
   (output outline t/Any (g/fnk [self outline] {:self self :label "Game Object" :icon game-object-icon :children outline}))
   (output save-data t/Any :cached produce-save-data)
@@ -108,11 +109,10 @@
     []))
 
 (defn- gen-component-id [go-node base]
-  (let [outline (g/node-value go-node :outline)
-        child-ids (map :label (:children outline))]
+  (let [ids (g/node-value go-node :child-ids)]
     (loop [postfix 0]
       (let [id (if (= postfix 0) base (str base postfix))]
-        (if (empty? (filter #(= id %) child-ids))
+        (if (empty? (filter #(= id %) ids))
           id
           (recur (inc postfix)))))))
 
@@ -123,9 +123,10 @@
                   (g/connect comp-node :outline self :outline)
                   (if source-node
                     (concat
-                      (g/connect comp-node :ddf-message self :ref-ddf)
-                      (g/connect comp-node :scene self :child-scenes)
-                      (g/connect source-node :self comp-node :source)
+                      (g/connect comp-node   :ddf-message self      :ref-ddf)
+                      (g/connect comp-node   :id          self      :child-ids)
+                      (g/connect comp-node   :scene       self      :child-scenes)
+                      (g/connect source-node :self        comp-node :source)
                       (connect-if-output source-node :outline comp-node :outline)
                       (connect-if-output source-node :save-data comp-node :save-data)
                       (connect-if-output source-node :scene comp-node :scene))
@@ -160,13 +161,14 @@
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
                      source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
-                    (g/connect source-node :self         comp-node :source)
-                    (g/connect source-node :outline      comp-node :outline)
-                    (g/connect source-node :save-data comp-node :save-data)
-                    (g/connect source-node :scene comp-node :scene)
-                    (g/connect comp-node   :outline      self      :outline)
-                    (g/connect comp-node   :ddf-message  self      :embed-ddf)
-                    (g/connect comp-node   :scene  self      :child-scenes))
+                    (g/connect source-node :self        comp-node :source)
+                    (g/connect source-node :outline     comp-node :outline)
+                    (g/connect source-node :save-data   comp-node :save-data)
+                    (g/connect source-node :scene       comp-node :scene)
+                    (g/connect comp-node   :outline     self      :outline)
+                    (g/connect comp-node   :ddf-message self      :embed-ddf)
+                    (g/connect comp-node   :id          self      :child-ids)
+                    (g/connect comp-node   :scene       self      :child-scenes))
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
                     (g/connect comp-node   :outline      self      :outline)))))
@@ -202,22 +204,7 @@
             :let [source-node (project/resolve-resource-node self (:component component))]]
         (add-component self source-node (:id component) (t/Point3d->Vec3 (:position component)) (math/quat->euler (:rotation component))))
       (for [embedded (:embedded-components prototype)]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (t/Point3d->Vec3 (:position embedded)) (math/quat->euler (:rotation embedded)))
-        #_(let [resource (project/make-embedded-resource project (:type embedded) (:data embedded))]
-           (if-let [resource-type (and resource (workspace/resource-type resource))]
-             (g/make-nodes project-graph
-                          [comp-node [ComponentNode :id (:id embedded) :embedded true :position (t/Point3d->Vec3 (:position embedded)) :rotation (math/quat->euler (:rotation embedded))]
-                           source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
-                          (g/connect source-node :self         comp-node :source)
-                          (g/connect source-node :outline      comp-node :outline)
-                          (g/connect source-node :save-data comp-node :save-data)
-                          (g/connect source-node :scene comp-node :scene)
-                          (g/connect comp-node   :outline      self      :outline)
-                          (g/connect comp-node   :ddf-message  self      :embed-ddf)
-                          (g/connect comp-node   :scene  self      :child-scenes))
-             (g/make-nodes project-graph
-                           [comp-node [ComponentNode :id (:id embedded) :embedded true]]
-                           (g/connect comp-node   :outline      self      :outline))))))))
+        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (t/Point3d->Vec3 (:position embedded)) (math/quat->euler (:rotation embedded)))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -226,4 +213,5 @@
                                     :load-fn load-game-object
                                     :icon game-object-icon
                                     :view-types [:scene]
-                                    :view-opts {:scene {:grid true}}))
+                                    :view-opts {:scene {:grid true}}
+                                    :template "templates/template.go"))
