@@ -210,7 +210,7 @@ if __name__ == '__main__':
     if is_mac:
         jre_glob = 'tmp/jre1.8.0_45.jre/Contents/Home/*'
     else:
-        jre_glob = 'tmp/jre1.8.0_45.jre/*'
+        jre_glob = 'tmp/jre1.8.0_45/*'
 
     for p in glob.glob(jre_glob):
         shutil.move(p, '%s/jre' % packages_dir)
