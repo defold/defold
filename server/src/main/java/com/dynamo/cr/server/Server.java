@@ -143,7 +143,9 @@ public class Server {
                     params.put(ResourceConfig.PROPERTY_RESOURCE_FILTER_FACTORIES,
                             RolesAllowedResourceFilterFactory.class.getName());
                     params.put(ResourceConfig.PROPERTY_CONTAINER_RESPONSE_FILTERS,
-                            CrossSiteHeaderResponseFilter.class.getName() + ";" + PostLoggingResponseFilter.class.getName());
+                            NoCacheHeaderResponseFilter.class.getName() + ";" +
+                            CrossSiteHeaderResponseFilter.class.getName() + ";" +
+                            PostLoggingResponseFilter.class.getName());
 
                     filter("*").through(PersistFilter.class);
                     serve("*").with(GuiceContainer.class, params);
@@ -229,7 +231,9 @@ public class Server {
         handler.addInitParameter(ResourceConfig.PROPERTY_RESOURCE_FILTER_FACTORIES,
                 RolesAllowedResourceFilterFactory.class.getName());
         handler.addInitParameter(ResourceConfig.PROPERTY_CONTAINER_RESPONSE_FILTERS,
-                CrossSiteHeaderResponseFilter.class.getName() + ";" + PostLoggingResponseFilter.class.getName());
+                NoCacheHeaderResponseFilter.class.getName() + ";" +
+                CrossSiteHeaderResponseFilter.class.getName() + ";" +
+                PostLoggingResponseFilter.class.getName());
 
         server.getServerConfiguration().addHttpHandler(handler, "/*");
         server.start();
