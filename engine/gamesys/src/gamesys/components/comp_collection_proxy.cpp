@@ -430,6 +430,15 @@ namespace dmGameSystem
      * </pre>
      */
 
+    /*# reports that a collection proxy has loaded its referenced collection
+     * <p>
+     * This message is sent back to the script that initiated a collection proxy load when the referenced
+     * collection is loaded. See documentation for "load" for examples how to use.
+     * </p>
+     * @message
+     * @name proxy_loaded
+     */
+
     /*# tells a collection proxy to initialize the loaded collection
      * Post this message to a collection-proxy-component to initialize the game objects and components in the referenced collection.
      * Sending <code>enable</code> to an uninitialized collection proxy automatically initializes it.
@@ -557,5 +566,14 @@ namespace dmGameSystem
      *     end
      * end
      * </pre>
+     */
+
+    /*# reports that a collection proxy has unloaded its referenced collection
+     * <p>
+     * This message is sent back to the script that initiated an unload with a collection proxy when 
+     * the referenced collection is unloaded. See documentation for "unload" for examples how to use.
+     * </p>
+     * @message
+     * @name proxy_unloaded
      */
 }
