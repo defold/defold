@@ -75,10 +75,11 @@ int Launch(int argc, char **argv) {
     args[i++] = "-cp";
     args[i++] = jar_path;
 #ifdef __MACH__
-     dmStrlCpy(icon_arg, "-Xdock:icon=", sizeof(icon_arg));
-     dmStrlCat(icon_arg, resources_path, sizeof(icon_arg));
-     dmStrlCat(icon_arg, "/logo.icns", sizeof(icon_arg));
-     args[i++] = icon_arg;
+    char icon_arg[DMPATH_MAX_PATH];
+    dmStrlCpy(icon_arg, "-Xdock:icon=", sizeof(icon_arg));
+    dmStrlCat(icon_arg, resources_path, sizeof(icon_arg));
+    dmStrlCat(icon_arg, "/logo.icns", sizeof(icon_arg));
+    args[i++] = icon_arg;
 #endif
 
     args[i++] = (char*) main;
