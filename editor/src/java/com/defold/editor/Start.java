@@ -50,7 +50,6 @@ public class Start extends Application {
     private LinkedBlockingQueue<Object> pool;
     private ThreadPoolExecutor threadPool;
     private File libPath;
-    private Future<?> extractFuture;
     private static boolean createdFromMain = false;
 
     public Start() throws IOException {
@@ -58,14 +57,6 @@ public class Start extends Application {
         threadPool = new ThreadPoolExecutor(1, 1, 3000, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>());
         threadPool.allowCoreThreadTimeOut(true);
-
-        extractFuture = threadPool.submit(() -> {
-            try {
-                extractNativeLibs();
-            } catch (Exception e) {
-                logger.error("failed to extract native libs", e);
-            }
-        });
     }
 
     private static Map<com.defold.editor.Platform, String[]> nativeLibs = new HashMap<>();
@@ -161,39 +152,39 @@ public class Start extends Application {
     public void start(Stage primaryStage) throws Exception {
         Splash splash = new Splash();
 
-        FutureTask<Object> future = new FutureTask<>(new Callable<Object>() {
-
-            @Override
-            public Object call() throws Exception {
-
-                try {
-                    pool.add(makeEditor());
-                    javafx.application.Platform.runLater(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                extractFuture.get();
-                                openEditor(new String[0]);
-                                splash.close();
-                            } catch (Throwable t) {
-                                t.printStackTrace();
-                            }
-                        }
-                    });
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                    String message = (t instanceof InvocationTargetException) ? t
-                            .getCause().getMessage() : t.getMessage();
-                    javafx.application.Platform.runLater(() -> {
-                        splash.setLaunchError(message);
-                        splash.setErrorShowing(true);
-                    });
-                }
-                return null;
+        Future<?> extractFuture = threadPool.submit(() -> {
+            try {
+                extractNativeLibs();
+            } catch (Exception e) {
+                logger.error("failed to extract native libs", e);
             }
-
         });
-        threadPool.submit(future);
+
+        threadPool.submit(() -> {
+            try {
+                pool.add(makeEditor());
+                javafx.application.Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            extractFuture.get();
+                            openEditor(new String[0]);
+                            splash.close();
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                        }
+                    }
+                });
+            } catch (Throwable t) {
+                t.printStackTrace();
+                String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
+                javafx.application.Platform.runLater(() -> {
+                    splash.setLaunchError(message);
+                    splash.setErrorShowing(true);
+                });
+            }
+            return null;
+        });
     }
 
     public static void main(String[] args) throws Exception {
