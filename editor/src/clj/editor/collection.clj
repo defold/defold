@@ -203,9 +203,24 @@
                       (g/connect source-node :scene       go-node :scene))
                     []))))
 
+(defn- single-selection? [selection]
+  (= 1 (count selection)))
+
+(defn- selected-collection? [selection]
+  (= CollectionNode (g/node-type (:self (first selection)))))
+
+(defn- selected-embedded-instance? [selection]
+  (let [node (:self (first selection))]
+    (and (= GameObjectInstanceNode (g/node-type node))
+         (:embedded node))))
+
 (handler/defhandler :add-from-file
-    (enabled? [selection] (and (= 1 (count selection)) (= CollectionNode (g/node-type (:self (first selection))))))
-    (run [selection] (let [coll-node (:self (first selection))
+  (enabled? [selection] (and (single-selection? selection)
+                             (or (selected-collection? selection)
+                                 (selected-embedded-instance? selection))))
+  (run [selection] (if (selected-embedded-instance? selection)
+                     (game-object/add-component-handler (g/node-value (:self (first selection)) :source))
+                     (let [coll-node (:self (first selection))
                            project (:parent coll-node)
                            workspace (:workspace (:resource coll-node))
                            ext "go"
@@ -227,7 +242,7 @@
                                (g/operation-label "Add Game Object")
                                (g/connect go-node :outline coll-node :child-outlines)
                                (g/connect go-node :scene coll-node :child-scenes)
-                               (project/select project [go-node]))))))))
+                               (project/select project [go-node])))))))))
 
 (defn- make-embedded-go [self project type data id position rotation scale]
   (let [resource (project/make-embedded-resource project type data)]
@@ -245,29 +260,33 @@
       (g/make-node (g/node->graph-id self) GameObjectInstanceNode :id id :embedded true))))
 
 (handler/defhandler :add
-    (enabled? [selection] (and (= 1 (count selection)) (= CollectionNode (g/node-type (:self (first selection))))))
-    (run [selection] (let [coll-node (:self (first selection))
-                           project (:parent coll-node)
-                           workspace (:workspace (:resource coll-node))
-                           ext "go"
-                           resource-type (workspace/get-resource-type workspace ext)
-                           template (workspace/template resource-type)]
-                       (let [id (gen-instance-id coll-node ext)
-                             op-seq (gensym)
-                             [go-node source-node] (g/tx-nodes-added
-                                                     (g/transact
-                                                       (concat
-                                                         (g/operation-sequence op-seq)
-                                                         (g/operation-label "Add Game Object")
-                                                         (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0] [1 1 1]))))]
-                         (g/transact
-                           (concat
-                             (g/operation-sequence op-seq)
-                             (g/operation-label "Add Game Object")
-                             (g/connect go-node :outline coll-node :child-outlines)
-                             (g/connect go-node :scene coll-node :child-scenes)
-                             ((:load-fn resource-type) project source-node (io/reader (:resource source-node)))
-                             (project/select project [go-node])))))))
+  (enabled? [selection] (and (single-selection? selection)
+                             (or (selected-collection? selection)
+                                 (selected-embedded-instance? selection))))
+    (run [selection] (if (selected-embedded-instance? selection)
+                       (game-object/add-embedded-component-handler (g/node-value (:self (first selection)) :source))
+                       (let [coll-node (:self (first selection))
+                            project (:parent coll-node)
+                            workspace (:workspace (:resource coll-node))
+                            ext "go"
+                            resource-type (workspace/get-resource-type workspace ext)
+                            template (workspace/template resource-type)]
+                        (let [id (gen-instance-id coll-node ext)
+                              op-seq (gensym)
+                              [go-node source-node] (g/tx-nodes-added
+                                                      (g/transact
+                                                        (concat
+                                                          (g/operation-sequence op-seq)
+                                                          (g/operation-label "Add Game Object")
+                                                          (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0] [1 1 1]))))]
+                          (g/transact
+                            (concat
+                              (g/operation-sequence op-seq)
+                              (g/operation-label "Add Game Object")
+                              (g/connect go-node :outline coll-node :child-outlines)
+                              (g/connect go-node :scene coll-node :child-scenes)
+                              ((:load-fn resource-type) project source-node (io/reader (:resource source-node)))
+                              (project/select project [go-node]))))))))
 
 (defn load-collection [project self input]
   (let [collection (protobuf/pb->map (protobuf/read-text GameObject$CollectionDesc input))

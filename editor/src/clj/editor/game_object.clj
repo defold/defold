@@ -132,28 +132,30 @@
                       (connect-if-output source-node :scene comp-node :scene))
                     []))))
 
+(defn add-component-handler [self]
+  (let [project (:parent self)
+        workspace (:workspace (:resource self))
+        component-exts (map :ext (workspace/get-resource-types workspace :component))]
+    (when-let [; TODO - filter component files
+               resource (first (dialogs/make-resource-dialog workspace {}))]
+      (let [id (gen-component-id self (:ext (workspace/resource-type resource)))
+            op-seq (gensym)
+            [comp-node] (g/tx-nodes-added
+                          (g/transact
+                            (concat
+                              (g/operation-label "Add Component")
+                              (g/operation-sequence op-seq)
+                              (add-component self (project/get-resource-node project resource) id [0 0 0] [0 0 0]))))]
+        ; Selection
+        (g/transact
+          (concat
+            (g/operation-sequence op-seq)
+            (g/operation-label "Add Component")
+            (project/select project [comp-node])))))))
+
 (handler/defhandler :add-from-file
     (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (:self (first selection))))))
-    (run [selection] (let [go-node (:self (first selection))
-                           project (:parent go-node)
-                           workspace (:workspace (:resource go-node))
-                           component-exts (map :ext (workspace/get-resource-types workspace :component))]
-                       (when-let [; TODO - filter component files
-                                  resource (first (dialogs/make-resource-dialog workspace {}))]
-                         (let [id (gen-component-id go-node (:ext (workspace/resource-type resource)))
-                               op-seq (gensym)
-                               [comp-node] (g/tx-nodes-added
-                                             (g/transact
-                                               (concat
-                                                 (g/operation-label "Add Component")
-                                                 (g/operation-sequence op-seq)
-                                                 (add-component go-node (project/get-resource-node project resource) id [0 0 0] [0 0 0]))))]
-                           ; Selection
-                           (g/transact
-                             (concat
-                               (g/operation-sequence op-seq)
-                               (g/operation-label "Add Component")
-                               (project/select project [comp-node]))))))))
+    (run [selection] (add-component-handler (:self (first selection)))))
 
 (defn- add-embedded-component [self project type data id position rotation]
   (let [resource (project/make-embedded-resource project type data)]
@@ -173,28 +175,30 @@
                     [comp-node [ComponentNode :id id :embedded true]]
                     (g/connect comp-node   :outline      self      :outline)))))
 
+(defn add-embedded-component-handler [self]
+  (let [project (:parent self)
+        workspace (:workspace (:resource self))
+        ; TODO - add sub menu with all components
+        component-type (first (workspace/get-resource-types workspace :component))
+        template (workspace/template component-type)]
+    (let [id (gen-component-id self (:ext component-type))
+          op-seq (gensym)
+          [comp-node source-node] (g/tx-nodes-added
+                                    (g/transact
+                                      (concat
+                                        (g/operation-sequence op-seq)
+                                        (g/operation-label "Add Component")
+                                        (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0]))))]
+      (g/transact
+        (concat
+          (g/operation-sequence op-seq)
+          (g/operation-label "Add Component")
+          ((:load-fn component-type) project source-node (io/reader (:resource source-node)))
+          (project/select project [comp-node]))))))
+
 (handler/defhandler :add
     (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (:self (first selection))))))
-    (run [selection] (let [go-node (:self (first selection))
-                           project (:parent go-node)
-                           workspace (:workspace (:resource go-node))
-                           ; TODO - add sub menu with all components
-                           component-type (first (workspace/get-resource-types workspace :component))
-                           template (workspace/template component-type)]
-                       (let [id (gen-component-id go-node (:ext component-type))
-                             op-seq (gensym)
-                             [comp-node source-node] (g/tx-nodes-added
-                                                       (g/transact
-                                                         (concat
-                                                           (g/operation-sequence op-seq)
-                                                           (g/operation-label "Add Component")
-                                                           (add-embedded-component go-node project (:ext component-type) template id [0 0 0] [0 0 0]))))]
-                         (g/transact
-                           (concat
-                             (g/operation-sequence op-seq)
-                             (g/operation-label "Add Component")
-                             ((:load-fn component-type) project source-node (io/reader (:resource source-node)))
-                             (project/select project [comp-node])))))))
+    (run [selection] (add-embedded-component-handler (:self (first selection)))))
 
 (defn load-game-object [project self input]
   (let [project-graph (g/node->graph-id self)
