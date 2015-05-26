@@ -162,9 +162,6 @@ def bundle(platform, options):
         icon = None
         is_mac = False
 
-    print 'Building editor'
-    exec_command('./scripts/lein clean')
-    exec_command('./scripts/lein uberjar')
     mkdirs(exe_dir)
     mkdirs(resources_dir)
     mkdirs(packages_dir)
@@ -219,6 +216,10 @@ if __name__ == '__main__':
 
     if not options.version:
         parser.error('No version specified')
+
+    print 'Building editor'
+    exec_command('./scripts/lein clean')
+    exec_command('./scripts/lein uberjar')
 
     for platform in options.target_platform:
         bundle(platform, options)
