@@ -18,6 +18,7 @@
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
             [editor.workspace :as workspace]
+            [editor.handler :as handler]
             [internal.render.pass :as pass]
             [integration.test-util :as test-util])
   (:import [dynamo.types Region]
@@ -36,8 +37,8 @@
                    project   (test-util/setup-project! workspace)
                    node      (test-util/resource-node project "/logic/hierarchy.collection")
                    outline   (g/node-value node :outline)]
-               ; One game object under the collection
-               (is (= 1 (count (:children outline))))
+               ; Two game objects under the collection
+               (is (= 2 (count (:children outline))))
                ; One component and game object under the game object
                (is (= 2 (count (:children (first (:children outline))))))))))
 
@@ -48,7 +49,22 @@
                    project   (test-util/setup-project! workspace)
                    node      (test-util/resource-node project "/logic/hierarchy.collection")
                    scene     (g/node-value node :scene)]
-               ; One game object under the collection
-               (is (= 1 (count (:children scene))))
+               ; Two game objects under the collection
+               (is (= 2 (count (:children scene))))
                ; One component and game object under the game object
                (is (= 2 (count (:children (first (:children scene))))))))))
+
+(deftest add-embedded-instance
+  (testing "Hierarchical scene"
+           (with-clean-system
+             (let [workspace (test-util/setup-workspace! world)
+                   project   (test-util/setup-project! workspace)
+                   node      (test-util/resource-node project "/logic/hierarchy.collection")]
+               ; Two game objects under the collection
+               (is (= 2 (count (:children (g/node-value node :outline)))))
+               ; Select the collection node
+               (project/select! project [node])
+               ; Run the add handler
+               (handler/run :add {:selection [{:self node}]})
+               ; Three game objects under the collection
+               (is (= 3 (count (:children (g/node-value node :outline)))))))))
