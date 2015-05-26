@@ -496,7 +496,7 @@ class Configuration(object):
 
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
-            for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
+            for n in ['dmengine', 'dmengine_release', 'dmengine_headless', 'launcher']:
                 engine = join(bin_dir, exe_prefix + n + exe_ext)
                 self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
                 if self.target_platform == 'js-web':
