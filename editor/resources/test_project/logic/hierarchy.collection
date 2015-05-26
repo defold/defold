@@ -32,3 +32,19 @@ instances {
   }
   scale: 1.0
 }
+embedded_instances {
+  id: "child_id"
+  data: ""
+  position {
+    x: 100.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}

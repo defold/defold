@@ -52,6 +52,14 @@
                        (<= (.. u min y) (.. u max y))
                        (<= (.. u min z) (.. u max z))))))
 
+(deftest aabb-union-null []
+  (let [aabb (->AABB (Point3d. 0 0 0) (Point3d. 10 10 10))
+        null (null-aabb)]
+    (is (= aabb (aabb-union aabb null)))
+    (is (= aabb (aabb-union null aabb)))
+    (is (= aabb (aabb-union aabb aabb)))
+    (is (= null (aabb-union null null)))))
+
 (defspec aabb-incorporates-points
   (prop/for-all [pointlist (gen/vector gen-point)]
                 (let [aabb (reduce aabb-incorporate (null-aabb) pointlist)]
