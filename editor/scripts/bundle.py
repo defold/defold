@@ -22,9 +22,11 @@ platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-win32': 'windows-i586',
                     'x86_64-win32': 'windows-x64'}
 
+# TODO: We use 32-bit launcher on darwin as 64-bit support isn't merged into the
+# javafx-project branch yet
 platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
                       'x86-linux': 'linux',
-                      'x86_64-darwin': 'x86_64-darwin',
+                      'x86_64-darwin': 'darwin',
                       'x86-win32': 'win32',
                       'x86_64-win32': 'x86_64-win32'}
 
