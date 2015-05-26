@@ -123,32 +123,9 @@ def bundle_natives(platform, in_jar_name, out_jar_name):
                     d = in_jar.read(zi)
                     out_jar.writestr(zi, d)
 
-if __name__ == '__main__':
-    usage = '''usage: %prog [options] command(s)'''
-
-    parser = optparse.OptionParser(usage)
-
-    parser.add_option('--platform', dest='target_platform',
-                      default = None,
-                      choices = ['x86_64-linux', 'x86-linux', 'x86_64-darwin', 'x86-win32', 'x86_64-win32'],
-                      help = 'Target platform')
-
-    parser.add_option('--version', dest='version',
-                      default = None,
-                      help = 'Version')
-
-    options, all_args = parser.parse_args()
-    if not options.target_platform:
-        parser.error('No platform specified')
-
-    if not options.version:
-        parser.error('No version specified')
-
-    if os.path.exists('tmp'):
-        shutil.rmtree('tmp')
-
+def bundle(platform, options):
     jre_minor = 45
-    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.gz' % (jre_minor, platform_to_java[options.target_platform])
+    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.gz' % (jre_minor, platform_to_java[platform])
     jre = download(jre_url)
     if not jre:
         print('Failed to download %s' % jre_url)
@@ -157,9 +134,9 @@ if __name__ == '__main__':
     # TODO: Hack. We should download from s3 based on platform
 
     exe_suffix = ''
-    if 'win32' in options.target_platform:
+    if 'win32' in platform:
         exe_suffix = '.exe'
-    launcher_url = 'http://d.defold.com/archive/f074b4ba22c0ef7b6b183bd4cb09346f80d02c57/engine/%s/launcher%s' % (platform_to_legacy[options.target_platform], exe_suffix)
+    launcher_url = 'http://d.defold.com/archive/f074b4ba22c0ef7b6b183bd4cb09346f80d02c57/engine/%s/launcher%s' % (platform_to_legacy[platform], exe_suffix)
     launcher = download(launcher_url, use_cache = False)
     if not launcher:
         print 'Failed to download launcher', launcher_url
@@ -167,7 +144,7 @@ if __name__ == '__main__':
 
     mkdirs('tmp')
 
-    if 'darwin' in options.target_platform:
+    if 'darwin' in platform:
         resources_dir = 'tmp/Defold.app/Contents/Resources'
         packages_dir = 'tmp/Defold.app/Contents/Resources/packages'
         bundle_dir = 'tmp/Defold.app'
@@ -201,7 +178,7 @@ if __name__ == '__main__':
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
 
-    bundle_natives(options.target_platform, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/defold-%s.jar' % (packages_dir, options.version))
+    bundle_natives(platform, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/defold-%s.jar' % (packages_dir, options.version))
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
     exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
 
@@ -215,4 +192,33 @@ if __name__ == '__main__':
     for p in glob.glob(jre_glob):
         shutil.move(p, '%s/jre' % packages_dir)
 
-    ziptree(bundle_dir, 'target/Defold-%s.zip' % options.target_platform, 'tmp')
+    ziptree(bundle_dir, 'target/Defold-%s.zip' % platform, 'tmp')
+
+if __name__ == '__main__':
+    usage = '''usage: %prog [options] command(s)'''
+
+    parser = optparse.OptionParser(usage)
+
+    parser.add_option('--platform', dest='target_platform',
+                      default = None,
+                      action = 'append',
+                      choices = ['x86_64-linux', 'x86-linux', 'x86_64-darwin', 'x86-win32', 'x86_64-win32'],
+                      help = 'Target platform. Specify multiple times for multiple platforms')
+
+    parser.add_option('--version', dest='version',
+                      default = None,
+                      help = 'Version')
+
+    options, all_args = parser.parse_args()
+
+    if not options.target_platform:
+        parser.error('No platform specified')
+
+    if not options.version:
+        parser.error('No version specified')
+
+    if os.path.exists('tmp'):
+        shutil.rmtree('tmp')
+
+    for platform in options.target_platform:
+        bundle(platform, options)
