@@ -7,4 +7,4 @@ def configure(conf):
 def build(bld):
     if bld.env.PLATFORM != "armv7-darwin" and bld.env.PLATFORM != 'armv7-android' and bld.env.PLATFORM != 'js-web':
         bld.add_subdirs('gdc')
-        bld.add_subdirs('launcher')
+    bld.add_subdirs('launcher')
