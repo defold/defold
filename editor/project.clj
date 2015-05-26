@@ -17,6 +17,7 @@
                      [prismatic/plumbing                          "0.3.5"]
                      [inflections/inflections                     "0.9.10"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
+                     ; Keep jogl version in sync with bundle.py. See JOGL_VERSION
                      [org.jogamp.gluegen/gluegen-rt-main          "2.0.2"]
                      [org.jogamp.jogl/jogl-all-main               "2.0.2"]
                      [org.slf4j/slf4j-api                         "1.6.4"]
