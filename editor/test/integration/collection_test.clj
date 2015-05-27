@@ -68,3 +68,17 @@
                (handler/run :add {:selection [{:self node}]})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node :outline)))))))))
+
+(deftest empty-go
+  (testing "Collection with a single empty game object"
+           (with-clean-system
+             (let [workspace (test-util/setup-workspace! world)
+                   project   (test-util/setup-project! workspace)
+                   node      (test-util/resource-node project "/collection/empty_go.collection")
+                   zero-aabb (t/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
+                   outline   (g/node-value node :outline)
+                   scene     (g/node-value node :scene)]
+               ; Verify outline labels
+               (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
+               ; Verify AABBs
+               (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node :scene)))))))))
