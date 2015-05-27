@@ -205,7 +205,8 @@
             (g/connect app-view :active-tool view :active-tool)))
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
-        (.select (.getSelectionModel tab-pane) tab))
+        (.select (.getSelectionModel tab-pane) tab)
+        (project/select! project [resource-node]))
       (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))
 
 (handler/defhandler :open-asset

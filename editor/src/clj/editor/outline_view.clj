@@ -77,7 +77,7 @@
   new-root)
 
 (defn- sync-selection [^TreeView tree-view new-root selection]
-  (let [selected-ids (set (map g/node-id selection))
+  (let [selected-ids (set selection)
         selected-items (filter #(selected-ids (g/node-id (:self (.getValue %)))) (tree-item-seq new-root))
         selected-indices (map #(.getRow tree-view %) selected-items)]
     (when (not (empty? selected-indices))

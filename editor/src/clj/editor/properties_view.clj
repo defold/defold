@@ -173,14 +173,18 @@
       (.add (.getChildren grid) label)
       (.add (.getChildren grid) control))))
 
-(defn- create-properties [workspace grid node]
-  (let [properties (g/properties node)]
+(defn- create-properties [workspace grid node-ids]
+  ; TODO - add multi-selection support for properties view
+  (let [now (g/now)
+        node (g/node-by-id now (first node-ids))
+        properties (g/properties node)]
     (doseq [[key p] properties]
       (let [row (/ (.size (.getChildren grid)) 2)]
-        (create-properties-row workspace grid node key p row))))
-  (when (satisfies? core/MultiNode node)
-    (doseq [n (core/sub-nodes node)]
-      (create-properties workspace grid n))))
+        (create-properties-row workspace grid node key p row)))
+    (when (satisfies? core/MultiNode node)
+      (let [sub-nodes (core/sub-nodes node)]
+        (when (not (empty? sub-nodes))
+          (create-properties workspace grid (map g/node-id sub-nodes)))))))
 
 (defn- update-grid [parent workspace node]
   (.clear (.getChildren parent))
@@ -200,7 +204,7 @@
 
   (input selection t/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view workspace selection] (update-grid parent-view workspace (first selection)))) ; TODO - add multi-selection support for properties view
+  (output grid-pane GridPane :cached (g/fnk [parent-view workspace selection] (let [now (g/now)] (update-grid parent-view workspace selection))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))

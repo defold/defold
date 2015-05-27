@@ -94,7 +94,7 @@ ordinary paths."
   (input resource-types t/Any)
   (input save-data t/Any :array)
 
-  (output selection t/Any :cached (g/fnk [selection] selection))
+  (output selection t/Any :cached (g/fnk [selection] (map g/node-id selection)))
   (output nodes-by-resource t/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))
   (output save-data t/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data))))
 
