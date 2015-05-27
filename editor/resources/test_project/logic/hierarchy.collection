@@ -33,7 +33,7 @@ instances {
   scale: 1.0
 }
 embedded_instances {
-  id: "child_id"
+  id: "embedded_id"
   data: ""
   position {
     x: 100.0
