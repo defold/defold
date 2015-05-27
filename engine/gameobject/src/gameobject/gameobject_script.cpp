@@ -612,7 +612,30 @@ namespace dmGameObject
     int Script_GetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetScale(instance));
+        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
+        return 1;
+    }
+
+    /*# gets the 3d scale factor of the instance
+     * The scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
+     *
+     * @name go.get_scale_vector
+     * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
+     * @return scale factor (vector)
+     * @examples
+     * <p>Get the scale of the instance the script is attached to:</p>
+     * <pre>
+     * local s = go.get_scale_vector()
+     * </pre>
+     * <p>Get the scale of another instance "x":</p>
+     * <pre>
+     * local s = go.get_scale_vector("x")
+     * </pre>
+     */
+    int Script_GetScaleVector(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
         return 1;
     }
 
@@ -674,7 +697,7 @@ namespace dmGameObject
      * NOTE! Physics are currently not affected when setting scale from this function.
      *
      * @name go.set_scale
-     * @param scale uniform scale factor, must be greater than 0 (number)
+     * @param scale vector or uniform scale factor, must be greater than 0 (number)
      * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
      * @examples
      * <p>Set the scale of the instance the script is attached to:</p>
@@ -691,6 +714,19 @@ namespace dmGameObject
     int Script_SetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
+
+        // Supports both vector and number
+        if (dmScript::IsVector3(L, 1))
+        {
+            Vector3 scale = *dmScript::CheckVector3(L, 1);
+            if (scale.getX() <= 0.0f || scale.getY() <= 0.0f || scale.getZ() <= 0.0f)
+            {
+                return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
+            }
+            dmGameObject::SetScale(instance, scale);
+            return 0;
+        }
+
         lua_Number v = luaL_checknumber(L, 1);
         if (v <= 0.0)
         {
@@ -765,7 +801,7 @@ namespace dmGameObject
     int Script_GetWorldScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetWorldScale(instance));
+        lua_pushnumber(L, dmGameObject::GetWorldUniformScale(instance));
         return 1;
     }
 
@@ -1321,6 +1357,7 @@ namespace dmGameObject
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
         {"get_scale",           Script_GetScale},
+        {"get_scale_vector",    Script_GetScaleVector},
         {"set_position",        Script_SetPosition},
         {"set_rotation",        Script_SetRotation},
         {"set_scale",           Script_SetScale},

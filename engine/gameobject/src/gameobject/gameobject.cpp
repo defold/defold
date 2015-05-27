@@ -770,7 +770,7 @@ namespace dmGameObject
     }
 
     // Supplied 'proto' will be released after this function is done.
-    HInstance SpawnInternal(HCollection collection, Prototype *proto, const char *prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
+    HInstance SpawnInternal(HCollection collection, Prototype *proto, const char *prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
         if (collection->m_ToBeDeleted) {
             dmLogWarning("Spawning is not allowed when the collection is being deleted.");
@@ -787,7 +787,7 @@ namespace dmGameObject
         SetPosition(instance, position);
         SetRotation(instance, rotation);
         SetScale(instance, scale);
-        collection->m_WorldTransforms[instance->m_Index] = instance->m_Transform;
+        collection->m_WorldTransforms[instance->m_Index] = dmTransform::ToMatrix4(instance->m_Transform);
 
         dmHashInit64(&instance->m_CollectionPathHashState, true);
         dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));
@@ -875,7 +875,13 @@ namespace dmGameObject
                 continue;
 
             instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
-            instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, instance_desc.m_Scale);
+
+            // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
+            Vector3 scale = instance_desc.m_Scale3;
+            if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0)
+                    scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+
+            instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
             instance->m_CollectionPathHashState = prefixHashState;
 
             const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);
@@ -957,7 +963,7 @@ namespace dmGameObject
                 }
 
                 // world transforms need to be up to date in time for the script init calls
-                collection->m_WorldTransforms[new_instances[i]->m_Index] = new_instances[i]->m_Transform;
+                collection->m_WorldTransforms[new_instances[i]->m_Index] = dmTransform::ToMatrix4(new_instances[i]->m_Transform);
             }
         }
 
@@ -1083,7 +1089,7 @@ namespace dmGameObject
     }
 
     bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
-                             const Point3& position, const Quat& rotation, float scale,
+                             const Point3& position, const Quat& rotation, const Vector3& scale,
                              InstanceIdMap *instances)
     {
         // Bypassing the resource system a little bit in order to do this.
@@ -1106,7 +1112,7 @@ namespace dmGameObject
         dmTransform::Transform transform;
         transform.SetTranslation(Vector3(position));
         transform.SetRotation(rotation);
-        transform.SetScale(Vector3(scale, scale, scale));
+        transform.SetScale(scale);
 
         bool success = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances, transform);
 
@@ -1116,7 +1122,7 @@ namespace dmGameObject
         return success;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
         if (prototype_name == 0x0) {
             dmLogError("No prototype to spawn from.");
@@ -1250,21 +1256,21 @@ namespace dmGameObject
             assert(collection->m_Instances[instance->m_Index] == instance);
 
             // Update world transforms since some components might need them in their init-callback
-            dmTransform::Transform* trans = &collection->m_WorldTransforms[instance->m_Index];
+            Matrix4* trans = &collection->m_WorldTransforms[instance->m_Index];
             if (instance->m_Parent == INVALID_INSTANCE_INDEX)
             {
-                *trans = instance->m_Transform;
+                *trans = dmTransform::ToMatrix4(instance->m_Transform);
             }
             else
             {
-                const dmTransform::Transform* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
+                const Matrix4* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
                 if (instance->m_ScaleAlongZ)
                 {
-                    *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
+                    *trans = (*parent_trans) * dmTransform::ToMatrix4(instance->m_Transform);
                 }
                 else
                 {
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, instance->m_Transform);
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, dmTransform::ToMatrix4(instance->m_Transform));
                 }
             }
 
@@ -1772,10 +1778,12 @@ namespace dmGameObject
                 dmGameObjectDDF::TransformResponse response;
                 response.m_Position = dmGameObject::GetPosition(instance);
                 response.m_Rotation = dmGameObject::GetRotation(instance);
-                response.m_Scale = dmGameObject::GetScale(instance);
+                response.m_Scale = dmGameObject::GetUniformScale(instance);
+                response.m_Scale3 = dmGameObject::GetScale(instance);
                 response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
                 response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
-                response.m_WorldScale = dmGameObject::GetWorldScale(instance);
+                response.m_WorldScale = dmGameObject::GetWorldUniformScale(instance);
+                response.m_WorldScale3 = dmGameObject::GetWorldScale(instance);
                 dmhash_t message_id = dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash;
                 uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
@@ -1800,35 +1808,38 @@ namespace dmGameObject
                         dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
 
                 }
-                dmTransform::Transform parent_t;
-                parent_t.SetIdentity();
+                Matrix4 parent_t = Matrix4::identity();
+
                 if (parent)
                 {
                     parent_t = context->m_Collection->m_WorldTransforms[parent->m_Index];
                 }
+
                 if (sp->m_KeepWorldTransform == 0)
                 {
-                    dmTransform::Transform& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
+                    Matrix4& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
                     if (instance->m_ScaleAlongZ)
                     {
-                        world = dmTransform::Mul(parent_t, instance->m_Transform);
+                        world = parent_t * dmTransform::ToMatrix4(instance->m_Transform);
                     }
                     else
                     {
-                        world = dmTransform::MulNoScaleZ(parent_t, instance->m_Transform);
+                        world = dmTransform::MulNoScaleZ(parent_t, dmTransform::ToMatrix4(instance->m_Transform));
                     }
                 }
                 else
                 {
                     if (instance->m_ScaleAlongZ)
                     {
-                        instance->m_Transform = dmTransform::Mul(dmTransform::Inv(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                        instance->m_Transform = dmTransform::ToTransform(inverse(parent_t) * context->m_Collection->m_WorldTransforms[instance->m_Index]);
                     }
                     else
                     {
-                        instance->m_Transform = dmTransform::MulNoScaleZ(dmTransform::Inv(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                        Matrix4 tmp = dmTransform::MulNoScaleZ(inverse(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                        instance->m_Transform = dmTransform::ToTransform(tmp);
                     }
                 }
+
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
 
                 if (result != dmGameObject::RESULT_OK)
@@ -1997,7 +2008,7 @@ namespace dmGameObject
             uint16_t index = root_level[i];
             Instance* instance = collection->m_Instances[index];
             CheckEuler(instance);
-            collection->m_WorldTransforms[index] = instance->m_Transform;
+            collection->m_WorldTransforms[index] = dmTransform::ToMatrix4(instance->m_Transform);
             uint16_t parent_index = instance->m_Parent;
             assert(parent_index == INVALID_INSTANCE_INDEX);
         }
@@ -2012,24 +2023,29 @@ namespace dmGameObject
                 uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
                 CheckEuler(instance);
-                dmTransform::Transform* trans = &collection->m_WorldTransforms[index];
+                Matrix4* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;
                 assert(parent_index != INVALID_INSTANCE_INDEX);
 
-                dmTransform::Transform* parent_trans = &collection->m_WorldTransforms[parent_index];
+                Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
 
                 if (instance->m_ScaleAlongZ)
                 {
-                    *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
+                    *trans = *parent_trans * dmTransform::ToMatrix4(instance->m_Transform);
                 }
                 else
                 {
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, instance->m_Transform);
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, dmTransform::ToMatrix4(instance->m_Transform));
                 }
+
                 if (instance->m_NoInheritScale)
                 {
-                    trans->SetScale(instance->m_Transform.GetScale());
+                    Matrix4 parent = (*parent_trans);
+                    Vector3 scale = dmTransform::ExtractScale(parent);
+                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+                    own.setUpper3x3(Matrix3::scale(Vector3(1/scale.getX(), 1/scale.getY(), 1/scale.getZ())) * own.getUpper3x3());
+                    *trans = (*parent_trans) * own;
                 }
             }
         }
@@ -2407,30 +2423,53 @@ namespace dmGameObject
         instance->m_Transform.SetScale(scale);
     }
 
-    float GetScale(HInstance instance)
+    float GetUniformScale(HInstance instance)
     {
         return instance->m_Transform.GetUniformScale();
+    }
+
+    Vector3 GetScale(HInstance instance)
+    {
+        return instance->m_Transform.GetScale();
     }
 
     Point3 GetWorldPosition(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return Point3(collection->m_WorldTransforms[instance->m_Index].GetTranslation());
+        Vector4 translation = collection->m_WorldTransforms[instance->m_Index].getCol(3);
+        return Point3(translation.getX(), translation.getY(), translation.getZ());
     }
 
     Quat GetWorldRotation(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return collection->m_WorldTransforms[instance->m_Index].GetRotation();
+        return Quat(collection->m_WorldTransforms[instance->m_Index].getUpper3x3());
     }
 
-    float GetWorldScale(HInstance instance)
+    float GetWorldUniformScale(HInstance instance)
+    {
+        Vector3 scale = GetWorldScale(instance);
+        return dmMath::Max<float>(scale.getX(), dmMath::Max<float>(scale.getY(), scale.getZ()));
+    }
+
+    Vector3 GetWorldScale(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return collection->m_WorldTransforms[instance->m_Index].GetUniformScale();
+        return dmTransform::ExtractScale(collection->m_WorldTransforms[instance->m_Index]);
     }
 
-    const dmTransform::Transform& GetWorldTransform(HInstance instance)
+    /*
+        dmTransform::ToMatrix a dmTransform::Transform from the world transform.
+        When this is not possible, nonsense will be returned.
+    */
+    const dmTransform::Transform GetWorldTransform(HInstance instance)
+    {
+        HCollection collection = instance->m_Collection;
+        Matrix4 mtx = collection->m_WorldTransforms[instance->m_Index];
+        return dmTransform::ToTransform(mtx);
+    }
+
+    const Matrix4 & GetWorldMatrix(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
         return collection->m_WorldTransforms[instance->m_Index];

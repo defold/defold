@@ -164,17 +164,17 @@ public class GuiNode extends Node implements Identifiable {
     }
 
     @Override
-    public void setComponentScale(Vector3d componentScale) {
-        super.setComponentScale(componentScale);
-        GuiNodeStateBuilder.setField(this, "Scale", LoaderUtil.toVector4(componentScale));
+    public void setScale(Vector3d scale) {
+        super.setScale(scale);
+        GuiNodeStateBuilder.setField(this, "Scale", LoaderUtil.toVector4(scale));
     }
 
     public void resetComponentScale() {
-        super.setComponentScale(LoaderUtil.toVector3((Vector4)GuiNodeStateBuilder.resetField(this, "Scale")));
+        super.setScale(LoaderUtil.toVector3((Vector4)GuiNodeStateBuilder.resetField(this, "Scale")));
     }
 
-    public boolean isComponentScaleOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "Scale", LoaderUtil.toVector4(this.getComponentScale()));
+    public boolean isScaleOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Scale", LoaderUtil.toVector4(this.getScale()));
     }
 
     public String getId() {
