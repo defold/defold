@@ -106,7 +106,7 @@
   (with-clean-system
     (let [[n1]         (tx-nodes     (g/make-node world SimpleTestNode))
           foo-before   (g/node-value n1 :foo)
-          _            (g/transact  (g/set-property n1 :foo "quux"))
+          tx-result    (g/transact (g/set-property n1 :foo "quux"))
           foo-after    (g/node-value n1 :foo)
           [n2]         (tx-nodes     (g/make-node world SimpleTestNode :foo "bar"))
           foo-override (g/node-value n2 :foo)]
@@ -213,22 +213,22 @@
   (testing "output dependent on itself"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
-        (is (thrown? Throwable (g/node-value node :out-from-self))))))
+        (is (thrown? AssertionError (g/node-value node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
         (g/transact
          (g/connect node0 :out-from-self node1 :in))
-        (is (thrown? Throwable (g/node-value node1 :out-from-in))))))
+        (is (thrown? AssertionError (g/node-value node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
-        (is (thrown? Throwable (g/transact
+        (is (thrown? AssertionError (g/transact
                                 (g/connect node :out-from-in node :in)))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
-        (is (thrown? Throwable (g/transact
+        (is (thrown? AssertionError (g/transact
                                 (concat
                                  (g/connect node0 :out-from-in node1 :in)
                                  (g/connect node1 :out-from-in node0 :in))))))))
@@ -236,7 +236,7 @@
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
         (g/transact (g/connect node0 :out-from-in node1 :in))
-        (is (thrown? Throwable (g/transact
+        (is (thrown? AssertionError (g/transact
                                 (g/connect node1 :out-from-in node0 :in))))))))
 
 (g/defnode BasicNode
@@ -244,7 +244,7 @@
   (property string-property t/Str)
   (property property-to-override t/Str)
   (property multi-valued-property [t/Keyword] (default [:basic]))
-  (output basic-output t/Keyword :cached "hello"))
+  (output basic-output t/Keyword :cached (g/fnk [] "hello")))
 
 (dp/defproperty predefined-property-type t/Str
   (default "a-default"))
