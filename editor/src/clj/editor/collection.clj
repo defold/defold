@@ -15,7 +15,8 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.handler :as handler]
-            [editor.dialogs :as dialogs])
+            [editor.dialogs :as dialogs]
+            [internal.render.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -92,6 +93,9 @@
                                     (.setZ s (* (.z s) (.z d)))
                                     (g/set-property self :scale [(.x s) (.y s) (.z s)]))))
 
+(defn- outline-sort-by-fn [v]
+  [(:name (g/node-type (:self v))) (:label v)])
+
 (g/defnode GameObjectInstanceNode
   (inherits ScalableSceneNode)
 
@@ -111,7 +115,7 @@
   (output outline t/Any (g/fnk [self id path embedded outline child-outlines]
                                (let [suffix (if embedded "" (format " (%s)" path))]
                                  (merge-with concat
-                                             (merge outline {:self self :label (str id suffix) :icon game-object/game-object-icon})
+                                             (merge outline {:self self :label (str id suffix) :icon game-object/game-object-icon :sort-by-fn outline-sort-by-fn})
                                             {:children child-outlines}))))
   (output ddf-message t/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded
@@ -123,7 +127,8 @@
                                        (merge-with concat
                                                    (assoc (assoc-deep scene :id (g/node-id self))
                                                           :transform transform
-                                                          :aabb aabb)
+                                                          :aabb aabb
+                                                          :renderable {:passes [pass/selection]})
                                                    {:children child-scenes})))))
 
 (g/defnk produce-save-data [resource name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
@@ -146,7 +151,7 @@
   (input child-scenes t/Any :array)
   (input ids t/Str :array)
 
-  (output outline t/Any (g/fnk [self child-outlines] {:self self :label "Collection" :icon collection-icon :children child-outlines}))
+  (output outline t/Any (g/fnk [self child-outlines] {:self self :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
   (output save-data t/Any :cached produce-save-data)
   (output scene t/Any :cached (g/fnk [self child-scenes]
                                      {:id (g/node-id self)
@@ -180,7 +185,8 @@
                                      (assoc scene
                                            :id (g/node-id self)
                                            :transform transform
-                                           :aabb (geom/aabb-transform (:aabb scene) transform)))))
+                                           :aabb (geom/aabb-transform (:aabb scene) transform)
+                                           :renderable {:passes [pass/selection]}))))
 
 (defn- gen-instance-id [coll-node base]
   (let [ids (g/node-value coll-node :ids)]
@@ -352,7 +358,8 @@
                                                    (t/Point3d->Vec3 (:position embedded))
                                                    (math/quat->euler (:rotation embedded))
                                                    [scale scale scale]))))
-            id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) (filter #(= :create-node (:type %)) tx-go-creation)))
+            new-instance-data (filter #(and (= :create-node (:type %)) (= GameObjectInstanceNode (g/node-type (:node %)))) tx-go-creation)
+            id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))
             rev-child-parent-fn (fn [instances] (into {} (mapcat (fn [inst] (map #(do [% (:id inst)]) (:children inst))) instances)))
             child->parent (merge child->parent (rev-child-parent-fn (concat (:instances collection) (:embedded-instances collection))))]

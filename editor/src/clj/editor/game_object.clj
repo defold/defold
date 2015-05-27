@@ -70,7 +70,7 @@
                                      (assoc scene
                                             :id (g/node-id self)
                                             :transform transform
-                                            :aabb (geom/aabb-transform (geom/aabb-incorporate (:aabb scene) 0 0 0) transform))))
+                                            :aabb (geom/aabb-transform (geom/aabb-incorporate (get :aabb scene (geom/null-aabb)) 0 0 0) transform))))
 
   core/MultiNode
   (sub-nodes [self] (if (:embedded self) [(g/node-value self :source)] [])))
