@@ -92,6 +92,9 @@
                                     (.setZ s (* (.z s) (.z d)))
                                     (g/set-property self :scale [(.x s) (.y s) (.z s)]))))
 
+(defn- outline-sort-by-fn [v]
+  [(:name (g/node-type (:self v))) (:label v)])
+
 (g/defnode GameObjectInstanceNode
   (inherits ScalableSceneNode)
 
@@ -111,7 +114,7 @@
   (output outline t/Any (g/fnk [self id path embedded outline child-outlines]
                                (let [suffix (if embedded "" (format " (%s)" path))]
                                  (merge-with concat
-                                             (merge outline {:self self :label (str id suffix) :icon game-object/game-object-icon})
+                                             (merge outline {:self self :label (str id suffix) :icon game-object/game-object-icon :sort-by-fn outline-sort-by-fn})
                                             {:children child-outlines}))))
   (output ddf-message t/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded
@@ -146,7 +149,7 @@
   (input child-scenes t/Any :array)
   (input ids t/Str :array)
 
-  (output outline t/Any (g/fnk [self child-outlines] {:self self :label "Collection" :icon collection-icon :children child-outlines}))
+  (output outline t/Any (g/fnk [self child-outlines] {:self self :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
   (output save-data t/Any :cached produce-save-data)
   (output scene t/Any :cached (g/fnk [self child-scenes]
                                      {:id (g/node-id self)
