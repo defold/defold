@@ -86,6 +86,8 @@ public class Start extends Application {
             logger.debug("extracting lib {}", path);
             FileUtils.copyURLToFile(resource,
                     new File(libPath, new File(path).getName()));
+        } else {
+            logger.warn("can't find library {}", path);
         }
     }
 
