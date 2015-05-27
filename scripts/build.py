@@ -714,8 +714,8 @@ instructions.configure=\
         self.exec_env_command(['./scripts/lein', 'protobuf'], cwd = cwd)
         # TODO: Temporarily disabled
         #self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
-        # NOTE: Only OSX is supported for now
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--version=2.0.0'], cwd = cwd)
+        # TODO: Version
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86-linux', '--platform=x86-win32', '--version=2.0.0'], cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()

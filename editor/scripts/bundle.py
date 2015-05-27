@@ -13,11 +13,28 @@ import tarfile
 import zipfile
 import ConfigParser
 
+# Keep this version in sync with project.clj
+JOGL_VERSION = "2.0.2"
+
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-linux': 'linux-i586',
                     'x86_64-darwin': 'macosx-x64',
                     'x86-win32': 'windows-i586',
                     'x86_64-win32': 'windows-x64'}
+
+# TODO: We use 32-bit launcher on darwin as 64-bit support isn't merged into the
+# javafx-project branch yet
+platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
+                      'x86-linux': 'linux',
+                      'x86_64-darwin': 'darwin',
+                      'x86-win32': 'win32',
+                      'x86_64-win32': 'x86_64-win32'}
+
+platform_to_jogl = {'x86_64-linux': 'linux-amd64',
+                    'x86-linux': 'linux-i586',
+                    'x86_64-darwin': 'macosx-universal',
+                    'x86-win32': 'windows-i586',
+                    'x86_64-win32': 'windows-amd64'}
 
 def mkdirs(path):
     if not os.path.exists(path):
@@ -85,47 +102,52 @@ def ziptree(path, outfile, directory = None):
     zip.close()
     return outfile
 
+def add_native_libs(platform, in_jar_name, out_jar):
+    with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
+        for zi in in_jar.infolist():
+            if not 'META-INF' in zi.filename:
+                d = in_jar.read(zi)
+                n = 'lib/%s/%s' % (platform, zi.filename)
+                print "adding", n
+                out_jar.writestr(n, d)
 
-if __name__ == '__main__':
-    usage = '''usage: %prog [options] command(s)'''
+def bundle_natives(platform, in_jar_name, out_jar_name):
+    with zipfile.ZipFile(out_jar_name, 'w') as out_jar:
+        jogl_platform = platform_to_jogl[platform]
+        add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
+        add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
 
-    parser = optparse.OptionParser(usage)
+        with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
+            for zi in in_jar.infolist():
+                if not (zi.filename.endswith('.so') or zi.filename.endswith('.dll') or zi.filename.endswith('.jnilib')):
+                    d = in_jar.read(zi)
+                    out_jar.writestr(zi, d)
 
-    parser.add_option('--platform', dest='target_platform',
-                      default = None,
-                      choices = ['x86_64-linux', 'x86-linux', 'x86_64-darwin', 'x86-win32', 'x86_64-win32'],
-                      help = 'Target platform')
-
-    parser.add_option('--version', dest='version',
-                      default = None,
-                      help = 'Version')
-
-    options, all_args = parser.parse_args()
-    if not options.target_platform:
-        parser.error('No platform specified')
-
-    if not options.version:
-        parser.error('No version specified')
-
+def bundle(platform, options):
     if os.path.exists('tmp'):
         shutil.rmtree('tmp')
 
     jre_minor = 45
-    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.gz' % (jre_minor, platform_to_java[options.target_platform])
+    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.gz' % (jre_minor, platform_to_java[platform])
     jre = download(jre_url)
     if not jre:
         print('Failed to download %s' % jre_url)
         sys.exit(5)
 
     # TODO: Hack. We should download from s3 based on platform
-    launcher = download('https://s3-eu-west-1.amazonaws.com/defold-packages/slask/launcher', use_cache = False)
+
+    exe_suffix = ''
+    if 'win32' in platform:
+        exe_suffix = '.exe'
+    launcher_url = 'http://d.defold.com/archive/f074b4ba22c0ef7b6b183bd4cb09346f80d02c57/engine/%s/launcher%s' % (platform_to_legacy[platform], exe_suffix)
+    launcher = download(launcher_url, use_cache = False)
     if not launcher:
-        print('Failed to download launcher')
+        print 'Failed to download launcher', launcher_url
         sys.exit(5)
 
     mkdirs('tmp')
 
-    if 'darwin' in options.target_platform:
+    if 'darwin' in platform:
         resources_dir = 'tmp/Defold.app/Contents/Resources'
         packages_dir = 'tmp/Defold.app/Contents/Resources/packages'
         bundle_dir = 'tmp/Defold.app'
@@ -140,9 +162,6 @@ if __name__ == '__main__':
         icon = None
         is_mac = False
 
-    print 'Building editor'
-    exec_command('./scripts/lein clean')
-    exec_command('./scripts/lein uberjar')
     mkdirs(exe_dir)
     mkdirs(resources_dir)
     mkdirs(packages_dir)
@@ -159,18 +178,48 @@ if __name__ == '__main__':
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
 
-    shutil.copy('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/defold-%s.jar' % (packages_dir, options.version))
-    shutil.copy(launcher, '%s/Defold' % exe_dir)
-    exec_command('chmod +x %s/Defold' % exe_dir)
+    bundle_natives(platform, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/defold-%s.jar' % (packages_dir, options.version))
+    shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
+    exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
 
     extract(jre, 'tmp')
     print 'Creating bundle'
     if is_mac:
         jre_glob = 'tmp/jre1.8.0_45.jre/Contents/Home/*'
     else:
-        jre_glob = 'tmp/jre1.8.0_45.jre/*'
+        jre_glob = 'tmp/jre1.8.0_45/*'
 
     for p in glob.glob(jre_glob):
         shutil.move(p, '%s/jre' % packages_dir)
 
-    ziptree(bundle_dir, 'target/Defold-%s.zip' % options.target_platform, 'tmp')
+    ziptree(bundle_dir, 'target/Defold-%s.zip' % platform, 'tmp')
+
+if __name__ == '__main__':
+    usage = '''usage: %prog [options] command(s)'''
+
+    parser = optparse.OptionParser(usage)
+
+    parser.add_option('--platform', dest='target_platform',
+                      default = None,
+                      action = 'append',
+                      choices = ['x86_64-linux', 'x86-linux', 'x86_64-darwin', 'x86-win32', 'x86_64-win32'],
+                      help = 'Target platform. Specify multiple times for multiple platforms')
+
+    parser.add_option('--version', dest='version',
+                      default = None,
+                      help = 'Version')
+
+    options, all_args = parser.parse_args()
+
+    if not options.target_platform:
+        parser.error('No platform specified')
+
+    if not options.version:
+        parser.error('No version specified')
+
+    print 'Building editor'
+    exec_command('./scripts/lein clean')
+    exec_command('./scripts/lein uberjar')
+
+    for platform in options.target_platform:
+        bundle(platform, options)
