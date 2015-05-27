@@ -355,7 +355,8 @@
                                                    (t/Point3d->Vec3 (:position embedded))
                                                    (math/quat->euler (:rotation embedded))
                                                    [scale scale scale]))))
-            id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) (filter #(= :create-node (:type %)) tx-go-creation)))
+            new-instance-data (filter #(and (= :create-node (:type %)) (= GameObjectInstanceNode (g/node-type (:node %)))) tx-go-creation)
+            id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))
             rev-child-parent-fn (fn [instances] (into {} (mapcat (fn [inst] (map #(do [% (:id inst)]) (:children inst))) instances)))
             child->parent (merge child->parent (rev-child-parent-fn (concat (:instances collection) (:embedded-instances collection))))]
