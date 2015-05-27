@@ -153,7 +153,7 @@ TEST_F(CollectionTest, CollectionSpawning)
 
     Vectormath::Aos::Point3 pos(0,0,0);
     Vectormath::Aos::Quat rot(0,0,0,1);
-    const float scale = 1.0f;
+    Vectormath::Aos::Vector3 scale(1,1,1);
 
     bool ret;
     ret = dmGameObject::Update(coll, &m_UpdateContext);
@@ -189,7 +189,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
 
     Vectormath::Aos::Point3 pos(0,0,0);
     Vectormath::Aos::Quat rot(0,0,0,1);
-    const float scale = 1.0f;
+    Vectormath::Aos::Vector3 scale(1,1,1);
 
     // Spawn until failure
     bool filled = false;
@@ -215,7 +215,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
 
     ASSERT_TRUE(filled);
     dmGameObject::PostUpdate(m_Register);
-    
+
     ASSERT_TRUE(true);
 }
 
