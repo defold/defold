@@ -26,7 +26,8 @@
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
-           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]))
+           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
+           [org.apache.commons.io FilenameUtils]))
 
 (def collection-icon "icons/bricks.png")
 
@@ -163,7 +164,8 @@
   (input save-data t/Any)
   (input scene t/Any)
 
-  (output outline t/Any (g/fnk [self id outline] (merge outline {:self self :label id :icon collection-icon})))
+  (output outline t/Any (g/fnk [self id path outline] (let [suffix (format " (%s)" path)]
+                                                        (merge outline {:self self :label (str id suffix) :icon collection-icon}))))
   (output ddf-message t/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
                                            (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
                                                  ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
@@ -223,11 +225,11 @@
                      (let [coll-node (:self (first selection))
                            project (:parent coll-node)
                            workspace (:workspace (:resource coll-node))
-                           ext "go"
-                           component-exts (map :ext (workspace/get-resource-type workspace ext))]
+                           ext "go"]
                        (when-let [; TODO - filter game object files
                                   resource (first (dialogs/make-resource-dialog workspace {}))]
-                         (let [id (gen-instance-id coll-node ext)
+                         (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))
+                               id (gen-instance-id coll-node base)
                                op-seq (gensym)
                                [go-node] (g/tx-nodes-added
                                            (g/transact
@@ -288,6 +290,48 @@
                               ((:load-fn resource-type) project source-node (io/reader (:resource source-node)))
                               (project/select project [go-node]))))))))
 
+(defn- add-collection-instance [self source-node id position rotation scale]
+  (let [path (if source-node (workspace/proj-path (:resource source-node)) "")]
+    (g/make-nodes (g/node->graph-id self)
+                  [coll-node [CollectionInstanceNode :id id :path path
+                              :position position :rotation rotation :scale scale]]
+                  (g/connect coll-node :outline self :child-outlines)
+                  (if source-node
+                    [(g/connect coll-node   :ddf-message  self :ref-coll-ddf)
+                     (g/connect coll-node   :id           self :ids)
+                     (g/connect coll-node   :scene        self :child-scenes)
+                     (g/connect source-node :self         coll-node :source)
+                     (g/connect source-node :outline      coll-node :outline)
+                     (g/connect source-node :save-data    coll-node :save-data)
+                     (g/connect source-node :scene        coll-node :scene)]
+                    []))))
+
+(handler/defhandler :add-secondary-from-file
+  (enabled? [selection] (and (single-selection? selection)
+                             (selected-collection? selection)))
+  (run [selection] (let [coll-node (:self (first selection))
+                         project (:parent coll-node)
+                         workspace (:workspace (:resource coll-node))
+                         ext "collection"
+                         resource-type (workspace/get-resource-type workspace ext)]
+                     (when-let [; TODO - filter collection files
+                                resource (first (dialogs/make-resource-dialog workspace {}))]
+                       (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))
+                             id (gen-instance-id coll-node base)
+                             op-seq (gensym)
+                             [coll-inst-node] (g/tx-nodes-added
+                                                (g/transact
+                                                  (concat
+                                                    (g/operation-label "Add Collection")
+                                                    (g/operation-sequence op-seq)
+                                                    (add-collection-instance coll-node (project/get-resource-node project resource) id [0 0 0] [0 0 0] [1 1 1]))))]
+                         ; Selection
+                         (g/transact
+                           (concat
+                             (g/operation-sequence op-seq)
+                             (g/operation-label "Add Collection")
+                             (project/select project [coll-inst-node]))))))))
+
 (defn load-collection [project self input]
   (let [collection (protobuf/pb->map (protobuf/read-text GameObject$CollectionDesc input))
         project-graph (g/node->graph-id project)]
@@ -295,19 +339,19 @@
       (g/set-property self :name (:name collection))
       (let [tx-go-creation (flatten
                              (concat
-                              (for [game-object (:instances collection)
-                                 :let [; TODO - fix non-uniform hax
-                                       scale (:scale game-object)
-                                       source-node (project/resolve-resource-node self (:prototype game-object))]]
-                                (make-go self source-node (:id game-object) (t/Point3d->Vec3 (:position game-object))
-                                         (math/quat->euler (:rotation game-object)) [scale scale scale]))
-                              (for [embedded (:embedded-instances collection)
-                                    :let [; TODO - fix non-uniform hax
-                                          scale (:scale embedded)]]
-                                (make-embedded-go self project "go" (:data embedded) (:id embedded)
-                                                 (t/Point3d->Vec3 (:position embedded))
-                                                 (math/quat->euler (:rotation embedded))
-                                                 [scale scale scale]))))
+                               (for [game-object (:instances collection)
+                                     :let [; TODO - fix non-uniform hax
+                                           scale (:scale game-object)
+                                           source-node (project/resolve-resource-node self (:prototype game-object))]]
+                                 (make-go self source-node (:id game-object) (t/Point3d->Vec3 (:position game-object))
+                                          (math/quat->euler (:rotation game-object)) [scale scale scale]))
+                               (for [embedded (:embedded-instances collection)
+                                     :let [; TODO - fix non-uniform hax
+                                           scale (:scale embedded)]]
+                                 (make-embedded-go self project "go" (:data embedded) (:id embedded)
+                                                   (t/Point3d->Vec3 (:position embedded))
+                                                   (math/quat->euler (:rotation embedded))
+                                                   [scale scale scale]))))
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) (filter #(= :create-node (:type %)) tx-go-creation)))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))
             rev-child-parent-fn (fn [instances] (into {} (mapcat (fn [inst] (map #(do [% (:id inst)]) (:children inst))) instances)))
@@ -325,20 +369,10 @@
                 [])))))
       (for [coll-instance (:collection-instances collection)
             :let [; TODO - fix non-uniform hax
-                  scale (:scale coll-instance)]]
-        (g/make-nodes project-graph
-                      [coll-node [CollectionInstanceNode :id (:id coll-instance) :path (:collection coll-instance)
-                                  :position (t/Point3d->Vec3 (:position coll-instance)) :rotation (math/quat->euler (:rotation coll-instance)) :scale [scale scale scale]]]
-                      (g/connect coll-node :outline self :child-outlines)
-                      (if-let [source-node (project/resolve-resource-node self (:collection coll-instance))]
-                        [(g/connect coll-node   :ddf-message  self :ref-coll-ddf)
-                         (g/connect coll-node   :id           self :ids)
-                         (g/connect coll-node   :scene        self :child-scenes)
-                         (g/connect source-node :self         coll-node :source)
-                         (g/connect source-node :outline      coll-node :outline)
-                         (g/connect source-node :save-data    coll-node :save-data)
-                         (g/connect source-node :scene        coll-node :scene)]
-                        []))))))
+                  scale (:scale coll-instance)
+                  source-node (project/resolve-resource-node self (:collection coll-instance))]]
+        (add-collection-instance self source-node (:id coll-instance) (t/Point3d->Vec3 (:position coll-instance))
+                                 (math/quat->euler (:rotation coll-instance)) [scale scale scale])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

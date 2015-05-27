@@ -111,6 +111,9 @@
                  {:label "Add From File"
                   :icon "icons/plus.png"
                   :command :add-from-file}
+                 {:label "Add Secondary From File"
+                  :icon "icons/plus.png"
+                  :command :add-secondary-from-file}
                  {:label "Delete"
                   :icon "icons/cross.png"
                   :command :delete}])
