@@ -3,6 +3,7 @@
 import os
 import glob
 import sys
+import json
 import tempfile
 import urllib
 import optparse
@@ -139,7 +140,8 @@ def bundle(platform, options):
     exe_suffix = ''
     if 'win32' in platform:
         exe_suffix = '.exe'
-    launcher_url = 'http://d.defold.com/archive/f074b4ba22c0ef7b6b183bd4cb09346f80d02c57/engine/%s/launcher%s' % (platform_to_legacy[platform], exe_suffix)
+    # TODO: Version is currently fixed
+    launcher_url = 'http://d.defold.com/archive/8495b4805bdff7a230824b0c1387f8c7ee71b828/engine/%s/launcher%s' % (platform_to_legacy[platform], exe_suffix)
     launcher = download(launcher_url, use_cache = False)
     if not launcher:
         print 'Failed to download launcher', launcher_url
@@ -174,6 +176,7 @@ def bundle(platform, options):
     config = ConfigParser.ConfigParser()
     config.read('bundle-resources/config')
     config.set('launcher', 'jar', 'packages/defold-%s.jar' % options.version)
+    config.set('launcher', 'vmargs', '-Ddefold.version=%s' % options.version)
 
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
@@ -223,3 +226,7 @@ if __name__ == '__main__':
 
     for platform in options.target_platform:
         bundle(platform, options)
+
+    package_info = {'jar': 'defold-%s.jar' % options.version}
+    with open('target/package.json', 'w') as f:
+        f.write(json.dumps(package_info))

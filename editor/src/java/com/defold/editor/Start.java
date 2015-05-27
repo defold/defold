@@ -154,7 +154,9 @@ public class Start extends Application {
 
         Future<?> extractFuture = threadPool.submit(() -> {
             try {
-                extractNativeLibs();
+                if (System.getProperty("defold.version") != null) {
+                    extractNativeLibs();
+                }
             } catch (Exception e) {
                 logger.error("failed to extract native libs", e);
             }
