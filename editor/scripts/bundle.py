@@ -124,6 +124,19 @@ def bundle_natives(platform, in_jar_name, out_jar_name):
                     d = in_jar.read(zi)
                     out_jar.writestr(zi, d)
 
+def git_sha1(ref = None):
+    args = 'git log --pretty=%H -n1'.split()
+    if ref:
+        args.append(ref)
+    process = subprocess.Popen(args, stdout = subprocess.PIPE)
+    out, err = process.communicate()
+    if process.returncode != 0:
+        sys.exit(process.returncode)
+
+    line = out.split('\n')[0].strip()
+    sha1 = line.split()[0]
+    return sha1
+
 def bundle(platform, options):
     if os.path.exists('tmp'):
         shutil.rmtree('tmp')
@@ -141,7 +154,11 @@ def bundle(platform, options):
     if 'win32' in platform:
         exe_suffix = '.exe'
     # TODO: Version is currently fixed
-    launcher_url = 'http://d.defold.com/archive/8495b4805bdff7a230824b0c1387f8c7ee71b828/engine/%s/launcher%s' % (platform_to_legacy[platform], exe_suffix)
+    launcher_version = git_sha1()
+    if options.launcher_version:
+        launcher_version = options.launcher_version
+
+    launcher_url = 'http://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
     launcher = download(launcher_url, use_cache = False)
     if not launcher:
         print 'Failed to download launcher', launcher_url
@@ -211,6 +228,10 @@ if __name__ == '__main__':
     parser.add_option('--version', dest='version',
                       default = None,
                       help = 'Version')
+
+    parser.add_option('--launcher-version', dest='launcher_version',
+                      default = None,
+                      help = 'Specific launcher version. Usefull when testing bundling.')
 
     options, all_args = parser.parse_args()
 
