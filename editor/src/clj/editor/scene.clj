@@ -171,7 +171,7 @@
     (let [gl ^GL2 (.getGL context)
           glu ^GLU (GLU.)
           render-args {:gl gl :glu glu :camera camera :viewport viewport :text-renderer @text-renderer}
-          selection-set (set (map g/node-id selection))]
+          selection-set (set selection)]
       (.glClearColor gl 0.0 0.0 0.0 1.0)
       (gl/gl-clear gl 0.0 0.0 0.0 1)
       (.glColor4f gl 1.0 1.0 1.0 1.0)
@@ -220,7 +220,7 @@
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
             render-args {:gl gl :glu glu :camera camera :viewport viewport}
-            selection-set (set (map g/node-id selection))]
+            selection-set (set selection)]
         (flatten
           (for [pass pass/selection-passes
                 :let [render-args (assoc render-args :pass pass)]]
@@ -261,7 +261,7 @@
 (g/defnk produce-selected-renderables [selection selection-renderables]
   (let [renderables (apply merge-with #(concat %1 %2) selection-renderables)
         renderable-by-id (into {} (mapcat (fn [[pass v]] (map #(do [(:id %) %]) v)) renderables))]
-    (filter (comp not nil?) (map #(get renderable-by-id (g/node-id %)) selection))))
+    (filter (comp not nil?) (map #(get renderable-by-id %) selection))))
 
 (g/defnk produce-selected-tool-renderables [tool-selection renderables]
   (apply merge-with concat {} (map #(do {(:id %) [(:user-data %)]}) tool-selection)))
@@ -500,12 +500,12 @@
         select-fn (g/node-value controller :select-fn)
         selection (g/node-value controller :picking-selection)
         sel-filter-fn (case mode
-                        :direct (fn [sel] (map :id selection))
-                        :toggle (fn [sel]
-                                  (let [selection-set (set (map :id selection))
+                        :direct (fn [selection] selection)
+                        :toggle (fn [selection]
+                                  (let [selection-set (set selection)
                                         prev-selection-set (g/node-value controller :prev-selection-set)]
                                     (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))
-        selection (or (not-empty (sel-filter-fn selection)) (filter #(not (nil? %)) [(:id (g/node-value controller :scene))]))]
+        selection (or (not-empty (sel-filter-fn (map :id selection))) (filter #(not (nil? %)) [(:id (g/node-value controller :scene))]))]
     (select-fn (map #(g/node-by-id (g/now) %) selection) op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})
@@ -528,7 +528,7 @@
                            (g/set-property self :start cursor-pos)
                            (g/set-property self :current cursor-pos)
                            (g/set-property self :mode mode)
-                           (g/set-property self :prev-selection-set (set (map g/node-id (g/node-value self :selection))))))
+                           (g/set-property self :prev-selection-set (set (g/node-value self :selection)))))
                        (select self op-seq mode)
                        nil)
       :mouse-released (do

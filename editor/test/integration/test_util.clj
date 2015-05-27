@@ -55,7 +55,7 @@
 
 (defn selected? [project tgt-node]
   (let [sel (g/node-value project :selection)]
-    (not (nil? (some #{(g/node-id tgt-node)} (map g/node-id sel))))))
+    (not (nil? (some #{(g/node-id tgt-node)} sel)))))
 
 (g/defnode DummyAppView
   (property active-tool t/Keyword))
