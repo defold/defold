@@ -82,3 +82,18 @@
                (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
                ; Verify AABBs
                (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node :scene)))))))))
+
+(deftest unknown-components
+  (testing "Load a collection with unknown components"
+           (with-clean-system
+             (let [workspace (test-util/setup-workspace! world)
+                   project   (test-util/setup-project! workspace)
+                   node      (test-util/resource-node project "/collection/unknown_components.collection")
+                   outline   (g/node-value node :outline)
+                   scene     (g/node-value node :scene)
+                   zero-aabb (t/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
+               ; Verify outline labels
+               (is (= (list "Collection" "my_instance (/game_object/unknown_components.go)" "unknown (/game_object/test.unknown)")
+                      (map :label (tree-seq :children :children outline))))
+               ; Verify AABBs
+               (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node :scene)))))))))
