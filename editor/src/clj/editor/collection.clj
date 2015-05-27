@@ -15,7 +15,8 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.handler :as handler]
-            [editor.dialogs :as dialogs])
+            [editor.dialogs :as dialogs]
+            [internal.render.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -126,7 +127,8 @@
                                        (merge-with concat
                                                    (assoc (assoc-deep scene :id (g/node-id self))
                                                           :transform transform
-                                                          :aabb aabb)
+                                                          :aabb aabb
+                                                          :renderable {:passes [pass/selection]})
                                                    {:children child-scenes})))))
 
 (g/defnk produce-save-data [resource name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
@@ -183,7 +185,8 @@
                                      (assoc scene
                                            :id (g/node-id self)
                                            :transform transform
-                                           :aabb (geom/aabb-transform (:aabb scene) transform)))))
+                                           :aabb (geom/aabb-transform (:aabb scene) transform)
+                                           :renderable {:passes [pass/selection]}))))
 
 (defn- gen-instance-id [coll-node base]
   (let [ids (g/node-value coll-node :ids)]

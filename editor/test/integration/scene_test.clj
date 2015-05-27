@@ -189,3 +189,23 @@
                ; Select again
                (test-util/mouse-click! view 32 32)
                (is (test-util/empty-selection? project))))))
+
+(deftest transform-tools-empty-go
+  (testing "Transform tools and manipulator interactions"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world)
+                   project       (test-util/setup-project! workspace)
+                   app-view      (test-util/setup-app-view!)
+                   path          "/collection/empty_go.collection"
+                   resource-node (test-util/resource-node project path)
+                   view          (test-util/open-scene-view! project app-view resource-node 128 128)
+                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+               (is (test-util/empty-selection? project))
+               ; Initial selection (empty go's are not selectable in the view)
+               (project/select! project [go-node])
+               (is (test-util/selected? project go-node))
+               ; Move tool
+               (test-util/set-active-tool! app-view :move)
+               (is (= 0.0 (.x (pos go-node))))
+               (test-util/mouse-drag! view 64 64 68 64)
+               (is (not= 0.0 (.x (pos go-node))))))))
