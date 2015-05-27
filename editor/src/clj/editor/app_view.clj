@@ -114,10 +114,6 @@
   (enabled? [] true)
   (run [prefs] (login/logout prefs)))
 
-(handler/defhandler :open-resource
-  (enabled? [] true)
-  (run [workspace] (prn (dialogs/make-resource-dialog workspace {})) ))
-
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
@@ -129,6 +125,10 @@
                               :id ::open
                               :acc "Shortcut+O"
                               :command :open}
+                             {:label :separator}
+                             {:label "Open Asset"
+                              :acc "Shift+Shortcut+R"
+                              :command :open-asset}
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
@@ -144,11 +144,7 @@
                              {:label "Redo"
                               :acc "Shift+Shortcut+Z"
                               :icon "icons/redo.png"
-                              :command :redo}
-                             {:label :separator}
-                             {:label "Open Resource"
-                              :acc "Shift+Shortcut+R"
-                              :command :open-resource}]}])
+                              :command :redo}]}])
 
 (defrecord DummySelectionProvider []
   workspace/SelectionProvider
@@ -211,3 +207,8 @@
         (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
         (.select (.getSelectionModel tab-pane) tab))
       (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))
+
+(handler/defhandler :open-asset
+  (enabled? [] true)
+  (run [workspace project app-view] (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
+                                      (open-resource app-view workspace project resource))))
