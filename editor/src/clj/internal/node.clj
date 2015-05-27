@@ -18,288 +18,12 @@
 
 (defn- pfnk? [f] (contains? (meta f) :schema))
 
-;; ---------------------------------------------------------------------------
-;; New evaluation
-;; ---------------------------------------------------------------------------
-(defn abort
-  [why _ in-production node-id label & _]
-  (throw (ex-info (str why " Trying to produce [" node-id label "]")
-                  {:node-id node-id :label label :in-production in-production})))
-
-(def not-found (partial abort "No such property, input or output."))
-(def cycle-detected (partial abort "Production cycle detected."))
-
-(defn- chain-eval
-  "Start a chain of evaluators"
-  [evaluators ^IBasis basis in-production node-id label]
-  (let [chain-head    (first evaluators)
-        chain-tail    (next evaluators)]
-    (chain-head basis in-production node-id label evaluators chain-tail)))
-
-(defn- continue
-  "Continue evaluation with the next link in the chain."
-  [^IBasis basis in-production node-id label chain-head chain-next]
-  ((first chain-next) basis in-production node-id label chain-head (next chain-next)))
-
-(defn- multivalued? [cardinality]  (= cardinality :many))
-(def ^:private exists?       (comp not nil?))
-(def ^:private has-property? contains?)
-(defn- has-output? [node label] (some-> node gt/transforms label boolean))
-(def ^:private first-source (comp first gt/sources))
-(defn- currently-producing [in-production node-id label] (= [node-id label] (last in-production)))
-
-(defn- input-with-substitute
-  [basis in-production node-id label chain-head [source-node source-label] replace-nil?]
-  (let [error-or-value (when source-node (chain-eval chain-head basis in-production source-node source-label))
-        sub            (gt/substitute-for (gt/node-by-id basis node-id) label)]
-    (cond
-      (and replace-nil? (nil? source-node) (not (nil? sub)))
-      (apply-if-fn sub)
-
-      (and (gt/error? error-or-value) (not (nil? sub)))
-      (apply-if-fn sub)
-
-      :else
-      error-or-value)))
-
-(defn- pull-singlevalued-input
-  [basis in-production node-id label chain-head]
-  (let [source (first (gt/sources basis node-id label))]
-    (input-with-substitute basis in-production node-id label chain-head source true)))
-
-(defn- pull-multivalued-input
-  [basis in-production node-id label chain-head]
-  (persistent!
-   (reduce
-    (fn [input-vals source]
-      (conj!
-       input-vals
-       (input-with-substitute basis in-production node-id label chain-head source false)))
-    (transient [])
-    (gt/sources basis node-id label))))
-
-(defn- evaluate-input-internal
-  "Gather a named argument for a production function. Depending on
-  the name, this could mean one of five things:
-
-  1. It names an input label. Evaluate the sources to get their values.
-  2. It names a property of the node itself. Return the value of the property.
-  3. It names another output of the same node. (The node has functions that depend on other
-     outputs of the same node.) Evaluate that output first, then use its value.
-  4. It is the special name :this. Use the entire node as an argument."
-  [basis in-production node-id label chain-head]
-  (let [node             (gt/node-by-id basis node-id)
-        input-schema     (some-> node gt/input-types label)
-        input-cardinality (some-> node gt/node-type (gt/input-cardinality label))
-        output-transform (some-> node gt/transforms  label)]
-    (cond
-      (and (has-output? node label) (not (currently-producing in-production node-id label)))
-      (chain-eval chain-head basis in-production node-id label)
-
-      (multivalued? input-cardinality)
-      (pull-multivalued-input basis in-production node-id label chain-head)
-
-      (exists? input-schema)
-      (pull-singlevalued-input basis in-production node-id label chain-head)
-
-      (has-property? node label)
-      (get node label)
-
-      (= :this label)
-      node
-
-      (has-output? node label)
-      (chain-eval chain-head basis in-production node-id label))))
-
-(defn- deduce-input-type
-  "Return the type of the node's input label (or property). Take care with :array inputs."
-  [^IBasis basis in-production node-id label]
-  (let [node              (gt/node-by-id basis node-id)
-        node-type         (some-> node gt/node-type)
-        input-cardinality (gt/input-cardinality node-type label)
-        input-type        (gt/input-type node-type label)
-        output-transform  (some-> node gt/transforms  label)]
-    (cond
-      (and (has-output? node label) (not (currently-producing in-production node-id label)))
-      (gt/output-type node-type label)
-
-      (multivalued? input-cardinality)
-      (s/maybe [input-type])
-
-      (exists? input-type)
-      (s/maybe input-type)
-
-      (has-property? node label)
-      (let [schema (gt/property-type node-type label)]
-       (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema))
-
-      (= :this label)
-      (class node)
-
-      (has-output? node label)
-      (gt/output-type node-type label))))
-
-(defn- collect-input-schema
-  "Return a schema with the production function's input names mapped to the node's corresponding input type."
-  [^IBasis basis in-production node-id label production-fn]
-  (persistent!
-   (reduce-kv
-    (fn [inputs desired-input-name desired-input-schema]
-      (assoc! inputs desired-input-name
-              (deduce-input-type basis in-production node-id desired-input-name)))
-    (transient {})
-    (dissoc (pf/input-schema production-fn) t/Keyword))))
-
-(defn- collect-inputs
-  "Return a map of all inputs needed for the input-schema."
-  [^IBasis basis in-production node-id label chain-head input-schema]
-  (persistent!
-   (reduce-kv
-    (fn [inputs desired-input-name desired-input-schema]
-      (assoc! inputs desired-input-name
-             (evaluate-input-internal basis in-production node-id desired-input-name chain-head)))
-    (transient {})
-    input-schema)))
-
-(defn- clean-schema [m]
-  (reduce-kv (fn [m k v]
-               (assoc m k (if (nil? v) s/Any v))) {} m))
-
-(defn- warn [node-id node-type label input-schema error]
+(defn warn [node-id node-type label input-schema error]
   (println "WARNING: node " node-id
            "- type:" (:name node-type)
            "input label for" label
            "expected" input-schema
            "and had the problem:" error ))
-
-(defn- produce-with-schema
-  "Helper function: if the production function has schema information,
-  use it to collect the required arguments."
-  [^IBasis basis in-production node-id label chain-head production-fn]
-  (let [input-schema      (collect-input-schema basis in-production node-id label production-fn)
-        cleaned-schema    (if (map? input-schema) (clean-schema input-schema) input-schema)
-        input             (collect-inputs basis in-production node-id label chain-head input-schema)
-        node              (gt/node-by-id basis node-id)
-        node-type         (some-> node gt/node-type)
-        input-cardinality (gt/input-cardinality node-type label)]
-    (if-let [validation-error (if  (gt/error? input)
-                                (do (println "Carin error input already " node-id  " " label ) input)
-                                (s/check cleaned-schema input))]
-      (let [error (gt/error validation-error node-id label)]
-        (warn node-id node-type label input-schema error)
-        (if (multivalued? input-cardinality) [error] error))
-      (production-fn input))))
-
-(defn apply-transform-or-substitute
-  "Attempt to invoke the production function for an output. If it
-  fails, call the transform's substitute value function."
-  [^IBasis basis in-production node-id label chain-head producer]
-  (if
-    (pfnk? producer)
-    (produce-with-schema basis in-production node-id label chain-head producer)
-    producer))
-
-(defn mark-in-production
-  "This evaluation function checks whether the requested value is
-  already being computed. If so, it means there is a cycle in the
-  graph somewhere, so we must abort."
-  [^IBasis basis in-production node-id label chain-head chain-next]
-  (if (some #{[node-id label]} in-production)
-    (cycle-detected basis in-production node-id label)
-    (continue basis (conj in-production [node-id label]) node-id label chain-head chain-next)))
-
-(defn evaluate-production-function
-  "This evaluation function looks for a production function to create
-  the output on the node. If there is a production function, it
-  gathers the arguments needed for the production function and invokes
-  it."
-  [^IBasis basis in-production node-id label chain-head chain-next]
-  (if-let [transform (some->> node-id (gt/node-by-id basis) gt/transforms label)]
-    (apply-transform-or-substitute basis in-production node-id label chain-head transform)
-    (continue basis in-production node-id label chain-head chain-next)))
-
-(defn lookup-property
-  "This evaluation function looks for a property on the node. If there
-  is no such property, evaluation continues with the rest of the
-  chain."
-  [^IBasis basis in-production node-id label chain-head chain-next]
-  (let [node (gt/node-by-id basis node-id)]
-    (if (has-property? node label)
-      (get node label)
-      (continue basis in-production node-id label chain-head chain-next))))
-
-(defn read-input
-  "This evaluation function looks for an input to the node. If the
-  input exists and is multivalued, then all the incoming values are
-  conjed together. If the input does not exist, evaluation continues
-  with the rest of the chain."
-  [^IBasis basis in-production node-id label chain-head chain-next]
-  (let [node              (gt/node-by-id basis node-id)
-        input-schema      (some-> node gt/input-types label)
-        input-cardinality (some-> node gt/node-type (gt/input-cardinality label))]
-    (cond
-      (multivalued? input-cardinality)
-      (pull-multivalued-input basis in-production node-id label chain-head)
-
-      (exists? input-schema)
-      (pull-singlevalued-input basis in-production node-id label chain-head)
-
-      :else
-      (continue basis in-production node-id label chain-head chain-next))))
-
-(def world-evaluation-chain
-  [mark-in-production
-   evaluate-production-function
-   lookup-property
-   read-input
-   not-found])
-
-(defn- cacheable?
-  "Check the node type to see if the given output should be cached
-  once computed."
-  [^IBasis basis node-id label]
-  (if-let [node (gt/node-by-id basis node-id)]
-    ((gt/cached-outputs node) label)
-    false))
-
-(defn- delta
-  [deltas node-id label v]
-  (swap! deltas conj [[node-id label] v]) v)
-
-(defn- local
-  [deltas node-id label]
-  (let [seeking [node-id label]]
-    (first (keep (fn [[k v]] (when (= k seeking) v)) @deltas))))
-
-(defn local-deltas
-  "Returns an evaluator. The evaluator is an evaluation function that
-  looks for any values that have already been produced during this
-  computation.
-
-  If no local delta is found, the evaluator continues the
-  chain. Whatever the chain returns gets recorded as a local delta for
-  possible use during the remainder of the evaluation."
-  [deltas ^IBasis basis in-production node-id label chain-head chain-next]
-  (if-not (cacheable? basis node-id label)
-    (continue basis in-production node-id label chain-head chain-next)
-    (if-some [r (local deltas node-id label)]
-      r
-      (delta deltas node-id label
-             (continue basis in-production node-id label chain-head chain-next)))))
-
-(defn- hit [hits node-id label v] (swap! hits conj [node-id label]) v)
-
-(defn cache-lookup
-  "Returns an evaluation function.
-
-  The evaluator collects records of values that were 'hits' in the
-  atom of the same name."
-  [snapshot hits ^IBasis basis in-production node-id label chain-head chain-next]
-  (if (cacheable? basis node-id label)
-    (if-some [v (get snapshot [node-id label])]
-      (hit hits node-id label v)
-      (continue basis in-production node-id label chain-head chain-next))
-    (continue basis in-production node-id label chain-head chain-next)))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -307,21 +31,23 @@
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [^IBasis basis cache node label]
-  (let [node-id    (if (gt/node? node) (gt/node-id node) node)
-        hits       (atom [])
-        deltas     (atom [])
-        evaluators (if cache
-                     (list* (partial local-deltas deltas)
-                            (partial cache-lookup (c/cache-snapshot cache) hits)
-                            world-evaluation-chain)
-                     world-evaluation-chain)
-        result     (chain-eval evaluators basis [] node-id label)]
+  [^IBasis basis cache node-or-node-id label]
+  (let [node               (gt/node-by-id basis (if (gt/node? node-or-node-id) (gt/node-id node-or-node-id) node-or-node-id))
+        evaluation-context {:local    (atom {})
+                            :snapshot (if cache (c/cache-snapshot cache) {})
+                            :hits     (atom [])
+                            :basis    basis
+                            :in-production []}
+        result             (gt/produce-value node label evaluation-context)]
     (when (some gt/error? (collify result))
       (throw (Exception. (str "Error Value Found in Node.  Reason: " (pr-str result)))))
     (when cache
-      (c/cache-hit cache @hits)
-      (c/cache-encache cache @deltas))
+      (let [local @(:local evaluation-context)
+            local-for-encache (for [[node-id vmap] local
+                                    [output val] vmap]
+                                [[node-id output] val])]
+        (c/cache-hit cache @(:hits evaluation-context))
+        (c/cache-encache cache local-for-encache)))
     result))
 
 ;; ---------------------------------------------------------------------------
@@ -555,7 +281,6 @@ must be part of a protocol or interface attached to the description."
 (def ^:private output-flags   #{:cached :abstract})
 (def ^:private output-options #{})
 
-
 (defn- node-type-form
   "Translate the sugared `defnode` forms into function calls that
   build the node type description (map). These are emitted where you
@@ -598,7 +323,7 @@ must be part of a protocol or interface attached to the description."
         (not (class? ~impl))
         (attach-protocol (fqsymbol '~impl)))))
 
-(defn node-type-sexps
+(defn node-type-forms
   "Given all the forms in a defnode macro, emit the forms that will build the node type description."
   [symb forms]
   (list* `-> {:name (str symb)}
@@ -608,6 +333,192 @@ must be part of a protocol or interface attached to the description."
   "Return a map of default values for the node type."
   [node-type]
   (map-vals t/property-default-value (gt/properties' node-type)))
+
+(defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
+(defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
+
+(defn- has-property? [node-type argument] (gt/property-type node-type argument))
+(defn- has-output? [node-type argument] (gt/output-type node-type argument))
+(defn- property-overloads-output? [node-type argument output] (and (= output argument) (has-property? node-type argument)))
+(defn- unoverloaded-output? [node-type argument output] (and (not= output argument) (has-output? node-type argument)))
+
+(defn- property-schema
+  [node-type property]
+  (let [schema (gt/property-type node-type property)]
+    (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)))
+
+(defn- dollar-name
+  [node-type-name label]
+  (symbol (str node-type-name "$" (name label))))
+
+(defn- deduce-argument-type
+  "Return the type of the node's input label (or property). Take care
+   with :array inputs."
+  [record-name node-type argument output]
+  (cond
+    (property-overloads-output? node-type argument output)
+    (property-schema node-type argument)
+
+    (unoverloaded-output? node-type argument output)
+    (gt/output-type node-type argument)
+
+    (has-multivalued-input? node-type argument)
+    (s/maybe [(gt/input-type node-type argument)])
+
+    (has-singlevalued-input? node-type argument)
+    (s/maybe (gt/input-type node-type argument))
+
+    (has-output? node-type argument)
+    (gt/output-type node-type argument)
+
+    (= :this argument)
+    record-name
+
+    (has-property? node-type argument)
+    (property-schema node-type argument)))
+
+(defn- collect-argument-schema
+  "Return a schema with the production function's input names mapped to the node's corresponding input type."
+  [transform argument-schema record-name node-type]
+  (persistent!
+   (reduce-kv
+    (fn [arguments desired-argument-name _]
+      (if (= t/Keyword desired-argument-name)
+        arguments
+        (let [argument-type (deduce-argument-type record-name node-type desired-argument-name transform)]
+          (assoc! arguments desired-argument-name (or argument-type s/Any)))))
+    (transient {})
+    argument-schema)))
+
+(defn- produce-value-form
+  [node-sym output context-sym]
+  `(gt/produce-value ~node-sym ~output ~context-sym))
+
+(defn- input-value-forms
+  [input]
+  `(mapv (fn [[~'node-id ~'output-label]]
+           (let [~'node (gt/node-by-id (:basis ~'evaluation-context) ~'node-id)]
+             ~(produce-value-form 'node 'output-label 'evaluation-context)))
+         (gt/sources (:basis ~'evaluation-context) (gt/node-id ~'this) ~input)))
+
+(defn- lookup-multivalued-input
+  [node-type-name node-type input]
+  (if (gt/substitute-for' node-type input)
+    `(let [inputs# ~(input-value-forms input)
+           sub#     (gt/substitute-for' ~node-type-name ~input)]
+       (map #(if (gt/error? %) (apply-if-fn sub#) %) inputs#))
+    (input-value-forms input)))
+
+(defn- lookup-singlevalued-input
+  [node-type-name node-type input]
+  (if (gt/substitute-for' node-type input)
+    `(let [inputs#     ~(input-value-forms input)
+           no-input?#  (empty? inputs#)
+           input#      (first inputs#)
+           sub#        (gt/substitute-for' ~node-type-name ~input)]
+       (if (or no-input?# (gt/error? input#))
+         (apply-if-fn sub#)
+         input#))
+    `(first ~(input-value-forms input))))
+
+(defn- input-lookup-forms
+  [node-type-name node-type input]
+  (cond
+    (has-multivalued-input? node-type input)
+    (lookup-multivalued-input node-type-name node-type input)
+
+    (has-singlevalued-input? node-type input)
+    (lookup-singlevalued-input node-type-name node-type input)))
+
+(defn- node-input-forms
+  [output node-type-name node-type [argument schema]]
+  (cond
+    (property-overloads-output? node-type argument output)
+    `(get ~'this ~argument)
+
+    (unoverloaded-output? node-type argument output)
+    (produce-value-form 'this argument 'evaluation-context)
+
+    (has-multivalued-input? node-type argument)
+    (lookup-multivalued-input node-type-name node-type argument)
+
+    (has-singlevalued-input? node-type argument)
+    (lookup-singlevalued-input node-type-name node-type argument)
+
+    (has-output? node-type argument)
+    (produce-value-form 'this argument 'evaluation-context)
+
+    (= :this argument)
+    'this
+
+    (has-property? node-type argument)
+    `(get ~'this ~argument)))
+
+(defn produce-value-forms [transform output-multi? node-type-name argument-forms argument-schema epilogue]
+  `(let [pfn-input# ~argument-forms
+         schema#    ~argument-schema]
+     (if-let [validation-error# (if (gt/error? pfn-input#)
+                                  pfn-input#
+                                  (s/check schema# pfn-input#))]
+       (let [~'error (gt/error validation-error# (gt/node-id ~'this) ~transform)]
+         (warn (gt/node-id ~'this) ~node-type-name ~transform schema# ~'error)
+         ~(if output-multi? `[~'error] 'error))
+       (let [~'result ((~transform (gt/transforms' ~node-type-name)) pfn-input#)]
+         ~epilogue
+         ~'result))))
+
+(defn local-cache [evaluation-context transform]
+  `(get-in @(:local ~evaluation-context) [(gt/node-id ~'this) ~transform]))
+
+(defn global-cache [evaluation-context transform]
+  `(if-some [cached# (get (:snapshot ~evaluation-context) [(gt/node-id ~'this) ~transform])]
+     (do (swap! (:hits ~evaluation-context) conj [(gt/node-id ~'this) ~transform]) cached#)))
+
+(defn node-output-value-function-forms
+  [record-name node-type-name node-type]
+  (for [[transform pfn]       (gt/transforms' node-type)
+        :let [cached?         ((gt/cached-outputs' node-type) transform)
+              output-multi?   (seq? ((gt/transform-types' node-type) transform))
+              argument-schema (collect-argument-schema transform (pf/input-schema pfn) record-name node-type)
+              argument-forms  (zipmap (keys argument-schema)
+                                      (map (partial node-input-forms transform node-type-name node-type) argument-schema))
+              epilogue        (when cached?
+                                `(swap! (:local ~'evaluation-context) assoc-in [(gt/node-id ~'this) ~transform] ~'result))
+              refresh         `(gt/node-by-id (:basis ~'evaluation-context) (gt/node-id ~'this))
+              lookup          (if cached?
+                                `(or ~(local-cache 'evaluation-context transform)
+                                     ~(global-cache 'evaluation-context transform)
+                                     ~(produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))
+                                (produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))]]
+    `(defn ~(dollar-name node-type-name transform) [~'this ~'evaluation-context]
+       (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
+               (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
+       (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
+         ~(if (= transform :self) refresh lookup)))))
+
+
+(defn node-input-value-function-forms
+  [record-name node-type-name node-type]
+  (for [[input input-schema] (gt/inputs' node-type)]
+    `(defn ~(dollar-name node-type-name input) [~'this ~'evaluation-context]
+       ~(input-lookup-forms node-type-name node-type input))))
+
+(defn define-node-value-functions
+  [record-name node-type-name node-type]
+  (eval
+   `(do
+      ~@(node-input-value-function-forms record-name node-type-name node-type)
+      ~@(node-output-value-function-forms record-name node-type-name node-type))))
+
+(defn node-value-function-names
+  [node-type-name node-type]
+  (map (partial dollar-name node-type-name)
+       (concat (keys (gt/transforms' node-type))
+               (keys (gt/inputs' node-type)))))
+
+(defn declare-node-value-function-names
+  [node-type-name node-type]
+  (eval `(declare ~@(node-value-function-names node-type-name node-type))))
 
 (defn classname-for [prefix] (symbol (str prefix "__")))
 
@@ -625,6 +536,10 @@ must be part of a protocol or interface attached to the description."
          ~@(mapcat (fn [e] [e `((get (gt/event-handlers' ~node-type-name) ~e) ~'self ~'event)]) (keys (gt/event-handlers' node-type)))
          nil))]))
 
+(defn- subtract-keys
+  [m1 m2]
+  (set/difference (set (keys m1)) (set (keys m2))))
+
 (defn- node-record-sexps
   [record-name node-type-name node-type]
   `(defrecord ~record-name ~(state-vector node-type)
@@ -641,6 +556,14 @@ must be part of a protocol or interface attached to the description."
      (properties          [_]        (gt/properties' ~node-type-name))
      (input-dependencies  [_]        (gt/input-dependencies' ~node-type-name))
      (substitute-for      [_ input#] (gt/substitute-for' ~node-type-name input#))
+     (produce-value       [~'this label# ~'evaluation-context]
+       (case label#
+         ~@(mapcat (fn [an-output] [an-output (list (dollar-name node-type-name an-output) 'this 'evaluation-context)])
+                   (keys (gt/transforms' node-type)))
+         ~@(mapcat (fn [an-input]  [an-input  (list (dollar-name node-type-name an-input) 'this 'evaluation-context)])
+                   (subtract-keys (gt/inputs' node-type) (gt/transforms' node-type)))
+         (throw (ex-info (str "No such output, input, or property " label# " exists for node type " ~node-type-name)
+                         {:label label# :node-type ~node-type-name}))))
      ~@(gt/interfaces node-type)
      ~@(gt/protocols node-type)
      ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type))
@@ -657,7 +580,7 @@ and protocols that the node type requires."
   [n elt coll]
   (mapcat (fn [l r] (conj l r)) (partition-all n coll) (repeat elt)))
 
-(defn- print-method-sexps
+(defn- print-method-forms
   [record-name node-type-name node-type]
   (let [node (vary-meta 'node assoc :tag (resolve record-name))]
     `(defmethod print-method ~record-name
@@ -673,4 +596,4 @@ and protocols that the node type requires."
 (defn define-print-method
   "Create a nice print method for a node type. This avoids infinitely recursive output in the REPL."
   [record-name node-type-name node-type]
-  (eval (print-method-sexps record-name node-type-name node-type)))
+  (eval (print-method-forms record-name node-type-name node-type)))

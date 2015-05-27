@@ -38,7 +38,8 @@
   (outputs             [this]        "Return a set of labels for the outputs of this node.")
   (cached-outputs      [this]        "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
   (input-dependencies  [this]        "Return a map of labels for the inputs and properties to outputs that depend on them.")
-  (substitute-for      [this input]  "Return a generator for a substitute value (if any) for the given input"))
+  (substitute-for      [this input]  "Return a generator for a substitute value (if any) for the given input")
+  (produce-value       [this output evaluation-context] "Return the value of the named output"))
 
 (defn node? [v] (satisfies? Node v))
 

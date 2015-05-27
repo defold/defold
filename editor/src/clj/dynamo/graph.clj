@@ -14,7 +14,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
+(import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
 
 (import-vars [internal.graph type-compatible?])
 
@@ -27,6 +27,8 @@
 
 ;; Only marked dynamic so tests can rebind. Should never be rebound "for real".
 (defonce ^:dynamic *the-system* (atom nil))
+
+(def ^:dynamic *tps-debug* nil)
 
 (import-vars [internal.system system-cache disposal-queue])
 
@@ -65,8 +67,24 @@
               (remember-change sys gid before after (outputs-modified gid)))
             (ref-set gref after)))))))
 
+(when *tps-debug*
+  (def tps-counter (agent (long-array 3 0)))
+
+  (defn tick [^longs tps-counts now]
+    (let [last-report-time (aget tps-counts 1)
+          transaction-count (inc (aget tps-counts 0))]
+      (aset-long tps-counts 0 transaction-count)
+      (when (> now (+ last-report-time 1000000000))
+        (let [elapsed-time (/ (- now last-report-time) 1000000000.00)]
+         (do (println "TPS" (/ transaction-count elapsed-time))))
+        (aset-long tps-counts 1 now)
+        (aset-long tps-counts 0 0)))
+    tps-counts))
+
 (defn transact
   [txs]
+  (when *tps-debug*
+    (send-off tps-counter tick (System/nanoTime)))
   (let [basis     (ig/multigraph-basis (map-vals deref (is/graphs @*the-system*)))
         tx-result (it/transact* (it/new-transaction-context basis txs))]
     (when (= :ok (:status tx-result))
@@ -280,7 +298,7 @@ for all properties of this node."
         ctor-name    (symbol (str 'map-> record-name))]
     `(do
        (declare ~ctor-name ~symb)
-       (let [description#    ~(in/node-type-sexps symb (concat node-intrinsics forms))
+       (let [description#    ~(in/node-type-forms symb (concat node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
              all-graphs#     (map-vals deref (is/graphs @*the-system*))
@@ -288,7 +306,9 @@ for all properties of this node."
                                (filterv #(= replacing# (node-type %)) (mapcat ig/node-values (vals all-graphs#))))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
          (def ~symb (in/make-node-type (assoc description# :dynamo.graph/ctor ctor#)))
+         (in/declare-node-value-function-names '~symb ~symb)
          (in/define-node-record  '~record-name '~symb ~symb)
+         (in/define-node-value-functions '~record-name '~symb ~symb)
          (in/define-print-method '~record-name '~symb ~symb)
          (when (< 0 (count to-be-replaced#))
            (transact

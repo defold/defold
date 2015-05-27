@@ -42,6 +42,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:dynamic *fps-debug* nil)
+
 ; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
 ; We flip in JavaFX instead
 (defn- read-to-buffered-image [^long w ^long h]
@@ -401,6 +403,19 @@
     (.clear l)
     (.add l (javafx.scene.transform.Rotate. 180 0 (/ height 2) 0 (javafx.geometry.Point3D. 1 0 0)))))
 
+(when *fps-debug*
+  (def fps-counter (agent (long-array 3 0)))
+
+  (defn tick [^longs fps-counts now]
+    (let [last-report-time (aget fps-counts 1)
+          frame-count (inc (aget fps-counts 0))]
+      (aset-long fps-counts 0 frame-count)
+      (when (> now (+ last-report-time 1000000000))
+        (do (println "FPS" frame-count))
+        (aset-long fps-counts 1 now)
+        (aset-long fps-counts 0 0)))
+    fps-counts))
+
 (defn make-scene-view [scene-graph ^Parent parent]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
@@ -429,17 +444,21 @@
         (.setOnMouseDragged parent event-handler)
         (.setOnScroll parent event-handler)
         (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
-        (let [repainter (proxy [AnimationTimer] []
-                          (handle [now]
-                            (let [self                  (g/node-by-id (g/now) self-ref)
-                                  image-view ^ImageView (:image-view self)
-                                  visible               (:visible self)]
-                              (when (and visible)
-                                (let [image (g/node-value self :image)]
-                                  (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
+
+        (let [fps-counter (when *fps-debug* (agent (long-array 3 0)))
+              repainter   (proxy [AnimationTimer] []
+                            (handle [now]
+                              (when *fps-debug* (send-off fps-counter tick now))
+                              (let [self                  (g/node-by-id (g/now) self-ref)
+                                    image-view ^ImageView (:image-view self)
+                                    visible               (:visible self)]
+                                (when (and visible)
+                                  (let [image (g/node-value self :image)]
+                                    (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
           (g/transact (g/set-property view :repainter repainter))
           (.start repainter)))
       (g/refresh view))))
+
 
 (g/defnode PreviewView
   (inherits core/Scope)
