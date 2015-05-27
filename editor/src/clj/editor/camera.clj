@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [editor.math :as math]
             [schema.core :as s])
   (:import [dynamo.types Camera Region AABB]
            [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]))
@@ -281,17 +282,21 @@
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
-  (let [min-proj    (camera-project camera viewport (.. aabb min))
-        max-proj    (camera-project camera viewport (.. aabb max))
-        proj-width  (Math/abs (- (.x max-proj) (.x min-proj)))
-        proj-height (Math/abs (- (.y max-proj) (.y min-proj)))
-        factor-x    (Math/abs (/ proj-width  (- (.right viewport) (.left viewport))))
-        factor-y    (Math/abs (/ proj-height (- (.top viewport) (.bottom viewport))))
-        factor-y    (* factor-y (:aspect camera))
-        fov-x-prim  (* factor-x (:fov camera))
-        fov-y-prim  (* factor-y (:fov camera))
-        y-aspect    (/ fov-y-prim (:aspect camera))]
-    (* 1.1 (Math/max y-aspect fov-x-prim))))
+  (if (= aabb (geom/null-aabb))
+    (:fov camera)
+    (let [min-proj    (camera-project camera viewport (.. aabb min))
+          max-proj    (camera-project camera viewport (.. aabb max))
+          proj-width  (Math/abs (- (.x max-proj) (.x min-proj)))
+          proj-height (Math/abs (- (.y max-proj) (.y min-proj)))]
+      (if (or (< proj-width math/epsilon) (< proj-height math/epsilon))
+        (:fov camera)
+        (let [factor-x    (Math/abs (/ proj-width  (- (.right viewport) (.left viewport))))
+              factor-y    (Math/abs (/ proj-height (- (.top viewport) (.bottom viewport))))
+              factor-y    (* factor-y (:aspect camera))
+              fov-x-prim  (* factor-x (:fov camera))
+              fov-y-prim  (* factor-y (:fov camera))
+              y-aspect    (/ fov-y-prim (:aspect camera))]
+          (* 1.1 (Math/max y-aspect fov-x-prim)))))))
 
 (s/defn camera-orthographic-frame-aabb :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
