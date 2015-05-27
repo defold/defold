@@ -82,18 +82,17 @@ int Launch(int argc, char **argv) {
     args[i++] = icon_arg;
 #endif
 
-    const char* vm_args = dmConfigFile::GetString(config, "launcher.vmargs", 0);
-    if (vm_args) {
-    	char* tmp = strdup(vm_args);
+    const char* tmp = dmConfigFile::GetString(config, "launcher.vmargs", 0);
+    char *vm_args = 0;
+    if (tmp) {
+    	vm_args = strdup(tmp);
 
         char* s, *last;
-        s = dmStrTok(tmp, ",", &last);
+        s = dmStrTok(vm_args, ",", &last);
         while (s) {
             args[i++] = s;
         	s = dmStrTok(0, ",", &last);
         }
-
-    	free(tmp);
     }
 
     args[i++] = (char*) main;
@@ -172,6 +171,7 @@ int Launch(int argc, char **argv) {
 
 #endif
 
+    free(vm_args);
     delete[] args;
     dmConfigFile::Delete(config);
 	// TODO: fork, wait and return exit code
