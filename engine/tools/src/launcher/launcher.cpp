@@ -82,6 +82,20 @@ int Launch(int argc, char **argv) {
     args[i++] = icon_arg;
 #endif
 
+    const char* vm_args = dmConfigFile::GetString(config, "launcher.vmargs", 0);
+    if (vm_args) {
+    	char* tmp = strdup(vm_args);
+
+        char* s, *last;
+        s = dmStrTok(tmp, ",", &last);
+        while (s) {
+            args[i++] = s;
+        	s = dmStrTok(0, ",", &last);
+        }
+
+    	free(tmp);
+    }
+
     args[i++] = (char*) main;
     args[i++] = 0;
 
