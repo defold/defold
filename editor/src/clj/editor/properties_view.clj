@@ -175,16 +175,17 @@
 
 (defn- create-properties [workspace grid node-ids]
   ; TODO - add multi-selection support for properties view
-  (let [now (g/now)
-        node (g/node-by-id now (first node-ids))
-        properties (g/properties node)]
-    (doseq [[key p] properties]
-      (let [row (/ (.size (.getChildren grid)) 2)]
-        (create-properties-row workspace grid node key p row)))
-    (when (satisfies? core/MultiNode node)
-      (let [sub-nodes (core/sub-nodes node)]
-        (when (not (empty? sub-nodes))
-          (create-properties workspace grid (map g/node-id sub-nodes)))))))
+  (when-let [node-id (first node-ids)]
+    (let [now (g/now)
+          node (g/node-by-id now node-id)
+          properties (g/properties node)]
+      (doseq [[key p] properties]
+        (let [row (/ (.size (.getChildren grid)) 2)]
+          (create-properties-row workspace grid node key p row)))
+      (when (satisfies? core/MultiNode node)
+        (let [sub-nodes (core/sub-nodes node)]
+          (when (not (empty? sub-nodes))
+            (create-properties workspace grid (map g/node-id sub-nodes))))))))
 
 (defn- update-grid [parent workspace node]
   (.clear (.getChildren parent))
