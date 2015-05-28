@@ -7,7 +7,7 @@
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.8.10"]]
 
-  :dependencies     [[org.clojure/clojure                         "1.7.0-beta3"]
+  :dependencies     [[org.clojure/clojure                         "1.7.0-RC1"]
                      [org.clojure/core.cache                      "0.6.3"]
                      [org.clojure/core.async                      "0.1.346.0-17112a-alpha"]
                      [org.clojure/core.match                      "0.2.1"]
@@ -101,4 +101,3 @@
                                     :proto-paths    ["test/proto"]
                                     :main ^:skip-aot com.defold.editor.Start
                                     :resource-paths ["test/resources"]}})
-
