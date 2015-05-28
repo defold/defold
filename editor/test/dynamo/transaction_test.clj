@@ -304,7 +304,7 @@
           real-id          (g/node-id real-node)
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
-      (is (= #{:properties :self :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (is (= #{:properties :self :node-id :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-node :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
