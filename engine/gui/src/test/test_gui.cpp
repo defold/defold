@@ -2427,24 +2427,28 @@ TEST_F(dmGuiTest, Picking)
     Point3 pos(size * 0.5f);
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
 
+#define PICK_NODE(node, screen_x, screen_y) dmGui::PickNode(m_Scene, node, (screen_x)*(1.0f/ref_scale), (screen_y)*(1.0f/ref_scale))
+
     // Account for some loss in precision
     Vector3 min(EPSILON, EPSILON, 0);
     Vector3 max = size - min;
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX(), min.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX(), max.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, max.getX(), max.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, max.getX(), min.getY()));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(size.getX() + 0.5f), size.getY()));
+    ASSERT_TRUE(PICK_NODE(n1, min.getX(), min.getY()));
+    ASSERT_TRUE(PICK_NODE(n1, min.getX(), max.getY()));
+    ASSERT_TRUE(PICK_NODE(n1, max.getX(), max.getY()));
+    ASSERT_TRUE(PICK_NODE(n1, max.getX(), min.getY()));
+    ASSERT_FALSE(PICK_NODE(n1, ceil(size.getX() + 0.5f), size.getY()));
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
     Vector3 ext(pos);
     ext.setX(ext.getX() * cosf((float) (M_PI * 0.25)));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX() + floor(ext.getX()), pos.getY()));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + ceil(ext.getX()), pos.getY()));
+    ASSERT_TRUE(PICK_NODE(n1, pos.getX() + floor(ext.getX()), pos.getY()));
+    ASSERT_FALSE(PICK_NODE(n1, pos.getX() + ceil(ext.getX()), pos.getY()));
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 90, 0, 0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), pos.getY()));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + 1.0f, pos.getY()));
+    ASSERT_TRUE(PICK_NODE(n1, pos.getX(), pos.getY()));
+    ASSERT_FALSE(PICK_NODE(n1, pos.getX() + 1.0f, pos.getY()));
+
+#undef PICK_NODE
 }
 
 TEST_F(dmGuiTest, ScriptPicking)
