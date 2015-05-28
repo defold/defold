@@ -270,7 +270,7 @@
 
 (g/defnode Sink
   (input target-label String)
-  (output loud String (g/fnk [target-label] (str/upper-case target-label))))
+  (output loud String :cached (g/fnk [target-label] (when target-label (str/upper-case target-label)))))
 
 (defn id [n] (g/node-id n))
 
@@ -302,6 +302,55 @@
                  [(id pipe-p1)   :soft]
                  [(id sink-a1)   :loud]
                  [(id source-p1) :source-label]}))))))
+
+(g/defnode ChainedLink
+  (input source-label String)
+  (output source-label String :cached (g/fnk [source-label] (when source-label (str/upper-case source-label)))))
+
+(defn- show-sarcs-tarcs [msg graph]
+  (println msg
+           "\n\t:sarcs " (get-in (g/now) [:graphs graph :sarcs])
+           "\n\t:tarcs"  (get-in (g/now) [:graphs graph :tarcs])))
+
+(deftest undo-restores-all-source-arcs
+  (testing "Delete with cross-graph connections, undo, re-delete"
+    (ts/with-clean-system
+      (let [project-graph      (g/make-graph! :history true)
+            view-graph         (g/make-graph! :history false)
+            [source link sink] (ts/tx-nodes (g/make-node project-graph Source :source-label "from project graph")
+                                            (g/make-node project-graph ChainedLink)
+                                            (g/make-node view-graph Sink))]
+        (println :source (g/node-id source) :link (g/node-id link) :sink (g/node-id sink))
+
+        (g/transact
+         (concat
+          (g/connect source :source-label link :source-label)
+          (g/connect link   :source-label sink :target-label)))
+
+        (is (= "FROM PROJECT GRAPH" (g/node-value sink :loud)))
+
+        (show-sarcs-tarcs "Before delete" project-graph)
+
+        (g/transact
+         (g/set-property source :source-label "after change"))
+
+        (g/delete-node! source)
+
+        (show-sarcs-tarcs "After  delete" project-graph)
+
+        (is (= nil (g/node-value sink :loud)))
+
+        (g/undo project-graph)
+
+        (show-sarcs-tarcs "After undo" project-graph)
+
+        (is (= "AFTER CHANGE" (g/node-value sink :loud)))
+
+        (g/delete-node! source)
+
+        (show-sarcs-tarcs "After second delete" project-graph)
+
+        (is (= nil (g/node-value sink :loud)))))))
 
 (defn bump-counter
   [transaction graph self & _]

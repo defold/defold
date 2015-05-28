@@ -31,12 +31,17 @@
   (conj (or coll []) x))
 
 (defn- rebuild-sarcs
-  [basis gid]
-  (let [all-arcs (->> (:graphs basis)
-                      vals
-                      (mapcat (comp vals :tarcs deref))
+  [basis graph-state]
+  (def basis* basis)
+  (println 'rebuild-sarcs :tarcs-from-rebuild-graph (:tarcs graph-state))
+  (println 'rebuild-sarcs :tarcs-from-all-graphs (mapcat (comp vals :tarcs) (vals (:graphs basis))))
+  (let [gid      (:_gid graph-state)
+        graphs   (vals (assoc basis gid graph-state))
+        all-arcs (->> graphs
+                      (mapcat (comp vals :tarcs))
                       flatten
                       (filter (fn [^ArcBase arc] (= (gt/node-id->graph-id (.source arc)) gid))))]
+    (println 'rebuild-sarcs :all-arcs all-arcs)
     (reduce
      (fn [sarcs arc] (update sarcs (.source arc) conjv arc))
      {}
@@ -297,4 +302,4 @@
 
 (defn hydrate-after-undo
   [graphs graph-state]
-  (assoc graph-state :sarcs (rebuild-sarcs (multigraph-basis graphs) (:_gid graph-state))))
+  (assoc graph-state :sarcs (rebuild-sarcs (multigraph-basis (map-vals deref graphs)) graph-state)))
