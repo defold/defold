@@ -177,7 +177,7 @@
   ; TODO - add multi-selection support for properties view
   (when-let [node-id (first node-ids)]
     (let [now (g/now)
-          node (g/node-by-id now (first node-ids))
+          node (g/node-by-id now node-id)
           properties (g/properties node)]
       (doseq [[key p] properties]
         (let [row (/ (.size (.getChildren grid)) 2)]

@@ -69,7 +69,7 @@
 
 (defn- history-state-merge-cache-keys
   [[_ _ _ ks :as new] [_ _ _ old-ks :as old]]
-  (replace {3 (into ks old-ks)} new))
+  (assoc new 3 (into ks old-ks)))
 
 (defn- merge-into-top
   [tape new-state]
