@@ -2632,7 +2632,7 @@ namespace dmGui
         InternalNode* n = GetNode(scene, node);
         CalculateNodeTransform(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
         transform = inverse(transform);
-        Vector4 screen_pos(x, y, 0.0f, 1.0f);
+        Vector4 screen_pos(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
         const float EPSILON = 0.0001f;
         // check if we need to project the local position to the node plane
