@@ -186,8 +186,6 @@
                (is (test-util/selected? project go-node))
                ; Delete again
                (g/transact (g/delete-node go-node))
-               ; Select again
-               (test-util/mouse-click! view 32 32)
                (is (test-util/empty-selection? project))))))
 
 (deftest transform-tools-empty-go

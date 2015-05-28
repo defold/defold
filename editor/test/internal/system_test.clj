@@ -328,28 +328,16 @@
           (g/connect link   :source-label sink :target-label)))
 
         (is (= "FROM PROJECT GRAPH" (g/node-value sink :loud)))
-
-        (show-sarcs-tarcs "Before delete" project-graph)
-
         (g/transact
          (g/set-property source :source-label "after change"))
 
         (g/delete-node! source)
-
-        (show-sarcs-tarcs "After  delete" project-graph)
-
         (is (= nil (g/node-value sink :loud)))
 
         (g/undo project-graph)
-
-        (show-sarcs-tarcs "After undo" project-graph)
-
         (is (= "AFTER CHANGE" (g/node-value sink :loud)))
 
         (g/delete-node! source)
-
-        (show-sarcs-tarcs "After second delete" project-graph)
-
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn bump-counter
