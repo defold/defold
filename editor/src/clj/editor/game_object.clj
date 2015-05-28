@@ -154,8 +154,8 @@
             (project/select project [comp-node])))))))
 
 (handler/defhandler :add-from-file
-    (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (:self (first selection))))))
-    (run [selection] (add-component-handler (:self (first selection)))))
+    (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (first selection)))))
+    (run [selection] (add-component-handler (first selection))))
 
 (defn- add-embedded-component [self project type data id position rotation]
   (let [resource (project/make-embedded-resource project type data)]
@@ -197,8 +197,8 @@
           (project/select project [comp-node]))))))
 
 (handler/defhandler :add
-    (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (:self (first selection))))))
-    (run [selection] (add-embedded-component-handler (:self (first selection)))))
+    (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (first selection)))))
+    (run [selection] (add-embedded-component-handler (first selection))))
 
 (defn load-game-object [project self input]
   (let [project-graph (g/node->graph-id self)

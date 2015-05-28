@@ -89,14 +89,17 @@ ordinary paths."
 
   (property workspace t/Any)
 
-  (input selection t/Any :array)
+  (input selected-nodes t/Any :array)
   (input resources t/Any)
   (input resource-types t/Any)
   (input save-data t/Any :array)
 
-  (output selection t/Any :cached (g/fnk [selection] (map g/node-id selection)))
+  (output selection t/Any :cached (g/fnk [selected-nodes] (map g/node-id selected-nodes)))
   (output nodes-by-resource t/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))
-  (output save-data t/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data))))
+  (output save-data t/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
+
+  workspace/SelectionProvider
+  (selection [this] (g/node-value this :selected-nodes)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (workspace/resource-type (:resource resource-node))))
@@ -123,10 +126,10 @@ ordinary paths."
 (defn select
   [project nodes]
     (concat
-      (for [[node label] (g/sources-of (g/now) project :selection)]
-        (g/disconnect node label project :selection))
+      (for [[node label] (g/sources-of (g/now) project :selected-nodes)]
+        (g/disconnect node label project :selected-nodes))
       (for [node nodes]
-        (g/connect node :self project :selection))))
+        (g/connect node :self project :selected-nodes))))
 
 (defn select!
   ([project nodes]
