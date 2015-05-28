@@ -73,6 +73,8 @@
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
 
+(def NodeID s/Int)
+
 (def ^:const NID-BITS                                56)
 (def ^:const NID-MASK                  0xffffffffffffff)
 (def ^:const NID-SIGN-EXTEND         -72057594037927936) ;; as a signed long
