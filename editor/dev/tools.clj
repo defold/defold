@@ -30,6 +30,13 @@
   ([gid nid]
    (g/node-by-id (g/now) (gt/make-node-id gid nid))))
 
+(defn node-at
+  ([basis node-id]
+   (g/node-by-id basis node-id))
+
+  ([basis gid nid]
+   (g/node-by-id basis (gt/make-node-id gid nid))))
+
 (defn nodes-for-file
   [filename]
   (for [n (nodes)
@@ -49,6 +56,13 @@
             (gt/sources (g/now) node-id label)))
   ([gid nid label]
    (inputs-to (gt/make-node-id gid nid) label)))
+
+(defn inputs-to-at
+  ([basis node-id label]
+   (sort-by first
+            (gt/sources basis node-id label)))
+  ([basis gid nid label]
+   (inputs-to basis (gt/make-node-id gid nid) label)))
 
 (defn outputs-from
   ([node-id label]
