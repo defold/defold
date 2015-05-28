@@ -89,8 +89,8 @@
         tx-result (it/transact* (it/new-transaction-context basis txs))]
     (when (= :ok (:status tx-result))
       (dosync
-       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result)))
-      (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))
+       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
+       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result)))
       (doseq [l (:old-event-loops tx-result)]
         (is/stop-event-loop! @*the-system* l))
       (doseq [l (:new-event-loops tx-result)]
@@ -520,10 +520,8 @@ for all properties of this node."
   ([node label]
    (sources-of (now) node label))
   ([basis node label]
-   (map
-    (fn [[node-id label]]
-      [(node-by-id basis node-id) label])
-    (sources basis (node-id node) label))))
+   (map #(update %1 0 (partial node-by-id basis))
+        (sources basis (node-id node) label))))
 
 (defn nodes-consuming
   "Find the [node label] pairs for all connections reached from the
