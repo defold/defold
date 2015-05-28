@@ -494,7 +494,11 @@ must be part of a protocol or interface attached to the description."
        (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
                (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
        (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
-         ~(if (= transform :self) refresh lookup)))))
+         ~(if (= transform :self)
+            refresh
+            (if (= transform :this)
+              (gt/node-id ~'this)
+              lookup))))))
 
 
 (defn node-input-value-function-forms
