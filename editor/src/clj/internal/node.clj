@@ -42,7 +42,7 @@
     (when (some gt/error? (collify result))
       (throw (Exception. (str "Error Value Found in Node.  Reason: " (pr-str result)))))
     (when cache
-      (let [local @(:local evaluation-context)
+      (let [local             @(:local evaluation-context)
             local-for-encache (for [[node-id vmap] local
                                     [output val] vmap]
                                 [[node-id output] val])]
