@@ -331,6 +331,8 @@
 
 (defn- one-transaction-pass
   [ctx actions]
+  (when *tx-debug*
+    (println (txerrstr ctx "actions this pass " actions)))
   (-> (update-in ctx [:txpass] inc)
     (assoc :triggers-to-fire {})
     (assoc :nodes-affected {})
