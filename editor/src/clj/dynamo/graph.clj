@@ -14,7 +14,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
+(import-vars [internal.graph.types node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
 
 (import-vars [internal.graph type-compatible?])
 
@@ -35,6 +35,12 @@
 (defn now
   []
   (is/basis @*the-system*))
+
+(defn node-by-id
+  ([node-id]
+   (node-by-id (now) node-id))
+  ([basis node-id]
+   (ig/node-by-id-at basis node-id)))
 
 (defn cache [] (is/system-cache @*the-system*))
 
@@ -104,7 +110,7 @@
 ;; ---------------------------------------------------------------------------
 (defn tx-nodes-added
   [{:keys [basis nodes-added]}]
-  (map (partial gt/node-by-id basis) nodes-added))
+  (map (partial ig/node-by-id-at basis) nodes-added))
 
 (defn is-modified?
   ([transaction node]
@@ -499,7 +505,7 @@ for all properties of this node."
 
   This function should mainly be used to create 'plumbing'."
   [basis node type & {:as body}]
-  (gt/process-one-event (gt/node-by-id basis (gt/node-id node)) (assoc body :type type)))
+  (gt/process-one-event (ig/node-by-id-at basis (gt/node-id node)) (assoc body :type type)))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph

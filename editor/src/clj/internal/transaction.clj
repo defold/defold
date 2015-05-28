@@ -106,7 +106,7 @@
 
 (defn- mark-activated
   [{:keys [basis] :as ctx} node-id input-label]
-  (let [dirty-deps (get (gt/input-dependencies (gt/node-by-id basis node-id)) input-label)]
+  (let [dirty-deps (get (gt/input-dependencies (ig/node-by-id-at basis node-id)) input-label)]
     (update-in ctx [:nodes-affected node-id] set/union dirty-deps)))
 
 (defn- activate-all-outputs
@@ -174,8 +174,8 @@
 (defmethod perform :become
   [{:keys [basis nodes-affected new-event-loops old-event-loops] :as ctx}
    {:keys [node-id to-node]}]
-  (if-let [old-node (gt/node-by-id basis node-id)] ; nil if node was deleted in this transaction
-    (let [old-node         (gt/node-by-id basis node-id)
+  (if-let [old-node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
+    (let [old-node         (ig/node-by-id-at basis node-id)
           to-node-id       (gt/node-id to-node)
           new-node         (merge to-node old-node)
 
@@ -200,7 +200,7 @@
 (defmethod perform :delete-node
   [{:keys [basis nodes-deleted old-event-loops nodes-added triggers-to-fire] :as ctx}
    {:keys [node-id]}]
-  (if-let [node (gt/node-by-id basis node-id)] ; nil if node was deleted in this transaction
+  (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [[basis-after node] (gt/delete-node basis node-id)
           ctx                (activate-all-outputs ctx node-id node)]
       (assoc ctx
@@ -214,7 +214,7 @@
 (defmethod perform :update-property
   [{:keys [basis triggers-to-fire properties-modified] :as ctx}
    {:keys [node-id property fn args]}]
-  (if-let [node (gt/node-by-id basis node-id)] ; nil if node was deleted in this transaction
+  (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [old-value          (get node property)
           [basis-after node] (gt/update-property basis node-id property fn args)
           new-value          (get node property)]
@@ -231,8 +231,8 @@
 (defmethod perform :connect
   [{:keys [basis triggers-to-fire graphs-modified] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
-  (if-let [source (gt/node-by-id basis source-id)] ; nil if source node was deleted in this transaction
-    (if-let [target (gt/node-by-id basis target-id)] ; nil if target node was deleted in this transaction
+  (if-let [source (ig/node-by-id-at basis source-id)] ; nil if source node was deleted in this transaction
+    (if-let [target (ig/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
       (-> ctx
           (mark-activated target-id target-label)
           (assoc
@@ -244,8 +244,8 @@
 (defmethod perform :disconnect
   [{:keys [basis triggers-to-fire graphs-modified] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
-  (if-let [source (gt/node-by-id basis source-id)] ; nil if source node was deleted in this transaction
-    (if-let [target (gt/node-by-id basis target-id)] ; nil if target node was deleted in this transaction
+  (if-let [source (ig/node-by-id-at basis source-id)] ; nil if source node was deleted in this transaction
+    (if-let [target (ig/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
       (-> ctx
           (mark-activated target-id target-label)
           (assoc
@@ -283,7 +283,7 @@
 (defn- last-seen-node
   [{:keys [basis nodes-deleted]} node-id]
   (or
-    (gt/node-by-id basis node-id)
+    (ig/node-by-id-at basis node-id)
     (get nodes-deleted node-id)))
 
 (defn- trigger-activations
