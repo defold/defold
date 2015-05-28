@@ -712,8 +712,7 @@ instructions.configure=\
         self.exec_env_command(['./scripts/install_jars'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'clean'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'protobuf'], cwd = cwd)
-        # TODO: Temporarily disabled
-        #self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
+        self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
         # TODO: Version
         self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86-linux', '--platform=x86-win32', '--version=2.0.0'], cwd = cwd)
 
