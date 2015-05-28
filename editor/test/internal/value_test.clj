@@ -163,22 +163,21 @@
 (defn- cached? [cache node-id label]
   (not (nil? (cache-peek cache node-id label))))
 
-(g/defnode SelfCounter
-  (property call-counter t/Int (default 0))
+(g/defnode OutputChaining
+  (property a-property t/Int (default 0))
 
-  (output plus-1 t/Int :cached
-          (g/fnk [self call-counter]
-                 (g/transact (g/update-property self :call-counter inc))
-                 (inc call-counter))))
+  (output chained-output t/Int :cached
+          (g/fnk [self a-property]
+                 (inc a-property))))
 
-(deftest intermediate-uncached-values-are-not-cached
+(deftest output-caching-does-not-accidentally-cache-inputs
   (with-clean-system
-    (let [[node]       (tx-nodes (g/make-node world SelfCounter :first-call true))
-          node-id      (:_id node)]
-      (g/node-value node :plus-1)
-      (is (cached? cache node-id :plus-1))
+    (let [[node]       (tx-nodes (g/make-node world OutputChaining))
+          node-id      (g/node-id node)]
+      (g/node-value node :chained-output)
+      (is (cached? cache node-id :chained-output))
       (is (not (cached? cache node-id :self)))
-      (is (not (cached? cache node-id :call-counter))))))
+      (is (not (cached? cache node-id :a-property))))))
 
 (g/defnode Source
   (property constant t/Keyword))
@@ -195,7 +194,16 @@
   (output   output-using-overloaded-output-input-property t/Keyword (g/fnk [overloaded-output-input-property] overloaded-output-input-property))
 
   (input    eponymous t/Keyword)
-  (output   eponymous t/Keyword (g/fnk [eponymous] eponymous)))
+  (output   eponymous t/Keyword (g/fnk [eponymous] eponymous))
+
+
+  (property position t/Keyword (default :position-property))
+  (output   position t/Str     (g/fnk [position] (name position)))
+  (output   transform t/Str    (g/fnk [position] position))
+
+  (input    renderables           t/Keyword :array)
+  (output   renderables           t/Str     (g/fnk [renderables] (apply str (mapcat name renderables))))
+  (output   transform-renderables t/Str     (g/fnk [renderables] renderables)))
 
 
 (deftest node-value-precedence
@@ -206,11 +214,25 @@
        (concat
         (g/connect s1 :constant node :overloaded-input-property)
         (g/connect s1 :constant node :eponymous)))
-      (is (= :output   (g/node-value node :overloaded-output-input-property)))
-      (is (= :input    (g/node-value node :overloaded-input-property)))
-      (is (= :property (g/node-value node :the-property)))
-      (is (= :output   (g/node-value node :output-using-overloaded-output-input-property)))
-      (is (= :input    (g/node-value node :eponymous))))))
+      (is (= :output             (g/node-value node :overloaded-output-input-property)))
+      (is (= :input              (g/node-value node :overloaded-input-property)))
+      (is (= :property           (g/node-value node :the-property)))
+      (is (= :output             (g/node-value node :output-using-overloaded-output-input-property)))
+      (is (= :input              (g/node-value node :eponymous)))
+      (is (= "position-property" (g/node-value node :transform)))))
+
+  (testing "output uses another output, which is a function of an input with the same name"
+    (with-clean-system
+      (let [[combiner s1 s2 s3] (tx-nodes (g/make-node world ValuePrecedence)
+                                          (g/make-node world Source :constant :source-1)
+                                          (g/make-node world Source :constant :source-2)
+                                          (g/make-node world Source :constant :source-3))]
+       (g/transact
+        (concat
+         (g/connect s1 :constant combiner :renderables)
+         (g/connect s2 :constant combiner :renderables)
+         (g/connect s3 :constant combiner :renderables)))
+       (is (= "source-1source-2source-3" (g/node-value combiner :transform-renderables)))))))
 
 (deftest invalidation-across-graphs
   (with-clean-system
@@ -250,7 +272,7 @@
 (g/defnode SubstitutingInputsNode
   (input unary-no-sub     t/Int)
   (input multi-no-sub     t/Int :array)
-  (input unary-with-sub   t/Int  :substitute 99)
+  (input unary-with-sub   t/Int :substitute 99)
   (input multi-with-sub   t/Int :array :substitute 4848)
 
   (output unary-no-sub    t/Int  (g/fnk [unary-no-sub] unary-no-sub))
@@ -296,7 +318,5 @@
           (is (= 99 (arrange-error-value-call world :unary-with-sub true (g/error))))))
       (testing "multi"
         (with-clean-system
-          (is (thrown? Exception (let [x (arrange-error-value-call world :multi-no-sub true (g/error))]
-                                   (println x) x)))
+          (is (thrown? Exception (arrange-error-value-call world :multi-no-sub true (g/error))))
           (is (= [4848] (arrange-error-value-call world :multi-with-sub true (g/error)))))))))
-
