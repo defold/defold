@@ -32,7 +32,7 @@
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
   [^IBasis basis cache node-or-node-id label]
-  (let [node               (gt/node-by-id basis (if (gt/node? node-or-node-id) (gt/node-id node-or-node-id) node-or-node-id))
+  (let [node               (ig/node-by-id-at basis (if (gt/node? node-or-node-id) (gt/node-id node-or-node-id) node-or-node-id))
         evaluation-context {:local    (atom {})
                             :snapshot (if cache (c/cache-snapshot cache) {})
                             :hits     (atom [])
@@ -397,7 +397,7 @@ must be part of a protocol or interface attached to the description."
 (defn- input-value-forms
   [input]
   `(mapv (fn [[~'node-id ~'output-label]]
-           (let [~'node (gt/node-by-id (:basis ~'evaluation-context) ~'node-id)]
+           (let [~'node (ig/node-by-id-at (:basis ~'evaluation-context) ~'node-id)]
              ~(produce-value-form 'node 'output-label 'evaluation-context)))
          (gt/sources (:basis ~'evaluation-context) (gt/node-id ~'this) ~input)))
 
@@ -484,7 +484,7 @@ must be part of a protocol or interface attached to the description."
                                       (map (partial node-input-forms transform node-type-name node-type) argument-schema))
               epilogue        (when cached?
                                 `(swap! (:local ~'evaluation-context) assoc-in [(gt/node-id ~'this) ~transform] ~'result))
-              refresh         `(gt/node-by-id (:basis ~'evaluation-context) (gt/node-id ~'this))
+              refresh         `(ig/node-by-id-at (:basis ~'evaluation-context) (gt/node-id ~'this))
               lookup          (if cached?
                                 `(or ~(local-cache 'evaluation-context transform)
                                      ~(global-cache 'evaluation-context transform)

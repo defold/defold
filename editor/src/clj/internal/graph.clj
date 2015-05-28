@@ -3,11 +3,6 @@
             [internal.graph.types :as gt]
             [schema.core :as s]))
 
-;; Desired changes
-;; Index arcs by source-id -> list-of-Arc (starting at that source)
-;; Index arcs by target-id -> list-of-Arc (terminating at that target)
-;; Stop using head & tail internally... creates garbage vectors. Create fns on Arc to test for source, target, source+label, and target+label.
-
 (deftype ArcBase [source target sourceLabel targetLabel]
   gt/Arc
   (head [_] [source sourceLabel])
@@ -143,6 +138,12 @@
              (for [~@bindings]
                [~@loop-vars]))))
 
+(definline node-id->graph  [gs node-id] `(get ~gs (gt/node-id->graph-id ~node-id)))
+
+(defn node-by-id-at
+  [basis node-id]
+  (node (node-id->graph (:graphs basis) node-id) node-id))
+
 ;; ---------------------------------------------------------------------------
 ;; Dependency tracing
 ;; ---------------------------------------------------------------------------
@@ -152,15 +153,13 @@
 
 (defn- marked-outputs
   [basis target-node target-label]
-  (get (gt/input-dependencies (gt/node-by-id basis target-node)) target-label))
+  (get (gt/input-dependencies (node-by-id-at basis target-node)) target-label))
 
 (defn- marked-downstream-nodes
   [basis node-id output-label]
   (for [[target-node target-input] (gt/targets basis node-id output-label)
         affected-outputs           (marked-outputs basis target-node target-input)]
     [target-node affected-outputs]))
-
-(definline node-id->graph  [gs node-id] `(get ~gs (gt/node-id->graph-id ~node-id)))
 
 ;; ---------------------------------------------------------------------------
 ;; Type checking
@@ -190,9 +189,9 @@
 
 (defn- assert-type-compatible
   [basis src-id src-label tgt-id tgt-label]
-  (let [output-type   (gt/node-type (gt/node-by-id basis src-id))
+  (let [output-type   (gt/node-type (node-by-id-at basis src-id))
         output-schema (gt/output-type output-type src-label)
-        input-type    (gt/node-type (gt/node-by-id basis tgt-id))
+        input-type    (gt/node-type (node-by-id-at basis tgt-id))
         input-schema  (gt/input-type input-type tgt-label)]
     (assert (type-compatible? output-schema input-schema)
             (format "Cannot connect %s %s [%s] to %s %s [%s]. %s and %s are not compatible."
@@ -202,22 +201,18 @@
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
-  (node-by-id
-    [_ node-id]
-    (node (node-id->graph graphs node-id) node-id))
-
   (node-by-property
     [_ label value]
     (filter #(= value (get % label)) (mapcat vals graphs)))
 
   (sources
     [this node-id label]
-    (filter #(gt/node-by-id this (first %))
+    (filter #(node-by-id-at this (first %))
             (sources (node-id->graph graphs node-id) node-id label)))
 
   (targets
     [this node-id label]
-    (filter #(gt/node-by-id this (first %))
+    (filter #(node-by-id-at this (first %))
             (targets (node-id->graph graphs node-id) node-id label)))
 
   (add-node
@@ -229,7 +224,7 @@
 
   (delete-node
     [this node-id]
-    (let [node  (gt/node-by-id this node-id)
+    (let [node  (node-by-id-at this node-id)
           gid   (gt/node-id->graph-id node-id)
           graph (remove-node (node-id->graph graphs node-id) node-id)]
       [(update this :graphs assoc gid graph) node]))
