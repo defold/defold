@@ -99,6 +99,9 @@
 
 (g/defnode EmptyNode)
 
+(g/defnode SinkNode
+  (input a-node-id g/NodeID))
+
 (deftest node-intrinsics
   (with-clean-system
     (let [[node] (tx-nodes (g/make-node world EmptyNode))]
@@ -113,7 +116,13 @@
       (is (= "FOO!" foo-before))
       (is (= "quux" foo-after))
       (is (= "bar"  foo-override))
-      (is (every? t/property-type? (map :type (vals (g/node-value n1 :properties))))))))
+      (is (every? t/property-type? (map :type (vals (g/node-value n1 :properties)))))))
+  (with-clean-system
+    (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
+                                  (g/make-node world SinkNode))]
+      (g/transact
+       (g/connect source :node-id sink :a-node-id))
+      (is (= (g/node-id source) (g/node-value source :node-id) (g/node-value sink :a-node-id))))))
 
 (defn- expect-modified
   [properties f]
