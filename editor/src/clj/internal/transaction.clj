@@ -144,7 +144,7 @@
            :basis            basis-after
            :nodes-added      (conj nodes-added node-id)
            :new-event-loops  (if (gt/message-target? full-node) (conj new-event-loops node-id) new-event-loops)
-           :triggers-to-fire (update-in triggers-to-fire [node-id :added] concat [])
+           :triggers-to-fire (update triggers-to-fire node-id assoc :added [])
            :nodes-affected   (merge-with set/union nodes-affected {node-id (gt/outputs full-node)}))))
 
 (defn- disconnect-inputs
@@ -208,7 +208,7 @@
              :old-event-loops  (if (gt/message-target? node) (conj old-event-loops node) old-event-loops)
              :nodes-deleted    (assoc nodes-deleted node-id node)
              :nodes-added      (removev #(= node-id %) nodes-added)
-             :triggers-to-fire (update-in triggers-to-fire [node-id :deleted] concat [])))
+             :triggers-to-fire (update triggers-to-fire node-id assoc :deleted [])))
     ctx))
 
 (defmethod perform :update-property
@@ -224,7 +224,7 @@
             (mark-activated node-id property)
             (assoc
              :basis               basis-after
-             :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] concat [property])
+             :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] conj property)
              :properties-modified (update-in properties-modified [node-id] conj property)))))
     ctx))
 
@@ -237,7 +237,7 @@
           (mark-activated target-id target-label)
           (assoc
            :basis            (gt/connect basis source-id source-label target-id target-label)
-           :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))
+           :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] conj target-label)))
       ctx)
     ctx))
 
@@ -250,7 +250,7 @@
           (mark-activated target-id target-label)
           (assoc
            :basis            (gt/disconnect basis source-id source-label target-id target-label)
-           :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))
+           :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] conj target-label)))
       ctx)
     ctx))
 
