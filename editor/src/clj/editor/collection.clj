@@ -215,10 +215,10 @@
   (= 1 (count selection)))
 
 (defn- selected-collection? [selection]
-  (= CollectionNode (g/node-type (:self (first selection)))))
+  (= CollectionNode (g/node-type (first selection))))
 
 (defn- selected-embedded-instance? [selection]
-  (let [node (:self (first selection))]
+  (let [node (first selection)]
     (and (= GameObjectInstanceNode (g/node-type node))
          (:embedded node))))
 
@@ -227,7 +227,7 @@
                              (or (selected-collection? selection)
                                  (selected-embedded-instance? selection))))
   (run [selection] (if (selected-embedded-instance? selection)
-                     (game-object/add-component-handler (g/node-value (:self (first selection)) :source))
+                     (game-object/add-component-handler (g/node-value (first selection) :source))
                      (let [coll-node (:self (first selection))
                            project (:parent coll-node)
                            workspace (:workspace (:resource coll-node))
@@ -272,8 +272,8 @@
                              (or (selected-collection? selection)
                                  (selected-embedded-instance? selection))))
     (run [selection] (if (selected-embedded-instance? selection)
-                       (game-object/add-embedded-component-handler (g/node-value (:self (first selection)) :source))
-                       (let [coll-node (:self (first selection))
+                       (game-object/add-embedded-component-handler (g/node-value (first selection) :source))
+                       (let [coll-node (first selection)
                             project (:parent coll-node)
                             workspace (:workspace (:resource coll-node))
                             ext "go"
@@ -315,7 +315,7 @@
 (handler/defhandler :add-secondary-from-file
   (enabled? [selection] (and (single-selection? selection)
                              (selected-collection? selection)))
-  (run [selection] (let [coll-node (:self (first selection))
+  (run [selection] (let [coll-node (first selection)
                          project (:parent coll-node)
                          workspace (:workspace (:resource coll-node))
                          ext "collection"

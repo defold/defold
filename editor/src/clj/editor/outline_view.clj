@@ -125,12 +125,9 @@
     (run [selection] (g/transact
                        (concat
                          (g/operation-label "Delete")
-                         ; TODO: :self shouldn't be required here. The value in outline-view should be nodes
-                         ; instead of "outline data" with label and icon
-                         ; OR make a custom selection provider
-                         (g/delete-node (:self (first selection)))))))
+                         (g/delete-node (first selection))))))
 
-(defn- setup-tree-view [^TreeView tree-view ^ListChangeListener selection-listener]
+(defn- setup-tree-view [^TreeView tree-view ^ListChangeListener selection-listener selection-provider]
   (-> tree-view
       (.getSelectionModel)
       (.setSelectionMode SelectionMode/MULTIPLE))
@@ -138,7 +135,7 @@
       (.getSelectionModel)
       (.getSelectedItems)
       (.addListener selection-listener))
-  (ui/register-context-menu tree-view {}  tree-view ::outline-menu)
+  (ui/register-context-menu tree-view {} selection-provider ::outline-menu)
   (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                (proxy [TreeCell] []
                                                  (updateItem [item empty]
@@ -153,10 +150,15 @@
                                                          (proxy-super setText label)
                                                          (proxy-super setGraphic (jfx/get-image-view icon)))))))))))
 
-(defn make-outline-view [graph tree-view selection-fn]
-  (let [selection-listener (reify ListChangeListener (onChanged [this change]
-                                                       (when-not *programmatic-selection*
-                                        ; TODO - handle selection order
-                                                         (selection-fn (map #(.getValue ^TreeItem %1) (.getList change))))))]
-    (setup-tree-view tree-view selection-listener)
+(defn- propagate-selection [change selection-fn]
+  (when-not *programmatic-selection*
+    (when-let [changes (filter (comp not nil?) (and change (.getList change)))]
+      ; TODO - handle selection order
+      (selection-fn (map #(:self (.getValue ^TreeItem %1)) changes)))))
+
+(defn make-outline-view [graph tree-view selection-fn selection-provider]
+  (let [selection-listener (reify ListChangeListener
+                             (onChanged [this change]
+                               (propagate-selection change selection-fn)))]
+    (setup-tree-view tree-view selection-listener selection-provider)
     (first (g/tx-nodes-added (g/transact (g/make-node graph OutlineView :tree-view tree-view :selection-listener selection-listener))))))

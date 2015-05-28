@@ -64,9 +64,6 @@
   t/IDisposable
   (dispose [this]))
 
-(defn on-outline-selection-fn [project items]
-  (project/select! project (map :self items)))
-
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
 (def ^:dynamic *view-graph*)
@@ -95,7 +92,7 @@
           ^TreeView outline (.lookup root "#outline")
           ^Tab assets (.lookup root "#assets")
           app-view (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view (outline-view/make-outline-view *view-graph* outline (fn [items] (on-outline-selection-fn project items)))]
+          outline-view (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)]
       (g/transact
         (concat
           (g/connect project :selection outline-view :selection)
