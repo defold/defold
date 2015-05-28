@@ -9,6 +9,7 @@
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.application Platform]
+           [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList ListChangeListener]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent EventHandler]
@@ -76,13 +77,22 @@
         (.setExpanded item true))))
   new-root)
 
-(defn- sync-selection [^TreeView tree-view new-root selection]
-  (let [selected-ids (set selection)
-        selected-items (filter #(selected-ids (g/node-id (:self (.getValue %)))) (tree-item-seq new-root))
-        selected-indices (map #(.getRow tree-view %) selected-items)]
-    (when (not (empty? selected-indices))
-      (doto (-> tree-view (.getSelectionModel))
-        (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))
+(defn- auto-expand [items selected-ids]
+  (reduce #(or %1 %2) false (map (fn [item] (let [id (g/node-id (:self (.getValue item)))
+                                                  selected (boolean (selected-ids id))
+                                                  expanded (auto-expand (.getChildren item) selected-ids)]
+                                              (when expanded (.setExpanded item expanded))
+                                              selected)) items)))
+
+(defn- sync-selection [^TreeView tree-view root selection]
+  (when (and root (not (empty? selection)))
+    (let [selected-ids (set selection)]
+      (auto-expand (.getChildren root) selected-ids)
+      (let [count (.getExpandedItemCount tree-view)
+            selected-indices (filter #(selected-ids (g/node-id (:self (.getValue (.getTreeItem tree-view %))))) (range count))]
+        (when (not (empty? selected-indices))
+          (doto (-> tree-view (.getSelectionModel))
+            (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
 
 (g/defnk update-tree-view [self ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
   (let [resource-set (set open-resources)
@@ -90,6 +100,8 @@
        new-root (when active-outline (sync-tree root (tree-item active-outline)))
        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
     (binding [*programmatic-selection* true]
+      (when new-root
+        (.setExpanded new-root true))
       (.setRoot tree-view new-root)
       (sync-selection tree-view new-root selection)
       (g/transact (g/set-property self :root-cache new-cache)))))
