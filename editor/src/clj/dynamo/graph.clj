@@ -38,7 +38,8 @@
 
 (defn node-by-id
   ([node-id]
-   (node-by-id (now) node-id))
+   (let [gid (node-id->graph-id node-id)]
+     (ig/node (is/graph @*the-system* gid) node-id)))
   ([basis node-id]
    (ig/node-by-id-at basis node-id)))
 
