@@ -49,7 +49,6 @@
 (defn message-target? [v] (satisfies? MessageTarget v))
 
 (defprotocol IBasis
-  (node-by-id       [this node-id])
   (node-by-property [this label value])
   (sources          [this node-id label])
   (targets          [this node-id label])
