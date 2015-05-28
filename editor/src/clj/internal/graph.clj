@@ -33,15 +33,13 @@
 (defn- rebuild-sarcs
   [basis graph-state]
   (def basis* basis)
-  (println 'rebuild-sarcs :tarcs-from-rebuild-graph (:tarcs graph-state))
-  (println 'rebuild-sarcs :tarcs-from-all-graphs (mapcat (comp vals :tarcs) (vals (:graphs basis))))
   (let [gid      (:_gid graph-state)
-        graphs   (vals (assoc basis gid graph-state))
-        all-arcs (->> graphs
-                      (mapcat (comp vals :tarcs))
-                      flatten
-                      (filter (fn [^ArcBase arc] (= (gt/node-id->graph-id (.source arc)) gid))))]
-    (println 'rebuild-sarcs :all-arcs all-arcs)
+        rebuilt-graphs  (vals (assoc basis gid graph-state))
+        all-other-graphs (vals (:graphs basis))
+        tarcs-from-rebuild-graph (mapcat (comp vals :tarcs) rebuilt-graphs)
+        tarcs-from-all-graphs (mapcat (comp vals :tarcs) all-other-graphs)
+        all-arcs (flatten (conj tarcs-from-rebuild-graph tarcs-from-all-graphs))
+        all-arcs-filtered (filter (fn [^ArcBase arc] (= (gt/node-id->graph-id (.source arc)) gid)) (flatten all-arcs))]
     (reduce
      (fn [sarcs arc] (update sarcs (.source arc) conjv arc))
      {}
