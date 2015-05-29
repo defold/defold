@@ -2358,8 +2358,8 @@ namespace dmGui
      *
      * @name gui.pick_node
      * @param node node to be tested for picking (node)
-     * @param x x-coordinate in screen-space
-     * @param y y-coordinate in screen-space
+     * @param x x-coordinate (see <a href="#on_input">on_input</a> )
+     * @param y y-coordinate (see <a href="#on_input">on_input</a> )
      * @return pick result (boolean)
      */
     static int LuaPickNode(lua_State* L)
