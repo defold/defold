@@ -1085,25 +1085,27 @@ TEST(OverflowTest, OverflowTest)
     dmResource::DeleteFactory(factory);
 }
 
-TEST(GetResourceTest, OverflowTestRecursive)
+TEST_P(GetResourceTest, OverflowTestRecursive)
 {
     // Needs to be GetResourceTest or cannot use ResourceContainer resource here which is needed for the test.
     const char* test_dir = "build/default/src/test";
     for (uint32_t max=0;max<5;max++)
     {
+        // recreate with new settings
+        dmResource::DeleteFactory(m_Factory);
         dmResource::NewFactoryParams params;
         params.m_MaxResources = max;
-        dmResource::HFactory factory = dmResource::NewFactory(&params, test_dir);
-        ASSERT_NE((void*) 0, factory);
+        m_Factory = dmResource::NewFactory(&params, test_dir);
+        ASSERT_NE((void*) 0, m_Factory);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         int* resource;
-        dmResource::Result fr = dmResource::Get(factory, "/test.cont", (void**) &resource);
+        dmResource::Result fr = dmResource::Get(m_Factory, "/test.cont", (void**) &resource);
 
         // test.cont contains 2 children so anything less than 3 means it must fail
         if (max < 3)
@@ -1113,9 +1115,8 @@ TEST(GetResourceTest, OverflowTestRecursive)
         else
         {
             ASSERT_EQ(dmResource::RESULT_OK, fr);
-            dmResource::Release(factory, resource);
+            dmResource::Release(m_Factory, resource);
         }
-        dmResource::DeleteFactory(factory);
     }
 }
 
