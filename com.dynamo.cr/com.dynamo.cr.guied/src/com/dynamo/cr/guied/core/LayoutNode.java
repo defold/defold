@@ -31,9 +31,8 @@ public class LayoutNode extends Node implements Identifiable {
     }
 
     protected IStatus validateId() {
-        GuiSceneNode scene = (GuiSceneNode) this.getParent().getParent();
         if(this.id != GuiNodeStateBuilder.getDefaultStateId()) {
-            Layouts.Layout layout = Layouts.getLayout(scene.getLayouts(), this.id);
+            Layouts.Layout layout = Layouts.getLayout(this.id);
             if (layout == null) {
                 return new Status(IStatus.ERROR, "com.dynamo", "'" + id + "' is not a valid display profile.");
             }

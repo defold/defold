@@ -3,6 +3,7 @@ package com.dynamo.cr.guied.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,10 +19,11 @@ import com.google.protobuf.TextFormat;
 
 
 public class Layouts {
-    private DisplayProfiles displayProfiles;
+    private static DisplayProfiles displayProfiles;
     private static Logger logger = LoggerFactory.getLogger(Layouts.class);
 
-    public static class Layout {
+    @SuppressWarnings("serial")
+    public static class Layout implements Serializable {
         private String id;
         private float width;
         private float height;
@@ -51,7 +53,7 @@ public class Layouts {
         }
     }
 
-    public static Layouts load(InputStream stream, float defaultWidth, float defaultHeight) throws CoreException, IOException {
+    public static void load(InputStream stream, float defaultWidth, float defaultHeight) throws CoreException, IOException {
         InputStreamReader reader = new InputStreamReader(stream);
         com.dynamo.render.proto.Render.DisplayProfiles.Builder builder = DisplayProfiles.newBuilder();
 
@@ -64,14 +66,12 @@ public class Layouts {
         builder.addProfiles(defaultProfile);
 
         TextFormat.merge(reader, builder);
-        Layouts layouts = new Layouts();
-        layouts.displayProfiles = builder.build();
+        displayProfiles = builder.build();
         IOUtils.closeQuietly(reader);
-        return layouts;
     }
 
-    public static Layout getLayout(Layouts layouts, String id) {
-        List<DisplayProfile> profileList = layouts.displayProfiles.getProfilesList();
+    public static Layout getLayout(String id) {
+        List<DisplayProfile> profileList = displayProfiles.getProfilesList();
         for(DisplayProfile profile : profileList) {
             if(profile.getName().compareTo(id)==0)
             {
@@ -83,12 +83,12 @@ public class Layouts {
         return null;
     }
 
-    public static Layout getDefaultLayout(Layouts layouts) {
-        return getLayout(layouts, GuiNodeStateBuilder.getDefaultStateId());
+    public static Layout getDefaultLayout() {
+        return getLayout(GuiNodeStateBuilder.getDefaultStateId());
     }
 
-    public static List<Layout> getLayoutList(Layouts layouts) {
-        List<DisplayProfile> profileList = layouts.displayProfiles.getProfilesList();
+    public static List<Layout> getLayoutList() {
+        List<DisplayProfile> profileList = displayProfiles.getProfilesList();
         List<Layout> layoutList = new ArrayList<Layout>(profileList.size());
         for(DisplayProfile profile : profileList) {
             DisplayProfileQualifier qualifier = profile.getQualifiers(0);
@@ -97,8 +97,8 @@ public class Layouts {
         return layoutList;
     }
 
-    public static List<String> getLayoutIds(Layouts layouts) {
-        List<Layout> layoutList = getLayoutList(layouts);
+    public static List<String> getLayoutIds() {
+        List<Layout> layoutList = getLayoutList();
         List<String> layoutStrings = new ArrayList<String>(layoutList.size());
         for(Layout layout : layoutList) {
             layoutStrings.add(layout.getId());
@@ -106,13 +106,13 @@ public class Layouts {
         return layoutStrings;
     }
 
-    public static String getMatchingLayout(Layouts layouts, List<String> idChoices, float width, float height, float dpi) {
+    public static String getMatchingLayout(List<String> idChoices, float width, float height, float dpi) {
         float match_area = width * height;
         float match_ratio = width / height;
         double match_distance = 3.0;
         String match_name = null;
 
-        List<DisplayProfile> profileList = layouts.displayProfiles.getProfilesList();
+        List<DisplayProfile> profileList = displayProfiles.getProfilesList();
         if(idChoices.isEmpty()) {
             for(DisplayProfile profile : profileList) {
                 idChoices.add(profile.getName());
@@ -140,7 +140,7 @@ public class Layouts {
                 logger.error("Invalid display profile setup, no profiles found.");
                 return null;
             }
-            return getMatchingLayout(layouts, new ArrayList<String>(), width, height, dpi);
+            return getMatchingLayout(new ArrayList<String>(), width, height, dpi);
         }
         return match_name;
     }
