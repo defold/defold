@@ -176,8 +176,7 @@
 (defn- create-properties [workspace grid node-ids]
   ; TODO - add multi-selection support for properties view
   (when-let [node-id (first node-ids)]
-    (let [now (g/now)
-          node (g/node-by-id now node-id)
+    (let [node (g/node-by-id node-id)
           properties (g/properties node)]
       (doseq [[key p] properties]
         (let [row (/ (.size (.getChildren grid)) 2)]
@@ -205,7 +204,7 @@
 
   (input selection t/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view workspace selection] (let [now (g/now)] (update-grid parent-view workspace selection))))
+  (output grid-pane GridPane :cached (g/fnk [parent-view workspace selection] (update-grid parent-view workspace selection)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
@@ -216,7 +215,7 @@
         self-ref  (g/node-id view)
         repainter (proxy [AnimationTimer] []
                     (handle [now]
-                      (let [self (g/node-by-id (g/now) self-ref)
+                      (let [self (g/node-by-id self-ref)
                             grid (g/node-value self :grid-pane)])))]
     (g/transact (g/set-property view :repainter repainter))
     (.start repainter)

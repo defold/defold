@@ -182,7 +182,7 @@
               :let [render-args (assoc render-args :pass pass)]]
         (setup-pass context gl glu pass camera viewport)
         (doseq [renderable (get renderables pass)
-                :let [id (:id renderable)]]
+                :let [id (:node-id renderable)]]
           (render-node gl pass renderable (assoc render-args :selected (selection-set id)))))
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image w h)]
@@ -231,7 +231,7 @@
               (setup-pass context gl glu pass camera viewport picking-rect)
               (let [renderables (get renderables pass)]
                 (doseq [[index renderable] (keep-indexed #(list %1 %2) renderables)]
-                  (render-node gl pass renderable (assoc render-args :selected (selection-set (:id renderable))) index))
+                  (render-node gl pass renderable (assoc render-args :selected (selection-set (:node-id renderable))) index))
                 (render-sort (end-select gl select-buffer renderables) camera viewport))))))
       (finally
         (.release context)))
@@ -262,11 +262,11 @@
 
 (g/defnk produce-selected-renderables [selection selection-renderables]
   (let [renderables (apply merge-with #(concat %1 %2) selection-renderables)
-        renderable-by-id (into {} (mapcat (fn [[pass v]] (map #(do [(:id %) %]) v)) renderables))]
+        renderable-by-id (into {} (mapcat (fn [[pass v]] (map #(do [(:node-id %) %]) v)) renderables))]
     (filter (comp not nil?) (map #(get renderable-by-id %) selection))))
 
 (g/defnk produce-selected-tool-renderables [tool-selection renderables]
-  (apply merge-with concat {} (map #(do {(:id %) [(:user-data %)]}) tool-selection)))
+  (apply merge-with concat {} (map #(do {(:node-id %) [(:user-data %)]}) tool-selection)))
 
 (g/defnode SceneRenderer
   (property name t/Keyword (default :renderer))
@@ -313,9 +313,9 @@
 (defn scene->renderables [scene]
   (if (any-list? scene)
     (reduce #(merge-with concat %1 %2) {} (map scene->renderables scene))
-    (let [{:keys [id transform aabb renderable children]} scene
+    (let [{:keys [node-id transform aabb renderable children]} scene
           {:keys [render-fn passes]} renderable
-          renderables (into {} (map (fn [pass] [pass [{:id id
+          renderables (into {} (map (fn [pass] [pass [{:node-id node-id
                                                        :render-fn render-fn
                                                        :world-transform (doto (Matrix4d.) (.setIdentity))}]]) passes))
           renderables (reduce #(merge-with concat %1 %2) renderables (map scene->renderables children))]
@@ -420,23 +420,22 @@
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
     (let [view (g/make-node! scene-graph SceneView :image-view image-view)]
-      (let [self-ref (g/node-id view)
+      (let [node-id (g/node-id view)
             event-handler (reify EventHandler (handle [this e]
-                                                (let [now (g/now)
-                                                      self (g/node-by-id now self-ref)
+                                                (let [self (g/node-by-id node-id)
                                                       action (augment-action self (i/action-from-jfx e))
                                                       x (:x action)
                                                       y (:y action)
                                                       pos [x y 0.0]
                                                       picking-rect (calc-picking-rect pos pos)]
                                                   (g/transact (g/set-property self :picking-rect picking-rect))
-                                                  (dispatch-input (g/sources-of now self :input-handlers) action (g/node-value self :selected-tool-renderables)))))
+                                                  (dispatch-input (g/sources-of self :input-handlers) action (g/node-value self :selected-tool-renderables)))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                     (let [bb ^BoundingBox new-val
                                                           w (- (.getMaxX bb) (.getMinX bb))
                                                           h (- (.getMaxY bb) (.getMinY bb))]
-                                                      (flip-y (:image-view (g/node-by-id (g/now) self-ref)) h)
-                                                      (g/transact (g/set-property self-ref :viewport (t/->Region 0 w 0 h))))))]
+                                                      (flip-y (:image-view (g/node-by-id node-id)) h)
+                                                      (g/transact (g/set-property node-id :viewport (t/->Region 0 w 0 h))))))]
         (.setOnMousePressed parent event-handler)
         (.setOnMouseReleased parent event-handler)
         (.setOnMouseClicked parent event-handler)
@@ -449,7 +448,7 @@
               repainter   (proxy [AnimationTimer] []
                             (handle [now]
                               (when *fps-debug* (send-off fps-counter tick now))
-                              (let [self                  (g/node-by-id (g/now) self-ref)
+                              (let [self                  (g/node-by-id node-id)
                                     image-view ^ImageView (:image-view self)
                                     visible               (:visible self)]
                                 (when (and visible)
@@ -524,8 +523,8 @@
                                   (let [selection-set (set selection)
                                         prev-selection-set (g/node-value controller :prev-selection-set)]
                                     (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))
-        selection (or (not-empty (sel-filter-fn (map :id selection))) (filter #(not (nil? %)) [(:id (g/node-value controller :scene))]))]
-    (select-fn (map #(g/node-by-id (g/now) %) selection) op-seq)))
+        selection (or (not-empty (sel-filter-fn (map :node-id selection))) (filter #(not (nil? %)) [(:node-id (g/node-value controller :scene))]))]
+    (select-fn (map #(g/node-by-id %) selection) op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})
 (def other-toggle-modifiers #{:control})
@@ -659,7 +658,7 @@
   (output position Vector3d :cached (g/fnk [position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
-  (output scene t/Any :cached (g/fnk [self transform] {:id (g/node-id self) :transform transform}))
+  (output scene t/Any :cached (g/fnk [self transform] {:node-id (g/node-id self) :transform transform}))
   (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
 
   scene-tools/Movable

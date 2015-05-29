@@ -149,7 +149,7 @@
 
 (g/defnk produce-scene
   [self aabb base-texture-tex control-points]
-  (let [scene {:id (g/node-id self) :aabb aabb}
+  (let [scene {:node-id (g/node-id self) :aabb aabb}
         vertex-buffer (gen-vertex-buffer control-points)]
     (if vertex-buffer
       (assoc scene :renderable {:render-fn (g/fnk [gl] (render-platformer gl base-texture-tex vertex-buffer))

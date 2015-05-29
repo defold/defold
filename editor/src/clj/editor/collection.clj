@@ -94,7 +94,7 @@
                                     (g/set-property self :scale [(.x s) (.y s) (.z s)]))))
 
 (defn- outline-sort-by-fn [v]
-  [(:name (g/node-type (:self v))) (:label v)])
+  [(:name (g/node-type (g/node-by-id (:node-id v)))) (:label v)])
 
 (g/defnode GameObjectInstanceNode
   (inherits ScalableSceneNode)
@@ -115,7 +115,7 @@
   (output outline t/Any (g/fnk [self id path embedded outline child-outlines]
                                (let [suffix (if embedded "" (format " (%s)" path))]
                                  (merge-with concat
-                                             (merge outline {:self self :label (str id suffix) :icon game-object/game-object-icon :sort-by-fn outline-sort-by-fn})
+                                             (merge outline {:node-id (g/node-id self) :label (str id suffix) :icon game-object/game-object-icon :sort-by-fn outline-sort-by-fn})
                                             {:children child-outlines}))))
   (output ddf-message t/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded
@@ -125,7 +125,7 @@
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (:aabb scene) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
                                        (merge-with concat
-                                                   (assoc (assoc-deep scene :id (g/node-id self))
+                                                   (assoc (assoc-deep scene :node-id (g/node-id self))
                                                           :transform transform
                                                           :aabb aabb
                                                           :renderable {:passes [pass/selection]})
@@ -151,10 +151,10 @@
   (input child-scenes t/Any :array)
   (input ids t/Str :array)
 
-  (output outline t/Any (g/fnk [self child-outlines] {:self self :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
+  (output outline t/Any (g/fnk [self child-outlines] {:node-id (g/node-id self) :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
   (output save-data t/Any :cached produce-save-data)
   (output scene t/Any :cached (g/fnk [self child-scenes]
-                                     {:id (g/node-id self)
+                                     {:node-id (g/node-id self)
                                       :children child-scenes
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))})))
 
@@ -170,7 +170,7 @@
   (input scene t/Any)
 
   (output outline t/Any (g/fnk [self id path outline] (let [suffix (format " (%s)" path)]
-                                                        (merge outline {:self self :label (str id suffix) :icon collection-icon}))))
+                                                        (merge outline {:node-id (g/node-id self) :label (str id suffix) :icon collection-icon}))))
   (output ddf-message t/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
                                            (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
                                                  ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
@@ -183,7 +183,7 @@
                                                       (.setScale (.x scale)))))))
   (output scene t/Any :cached (g/fnk [self transform scene]
                                      (assoc scene
-                                           :id (g/node-id self)
+                                           :node-id (g/node-id self)
                                            :transform transform
                                            :aabb (geom/aabb-transform (:aabb scene) transform)
                                            :renderable {:passes [pass/selection]}))))
@@ -215,10 +215,10 @@
   (= 1 (count selection)))
 
 (defn- selected-collection? [selection]
-  (= CollectionNode (g/node-type (first selection))))
+  (= CollectionNode (g/node-type (g/node-by-id (first selection)))))
 
 (defn- selected-embedded-instance? [selection]
-  (let [node (first selection)]
+  (let [node (g/node-by-id (first selection))]
     (and (= GameObjectInstanceNode (g/node-type node))
          (:embedded node))))
 
@@ -228,7 +228,7 @@
                                  (selected-embedded-instance? selection))))
   (run [selection] (if (selected-embedded-instance? selection)
                      (game-object/add-component-handler (g/node-value (first selection) :source))
-                     (let [coll-node (:self (first selection))
+                     (let [coll-node (g/node-by-id (first selection))
                            project (:parent coll-node)
                            workspace (:workspace (:resource coll-node))
                            ext "go"]
@@ -273,7 +273,7 @@
                                  (selected-embedded-instance? selection))))
     (run [selection] (if (selected-embedded-instance? selection)
                        (game-object/add-embedded-component-handler (g/node-value (first selection) :source))
-                       (let [coll-node (first selection)
+                       (let [coll-node (g/node-by-id (first selection))
                             project (:parent coll-node)
                             workspace (:workspace (:resource coll-node))
                             ext "go"
@@ -315,7 +315,7 @@
 (handler/defhandler :add-secondary-from-file
   (enabled? [selection] (and (single-selection? selection)
                              (selected-collection? selection)))
-  (run [selection] (let [coll-node (first selection)
+  (run [selection] (let [coll-node (g/node-by-id (first selection))
                          project (:parent coll-node)
                          workspace (:workspace (:resource coll-node))
                          ext "collection"

@@ -65,7 +65,7 @@
                ; Select the collection node
                (project/select! project [node])
                ; Run the add handler
-               (handler/run :add {:selection [{:self node}]})
+               (handler/run :add {:selection [(g/node-id node)]})
                ; Three game objects under the collection
                (is (= 3 (count (:children (g/node-value node :outline)))))))))
 
