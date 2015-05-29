@@ -99,7 +99,7 @@ ordinary paths."
   (output save-data t/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
 
   workspace/SelectionProvider
-  (selection [this] (g/node-value this :selected-nodes)))
+  (selection [this] (g/node-value this :selection)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (workspace/resource-type (:resource resource-node))))
@@ -126,7 +126,7 @@ ordinary paths."
 (defn select
   [project nodes]
     (concat
-      (for [[node label] (g/sources-of (g/now) project :selected-nodes)]
+      (for [[node label] (g/sources-of project :selected-nodes)]
         (g/disconnect node label project :selected-nodes))
       (for [node nodes]
         (g/connect node :self project :selected-nodes))))
