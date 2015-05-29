@@ -186,7 +186,10 @@
                (is (test-util/selected? project go-node))
                ; Delete again
                (g/transact (g/delete-node go-node))
-               (is (test-util/empty-selection? project))))))
+               (is (test-util/empty-selection? project))
+               ;Select again
+               (test-util/mouse-click! view 32 32)
+               (is (test-util/selected? project resource-node))))))
 
 (deftest transform-tools-empty-go
   (testing "Transform tools and manipulator interactions"
