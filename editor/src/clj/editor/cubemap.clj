@@ -89,7 +89,7 @@
 (g/defnk produce-scene
   [self aabb gpu-texture vertex-binding]
   (let [vertex-binding (vtx/use-with unit-sphere cubemap-shader)]
-    {:id         (g/node-id self)
+    {:node-id         (g/node-id self)
      :aabb        aabb
      :renderable {:render-fn (g/fnk [gl camera] (render-cubemap gl camera gpu-texture vertex-binding))
                   :passes [pass/transparent]}}))

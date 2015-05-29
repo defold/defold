@@ -289,7 +289,7 @@
                   _ (.get inv-view rotation)]
               (.setRotation wt rotation)))
         _ (.mul wt rotation-mat)]
-    {:id id
+    {:node-id id
     :user-data manip
     :render-fn (g/fnk [gl pass camera]
                       (when (manip-visible? manip (c/camera-view-matrix camera))
@@ -321,8 +321,7 @@
     {}
     (let [tool (get transform-tools active-tool)
           filter-fn (:filter-fn tool)
-          now (g/now)
-          selected-renderables (filter #(filter-fn (g/node-by-id now (:id %))) selected-renderables)]
+          selected-renderables (filter #(filter-fn (g/node-by-id (:node-id %))) selected-renderables)]
       (if (empty? selected-renderables)
         {}
         (let [tool-active (not (nil? start-action))
@@ -413,9 +412,8 @@
                      (let [active-tool (:active-tool self)
                            tool (get transform-tools active-tool)
                            filter-fn (:filter-fn tool)
-                           now (g/now)
-                           selected-renderables (filter #(filter-fn (g/node-by-id now (:id %))) (g/node-value self :selected-renderables))
-                           original-values (map #(do [(g/node-by-id (g/now) (:id %)) (:world-transform %)]) selected-renderables)]
+                           selected-renderables (filter #(filter-fn (g/node-by-id (:node-id %))) (g/node-value self :selected-renderables))
+                           original-values (map #(do [(g/node-by-id (:node-id %)) (:world-transform %)]) selected-renderables)]
                        (when (not (empty? original-values))
                          (g/transact
                             (concat

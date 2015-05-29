@@ -68,17 +68,20 @@
       item)
     []))
 
+(defn- item->node-id [^TreeItem item]
+  (:node-id (.getValue item)))
+
 (defn- sync-tree [old-root new-root]
   (let [item-seq (tree-item-seq old-root)
-        expanded (zipmap (map #(:self (.getValue ^TreeItem %)) item-seq)
+        expanded (zipmap (map item->node-id item-seq)
                          (map #(.isExpanded ^TreeItem %) item-seq))]
     (doseq [^TreeItem item (tree-item-seq new-root)]
-      (when (get expanded (:self (.getValue item)))
+      (when (get expanded (item->node-id item))
         (.setExpanded item true))))
   new-root)
 
 (defn- auto-expand [items selected-ids]
-  (reduce #(or %1 %2) false (map (fn [item] (let [id (g/node-id (:self (.getValue item)))
+  (reduce #(or %1 %2) false (map (fn [item] (let [id (item->node-id item)
                                                   selected (boolean (selected-ids id))
                                                   expanded (auto-expand (.getChildren item) selected-ids)]
                                               (when expanded (.setExpanded item expanded))
@@ -89,7 +92,7 @@
     (let [selected-ids (set selection)]
       (auto-expand (.getChildren root) selected-ids)
       (let [count (.getExpandedItemCount tree-view)
-            selected-indices (filter #(selected-ids (g/node-id (:self (.getValue (.getTreeItem tree-view %))))) (range count))]
+            selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
         (when (not (empty? selected-indices))
           (doto (-> tree-view (.getSelectionModel))
             (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
@@ -166,7 +169,7 @@
   (when-not *programmatic-selection*
     (when-let [changes (filter (comp not nil?) (and change (.getList change)))]
       ; TODO - handle selection order
-      (selection-fn (map #(:self (.getValue ^TreeItem %1)) changes)))))
+      (selection-fn (map #(g/node-by-id (item->node-id %)) changes)))))
 
 (defn make-outline-view [graph tree-view selection-fn selection-provider]
   (let [selection-listener (reify ListChangeListener

@@ -79,7 +79,7 @@
          go-node    (test-util/resource-node project "/switcher/test.go")]
      (is (= 1 (count (outline-children go-node))))
 
-     (g/transact (g/delete-node (:self (first (outline-children go-node)))))
+     (g/transact (g/delete-node (:node-id (first (outline-children go-node)))))
 
      (is (= 0 (count (outline-children go-node))))
 
@@ -93,7 +93,7 @@
      (is (= 0 (count (outline-children go-node)))))))
 
 (g/defnode DummyComponent
-  (output outline t/Any (g/fnk [self] {:self self :label "dummy" :icon nil :children []})))
+  (output outline t/Any (g/fnk [self] {:node-id (g/node-id self) :label "dummy" :icon nil :children []})))
 
 (g/defnode OutlineViewSimulator
   (input outline t/Any)
