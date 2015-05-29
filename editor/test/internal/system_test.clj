@@ -320,8 +320,6 @@
             [source link sink] (ts/tx-nodes (g/make-node project-graph Source :source-label "from project graph")
                                             (g/make-node project-graph ChainedLink)
                                             (g/make-node view-graph Sink))]
-        (println :source (g/node-id source) :link (g/node-id link) :sink (g/node-id sink))
-
         (g/transact
          (concat
           (g/connect source :source-label link :source-label)

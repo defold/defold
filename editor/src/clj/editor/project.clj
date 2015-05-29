@@ -53,7 +53,7 @@ ordinary paths."
                                              :when (get-in node [:resource-type :load-fn])]
                                          ((get-in node [:resource-type :load-fn]) project node (io/reader (:resource node))))))]
     (when (not (empty? new-nodes))
-      (load-nodes project new-nodes))))
+      (recur project new-nodes))))
 
 (defn load-project [project]
   (let [nodes (make-nodes project (g/node-value project :resources))]
