@@ -70,6 +70,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
 void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
 {
     dmGui::SetSceneResolution(scene, width, height);
+    dmGui::SetDefaultResolution(scene->m_Context, width, height);
 }
 
 dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
@@ -109,6 +110,8 @@ public:
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
         context_params.m_PhysicalWidth = 1;
         context_params.m_PhysicalHeight = 1;
+        context_params.m_DefaultProjectWidth = 1;
+        context_params.m_DefaultProjectHeight = 1;
 
         m_Context = dmGui::NewContext(&context_params);
         // Bogus font for the metric callback to be run (not actually using the default font)
@@ -2421,6 +2424,7 @@ TEST_F(dmGuiTest, Picking)
     uint32_t physical_height = 320;
     float ref_scale = 0.5f;
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetDefaultResolution(m_Context, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
     dmGui::SetSceneResolution(m_Scene, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
 
     Vector3 size(10, 10, 0);
