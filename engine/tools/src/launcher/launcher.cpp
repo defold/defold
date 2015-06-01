@@ -6,6 +6,7 @@
 #include <string.h>
 #ifndef _WIN32
 #include <unistd.h>
+#include <sys/wait.h>
 #endif
 
 #include <dlib/dlib.h>
