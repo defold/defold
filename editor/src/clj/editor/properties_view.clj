@@ -173,11 +173,10 @@
       (.add (.getChildren grid) label)
       (.add (.getChildren grid) control))))
 
-(defn- create-properties [workspace grid node-ids]
+(defn- create-properties [workspace grid nodes]
   ; TODO - add multi-selection support for properties view
-  (when-let [node-id (first node-ids)]
-    (let [node (g/node-by-id node-id)
-          properties (g/properties node)]
+  (when-let [node (first nodes)]
+    (let [properties (g/properties node)]
       (doseq [[key p] properties]
         (let [row (/ (.size (.getChildren grid)) 2)]
           (create-properties-row workspace grid node key p row)))
@@ -186,14 +185,14 @@
           (when (not (empty? sub-nodes))
             (create-properties workspace grid (map g/node-id sub-nodes))))))))
 
-(defn- update-grid [parent workspace node]
+(defn- update-grid [parent workspace nodes]
   (.clear (.getChildren parent))
-  (when node
+  (when nodes
     (let [grid (GridPane.)]
       (.setPadding grid (Insets. 10 10 10 10))
       (.setHgap grid 4)
       (.setVgap grid 6)
-      (create-properties workspace grid node)
+      (create-properties workspace grid nodes)
       (.add (.getChildren parent) grid)
       grid)))
 
