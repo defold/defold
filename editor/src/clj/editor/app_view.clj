@@ -220,7 +220,7 @@
             view       (make-view-fn view-graph parent resource-node (assoc ((:id view-type) (:view-opts resource-type)) :select-fn (fn [selection op-seq] (project/select! project selection op-seq))))]
         (g/transact
           (concat
-            (g/connect project :selection view :selection)
+            (g/connect project :selected-node-ids view :selection)
             (g/connect app-view :active-tool view :active-tool)))
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
