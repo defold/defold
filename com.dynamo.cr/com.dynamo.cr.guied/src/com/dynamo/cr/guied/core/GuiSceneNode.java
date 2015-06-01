@@ -49,8 +49,7 @@ public class GuiSceneNode extends ComponentTypeNode {
     private float height = 640;
     private float defaultWidth = 960;
     private float defaultHeight = 640;
-    private IPath displayProfilesPath;
-    private Layouts layouts;
+    private String displayProfilesPath;
     private Layouts.Layout currentLayout;
     private Layouts.Layout previousLayout;
 
@@ -150,16 +149,12 @@ public class GuiSceneNode extends ComponentTypeNode {
         setAABB(aabb);
     }
 
-    public Layouts getLayouts() {
-        return this.layouts;
-    }
-
     public Layouts.Layout getDefaultLayout() {
-        return Layouts.getDefaultLayout(this.layouts);
+        return Layouts.getDefaultLayout();
     }
 
     public void setDefaultLayout() {
-        setCurrentLayout(Layouts.getDefaultLayout(this.layouts).getId());
+        setCurrentLayout(Layouts.getDefaultLayout().getId());
     }
 
     public boolean isCurrentLayoutDefault() {
@@ -171,7 +166,7 @@ public class GuiSceneNode extends ComponentTypeNode {
     }
 
     public boolean setCurrentLayout(String id) {
-        Layouts.Layout layout = Layouts.getLayout(this.layouts, id);
+        Layouts.Layout layout = Layouts.getLayout(id);
         if(layout == null) {
             return false;
         }
@@ -198,7 +193,7 @@ public class GuiSceneNode extends ComponentTypeNode {
     public void loadLayouts(IFile file) {
         try {
             InputStream i = file.getContents();
-            this.layouts = Layouts.load(i, this.defaultWidth, this.defaultHeight);
+            Layouts.load(i, this.defaultWidth, this.defaultHeight);
             IOUtils.closeQuietly(i);
         } catch (Exception e) {
             logger.error("could not read display profiles", e);
@@ -233,7 +228,7 @@ public class GuiSceneNode extends ComponentTypeNode {
             IProject project = EditorUtil.getProject();
             IPath dPPath = new Path(projectProperties.getStringValue("display", "display_profiles", "/builtins/render/default.display_profilesc")).removeFileExtension().addFileExtension("display_profiles");
             IFile dPFile = EditorUtil.getContentRoot(project).getFile(dPPath);
-            displayProfilesPath = dPFile.getFullPath();
+            displayProfilesPath = dPFile.getFullPath().toString();
             if (dPFile.exists()) {
                 // in cr.integrationstest the root isn't /content and the
                 // file doesn't exists. That's the reason we accept missing display profile file
@@ -254,7 +249,7 @@ public class GuiSceneNode extends ComponentTypeNode {
             } catch (CoreException e) {
                 logger.error("could not update gui scene dimensions from game.project", e);
             }
-        } else if(displayProfilesPath != null && file.getFullPath().equals(displayProfilesPath)) {
+        } else if(displayProfilesPath != null && file.getFullPath().toString().equals(displayProfilesPath)) {
             try {
                 loadLayouts(file);
             } catch (Exception e) {
