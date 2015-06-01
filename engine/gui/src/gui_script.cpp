@@ -802,6 +802,7 @@ namespace dmGui
      * </p>
      * <p>
      * How to start a sequenced animation where the node fades in to white during 0.5 seconds, stays visible for 2 seconds and then fades out:
+     * </p>
      * <pre>
      * local function on_animation_done(self, node)
      *     -- fade out node, but wait 2 seconds before the animation starts
