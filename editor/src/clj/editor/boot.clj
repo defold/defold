@@ -95,7 +95,7 @@
           outline-view (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)]
       (g/transact
         (concat
-          (g/connect project :selection outline-view :selection)
+          (g/connect project :selected-node-ids outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect app-view label outline-view label))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
@@ -139,7 +139,7 @@
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
         properties   (ui/run-now (properties-view/make-properties-view workspace *view-graph* (.lookup root "#properties")))]
-    (g/transact (g/connect project :selection properties :selection))
+    (g/transact (g/connect project :selected-nodes properties :selection))
     (g/reset-undo! *project-graph*)))
 
 (defn- add-to-recent-projects [prefs project-file]
