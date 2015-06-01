@@ -103,8 +103,7 @@ int AdTruth_GetReferrer(lua_State* L)
     JNIEnv* env = Attach();
     jstring referrer_obj = (jstring) env->CallObjectMethod(g_AdTruth.m_AdTruthJNI, g_AdTruth.m_GetReferrer);
 
-    if (referrer_obj)
-    {
+    if (referrer_obj) {
         referrer = env->GetStringUTFChars(referrer_obj, 0);
         lua_pushstring(L, referrer);
         env->ReleaseStringUTFChars(referrer_obj, referrer);
@@ -181,8 +180,7 @@ JNIEXPORT void JNICALL Java_com_defold_adtruth_AdTruthJNI_onPageFinished(JNIEnv*
 
 JNIEXPORT void JNICALL Java_com_defold_adtruth_AdTruthJNI_onReceivedError__Ljava_lang_String_2(JNIEnv* env, jobject, jstring errorMessage)
 {
-    if (errorMessage)
-    {
+    if (errorMessage) {
         const char* errorMsg = env->GetStringUTFChars(errorMessage, 0);
 
         Command cmd;

@@ -320,8 +320,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIterateMeE
 {
     lua_State* L = (lua_State*)user_data;
 
-    if (key)
-    {
+    if (key) {
         const char* str_key = env->GetStringUTFChars(key, 0);
         lua_pushstring(L, str_key);
         env->ReleaseStringUTFChars(key, str_key);
@@ -329,8 +328,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIterateMeE
         lua_pushnil(L);
     }
 
-    if (value)
-    {
+    if (value) {
         const char* str_value = env->GetStringUTFChars(value, 0);
         lua_pushstring(L, str_value);
         env->ReleaseStringUTFChars(value, str_value);
@@ -348,8 +346,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIteratePer
 
     lua_pushnumber(L, i + 1);
 
-    if (permission)
-    {
+    if (permission) {
         const char* str_permission = env->GetStringUTFChars(permission, 0);
         lua_pushstring(L, str_permission);
         env->ReleaseStringUTFChars(permission, str_permission);
@@ -504,14 +501,11 @@ int Facebook_AccessToken(lua_State* L)
 
     jstring str_access_token = (jstring)env->CallObjectMethod(g_Facebook.m_FB, g_Facebook.m_GetAccessToken);
 
-    if (str_access_token)
-    {
+    if (str_access_token) {
         const char* access_token = env->GetStringUTFChars(str_access_token, 0);
         lua_pushstring(L, access_token);
         env->ReleaseStringUTFChars(str_access_token, access_token);
-    }
-    else
-    {
+    } else {
         lua_pushnil(L);
     }
     Detach();
