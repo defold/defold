@@ -434,6 +434,10 @@ namespace dmGui
 
     uint32_t GetDisplayDpi(HContext context);
 
+    void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height);
+
+    void SetDefaultResolution(HContext context, uint32_t width, uint32_t height);
+
     void SetDisplayProfiles(HContext context, void* display_profiles);
 
     void SetDefaultFont(HContext context, void* font);
