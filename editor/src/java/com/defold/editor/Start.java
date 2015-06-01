@@ -11,6 +11,8 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
@@ -25,9 +27,11 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.defold.editor.Updater.UpdateInfo;
+
 public class Start extends Application {
 
-    Logger logger = LoggerFactory.getLogger(Start.class);
+    private static Logger logger = LoggerFactory.getLogger(Start.class);
 
     static ArrayList<URL> extractURLs(String classPath) {
         ArrayList<URL> urls = new ArrayList<>();
@@ -50,13 +54,47 @@ public class Start extends Application {
     private LinkedBlockingQueue<Object> pool;
     private ThreadPoolExecutor threadPool;
     private File libPath;
+    private Timer updateTimer;
+    private Updater updater;
     private static boolean createdFromMain = false;
+    private final int firstUpdateDelay = 1000;
+    private final int updateDelay = 60000;
 
     public Start() throws IOException {
         pool = new LinkedBlockingQueue<>(1);
         threadPool = new ThreadPoolExecutor(1, 1, 3000, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>());
         threadPool.allowCoreThreadTimeOut(true);
+
+        if (System.getProperty("defold.resourcespath") != null && System.getProperty("defold.sha1") != null)  {
+            logger.debug("automatic updates enabled");
+            installUpdater();
+        }
+    }
+
+    private void installUpdater() throws IOException {
+        // TODO: Localhost. Move to config or equivalent
+        updater = new Updater("http://d.defold.com/editor2", System.getProperty("defold.resourcespath"), System.getProperty("defold.sha1"));
+        updateTimer = new Timer();
+        updateTimer.schedule(newUpdateTask(), firstUpdateDelay);
+    }
+
+    private TimerTask newUpdateTask() {
+        return new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    logger.debug("checking for updates");
+                    UpdateInfo updateInfo = updater.check();
+                    if (updateInfo != null) {
+                        System.exit(17);
+                    }
+                    updateTimer.schedule(newUpdateTask(), updateDelay);
+                } catch (IOException e) {
+                    logger.debug("update failed", e);
+                }
+            }
+        };
     }
 
     private static Map<com.defold.editor.Platform, String[]> nativeLibs = new HashMap<>();
@@ -189,6 +227,13 @@ public class Start extends Application {
             }
             return null;
         });
+    }
+
+    @Override
+    public void stop() throws Exception {
+        // NOTE: We force exit here as it seems like the shutdown process
+        // is waiting for all non-daemon threads to terminate, e.g. clojure agent thread
+        System.exit(0);
     }
 
     public static void main(String[] args) throws Exception {

@@ -1,6 +1,7 @@
 (ns editor.app-view
   (:require [dynamo.graph :as g]
             [dynamo.types :as t]
+            [clojure.java.io :as io]
             [editor.jfx :as jfx]
             [editor.project :as project]
             [editor.handler :as handler]
@@ -114,6 +115,21 @@
   (enabled? [] true)
   (run [prefs] (login/logout prefs)))
 
+(defn make-about-dialog []
+  (let [root ^Parent (FXMLLoader/load (io/resource "about.fxml"))
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["version" "sha1"])]
+    (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
+    (ui/text! (:sha1 controls) (format "(%s)" (System/getProperty "defold.sha1" "NO SHA1")))
+    (ui/title! stage "About")
+    (.setScene stage scene)
+    (ui/show! stage)))
+
+(handler/defhandler :about
+  (enabled? [] true)
+  (run [] (make-about-dialog)))
+
 (ui/extend-menu ::menubar nil
                 [{:label "File"
                   :id ::file
@@ -144,7 +160,10 @@
                              {:label "Redo"
                               :acc "Shift+Shortcut+Z"
                               :icon "icons/redo.png"
-                              :command :redo}]}])
+                              :command :redo}]}
+                 {:label "Help"
+                  :children [{:label "About"
+                              :command :about}]}])
 
 (defrecord DummySelectionProvider []
   workspace/SelectionProvider
