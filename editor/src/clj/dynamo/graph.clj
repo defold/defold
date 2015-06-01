@@ -10,6 +10,7 @@
             [internal.system :as is]
             [internal.transaction :as it]
             [plumbing.core :as pc]
+            [plumbing.fnk.pfnk :as pf]
             [potemkin.namespaces :refer [import-vars]]))
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
@@ -20,6 +21,8 @@
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
+
+(declare node-value)
 
 ;; ---------------------------------------------------------------------------
 ;; State handling
@@ -140,30 +143,9 @@
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
-(defn- gather-property [this prop]
-  (let [type     (-> this gt/properties prop)
-        value    (get this prop)
-        problems (t/property-validate type value)
-        enabled? (t/property-enabled? type value)
-        visible? (t/property-visible? type value)]
-    {:node-id             (gt/node-id this)
-     :value               value
-     :type                type
-     :validation-problems problems
-     :enabled             enabled?
-     :visible             visible?}))
-
-(pc/defnk gather-properties :- t/Properties
-  "Production function that delivers the definition and value
-for all properties of this node."
-  [this]
-  (let [property-names (-> this gt/properties keys)]
-    (zipmap property-names (map (partial gather-property this) property-names))))
-
 (def node-intrinsics
   [(list 'output 'self `t/Any `(pc/fnk [~'this] ~'this))
-   (list 'output 'node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))
-   (list 'output 'properties `t/Properties `gather-properties)])
+   (list 'output 'node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
