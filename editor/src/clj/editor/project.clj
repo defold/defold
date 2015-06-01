@@ -20,7 +20,7 @@ ordinary paths."
 (g/defnode ResourceNode
   (inherits core/Scope)
 
-  (property resource (t/protocol workspace/Resource) (visible false))
+  (property resource (t/protocol workspace/Resource) (visible (g/fnk [] false)))
 
   (output save-data t/Any (g/fnk [resource] {:resource resource})))
 

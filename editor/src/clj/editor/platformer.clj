@@ -124,8 +124,8 @@
       action)))
 
 (g/defnode PlatformerController
-  (property active-cp t/Any (visible false))
-  (property inactive-cps t/Any (visible false))
+  (property active-cp t/Any (visible (g/fnk [] false)))
+  (property inactive-cps t/Any (visible (g/fnk [] false)))
 
   (input source t/Any)
   (input camera t/Any)
@@ -159,7 +159,7 @@
 (g/defnode PlatformerNode
   (inherits project/ResourceNode)
 
-  (property control-points  [t/Any] (visible false))
+  (property control-points  [t/Any] (visible (g/fnk [] false)))
   (property base-texture t/Str)
 
   (input base-texture-img BufferedImage)

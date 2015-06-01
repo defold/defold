@@ -53,8 +53,8 @@
   (inherits scene/SceneNode)
 
   (property id t/Str)
-  (property embedded (t/maybe t/Bool) (visible false))
-  (property path (t/maybe t/Str) (visible false))
+  (property embedded (t/maybe t/Bool) (visible (g/fnk [] false)))
+  (property path (t/maybe t/Str) (visible (g/fnk [] false)))
 
   (input source t/Any)
   (input outline t/Any)
