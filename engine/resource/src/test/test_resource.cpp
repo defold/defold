@@ -417,7 +417,6 @@ TEST_P(GetResourceTest, Loop)
     e = PreloaderGet(m_Factory, "/root_loop.cont", (void**) &test_resource_cont);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
     ASSERT_EQ((void*) 0, test_resource_cont);
-    ASSERT_EQ((void*) 0, test_resource_cont);
 }
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,

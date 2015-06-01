@@ -311,7 +311,7 @@ namespace dmGameSystem
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
 
-        if (params.m_Message->m_Id == dmHashString64("load") || params.m_Message->m_Id == dmHashString64("load_async"))
+        if (params.m_Message->m_Id == dmHashString64("load") || params.m_Message->m_Id == dmHashString64("async_load"))
         {
             if (proxy->m_Collection == 0)
             {
@@ -325,7 +325,7 @@ namespace dmGameSystem
                 proxy->m_LoadSender = params.m_Message->m_Sender;
                 proxy->m_LoadReceiver = params.m_Message->m_Receiver;
 
-                if (params.m_Message->m_Id == dmHashString64("load_async"))
+                if (params.m_Message->m_Id == dmHashString64("async_load"))
                 {
                     proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection);
                 }
@@ -486,7 +486,7 @@ namespace dmGameSystem
      * A loaded collection must be initialized (message <code>init</code>) and enabled (message <code>enable</code>) in order to be simulated and drawn.
      * </p>
      * @message
-     * @name load_async
+     * @name async_load
      * @examples
      * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
      * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
@@ -494,7 +494,7 @@ namespace dmGameSystem
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("start_level") then
      *         -- some script tells us to start loading the level
-     *         msg.post("#proxy", "load_async")
+     *         msg.post("#proxy", "async_load")
      *         -- store sender for later notification
      *         self.loader = sender
      *     elseif message_id == hash("proxy_loaded") then
