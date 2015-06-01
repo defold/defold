@@ -719,8 +719,21 @@ instructions.configure=\
     def archive_editor2(self):
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'editor2')
-        for p in glob(join(self.defold_root, 'editor', 'target', 'Defold*.zip')):
+        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.zip')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+        host = bucket.get_website_endpoint()
+
+        release_sha1 = self._git_sha1()
+
+        self._log('Uploading update.json')
+        key = bucket.new_key('editor2/update.json')
+        key.content_type = 'application/json'
+        key.set_contents_from_string(json.dumps({'url': 'http://%(host)s/editor2/%(sha1)s/editor2' % {'host': host, 'sha1': release_sha1}}))
 
     def bump(self):
         sha1 = self._git_sha1()

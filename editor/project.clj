@@ -27,6 +27,7 @@
                      [commons-io/commons-io                       "2.3"]
                      [org.clojure/tools.nrepl                     "0.2.7" :exclusions [org.clojure/clojure]]
                      [cider/cider-nrepl                           "0.9.0-SNAPSHOT" :exclusions [org.clojure/tools.nrepl]]
+                     [org.clojure/data.json                       "0.2.6"]
 
                      [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
@@ -96,7 +97,8 @@
                       :dev         {:dependencies   [[org.clojure/test.check   "0.5.8"]
                                                      [org.mockito/mockito-core "1.8.5"]
                                                      [org.clojure/tools.nrepl  "0.2.7" :exclusions [org.clojure/clojure]]
-                                                     [criterium "0.4.3"]]
+                                                     [criterium "0.4.3"]
+                                                     [ring "1.4.0-RC1"]]
                                     :repl-options   {:port 4001}
                                     :proto-paths    ["test/proto"]
                                     :main ^:skip-aot com.defold.editor.Start
