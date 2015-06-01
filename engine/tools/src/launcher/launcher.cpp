@@ -41,12 +41,16 @@ int Launch(int argc, char **argv) {
     char config_path[DMPATH_MAX_PATH];
     char java_path[DMPATH_MAX_PATH];
     char jar_path[DMPATH_MAX_PATH];
+    char packages_arg[DMPATH_MAX_PATH];
 
     dmSys::Result r = dmSys::GetResourcesPath(argc, (char**) argv, resources_path, sizeof(resources_path));
     if (r != dmSys::RESULT_OK) {
         dmLogFatal("Failed to located resources path (%d)", r);
         return 5;
     }
+
+    dmStrlCpy(packages_arg, "-Ddefold.resourcespath=", sizeof(packages_arg));
+    dmStrlCat(packages_arg, resources_path, sizeof(packages_arg));
 
     dmStrlCpy(config_path, resources_path, sizeof(config_path));
     dmStrlCat(config_path, "/config", sizeof(config_path));
@@ -74,6 +78,7 @@ int Launch(int argc, char **argv) {
     args[i++] = java_path;
     args[i++] = "-cp";
     args[i++] = jar_path;
+    args[i++] = packages_arg;
 #ifdef __MACH__
     char icon_arg[DMPATH_MAX_PATH];
     dmStrlCpy(icon_arg, "-Xdock:icon=", sizeof(icon_arg));
@@ -156,29 +161,36 @@ int Launch(int argc, char **argv) {
 	return exit_code;
 #else
 
-    //if (fork() == 0) {
+	pid_t pid = fork();
+    if (pid == 0) {
         int er = execv(args[0], (char *const *) args);
         if (er < 0) {
             char buf[2048];
              strerror_r(errno, buf, sizeof(buf));
              dmLogFatal("Failed to launch application: %s", buf);
+             exit(127);
         }
-/*    } else {
-        wait(0);
-        exit(0);
-    }*/
-
-
+    }
+	int stat;
+    wait(&stat);
 #endif
 
     free(vm_args);
     delete[] args;
     dmConfigFile::Delete(config);
-	// TODO: fork, wait and return exit code
-	return 0;
 
+    if (WIFEXITED(stat)) {
+    	return WEXITSTATUS(stat);
+    } else {
+    	return 127;
+    }
 }
 
 int main(int argc, char **argv) {
-    return Launch(argc, argv);
+	int ret = Launch(argc, argv);
+	while (ret == 17) {
+		ret = Launch(argc, argv);
+
+	}
+    return ret;
 }
