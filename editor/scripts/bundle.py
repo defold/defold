@@ -267,3 +267,4 @@ if __name__ == '__main__':
                                   'action': 'copy'}]}
     with open('target/editor/update/manifest.json', 'w') as f:
         f.write(json.dumps(package_info, indent=4))
+
