@@ -158,6 +158,9 @@ int Launch(int argc, char **argv) {
     CloseHandle( pi.hThread  );
 
     delete[] buffer;
+    free(vm_args);
+    delete[] args;
+    dmConfigFile::Delete(config);
 
 	return exit_code;
 #else
@@ -174,7 +177,6 @@ int Launch(int argc, char **argv) {
     }
 	int stat;
     wait(&stat);
-#endif
 
     free(vm_args);
     delete[] args;
@@ -185,6 +187,7 @@ int Launch(int argc, char **argv) {
     } else {
     	return 127;
     }
+#endif
 }
 
 int main(int argc, char **argv) {
