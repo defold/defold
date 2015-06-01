@@ -251,6 +251,7 @@ namespace dmEngineService
 
             dmWebServer::NewParams params;
             params.m_Port = port;
+            params.m_MaxConnections = 64;
             dmWebServer::HServer web_server;
             dmWebServer::Result r = dmWebServer::New(&params, &web_server);
             if (r != dmWebServer::RESULT_OK)
