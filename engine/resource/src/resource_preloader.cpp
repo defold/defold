@@ -67,7 +67,7 @@ namespace dmResource
         // Set once resources have started loading, they have a load request
         dmLoadQueue::HRequest m_LoadRequest;
 
-        // Set once load requmest has finished
+        // Set for items that are pending and waiting for child loads
         void *m_Buffer;
         uint32_t m_BufferSize;
 
@@ -261,8 +261,6 @@ namespace dmResource
         assert(tmp_resource.m_Resource);
 
         // Only two options from now on is to either destroy the resource or have it inserted
-        // Cleanup means we destroy.
-
         bool destroy = false;
 
         // second need to destroy if already exists
@@ -366,9 +364,10 @@ namespace dmResource
             else
             {
                 // We need to hold on to the data for a bit longer now.
-                if (buffer_size < SCRATCH_BUFFER_THRESHOLD && buffer_size < (SCRATCH_BUFFER_SIZE - preloader->m_ScratchBufferPos))
+                if (buffer_size < SCRATCH_BUFFER_THRESHOLD && buffer_size <= (SCRATCH_BUFFER_SIZE - preloader->m_ScratchBufferPos))
                 {
                     req->m_Buffer = &preloader->m_ScratchBuffer[preloader->m_ScratchBufferPos];
+                    preloader->m_ScratchBufferPos += buffer_size;
                 }
                 else
                 {
@@ -436,7 +435,7 @@ namespace dmResource
                 return 0;
             }
 
-            // It might have been loaded by unhinted resource Gets, and so being already loaded must be
+            // It might have been loaded by unhinted resource Gets, just grab & bump refcount
             SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_CanonicalPathHash);
             if (rd)
             {

@@ -52,9 +52,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
-
-// This is both for the total resource path, ie m_UriParts.X concatenated with relative path
-
 struct ResourceReloadedCallbackPair
 {
     ResourceReloadedCallback    m_Callback;

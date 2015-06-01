@@ -10,7 +10,7 @@ function on_message(self, message_id, message, sender)
         if self.unload_count < 2 then
             msg.post("#cp1", "load")
 	elseif self.unload_count < 4 then
-	    msg.post("#cp1", "load_async")
+	    msg.post("#cp1", "async_load")
         else
             msg.post("main:/main#script", "done")
         end
