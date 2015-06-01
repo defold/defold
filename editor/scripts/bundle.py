@@ -141,9 +141,6 @@ def bundle(platform, options):
     if os.path.exists('tmp'):
         shutil.rmtree('tmp')
 
-    if os.path.exists('target/editor'):
-        shutil.rmtree('target/editor')
-
     jre_minor = 45
     jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.gz' % (jre_minor, platform_to_java[platform])
     jre = download(jre_url)
@@ -251,6 +248,9 @@ if __name__ == '__main__':
 
     if not options.version:
         parser.error('No version specified')
+
+    if os.path.exists('target/editor'):
+        shutil.rmtree('target/editor')
 
     print 'Building editor'
     exec_command('./scripts/lein clean')
