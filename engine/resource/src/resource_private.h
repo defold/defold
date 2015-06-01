@@ -7,7 +7,9 @@
 
 namespace dmResource
 {
+    // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
     const uint32_t RESOURCE_PATH_MAX = 1024;
+
     const uint32_t MAX_RESOURCE_TYPES = 128;
 
     struct SResourceType

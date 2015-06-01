@@ -283,14 +283,14 @@ TEST_F(CollectionTest, PostCollection)
 TEST_F(CollectionTest, CollectionFail)
 {
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
         dmGameObject::HCollection coll;
         dmResource::Result r; 
 
         // Test both with normal loading and preloading
-        if (i < 5)
+        if (i < 10)
             r = dmResource::Get(m_Factory, "failing_sub.collectionc", (void**) &coll);
         else
             r = PreloaderGet(m_Factory, "failing_sub.collectionc", (void**) &coll);
@@ -366,12 +366,12 @@ TEST_F(CollectionTest, CollectionInCollection)
 TEST_F(CollectionTest, CollectionInCollectionChildFail)
 {
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
         dmGameObject::HCollection coll;
         dmResource::Result r;
-        if (i < 20)
+        if (i < 10)
             r = dmResource::Get(m_Factory, "root2.collectionc", (void**) &coll);
         else
             r = PreloaderGet(m_Factory, "root2.collection", (void**) &coll);
