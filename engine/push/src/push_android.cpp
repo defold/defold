@@ -210,28 +210,42 @@ static void PushError(lua_State*L, const char* error)
 
 JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onRegistration(JNIEnv* env, jobject, jstring regId, jstring errorMessage)
 {
-    const char* ri = env->GetStringUTFChars(regId, 0);
-    const char* em = env->GetStringUTFChars(errorMessage, 0);
+    const char* ri = 0;
+    const char* em = 0;
+
+    if (regId)
+    {
+        ri = env->GetStringUTFChars(regId, 0);
+    }
+    if (errorMessage)
+    {
+        em = env->GetStringUTFChars(errorMessage, 0);
+    }
 
     Command cmd;
     cmd.m_Command = CMD_REGISTRATION_RESULT;
     if (ri) {
         cmd.m_Data1 = strdup(ri);
+        env->ReleaseStringUTFChars(regId, ri);
     }
     if (em) {
         cmd.m_Data2 = strdup(em);
+        env->ReleaseStringUTFChars(errorMessage, em);
     }
     if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
-    env->ReleaseStringUTFChars(regId, ri);
-    env->ReleaseStringUTFChars(errorMessage, em);
 }
 
 
 JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobject, jstring json)
 {
-    const char* j = env->GetStringUTFChars(json, 0);
+    const char* j = 0;
+
+    if (json)
+    {
+        j = env->GetStringUTFChars(json, 0);
+    }
 
     Command cmd;
     cmd.m_Command = CMD_PUSH_MESSAGE_RESULT;
@@ -239,7 +253,10 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobje
     if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
-    env->ReleaseStringUTFChars(json, j);
+    if (j)
+    {
+        env->ReleaseStringUTFChars(json, j);
+    }
 }
 
 #ifdef __cplusplus
