@@ -112,17 +112,18 @@ def add_native_libs(platform, in_jar_name, out_jar):
                 print "adding", n
                 out_jar.writestr(n, d)
 
-def bundle_natives(platform, in_jar_name, out_jar_name):
+def bundle_natives(in_jar_name, out_jar_name):
     with zipfile.ZipFile(out_jar_name, 'w') as out_jar:
-        jogl_platform = platform_to_jogl[platform]
-        add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
-        add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
+        for platform in ['x86-linux', 'x86_64-darwin', 'x86-win32']:
+            jogl_platform = platform_to_jogl[platform]
+            add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
+            add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
 
-        with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
-            for zi in in_jar.infolist():
-                if not (zi.filename.endswith('.so') or zi.filename.endswith('.dll') or zi.filename.endswith('.jnilib')):
-                    d = in_jar.read(zi)
-                    out_jar.writestr(zi, d)
+            with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
+                for zi in in_jar.infolist():
+                    if not (zi.filename.endswith('.so') or zi.filename.endswith('.dll') or zi.filename.endswith('.jnilib')):
+                        d = in_jar.read(zi)
+                        out_jar.writestr(zi, d)
 
 def git_sha1(ref = None):
     args = 'git log --pretty=%H -n1'.split()
@@ -140,9 +141,6 @@ def git_sha1(ref = None):
 def bundle(platform, options):
     if os.path.exists('tmp'):
         shutil.rmtree('tmp')
-
-    if os.path.exists('target/editor'):
-        shutil.rmtree('target/editor')
 
     jre_minor = 45
     jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.gz' % (jre_minor, platform_to_java[platform])
@@ -208,7 +206,7 @@ def bundle(platform, options):
         config.write(f)
 
     jar_file = 'defold-%s.jar' % sha1
-    bundle_natives(platform, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/%s' % (packages_dir, jar_file))
+    bundle_natives('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/%s' % (packages_dir, jar_file))
     shutil.copy('%s/%s' % (packages_dir, jar_file), 'target/editor/update/%s' % jar_file)
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
     exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
@@ -252,6 +250,9 @@ if __name__ == '__main__':
     if not options.version:
         parser.error('No version specified')
 
+    if os.path.exists('target/editor'):
+        shutil.rmtree('target/editor')
+
     print 'Building editor'
     exec_command('./scripts/lein clean')
     exec_command('./scripts/lein uberjar')
@@ -267,3 +268,4 @@ if __name__ == '__main__':
                                   'action': 'copy'}]}
     with open('target/editor/update/manifest.json', 'w') as f:
         f.write(json.dumps(package_info, indent=4))
+
