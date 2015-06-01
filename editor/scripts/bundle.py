@@ -141,6 +141,9 @@ def bundle(platform, options):
     if os.path.exists('tmp'):
         shutil.rmtree('tmp')
 
+    if os.path.exists('target/editor'):
+        shutil.rmtree('target/editor')
+
     jre_minor = 45
     jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.gz' % (jre_minor, platform_to_java[platform])
     jre = download(jre_url)
@@ -148,21 +151,20 @@ def bundle(platform, options):
         print('Failed to download %s' % jre_url)
         sys.exit(5)
 
-    # TODO: Hack. We should download from s3 based on platform
-
     exe_suffix = ''
     if 'win32' in platform:
         exe_suffix = '.exe'
-    # TODO: Version is currently fixed
-    launcher_version = git_sha1()
-    if options.launcher_version:
-        launcher_version = options.launcher_version
+    sha1 = git_sha1()
 
-    launcher_url = 'http://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
-    launcher = download(launcher_url, use_cache = False)
-    if not launcher:
-        print 'Failed to download launcher', launcher_url
-        sys.exit(5)
+    if options.launcher:
+        launcher = options.launcher
+    else:
+        launcher_version = sha1
+        launcher_url = 'http://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
+        launcher = download(launcher_url, use_cache = False)
+        if not launcher:
+            print 'Failed to download launcher', launcher_url
+            sys.exit(5)
 
     mkdirs('tmp')
 
@@ -185,6 +187,7 @@ def bundle(platform, options):
     mkdirs(resources_dir)
     mkdirs(packages_dir)
     mkdirs('%s/jre' % packages_dir)
+    mkdirs('target/editor/update')
 
     if is_mac:
         shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
@@ -192,13 +195,21 @@ def bundle(platform, options):
         shutil.copy('bundle-resources/%s' % icon, resources_dir)
     config = ConfigParser.ConfigParser()
     config.read('bundle-resources/config')
-    config.set('launcher', 'jar', 'packages/defold-%s.jar' % options.version)
-    config.set('launcher', 'vmargs', '-Ddefold.version=%s' % options.version)
+    config.set('launcher', 'jar', 'packages/defold-%s.jar' % sha1)
+    vmargs = ",".join(['-Ddefold.version=%s' % options.version,
+                       '-Ddefold.sha1=%s' % sha1])
+    config.set('launcher', 'vmargs', vmargs)
+
 
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
 
-    bundle_natives(platform, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/defold-%s.jar' % (packages_dir, options.version))
+    with open('target/editor/update/config', 'wb') as f:
+        config.write(f)
+
+    jar_file = 'defold-%s.jar' % sha1
+    bundle_natives(platform, 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', '%s/%s' % (packages_dir, jar_file))
+    shutil.copy('%s/%s' % (packages_dir, jar_file), 'target/editor/update/%s' % jar_file)
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
     exec_command('chmod +x %s/Defold%s' % (exe_dir, exe_suffix))
 
@@ -212,7 +223,7 @@ def bundle(platform, options):
     for p in glob.glob(jre_glob):
         shutil.move(p, '%s/jre' % packages_dir)
 
-    ziptree(bundle_dir, 'target/Defold-%s.zip' % platform, 'tmp')
+    ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
 
 if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)'''
@@ -229,9 +240,9 @@ if __name__ == '__main__':
                       default = None,
                       help = 'Version')
 
-    parser.add_option('--launcher-version', dest='launcher_version',
+    parser.add_option('--launcher', dest='launcher',
                       default = None,
-                      help = 'Specific launcher version. Usefull when testing bundling.')
+                      help = 'Specific local launcher. Useful when testing bundling.')
 
     options, all_args = parser.parse_args()
 
@@ -248,6 +259,11 @@ if __name__ == '__main__':
     for platform in options.target_platform:
         bundle(platform, options)
 
-    package_info = {'jar': 'defold-%s.jar' % options.version}
-    with open('target/package.json', 'w') as f:
-        f.write(json.dumps(package_info))
+    sha1 = git_sha1()
+    package_info = {'version' : options.version,
+                    'sha1' : sha1,
+                    'packages': [{'url': 'defold-%s.jar' % sha1,
+                                  'platform': '*',
+                                  'action': 'copy'}]}
+    with open('target/editor/update/manifest.json', 'w') as f:
+        f.write(json.dumps(package_info, indent=4))
