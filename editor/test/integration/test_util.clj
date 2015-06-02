@@ -50,11 +50,11 @@
     (project/get-resource-node project (workspace/file-resource workspace path))))
 
 (defn empty-selection? [project]
-  (let [sel (g/node-value project :selection)]
+  (let [sel (g/node-value project :selected-node-ids)]
     (empty? sel)))
 
 (defn selected? [project tgt-node]
-  (let [sel (g/node-value project :selection)]
+  (let [sel (g/node-value project :selected-node-ids)]
     (not (nil? (some #{(g/node-id tgt-node)} sel)))))
 
 (g/defnode DummyAppView
@@ -73,7 +73,7 @@
         view (scene/make-preview view-graph resource-node {:select-fn (fn [selection op-seq] (project/select! project selection op-seq))} width height)]
     (g/transact
       (concat
-        (g/connect project :selection view :selection)
+        (g/connect project :selected-node-ids view :selection)
         (g/connect app-view :active-tool view :active-tool)))
     (g/refresh view)))
 
