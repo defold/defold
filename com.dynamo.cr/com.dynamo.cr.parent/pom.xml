@@ -113,8 +113,6 @@
         <module>../com.dynamo.cr.rlog.test</module>
         <module>../com.dynamo.cr.sceneed</module>
         <module>../com.dynamo.cr.sceneed.test</module>
-        <module>../com.dynamo.cr.sceneed2</module>
-        <module>../com.dynamo.cr.sceneed2.test</module>
         <module>../com.dynamo.cr.go</module>
         <module>../com.dynamo.cr.go.test</module>
         <module>../com.dynamo.cr.parted</module>
