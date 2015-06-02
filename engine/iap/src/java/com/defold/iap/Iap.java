@@ -234,7 +234,7 @@ public class Iap implements Handler.Callback {
             // https://code.google.com/p/marketbilling/issues/detail?id=93&q=currency%20code&colspec=ID%20Type%20Status%20Google%20Priority%20Milestone%20Owner%20Summary
             double price = 0.0;
             if (p.has("price_amount_micros")) {
-                price = ((Integer)p.get("price_amount_micros")).intValue() * 0.000001;
+                price = p.getLong("price_amount_micros") * 0.000001;
             }
             String currency_code = "Unknown";
             if (p.has("price_currency_code")) {
