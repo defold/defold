@@ -239,6 +239,9 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
+        if (resources.contains(resource.output().getAbsPath())) {
+            return;
+        }
         resources.add(resource.output().getAbsPath());
 
         int i = resource.getPath().lastIndexOf(".");
