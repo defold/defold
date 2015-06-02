@@ -82,8 +82,8 @@ connected to the Scope's :nodes input.
 When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes t/Any :array)
 
-  (property tag      t/Keyword (visible false))
-  (property parent   t/Any (visible false))
+  (property tag      t/Keyword (visible (g/fnk [] false)))
+  (property parent   t/Any (visible (g/fnk [] false)))
 
   (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted           #'dispose-nodes))
@@ -99,7 +99,7 @@ Inheritors are required to supply a production function for the :save output."
 
 (g/defnode ResourceNode
   "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename (t/protocol t/PathManipulation) (visible false))
+  (property filename (t/protocol t/PathManipulation) (visible (g/fnk [] false)))
 
   (output content t/Any :abstract))
 
