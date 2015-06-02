@@ -60,6 +60,7 @@ static void PushError(lua_State*L, NSError* error)
 
 @interface SKProductsRequestDelegate : NSObject<SKProductsRequestDelegate>
     @property lua_State* m_LuaState;
+    @property (assign) SKProductsRequest* m_Request;
 @end
 
 @implementation SKProductsRequestDelegate
@@ -140,7 +141,6 @@ static void PushError(lua_State*L, NSError* error)
     g_IAP.m_Self = LUA_NOREF;
 
     assert(top == lua_gettop(L));
-    [self release];
 }
 
 - (void)request:(SKRequest *)request didFailWithError:(NSError *)error{
@@ -184,6 +184,11 @@ static void PushError(lua_State*L, NSError* error)
     g_IAP.m_Self = LUA_NOREF;
 
     assert(top == lua_gettop(L));
+}
+
+- (void)requestDidFinish:(SKRequest *)request
+{
+    [self.m_Request release];
     [self release];
 }
 
@@ -355,6 +360,7 @@ int IAP_List(lua_State* L)
     SKProductsRequest* products_request = [[SKProductsRequest alloc] initWithProductIdentifiers: product_identifiers];
     SKProductsRequestDelegate* delegate = [SKProductsRequestDelegate alloc];
     delegate.m_LuaState = dmScript::GetMainThread(L);
+    delegate.m_Request = products_request;
     products_request.delegate = delegate;
     [products_request start];
 
@@ -366,7 +372,6 @@ int IAP_List(lua_State* L)
  *
  * @name iap.buy
  * @param id product to buy (identifier)
- * @param callback result callback
  * @examples
  *
  * <pre>

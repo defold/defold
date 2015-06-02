@@ -142,7 +142,7 @@ namespace dmGameSystem
 
     /*# set a tile in a tile map
      * Replace a tile in a tile map with a new tile. The coordinates of the tile is 1-indexed so a 4 by 4
-     * tile map has the following x,y coordinates:
+     * tile map centered around origo has the following x,y coordinates:
      * <pre>
      * +-------+-------+------+------+
      * | -2,1  | -1,1  | 0,1  | 1,1  |
@@ -187,8 +187,20 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
-        const char* layer = luaL_checkstring(L, 2);
-        dmhash_t layer_id = dmHashString64(layer);
+        dmhash_t layer_id;
+        if (lua_isstring(L, 2))
+        {
+            layer_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            layer_id = dmScript::CheckHash(L, 2);
+        }
+        else
+        {
+            return luaL_error(L, "name must be either a hash or a string");
+        }
+
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {
@@ -287,8 +299,20 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
-        const char* layer = luaL_checkstring(L, 2);
-        dmhash_t layer_id = dmHashString64(layer);
+        dmhash_t layer_id;
+        if (lua_isstring(L, 2))
+        {
+            layer_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            layer_id = dmScript::CheckHash(L, 2);
+        }
+        else
+        {
+            return luaL_error(L, "name must be either a hash or a string");
+        }
+
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {

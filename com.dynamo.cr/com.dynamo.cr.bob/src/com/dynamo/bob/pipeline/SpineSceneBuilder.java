@@ -3,6 +3,9 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -10,8 +13,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Vector2d;
 import javax.vecmath.Vector3d;
 
 import com.dynamo.bob.Builder;
@@ -41,6 +46,7 @@ import com.dynamo.spine.proto.Spine.MeshSet;
 import com.dynamo.spine.proto.Spine.Skeleton;
 import com.dynamo.spine.proto.Spine.SpineAnimation;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 
@@ -219,7 +225,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
         ProtoUtil.merge(input, builder);
         taskBuilder.addInput(input.getResource(builder.getSpineJson()));
-        taskBuilder.addInput(input.getResource(builder.getAtlas()));
+        taskBuilder.addInput(project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc")));
         return taskBuilder.build();
     }
 
@@ -541,10 +547,23 @@ public class SpineSceneBuilder extends Builder<Void> {
         SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
         ProtoUtil.merge(task.input(0), builder);
 
-        TextureSetResult result = AtlasUtil.genereateTextureSet(project, task.input(2));
+        // Load previously created atlas textureset
+        TextureSet.Builder resultBuilder = TextureSet.newBuilder();
+        resultBuilder.mergeFrom(task.input(2).getContent());
+
+        TextureSet result = resultBuilder.build();
+        FloatBuffer uv = ByteBuffer.wrap(result.getTexCoords().toByteArray()).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+
         final Map<String, UVTransform> animToTransform = new HashMap<String, UVTransform>();
-        for (TextureSetAnimation animation : result.builder.getAnimationsList()) {
-            animToTransform.put(animation.getId(), result.uvTransforms.get(animation.getStart()));
+        for (TextureSetAnimation animation : result.getAnimationsList()) {
+            int i = animation.getStart() * 8;
+
+            // We base the rotation on what order minU and maxV comes, see texture_set_ddf.proto
+            // If it's rotated the value of minU should be at position 0 and 6.
+            animToTransform.put(animation.getId(),
+                new UVTransform(new Point2d(uv.get(i), uv.get(i+3)),
+                                new Vector2d(uv.get(i+4) - uv.get(i), uv.get(i+7) - uv.get(i+3)),
+                                uv.get(i) == uv.get(i+6)) );
         }
 
         Spine.SpineScene.Builder b = Spine.SpineScene.newBuilder();

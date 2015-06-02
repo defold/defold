@@ -4,10 +4,8 @@ import java.io.InputStream;
 import java.net.URI;
 
 import com.dynamo.cr.common.providers.ProtobufProviders;
-import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
@@ -51,46 +49,6 @@ public class ProjectClient extends BaseClient implements IProjectClient {
     @Override
     public void deleteBranch(String branch) throws RepositoryException {
         wrapDelete(String.format("/branches/%s", branch));
-    }
-
-    @Override
-    public LaunchInfo getLaunchInfo() throws RepositoryException {
-        return wrapGet("/launch_info", LaunchInfo.class);
-    }
-
-    @Override
-    public ApplicationInfo getApplicationInfo(String platform)
-            throws RepositoryException {
-
-        try {
-            ClientResponse resp = resource.path("/application_info").queryParam("platform", platform)
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .get(ClientResponse.class);
-            if (resp.getStatus() != 200) {
-                ClientUtils.throwRespositoryException(resp);
-            }
-            return resp.getEntity(ApplicationInfo.class);
-        }
-        catch (ClientHandlerException e) {
-            ClientUtils.throwRespositoryException(e);
-            return null; // Never reached
-        }
-    }
-
-    @Override
-    public InputStream getApplicationData(String platform)
-            throws RepositoryException {
-        try {
-            ClientResponse resp = resource.path("/application_data").queryParam("platform", platform).get(ClientResponse.class);
-            if (resp.getStatus() != 200) {
-                ClientUtils.throwRespositoryException(resp);
-            }
-            return resp.getEntityInputStream();
-        }
-        catch (ClientHandlerException e) {
-            ClientUtils.throwRespositoryException(e);
-            return null; // Never reached
-        }
     }
 
     @Override

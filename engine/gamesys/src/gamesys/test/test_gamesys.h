@@ -40,6 +40,7 @@ protected:
     dmGameSystem::SpriteContext m_SpriteContext;
     dmGameSystem::CollectionProxyContext m_CollectionProxyContext;
     dmGameSystem::FactoryContext m_FactoryContext;
+    dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
@@ -135,6 +136,7 @@ void GamesysTest<T>::SetUp()
     m_CollectionProxyContext.m_MaxCollectionProxyCount = 8;
 
     m_FactoryContext.m_MaxFactoryCount = 128;
+    m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
 
     m_SpineModelContext.m_RenderContext = m_RenderContext;
     m_SpineModelContext.m_Factory = m_Factory;
@@ -147,7 +149,7 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_SpineModelContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

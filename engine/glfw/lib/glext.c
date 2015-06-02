@@ -53,7 +53,7 @@
 
 void _glfwParseGLVersion( int *major, int *minor, int *rev )
 {
-#ifdef __arm__
+#if defined(__arm__) || defined(__arm64__)
     // Parsing code below is broken for iOS. Just set some values.
     _glfwWin.glMajor = 1;
     _glfwWin.glMinor = 0;

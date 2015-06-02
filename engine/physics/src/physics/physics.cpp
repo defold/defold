@@ -147,7 +147,7 @@ namespace dmPhysics
      * Add the entry of two overlapping objects to the cache.
      * Automatically creates the overlap, but is not symmetric.
      */
-    static void AddEntry(OverlapCache* cache, void* object_a, void* user_data_a, void* object_b)
+    static void AddEntry(OverlapCache* cache, void* object_a, void* user_data_a, void* object_b, uint16_t group_a)
     {
         // Check if the cache needs to be expanded
         uint32_t size = cache->Size();
@@ -161,6 +161,7 @@ namespace dmPhysics
         OverlapEntry entry;
         memset(&entry, 0, sizeof(entry));
         entry.m_UserData = user_data_a;
+        entry.m_Group = group_a;
         // Add overlap to the entry
         AddOverlap(&entry, object_b, 0x0);
         // Add the entry
@@ -220,15 +221,17 @@ namespace dmPhysics
         }
         // Add entries for previously unrecorded objects
         if (entry_a == 0x0)
-            AddEntry(cache, data.m_ObjectA, data.m_UserDataA, data.m_ObjectB);
+            AddEntry(cache, data.m_ObjectA, data.m_UserDataA, data.m_ObjectB, data.m_GroupA);
         if (entry_b == 0x0)
-            AddEntry(cache, data.m_ObjectB, data.m_UserDataB, data.m_ObjectA);
+            AddEntry(cache, data.m_ObjectB, data.m_UserDataB, data.m_ObjectA, data.m_GroupB);
         // Callback for newly added overlaps
         if (!found && data.m_TriggerEnteredCallback != 0x0)
         {
             TriggerEnter enter;
             enter.m_UserDataA = data.m_UserDataA;
             enter.m_UserDataB = data.m_UserDataB;
+            enter.m_GroupA = data.m_GroupA;
+            enter.m_GroupB = data.m_GroupB;
             data.m_TriggerEnteredCallback(enter, data.m_TriggerEnteredUserData);
         }
     }
@@ -287,6 +290,8 @@ namespace dmPhysics
                     TriggerExit data;
                     data.m_UserDataA = value->m_UserData;
                     data.m_UserDataB = entry->m_UserData;
+                    data.m_GroupA = value->m_Group;
+                    data.m_GroupB = entry->m_Group;
                     callback(data, user_data);
                 }
                 RemoveOverlap(entry, object_a);

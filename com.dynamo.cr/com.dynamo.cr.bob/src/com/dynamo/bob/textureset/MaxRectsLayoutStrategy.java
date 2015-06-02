@@ -3,7 +3,6 @@ package com.dynamo.bob.textureset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Vector;
 import java.util.Comparator;
 
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
@@ -25,7 +24,6 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         public int paddingX;
         public int paddingY;
         public boolean rotation;
-        public boolean fast;
         public boolean square;
     }
 
@@ -39,7 +37,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
     @Override
     public List<Layout> createLayout(List<Rect> srcRects) {
-        Vector<RectNode> srcNodes = new Vector<RectNode>(srcRects.size());
+        ArrayList<RectNode> srcNodes = new ArrayList<RectNode>(srcRects.size());
         for(Rect r : srcRects) {
             RectNode n = new RectNode(r);
             n.rect.width += settings.paddingX;
@@ -47,27 +45,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             srcNodes.add(n);
         }
 
-        if (settings.fast){
-            if (settings.rotation) {
-                // Sort by longest side if rotation is enabled.
-                Collections.sort(srcNodes, new Comparator<RectNode>() {
-                    public int compare (RectNode o1, RectNode o2) {
-                        int n1 = o1.rect.width > o1.rect.height ? o1.rect.width : o1.rect.height;
-                        int n2 = o2.rect.width > o2.rect.height ? o2.rect.width : o2.rect.height;
-                        return n2 - n1;
-                    }
-                });
-            } else {
-                // Sort only by width (largest to smallest) if rotation is disabled.
-                Collections.sort(srcNodes, new Comparator<RectNode>() {
-                    public int compare (RectNode o1, RectNode o2) {
-                        return o2.rect.width - o1.rect.width;
-                    }
-                });
-            }
-        }
-
-        Vector<Page> pages = new Vector<Page>();
+        ArrayList<Page> pages = new ArrayList<Page>();
         while (0 < srcNodes.size()) {
             Page result = packPage(srcNodes);
             pages.add(result);
@@ -79,7 +57,9 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         for(Page page : pages) {
             ArrayList<Rect> rects = new ArrayList<Rect>(page.outputRects.size());
             for(RectNode node : page.outputRects) {
-                rects.add(node.rect);
+                Rect finalRect = new Rect(node.rect.id, node.rect.x, node.rect.y, node.rect.width - settings.paddingX, node.rect.height - settings.paddingY);
+                finalRect.rotated = node.rect.rotated;
+                rects.add(finalRect);
             }
             int layoutWidth = 1 << getExponentNextOrMatchingPowerOfTwo(page.width);
             int layoutHeight = 1 << getExponentNextOrMatchingPowerOfTwo(page.height);
@@ -90,7 +70,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         return result;
     }
 
-    private Page packPage(Vector<RectNode> inputRects) {
+    private Page packPage(ArrayList<RectNode> inputRects) {
         // Find min size.
         int minWidth = Integer.MAX_VALUE;
         int minHeight = Integer.MAX_VALUE;
@@ -175,26 +155,24 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     /** @param fully If true, the only results that pack all rects will be considered. If false, all results are considered, not all
      *           rects may be packed.
      **/
-    private Page packAtSize (boolean fully, int width, int height, Vector<RectNode> inputRects) {
+    private Page packAtSize (boolean fully, int width, int height, ArrayList<RectNode> inputRects) {
         Page bestResult = null;
         for (int i = 0, n = methods.length; i < n; i++) {
             maxRects.init(width, height);
             Page result;
-            if (!settings.fast) {
-                result = maxRects.pack(inputRects, methods[i]);
-            } else {
-                Vector<RectNode> remaining = new Vector<RectNode>();
-                for (int ii = 0, nn = inputRects.size(); ii < nn; ii++) {
-                    RectNode rect = inputRects.get(ii);
-                    if (maxRects.insert(rect, methods[i]) == null) {
-                        while (ii < nn) {
-                            remaining.add(inputRects.get(ii++));
-                        }
+
+            ArrayList<RectNode> remaining = new ArrayList<RectNode>();
+            for (int ii = 0, nn = inputRects.size(); ii < nn; ii++) {
+                RectNode rect = inputRects.get(ii);
+                if (maxRects.insert(rect, methods[i]) == null) {
+                    while (ii < nn) {
+                        remaining.add(inputRects.get(ii++));
                     }
                 }
-                result = maxRects.getResult();
-                result.remainingRects = remaining;
             }
+            result = maxRects.getResult();
+            result.remainingRects = remaining;
+
             if (fully && result.remainingRects.size() > 0) {
                 continue;
             }
@@ -282,7 +260,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     }
 
     static class Page {
-        public Vector<RectNode> outputRects, remainingRects;
+        public ArrayList<RectNode> outputRects, remainingRects;
         public float occupancy;
         public int width, height;
     }
@@ -294,8 +272,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     class MaxRects {
         private int binWidth;
         private int binHeight;
-        private final Vector<RectNode> usedRectangles = new Vector<RectNode>();
-        private final Vector<RectNode> freeRectangles = new Vector<RectNode>();
+        private final ArrayList<RectNode> usedRectangles = new ArrayList<RectNode>();
+        private final ArrayList<RectNode> freeRectangles = new ArrayList<RectNode>();
 
         public void init (int width, int height) {
             binWidth = width;
@@ -334,8 +312,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         }
 
         /** For each rectangle, packs each one then chooses the best and packs that. Slow! */
-        public Page pack (Vector<RectNode> rects, FreeRectChoiceHeuristic method) {
-            rects = new Vector<RectNode>(rects);
+        public Page pack (ArrayList<RectNode> rects, FreeRectChoiceHeuristic method) {
+            rects = new ArrayList<RectNode>(rects);
             while (rects.size() > 0) {
                 int bestRectIndex = -1;
                 RectNode bestNode = new RectNode(new Rect(null, 0, 0, 0, 0));
@@ -377,7 +355,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                 h = Math.max(h, node.rect.y + node.rect.height);
             }
             Page result = new Page();
-            result.outputRects = new Vector<RectNode>(usedRectangles);
+            result.outputRects = new ArrayList<RectNode>(usedRectangles);
             result.occupancy = getOccupancy();
             result.width = w;
             result.height = h;

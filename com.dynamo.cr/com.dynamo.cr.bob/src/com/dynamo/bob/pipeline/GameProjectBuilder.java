@@ -9,6 +9,7 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +22,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
@@ -31,8 +33,12 @@ import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
+import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.gui.proto.Gui;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
@@ -44,6 +50,7 @@ import com.dynamo.proto.DdfExtensions;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.render.proto.Render.DisplayProfiles;
 import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.dynamo.spine.proto.Spine.SpineModelDesc;
 import com.dynamo.spine.proto.Spine.SpineScene;
@@ -80,6 +87,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".collisionobjectc", CollisionObjectDesc.class);
         extToMessageClass.put(".spritec", SpriteDesc.class);
         extToMessageClass.put(".factoryc", FactoryDesc.class);
+        extToMessageClass.put(".collectionfactoryc", CollectionFactoryDesc.class);
         extToMessageClass.put(".materialc", MaterialDesc.class);
         extToMessageClass.put(".fontc", FontMap.class);
         extToMessageClass.put(".soundc", SoundDesc.class);
@@ -94,6 +102,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".camerac", CameraDesc.class);
         extToMessageClass.put(".lightc", LightDesc.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
+        extToMessageClass.put(".display_profilesc", DisplayProfiles.class);
 
         leafResourceTypes.add(".texturec");
         leafResourceTypes.add(".vpc");
@@ -102,6 +111,7 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".oggc");
         leafResourceTypes.add(".meshc");
     }
+
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -114,6 +124,54 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
+
+
+        // Load texture profile message if supplied and enabled
+        String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
+        if (textureProfilesPath != null && project.option("texture-profiles", "false").equals("true")) {
+
+            TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
+            IResource texProfilesInput = project.getResource(textureProfilesPath);
+            if (!texProfilesInput.exists()) {
+                throw new CompileExceptionError(input, -1, "Could not find supplied texture_profiles file: " + textureProfilesPath);
+            }
+            ProtoUtil.merge(texProfilesInput, texProfilesBuilder);
+
+            // If Bob is building for a specific platform, we need to
+            // filter out any platform entries not relevant to the target platform.
+            // (i.e. we don't want win32 specific profiles lingering in android bundles)
+            String targetPlatform = project.option("platform", "");
+
+            List<TextureProfile> newProfiles = new LinkedList<TextureProfile>();
+            for (int i = 0; i < texProfilesBuilder.getProfilesCount(); i++) {
+
+                TextureProfile profile = texProfilesBuilder.getProfiles(i);
+                TextureProfile.Builder profileBuilder = TextureProfile.newBuilder();
+                profileBuilder.mergeFrom(profile);
+                profileBuilder.clearPlatforms();
+
+                // Take only the platforms that matches the target platform
+                for (PlatformProfile platformProfile : profile.getPlatformsList()) {
+                    if (Platform.matchPlatformAgainstOS(targetPlatform, platformProfile.getOs())) {
+                        profileBuilder.addPlatforms(platformProfile);
+                    }
+                }
+
+                newProfiles.add(profileBuilder.build());
+            }
+
+            // Update profiles list with new filtered one
+            // Now it should only contain profiles with platform entries
+            // relevant for the target platform...
+            texProfilesBuilder.clearProfiles();
+            texProfilesBuilder.addAllProfiles(newProfiles);
+
+
+            // Add the current texture profiles to the project, since this
+            // needs to be reachedable by the TextureGenerator.
+            TextureProfiles textureProfiles = texProfilesBuilder.build();
+            project.setTextureProfiles(textureProfiles);
+        }
 
         for (Task<?> task : project.getTasks()) {
             for (IResource output : task.getOutputs()) {
@@ -181,6 +239,9 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
+        if (resources.contains(resource.output().getAbsPath())) {
+            return;
+        }
         resources.add(resource.output().getAbsPath());
 
         int i = resource.getPath().lastIndexOf(".");
@@ -215,12 +276,23 @@ public class GameProjectBuilder extends Builder<Void> {
     public static HashSet<String> findResources(Project project) throws CompileExceptionError {
         HashSet<String> resources = new HashSet<String>();
 
-        // Root nodes to follow
-        for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}}) {
-            String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
-            if (path != null) {
-                findResources(project, project.getResource(path), resources);
+        if (project.option("keep-unused", "false").equals("true")) {
+
+            // All outputs of the project should be considered resources
+            for (String path : project.getOutputs()) {
+                resources.add(path);
             }
+
+        } else {
+
+            // Root nodes to follow
+            for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}, {"display", "display_profiles"}}) {
+                String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
+                if (path != null) {
+                    findResources(project, project.getResource(path), resources);
+                }
+            }
+
         }
 
         // Custom resources
@@ -251,6 +323,10 @@ public class GameProjectBuilder extends Builder<Void> {
         try {
             if (project.option("archive", "false").equals("true")) {
                 HashSet<String> resources = findResources(project);
+
+                // Make sure we don't try to archive the .darc or .projectc
+                resources.remove(task.output(0).getAbsPath());
+                resources.remove(task.output(1).getAbsPath());
 
                 File archiveFile = createArchive(resources);
                 is = new FileInputStream(archiveFile);

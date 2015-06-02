@@ -263,6 +263,14 @@ namespace dmSocket
     Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl);
 
     /**
+     * Set address for outgoing multicast datagrams
+     * @param socket socket to set multicast address for
+     * @param address address of network interface to use
+     * @return RESULT_OK
+     */
+    Result SetMulticastIf(Socket socket, Address address);
+
+    /**
      * Accept a connection on a socket
      * @param socket Socket to accept connections on
      * @param address Result address parameter

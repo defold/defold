@@ -388,7 +388,7 @@ namespace dmScript
         }
         else if (top > 0)
         {
-            luaL_error(L, "Only %s.%s(), %s.%s(\"[socket:][path][#fragment]\") or %s.%s(socket, path, fragment) is supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL);
+            luaL_error(L, "Only %s.%s(), %s.%s(\"[socket:][path][#fragment]\") or %s.%s(socket, path, fragment) is supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL);
         }
         PushURL(L, url);
         assert(top + 1 == lua_gettop(L));

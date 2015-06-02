@@ -25,7 +25,7 @@ namespace dmRender
 
     void ClearDebugRenderObjects(HRenderContext render_context);
 
-    void FlushDebug(HRenderContext render_context);
+    void FlushDebug(HRenderContext render_context, uint32_t render_order);
 }
 
 #endif // DM_RENDER_DEBUG_RENDERER_H

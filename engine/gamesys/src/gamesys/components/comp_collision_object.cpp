@@ -37,6 +37,8 @@ namespace dmGameSystem
             dmPhysics::HWorld2D m_World2D;
             dmPhysics::HWorld3D m_World3D;
         };
+        uint8_t m_ComponentIndex;
+        uint8_t m_3D : 1;
     };
 
     struct CollisionComponent
@@ -57,6 +59,10 @@ namespace dmGameSystem
         // to PhysicsContext in the SetWorldTransform callback. This
         // could perhaps be improved.
         uint8_t m_3D : 1;
+
+        // Tracking initial state.
+        uint8_t m_AddedToUpdate : 1;
+        uint8_t m_StartAsEnabled : 1;
     };
 
     void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
@@ -101,6 +107,8 @@ namespace dmGameSystem
             world->m_World3D = dmPhysics::NewWorld3D(physics_context->m_Context3D, world_params);
         else
             world->m_World2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
+        world->m_ComponentIndex = params.m_ComponentIndex;
+        world->m_3D = physics_context->m_3D;
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -295,6 +303,8 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Object2D = 0;
         component->m_ComponentIndex = params.m_ComponentIndex;
+        component->m_AddedToUpdate = false;
+        component->m_StartAsEnabled = true;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
@@ -302,6 +312,14 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         *params.m_UserData = (uintptr_t)component;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
+    {
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        component->m_AddedToUpdate = false;
+        component->m_StartAsEnabled = true;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -460,6 +478,7 @@ namespace dmGameSystem
 
     void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)
     {
+        CollisionWorld* world = (CollisionWorld*)user_data;
         CollisionComponent* component_a = (CollisionComponent*)trigger_enter.m_UserDataA;
         CollisionComponent* component_b = (CollisionComponent*)trigger_enter.m_UserDataB;
         dmGameObject::HInstance instance_a = component_a->m_Instance;
@@ -472,15 +491,18 @@ namespace dmGameSystem
 
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
+        ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupB);
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
+        ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupA);
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
     void TriggerExitedCallback(const dmPhysics::TriggerExit& trigger_exit, void* user_data)
     {
+        CollisionWorld* world = (CollisionWorld*)user_data;
         CollisionComponent* component_a = (CollisionComponent*)trigger_exit.m_UserDataA;
         CollisionComponent* component_b = (CollisionComponent*)trigger_exit.m_UserDataB;
         dmGameObject::HInstance instance_a = component_a->m_Instance;
@@ -493,10 +515,12 @@ namespace dmGameSystem
 
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
+        ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupB);
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
+        ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupA);
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
@@ -571,7 +595,16 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    // Request ray cast
+                    // Target collection which can be different than we are updating for.
+                    dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+                    // NOTE! The collision world for the target collection is looked up using this worlds component index
+                    //       which is assumed to be the same as in the target collection.
+                    CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_World->m_ComponentIndex);
+
+                    // Give that the assumption above holds, this assert will hold too.
+                    assert(world->m_ComponentIndex == context->m_World->m_ComponentIndex);
+
                     dmPhysics::RayCastRequest request;
                     request.m_From = ddf->m_From;
                     request.m_To = ddf->m_To;
@@ -580,11 +613,7 @@ namespace dmGameSystem
                     request.m_UserId = ((uint16_t)component_index << 8) | (ddf->m_RequestId & 0xff);
                     request.m_UserData = (void*)sender_instance;
 
-                    dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-                    // Make sure no external component has sent a ray cast message during the update of this collection
-                    assert(collection == context->m_Collection);
-                    CollisionWorld* world = context->m_World;
-                    if (context->m_PhysicsContext->m_3D)
+                    if (world->m_3D)
                     {
                         dmPhysics::RequestRayCast3D(world->m_World3D, request);
                     }
@@ -601,14 +630,42 @@ namespace dmGameSystem
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (world != 0x0) {
             CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+            assert(!component->m_AddedToUpdate);
+
             if (component->m_3D) {
-                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, true);
+                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, component->m_StartAsEnabled);
             } else {
-                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, true);
+                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, component->m_StartAsEnabled);
                 SetupTileGrid(world, component);
             }
+            component->m_AddedToUpdate = true;
         }
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    // This function will dispatch on the (global) physics socket, and will potentially handle messages belonging to other collections
+    // than the current one being updated.
+    //
+    // TODO: Make a nicer solution for this, perhaps a per-collection physics socket
+    bool CompCollisionObjectDispatchPhysicsMessages(PhysicsContext *physics_context, CollisionWorld *world, dmGameObject::HCollection collection)
+    {
+        DispatchContext dispatch_context;
+        dispatch_context.m_PhysicsContext = physics_context;
+        dispatch_context.m_Success = true;
+        dispatch_context.m_World = world;
+        dispatch_context.m_Collection = collection;
+        dmMessage::HSocket physics_socket;
+        if (physics_context->m_3D)
+        {
+            physics_socket = dmPhysics::GetSocket3D(physics_context->m_Context3D);
+        }
+        else
+        {
+            physics_socket = dmPhysics::GetSocket2D(physics_context->m_Context2D);
+
+        }
+        dmMessage::Dispatch(physics_socket, DispatchCallback, (void*)&dispatch_context);
+        return dispatch_context.m_Success;
     }
 
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params)
@@ -620,26 +677,8 @@ namespace dmGameSystem
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
 
-        // Dispatch messages
-        DispatchContext dispatch_context;
-        dispatch_context.m_PhysicsContext = physics_context;
-        dispatch_context.m_Success = true;
-        dispatch_context.m_World = world;
-        dispatch_context.m_Collection = params.m_Collection;
-        dmMessage::HSocket physics_socket = 0;
-        if (physics_context->m_3D)
-        {
-            physics_socket = dmPhysics::GetSocket3D(physics_context->m_Context3D);
-        }
-        else
-        {
-            physics_socket = dmPhysics::GetSocket2D(physics_context->m_Context2D);
-        }
-        dmMessage::Dispatch(physics_socket, DispatchCallback, (void*)&dispatch_context);
-        if (!dispatch_context.m_Success)
-        {
+        if (!CompCollisionObjectDispatchPhysicsMessages(physics_context, world, params.m_Collection))
             result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-        }
 
         CollisionUserData collision_user_data;
         collision_user_data.m_World = world;
@@ -657,7 +696,9 @@ namespace dmGameSystem
         step_world_context.m_ContactPointCallback = ContactPointCallback;
         step_world_context.m_ContactPointUserData = &contact_user_data;
         step_world_context.m_TriggerEnteredCallback = TriggerEnteredCallback;
+        step_world_context.m_TriggerEnteredUserData = world;
         step_world_context.m_TriggerExitedCallback = TriggerExitedCallback;
+        step_world_context.m_TriggerExitedUserData = world;
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
 
@@ -700,6 +741,22 @@ namespace dmGameSystem
         return result;
     }
 
+    dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
+    {
+        if (params.m_World == 0x0)
+            return dmGameObject::UPDATE_RESULT_OK;
+
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
+
+        // Dispatch also in post-messages since messages might have been posting from script components, or init
+        // functions in factories, and they should not linger around to next frame (which might not come around)
+        if (!CompCollisionObjectDispatchPhysicsMessages(physics_context, world, params.m_Collection))
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
@@ -714,13 +771,23 @@ namespace dmGameSystem
                 enable = true;
             }
             CollisionWorld* world = (CollisionWorld*)params.m_World;
-           if (physics_context->m_3D)
+
+            if (component->m_AddedToUpdate)
             {
-                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, enable);
+                if (physics_context->m_3D)
+                {
+                    dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, enable);
+                }
+                else
+                {
+                    dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, enable);
+                }
             }
             else
             {
-                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, enable);
+                // Deferred controlling the enabled state. Objects are force disabled until
+                // they are added to update.
+                component->m_StartAsEnabled = enable;
             }
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::ApplyForce::m_DDFDescriptor->m_NameHash)
@@ -774,7 +841,20 @@ namespace dmGameSystem
             uint32_t column = ddf->m_Column;
             uint32_t row = ddf->m_Row;
             uint32_t hull = ddf->m_Hull;
+
             TileGridResource* tile_grid_resource = component->m_Resource->m_TileGridResource;
+
+            if (row >= tile_grid_resource->m_RowCount || column >= tile_grid_resource->m_ColumnCount)
+            {
+                dmLogError("SetGridShapeHull: <row,column> out of bounds");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+            if (hull != ~0u && hull >= tile_grid_resource->m_TextureSet->m_HullCollisionGroups.Size())
+            {
+                dmLogError("SetGridShapHull: specified hull index is out of bounds.");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+
             dmPhysics::HullFlags flags;
             flags.m_FlipHorizontal = ddf->m_FlipHorizontal;
             flags.m_FlipVertical = ddf->m_FlipVertical;
@@ -799,6 +879,8 @@ namespace dmGameSystem
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         component->m_Resource = (CollisionObjectResource*)params.m_Resource;
+        component->m_AddedToUpdate = false;
+        component->m_StartAsEnabled = true;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, true))
         {
             dmLogError("%s", "Could not recreate collision object component, not reloaded.");

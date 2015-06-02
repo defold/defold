@@ -15,8 +15,6 @@ import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
-import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
@@ -174,26 +172,6 @@ public class CachingBranchClient implements IBranchClient {
     @Override
     public void publish() throws RepositoryException {
         client.publish();
-    }
-
-    @Override
-    public BuildDesc build(boolean rebuild) throws RepositoryException {
-        return client.build(rebuild);
-    }
-
-    @Override
-    public BuildDesc getBuildStatus(int id) throws RepositoryException {
-        return client.getBuildStatus(id);
-    }
-
-    @Override
-    public void cancelBuild(int id) throws RepositoryException {
-        client.cancelBuild(id);
-    }
-
-    @Override
-    public BuildLog getBuildLogs(int id) throws RepositoryException {
-        return client.getBuildLogs(id);
     }
 
     @Override

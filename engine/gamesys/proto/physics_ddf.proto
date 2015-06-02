@@ -225,6 +225,7 @@ message ContactPointResponse
  * @name trigger_response
  * @param other_id the id of the instance the collision object collided with (hash)
  * @param enter if the interaction was an entry or not (exit)
+ * @param group the collision group of the triggering object as a hashed name
  * @examples
  * <p>
  * How to take action when a trigger interaction occurs:
@@ -246,6 +247,7 @@ message TriggerResponse
 {
     required uint64 other_id                = 1;
     required bool enter                     = 2;
+    required uint64 group                   = 3;
 }
 
 message RequestRayCast
@@ -280,9 +282,9 @@ message RayCastResponse
 }
 
 /*# (DEPRECATED) requests the velocity of a collision object
- * Post this message to a collision-object-component to retrieve its velocity.
+ * <b>DEPRECATED!</b> Post this message to a collision-object-component to retrieve its velocity.
  *
- * DEPRECATED! Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
+ * Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
  * with <code>go.get()</code> instead.
  *
  * @message
@@ -309,10 +311,10 @@ message RayCastResponse
 message RequestVelocity {}
 
 /*# (DEPRECATED) reports the velocity of a collision object
- * This message is sent back to the sender of a <code>request_velocity</code> message.
+ * <b>DEPRECATED!</b> This message is sent back to the sender of a <code>request_velocity</code> message.
  * See <code>request_velocity</code> for examples on how to use it.
  *
- * DEPRECATED! Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
+ * Read properties <code>linear_velocity</code> and <code>angular_velocity</code>
  * with <code>go.get()</code> instead.
  *
  * @message
