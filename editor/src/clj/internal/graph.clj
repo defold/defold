@@ -193,10 +193,18 @@
         output-schema (gt/output-type output-type src-label)
         input-type    (gt/node-type (node-by-id-at basis tgt-id))
         input-schema  (gt/input-type input-type tgt-label)]
+    (assert output-schema (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output, input, or property named %s"
+                                  src-id (:name output-type) src-label
+                                  tgt-id (:name input-type) tgt-label
+                                  (:name output-type) src-label))
+    (assert input-schema  (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
+                                  src-id (:name output-type) src-label
+                                  tgt-id (:name input-type) tgt-label
+                                  (:name input-type) tgt-label))
     (assert (type-compatible? output-schema input-schema)
-            (format "Cannot connect %s %s [%s] to %s %s [%s]. %s and %s are not compatible."
-                    src-id src-label (:name output-type)
-                    tgt-id tgt-label (:name input-type)
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s do not have compatible types."
+                    src-id (:name output-type) src-label
+                    tgt-id (:name input-type) tgt-label
                     output-schema input-schema))))
 
 (defrecord MultigraphBasis [graphs]

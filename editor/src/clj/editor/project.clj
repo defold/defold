@@ -49,9 +49,10 @@ ordinary paths."
 
 (defn- load-nodes [project nodes]
   (let [new-nodes (g/tx-nodes-added (g/transact
-                                       (for [node nodes
-                                             :when (get-in node [:resource-type :load-fn])]
-                                         ((get-in node [:resource-type :load-fn]) project node (io/reader (:resource node))))))]
+                                     (for [node nodes
+                                           :let [load-fn (get-in node [:resource-type :load-fn])]
+                                           :when load-fn]
+                                       (load-fn project node (io/reader (:resource node))))))]
     (when (not (empty? new-nodes))
       (recur project new-nodes))))
 
