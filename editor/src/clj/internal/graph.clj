@@ -193,14 +193,16 @@
         output-schema (gt/output-type output-type src-label)
         input-type    (gt/node-type (node-by-id-at basis tgt-id))
         input-schema  (gt/input-type input-type tgt-label)]
-    (assert output-schema (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output, input, or property named %s"
-                                  src-id (:name output-type) src-label
-                                  tgt-id (:name input-type) tgt-label
-                                  (:name output-type) src-label))
-    (assert input-schema  (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
-                                  src-id (:name output-type) src-label
-                                  tgt-id (:name input-type) tgt-label
-                                  (:name input-type) tgt-label))
+    (when-not output-schema
+      (println (format "WARNING: Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output, input, or property named %s"
+               src-id (:name output-type) src-label
+               tgt-id (:name input-type) tgt-label
+               (:name output-type) src-label)))
+    (when-not input-schema
+      (println (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
+               src-id (:name output-type) src-label
+               tgt-id (:name input-type) tgt-label
+               (:name input-type) tgt-label)))
     (assert (type-compatible? output-schema input-schema)
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s do not have compatible types."
                     src-id (:name output-type) src-label
