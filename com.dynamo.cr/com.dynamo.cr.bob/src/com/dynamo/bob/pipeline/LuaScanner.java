@@ -1,6 +1,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,10 +19,23 @@ public class LuaScanner {
             Pattern.DOTALL | Pattern.MULTILINE);
 
     private static Pattern requirePattern1 = Pattern.compile(".*?require\\s*?\"(.*?)\"$",
-            Pattern.DOTALL | Pattern.MULTILINE);
+             Pattern.DOTALL | Pattern.MULTILINE);
 
     private static Pattern requirePattern2 = Pattern.compile(".*?require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$",
-            Pattern.DOTALL | Pattern.MULTILINE);
+             Pattern.DOTALL | Pattern.MULTILINE);
+
+    private static Pattern requirePattern3 = Pattern.compile(".*?require\\s*?'(.*?)'$",
+             Pattern.DOTALL | Pattern.MULTILINE);
+
+    /**
+     * Note: we need four different patterns here to match the same beginning and ending character for
+     * a string (eg " or '). We can't match on [\"']. If we do we'd have a false positive for the
+     * following line:
+     * 
+     * local s = 'require "should_not_match"'
+     */
+    private static Pattern requirePattern4 = Pattern.compile(".*?require\\s*?\\(\\s*?'(.*?)'\\s*?\\)$",
+             Pattern.DOTALL | Pattern.MULTILINE);
 
     private static Pattern propertyDeclPattern = Pattern.compile("go.property\\((.*?)\\);?(\\s*?--.*?)?$");
     private static Pattern propertyArgsPattern = Pattern.compile("[\"'](.*?)[\"']\\s*,(.*)");
@@ -77,18 +91,18 @@ public class LuaScanner {
 
     public static List<String> scan(String str) {
         String strStripped = stripComments(str);
+        List<Pattern> requirePatterns = Arrays.asList(requirePattern1, requirePattern2, requirePattern3, requirePattern4);
 
         ArrayList<String> modules = new ArrayList<String>();
         String[] lines = strStripped.split("\n");
         for (String line : lines) {
             line = line.trim();
             // NOTE: At some point we should have a proper lua parser
-            Matcher propMatcher1 = requirePattern1.matcher(line);
-            Matcher propMatcher2 = requirePattern2.matcher(line);
-            if (propMatcher1.matches()) {
-                modules.add(propMatcher1.group(1));
-            } else if (propMatcher2.matches()) {
-                modules.add(propMatcher2.group(1));
+            for(Pattern requirePattern : requirePatterns) {
+                Matcher propMatcher = requirePattern.matcher(line);
+                if (propMatcher.matches()) {
+                    modules.add(propMatcher.group(1));
+                }
             }
         }
         return modules;

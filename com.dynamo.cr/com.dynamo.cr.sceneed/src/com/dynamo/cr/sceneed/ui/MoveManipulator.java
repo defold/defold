@@ -9,7 +9,10 @@ import javax.vecmath.Vector3d;
 
 import org.eclipse.swt.events.MouseEvent;
 
+import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.SetPropertiesOperation;
 import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation.ITransformer;
 
 @SuppressWarnings("serial")
@@ -24,7 +27,19 @@ public class MoveManipulator extends TransformManipulator<Point3d> {
 
         @Override
         public void set(Node n, Point3d value) {
-            n.setTranslation(value);
+            if(n.isOverridable())
+            {
+                IPropertyAccessor<Object, ISceneModel> accessor = getNodePropertyAccessor(n);
+                boolean overridden = accessor.isOverridden(n, "translation", n.getModel());
+                if(overridden) {
+                    n.setTranslation(value);
+                } else {
+                    SetPropertiesOperation<Object, ISceneModel> op = new SetPropertiesOperation<Object, ISceneModel>(n, "translation", accessor, MoveManipulator.this.originalTranslation, value, overridden, n.getModel());
+                    n.getModel().executeOperation(op);
+                }
+            } else {
+                n.setTranslation(value);
+            }
         }
     }
 
@@ -76,7 +91,7 @@ public class MoveManipulator extends TransformManipulator<Point3d> {
             originalLocalTransforms.get(i).get(translation);
             translation.add(localDelta);
             pTranslation.set(translation);
-            selection.get(i).setTranslation(pTranslation);
+            selection.get(i).applyTranslation(pTranslation);
         }
     }
 

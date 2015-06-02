@@ -12,10 +12,14 @@
         <string>{{project.title}}</string>
         <key>CFBundleIconFiles</key>
         <array>
-                <string>ios_icon_114.png</string>
-                <string>ios_icon_72.png</string>
-                <string>ios_icon_144.png</string>
-                <string>ios_icon_57.png</string>
+                <string>Icon-60@3x.png</string>
+                <string>Icon-60@2x.png</string>
+                <string>Icon-76@2x.png</string>
+                <string>Icon-76.png</string>
+                <string>Icon@2x.png</string>
+                <string>Icon.png</string>
+                <string>Icon-72@2x.png</string>
+                <string>Icon-72.png</string>
         </array>
         <key>CFBundleIcons</key>
         <dict>
@@ -23,10 +27,14 @@
                 <dict>
                         <key>CFBundleIconFiles</key>
                         <array>
-                                <string>ios_icon_114.png</string>
-                                <string>ios_icon_72.png</string>
-                                <string>ios_icon_144.png</string>
-                                <string>ios_icon_57.png</string>
+                                <string>Icon-60@3x.png</string>
+                                <string>Icon-60@2x.png</string>
+                                <string>Icon-76@2x.png</string>
+                                <string>Icon-76.png</string>
+                                <string>Icon@2x.png</string>
+                                <string>Icon.png</string>
+                                <string>Icon-72@2x.png</string>
+                                <string>Icon-72.png</string>
                         </array>
                         <key>UIPrerenderedIcon</key>
                         <{{ios.pre_renderered_icons}}/>
@@ -73,7 +81,7 @@
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>
-        <string>5.0</string>
+        <string>5.1.1</string>
         <key>UIDeviceFamily</key>
         <array>
                 <integer>1</integer>
@@ -89,18 +97,12 @@
                 <string>opengles-2</string>
         </array>
         <key>UISupportedInterfaceOrientations</key>
-        <array>
-                <string>UIInterfaceOrientationPortrait</string>
-                <string>UIInterfaceOrientationPortraitUpsideDown</string>
-                <string>UIInterfaceOrientationLandscapeLeft</string>
-                <string>UIInterfaceOrientationLandscapeRight</string>
+        <array> {{#orientation-support}}
+                <string>UIInterfaceOrientation{{.}}</string>{{/orientation-support}}
         </array>
         <key>UISupportedInterfaceOrientations~ipad</key>
-        <array>
-                <string>UIInterfaceOrientationPortrait</string>
-                <string>UIInterfaceOrientationPortraitUpsideDown</string>
-                <string>UIInterfaceOrientationLandscapeLeft</string>
-                <string>UIInterfaceOrientationLandscapeRight</string>
+        <array> {{#orientation-support}}
+                <string>UIInterfaceOrientation{{.}}</string>{{/orientation-support}}
         </array>
 
         <key>CFBundleURLTypes</key>
@@ -116,16 +118,105 @@
         <key>UILaunchImages</key>
         <array>
                 <dict>
-                        <key>UILaunchImageMinimumOSVersion</key>
-                        <string>6.0</string>
-                        <key>UILaunchImageName</key>
-                        <string>Default-568h</string>
-                        <key>UILaunchImageOrientation</key>
-                        <string>Portrait</string>
-                        <key>UILaunchImageSize</key>
-                        <string>{320, 568}</string>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Portrait</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{320, 480}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Landscape</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{320, 480}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-568h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Portrait</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{320, 568}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-568h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Landscape</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{320, 568}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-667h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Portrait</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{375, 667}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-667h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Landscape</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{375, 667}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-736h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Portrait</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{414, 736}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-Landscape-736h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Landscape</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{414, 736}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-Portrait</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Portrait</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{768, 1024}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-Landscape</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Landscape</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{768, 1024}</string>
                 </dict>
         </array>
-
 </dict>
 </plist>

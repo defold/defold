@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry exported="true" kind="lib" path="jars/jersey-client-1.18.1.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/jersey-core-1.18.1.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/commons-configuration-1.10.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/commons-logging-1.1.1.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/commons-codec-1.9.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/vecmath.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/commons-lang3-3.3.2.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/commons-lang-2.6.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/commons-io-2.4.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/jackson-core-asl-1.9.13.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/jackson-mapper-asl-1.9.13.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/httpclient-4.2.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/httpcore-4.2.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/protobuf-java-2.3.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/lz4-1.2.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-io-2.4.jar" sourcepath="/Users/chmu/.m2/repository/commons-io/commons-io/2.4/commons-io-2.4-sources.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext_generated/upnp.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/protobuf-java-2.3.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/vecmath.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-codec-1.5.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-logging-1.1.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-configuration-1.8.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-lang-2.6.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jackson-core-asl-1.9.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jackson-mapper-asl-1.9.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jersey-client-1.11.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jersey-core-1.11.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/commons-lang3-3.0-beta.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/httpclient-4.0.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/httpcore-4.0.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/jsr311-api-1.1.1.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry kind="src" path="src"/>

@@ -1,0 +1,38 @@
+script: "/def-1077/def-1077.gui_script"
+nodes {
+  position { 
+	x:0
+	y:0
+	z:0
+	w:0 
+  }
+  rotation { 
+	x:0
+	y:0
+	z:0
+	w:0
+  }
+  scale { 
+	x:1
+	y:1
+	z:1
+	w:0 
+  }
+  size { 
+	x:100
+	y:100
+	z:0
+	w:1 
+  }
+  color { 
+	x:1
+	y:1
+	z:1
+	w:1 
+  }
+  type: TYPE_PIE
+  outerBounds: PIEBOUNDS_RECTANGLE
+  pieFillAngle: 360
+  perimeterVertices: 251
+  id: "pie1"
+}

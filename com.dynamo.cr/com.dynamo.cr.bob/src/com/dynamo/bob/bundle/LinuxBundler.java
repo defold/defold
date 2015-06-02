@@ -19,7 +19,7 @@ public class LinuxBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getExe(Platform.X86Linux, "dmengine_release");
+        String exe = Bob.getDmengineExe(Platform.X86Linux, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());

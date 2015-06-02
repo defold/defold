@@ -42,6 +42,14 @@ function init(self)
     res = tilemap.set_tile("#tilemap", "not_found_layer", 0, 0, 0)
     assert(res == false)
 
+    -- verify hashed string works as argument to layer
+    tile = tilemap.get_tile("#tilemap", "layer", 1, 1)
+    assert(tile == 0)
+    res = tilemap.set_tile("#tilemap", hash("layer"), 1, 1, 1)
+    assert(res == true)
+    tile = tilemap.get_tile("#tilemap", hash("layer"), 1, 1)
+    assert(tile == 1)
+
     -- Set tile out-of-range. Test for previous bug
     msg.post("#tilemap", "set_tile", {layer_id = hash("layer"), position = go.get_position(), dx = 1})
     msg.post("main:/main#script", "done")

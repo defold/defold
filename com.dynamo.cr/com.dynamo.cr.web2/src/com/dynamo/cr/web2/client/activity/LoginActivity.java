@@ -35,13 +35,13 @@ public class LoginActivity extends AbstractActivity implements LoginView.Present
 	private void loginGeneric(String provider) {
         String url = clientFactory.getDefold().getUrl();
 
-        // The redirectToUrl is the #openid-activity, ie the url redirected to after login
+        // The redirectToUrl is the #oauth-activity, ie the url redirected to after login
         String redirectToUrl = Window.Location.createUrlBuilder().buildString();
         if (redirectToUrl.lastIndexOf('#') != -1) {
             redirectToUrl = redirectToUrl.substring(0, redirectToUrl.lastIndexOf('#'));
         }
-        redirectToUrl += "#openid:{token}_{action}";
-        String openAuthUrl = url + "/login/openid/" + provider + "?redirect_to=" + URL.encodeQueryString(redirectToUrl);
+        redirectToUrl += "#oauth:{token}_{action}";
+        String openAuthUrl = url + "/login/oauth/" + provider + "?redirect_to=" + URL.encodeQueryString(redirectToUrl);
         Window.Location.replace(openAuthUrl);
 	}
 

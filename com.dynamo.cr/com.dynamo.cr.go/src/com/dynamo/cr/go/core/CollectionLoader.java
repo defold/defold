@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 
+import javax.vecmath.Vector3d;
+
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
@@ -32,6 +34,7 @@ import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
+import com.dynamo.proto.DdfMath;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -56,7 +59,13 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             RefGameObjectInstanceNode instanceNode = new RefGameObjectInstanceNode(gameObjectNode);
             instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
-            instanceNode.setScale(instanceDesc.getScale());
+            if (instanceDesc.hasScale3()) {
+                instanceNode.setScale(LoaderUtil.toVector3(instanceDesc.getScale3()));
+            } else {
+                double s = instanceDesc.getScale();
+                instanceNode.setScale(new Vector3d(s, s, s));
+            }
+
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setGameObject(path);
             idToInstance.put(instanceDesc.getId(), instanceNode);
@@ -79,7 +88,12 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             GameObjectNode instanceNode = (GameObjectNode)context.loadNode("go", new ByteArrayInputStream(instanceDesc.getData().getBytes()));
             instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
-            instanceNode.setScale(instanceDesc.getScale());
+            if (instanceDesc.hasScale3()) {
+                instanceNode.setScale(LoaderUtil.toVector3(instanceDesc.getScale3()));
+            } else {
+                double s = instanceDesc.getScale();
+                instanceNode.setScale(new Vector3d(s, s, s));
+            }
             instanceNode.setId(instanceDesc.getId());
             idToInstance.put(instanceDesc.getId(), instanceNode);
             remainingInstances.add(instanceNode);
@@ -117,7 +131,12 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             CollectionInstanceNode instanceNode = new CollectionInstanceNode(collectionNode);
             instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
-            instanceNode.setScale(instanceDesc.getScale());
+            if (instanceDesc.hasScale3()) {
+                instanceNode.setScale(LoaderUtil.toVector3(instanceDesc.getScale3()));
+            } else {
+                double s = instanceDesc.getScale();
+                instanceNode.setScale(new Vector3d(s, s, s));
+            }
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setCollection(path);
             for (InstancePropertyDesc instancePropDesc : instanceDesc.getInstancePropertiesList()) {
@@ -154,7 +173,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 InstanceDesc.Builder instanceBuilder = InstanceDesc.newBuilder();
                 instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
                 instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
-                instanceBuilder.setScale((float)instance.getScale());
+                instanceBuilder.setScale3(LoaderUtil.toVector3(instance.getScale()));
                 instanceBuilder.setId(instance.getId());
                 instanceBuilder.setPrototype(instance.getGameObject());
                 for (Node grandChild : child.getChildren()) {
@@ -175,7 +194,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                     EmbeddedInstanceDesc.Builder instanceBuilder = EmbeddedInstanceDesc.newBuilder();
                     instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
                     instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
-                    instanceBuilder.setScale((float)instance.getScale());
+                    instanceBuilder.setScale3(LoaderUtil.toVector3(instance.getScale()));
                     instanceBuilder.setId(instance.getId());
                     ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                     SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
@@ -183,7 +202,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                     INodeType nodeType = registry.getNodeTypeClass(GameObjectNode.class);
                     INodeLoader<Node> loader = nodeType.getLoader();
                     Message message = loader.buildMessage(context, instance, partProgress.newChild(1));
-                    SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1));
+                    SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1), false);
                     instanceBuilder.setData(byteStream.toString());
                     for (Node grandChild : child.getChildren()) {
                         if (grandChild instanceof GameObjectInstanceNode) {
@@ -199,7 +218,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 CollectionInstanceDesc.Builder instanceBuilder = CollectionInstanceDesc.newBuilder();
                 instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
                 instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
-                instanceBuilder.setScale((float)instance.getScale());
+                instanceBuilder.setScale3(LoaderUtil.toVector3(instance.getScale()));
                 instanceBuilder.setId(instance.getId());
                 instanceBuilder.setCollection(instance.getCollection());
                 instanceBuilder.addAllInstanceProperties(buildInstanceProperties(instance));

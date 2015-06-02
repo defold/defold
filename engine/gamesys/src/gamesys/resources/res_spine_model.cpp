@@ -4,13 +4,8 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, SpineModelResource* resource, const char* filename)
+    dmResource::Result AcquireResources(dmResource::HFactory factory, SpineModelResource* resource, const char* filename)
     {
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameSystemDDF_SpineModelDesc_DESCRIPTOR, (void**) &resource->m_Model);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return dmResource::RESULT_DDF_ERROR;
-        }
         dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_SpineScene, (void**) &resource->m_Scene);
         if (result != dmResource::RESULT_OK)
             return result;
@@ -28,14 +23,36 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_Material);
     }
 
+    dmResource::Result ResSpineModelPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            void** preload_data,
+            const char* filename)
+    {
+        dmGameSystemDDF::SpineModelDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameSystemDDF_SpineModelDesc_DESCRIPTOR, (void**) &ddf);
+        if (e != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
+
+        dmResource::PreloadHint(hint_info, ddf->m_SpineScene);
+        dmResource::PreloadHint(hint_info, ddf->m_Material);
+
+        *preload_data = ddf;
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResSpineModelCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
+            void* preload_data,
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
         SpineModelResource* model_resource = new SpineModelResource();
-        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, model_resource, filename);
+        model_resource->m_Model = (dmGameSystemDDF::SpineModelDesc*) preload_data;
+        dmResource::Result r = AcquireResources(factory, model_resource, filename);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) model_resource;
@@ -64,8 +81,16 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
+
+        dmGameSystemDDF::SpineModelDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameSystemDDF_SpineModelDesc_DESCRIPTOR, (void**) &ddf);
+        if (e != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
         SpineModelResource* model_resource = (SpineModelResource*)resource->m_Resource;
         ReleaseResources(factory, model_resource);
-        return AcquireResources(factory, buffer, buffer_size, model_resource, filename);
+        model_resource->m_Model = ddf;
+        return AcquireResources(factory, model_resource, filename);
     }
 }

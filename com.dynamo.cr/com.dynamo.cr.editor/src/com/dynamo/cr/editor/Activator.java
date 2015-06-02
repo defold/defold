@@ -8,7 +8,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashSet;
 import java.util.Set;
-
 import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.io.FileUtils;
@@ -58,8 +57,7 @@ import org.osgi.framework.BundleContext;
 import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import clojure.osgi.ClojureHelper;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
 import com.dynamo.cr.builtins.Builtins;
 import com.dynamo.cr.client.BranchStatusChangedEvent;
@@ -89,7 +87,8 @@ import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 
-public class Activator extends AbstractDefoldPlugin implements IPropertyChangeListener, IResourceChangeListener, IBranchListener {
+public class Activator extends AbstractDefoldPlugin implements IPropertyChangeListener, IResourceChangeListener,
+        IBranchListener {
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.editor"; //$NON-NLS-1$
@@ -132,11 +131,10 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     }
 
     /**
-     * Returns an image descriptor for the image file at the given plug-in
-     * relative path
+     * Returns an image descriptor for the image file at the given
+     * plug-in relative path
      *
-     * @param path
-     *            the path
+     * @param path the path
      * @return the image descriptor
      */
     public static ImageDescriptor getImageDescriptor(String path) {
@@ -197,10 +195,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     /*
      * (non-Javadoc)
-     * 
-     * @see
-     * org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext
-     * )
+     * @see org.osgi.framework.BundleActivator#start(org.osgi.framework.BundleContext)
      */
     @Override
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -212,35 +207,36 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         plugin = this;
         Activator.context = bundleContext;
 
+        // Install java.util.logging to slf4j logging bridge
+        // java.util.logging is used by TextureGenerator
+        SLF4JBridgeHandler.install();
+
         IPreferenceStore store = getPreferenceStore();
         if (store.getBoolean(PreferenceConstants.P_ANONYMOUS_LOGGING) && !EditorUtil.isDev()) {
             RLogPlugin.getDefault().startLogging();
         }
 
         /*
-         * Ensure that SplashHandler#getBundleProgressMonitor is called. If we
-         * set org.eclipse.ui/SHOW_PROGRESS_ON_STARTUP = true in
-         * plugin_customization.ini *and* uncheck "add a progress bar" in the
-         * product eclipse will change the SHOW_PROGRESS_ON_STARTUP to false
-         * during export.
-         * 
-         * See for a related issue:
-         * https://bugs.eclipse.org/bugs/show_bug.cgi?id=189950
+         * Ensure that SplashHandler#getBundleProgressMonitor is called.
+         * If we set org.eclipse.ui/SHOW_PROGRESS_ON_STARTUP = true in plugin_customization.ini
+         * *and* uncheck "add a progress bar" in the product eclipse will change the SHOW_PROGRESS_ON_STARTUP
+         * to false during export.
+         *
+         * See for a related issue: https://bugs.eclipse.org/bugs/show_bug.cgi?id=189950
          */
         PlatformUI.getPreferenceStore().setValue(IWorkbenchPreferenceConstants.SHOW_PROGRESS_ON_STARTUP, true);
 
-        // We clear this property in order to avoid the following warning on
-        // OSX:
+        // We clear this property in order to avoid the following warning on OSX:
         // "System property http.nonProxyHosts has been set to local|*.local|169.254/16|*.169.254/16 by an external source. This value will be overwritten using the values from the preferences"
         System.clearProperty("http.nonProxyHosts");
 
-        proxyTracker = new ServiceTracker(bundleContext, IProxyService.class.getName(), null);
+        proxyTracker = new ServiceTracker(bundleContext, IProxyService.class
+                .getName(), null);
         proxyTracker.open();
 
-        // connectProjectClient();
+        //connectProjectClient();
         store.addPropertyChangeListener(this);
-        // TODO This is a hack to make sure noone is using remote branches,
-        // which is not currently supported
+        // TODO This is a hack to make sure noone is using remote branches, which is not currently supported
         store.setValue(PreferenceConstants.P_USE_LOCAL_BRANCHES, true);
         updateSocksProxy();
 
@@ -265,7 +261,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         if (!socks_proxy.isEmpty()) {
             System.setProperty("socksProxyHost", socks_proxy);
             System.setProperty("socksProxyPort", Integer.toString(socks_proxy_port));
-        } else {
+        }
+        else {
             System.clearProperty("socksProxyHost");
             System.clearProperty("socksProxyPort");
         }
@@ -296,22 +293,21 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     public boolean connectProjectClient() {
         /*
-         * NOTE: We're using HTTP Basic Auth for Git over HTTP Eclipse will
-         * popup a dialog for some reason. Could be that JGit only authenticate
-         * when "asked", ie when UNAUTHORIZED is returned. In that case eclipse
-         * will catch that and show a dialog. Using HTTP Basic Auth is a hack
-         * due to limitations in JGit. No support for custom HTTP headers. We
-         * should probably patch JGit and remove the line below at some point.
+         * NOTE: We're using HTTP Basic Auth for Git over HTTP
+         * Eclipse will popup a dialog for some reason. Could be that JGit
+         * only authenticate when "asked", ie when UNAUTHORIZED is returned.
+         * In that case eclipse will catch that and show a dialog. Using
+         * HTTP Basic Auth is a hack due to limitations in JGit. No support for custom HTTP
+         * headers. We should probably patch JGit and remove the line below at some point.
          */
         Authenticator.setDefault(null);
 
         /*
-         * NOTE: We can't invoke getWorkbench() in start. The workbench is not
-         * started yet. Should we really use workspace services for this?
-         * (IBranchClient)
+         * NOTE: We can't invoke getWorkbench() in start. The workbench is not started yet.
+         * Should we really use workspace services for this? (IBranchClient)
          */
         if (!branchListenerAdded) {
-            IBranchService branchService = (IBranchService) PlatformUI.getWorkbench().getService(IBranchService.class);
+            IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
             if (branchService != null) {
                 branchListenerAdded = true;
                 branchService.addBranchListener(this);
@@ -327,11 +323,11 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
         IPreferenceStore store = getPreferenceStore();
         String email = store.getString(PreferenceConstants.P_EMAIL);
-        String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+        String authToken = store.getString(PreferenceConstants.P_AUTH_TOKEN);
         String baseUriString = store.getString(PreferenceConstants.P_SERVER_URI);
         String usersUriString = String.format("%s/users", baseUriString);
 
-        DefoldAuthFilter authFilter = new DefoldAuthFilter(email, authCookie, null);
+        DefoldAuthFilter authFilter = new DefoldAuthFilter(email, authToken, null);
         Client client = Client.create(cc);
         client.addFilter(authFilter);
         BranchLocation branchLocation;
@@ -339,8 +335,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         if (store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES)) {
             branchLocation = BranchLocation.LOCAL;
             // TODO: Use getInstallLocation() or not?
-            // What happens when the application is installed? Use home-dir
-            // instead? Configurable?
+            // What happens when the application is installed? Use home-dir instead? Configurable?
             String location = Platform.getInstallLocation().getURL().getPath();
             IPath branchRootPath = new Path(location).append("branches");
             new File(branchRootPath.toOSString()).mkdirs();
@@ -348,41 +343,41 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         } else {
             branchLocation = BranchLocation.REMOTE;
         }
-        factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authCookie));
+        factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authToken));
         RepositoryFileSystemPlugin.setClientFactory(factory);
 
-        boolean validAuthCookie = false;
-        if (email != null && !email.isEmpty() && authCookie != null && !authCookie.isEmpty()) {
+        boolean validAuthToken = false;
+        if (email != null && !email.isEmpty() && authToken != null && !authToken.isEmpty()) {
             // Try to validate auth-cookie
             IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
 
             try {
                 @SuppressWarnings("unused")
                 UserInfo userInfo = usersClient.getUserInfo(email);
-                validAuthCookie = true;
+                validAuthToken = true;
             } catch (RepositoryException e) {
-                validAuthCookie = false;
+                validAuthToken = false;
             }
         }
 
         Shell shell = Display.getDefault().getActiveShell();
-        if (!validAuthCookie) {
+        if (!validAuthToken) {
             OpenIDLoginDialog openIDdialog = new OpenIDLoginDialog(shell, baseUriString);
             int ret = openIDdialog.open();
             if (ret == Dialog.CANCEL) {
                 return false;
             }
             email = openIDdialog.getEmail();
-            authCookie = openIDdialog.getAuthCookie();
+            authToken = openIDdialog.getAuthToken();
             authFilter.setEmail(email);
-            authFilter.setAuthCookie(authCookie);
+            authFilter.setauthToken(authToken);
 
             // Recreate factory since we now have credentials
-            factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authCookie));
+            factory = new DelegatingClientFactory(new ClientFactory(client, branchLocation, branchRoot, email, authToken));
             RepositoryFileSystemPlugin.setClientFactory(factory);
 
             store.setValue(PreferenceConstants.P_EMAIL, email);
-            store.setValue(PreferenceConstants.P_AUTH_COOKIE, authCookie);
+            store.setValue(PreferenceConstants.P_AUTH_TOKEN, authToken);
         }
 
         IUsersClient usersClient = factory.getUsersClient(UriBuilder.fromUri(usersUriString).build());
@@ -410,7 +405,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         ProjectExplorer view = findProjectExplorer();
         if (view != null) {
             view.getCommonViewer().setInput(container);
-            view.getCommonViewer().expandToLevel(3);
         }
     }
 
@@ -419,7 +413,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         IWorkbenchWindow[] workbenches = PlatformUI.getWorkbench().getWorkbenchWindows();
         for (IWorkbenchWindow workbench : workbenches) {
             for (IWorkbenchPage page : workbench.getPages()) {
-                view = (ProjectExplorer) page.findView("org.eclipse.ui.navigator.ProjectExplorer");
+                view = (ProjectExplorer) page
+                        .findView("org.eclipse.ui.navigator.ProjectExplorer");
                 break;
             }
         }
@@ -439,7 +434,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         if (projectClient != null) {
             ProjectInfo projectInfo = projectClient.getProjectInfo();
             IProject cr_project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
-            if (cr_project.exists()) {
+            if (cr_project.exists())
+            {
                 try {
                     this.project = null;
                     cr_project.delete(true, new NullProgressMonitor());
@@ -447,7 +443,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                 } catch (CoreException e) {
                     Activator.logException(e);
                 }
-                IBranchService branchService = (IBranchService) PlatformUI.getWorkbench().getService(IBranchService.class);
+                IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
                 if (branchService != null) {
                     branchService.updateBranchStatus(null);
                 }
@@ -477,7 +473,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         }
     }
 
-    public void connectToBranch(IProjectClient projectClient, final String branch) throws RepositoryException {
+    public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
+
         try {
             // Disable the link overlay of the icons in the project explorer
             PlatformUI.getWorkbench().getDecoratorManager().setEnabled("org.eclipse.ui.LinkedResourceDecorator", false);
@@ -504,7 +501,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
         IPreferenceStore store = getPreferenceStore();
         final String email = store.getString(PreferenceConstants.P_EMAIL);
-        final String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+        final String authToken = store.getString(PreferenceConstants.P_AUTH_TOKEN);
         final boolean useLocalBranches = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
@@ -512,7 +509,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             service.runInUI(service, new IRunnableWithProgress() {
 
                 @Override
-                public void run(IProgressMonitor monitor) throws InvocationTargetException, InterruptedException {
+                public void run(IProgressMonitor monitor) throws InvocationTargetException,
+                InterruptedException {
                     try {
                         if (p.exists())
                             p.delete(true, monitor);
@@ -530,7 +528,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
                         ICommand build_command = pd.newCommand();
                         build_command.setBuilderName("com.dynamo.cr.editor.builders.contentbuilder");
-                        pd.setBuildSpec(new ICommand[] { build_command });
+                        pd.setBuildSpec(new ICommand[] {build_command});
                         p.setDescription(pd, monitor);
 
                         IFolder internal = contentRoot.getFolder(".internal");
@@ -538,7 +536,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                             internal.create(true, true, monitor);
                         }
                         try {
-                            BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
+                            BobUtil.resolveLibs(contentRoot, email, authToken, monitor);
                         } catch (CoreException e) {
                             showError("Error occurred when fetching libraries", e);
                         }
@@ -575,27 +573,10 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             }
         }
 
-        setProjectExplorerInput(p.getParent());
-
-        IBranchService branchService = (IBranchService) PlatformUI.getWorkbench().getService(IBranchService.class);
+        setProjectExplorerInput(p.getFolder("content"));
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
             branchService.updateBranchStatus(null);
-        }
-
-        try {
-            service.runInUI(service, new IRunnableWithProgress() {
-                @Override
-                public void run(IProgressMonitor monitor) throws InvocationTargetException, InterruptedException {
-                    try {
-                        ClojureHelper.require("dynamo.project");
-                        ClojureHelper.invoke("dynamo.project", "open-project", p, branch, monitor);
-                    } catch (Exception e) {
-                        showError("Unable to start editor tools", e);
-                    }
-                }
-            }, null);
-        } catch (Throwable e2) {
-            showError("Error occured when creating project", e2);
         }
     }
 
@@ -615,11 +596,10 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         return branchClient.getURI();
     }
 
+
     /*
      * (non-Javadoc)
-     * 
-     * @see
-     * org.osgi.framework.BundleActivator#stop(org.osgi.framework.BundleContext)
+     * @see org.osgi.framework.BundleActivator#stop(org.osgi.framework.BundleContext)
      */
     @Override
     public void stop(BundleContext bundleContext) throws Exception {
@@ -630,7 +610,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         IPreferenceStore store = getPreferenceStore();
         store.removePropertyChangeListener(this);
 
-        IBranchService branchService = (IBranchService) PlatformUI.getWorkbench().getService(IBranchService.class);
+        IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
             branchService.removeBranchListener(this);
         }
@@ -643,7 +623,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             connectProjectClient();
         } else if (p.equals(PreferenceConstants.P_USE_LOCAL_BRANCHES)) {
             connectProjectClient();
-        } else if (p.equals(PreferenceConstants.P_SOCKS_PROXY) || p.equals(PreferenceConstants.P_SOCKS_PROXY_PORT)) {
+        } else if (p.equals(PreferenceConstants.P_SOCKS_PROXY) ||
+                p.equals(PreferenceConstants.P_SOCKS_PROXY_PORT)) {
             updateSocksProxy();
         } else if (p.equals(PreferenceConstants.P_ANONYMOUS_LOGGING)) {
             IPreferenceStore store = getPreferenceStore();
@@ -671,13 +652,15 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         if (!PlatformUI.isWorkbenchRunning()) {
             return;
         }
-        final IBranchService branchService = (IBranchService) PlatformUI.getWorkbench().getService(IBranchService.class);
+        final IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService == null) {
             return;
         }
 
         // Mask of interesting resource kind change flags
-        final int mask = IResourceDelta.ADDED | IResourceDelta.REMOVED | IResourceDelta.CHANGED;
+        final int mask = IResourceDelta.ADDED
+                | IResourceDelta.REMOVED
+                | IResourceDelta.CHANGED;
 
         // Set of changed resources
         final Set<IResource> changedResources = new HashSet<IResource>();

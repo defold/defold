@@ -22,7 +22,6 @@ import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.widgets.Display;
@@ -42,14 +41,10 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.cr.client.IBranchClient;
-import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.ViewUtil;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
-import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 
 public class ContentBuilder extends IncrementalProjectBuilder {
 
@@ -85,11 +80,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         getProject().deleteMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
 
         boolean ret = false;
-        if (args.get("location").equals("remote")) {
-            ret = buildRemote(kind, args, monitor);
-        } else {
-            ret = buildLocal(kind, args, monitor);
-        }
+        ret = buildLocal(kind, args, monitor);
         if (!ret) {
             showProblemsView();
         } else {
@@ -189,75 +180,6 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             project.dispose();
         }
         return ret;
-    }
-
-    private boolean buildRemote(int kind, Map<String,String> args, IProgressMonitor monitor)
-            throws CoreException {
-
-        boolean result = false;
-        try {
-            BuildDesc build = branchClient.build(kind == IncrementalProjectBuilder.FULL_BUILD);
-
-            boolean taskStarted = false;
-            int lastProgress = 0;
-            int totalWorked = 0;
-
-            while (true) {
-                build = branchClient.getBuildStatus(build.getId());
-
-                if (!taskStarted && build.getWorkAmount() != -1) {
-                    monitor.beginTask("Building...", build.getWorkAmount());
-                    taskStarted = true;
-                }
-
-                if (build.getProgress() != -1) {
-                    int work = build.getProgress() - lastProgress;
-                    totalWorked += work;
-                    lastProgress = build.getProgress();
-                    monitor.worked(work);
-                    taskStarted = true;
-                }
-
-                if (build.getBuildActivity() == Activity.IDLE || monitor.isCanceled()) {
-                    break;
-                }
-
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                }
-            }
-
-            if (monitor.isCanceled()) {
-                branchClient.cancelBuild(build.getId());
-                throw new OperationCanceledException();
-            }
-
-            if (build.getWorkAmount() != -1) {
-                int work = build.getProgress() - totalWorked;
-                totalWorked += work;
-                monitor.worked(work);
-            }
-            monitor.done();
-
-            if (build.getBuildResult() != BuildDesc.Result.OK) {
-                BuildLog logs = branchClient.getBuildLogs(build.getId());
-
-                String stdErr = logs.getStdErr();
-                parseLog(stdErr);
-            }
-            else
-            {
-                result = true;
-            }
-
-        } catch (RepositoryException e1) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e1));
-        } catch (IOException e1) {
-            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e1));
-        }
-
-        return result;
     }
 
     private void parseLog(String stdErr)

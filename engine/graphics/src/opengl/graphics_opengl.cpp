@@ -14,7 +14,7 @@
 #include "../graphics.h"
 #include "graphics_opengl.h"
 
-#if defined(__MACH__) && !defined(__arm__)
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
 #include <Carbon/Carbon.h>
 #endif
@@ -431,6 +431,7 @@ static void LogFrameBufferError(GLenum status)
         glfwGetWindowSize(&width, &height);
         context->m_WindowWidth = (uint32_t)width;
         context->m_WindowHeight = (uint32_t)height;
+        context->m_Dpi = 0;
 
         if (params->m_PrintDeviceInfo)
         {
@@ -441,7 +442,7 @@ static void LogFrameBufferError(GLenum status)
             dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
 
-#if defined(__MACH__) && !defined(__arm__)
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
         ProcessSerialNumber psn;
         OSErr err;
 
@@ -545,6 +546,12 @@ static void LogFrameBufferError(GLenum status)
             return 0;
     }
 
+    uint32_t GetDisplayDpi(HContext context)
+    {
+        assert(context);
+        return context->m_Dpi;
+    }
+
     uint32_t GetWidth(HContext context)
     {
         assert(context);
@@ -640,7 +647,8 @@ static void LogFrameBufferError(GLenum status)
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        glDeleteBuffersARB(1, &buffer);
+        GLuint b = (GLuint) buffer;
+        glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR
     }
 
@@ -681,7 +689,8 @@ static void LogFrameBufferError(GLenum status)
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
-        glDeleteBuffersARB(1, &buffer);
+        GLuint b = (GLuint) buffer;
+        glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR
     }
 
@@ -1344,6 +1353,23 @@ static void LogFrameBufferError(GLenum status)
         delete texture;
     }
 
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    {
+        GLenum type = (GLenum) texture->m_Type;
+
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, minfilter);
+        CHECK_GL_ERROR
+
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, magfilter);
+        CHECK_GL_ERROR
+
+        glTexParameteri(type, GL_TEXTURE_WRAP_S, uwrap);
+        CHECK_GL_ERROR
+
+        glTexParameteri(type, GL_TEXTURE_WRAP_T, vwrap);
+        CHECK_GL_ERROR
+    }
+
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         // validate write accessibility for format. Some format are not garuanteed to be writeable
@@ -1385,17 +1411,8 @@ static void LogFrameBufferError(GLenum status)
         glBindTexture(type, texture->m_Texture);
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, params.m_MinFilter);
-        CHECK_GL_ERROR
-
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, params.m_MagFilter);
-        CHECK_GL_ERROR
-
-        glTexParameteri(type, GL_TEXTURE_WRAP_S, params.m_UWrap);
-        CHECK_GL_ERROR
-
-        glTexParameteri(type, GL_TEXTURE_WRAP_T, params.m_VWrap);
-        CHECK_GL_ERROR
+        texture->m_Params = params;
+        SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
 
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
@@ -1559,6 +1576,8 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBindTexture((GLenum) texture->m_Type, texture->m_Texture);
         CHECK_GL_ERROR
+
+        SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
     }
 
     void DisableTexture(HContext context, uint32_t unit, HTexture texture)

@@ -1,10 +1,12 @@
 #include <assert.h>
 #include <string.h>
+#include <float.h>
 #include <algorithm>
 
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/profile.h>
+#include <dlib/math.h>
 
 #include <ddf/ddf.h>
 
@@ -107,6 +109,8 @@ namespace dmRender
 
         context->m_OutOfResources = 0;
 
+        context->m_RenderListDispatch.SetCapacity(256);
+
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
 
@@ -128,6 +132,86 @@ namespace dmRender
 
     dmScript::HContext GetScriptContext(HRenderContext render_context) {
         return render_context->m_ScriptContext;
+    }
+
+    void RenderListBegin(HRenderContext render_context)
+    {
+        render_context->m_RenderList.SetSize(0);
+        render_context->m_RenderListSortIndices.SetSize(0);
+        render_context->m_RenderListDispatch.SetSize(0);
+    }
+
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn fn, void *user_data)
+    {
+        assert(render_context->m_RenderListDispatch.Size() < render_context->m_RenderListDispatch.Capacity());
+
+        // store & return index
+        RenderListDispatch d;
+        d.m_Fn = fn;
+        d.m_UserData = user_data;
+        render_context->m_RenderListDispatch.Push(d);
+
+        return render_context->m_RenderListDispatch.Size() - 1;
+    }
+
+    // Allocate a buffer (from the array) with room for 'entries' entries.
+    //
+    // NOTE: Pointer might go invalid after a consecutive call to RenderListAlloc if reallocatino
+    //       of backing buffer happens.
+    RenderListEntry* RenderListAlloc(HRenderContext render_context, uint32_t entries)
+    {
+        dmArray<RenderListEntry> & render_list = render_context->m_RenderList;
+
+        if (render_list.Remaining() < entries)
+        {
+            const uint32_t needed = entries - render_list.Remaining();
+            render_list.OffsetCapacity(dmMath::Max<uint32_t>(256, needed));
+            render_context->m_RenderListSortIndices.SetCapacity(render_list.Capacity());
+        }
+
+        uint32_t size = render_list.Size();
+        render_list.SetSize(size + entries);
+        return (render_list.Begin() + size);
+    }
+
+    // Submit a range of entries (pointers must be from a range allocated by RenderListAlloc, and not between two alloc calls).
+    void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end)
+    {
+        // Insert the used up indices into the sort buffer.
+        assert(end - begin <= render_context->m_RenderListSortIndices.Remaining());
+
+        // Transform pointers back to indices.
+        RenderListEntry *base = render_context->m_RenderList.Begin();
+        uint32_t *insert = render_context->m_RenderListSortIndices.End();
+
+        for (RenderListEntry* i=begin;i!=end;i++)
+            *insert++ = i - base;
+
+        render_context->m_RenderListSortIndices.SetSize(render_context->m_RenderListSortIndices.Size() + (end - begin));
+    }
+
+    struct RenderListSorter
+    {
+        bool operator()(uint32_t a, uint32_t b) const
+        {
+            const RenderListSortValue& u = values[a];
+            const RenderListSortValue& v = values[b];
+            if (u.m_SortKey == v.m_SortKey)
+                return a < b;
+            return u.m_SortKey < v.m_SortKey;
+        }
+        RenderListSortValue* values;
+    };
+
+    void RenderListEnd(HRenderContext render_context)
+    {
+        // Unflushed leftovers are assumed to be the debug rendering
+        // and we give them render orders statically here
+        FlushTexts(render_context, 0xffffff, true);
+
+        // These will be sorted into when dispatched.
+        render_context->m_RenderListSortBuffer.SetCapacity(render_context->m_RenderListSortIndices.Capacity());
+        render_context->m_RenderListSortBuffer.SetSize(0);
     }
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
@@ -208,39 +292,12 @@ namespace dmRender
         // Should probably be moved and/or refactored, see case 2261
         context->m_TextContext.m_RenderObjectIndex = 0;
         context->m_TextContext.m_VertexIndex = 0;
+        context->m_TextContext.m_VerticesFlushed = 0;
         context->m_TextContext.m_TextBuffer.SetSize(0);
         context->m_TextContext.m_Batches.Clear();
         context->m_TextContext.m_TextEntries.SetSize(0);
 
         return RESULT_OK;
-    }
-
-    Result GenerateKey(HRenderContext render_context, const Matrix4& view_proj)
-    {
-        DM_PROFILE(Render, "GenerateKey");
-
-        if (render_context == 0x0)
-            return RESULT_INVALID_CONTEXT;
-
-        // start by calculating depth (z of object in clip space) as part of the key
-        for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
-        {
-            RenderObject* ro = render_context->m_RenderObjects[i];
-            if (ro->m_CalculateDepthKey)
-            {
-                Vector4 pos_clip_space(ro->m_WorldTransform.getTranslation(), 1.0f);
-                pos_clip_space = view_proj * pos_clip_space;
-                float depth = 1.0f - pos_clip_space.getZ() / pos_clip_space.getW();
-                ro->m_RenderKey.m_Depth = *((uint64_t*) &depth);
-            }
-        }
-
-        return RESULT_OK;
-    }
-
-    static bool SortPred(const RenderObject* a, const RenderObject* b)
-    {
-        return a->m_RenderKey.m_Key < b->m_RenderKey.m_Key;
     }
 
     static void ApplyStencilTest(HRenderContext render_context, const RenderObject* ro)
@@ -267,6 +324,150 @@ namespace dmRender
         }
     }
 
+    // Compute new sort values for everything that matches tag_mask
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_mask)
+    {
+        const uint32_t count = context->m_RenderListSortIndices.Size();
+
+        // This is where the values go
+        context->m_RenderListSortValues.SetCapacity(context->m_RenderListSortIndices.Capacity());
+        context->m_RenderListSortValues.SetSize(context->m_RenderListSortIndices.Size());
+        RenderListSortValue* sort_values = context->m_RenderListSortValues.Begin();
+
+        const Matrix4& transform = context->m_ViewProj;
+        RenderListEntry *base = context->m_RenderList.Begin();
+
+        float minZW = FLT_MAX;
+        float maxZW = -FLT_MAX;
+
+        context->m_RenderListSortBuffer.SetSize(0);
+
+        // Write z values and compute range
+        int c = 0;
+        for (uint32_t i=0;i!=count;i++)
+        {
+            uint32_t idx = context->m_RenderListSortIndices[i];
+            RenderListEntry *entry = &base[idx];
+            if ((entry->m_TagMask & tag_mask) != tag_mask)
+                continue;
+            if (entry->m_MajorOrder != RENDER_ORDER_WORLD)
+                continue;
+
+            const Point3& world_pos = entry->m_WorldPosition;
+            const Vector4 tmp(world_pos.getX(), world_pos.getY(), world_pos.getZ(), 1.0f);
+            const Vector4 res = transform * tmp;
+            const float zw = res.getZ() / res.getW();
+            sort_values[idx].m_ZW = zw;
+            if (zw < minZW) minZW = zw;
+            if (zw > maxZW) maxZW = zw;
+            c++;
+        }
+
+        float rc = 0;
+        if (c > 1 && maxZW != minZW)
+            rc = 1.0f / (maxZW - minZW);
+
+        for (uint32_t i=0;i!=count;i++)
+        {
+            uint32_t idx = context->m_RenderListSortIndices[i];
+            RenderListEntry *entry = &base[idx];
+            if ((entry->m_TagMask & tag_mask) != tag_mask)
+                continue;
+
+            sort_values[idx].m_MajorOrder = entry->m_MajorOrder;
+            if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
+            {
+                const float z = sort_values[idx].m_ZW;
+                sort_values[idx].m_Order = (uint32_t) (0xfffff8 - 0xfffff0 * rc * (z - minZW));
+            }
+            else
+            {
+                // use the integer value provided.
+                sort_values[idx].m_Order = entry->m_Order;
+            }
+            sort_values[idx].m_BatchKey = entry->m_BatchKey & 0xffffff;
+            sort_values[idx].m_Dispatch = entry->m_Dispatch;
+            context->m_RenderListSortBuffer.Push(idx);
+        }
+    }
+
+    Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
+    {
+        DM_PROFILE(Render, "DrawRenderList");
+
+        // This will add new entries for the most recent debug draw render objects.
+        // The internal dispatch functions knows to only actually use the latest ones.
+        // The sort order is also one below the Texts flush which is only also debug stuff.
+        FlushDebug(context, 0xfffffe);
+
+        uint32_t tag_mask = 0;
+        if (predicate != 0x0)
+            tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
+
+        MakeSortBuffer(context, tag_mask);
+
+        RenderListSorter sort;
+        sort.values = context->m_RenderListSortValues.Begin();
+        std::sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+
+        // Construct render objects
+        context->m_RenderObjects.SetSize(0);
+
+        RenderListDispatchParams params;
+        memset(&params, 0x00, sizeof(params));
+        params.m_Operation = RENDER_LIST_OPERATION_BEGIN;
+        params.m_Context = context;
+
+        // All get begin operation first
+        for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
+        {
+            const RenderListDispatch& d = context->m_RenderListDispatch[i];
+            params.m_UserData = d.m_UserData;
+            d.m_Fn(params);
+        }
+
+        params.m_Operation = RENDER_LIST_OPERATION_BATCH;
+        params.m_Buf = context->m_RenderList.Begin();
+
+        // Make batches for matching dispatch & batch key
+        RenderListEntry *base = context->m_RenderList.Begin();
+        uint32_t *last = context->m_RenderListSortBuffer.Begin();
+        uint32_t count = context->m_RenderListSortBuffer.Size();
+
+        for (uint32_t i=1;i<=count;i++)
+        {
+            uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
+            const RenderListEntry *last_entry = &base[*last];
+
+            // continue batch on match, or dispatch
+            if (i < count && (last_entry->m_Dispatch == base[*idx].m_Dispatch && last_entry->m_BatchKey == base[*idx].m_BatchKey))
+                continue;
+
+            assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
+            const RenderListDispatch* d = &context->m_RenderListDispatch[last_entry->m_Dispatch];
+
+            params.m_UserData = d->m_UserData;
+            params.m_Begin = last;
+            params.m_End = idx;
+            d->m_Fn(params);
+            last = idx;
+        }
+
+        params.m_Operation = RENDER_LIST_OPERATION_END;
+        params.m_Begin = 0;
+        params.m_End = 0;
+        params.m_Buf = 0;
+
+        for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
+        {
+            const RenderListDispatch& d = context->m_RenderListDispatch[i];
+            params.m_UserData = d.m_UserData;
+            d.m_Fn(params);
+        }
+
+        return Draw(context, predicate, constant_buffer);
+    }
+
     Result Draw(HRenderContext render_context, Predicate* predicate, HNamedConstantBuffer constant_buffer)
     {
         if (render_context == 0x0)
@@ -277,17 +478,7 @@ namespace dmRender
             tag_mask = ConvertMaterialTagsToMask(&predicate->m_Tags[0], predicate->m_TagCount);
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
-        GenerateKey(render_context, GetViewProjectionMatrix(render_context));
 
-
-        // TODO: Move to "BeginFrame()" or similar? See case 2261
-        FlushTexts(render_context);
-        FlushDebug(render_context);
-
-        // TODO: Move to "BeginFrame()" or similar? See case 2261
-        std::sort(render_context->m_RenderObjects.Begin(),
-                  render_context->m_RenderObjects.End(),
-                  &SortPred);
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
@@ -301,7 +492,6 @@ namespace dmRender
 
                 dmGraphics::EnableProgram(context, GetMaterialProgram(material));
                 ApplyMaterialConstants(render_context, material, ro);
-                ApplyMaterialSamplers(render_context, material);
                 ApplyRenderObjectConstants(render_context, ro);
 
                 if (constant_buffer)
@@ -319,7 +509,11 @@ namespace dmRender
                     if (render_context->m_Textures[i])
                         texture = render_context->m_Textures[i];
                     if (texture)
+                    {
                         dmGraphics::EnableTexture(context, i, texture);
+                        ApplyMaterialSampler(render_context, material, i, texture);
+                    }
+
                 }
 
                 dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
@@ -347,12 +541,12 @@ namespace dmRender
 
     Result DrawDebug3d(HRenderContext context)
     {
-        return Draw(context, &context->m_DebugRenderer.m_3dPredicate, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0);
     }
 
     Result DrawDebug2d(HRenderContext context)
     {
-        return Draw(context, &context->m_DebugRenderer.m_2dPredicate, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0);
     }
 
     void EnableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash, const Vector4& value)

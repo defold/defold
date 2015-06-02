@@ -6,8 +6,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -44,8 +46,9 @@ public class AndroidBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exeName = "dmengine_release";
-        String exe = Bob.getExe(Platform.Armv7Android, exeName);
+        final boolean debug = project.hasOption("debug");
+        String exeName = debug ? "dmengine" : "dmengine_release";
+        String exe = Bob.getDmengineExe(Platform.Armv7Android, debug);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         String certificate = project.option("certificate", "");
@@ -65,20 +68,27 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(resDir, "drawable-mdpi"));
         FileUtils.forceMkdir(new File(resDir, "drawable-hdpi"));
         FileUtils.forceMkdir(new File(resDir, "drawable-xhdpi"));
+        FileUtils.forceMkdir(new File(resDir, "drawable-xxhdpi"));
+        FileUtils.forceMkdir(new File(resDir, "drawable-xxxhdpi"));
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
 
         // Copy icons
-        //copyIcon("app_icon_36x36", "drawable-ldpi/icon.png");
         int iconCount = 0;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_32x32", "drawable-ldpi/icon.png"))
+        // copy old 32x32 icon first, the correct size is actually 36x36
+        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_32x32", "drawable-ldpi/icon.png")
+    		|| copyIcon(projectProperties, projectRoot, resDir, "app_icon_36x36", "drawable-ldpi/icon.png"))
             iconCount++;
         if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_48x48", "drawable-mdpi/icon.png"))
             iconCount++;
         if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_72x72", "drawable-hdpi/icon.png"))
             iconCount++;
         if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_96x96", "drawable-xhdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
             iconCount++;
 
         File manifestFile = new File(appDir, "AndroidManifest.xml");
@@ -90,6 +100,18 @@ public class AndroidBundler implements IBundler {
             properties.put("has-icons?", false);
         }
         properties.put("exe-name", exeName);
+
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+            Integer displayWidth = projectProperties.getIntValue("display", "width");
+            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                properties.put("orientation-support", "landscape");
+            } else {
+                properties.put("orientation-support", "portrait");
+            }
+        } else {
+            properties.put("orientation-support", "sensor");
+        }
 
         helper.format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
 

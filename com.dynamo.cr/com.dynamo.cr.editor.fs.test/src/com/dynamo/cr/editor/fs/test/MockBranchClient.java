@@ -20,8 +20,6 @@ import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IClientFactory;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
-import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ResourceInfo;
@@ -189,22 +187,6 @@ public class MockBranchClient implements IBranchClient {
     }
 
     @Override
-    public BuildDesc build(boolean rebuild) throws RepositoryException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public BuildDesc getBuildStatus(int id) throws RepositoryException {
-        throw new RuntimeException("Not impl.");
-    }
-
-    @Override
-    public BuildLog getBuildLogs(int id) throws RepositoryException {
-        throw new RuntimeException("Not impl.");
-    }
-
-    @Override
     public IClientFactory getClientFactory() {
         throw new RuntimeException("Not impl.");
     }
@@ -221,11 +203,6 @@ public class MockBranchClient implements IBranchClient {
 
     @Override
     public void reset(String mode, String target) throws RepositoryException {
-        throw new RuntimeException("Not impl.");
-    }
-
-    @Override
-    public void cancelBuild(int id) throws RepositoryException {
         throw new RuntimeException("Not impl.");
     }
 

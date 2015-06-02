@@ -14,6 +14,10 @@ rm -rf cross_tmp
 mkdir cross_tmp
 pushd cross_tmp >/dev/null
 tar xfz ../../download/$FILE_URL --strip-components=1
+
+# We need to apply patches for this cross_tmp build as well
+[ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
+
 set -e
 ./configure && make
 set +e

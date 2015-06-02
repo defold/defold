@@ -20,7 +20,7 @@ create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.Resour
 new_copy_task('ad', '.ad', '.adc')
 
 def build(bld):
-    resources = bld.new_task_gen(source = 'test.cont_pb')
+    resources = bld.new_task_gen(source = ['test.cont_pb'])
 
     archive = bld.new_task_gen(features = 'archive',
                                archive_target='test.arc',
@@ -49,7 +49,7 @@ def build(bld):
                                      uselib_local = 'resource',
                                      proto_gen_py = True,
                                      target = 'test_resource',
-                                     source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb',
+                                     source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
                                      embed_source = 'test.arc')
 
     test_resource.install_path = None

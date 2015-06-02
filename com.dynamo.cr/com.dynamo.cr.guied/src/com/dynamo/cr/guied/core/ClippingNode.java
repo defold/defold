@@ -4,8 +4,10 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.guied.util.Clipping;
+import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
 
 @SuppressWarnings("serial")
 public class ClippingNode extends GuiNode {
@@ -36,6 +38,7 @@ public class ClippingNode extends GuiNode {
     public void setClippingMode(ClippingMode mode) {
         clippingMode = mode;
         updateClippingState();
+        GuiNodeStateBuilder.setField(this, "ClippingMode", mode);
     }
 
     @Override()
@@ -43,14 +46,32 @@ public class ClippingNode extends GuiNode {
         return clippingMode;
     }
 
+    public void resetClippingMode() {
+        this.clippingMode = ClippingMode.valueOf((EnumValueDescriptor)GuiNodeStateBuilder.resetField(this, "ClippingMode"));
+        updateClippingState();
+    }
+
+    public boolean isClippingModeOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "ClippingMode", this.clippingMode);
+    }
+
     @Override()
     public void setClippingVisible(boolean show) {
         clippingVisible = show;
+        GuiNodeStateBuilder.setField(this, "ClippingVisible", show);
     }
 
     @Override()
     public boolean getClippingVisible() {
         return clippingVisible;
+    }
+
+    public void resetClippingVisible() {
+        this.clippingVisible = (Boolean)GuiNodeStateBuilder.resetField(this, "ClippingVisible");
+    }
+
+    public boolean isClippingVisibleOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "ClippingVisible", this.clippingVisible);
     }
 
     public boolean isClippingVisibleEditable() {
@@ -61,11 +82,21 @@ public class ClippingNode extends GuiNode {
     public void setClippingInverted(boolean inverted) {
         clippingInverted = inverted;
         updateClippingState();
+        GuiNodeStateBuilder.setField(this, "ClippingInverted", inverted);
     }
 
     @Override()
     public boolean getClippingInverted() {
         return clippingInverted;
+    }
+
+    public void resetClippingInverted() {
+        this.clippingInverted = (Boolean)GuiNodeStateBuilder.resetField(this, "ClippingInverted");
+        updateClippingState();
+    }
+
+    public boolean isClippingInvertedOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "ClippingInverted", this.clippingInverted);
     }
 
     public boolean isClippingInvertedEditable() {

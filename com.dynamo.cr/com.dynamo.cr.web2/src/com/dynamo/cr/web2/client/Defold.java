@@ -146,7 +146,11 @@ public class Defold implements EntryPoint {
      * @param expires expires
      */
     public static void setCookie(String name, String value, Date expires) {
-        Cookies.setCookie(name, value, expires, null, "/", false);
+        String domain = Window.Location.getHostName();
+        if (domain.startsWith("www.")) {
+            domain = domain.substring(3);
+        }
+        Cookies.setCookie(name, value, expires, domain, "/", false);
     }
 
     /**
@@ -164,7 +168,7 @@ public class Defold implements EntryPoint {
      * @param name cookie nake
      */
     public static void removeCookie(String name) {
-        Cookies.removeCookie(name, "/");
+        setCookie(name, "", new Date(1));
     }
 
     public static String getCookie(String name) {
@@ -376,7 +380,7 @@ public class Defold implements EntryPoint {
         }
     }
 
-    public void loginOk(String firstName, String lastName, String email, String authCookie, int userId) {
+    public void loginOk(String firstName, String lastName, String email, String authToken, int userId) {
         Date expires = new Date();
         long nowLong = expires.getTime();
         nowLong = nowLong + (1000 * 60 * 60 * 24 * 7);
@@ -386,7 +390,7 @@ public class Defold implements EntryPoint {
         setCookie("last_name", lastName, expires);
         setCookie("user_id", Integer.toString(userId), expires);
         setCookie("email", email, expires);
-        setCookie("auth", authCookie, expires);
+        setCookie("auth", authToken, expires);
 
         logout.setText("Logout (" + email + ")");
         logout.setVisible(true);

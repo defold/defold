@@ -66,7 +66,8 @@ public class ClientUtil {
     }
 
     public static boolean isDev() {
-        return Window.Location.getHostName().equals("127.0.0.1");
+        String hostname = Window.Location.getHostName();
+        return hostname.equals("127.0.0.1") || hostname.equals("localhost");
     }
 
     public static String createGravatarUrl(String email, int size) {
