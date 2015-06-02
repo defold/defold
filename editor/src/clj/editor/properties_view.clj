@@ -186,15 +186,17 @@
             (create-properties workspace grid (map g/node-id sub-nodes))))))))
 
 (defn- update-grid [parent workspace nodes]
-  (.clear (.getChildren parent))
-  (when nodes
+  (if nodes
     (let [grid (GridPane.)]
       (.setPadding grid (Insets. 10 10 10 10))
       (.setHgap grid 4)
       (.setVgap grid 6)
       (create-properties workspace grid nodes)
-      (.add (.getChildren parent) grid)
-      grid)))
+      (ui/children! parent [grid])
+      grid)
+    (do
+      (ui/children! parent [])
+      nil)))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
