@@ -14,7 +14,9 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
         PropertyDescriptor propertyDescriptor;
         Method isEditable;
         Method isVisible;
+        Method isOverridden;
         Method getOptions;
+        Method reset;
     }
 
     private Map<String, Methods> methodsMap = new HashMap<String, Methods>();
@@ -67,7 +69,21 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
 
         try {
             String capProperty = Character.toUpperCase(property.charAt(0)) + property.substring(1);
+            methods.isOverridden = obj.getClass().getMethod(String.format("is%sOverridden", capProperty));
+        } catch (NoSuchMethodException e) {
+            // pass
+        }
+
+        try {
+            String capProperty = Character.toUpperCase(property.charAt(0)) + property.substring(1);
             methods.getOptions = obj.getClass().getMethod(String.format("get%sOptions", capProperty));
+        } catch (NoSuchMethodException e) {
+            // pass
+        }
+
+        try {
+            String capProperty = Character.toUpperCase(property.charAt(0)) + property.substring(1);
+            methods.reset = obj.getClass().getMethod(String.format("reset%s", capProperty));
         } catch (NoSuchMethodException e) {
             // pass
         }
@@ -138,8 +154,16 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
     @Override
     public boolean isOverridden(Object obj, String property,
             IPropertyObjectWorld world) {
-        // Not currently supported in this accessor
-        return false;
+        Methods methods = init(obj, property);
+        boolean overridden = false;
+        try {
+            if(methods.isOverridden != null) {
+                overridden = methods.isOverridden != null && (Boolean) methods.isOverridden.invoke(obj);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return overridden;
     }
 
     @Override
@@ -158,8 +182,16 @@ public class BeanPropertyAccessor implements IPropertyAccessor<Object, IProperty
     }
 
     @Override
-    public void resetValue(Object obj, String property, IPropertyObjectWorld world) {
-        throw new RuntimeException(String.format("The property %s is not possible to reset.", property));
+    public void resetValue(Object obj, String property,
+            IPropertyObjectWorld world) {
+        Methods methods = init(obj, property);
+        try {
+            if(methods.reset != null) {
+                methods.reset.invoke(obj);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

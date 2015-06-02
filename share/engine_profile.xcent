@@ -2,13 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-        <key>application-identifier</key>
-        <string>XQ69P4KCCW.*</string>
-        <key>get-task-allow</key>
-        <true/>
-        <key>keychain-access-groups</key>
-        <array>
-                <string>XQ69P4KCCW.*</string>
-        </array>
+	<key>application-identifier</key>
+	<string>YFY47KYJ6N.*</string>
+	<key>get-task-allow</key>
+	<false/>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>YFY47KYJ6N.*</string>
+	</array>
 </dict>
 </plist>

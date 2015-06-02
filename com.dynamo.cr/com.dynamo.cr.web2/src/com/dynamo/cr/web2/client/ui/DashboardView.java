@@ -22,8 +22,6 @@ import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.FlexTable;
 import com.google.gwt.user.client.ui.FlowPanel;
-import com.google.gwt.user.client.ui.HTML;
-import com.google.gwt.user.client.ui.InlineHTML;
 import com.google.gwt.user.client.ui.Widget;
 
 public class DashboardView extends Composite {
@@ -33,7 +31,6 @@ public class DashboardView extends Composite {
         void onNewProject();
         void removeProject(ProjectInfo projectInfo);
         boolean isOwner(ProjectInfo projectInfo);
-        void onEditSubscription();
     }
 
     private static DashboardUiBinder uiBinder = GWT
@@ -74,13 +71,7 @@ public class DashboardView extends Composite {
             panel.add(anchor);
             this.projects.setWidget(i, 0, panel);
             this.projects.setText(i, 1, owner.getFirstName() + " " + owner.getLastName());
-            if (projectInfo.getStatus() != null && projectInfo.getStatus().equals(ProjectInfo.PROJECT_STATUS_UNQUALIFIED)) {
-                InlineHTML html = new InlineHTML("<span class=\"label label-important\">Plan upgrade required</span>");
-                this.projects.setWidget(i, 2, html);
-            }
-            else {
-                this.projects.setText(i, 2, "");
-            }
+            this.projects.setText(i, 2, "");
         }
 
         /* Create table header. Not supported by the FlexGrid widget */

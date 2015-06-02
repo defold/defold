@@ -25,5 +25,6 @@ public class PreferenceInitializer extends AbstractPreferenceInitializer {
         store.setDefault(PreferenceConstants.P_USE_LOCAL_BRANCHES, true);
         store.setDefault(PreferenceConstants.P_SHOW_WELCOME_PAGE, true);
         store.setDefault(PreferenceConstants.P_ANONYMOUS_LOGGING, true);
+        store.setDefault(PreferenceConstants.P_TEXTURE_PROFILES, true);
 	}
 }

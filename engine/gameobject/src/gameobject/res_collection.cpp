@@ -12,21 +12,44 @@
 
 namespace dmGameObject
 {
-    dmResource::Result ResCollectionCreate(dmResource::HFactory factory,
+    dmResource::Result ResCollectionPreload(dmResource::HFactory factory,
+                                                dmResource::HPreloadHintInfo hint_info,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
-                                                dmResource::SResourceDescriptor* resource,
+                                                void** preload_data,
                                                 const char* filename)
     {
-        Register* regist = (Register*) context;
-
         dmGameObjectDDF::CollectionDesc* collection_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(buffer, buffer_size, &collection_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
+
+        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        {
+            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+            if (instance_desc.m_Prototype != 0x0)
+            {
+                dmResource::PreloadHint(hint_info, instance_desc.m_Prototype);
+            }
+        }
+
+        *preload_data = collection_desc;
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResCollectionCreate(dmResource::HFactory factory,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                void* preload_data,
+                                                dmResource::SResourceDescriptor* resource,
+                                                const char* filename)
+    {
+        Register* regist = (Register*) context;
         dmResource::Result res = dmResource::RESULT_OK;
+
+        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) preload_data;
 
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmMutex::Lock(regist->m_Mutex);
@@ -37,6 +60,7 @@ namespace dmGameObject
         if (collection == 0)
         {
             dmMutex::Unlock(regist->m_Mutex);
+            dmDDF::FreeMessage(collection_desc);
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
@@ -60,7 +84,13 @@ namespace dmGameObject
             if (instance != 0x0)
             {
                 instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
-                instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, instance_desc.m_Scale);
+
+                // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
+                Vector3 scale = instance_desc.m_Scale3;
+                if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0)
+                        scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+
+                instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
 
                 dmHashInit64(&instance->m_CollectionPathHashState, true);
                 const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);

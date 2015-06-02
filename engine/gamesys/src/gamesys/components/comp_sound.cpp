@@ -253,7 +253,8 @@ namespace dmGameSystem
                 PlayEntry& entry = world->m_Entries[i];
                 if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
                 {
-                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vector4(set_gain->m_Gain, 0, 0, 0));
+                    float gain = set_gain->m_Gain * entry.m_Sound->m_Gain;
+                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vector4(gain, 0, 0, 0));
                     if (r != dmSound::RESULT_OK)
                     {
                         dmLogError("Fail to set gain on sound");

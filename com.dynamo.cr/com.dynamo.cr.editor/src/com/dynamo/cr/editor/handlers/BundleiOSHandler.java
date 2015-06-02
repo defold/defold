@@ -50,6 +50,9 @@ public class BundleiOSHandler extends AbstractBundleHandler {
         options.put("mobileprovisioning", profile);
         options.put("identity", identity);
         options.put("platform", "armv7-darwin");
+        if(!presenter.isReleaseMode()) {
+            options.put("debug", "true");
+        }
     }
 
 }

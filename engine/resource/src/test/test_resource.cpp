@@ -35,7 +35,7 @@ protected:
     dmResource::HFactory factory;
 };
 
-dmResource::Result DummyCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result DummyCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void *preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     return dmResource::RESULT_OK;
 }
@@ -50,23 +50,23 @@ TEST_F(ResourceTest, RegisterType)
     dmResource::Result e;
 
     // Test create/destroy function == 0
-    e = dmResource::RegisterType(factory, "foo", 0, 0, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, 0, 0, 0);
     ASSERT_EQ(dmResource::RESULT_INVAL, e);
 
     // Test dot in extension
-    e = dmResource::RegisterType(factory, ".foo", 0, &DummyCreate, &DummyDestroy, 0);
+    e = dmResource::RegisterType(factory, ".foo", 0, 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::RESULT_INVAL, e);
 
     // Test "ok"
-    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     // Test already registred
-    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::RESULT_ALREADY_REGISTERED, e);
 
     // Test get type/extension from type/extension
-    uint32_t type;
+    dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -82,9 +82,8 @@ TEST_F(ResourceTest, RegisterType)
 TEST_F(ResourceTest, NotFound)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", 0, &DummyCreate, &DummyDestroy, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, &DummyDestroy, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-
     void* resource = (void*) 0xdeadbeef;
     e = dmResource::Get(factory, "/DOES_NOT_EXISTS.foo", &resource);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, e);
@@ -114,9 +113,16 @@ struct TestResourceContainer
     std::vector<TestResource::ResourceFoo*> m_Resources;
 };
 
+dmResource::Result ResourceContainerPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+                                                 void* context,
+                                                 const void* buffer, uint32_t buffer_size,
+                                                 void **preload_data,
+                                                 const char* filename);
+
 dmResource::Result ResourceContainerCreate(dmResource::HFactory factory,
                                                  void* context,
                                                  const void* buffer, uint32_t buffer_size,
+                                                 void *preload_data,
                                                  dmResource::SResourceDescriptor* resource,
                                                  const char* filename);
 
@@ -125,6 +131,7 @@ dmResource::Result ResourceContainerDestroy(dmResource::HFactory factory, void* 
 dmResource::Result FooResourceCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
+                                           void *preload_data,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename);
 
@@ -147,16 +154,43 @@ protected:
         m_ResourceName = "/test.cont";
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        e = dmResource::RegisterType(m_Factory, "foo", this, &FooResourceCreate, &FooResourceDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &FooResourceCreate, &FooResourceDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
     virtual void TearDown()
     {
         dmResource::DeleteFactory(m_Factory);
+    }
+
+    // dmResource::Get API but with preloader instead
+    dmResource::Result PreloaderGet(dmResource::HFactory factory, const char *ref, void** resource)
+    {
+        // Unfortunately the assert macros won't work inside a function.
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, ref);
+        dmResource::Result r;
+        for (uint32_t i=0;i<33;i++)
+        {
+            r = dmResource::UpdatePreloader(pr, 30*1000);
+            if (r != dmResource::RESULT_PENDING)
+                break;
+            dmTime::Sleep(30000);
+        }
+
+        if (r == dmResource::RESULT_OK)
+        {
+            r = dmResource::Get(factory, ref, resource);
+        }
+        else
+        {
+            *resource = 0x0;
+        }
+
+        dmResource::DeletePreloader(pr);
+        return r;
     }
 
 public:
@@ -169,9 +203,35 @@ public:
     const char*        m_ResourceName;
 };
 
+dmResource::Result ResourceContainerPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+                                                 void* context,
+                                                 const void* buffer, uint32_t buffer_size,
+                                                 void **preload_data,
+                                                 const char* filename)
+{
+    (void) factory;
+    GetResourceTest* self = (GetResourceTest*) context;
+
+    TestResource::ResourceContainerDesc* resource_container_desc;
+    dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
+    if (e != dmDDF::RESULT_OK)
+    {
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
+
+    for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
+    {
+        dmResource::PreloadHint(hint_info, resource_container_desc->m_Resources[i]);
+    }
+
+    *preload_data = resource_container_desc;
+    return dmResource::RESULT_OK;
+}
+
 dmResource::Result ResourceContainerCreate(dmResource::HFactory factory,
                                                  void* context,
                                                  const void* buffer, uint32_t buffer_size,
+                                                 void* preload_data,
                                                  dmResource::SResourceDescriptor* resource,
                                                  const char* filename)
 {
@@ -179,47 +239,40 @@ dmResource::Result ResourceContainerCreate(dmResource::HFactory factory,
     GetResourceTest* self = (GetResourceTest*) context;
     self->m_ResourceContainerCreateCallCount++;
 
-    TestResource::ResourceContainerDesc* resource_container_desc;
-    dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
-    if (e == dmDDF::RESULT_OK)
+    TestResource::ResourceContainerDesc* resource_container_desc = (TestResource::ResourceContainerDesc*) preload_data;
+
+    TestResourceContainer* resource_cont = new TestResourceContainer();
+    resource_cont->m_NameHash = dmHashBuffer64(resource_container_desc->m_Name, strlen(resource_container_desc->m_Name));
+    resource->m_Resource = (void*) resource_cont;
+
+    bool error = false;
+    dmResource::Result factory_e = dmResource::RESULT_OK;
+    for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
     {
-        TestResourceContainer* resource_cont = new TestResourceContainer();
-        resource_cont->m_NameHash = dmHashBuffer64(resource_container_desc->m_Name, strlen(resource_container_desc->m_Name));
-        resource->m_Resource = (void*) resource_cont;
+        TestResource::ResourceFoo* sub_resource;
+        factory_e = dmResource::Get(factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
+        if (factory_e != dmResource::RESULT_OK)
+        {
+            error = true;
+            break;
+        }
+        resource_cont->m_Resources.push_back(sub_resource);
+    }
 
-        bool error = false;
-        dmResource::Result factory_e = dmResource::RESULT_OK;
-        for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
+    dmDDF::FreeMessage(resource_container_desc);
+    if (error)
+    {
+        for (uint32_t i = 0; i < resource_cont->m_Resources.size(); ++i)
         {
-            TestResource::ResourceFoo* sub_resource;
-            factory_e = dmResource::Get(factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
-            if (factory_e != dmResource::RESULT_OK)
-            {
-                error = true;
-                break;
-            }
-            resource_cont->m_Resources.push_back(sub_resource);
+            dmResource::Release(factory, resource_cont->m_Resources[i]);
         }
-
-        dmDDF::FreeMessage(resource_container_desc);
-        if (error)
-        {
-            for (uint32_t i = 0; i < resource_cont->m_Resources.size(); ++i)
-            {
-                dmResource::Release(factory, resource_cont->m_Resources[i]);
-            }
-            delete resource_cont;
-            resource->m_Resource = 0;
-            return factory_e;
-        }
-        else
-        {
-            return dmResource::RESULT_OK;
-        }
+        delete resource_cont;
+        resource->m_Resource = 0;
+        return factory_e;
     }
     else
     {
-        return dmResource::RESULT_FORMAT_ERROR;
+        return dmResource::RESULT_OK;
     }
 }
 
@@ -242,6 +295,7 @@ dmResource::Result ResourceContainerDestroy(dmResource::HFactory factory, void* 
 dmResource::Result FooResourceCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
+                                           void* preload_data,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename)
 {
@@ -338,6 +392,11 @@ TEST_P(GetResourceTest, SelfReferring)
     e = dmResource::Get(m_Factory, "/self_referring.cont", (void**) &test_resource_cont);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
     ASSERT_EQ((void*) 0, test_resource_cont);
+
+    test_resource_cont = 0;
+    e = PreloaderGet(m_Factory, "/self_referring.cont", (void**) &test_resource_cont);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
+    ASSERT_EQ((void*) 0, test_resource_cont);
 }
 
 TEST_P(GetResourceTest, Loop)
@@ -352,6 +411,10 @@ TEST_P(GetResourceTest, Loop)
 
     test_resource_cont = 0;
     e = dmResource::Get(m_Factory, "/root_loop.cont", (void**) &test_resource_cont);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
+    ASSERT_EQ((void*) 0, test_resource_cont);
+
+    e = PreloaderGet(m_Factory, "/root_loop.cont", (void**) &test_resource_cont);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
     ASSERT_EQ((void*) 0, test_resource_cont);
 }
@@ -449,9 +512,137 @@ TEST_P(GetResourceTest, ReferenceCountSimple)
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
+TEST_P(GetResourceTest, PreloadGet)
+{
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
+
+    dmResource::Result r;
+    for (uint32_t i=0;i<33;i++)
+    {
+        r = dmResource::UpdatePreloader(pr, 30*1000);
+        if (r == dmResource::RESULT_PENDING)
+            dmTime::Sleep(30000);
+        else
+            break;
+    }
+
+    ASSERT_EQ(r, dmResource::RESULT_OK);
+
+    // Ensure preloader holds one reference now
+    dmResource::SResourceDescriptor descriptor;
+    dmResource::Result e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+
+    TestResourceContainer* resource = 0;
+    e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+
+    e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+
+    dmResource::DeletePreloader(pr);
+
+    // only one after release
+    e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+
+    dmResource::Release(m_Factory, resource);
+}
+
+TEST_P(GetResourceTest, PreloadGetParallell)
+{
+    // Race preloaders against eachother with the same Factory
+    for (uint32_t i=0;i<5;i++)
+    {        
+        const uint32_t n = 16;
+        dmResource::HPreloader pr[n];
+        for (uint32_t j=0;j<n;j++)
+        {
+            pr[j] = dmResource::NewPreloader(m_Factory, m_ResourceName);
+        }
+            
+        dmResource::Result r;
+        for (uint32_t j=0;j<30;j++)
+        {
+            bool done = true;
+            for (uint32_t k=0;k<n;k++)
+            {
+                dmResource::Result r = dmResource::UpdatePreloader(pr[k], 1000);
+                if (r == dmResource::RESULT_PENDING)
+                {
+                    done = false;
+                    continue;
+                }
+                ASSERT_EQ(dmResource::RESULT_OK, r);
+            }
+            if (done)
+            {
+                break;
+            }
+        }
+        
+        TestResourceContainer* resource = 0;
+        dmResource::Result e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+
+        dmResource::SResourceDescriptor descriptor;
+        e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        ASSERT_EQ((uint32_t) (n+1), descriptor.m_ReferenceCount);
+    
+        for (uint32_t j=0;j<n;j++)
+        {
+            dmResource::DeletePreloader(pr[j]);
+        }
+
+        // only one after release
+        e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+
+        dmResource::Release(m_Factory, resource);
+    }
+}
+
+TEST_P(GetResourceTest, PreloadGetManyRefs)
+{
+    // this has more references than the preloader can fit into its tree
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/many_refs.cont");
+
+    dmResource::Result r;
+    for (uint32_t i=0;i<1000;i++)
+    {
+        r = dmResource::UpdatePreloader(pr, 30*1000);
+        if (r == dmResource::RESULT_PENDING)
+            dmTime::Sleep(30000);
+        else
+            break;
+    }
+
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, r);
+    dmResource::DeletePreloader(pr);
+}
+
+
+TEST_P(GetResourceTest, PreloadGetAbort)
+{
+    // Must not leak or crash
+    for (uint32_t i=0;i<20;i++)
+    {
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
+        for (uint32_t j=0;j<i;j++)
+            dmResource::UpdatePreloader(pr, 1);
+        dmResource::DeletePreloader(pr);
+    }
+}
+
 dmResource::Result RecreateResourceCreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
+                                                void *preload_data,
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename)
 {
@@ -518,6 +709,7 @@ TEST(dmResource, InvalidUri)
 dmResource::Result AdResourceCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
+                                           void *preload_data,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename)
 {
@@ -544,7 +736,7 @@ TEST(dmResource, Builtins)
     dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
     ASSERT_NE((void*) 0, factory);
 
-    dmResource::RegisterType(factory, "adc", 0, AdResourceCreate, AdResourceDestroy, 0);
+    dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, AdResourceDestroy, 0);
 
     void* resource;
     const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
@@ -576,10 +768,10 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    uint32_t type;
+    dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -649,10 +841,10 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    uint32_t type;
+    dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -716,6 +908,7 @@ char filename_resource_filename[ 128 ];
 dmResource::Result FilenameResourceCreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
+                                                void *preload_data,
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename)
 {
@@ -758,10 +951,10 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    uint32_t type;
+    dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -827,7 +1020,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -879,7 +1072,7 @@ TEST(OverflowTest, OverflowTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     int* resource;

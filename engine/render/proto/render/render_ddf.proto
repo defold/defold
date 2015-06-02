@@ -57,6 +57,24 @@ message DrawLine
     required dmMath.Vector4 color = 3;
 }
 
+/*# reports a window size change
+ * Reports a change in window size. This is initiated on window resize on desktop or by orientation changes
+ * on mobile devices.
+ *
+ * @message
+ * @name window_resized
+ * @param height the new window height (number)
+ * @param width the new window width (number)
+ * @examples
+ * <pre>
+ * function on_message(self, message_id, message) 
+ *     -- check for the message
+ *     if message.id == hash("window_resized") then
+ *         -- the window was resized.
+ *     end
+ * end
+ * </pre>
+ */
 message WindowResized
 {
     required uint32 width = 1;
@@ -77,4 +95,21 @@ message WindowResized
 message ClearColor
 {
     required dmMath.Vector4 color = 1;
+}
+
+message DisplayProfileQualifier
+{
+    required uint32 width   = 1;
+    required uint32 height  = 2;
+}
+
+message DisplayProfile
+{
+    required string name    = 1;
+    repeated DisplayProfileQualifier qualifiers = 2;
+}
+
+message DisplayProfiles
+{
+    repeated DisplayProfile profiles = 1;
 }

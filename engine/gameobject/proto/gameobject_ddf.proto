@@ -69,6 +69,7 @@ message InstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 8;
 }
 
 message EmbeddedInstanceDesc
@@ -80,6 +81,7 @@ message EmbeddedInstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 8;
 }
 
 message InstancePropertyDesc
@@ -95,6 +97,7 @@ message CollectionInstanceDesc
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
     optional float          scale       = 5 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 7;
     repeated InstancePropertyDesc instance_properties = 6;
 }
 
@@ -161,8 +164,8 @@ message AcquireInputFocus {}
  */
 message ReleaseInputFocus {}
 
-/*# requests the transform from an instance
- * <div><b>Deprecated</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
+/*# (DEPRECATED) requests the transform from an instance
+ * <div><b>DEPRECATED!</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
  * Send this message to an instance to request its transform (position, rotation, scale).
  * The sending script will receive the answer as a <code>transform_response</code>-message
  * at a later time.
@@ -202,8 +205,8 @@ message ReleaseInputFocus {}
  */
 message RequestTransform {}
 
-/*# reports back the transform of an instance
- * <div><b>Deprecated</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
+/*# (DEPRECATED) reports back the transform of an instance
+ * <div><b>DEPRECATED!</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
  * The response a script receives after it has requested the transform from an instance
  * using the <code>request_transform</code>-message. See the description of that message
  * for a complete example on how to use it.
@@ -224,7 +227,9 @@ message TransformResponse
     required dmMath.Point3  world_position  = 3;
     required dmMath.Quat    world_rotation  = 4;
     optional float          scale           = 5 [default = 1.0];
+    optional dmMath.Vector3 scale3          = 7;
     optional float          world_scale     = 6 [default = 1.0];
+    optional dmMath.Vector3 world_scale3    = 8;
 }
 
 /*# sets the parent of the receiving instance

@@ -22,7 +22,7 @@ static const char* DEVICE_DESC =
 "        <friendlyName>Defold System</friendlyName>\n"
 "        <manufacturer>Defold</manufacturer>\n"
 "        <modelName>Defold Engine 1.0</modelName>\n"
-"        <UDN>${UDN}</UDN>\n"
+"        <UDN>uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8</UDN>\n"
 "    </device>\n"
 "</root>\n";
 
@@ -95,7 +95,10 @@ public:
 
         dmSSDP::NewParams server_params;
         if (max_age != -1)
+        {
             server_params.m_MaxAge = max_age;
+            server_params.m_AnnounceInterval = max_age;
+        }
         server_params.m_Announce = announce;
         r = dmSSDP::New(&server_params, &m_Server);
         ASSERT_EQ(dmSSDP::RESULT_OK, r);
@@ -270,6 +273,7 @@ TEST(dmSSDP, JavaClient)
     dmSSDP::Result r;
     dmSSDP::NewParams server_params1;
     server_params1.m_MaxAge = 1;
+    server_params1.m_AnnounceInterval = 1;
     server_params1.m_Announce = 1;
     r = dmSSDP::New(&server_params1, &server1);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
@@ -282,6 +286,7 @@ TEST(dmSSDP, JavaClient)
 
     dmSSDP::NewParams server_params2;
     server_params2.m_MaxAge = 2;
+    server_params2.m_AnnounceInterval = 2;
     server_params2.m_Announce = 0;
     r = dmSSDP::New(&server_params2, &server2);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);

@@ -49,7 +49,7 @@ TEST_F(dmRenderTest, TestContextNewDelete)
 
 TEST_F(dmRenderTest, TestRenderTarget)
 {
-	dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
     dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
 
     creation_params[0].m_Width = WIDTH;
@@ -118,34 +118,137 @@ TEST_F(dmRenderTest, TestLine3d)
     Line3D(m_Context, Point3(10.0f, 20.0f, 30.0f), Point3(10.0f, 20.0f, 30.0f), Vector4(0.1f, 0.2f, 0.3f, 0.4f), Vector4(0.1f, 0.2f, 0.3f, 0.4f));
 }
 
-TEST_F(dmRenderTest, TestDraw)
+struct TestDrawDispatchCtx
 {
-    dmRender::RenderObject ro_neg_z;
-    ro_neg_z.m_RenderKey.m_Depth = 1;
-    dmRender::RenderObject ro_pos_z;
-    ro_pos_z.m_RenderKey.m_Depth = 0;
+    int m_BeginCalls;
+    int m_BatchCalls;
+    int m_EndCalls;
+    int m_EntriesRendered;
+    int m_Order;
+    float m_Z;
+    int m_DrawnBefore;
+    int m_DrawnWorld;
+    int m_DrawnAfter;
+};
 
-    ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
+static void TestDrawDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    TestDrawDispatchCtx *ctx = (TestDrawDispatchCtx*) params.m_UserData;
+    uint32_t* i;
 
-    dmRender::AddToRender(m_Context, &ro_neg_z);
-    dmRender::AddToRender(m_Context, &ro_pos_z);
-    ASSERT_LT(0u, m_Context->m_RenderObjects.Size());
-    ASSERT_EQ((void*)&ro_neg_z, (void*)m_Context->m_RenderObjects[0]);
-    ASSERT_EQ((void*)&ro_pos_z, (void*)m_Context->m_RenderObjects[1]);
+    switch (params.m_Operation)
+    {
+        case dmRender::RENDER_LIST_OPERATION_BEGIN:
+            ASSERT_EQ(ctx->m_BatchCalls, 0);
+            ASSERT_EQ(ctx->m_EndCalls, 0);
+            ctx->m_BeginCalls++;
+            break;
+        case dmRender::RENDER_LIST_OPERATION_BATCH:
+            ASSERT_EQ(ctx->m_BeginCalls, 1);
+            ASSERT_EQ(ctx->m_EndCalls, 0);
+            ctx->m_BatchCalls++;
+            for (i=params.m_Begin;i!=params.m_End;i++)
+            {
+                if (params.m_Buf[*i].m_MajorOrder != dmRender::RENDER_ORDER_WORLD)
+                {
+                    // verify strictly increasing order
+                    ASSERT_GT(params.m_Buf[*i].m_Order, ctx->m_Order);
+                    ctx->m_Order = params.m_Buf[*i].m_Order;
+                }
+                else
+                {
+                    // verify strictly increasing z for world entries.
+                    ASSERT_GT(params.m_Buf[*i].m_WorldPosition.getZ(), ctx->m_Z);
+                    ctx->m_Z = params.m_Buf[*i].m_WorldPosition.getZ();
+                    // reset order for the _AFTER_WORLD batch
+                    ctx->m_Order = 0;
+                }
 
-    dmRender::Draw(m_Context, 0x0, 0);
+                ctx->m_EntriesRendered++;
 
-    ASSERT_EQ((void*)&ro_pos_z, (void*)m_Context->m_RenderObjects[0]);
-    ASSERT_EQ((void*)&ro_neg_z, (void*)m_Context->m_RenderObjects[1]);
+                // verify sequence of things.
+                switch (params.m_Buf[*i].m_MajorOrder)
+                {
+                    case dmRender::RENDER_ORDER_BEFORE_WORLD:
+                        ctx->m_DrawnBefore = 1;
+                        ASSERT_EQ(ctx->m_DrawnWorld, 0);
+                        ASSERT_EQ(ctx->m_DrawnAfter, 0);
+                        break;
+                    case dmRender::RENDER_ORDER_WORLD:
+                        ctx->m_DrawnWorld = 1;
+                        ASSERT_EQ(ctx->m_DrawnBefore, 1);
+                        ASSERT_EQ(ctx->m_DrawnAfter, 0);
+                        break;
+                    case dmRender::RENDER_ORDER_AFTER_WORLD:
+                        ctx->m_DrawnAfter = 1;
+                        ASSERT_EQ(ctx->m_DrawnBefore, 1);
+                        ASSERT_EQ(ctx->m_DrawnWorld, 1);
+                        break;
+                }
+            }
+            break;
+        default:
+            ASSERT_EQ(params.m_Operation, dmRender::RENDER_LIST_OPERATION_END);
+            ASSERT_EQ(ctx->m_BeginCalls, 1);
+            ASSERT_EQ(ctx->m_EndCalls, 0);
+            ctx->m_EndCalls++;
+            break;
+    }
+}
 
-    // Change draw-order
-    ro_neg_z.m_RenderKey.m_Depth = 0;
-    ro_pos_z.m_RenderKey.m_Depth = 1;
+TEST_F(dmRenderTest, TestRenderListDraw)
+{
+    TestDrawDispatchCtx ctx;
+    memset(&ctx, 0x00, sizeof(TestDrawDispatchCtx));
 
-    dmRender::Draw(m_Context, 0x0, 0);
+    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
+    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
 
-    ASSERT_EQ((void*)&ro_neg_z, (void*)m_Context->m_RenderObjects[0]);
-    ASSERT_EQ((void*)&ro_pos_z, (void*)m_Context->m_RenderObjects[1]);
+    dmRender::RenderListBegin(m_Context);
+
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestDrawDispatch, &ctx);
+
+    const uint32_t n = 32;
+
+    const uint32_t orders[n] = {
+        99999,99998,99997,57734,75542,86333,64399,20415,15939,58565,34577,9813,3428,5503,49328,
+        25189,24801,18298,83657,55459,27204,69430,72376,37545,43725,54023,68259,85984,6852,34106,
+        37169,55555,
+    };
+
+    const dmRender::RenderOrder majors[3] = {
+        dmRender::RENDER_ORDER_BEFORE_WORLD,
+        dmRender::RENDER_ORDER_WORLD,
+        dmRender::RENDER_ORDER_AFTER_WORLD
+    };
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, n);
+
+    for (uint32_t i=0;i!=n;i++)
+    {
+        dmRender::RenderListEntry & entry = out[i];
+        entry.m_WorldPosition = Point3(0,0,orders[i]);
+        entry.m_MajorOrder = majors[i % 3];
+        entry.m_TagMask = 0;
+        entry.m_Order = orders[i];
+        entry.m_BatchKey = i & 3; // no particular system
+        entry.m_Dispatch = dispatch;
+        entry.m_UserData = 0;
+    }
+
+    dmRender::RenderListSubmit(m_Context, out, out + n);
+    dmRender::RenderListEnd(m_Context);
+
+    dmRender::DrawRenderList(m_Context, 0, 0);
+
+    ASSERT_EQ(ctx.m_BeginCalls, 1);
+    ASSERT_GT(ctx.m_BatchCalls, 1);
+    ASSERT_EQ(ctx.m_EntriesRendered, n);
+    ASSERT_EQ(ctx.m_EndCalls, 1);
+    ASSERT_EQ(ctx.m_Order, orders[2]); // highest after world entry
+    ASSERT_EQ(ctx.m_Z, orders[1]);
 }
 
 static float Metric(const char* text, int n)

@@ -38,13 +38,13 @@ namespace dmRender
     struct Command
     {
         Command(CommandType type);
-        Command(CommandType type, uint32_t op0);
-        Command(CommandType type, uint32_t op0, uint32_t op1);
-        Command(CommandType type, uint32_t op0, uint32_t op1, uint32_t op2);
-        Command(CommandType type, uint32_t op0, uint32_t op1, uint32_t op2, uint32_t op3);
+        Command(CommandType type, uintptr_t op0);
+        Command(CommandType type, uintptr_t op0, uintptr_t op1);
+        Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2);
+        Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2, uintptr_t op3);
 
         CommandType m_Type;
-        uint32_t    m_Operands[4];
+        uintptr_t   m_Operands[4];
     };
 
     void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count);

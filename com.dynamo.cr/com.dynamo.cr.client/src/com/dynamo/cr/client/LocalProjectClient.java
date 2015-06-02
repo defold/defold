@@ -13,17 +13,15 @@ import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.branchrepo.BranchRepositoryException;
 import com.dynamo.cr.common.providers.ProtobufProviders;
-import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.ClientResponse.Status;
+import com.sun.jersey.api.client.WebResource;
 
 public class LocalProjectClient implements IProjectClient {
 
@@ -173,23 +171,6 @@ public class LocalProjectClient implements IProjectClient {
     @Override
     public String downloadEngineManifest(String platform, String key) throws RepositoryException {
         return wrapGet("/engine_manifest/" + platform + "/" + key, String.class, "text/xml");
-    }
-
-    @Override
-    public LaunchInfo getLaunchInfo() throws RepositoryException {
-        throw new RuntimeException("Not implemented");
-    }
-
-    @Override
-    public ApplicationInfo getApplicationInfo(String platform)
-            throws RepositoryException {
-        throw new RuntimeException("Not implemented");
-    }
-
-    @Override
-    public InputStream getApplicationData(String platform)
-            throws RepositoryException {
-        throw new RuntimeException("Not implemented");
     }
 
 }

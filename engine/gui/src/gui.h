@@ -44,6 +44,88 @@ namespace dmGui
      */
     const dmhash_t DEFAULT_LAYER = dmHashString64("");
 
+    /**
+     * Default layout id
+     */
+    const dmhash_t DEFAULT_LAYOUT = dmHashString64("");
+
+    /**
+     * Animation
+     */
+    enum Playback
+    {
+        PLAYBACK_ONCE_FORWARD  = 0,
+        PLAYBACK_ONCE_BACKWARD = 1,
+        PLAYBACK_ONCE_PINGPONG = 2,
+        PLAYBACK_LOOP_FORWARD  = 3,
+        PLAYBACK_LOOP_BACKWARD = 4,
+        PLAYBACK_LOOP_PINGPONG = 5,
+        PLAYBACK_NONE = 6,
+        PLAYBACK_COUNT = 7,
+    };
+
+    /**
+     * Textureset animation
+     */
+    struct TextureSetAnimDesc
+    {
+        inline void Init()
+        {
+            m_State = 0;
+            m_Playback = PLAYBACK_ONCE_FORWARD;
+            m_TexCoords = 0;
+            m_FlipHorizontal = 0;
+            m_FlipVertical = 0;
+        }
+
+        union
+        {
+            struct
+            {
+                uint64_t m_Start : 13;
+                uint64_t m_End : 13;
+                uint64_t m_Width : 13;
+                uint64_t m_Height : 13;
+                uint64_t m_FPS : 8;
+                uint64_t m_Playback : 4;
+            };
+            uint64_t m_State;
+        };
+
+        const float* m_TexCoords;
+        uint32_t m_FlipHorizontal : 1;
+        uint32_t m_FlipVertical : 1;
+        uint32_t m_Padding : 14;
+    };
+
+    enum FetchTextureSetAnimResult
+    {
+        FETCH_ANIMATION_OK = 0,
+        FETCH_ANIMATION_NOT_FOUND = -1,
+        FETCH_ANIMATION_CALLBACK_ERROR = -2,
+        FETCH_ANIMATION_INVALID_PLAYBACK = -3,
+        FETCH_ANIMATION_UNKNOWN_ERROR = -1000
+    };
+
+    /**
+     * Callback to fetch textureset animation info from a textureset source
+     */
+    typedef FetchTextureSetAnimResult (*FetchTextureSetAnimCallback)(void* texture_set_ptr, dmhash_t anim, TextureSetAnimDesc* out_data);
+
+
+    /**
+     * Callback to set node from node descriptor
+     */
+    typedef void (*SetNodeCallback)(const HScene scene, HNode node, const void *node_desc);
+
+    /**
+     * Callback when display window size changes
+     */
+    typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
+
+    /**
+     * Scene creation
+     */
     struct NewSceneParams;
     void SetDefaultNewSceneParams(NewSceneParams* params);
 
@@ -55,6 +137,8 @@ namespace dmGui
         uint32_t m_MaxFonts;
         uint32_t m_MaxLayers;
         void*    m_UserData;
+        FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
+        OnWindowResizeCallback m_OnWindowResizeCallback;
 
         NewSceneParams()
         {
@@ -118,11 +202,13 @@ namespace dmGui
         GetUserDataCallback     m_GetUserDataCallback;
         ResolvePathCallback     m_ResolvePathCallback;
         GetTextMetricsCallback  m_GetTextMetricsCallback;
-        uint32_t                m_Width;
-        uint32_t                m_Height;
         uint32_t                m_PhysicalWidth;
         uint32_t                m_PhysicalHeight;
+        uint32_t                m_DefaultProjectWidth;
+        uint32_t                m_DefaultProjectHeight;
+        uint32_t                m_Dpi;
         dmHID::HContext         m_HidContext;
+        dmResource::HFactory    m_Factory;
 
         NewContextParams()
         {
@@ -157,17 +243,6 @@ namespace dmGui
         PROPERTY_RESERVED   = 9,
 
         PROPERTY_COUNT      = 10,
-    };
-
-    enum Playback
-    {
-        PLAYBACK_ONCE_FORWARD  = 0,
-        PLAYBACK_ONCE_BACKWARD = 1,
-        PLAYBACK_ONCE_PINGPONG = 2,
-        PLAYBACK_LOOP_FORWARD  = 3,
-        PLAYBACK_LOOP_BACKWARD = 4,
-        PLAYBACK_LOOP_PINGPONG = 5,
-        PLAYBACK_COUNT = 6,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -353,9 +428,17 @@ namespace dmGui
 
     void DeleteContext(HContext context, dmScript::HContext script_context);
 
-    void SetResolution(HContext context, uint32_t width, uint32_t height);
-
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height);
+
+    void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height);
+
+    uint32_t GetDisplayDpi(HContext context);
+
+    void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height);
+
+    void SetDefaultResolution(HContext context, uint32_t width, uint32_t height);
+
+    void SetDisplayProfiles(HContext context, void* display_profiles);
 
     void SetDefaultFont(HContext context, void* font);
 
@@ -367,27 +450,37 @@ namespace dmGui
 
     void* GetSceneUserData(HScene scene);
 
+    void SetSceneResolution(HScene, uint32_t width, uint32_t height);
+
+    void GetSceneResolution(HScene, uint32_t &width, uint32_t &height);
+
+    void GetPhysicalResolution(HScene scene, uint32_t& width, uint32_t& height);
+
+    uint32_t GetDisplayDpi(HScene scene);
+
+    void* GetDisplayProfiles(HScene scene);
+
     /**
-     * Adds a texture with the specified name to the scene.
-     * @note Any nodes connected to the same texture_name will also be connected to the new texture. This makes this function O(n), where n is #nodes.
-     * @param scene Scene to add the texture to
+     * Adds a texture and optional textureset with the specified name to the scene.
+     * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add the texture/textureset to
      * @param texture_name Name of the texture that will be used in the gui scripts
      * @param texture The texture to add
+     * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset);
 
     /**
      * Removes a texture with the specified name from the scene.
-     * @note Any nodes connected to the same texture_name will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
+     * @note Any nodes connected to the same texture will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
      * @param scene Scene to remove texture from
-     * @param texture_name Name of the texture that will be used in the gui scripts
+     * @param texture_name Name of the texture as it is used by the gui scripts
      */
     void RemoveTexture(HScene scene, const char* texture_name);
 
     /**
-     * Remove all static textures from the scene.
-     * @note User created textures are not removed
+     * Remove all textures from the scene.
      * @note Every node will also be disconnected from the texture they are already connected to, if any. This makes this function O(n), where n is #nodes.
      * @param scene Scene to clear from textures
      */
@@ -471,6 +564,82 @@ namespace dmGui
      * @return Outcome of the operation
      */
     Result AddLayer(HScene scene, const char* layer_name);
+
+    /**
+     * Allocates memory needed to hold nr of layers with nr of nodes for the scene.
+     * @param scene Scene to allocate for
+     * @param node_count Number of nodes in the scene (not including dynamic nodes)
+     * @param layouts_count Number of layouts in the scene
+     */
+    void AllocateLayouts(HScene scene, size_t node_count, size_t layouts_count);
+
+    /**
+     * Free layout resources and reset to scene contain only the system default layout
+     * @param scene Scene to reset layouts for
+     */
+    void ClearLayouts(HScene scene);
+
+    /**
+     * Adds a layout with id to the scene.
+     *
+     * @note dmGui::AllocateLayouts must be called prior to calling this function
+     * @param scene Scene to add the layout to
+     * @param layout_id Unique id of the layout. If the id exists, it will be replaced
+     * @return Outcome of the operation
+     */
+    Result AddLayout(HScene scene, const char* layout_id);
+
+    /**
+     * Get current layout id.
+     * @param scene Scene of which to get layout
+     * @return layout_id id of the layout
+     */
+    dmhash_t GetLayout(const HScene scene);
+
+    /**
+     * Get number of layouts.
+     * @param scene Scene of which to get layout count
+     * @return number of layouts
+     */
+    uint16_t GetLayoutCount(const HScene scene);
+
+    /**
+     * Get hashed id of layout with index.
+     * @param scene Scene of which to get layout id
+     * @param layout_index index of layout. Must be smaller than layout count.
+     * @param layout_id reference to dmhash_t to receive the id
+     * @return Outcome of the operation
+     */
+    Result GetLayoutId(const HScene scene, uint16_t layout_index, dmhash_t& layout_id_out);
+
+    /**
+     * Get index of layer with id in a scene.
+     * @param scene Scene to get the layer id from
+     * @param layout_id hashed id of layout to get index of
+     * @return index, or 0 if not found refering the the default layout.
+     */
+    uint16_t GetLayoutIndex(const HScene scene, dmhash_t layout_id);
+
+    /**
+     * Set the desc for node using layouts with index in range start to end.
+     * @note dmGui::AllocateLayouts must be called prior to calling this function
+     * @param scene Scene
+     * @param node Node to set desc to
+     * @param desc Desc
+     * @param layout_index_start first index to set in range
+     * @param layout_index_end last index to set in range
+     * @return Outcome of the operation
+     */
+    Result SetNodeLayoutDesc(const HScene scene, HNode node, const void *desc, uint16_t layout_index_start, uint16_t layout_index_end);
+
+    /**
+     * Set a layout with id.
+     * @param scene Scene of which to set layout
+     * @param layout_id id of the layout.
+     * @param set_node_callback Callback function that will set node from node descriptor
+     * @return Outcome of the operation
+     */
+    Result SetLayout(const HScene scene, dmhash_t layout_id, SetNodeCallback set_node_callback);
 
     /** Renders a gui scene
      * Renders a gui scene by calling the callback function render_nodes and supplying an array of nodes.
@@ -635,6 +804,13 @@ namespace dmGui
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
 
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    void CancelNodeFlipbookAnim(HScene scene, HNode node);
+    dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
+    const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);
+    void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical);
+
     void* GetNodeFont(HScene scene, HNode node);
     dmhash_t GetNodeFontId(HScene scene, HNode node);
     Result SetNodeFont(HScene scene, HNode node, dmhash_t font_id);
@@ -749,7 +925,7 @@ namespace dmGui
     void AnimateNodeHash(HScene scene, HNode node,
                          dmhash_t property,
                          const Vector4& to,
-                         dmEasing::Type easing,
+                         dmEasing::Curve easing,
                          Playback playback,
                          float duration,
                          float delay,

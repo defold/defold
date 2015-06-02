@@ -15,40 +15,12 @@ import org.junit.Test;
 
 import com.dynamo.cr.common.providers.JsonProviders.ProtobufMessageBodyReader;
 import com.dynamo.cr.common.providers.JsonProviders.ProtobufMessageBodyWriter;
-import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.State;
 import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.google.protobuf.Message;
 
 public class JsonProvidersTest {
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    @Test
-    public void testWriteReadTo1() throws WebApplicationException, IOException {
-        ApplicationInfo.Builder b = ApplicationInfo.newBuilder();
-        b.setName("Test Application");
-        b.setVersion("1.0");
-        b.setSize(1234);
-
-        ProtobufMessageBodyWriter writer = new ProtobufMessageBodyWriter();
-        ApplicationInfo message = b.build();
-        long size = writer.getSize(message, null, null, null, null);
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        writer.writeTo(message, null, null, null, null, null, stream);
-        assertEquals(size, stream.size());
-
-        ObjectMapper m = new ObjectMapper();
-        JsonNode node = m.readValue(stream.toString(), JsonNode.class);
-        assertEquals(message.getName(), node.get("name").getValueAsText());
-        assertEquals(message.getVersion(), node.get("version").getValueAsText());
-        assertEquals(message.getSize(), node.get("size").getValueAsInt());
-
-        ByteArrayInputStream inStream = new ByteArrayInputStream(node.toString().getBytes());
-        MessageBodyReader reader = new ProtobufMessageBodyReader();
-        Message message2 = (Message) reader.readFrom(message.getClass(), null, null, null, null, inStream);
-        assertEquals(message, message2);
-    }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Test

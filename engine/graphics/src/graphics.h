@@ -12,13 +12,13 @@
 
 namespace dmGraphics
 {
-    typedef uint32_t                  HVertexProgram;
-    typedef uint32_t                  HFragmentProgram;
-    typedef uint32_t                  HProgram;
+    typedef uintptr_t                 HVertexProgram;
+    typedef uintptr_t                 HFragmentProgram;
+    typedef uintptr_t                 HProgram;
     typedef struct Context*           HContext;
     typedef struct Texture*           HTexture;
-    typedef uint32_t                  HVertexBuffer;
-    typedef uint32_t                  HIndexBuffer;
+    typedef uintptr_t                 HVertexBuffer;
+    typedef uintptr_t                 HIndexBuffer;
     typedef struct VertexDeclaration* HVertexDeclaration;
     typedef struct RenderTarget*      HRenderTarget;
 
@@ -128,10 +128,13 @@ namespace dmGraphics
     // Texture format
     enum TextureFilter
     {
+        TEXTURE_FILTER_DEFAULT                  = 0,
         TEXTURE_FILTER_NEAREST                  = DMGRAPHICS_TEXTURE_FILTER_NEAREST,
         TEXTURE_FILTER_LINEAR                   = DMGRAPHICS_TEXTURE_FILTER_LINEAR,
         TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST   = DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST,
+        TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR    = DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR,
         TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST    = DMGRAPHICS_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST,
+        TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR     = DMGRAPHICS_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR,
     };
 
     // Texture format
@@ -381,6 +384,14 @@ namespace dmGraphics
     uint32_t GetWindowState(HContext context, WindowState state);
 
     /**
+     * Returns the specified dpi of default monitor.
+     *
+     * @param context Graphics context handle
+     * @return Specified dpi of the default display. If not supported, 0 is returned
+     */
+    uint32_t GetDisplayDpi(HContext context);
+
+    /**
      * Returns the specified width of the opened window, which might differ from the actual window width.
      *
      * @param context Graphics context handle
@@ -538,6 +549,7 @@ namespace dmGraphics
      * @param params
      */
     void SetTexture(HTexture texture, const TextureParams& params);
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);

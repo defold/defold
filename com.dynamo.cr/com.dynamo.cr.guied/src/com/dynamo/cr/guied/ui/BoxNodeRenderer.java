@@ -9,6 +9,7 @@ import javax.vecmath.Point3d;
 import com.dynamo.cr.guied.core.BoxNode;
 import com.dynamo.cr.guied.core.ClippingNode;
 import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
+import com.dynamo.cr.guied.core.GuiTextureNode;
 import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -102,8 +103,9 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
         GL2 gl = renderContext.getGL();
 
         Texture texture = null;
-        if (node.getTextureHandle() != null) {
-            texture = node.getTextureHandle().getTexture(gl);
+        GuiTextureNode guiTextureNode = node.getGuiTextureNode();
+        if (guiTextureNode != null) {
+            texture = guiTextureNode.getTextureHandle().getTexture(gl);
         }
 
         boolean clipping = renderData.getUserData() != null;
@@ -178,33 +180,70 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
             sV = 1.0f / (float)texture.getImageHeight();
         }
 
-        us[0] = 0;
-        us[1] = sU * node.getSlice9().x;
-        us[2] = 1.0f - sU * node.getSlice9().z;
-        us[3] = 1.0f;
-
-        vs[0] = 1;
-        vs[1] = 1 - sV * node.getSlice9().w;
-        vs[2] = sV * node.getSlice9().y;
-        vs[3] = 0.0f;
+        int[][] uvIndex = {{0,1,2,3}, {3,2,1,0}};
+        int[] uI = uvIndex[0], vI = uvIndex[0];
+        double u0 = 0, u1 = 1, v0 = 0, v1 = 1;
+        boolean uvRotated = false;
+        if(node.getGuiTextureNode() != null) {
+            GuiTextureNode.UVTransform uv = node.getGuiTextureNode().getUVTransform();
+            u0 = uv.translation.x;
+            u1 = u0 + uv.scale.x;
+            v0 = uv.translation.y;
+            v1 = v0 + uv.scale.y;
+            uI = uv.flipX ? uvIndex[1] : uvIndex[0];
+            vI = uv.flipY ? uvIndex[1] : uvIndex[0];
+            uvRotated = uv.rotated;
+        }
 
         gl.glBegin(GL2.GL_QUADS);
 
-        for (int i=0;i<3;i++)
+        if(uvRotated)
         {
-            for (int j=0;j<3;j++)
+            us[vI[0]] = u0;
+            us[vI[1]] = u0 + (sU * node.getSlice9().w);
+            us[vI[2]] = u1 - (sU * node.getSlice9().y);
+            us[vI[3]] = u1;
+            vs[uI[0]] = v0;
+            vs[uI[1]] = v0 + (sV * node.getSlice9().x);
+            vs[uI[2]] = v1 - (sV * node.getSlice9().z);
+            vs[uI[3]] = v1;
+            for (int i=0;i<3;i++)
             {
-                gl.glTexCoord2d(us[i], vs[j]);
-                gl.glVertex2d(xs[i], ys[j]);
+                for (int j=0;j<3;j++)
+                {
+                    gl.glTexCoord2d(us[j], vs[i]);
+                    gl.glVertex2d(xs[i], ys[j]);
+                    gl.glTexCoord2d(us[j], vs[i+1]);
+                    gl.glVertex2d(xs[i+1], ys[j]);
+                    gl.glTexCoord2d(us[j+1], vs[i+1]);
+                    gl.glVertex2d(xs[i+1], ys[j+1]);
+                    gl.glTexCoord2d(us[j+1], vs[i]);
+                    gl.glVertex2d(xs[i], ys[j+1]);
 
-                gl.glTexCoord2d(us[i+1], vs[j]);
-                gl.glVertex2d(xs[i+1], ys[j]);
-
-                gl.glTexCoord2d(us[i+1], vs[j+1]);
-                gl.glVertex2d(xs[i+1], ys[j+1]);
-
-                gl.glTexCoord2d(us[i], vs[j+1]);
-                gl.glVertex2d(xs[i], ys[j+1]);
+                }
+            }
+        } else {
+            us[uI[0]] = u0;
+            us[uI[1]] = u0 + (sU * node.getSlice9().x);
+            us[uI[2]] = u1 - (sU * node.getSlice9().z);
+            us[uI[3]] = u1;
+            vs[vI[0]] = v1;
+            vs[vI[1]] = v1 - (sV * node.getSlice9().w);
+            vs[vI[2]] = v0 + (sV * node.getSlice9().y);
+            vs[vI[3]] = v0;
+            for (int i=0;i<3;i++)
+            {
+                for (int j=0;j<3;j++)
+                {
+                    gl.glTexCoord2d(us[i], vs[j]);
+                    gl.glVertex2d(xs[i], ys[j]);
+                    gl.glTexCoord2d(us[i+1], vs[j]);
+                    gl.glVertex2d(xs[i+1], ys[j]);
+                    gl.glTexCoord2d(us[i+1], vs[j+1]);
+                    gl.glVertex2d(xs[i+1], ys[j+1]);
+                    gl.glTexCoord2d(us[i], vs[j+1]);
+                    gl.glVertex2d(xs[i], ys[j+1]);
+                }
             }
         }
         gl.glEnd();

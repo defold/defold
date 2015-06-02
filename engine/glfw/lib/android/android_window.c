@@ -66,27 +66,8 @@ int _glfwPlatformOpenWindow( int width__, int height__,
                              const _GLFWfbconfig* fbconfig__ )
 {
     LOGV("_glfwPlatformOpenWindow");
-
-    ANativeActivity* activity = g_AndroidApp->activity;
-    JNIEnv* env = 0;
-    (*activity->vm)->AttachCurrentThread(activity->vm, &env, 0);
-
-    jclass activity_class = (*env)->FindClass(env, "android/app/NativeActivity");
-    jmethodID setOrientationMethod = (*env)->GetMethodID(env, activity_class, "setRequestedOrientation", "(I)V");
-    if (setOrientationMethod) {
-        // See http://developer.android.com/reference/android/content/pm/ActivityInfo.html
-        const int SCREEN_ORIENTATION_LANDSCAPE = 0;
-        const int SCREEN_ORIENTATION_PORTRAIT = 1;
-
-        int o = width__ > height__ ? SCREEN_ORIENTATION_LANDSCAPE : SCREEN_ORIENTATION_PORTRAIT;
-        (*env)->CallVoidMethod(env, activity->clazz, setOrientationMethod, o);
-    }
-    (*activity->vm)->DetachCurrentThread(activity->vm);
-
     RestoreWin(&_glfwWin);
-
     create_gl_surface(&_glfwWin);
-
     return GL_TRUE;
 }
 
@@ -317,13 +298,4 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     }
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
-}
-
-//========================================================================
-// Get physical accelerometer
-//========================================================================
-
-int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
-{
-	return 0;
 }

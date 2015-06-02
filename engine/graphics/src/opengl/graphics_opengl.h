@@ -18,6 +18,7 @@ namespace dmGraphics
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
         uint32_t                m_WindowHeight;
+        uint32_t                m_Dpi;
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
         // Counter to keep track of various modifications. Used for cache flush etc
@@ -43,6 +44,8 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
+
+        TextureParams m_Params;
     };
 
     struct VertexDeclaration
@@ -65,11 +68,13 @@ namespace dmGraphics
         uint32_t    m_ModificationVersion;
 
     };
+    // TODO: Why this one here!? Not used?
     struct VertexBuffer
     {
         GLuint      m_VboId;
     };
 
+    // TODO: Why this one here!? Not used?
     struct IndexBuffer
     {
         GLuint      m_VboId;

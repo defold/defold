@@ -75,6 +75,7 @@ TEST_F(ScriptTest, TestPPrint)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+
 TEST_F(ScriptTest, TestCircularRefPPrint)
 {
     int top = lua_gettop(L);
@@ -247,6 +248,43 @@ TEST_F(ScriptTest, TestErrorHandler) {
     lua_pushcfunction(L, FailingFunc);
     int result = dmScript::PCall(L, 0, LUA_MULTRET);
 
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptTest, TestErrorHandlerFunction)
+{
+    int top = lua_gettop(L);
+
+    const char *install_working =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "    print(\"type is \" .. _type)\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_working));
+
+    lua_pushcfunction(L, FailingFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    ASSERT_TRUE(RunString(L, "assert(_error == \"this function does not work\")"));
+    ASSERT_TRUE(RunString(L, "assert(string.len(_traceback) > 15)"));
+
+    // test the path with failing error handler
+    const char *install_failing =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "   _G.error(\"Unable to handle error\")\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_failing));
+
+    lua_pushcfunction(L, FailingFunc);
+    result = dmScript::PCall(L, 0, LUA_MULTRET);
     ASSERT_EQ(LUA_ERRRUN, result);
     ASSERT_EQ(top, lua_gettop(L));
 }
