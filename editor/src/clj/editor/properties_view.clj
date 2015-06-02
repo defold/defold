@@ -183,7 +183,7 @@
       (when (satisfies? core/MultiNode node)
         (let [sub-nodes (core/sub-nodes node)]
           (when (not (empty? sub-nodes))
-            (create-properties workspace grid (map g/node-id sub-nodes))))))))
+            (create-properties workspace grid sub-nodes)))))))
 
 (defn- update-grid [parent workspace nodes]
   (if nodes
