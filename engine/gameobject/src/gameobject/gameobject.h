@@ -6,6 +6,7 @@
 
 #include <dlib/easing.h>
 #include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
 
@@ -234,6 +235,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
+        /// Component index that can be used later with GetWorld()
+        uint8_t m_ComponentIndex;
         /// Out-parameter of the pointer in which to store the created world
         void** m_World;
     };
@@ -417,6 +420,26 @@ namespace dmGameObject
     typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params);
 
     /**
+     * Parameters to ComponentsRender callback.
+     */
+    struct ComponentsRenderParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+    };
+
+    /**
+     * Component render function.
+     * @param params Input parameters
+     * @return UPDATE_RESULT_OK on success
+     */
+    typedef UpdateResult (*ComponentsRender)(const ComponentsRenderParams& params);
+
+    /**
      * Parameters for ComponentsPostUpdate callback.
      */
     struct ComponentsPostUpdateParams
@@ -576,7 +599,7 @@ namespace dmGameObject
     {
         ComponentType();
 
-        uint32_t                m_ResourceType;
+        dmResource::ResourceType m_ResourceType;
         const char*             m_Name;
         void*                   m_Context;
         ComponentNewWorld       m_NewWorldFunction;
@@ -587,6 +610,7 @@ namespace dmGameObject
         ComponentFinal          m_FinalFunction;
         ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentsUpdate        m_UpdateFunction;
+        ComponentsRender        m_RenderFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
         ComponentOnInput        m_OnInputFunction;
@@ -656,7 +680,7 @@ namespace dmGameObject
      * @param out_component_index Optional component index out argument, 0x0 is accepted
      * @return the registered component type or 0x0 if not found
      */
-    ComponentType* FindComponentType(HRegister regist, uint32_t resource_type, uint32_t* out_component_index);
+    ComponentType* FindComponentType(HRegister regist, dmResource::ResourceType resource_type, uint32_t* out_component_index);
 
     /**
      * Set update order priority. Zero is highest priority.
@@ -665,7 +689,7 @@ namespace dmGameObject
      * @param prio Priority
      * @return RESULT_OK on success
      */
-    Result SetUpdateOrderPrio(HRegister regist, uint32_t resource_type, uint16_t prio);
+    Result SetUpdateOrderPrio(HRegister regist, dmResource::ResourceType resource_type, uint16_t prio);
 
     /**
      * Sort component types according to update order priority.
@@ -701,7 +725,41 @@ namespace dmGameObject
      * @param scale Scale of the spawned object
      * return the spawned instance, 0 at failure
      */
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale);
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
+
+    struct InstancePropertyBuffer
+    {
+        uint8_t *property_buffer;
+        uint32_t property_buffer_size;
+    };
+
+    /**
+     * Used for mapping instance ids from a collection definition to newly spawned instances
+     */
+    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
+
+    /**
+     * Contains property buffers for game objects to be spawned
+     */
+    typedef dmHashTable<dmhash_t, InstancePropertyBuffer> InstancePropertyBuffers;
+
+    /**
+     * Spawns a collection into an existing one, from a collection definition resource. Script properties
+     * can be overridden by passing property buffers through the property_buffers hashtable. An empty game
+     * object is created under which all spawned children are placed.
+     *
+     * @param collection Gameobject collection to spawn into
+     * @param prototype_name Collection file name
+     * @param property_buffers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
+     * @param position Position for the root object
+     * @param rotation Rotation for the root object
+     * @param scale Scale of the root object
+     * @param instances Hash table to be filled with instance identifier mapping.
+     * return true on success
+     */
+    bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
+                             const Point3& position, const Quat& rotation, const Vector3& scale,
+                             InstanceIdMap *instances);
 
     /**
      * Delete gameobject instance
@@ -861,6 +919,13 @@ namespace dmGameObject
     bool Update(HCollection collection, const UpdateContext* update_context);
 
     /**
+     * Render all components in all game objects.
+     * @param collection Collection to be rendered
+     * @return True on success
+     */
+    bool Render(HCollection collection);
+
+    /**
      * Performs clean up of the collection after update, such as deleting all instances scheduled for delete.
      * @param collection Game object collection
      * @return True on success
@@ -967,7 +1032,14 @@ namespace dmGameObject
      * @param instance Gameobject instance
      * @return Uniform scale
      */
-    float GetScale(HInstance instance);
+    float GetUniformScale(HInstance instance);
+
+    /**
+     * Get gameobject instance scale
+     * @param instance Gameobject instance
+     * @return Non-uniform scale
+     */
+    Vector3 GetScale(HInstance instance);
 
     /**
      * Get gameobject instance world position
@@ -986,16 +1058,30 @@ namespace dmGameObject
     /**
      * Get game object instance world transform
      * @param instance Game object instance
-     * @return World uniform scale
+     * @return World scale
      */
-    float GetWorldScale(HInstance instance);
+    Vector3 GetWorldScale(HInstance instance);
 
     /**
-     * Get game object instance world uniform scale
+     * Get game object instance uniform scale
      * @param instance Game object instance
      * @return World uniform scale
      */
-    const dmTransform::Transform& GetWorldTransform(HInstance instance);
+    float GetWorldUniformScale(HInstance instance);
+
+    /**
+     * Get game object instance world transform
+     * @param instance Game object instance
+     * @return World transform
+     */
+    const dmTransform::Transform GetWorldTransform(HInstance instance);
+
+    /**
+     * Get game object instance world transform as Matrix4.
+     * @param instance Game object instance
+     * @return World transform matrix.
+     */
+    const Matrix4 & GetWorldMatrix(HInstance instance);
 
     /**
      * Set parent instance to child
@@ -1078,7 +1164,7 @@ namespace dmGameObject
                      dmhash_t property_id,
                      Playback playback,
                      const PropertyVar& to,
-                     dmEasing::Type easing,
+                     dmEasing::Curve easing,
                      float duration,
                      float delay,
                      AnimationStopped animation_stopped,

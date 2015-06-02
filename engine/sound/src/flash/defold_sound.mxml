@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" creationComplete="Start()" paddingTop="0" paddingBottom="0" paddingLeft="0" paddingRight="0">
+   <mx:Script>
+   <![CDATA[
+
+import flash.external.ExternalInterface;
+
+public function Start():void {
+	var snd:Sound = new Sound();
+	snd.addEventListener(SampleDataEvent.SAMPLE_DATA, GetSamples); 
+	snd.play();
+}
+public function GetSamples(event:SampleDataEvent):void {
+	var dat:String = ExternalInterface.call("dmFlashGetSoundData");
+	var l:uint=dat.length;
+	for(var i:int=0;i<l;++i) {
+		event.data.writeFloat((dat.charCodeAt(i)-32768)/16384);
+	}
+}
+   ]]>
+   </mx:Script>
+</mx:Application>
+

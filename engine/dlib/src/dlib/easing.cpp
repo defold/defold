@@ -7,22 +7,44 @@ namespace dmEasing
 {
     #include "easing_lookup.h"
 
-    const float EASING_SAMPLES_MINUS_ONE_RECIP = (1.0f / (EASING_SAMPLES-1));
-
     float GetValue(Type type, float t)
     {
+        return GetValue(Curve(type), t);
+    }
+
+    float GetValue(Curve curve, float t)
+    {
         t = dmMath::Clamp(t, 0.0f, 1.0f);
-        int index1 = (int) (t * (EASING_SAMPLES-1));
-        int index2 = index1 + 1;
-        float diff = (t - index1 * EASING_SAMPLES_MINUS_ONE_RECIP) * (EASING_SAMPLES-1);
+        int sample_count;
+        int index1, index2;
+        float val1, val2;
+        float* lookup;
 
-        // NOTE: + 1 as the last sample is duplicated
-        const int offset = type * (EASING_SAMPLES + 1);
-        index1 += offset;
-        index2 += offset;
+        if (curve.type == dmEasing::TYPE_FLOAT_VECTOR)
+        {
+            sample_count = curve.vector->size;
+            lookup       = curve.vector->values;
 
-        float val1 = EASING_LOOKUP[index1];
-        float val2 = EASING_LOOKUP[index2];
+            if (sample_count == 0)
+            {
+                return 0.0f;
+            } else if (sample_count == 1) {
+                return lookup[0];
+            }
+
+        } else {
+            sample_count = EASING_SAMPLES; // 64 samples for built in curves
+            lookup       = EASING_LOOKUP;
+            lookup      += curve.type * (EASING_SAMPLES + 1); // NOTE: + 1 as the last sample is duplicated
+        }
+
+        index1 = (int) (t * (sample_count-1));
+        index2 = dmMath::Min(index1 + 1, sample_count-1);
+
+        val1 = lookup[index1];
+        val2 = lookup[index2];
+
+        float diff = (t - index1 * (1.0f / (sample_count-1))) * (sample_count-1);
         return val1 * (1.0f - diff) + val2 * diff;
     }
 }

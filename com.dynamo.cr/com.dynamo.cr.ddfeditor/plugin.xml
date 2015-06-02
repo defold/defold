@@ -43,6 +43,15 @@
             class="com.dynamo.cr.sceneed.ui.SceneEditor"
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
+            extensions="collectionfactory"
+            icon="icons/factory.png"
+            id="com.dynamo.cr.ddfeditor.collectionfactoryEditor"
+            name="Scene Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="false"
             extensions="collisionobject"
             icon="icons/weight.png"
             id="com.dynamo.cr.ddfeditor.collisionObjectEditor"
@@ -120,6 +129,24 @@
             id="com.dynamo.cr.ddfeditor.cubemapeditor"
             name="Cubemap Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.TextureProfilesEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="texture_profiles"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.textureprofileseditor"
+            name="Texture Profiles Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.DisplayProfilesEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="display_profiles"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.displayprofileseditor"
+            name="Display Profiles Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -150,6 +177,13 @@
             icon="icons/factory.png"
             id="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard"
             name="Factory File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard"
+            icon="icons/factory.png"
+            id="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard"
+            name="Collection Factory File">
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
@@ -188,6 +222,13 @@
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.TextureProfilesNewWizard"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.wizards.TextureProfilesNewWizard"
+            name="Texture Profiles File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard"
             icon="icons/keyboard.png"
             id="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard"
@@ -199,6 +240,13 @@
             icon="icons/ice_cube.png"
             id="com.dynamo.cr.ddfeditor.wizards.CubemapNewWizard"
             name="Cubemap File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.DisplayProfilesNewWizard"
+            icon="icons/picture_insert.png"
+            id="com.dynamo.cr.ddfeditor.wizards.DisplayProfilesNewWizard"
+            name="Display Profiles File">
       </wizard>
    </extension>
    <extension
@@ -221,6 +269,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard">
          <enablement></enablement>
       </commonWizard>
       <commonWizard
@@ -300,6 +353,21 @@
             name="Factory"
             proto-message-class="com.dynamo.gamesystem.proto.GameSystem$FactoryDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.FactoryRefactorParticipant"
+            template-data="prototype: &apos;&apos;"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="gameobject">
+            </reference-type-class>
+         </references>
+      </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="collectionfactory"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.CollectionFactory"
+            name="Collection Factory"
+            proto-message-class="com.dynamo.gamesystem.proto.GameSystem$CollectionFactoryDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CollectionFactoryRefactorParticipant"
             template-data="prototype: &apos;&apos;"
             type-class="component">
          <references>
@@ -452,6 +520,14 @@
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.SoundRefactorParticipant"
             template-data="sound: &quot;&quot; "
             type-class="component">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.WavSound">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.OggSound">
+            </reference-resource-type>
+         </references>
       </resource-type>
       <resource-type
             file-extension="ttf"
@@ -479,6 +555,27 @@
             </reference-type-class>
          </references>
       </resource-type>
+      <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.TextureProfilesEditSupport"
+            file-extension="texture_profiles"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.TextureProfiles"
+            name="Texture Profiles"
+            proto-message-class="com.dynamo.graphics.proto.Graphics$TextureProfiles"
+            template-data="path_settings { path: '**' profile: 'Default' } profiles { name: 'Default' platforms { os: OS_ID_GENERIC formats { format: TEXTURE_FORMAT_RGBA compression_level: BEST } mipmaps: true } }">
+      </resource-type>
+      <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.DisplayProfilesEditSupport"
+            file-extension="display_profiles"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.DisplayProfiles"
+            name="Display Profiles"
+            proto-message-class="com.dynamo.render.proto.Render$DisplayProfiles"
+            template-data="profiles { name: &apos;Default&apos; qualifiers { width: 1280 height: 720 } }">
+      </resource-type>
+      <resource-type
+            file-extension="ogg"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.OggSound"
+            name="Ogg sound">
+      </resource-type>
     </extension>
    <extension
          point="org.eclipse.ui.perspectiveExtensions">
@@ -495,6 +592,9 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard">
@@ -530,6 +630,13 @@
             node="com.dynamo.cr.ddfeditor.scene.FactoryNode"
             renderer="com.dynamo.cr.ddfeditor.scene.FactoryRenderer"
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Factory">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.ddfeditor.scene.collectionFactoryNode"
+            loader="com.dynamo.cr.ddfeditor.scene.CollectionFactoryLoader"
+            node="com.dynamo.cr.ddfeditor.scene.CollectionFactoryNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.CollectionFactoryRenderer"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.CollectionFactory">
       </node-type>
       <node-type
             display-group="Physics"

@@ -35,7 +35,7 @@ namespace dmConnectionPool
         }
 
         uint16_t            m_Version;
-        uint16_t            m_ResuseCount;
+        uint16_t            m_ReuseCount;
         dmhash_t            m_ID;
         dmSocket::Address   m_Address;
         uint16_t            m_Port;
@@ -43,6 +43,7 @@ namespace dmConnectionPool
         dmSocket::Socket    m_Socket;
         SSL*                m_SSLConnection;
         State               m_State;
+        uint16_t            m_WasShutdown:1;
     };
 
     static void DoClose(HPool pool, Connection* c);
@@ -54,6 +55,8 @@ namespace dmConnectionPool
         uint16_t            m_NextVersion;
         SSL_CTX*            m_SSLContext;
         dmMutex::Mutex      m_Mutex;
+
+        uint16_t            m_AllowNewConnections:1;
 
         ConnectionPool(const Params* params)
         {
@@ -85,6 +88,9 @@ namespace dmConnectionPool
             // Might not have any effect though as we don't store and cache the
             // session locally. See Connect function
             m_SSLContext = ssl_ctx_new(options, 16);
+
+            // This is to block new connections when shutting down the pool.
+            m_AllowNewConnections = 1;
         }
 
         ~ConnectionPool()
@@ -201,7 +207,7 @@ namespace dmConnectionPool
 
             if (c->m_State == STATE_CONNECTED && c->m_ID == id) {
                 c->m_State = STATE_INUSE;
-                c->m_ResuseCount++;
+                c->m_ReuseCount++;
                 *connection = MakeHandle(pool, i, c);
                 return true;
             }
@@ -305,6 +311,10 @@ namespace dmConnectionPool
 
         PurgeExpired(pool);
 
+        if (!pool->m_AllowNewConnections) {
+            return RESULT_SHUT_DOWN;
+        }
+
         dmSocket::Address address;
         dmSocket::Result sr = dmSocket::GetHostByName(host, &address);
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);
@@ -327,11 +337,12 @@ namespace dmConnectionPool
         if (r == RESULT_OK) {
             *connection = MakeHandle(pool, index, c);
             c->m_ID = conn_id;
-            c->m_ResuseCount = 0;
+            c->m_ReuseCount = 0;
             c->m_State = STATE_INUSE;
             c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetTime();
             c->m_Address = address;
             c->m_Port = port;
+            c->m_WasShutdown = 0;
         } else {
             c->Clear();
         }
@@ -377,7 +388,33 @@ namespace dmConnectionPool
     {
         Connection* c = GetConnection(pool, connection);
         assert(c->m_State == STATE_INUSE);
-        return c->m_ResuseCount;
+        return c->m_ReuseCount;
     }
 
+    uint32_t Shutdown(HPool pool, dmSocket::ShutdownType how)
+    {
+        // Shut down all in use and prevent new ones. Return total count of
+        // in-use connections.
+        DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+        uint32_t count = 0;
+        for (uint32_t i=0;i!=pool->m_Connections.Size();i++) {
+            Connection* c = &pool->m_Connections[i];
+            if (c->m_State == STATE_INUSE) {
+                count++;
+                if (!c->m_WasShutdown) {
+                    assert(c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE);
+                    dmSocket::Shutdown(c->m_Socket, how);
+                    c->m_WasShutdown = 1;
+                }
+            }
+        }
+        pool->m_AllowNewConnections = 0;
+        return count;
+    }
+
+    void Reopen(HPool pool)
+    {
+        DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+        pool->m_AllowNewConnections = 1;
+    }
 }

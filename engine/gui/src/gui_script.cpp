@@ -456,6 +456,19 @@ namespace dmGui
         return 0;
     }
 
+    void LuaCurveRelease(dmEasing::Curve* curve)
+    {
+        lua_State* L = (lua_State*)curve->userdata1;
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+        assert(top == lua_gettop(L));
+    }
+
     void LuaAnimationComplete(HScene scene, HNode node, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
@@ -466,8 +479,8 @@ namespace dmGui
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        int ref = (int) userdata1;
-        int node_ref = (int) userdata2;
+        int ref = (int) ((uintptr_t) userdata1 & 0xffffffff);
+        int node_ref = (int) ((uintptr_t) userdata2 & 0xffffffff);
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
@@ -766,7 +779,7 @@ namespace dmGui
      *
      * </p>
      * @param to target property value (vector3|vector4)
-     * @param easing easing to use during animation (constant). See gui.EASING_* constants
+     * @param easing easing to use during animation. Either specify one of the gui.EASING_* constants or provide a vmath.vector with a custom curve. (constant|vector)
      * @param duration duration of the animation (number)
      * @param [delay] delay before the animation starts (number)
      * @param [complete_function] function to call when the animation has completed (function)
@@ -789,6 +802,7 @@ namespace dmGui
      * </p>
      * <p>
      * How to start a sequenced animation where the node fades in to white during 0.5 seconds, stays visible for 2 seconds and then fades out:
+     * </p>
      * <pre>
      * local function on_animation_done(self, node)
      *     -- fade out node, but wait 2 seconds before the animation starts
@@ -803,6 +817,23 @@ namespace dmGui
      *     -- animate the node immediately and call on_animation_done when the animation has completed
      *     gui.animate(my_node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5, 0.0, on_animation_done)
      * end
+     * </pre>
+     * <p>How to animate a node's y position using a crazy custom easing curve:</p>
+     * <pre>
+     * function init(self)
+     *     local values = { 0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1 }
+     *     local vec = vmath.vector(values)
+     *     local node = gui.get_node("box")
+     *     gui.animate(node, "position.y", 100, vec, 4.0, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+     * end
+     * </pre>
      */
     int LuaAnimate(lua_State* L)
     {
@@ -840,7 +871,29 @@ namespace dmGui
         {
             to = *dmScript::CheckVector4(L, 3);
         }
-        int easing = (int) luaL_checknumber(L, 4);
+
+        dmEasing::Curve curve;
+        if (lua_isnumber(L, 4))
+        {
+            curve.type = (dmEasing::Type)luaL_checkinteger(L, 4);
+            if (curve.type >= dmEasing::TYPE_COUNT)
+                return luaL_error(L, "invalid easing constant");
+        }
+        else if (dmScript::IsVector(L, 4))
+        {
+            curve.type = dmEasing::TYPE_FLOAT_VECTOR;
+            curve.vector = dmScript::CheckVector(L, 4);
+
+            lua_pushvalue(L, 4);
+            curve.release_callback = LuaCurveRelease;
+            curve.userdata1 = (void*)L;
+            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        else
+        {
+            return luaL_error(L, "easing must be either a easing constant or a vmath.vector");
+        }
+
         lua_Number duration = luaL_checknumber(L, 5);
         float delay = 0.0f;
         int node_ref = LUA_NOREF;
@@ -865,15 +918,10 @@ namespace dmGui
             playback = (Playback) luaL_checkinteger(L, 8);
         }
 
-        if (easing >= dmEasing::TYPE_COUNT)
-        {
-            luaL_error(L, "Invalid easing: %d", easing);
-        }
-
         if (animation_complete_ref == LUA_NOREF) {
-            AnimateNodeHash(scene, hnode, property_hash, to, (dmEasing::Type) easing, playback, (float) duration, delay, 0, 0, 0);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, 0, 0, 0);
         } else {
-            AnimateNodeHash(scene, hnode, property_hash, to, (dmEasing::Type) easing, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
 
         assert(top== lua_gettop(L));
@@ -1145,7 +1193,7 @@ namespace dmGui
     }
 
     /*# gets the node texture
-     * This is currently only useful for box nodes. The texture must be mapped to the gui scene in the gui editor.
+     * This is currently only useful for box or pie nodes. The texture must be mapped to the gui scene in the gui editor.
      *
      * @name gui.get_texture
      * @param node node to get texture from (node)
@@ -1208,6 +1256,110 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the node flipbook animation
+     * Get node flipbook animation.
+     *
+     * @name gui.get_flipbook
+     * @param node node to get flipbook animation from (node)
+     * @param animation animation id (hash)
+     */
+    static int LuaGetFlipbook(lua_State* L)
+    {
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        dmScript::PushHash(L, dmGui::GetNodeFlipbookAnimId(scene, hnode));
+        return 1;
+    }
+
+    /*# play node flipbook animation
+     * Play flipbook animation on a box or pie node. The current node texture must contain the animation.
+     *
+     * @name gui.play_flipbook
+     * @param node node to set animation for (node)
+     * @param animation animation id (string|hash)
+     * @param [complete_function] function to call when the animation has completed (function)
+     */
+    static int LuaPlayFlipbook(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        int node_ref = LUA_NOREF;
+        int animation_complete_ref = LUA_NOREF;
+        if (lua_isfunction(L, 3))
+        {
+            lua_pushvalue(L, 3);
+            animation_complete_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            lua_pushvalue(L, 1);
+            node_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            fflush(stdout);
+        }
+
+        if (lua_isstring(L, 2))
+        {
+            const char* anim_id = luaL_checkstring(L, 2);
+            Result r;
+            if(animation_complete_ref != LUA_NOREF)
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            else
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+            if (r != RESULT_OK)
+            {
+                const char* node_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
+                if(node_id_string != 0x0)
+                    luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id, node_id_string);
+                else
+                    luaL_error(L, "Animation %s invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+            }
+        }
+        else
+        {
+            dmhash_t anim_id = dmScript::CheckHash(L, 2);
+            Result r;
+            if(animation_complete_ref != LUA_NOREF)
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            else
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+            if (r != RESULT_OK)
+            {
+                const char* node_id_string = (const char*)dmHashReverse64(anim_id, 0x0);
+                const char* anim_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
+                if(node_id_string != 0x0 && anim_id_string != 0x0)
+                    luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id_string, node_id_string);
+                else
+                    luaL_error(L, "Animation %llu invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+            }
+        }
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# pause or unpause the node flipbook animation
+     * Pause or unpause the node flipbook animation.
+     *
+     * @name gui.cancel_flipbook
+     * @param node node cancel flipbook animation for (node)
+     */
+    static int LuaCancelFlipbook(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+        Scene* scene = GuiScriptInstance_Check(L);
+        CancelNodeFlipbookAnim(scene, hnode);
+        return 0;
+    }
+
     static dmImage::Type ToImageType(lua_State*L, const char* type_str)
     {
         if (strcmp(type_str, "rgb") == 0) {
@@ -1224,6 +1376,42 @@ namespace dmGui
         return (dmImage::Type) 0;
     }
 
+    /*# create new texture
+     * Dynamically create a new texture.
+     *
+     * @name gui.new_texture
+     * @param texture texture id (string|hash)
+     * @param width texture width (number)
+     * @param height texture height (number)
+     * @param type texture type (string|constant)
+     * <ul>
+     *   <li><code>"rgb"</code> - RGB</li>
+     *   <li><code>"rgba"</code> - RGBA</li>
+     *   <li><code>"l"</code> - LUMINANCE</li>
+     * </ul>
+     * @param buffer texture data (string)
+     * @return texture creation was successful (boolean)
+     * @examples
+     * <pre>
+     * function init(self)
+     *      local w = 200
+     *      local h = 300
+     *
+     *      -- A nice orange. String with the RGB values.
+     *      local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+     *
+     *      -- Create the texture. Repeat the color string for each pixel.
+     *      if gui.new_texture("orange_tx", w, h, "rgb", string.rep(orange, w * h)) then
+     *          -- Create a box node and apply the texture to it.
+     *          local n = gui.new_box_node(vmath.vector3(200, 200, 0), vmath.vector3(w, h, 0))
+     *          gui.set_texture(n, "orange_tx")
+     *      else
+     *          -- Could not create texture...
+     *          ...
+     *      end
+     * end
+     * </pre>
+     */
     static int LuaNewTexture(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -1250,6 +1438,25 @@ namespace dmGui
         return 1;
     }
 
+    /*# delete texture
+     * Delete a dynamically created texture.
+     *
+     * @name gui.delete_texture
+     * @param texture texture id (string|hash)
+     * @examples
+     * <pre>
+     * function init(self)
+     *      -- Create a texture.
+     *      if gui.new_texture("temp_tx", 10, 10, "rgb", string.rep('\0', 10 * 10 * 3)) then
+     *          -- Do something with the texture.
+     *          ...
+     *
+     *          -- Delete the texture
+     *          gui.delete_texture("temp_tx")
+     *      end
+     * end
+     * </pre>
+     */
     static int LuaDeleteTexture(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -1268,6 +1475,48 @@ namespace dmGui
         return 0;
     }
 
+    /*# set the buffer data for a texture
+     * Set the texture buffer data for a dynamically created texture.
+     *
+     * @name gui.set_texture_data
+     * @param texture texture id (string|hash)
+     * @param width texture width (number)
+     * @param height texture height (number)
+     * @param type texture type (string|constant)
+     * <ul>
+     *   <li><code>"rgb"</code> - RGB</li>
+     *   <li><code>"rgba"</code> - RGBA</li>
+     *   <li><code>"l"</code> - LUMINANCE</li>
+     * </ul>
+     * @param buffer texture data (string)
+     * @return setting the data was successful (boolean)
+     * @examples
+     * <pre>
+     * function init(self)
+     *      local w = 200
+     *      local h = 300
+     *
+     *      -- Create a dynamic texture, all white.
+     *      if gui.new_texture("dynamic_tx", w, h, "rgb", string.rep(string.char(0xff), w * h * 3)) then
+     *          -- Create a box node and apply the texture to it.
+     *          local n = gui.new_box_node(vmath.vector3(200, 200, 0), vmath.vector3(w, h, 0))
+     *          gui.set_texture(n, "dynamic_tx")
+     *
+     *          ...
+     *
+     *          -- Change the data in the texture to a nice orange.
+     *          local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+     *          if gui.set_texture_data("dynamic_tx", w, h, "rgb", string.rep(orange, w * h)) then
+     *              -- Go on and to more stuff
+     *              ...
+     *          end
+     *      else
+     *          -- Something went wrong
+     *          ...
+     *      end
+     * end
+     * </pre>
+     */
     static int LuaSetTextureData(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -1429,6 +1678,22 @@ namespace dmGui
         }
         assert(top == lua_gettop(L));
         return 0;
+    }
+
+    /*# gets the scene current layout
+     *
+     * @name gui.get_layout
+     * @return layout id (hash)
+     */
+    static int LuaGetLayout(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmScript::PushHash(L, dmGui::GetLayout(scene));
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     /*# gets the node clipping mode
@@ -1828,7 +2093,7 @@ namespace dmGui
     {
         Scene* scene = GuiScriptInstance_Check(L);
 
-        lua_pushnumber(L, scene->m_Context->m_Width);
+        lua_pushnumber(L, scene->m_Width);
         return 1;
     }
 
@@ -1841,7 +2106,54 @@ namespace dmGui
     {
         Scene* scene = GuiScriptInstance_Check(L);
 
-        lua_pushnumber(L, scene->m_Context->m_Height);
+        lua_pushnumber(L, scene->m_Height);
+        return 1;
+    }
+
+    /*# set the slice9 configuration for the node
+     *
+     * @name gui.set_slice9
+     * @param node node to manipulate
+     * @param params new value (vector4)
+     */
+    static int LuaSetSlice9(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        if (dmScript::IsVector4(L, 2))
+        {
+            const Vector4 value = *(dmScript::CheckVector4(L, 2));
+            Scene* scene = GuiScriptInstance_Check(L);
+            dmGui::SetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9, value);
+        }
+        else
+        {
+            luaL_error(L, "invalid parameter given");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# get the slice9 values for the node
+     *
+     * @name gui.get_slice9
+     * @param node node to manipulate
+     * @return vector4 with configuration values
+     */
+    static int LuaGetSlice9(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmScript::PushVector4(L, dmGui::GetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9));
         return 1;
     }
 
@@ -1896,6 +2208,7 @@ namespace dmGui
     /*# sets the angle for the filled pie sector
      *
      * @name gui.set_fill_angle
+     * @param node node to set the fill angle for (node)
      * @param sector angle
      */
     static int LuaSetPieFillAngle(lua_State* L)
@@ -1922,6 +2235,7 @@ namespace dmGui
     /*# gets the angle for the filled pie sector
      *
      * @name gui.get_fill_angle
+     * @param node node from which to get the fill angle (node)
      * @return sector angle
      */
     static int LuaGetPieFillAngle(lua_State* L)
@@ -1944,6 +2258,7 @@ namespace dmGui
     /*# sets the pie inner radius (defined along the x dimension)
      *
      * @name gui.set_inner_radius
+     * @param node node to set the inner radius for (node)
      * @param inner radius
      */
     static int LuaSetInnerRadius(lua_State* L)
@@ -1970,6 +2285,7 @@ namespace dmGui
     /*# gets the pie inner radius (defined along the x dimension)
      *
      * @name gui.get_inner_radius
+     * @param node node from where to get the inner radius (node)
      * @return inner radius
      */
     static int LuaGetInnerRadius(lua_State* L)
@@ -1992,6 +2308,7 @@ namespace dmGui
     /*# sets the pie outer bounds mode
      *
      * @name gui.set_outer_bounds
+     * @param node node for which to set the outer bounds mode (node)
      * @param BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
      */
     static int LuaSetOuterBounds(lua_State* L)
@@ -2018,6 +2335,7 @@ namespace dmGui
     /*# gets the pie outer bounds mode
      *
      * @name gui.get_outer_bounds
+     * @param node node from where to get the outer bounds mode (node)
      * @return BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
      */
     static int LuaGetOuterBounds(lua_State* L)
@@ -2041,8 +2359,8 @@ namespace dmGui
      *
      * @name gui.pick_node
      * @param node node to be tested for picking (node)
-     * @param x x-coordinate in screen-space
-     * @param y y-coordinate in screen-space
+     * @param x x-coordinate (see <a href="#on_input">on_input</a> )
+     * @param y y-coordinate (see <a href="#on_input">on_input</a> )
      * @return pick result (boolean)
      */
     static int LuaPickNode(lua_State* L)
@@ -2406,7 +2724,7 @@ namespace dmGui
 
     /*# set the render ordering for the current GUI scene
      *
-     * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words 
+     * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words
      * in which order the scene will be rendered in relation to other currently rendered GUI scenes.
      *
      * The number must be in the range 0 to 7.
@@ -2631,10 +2949,9 @@ namespace dmGui
     void SetDefaultNewContextParams(NewContextParams* params)
     {
         memset(params, 0, sizeof(*params));
-        params->m_Width = 640;
-        params->m_Height = 960;
         params->m_PhysicalWidth = 640;
         params->m_PhysicalHeight = 960;
+        params->m_Dpi = 360;
     }
 
     /*# gets the node screen position
@@ -2647,7 +2964,7 @@ namespace dmGui
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
         Scene* scene = GuiScriptInstance_Check(L);
-        Vector4 scale = CalculateReferenceScale(scene->m_Context);
+        Vector4 scale = CalculateReferenceScale(scene);
         Matrix4 node_transform;
         Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
         CalculateNodeTransform(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), node_transform);
@@ -2686,6 +3003,9 @@ namespace dmGui
         {"set_clipping_inverted",LuaSetClippingInverted},
         {"get_texture",     LuaGetTexture},
         {"set_texture",     LuaSetTexture},
+        {"get_flipbook",    LuaGetFlipbook},
+        {"play_flipbook",   LuaPlayFlipbook},
+        {"cancel_flipbook", LuaCancelFlipbook},
         {"new_texture",     LuaNewTexture},
         {"delete_texture",  LuaDeleteTexture},
         {"set_texture_data",LuaSetTextureData},
@@ -2693,6 +3013,7 @@ namespace dmGui
         {"set_font",        LuaSetFont},
         {"get_layer",        LuaGetLayer},
         {"set_layer",        LuaSetLayer},
+        {"get_layout",        LuaGetLayout},
         {"get_text_metrics",LuaGetTextMetrics},
         {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},
@@ -2703,6 +3024,8 @@ namespace dmGui
         {"set_pivot",       LuaSetPivot},
         {"get_width",       LuaGetWidth},
         {"get_height",      LuaGetHeight},
+        {"get_slice9",      LuaGetSlice9},
+        {"set_slice9",      LuaSetSlice9},
         {"pick_node",       LuaPickNode},
         {"is_enabled",      LuaIsEnabled},
         {"set_enabled",     LuaSetEnabled},
@@ -3241,8 +3564,31 @@ namespace dmGui
      *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
      *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_x</code></td><td>The screen space x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_y</code></td><td>The screen space y value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_dx</code></td><td>The change in screen space x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_dy</code></td><td>The change in screen space y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>touch</code></td><td>List of touch input, one element per finger, if present. See table below about touch input</td></tr>
+     * </table>
+     *
+     * <p>
+     * Touch input table:
+     * </p>
+     * <table>
+     *   <th>Field</th>
+     *   <th>Description</th>
+     *   <tr><td><code>pressed</code></td><td>True if the finger was pressed this frame.</td></tr>
+     *   <tr><td><code>released</code></td><td>True if the finger was released this frame.</td></tr>
+     *   <tr><td><code>tap_count</code></td><td>Number of taps, one for single, two for double-tap, etc</td></tr>
+     *   <tr><td><code>x</code></td><td>The x touch location.</td></tr>
+     *   <tr><td><code>y</code></td><td>The y touch location.</td></tr>
+     *   <tr><td><code>dx</code></td><td>The change in x value.</td></tr>
+     *   <tr><td><code>dy</code></td><td>The change in y value.</td></tr>
+     *   <tr><td><code>acc_x</code></td><td>Accelerometer x value (if present).</td></tr>
+     *   <tr><td><code>acc_y</code></td><td>Accelerometer y value (if present).</td></tr>
+     *   <tr><td><code>acc_z</code></td><td>Accelerometer z value (if present).</td></tr>
      * </table>
      *
      * @name on_input

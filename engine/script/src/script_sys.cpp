@@ -51,7 +51,8 @@ namespace dmScript
      * Save data:
      * </p>
      * <pre>
-     * local my_table = {my_key = "my_important_value"}
+     * local my_table = {}
+     * table.add(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * if not sys.save(my_file_path, my_table) then
      *     -- Alert user that the data could not be saved
@@ -63,8 +64,8 @@ namespace dmScript
      * <pre>
      * local my_file_path = sys.get_save_file("my_game", "my_file")
      * local my_table = sys.load(my_file_path)
-     * if #my_table == 0 then
-     *     -- The file could not be found
+     * if not next(my_table) then
+     *     -- empty table
      * end
      * </pre>
      */
@@ -179,8 +180,8 @@ namespace dmScript
      *
      * @name sys.get_config
      * @param key key to get value for. The syntax is SECTION.KEY
-     * @param default_value default value to return if the value doens't exists
-     * @return config value as a string. default_value if the config key doesn't exists
+     * @param default_value default value to return if the value does not exist
+     * @return config value as a string. default_value if the config key does not exist
      * @examples
      * <p>
      * Get user config value
@@ -398,6 +399,43 @@ namespace dmScript
         return 1;
     }
 
+    /*# set the error handler. The error handler is a function which is called whenever a lua runtime error occurs.
+     * @examples
+     * <p>
+     * Install error handler that just prints the errors
+     * </p>
+     * <pre>
+     *  sys.set_error_handler(function(source, message, traceback)
+     *      print("source: " .. source);
+     *      print("message: " .. message);
+     *      print("traceback: " .. traceback);
+     *  end)
+     * </pre>
+     * @name sys.set_error_handler
+     * @param error_handler the function to be called on error
+     */
+    int Sys_SetErrorHandler(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        luaL_checktype(L, 1, LUA_TFUNCTION);
+
+        // store the supplied function in debug.<SCRIPT_ERROR_HANDLER_VAR> so that it can
+        // be called from dmScript::PCall
+        lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+        if (!lua_istable(L, -1)) {
+            lua_pop(L, 1);
+            return 1;
+        }
+
+        lua_pushvalue(L, 1);
+        lua_setfield(L, -2, SCRIPT_ERROR_HANDLER_VAR);
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+        return 1;
+    }
+
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -408,6 +446,7 @@ namespace dmScript
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},
         {"get_ifaddrs", Sys_GetIfaddrs},
+        {"set_error_handler", Sys_SetErrorHandler},
         {0, 0}
     };
 

@@ -36,11 +36,11 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin":
+    if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
     if re.match('arm.*?darwin', platform):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
-    if platform == "linux":
+    if platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     if platform == "win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'glu32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])

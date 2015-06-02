@@ -54,7 +54,6 @@ namespace dmGameSystem
             FactoryComponent* fc = &fw->m_Components[index];
             fc->m_Resource = (FactoryResource*) params.m_Resource;
             *params.m_UserData = (uintptr_t) fc;
-
             return dmGameObject::CREATE_RESULT_OK;
         }
         else
@@ -96,8 +95,20 @@ namespace dmGameSystem
             {
                 id = dmGameObject::GenerateUniqueInstanceId(collection);
             }
+
+            // m_Scale is legacy, so use it if Scale3 is all zeroes
+            Vector3 scale;
+            if (create->m_Scale3.getX() == 0 && create->m_Scale3.getY() == 0 && create->m_Scale3.getZ() == 0)
+            {
+                scale = Vector3(create->m_Scale, create->m_Scale, create->m_Scale);
+            }
+            else
+            {
+                scale = create->m_Scale3;
+            }
+
             dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
-                    create->m_Position, create->m_Rotation, create->m_Scale);
+                    create->m_Position, create->m_Rotation, scale);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }

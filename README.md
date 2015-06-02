@@ -16,6 +16,7 @@ Setup
 
 * [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
 * [Eclipse 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
+* Python (on OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
 * Linux:
 
@@ -141,6 +142,8 @@ Build and Run Editor
     - Deselect `Build` in `General Options`
     - This disables building of custom build steps and explicit invocation of `Project > Build All` is now required.
 
+Note: When running the editor and building a Defold project you must first go to Preferences->Defold->Custom Application and point it to a dmengine built for your OS.
+
 **Notes for building the editor under Linux:**
 * Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
 * Install [libssl0.9.8](https://packages.debian.org/squeeze/i386/libssl0.9.8/download), the Git version bundled with the editor is currently linked against libcrypto.so.0.9.8.
@@ -151,6 +154,48 @@ Build and Run Editor
 
         # If dpkg complains about dependencies, run this directly afterwards:
         $ sudo apt-get install -f
+
+### Troubleshooting
+If you run the editor and get the following error while launching:
+
+```
+1) Error injecting constructor, java.net.SocketException: Can't assign requested address
+  at com.dynamo.upnp.SSDP.<init>(SSDP.java:62)
+  while locating com.dynamo.upnp.SSDP
+  at com.dynamo.cr.target.core.TargetPlugin$Module.configure(TargetPlugin.java:42)
+  while locating com.dynamo.upnp.ISSDP
+    for parameter 0 at com.dynamo.cr.target.core.TargetService.<init>(TargetService.java:95)
+  while locating com.dynamo.cr.target.core.TargetService
+  at com.dynamo.cr.target.core.TargetPlugin$Module.configure(TargetPlugin.java:40)
+  while locating com.dynamo.cr.target.core.ITargetService
+
+1 error
+    at com.google.inject.internal.InjectorImpl$4.get(InjectorImpl.java:987)
+    at com.google.inject.internal.InjectorImpl.getInstance(InjectorImpl.java:1013)
+    at com.dynamo.cr.target.core.TargetPlugin.start(TargetPlugin.java:54)
+    at org.eclipse.osgi.framework.internal.core.BundleContextImpl$1.run(BundleContextImpl.java:711)
+    at java.security.AccessController.doPrivileged(Native Method)
+    at org.eclipse.osgi.framework.internal.core.BundleContextImpl.startActivator(BundleContextImpl.java:702)
+    ... 65 more
+Caused by: java.net.SocketException: Can't assign requested address
+    at java.net.PlainDatagramSocketImpl.join(Native Method)
+    at java.net.AbstractPlainDatagramSocketImpl.join(AbstractPlainDatagramSocketImpl.java:179)
+    at java.net.MulticastSocket.joinGroup(MulticastSocket.java:323)
+```
+
+And the editor starts with:
+
+```
+Plug-in com.dynamo.cr.target was unable to load class com.dynamo.cr.target.TargetContributionFactory.
+An error occurred while automatically activating bundle com.dynamo.cr.target (23).
+```
+
+Then add the following to the VM args in your Run Configuration:
+
+```
+-Djava.net.preferIPv4Stack=true
+```
+
 
 Licenses
 --------

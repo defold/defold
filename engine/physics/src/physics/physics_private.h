@@ -40,6 +40,7 @@ namespace dmPhysics
         void* m_UserData;
         Overlap m_Overlaps[MAX_OVERLAP_COUNT];
         uint32_t m_OverlapCount;
+        uint16_t m_Group;
     };
 
     /**
@@ -74,6 +75,10 @@ namespace dmPhysics
         void*                   m_ObjectB;
         /// Second object user data of the pair
         void*                   m_UserDataB;
+        /// Collision group of the first object
+        uint16_t                m_GroupA;
+        /// Collision group of the second object
+        uint16_t                m_GroupB;
     };
 
     /**

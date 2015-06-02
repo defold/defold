@@ -4,8 +4,8 @@
 
     <path id="classpath">
         <fileset dir="lib" includes="*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/jars" includes="protobuf-java*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/jars" includes="commons*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="protobuf-java*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
@@ -77,7 +77,6 @@
                          to the final name. Only files that are matched by either glob below are included in
                          the copy -->
                     <globmapper from="*/luajit-2.0.3" to="*/luajit"/>
-                    <globmapper from="*/luajit.exe" to="*/luajit.exe"/>
 
                     <!-- NOTE:
                          The follow are required to map unqualied paths to qualified
@@ -90,6 +89,11 @@
             <tarfileset includes="bin/linux/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.3-linux.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/x86_64-linux/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-x86_64-linux.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/win32/**">
@@ -149,6 +153,11 @@
                 <include name="linux/*texc_shared*"/>
             </fileset>
         </copy>
+        <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="x86_64-linux/*texc_shared*"/>
+            </fileset>
+        </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="win32/*texc_shared*"/>
@@ -175,11 +184,9 @@
 
         <jar jarfile="tmp/external-libs.jar">
             <zipgroupfileset dir="../com.dynamo.cr.common/ext">
-              <include name="vecmath.jar"/>
-            </zipgroupfileset>
-            <zipgroupfileset dir="../com.dynamo.cr.common/jars">
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
+              <include name="vecmath.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
               <include name="*.jar"/>

@@ -68,6 +68,63 @@ dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
 int g_TotalBytesLogged = 0;
 FILE* g_LogFile = 0;
 
+// create and bind the server socket, will reuse old port if supplied handle valid
+static void dmLogInitSocket( dmSocket::Socket& server_socket )
+{
+    if (!dLib::IsDebugMode() || !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+        return;
+
+    dmSocket::Result r;
+    dmSocket::Address address;
+    uint16_t port = 0;
+    const char* error_msg = 0;
+
+    if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
+    {
+        dmSocket::GetName(server_socket, &address, &port); // need to reuse the port
+        r = dmSocket::Delete(server_socket);
+        server_socket = dmSocket::INVALID_SOCKET_HANDLE;
+
+        if (r != dmSocket::RESULT_OK)
+        {
+            error_msg = "Unable to delete old log socket";
+            goto bail;
+        }
+    }
+
+    r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket);
+    if (r != dmSocket::RESULT_OK)
+    {
+        error_msg = "Unable to create log socket";
+        goto bail;
+    }
+
+    dmSocket::SetReuseAddress(server_socket, true);
+
+    r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("0.0.0.0"), port);
+    if (r != dmSocket::RESULT_OK)
+    {
+        error_msg = "Unable to bind to log socket";
+        goto bail;
+    }
+
+    r = dmSocket::Listen(server_socket, 32);
+    if (r != dmSocket::RESULT_OK)
+    {
+        error_msg = "Unable to listen on log socket";
+        goto bail;
+    }
+
+    return;
+
+bail:
+    fprintf(stderr, "ERROR:DLIB: %s\n", error_msg);
+    if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
+        dmSocket::Delete(server_socket);
+
+    server_socket = dmSocket::INVALID_SOCKET_HANDLE;
+}
+
 static dmSocket::Result SendAll(dmSocket::Socket socket, const char* buffer, int length)
 {
     int total_sent_bytes = 0;
@@ -126,6 +183,11 @@ static void dmLogUpdateNetwork()
                     connection.m_Socket = client_socket;
                     self->m_Connections.Push(connection);
                 }
+            }
+            else if (r == dmSocket::RESULT_BADF || r == dmSocket::RESULT_CONNABORTED)
+            {
+                // reinitalize log socket
+                dmLogInitSocket(g_dmLogServer->m_ServerSocket);
             }
         }
     }
@@ -206,59 +268,34 @@ void dmLogInitialize(const dmLogParams* params)
     }
 
     dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
+    dmSocket::Address address;
+    uint16_t port;
+    dmLogInitSocket(server_socket);
+    if (server_socket == dmSocket::INVALID_SOCKET_HANDLE)
+    {
+        return;
+    }
+    dmSocket::GetName(server_socket, &address, &port);
+
     dmMessage::HSocket message_socket = 0;
     dmMessage::Result mr;
     dmThread::Thread thread = 0;
-    dmSocket::Address address;
-    uint16_t port;
-    dmSocket::Result r;
     const char* error_msg = 0;
 
     mr = dmMessage::NewSocket("@log", &message_socket);
     if (mr != dmMessage::RESULT_OK)
     {
-        error_msg = "Unable to create @log message socket";
-        goto bail;
-    }
-
-    r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket);
-    if (r != dmSocket::RESULT_OK)
-    {
-        error_msg = "Unable to create log socket";
-        goto bail;
-    }
-
-    dmSocket::SetReuseAddress(server_socket, true);
-
-    r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("0.0.0.0"), 0);
-    if (r != dmSocket::RESULT_OK)
-    {
-        error_msg = "Unable to bind to log socket";
-        goto bail;
-    }
-
-    dmSocket::GetName(server_socket, &address, &port);
-
-    r = dmSocket::Listen(server_socket, 32);
-    if (r != dmSocket::RESULT_OK)
-    {
-        error_msg = "Unable to listen on log socket";
-        goto bail;
+        fprintf(stderr, "ERROR:DLIB: Unable to create @log message socket\n");
+        if (message_socket != 0)
+            dmMessage::DeleteSocket(message_socket);
+        dmSocket::Delete(server_socket);
+        return;
     }
 
     g_dmLogServer = new dmLogServer(server_socket, port, message_socket);
     thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     g_dmLogServer->m_Thread = thread;
 
-    return;
-
-bail:
-    fprintf(stderr, "ERROR:DLIB: %s\n", error_msg);
-    if (message_socket != 0)
-        dmMessage::DeleteSocket(message_socket);
-
-    if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
-        dmSocket::Delete(server_socket);
 }
 
 void dmLogFinalize()

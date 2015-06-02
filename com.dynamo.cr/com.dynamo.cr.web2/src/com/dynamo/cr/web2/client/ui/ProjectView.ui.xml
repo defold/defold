@@ -69,7 +69,6 @@
 						        </div>
 					        </g:HTMLPanel>
                         </g:DeckPanel>
-                        <g:HTMLPanel ui:field="unqualifiedWarning" styleName="{style.important}"><p><i style="icon-exclamation-sign"></i>You must upgrade your plan to work in this project. Please, go to "Billing" to the left and select a plan with a large enough team size.</p></g:HTMLPanel>
                         Library URL:
                         <p>
                         <g:TextBox ui:field="libraryUrl" addStyleNames="{style.libraryUrl}"/>

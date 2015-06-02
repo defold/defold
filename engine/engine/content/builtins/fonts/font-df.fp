@@ -37,15 +37,13 @@ void main_supersample()
                    + eval_borders(dt.zw); // bottom right
 
     borders = (1.0/6.0) * borders;
-    lowp vec4 outline_color = vec4(var_outline_color.xyz * var_outline_color.w, var_outline_color.w);
-    gl_FragColor = mix(mix(var_face_color, outline_color, borders.y), vec4(0), borders.x);
+    gl_FragColor = mix(mix(var_face_color, var_outline_color, borders.y), vec4(0), borders.x);
 }
 
 void main_default()
 {
     lowp vec2 borders = eval_borders(var_texcoord0);
-    lowp vec4 outline_color = vec4(var_outline_color.xyz * var_outline_color.w, var_outline_color.w);
-    gl_FragColor = mix(mix(var_face_color, outline_color, borders.y), vec4(0), borders.x);
+    gl_FragColor = mix(mix(var_face_color, var_outline_color, borders.y), vec4(0), borders.x);
 }
 
 void main()

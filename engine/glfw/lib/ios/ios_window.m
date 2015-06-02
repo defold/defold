@@ -269,6 +269,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     viewFramebuffer = 0;
     depthStencilRenderbuffer = 0;
 
+  _glfwInput.MouseEmulationTouch = 0;
   return self;
 }
 
@@ -417,6 +418,66 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     return touchCount;
 }
 
+- (void)updateMouseEmulation
+{
+    // Find the touch matched by the mouse emulation.
+    int32_t i, found=0, ended=0;
+    void *next = 0;
+
+    for (i=0;i!=_glfwInput.TouchCount;i++)
+    {
+        GLFWTouch *t = &_glfwInput.Touch[i];
+        if (t->Reference == _glfwInput.MouseEmulationTouch)
+        {
+            found = 1;
+
+            _glfwInput.MousePosX = t->X;
+            _glfwInput.MousePosY = t->Y;
+
+            if (_glfwWin.mousePosCallback)
+            {
+                _glfwWin.mousePosCallback(_glfwInput.MousePosX, _glfwInput.MousePosY);
+            }
+
+            if (t->Phase == GLFW_PHASE_ENDED || t->Phase == GLFW_PHASE_CANCELLED)
+            {
+                ended = 1;
+            }
+        }
+        else if (!next && (t->Phase == GLFW_PHASE_BEGAN || t->Phase == GLFW_PHASE_MOVED || t->Phase == GLFW_PHASE_STATIONARY))
+        {
+            // touch candidate for mouse.
+            next = t->Reference;
+        }
+    }
+
+    if (next != 0)
+    {
+        if (!_glfwInput.MouseEmulationTouch)
+        {
+            // mouse press start
+            _glfwInput.MouseEmulationTouch = next;
+            [self updateMouseEmulation];
+            _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        }
+        else if (ended)
+        {
+            // ended but there is another one
+            _glfwInput.MouseEmulationTouch = next;
+            [self updateMouseEmulation];
+        }
+    }
+    else
+    {
+        if (ended || !found)
+        {
+            // no more touches.
+            _glfwInputMouseClick(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+            _glfwInput.MouseEmulationTouch = 0;
+        }
+    }
+}
+
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
     _glfwInput.TouchCount = [self fillTouch: event];
@@ -425,13 +486,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
 
-    _glfwInput.MousePosX = _glfwInput.Touch[0].X;
-    _glfwInput.MousePosY = _glfwInput.Touch[0].Y;
-
-    if( _glfwWin.mousePosCallback )
-    {
-        _glfwWin.mousePosCallback( _glfwInput.MousePosX, _glfwInput.MousePosY );
-    }
+    [self updateMouseEmulation];
 }
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
@@ -447,9 +502,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
 
-    _glfwInput.MousePosX = _glfwInput.Touch[0].X;
-    _glfwInput.MousePosY = _glfwInput.Touch[0].Y;
-    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+    [self updateMouseEmulation];
 }
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
@@ -459,15 +512,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     {
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
-
-    _glfwInput.MousePosX = _glfwInput.Touch[0].X;
-    _glfwInput.MousePosY = _glfwInput.Touch[0].Y;
-
-    if (_glfwInput.TouchCount == 1)
-    {
-        // Send release for last finger
-        _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
-    }
+    [self updateMouseEmulation];
 }
 
 - (BOOL)canBecomeFirstResponder
@@ -525,9 +570,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     {
         _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
     }
-    _glfwInput.MousePosX = _glfwInput.Touch[0].X;
-    _glfwInput.MousePosY = _glfwInput.Touch[0].Y;
-    _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+    [self updateMouseEmulation];
 }
 
 - (void)layoutSubviews
@@ -882,14 +925,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 -(NSUInteger)supportedInterfaceOrientations {
     // NOTE: Only for iOS6
-    if (_glfwWin.portrait)
-    {
-        return UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
-    }
-    else
-    {
-        return UIInterfaceOrientationMaskLandscape;
-    }
+    return UIInterfaceOrientationMaskLandscape | UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
 }
 
 #pragma mark UIContentContainer

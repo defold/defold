@@ -133,6 +133,7 @@ static void ServerThread1(void* arg)
     g_ServerThread1Running = true;
     r = dmSocket::Accept(socket, &address, &client_socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(address, dmSocket::AddressFromIPString("127.0.0.1"));
 
     int value = 1234;
     int sent_bytes;
