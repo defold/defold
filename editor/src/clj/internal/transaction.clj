@@ -270,15 +270,13 @@
 
 (defn- apply-tx
   [ctx actions]
-  (reduce
-   (fn [ctx action]
-     (cond
-       (sequential? action) (apply-tx ctx action)
-       :else                (-> ctx
-                                (perform action)
-                                (update-in [:completed] conj action))))
-   ctx
-   actions))
+  (loop [ctx     ctx
+         actions actions]
+    (if-let [action (first actions)]
+      (if (sequential? action)
+        (recur (apply-tx ctx action) (next actions))
+        (recur (update-in (perform ctx action) [:completed] conj action) (next actions)))
+      ctx)))
 
 (defn- last-seen-node
   [{:keys [basis nodes-deleted]} node-id]
