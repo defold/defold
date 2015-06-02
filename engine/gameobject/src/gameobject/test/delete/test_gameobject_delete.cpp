@@ -30,10 +30,10 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "deleteself", this, ResDeleteSelfCreate, ResDeleteSelfDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "deleteself", this, 0, ResDeleteSelfCreate, ResDeleteSelfDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        uint32_t resource_type;
+        dmResource::ResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "deleteself", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType ds_type;
@@ -56,7 +56,7 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
+    static dmResource::Result ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data,dmResource::SResourceDescriptor* resource, const char* filename);
     static dmResource::Result ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
     static dmGameObject::CreateResult     DeleteSelfComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
@@ -81,7 +81,7 @@ public:
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
-dmResource::Result DeleteTest::ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result DeleteTest::ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data,dmResource::SResourceDescriptor* resource, const char* filename)
 {
     DeleteTest* game_object_test = (DeleteTest*) context;
     game_object_test->m_CreateCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;

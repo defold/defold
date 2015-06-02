@@ -5,6 +5,8 @@
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <pthread.h>
+#include <limits.h>
+#include <unistd.h>
 namespace dmThread
 {
     typedef pthread_t Thread;

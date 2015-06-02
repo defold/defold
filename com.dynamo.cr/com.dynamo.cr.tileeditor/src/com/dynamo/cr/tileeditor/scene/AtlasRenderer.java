@@ -96,8 +96,17 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
             time += renderContext.getDt();
             AtlasAnimationNode playBackNode = node.getPlayBackNode();
             if (playBackNode != null) {
-                renderAnimation(runtimeTextureSet, playBackNode, gl, texture);
                 renderTiles(runtimeTextureSet, gl, 0.1f, texture);
+
+                // AtlasVertexBuffer contains vertices that will display the bitmaps rotated as layed out in the atlas.
+                // Switch here to VertexBuffer for presenting the animation so it is rendered the way it will actually appear.
+                this.vertexFormat.disable(gl, shader);
+                vertexBuffer.disable(gl);
+                vertexBuffer = node.getRuntimeTextureSet().getVertexBuffer();
+                vertexBuffer.enable(gl);
+                this.vertexFormat.enable(gl, shader);
+
+                renderAnimation(runtimeTextureSet, playBackNode, gl, texture);
             } else {
                 renderTiles(runtimeTextureSet, gl, 1, texture);
             }
@@ -129,6 +138,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         case PLAYBACK_ONCE_BACKWARD:
             frame = (nFrames-1) - (frameTime % nFrames);
             break;
+        case PLAYBACK_ONCE_PINGPONG:
         case PLAYBACK_LOOP_PINGPONG:
             // Unwrap to nFrames + (nFrames - 2)
             frame = frameTime % (nFrames * 2 - 2);

@@ -187,7 +187,6 @@ namespace dmGameSystem
             ro->m_VertexBuffer = 0;
             ro->m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             ro->m_Material = material;
-            ro->m_CalculateDepthKey = 1;
         }
 
         world->m_TileGrids.Push(component);
@@ -291,9 +290,9 @@ namespace dmGameSystem
         };
         static int tex_coord_order[] = {
             0,1,2,2,3,0,
-            3,2,1,1,0,3,	//h
-            1,0,3,3,2,1,	//v
-            2,3,0,0,1,2		//hv
+            3,2,1,1,0,3,    //h
+            1,0,3,3,2,1,    //v
+            2,3,0,0,1,2     //hv
         };
 
         const uint32_t VERTCIES_PER_TILE = 6;
@@ -404,11 +403,52 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        {
+            assert((params.m_End - params.m_Begin) == 1);
+
+            TileGridComponent *tile_grid = (TileGridComponent*) params.m_Buf[*params.m_Begin].m_UserData;
+            TileGridResource* resource = tile_grid->m_TileGridResource;
+            dmGraphics::HTexture texture = resource->m_TextureSet->m_Texture;
+
+            for (uint32_t rx = 0; rx < tile_grid->m_RegionsX; ++rx)
+            {
+                for (uint32_t ry = 0; ry < tile_grid->m_RegionsY; ++ry)
+                {
+                    CompTileGridUpdateRegion(params.m_Context, tile_grid, rx, ry);
+
+                    uint32_t region_index = ry * tile_grid->m_RegionsX + rx;
+                    TileGridRegion* region = &tile_grid->m_Regions[region_index];
+                    dmRender::RenderObject* ro = &region->m_RenderObject;
+                    if (ro->m_VertexCount > 0)
+                    {
+                        ro->m_WorldTransform = tile_grid->m_RenderWorldTransform;
+                        ro->m_Textures[0] = texture;
+                        dmRender::AddToRender(params.m_Context, ro);
+                    }
+                }
+            }
+        }
+    }
+
+    dmGameObject::UpdateResult CompTileGridRender(const dmGameObject::ComponentsRenderParams& params)
+    {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
         TileGridWorld* world = (TileGridWorld*) params.m_World;
 
         dmArray<TileGridComponent*>& tile_grids = world->m_TileGrids;
         uint32_t n = tile_grids.Size();
+
+        // Each component instance gets its own entry
+
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, n);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -416,38 +456,29 @@ namespace dmGameSystem
             if (!tile_grid->m_AddedToUpdate) {
                 continue;
             }
-            TileGridResource* resource = tile_grid->m_TileGridResource;
-            dmGraphics::HTexture texture = resource->m_TextureSet->m_Texture;
-            dmTransform::Transform world = dmGameObject::GetWorldTransform(tile_grid->m_Instance);
-            dmTransform::Transform local(tile_grid->m_Translation, tile_grid->m_Rotation, 1.0f);
+
+            Matrix4 local(tile_grid->m_Rotation, Vector3(tile_grid->m_Translation));
+            const Matrix4& go_world = dmGameObject::GetWorldMatrix(tile_grid->m_Instance);
             if (dmGameObject::ScaleAlongZ(tile_grid->m_Instance))
             {
-                world = dmTransform::Mul(world, local);
+                tile_grid->m_RenderWorldTransform = go_world * local;
             }
             else
             {
-                world = dmTransform::MulNoScaleZ(world, local);
+                tile_grid->m_RenderWorldTransform = dmTransform::MulNoScaleZ(go_world, local);
             }
-            Matrix4 w = dmTransform::ToMatrix4(world);
 
-            for (uint32_t rx = 0; rx < tile_grid->m_RegionsX; ++rx)
-            {
-                for (uint32_t ry = 0; ry < tile_grid->m_RegionsY; ++ry)
-                {
-                    CompTileGridUpdateRegion(render_context, tile_grid, rx, ry);
-
-                    uint32_t region_index = ry * tile_grid->m_RegionsX + rx;
-                    TileGridRegion* region = &tile_grid->m_Regions[region_index];
-                    dmRender::RenderObject* ro = &region->m_RenderObject;
-                    if (ro->m_VertexCount > 0)
-                    {
-                        ro->m_WorldTransform = w;
-                        ro->m_Textures[0] = texture;
-                        dmRender::AddToRender(render_context, ro);
-                    }
-                }
-            }
+            const Vector4 trans = tile_grid->m_RenderWorldTransform.getCol(3);
+            write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+            write_ptr->m_UserData = (uintptr_t) tile_grid;
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(tile_grid->m_TileGridResource->m_Material);
+            write_ptr->m_BatchKey = i;
+            write_ptr->m_Dispatch = dispatch;
+            write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+            ++write_ptr;
         }
+
+        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

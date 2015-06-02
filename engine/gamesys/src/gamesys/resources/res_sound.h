@@ -22,9 +22,16 @@ namespace dmGameSystem
         float    m_Gain;
     };
 
+    dmResource::Result ResSoundPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+                                      void* context,
+                                      const void* buffer, uint32_t buffer_size,
+                                      void** preload_data,
+                                      const char* filename);
+
     dmResource::Result ResSoundCreate(dmResource::HFactory factory,
                                       void* context,
                                       const void* buffer, uint32_t buffer_size,
+                                      void *preload_data,
                                       dmResource::SResourceDescriptor* resource,
                                       const char* filename);
 

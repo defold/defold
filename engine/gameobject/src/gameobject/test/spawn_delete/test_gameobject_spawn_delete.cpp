@@ -21,7 +21,7 @@ static int Lua_Spawn(lua_State* L) {
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
     dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
-    dmGameObject::HInstance spawned = dmGameObject::Spawn(collection, prototype, id, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), 1.0f);
+    dmGameObject::HInstance spawned = dmGameObject::Spawn(collection, prototype, id, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     if (spawned == 0x0) {
         luaL_error(L, "failed to spawn");
         return 1;
@@ -58,10 +58,10 @@ protected:
 
         // Register dummy physical resource type
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, ACreate, ADestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        uint32_t resource_type;
+	dmResource::ResourceType resource_type;
         dmGameObject::Result go_result;
 
         // A has component_user_data
@@ -155,7 +155,7 @@ public:
 };
 
 template <typename T>
-dmResource::Result GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result GenericDDFCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     T* obj;
     dmDDF::Result e = dmDDF::LoadMessage<T>(buffer, buffer_size, &obj);
@@ -537,6 +537,31 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_SpawnDelete)
     ASSERT_FINAL(0u);
 
     m_Collection = old_collection;
+}
+
+TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti)
+{
+    dmGameObject::HInstance go = New("/spawndelete_multi.goc");
+
+    Init();
+
+    ASSERT_INIT(0u);
+    ASSERT_ADD_TO_UPDATE(0u);
+    ASSERT_UPDATE(0u);
+    ASSERT_FINAL(0u);
+
+    Update();
+    PostUpdate();
+
+    ASSERT_INIT(2u);
+    ASSERT_ADD_TO_UPDATE(0u);
+    ASSERT_UPDATE(0u);
+    ASSERT_FINAL(2u);
+
+    // Extra update to ensure consistency
+    // The instances will be flagged to add-to-update, but should now have been removed from the linked list
+    Update();
+    Delete(go);
 }
 
 #undef ASSERT_INIT

@@ -14,6 +14,7 @@ import org.eclipse.swt.graphics.RGB;
 
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
@@ -26,6 +27,10 @@ public class LoaderUtil {
 
     public static Vector4d toVector4(Vector4 p) {
         return new Vector4d(p.getX(), p.getY(), p.getZ(), p.getW());
+    }
+
+    public static Vector3d toVector3(Vector3 p) {
+        return new Vector3d(p.getX(), p.getY(), p.getZ());
     }
 
     public static Vector3d toVector3(Vector4 p) {
@@ -48,6 +53,10 @@ public class LoaderUtil {
             .setX((float) v.getX())
             .setY((float) v.getY())
             .setZ((float) v.getZ()).build();
+    }
+
+    public static Vector3 toVector3(Vector3d p) {
+        return Vector3.newBuilder().setX((float) p.getX()).setY((float) p.getY()).setZ((float) p.getZ()).build();
     }
 
     public static Vector4 toVector4(RGB rgb, double alpha) {

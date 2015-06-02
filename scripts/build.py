@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json
+import os, sys, shutil, zipfile, re, itertools, json, platform
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -15,11 +15,14 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 luajit-2.0.3 tremolo-0.0.8".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 facebook-3.22.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 luajit-2.0.3 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
+PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 tremolo-0.0.8".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8".split()
+PACKAGES_WIN32="PVRTexLib-4.5".split()
+PACKAGES_LINUX="PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.22.0 android-support-v4 android-4.2.2 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -37,7 +40,14 @@ PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL = os.environ.get('SHELL', 'bash')
 
 def get_host_platform():
-    return 'linux' if sys.platform == 'linux2' else sys.platform
+    arch = platform.architecture()[0]
+    if sys.platform == 'linux2':
+        if arch == '64bit':
+            return 'x86_64-linux'
+        else:
+            return 'linux'
+    else:
+        return sys.platform
 
 class ThreadPool(object):
     def __init__(self, worker_count):
@@ -216,6 +226,7 @@ class Configuration(object):
     def _install_go(self):
         urls = {'darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
                 'linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
+                'x86_64-linux' : 'http://go.googlecode.com/files/go1.1.linux-amd64.tar.gz',
                 'win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
         url = urls[self.host]
         path = self._download(url)
@@ -364,7 +375,16 @@ class Configuration(object):
             self._extract_tgz(make_path(self.host), self.ext)
 
         for p in PACKAGES_IOS:
-            self._extract_tgz(make_path('armv7-darwin'), self.ext)
+                self._extract_tgz(make_path('armv7-darwin'), self.ext)
+
+        for p in PACKAGES_IOS_64:
+                self._extract_tgz(make_path('arm64-darwin'), self.ext)
+
+        for p in PACKAGES_WIN32:
+                self._extract_tgz(make_path('win32'), self.ext)
+
+        for p in PACKAGES_LINUX:
+                self._extract_tgz(make_path('linux'), self.ext)
 
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
@@ -494,15 +514,14 @@ class Configuration(object):
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
 
-        if self.target_platform != 'x86_64-darwin':
-            # NOTE: Temporary check as we don't build the entire engine to 64-bit
-            for n in ['dmengine', 'dmengine_release', 'dmengine_headless', 'launcher']:
-                engine = join(bin_dir, exe_prefix + n + exe_ext)
-                self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
-                if self.target_platform == 'js-web':
-                    engine_mem = join(bin_dir, exe_prefix + n + exe_ext + '.mem')
-                    if os.path.exists(engine_mem):
-                        self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
+        for n in ['dmengine', 'dmengine_release', 'dmengine_headless', 'launcher']:
+            engine = join(bin_dir, exe_prefix + n + exe_ext)
+            self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
+            if self.target_platform == 'js-web':
+                self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
+                engine_mem = join(bin_dir, exe_prefix + n + exe_ext + '.mem')
+                if os.path.exists(engine_mem):
+                    self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
 
         if self.target_platform == 'linux':
             # NOTE: It's arbitrary for which platform we archive builtins and doc. Currently set to linux
@@ -540,11 +559,7 @@ class Configuration(object):
 
         eclipse = '--eclipse' if self.eclipse else ''
 
-        if self.target_platform.startswith('x86_64'):
-            # Only partial support for 64-bit
-            libs="dlib ddf particle".split()
-        else:
-            libs="dlib ddf particle glfw  graphics lua hid input physics resource extension script render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
+        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
@@ -557,9 +572,7 @@ class Configuration(object):
             for lib in base_libs:
                 self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
                 cwd = join(self.defold_root, 'engine/%s' % (lib))
-                pf_arg = ""
-                if platform != self.host:
-                    pf_arg = "--platform=%s" % (platform)
+                pf_arg = "--platform=%s" % (platform)
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
                 self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
@@ -626,7 +639,8 @@ class Configuration(object):
         return join(os.getcwd(), 'com.dynamo.cr/com.dynamo.cr.%s-product' % product)
 
     def build_server(self):
-        self._build_cr('server')
+        cwd = join(self.defold_root, 'server')
+        self.exec_env_command(['./gradlew', 'clean', 'test', 'distZip'], cwd = cwd)
 
     def build_editor(self):
         import xml.etree.ElementTree as ET
@@ -699,8 +713,12 @@ instructions.configure=\
         self._archive_cr('editor', build_dir)
 
     def archive_server(self):
-        build_dir = self._get_cr_builddir('server')
-        self._archive_cr('server', build_dir)
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'server').replace('\\', '/') + '/'
+        host, path = full_archive_path.split(':', 1)
+        build_dir = join(self.defold_root, 'server')
+        for p in glob(join(build_dir, 'build/distributions/*.zip')):
+            self.upload_file(p, full_archive_path)
 
     def _build_cr(self, product):
         self._sync_archive()
@@ -1198,7 +1216,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android', 'js-web'],
+                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
@@ -1256,32 +1274,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         parser.error('No command specified')
 
     target_platform = options.target_platform if options.target_platform else get_host_platform()
-    if target_platform == 'darwin':
-        # NOTE: Darwin is currently mixed 32 and 64-bit.
-        # That's why we have this temporary hack
-        # NOTE: Build 64-bit first as 32-bit is the current default
-        c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
-                          target_platform = 'x86_64-%s' % target_platform,
-                          eclipse_home = options.eclipse_home,
-                          skip_tests = options.skip_tests,
-                          skip_codesign = options.skip_codesign,
-                          disable_ccache = options.disable_ccache,
-                          no_colors = options.no_colors,
-                          archive_path = options.archive_path,
-                          set_version = options.set_version,
-                          eclipse = options.eclipse,
-                          branch = options.branch,
-                          channel = options.channel,
-                          eclipse_version = options.eclipse_version,
-                          waf_options = waf_options)
-
-        for cmd in args:
-            if cmd in ['distclean', 'install_ext', 'build_engine', 'archive_engine']:
-                f = getattr(c, cmd, None)
-                if not f:
-                    parser.error('Unknown command %s' % cmd)
-                f()
-                c.wait_uploads()
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,

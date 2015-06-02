@@ -49,7 +49,7 @@ public class OpenIDLoginDialog extends Dialog {
     private SocketConnector connector;
     private String crServerUri;
     private String email;
-    private String authCookie;
+    private String authToken;
 
     private void writeResponse(PrintWriter writer, String response) {
         writer.println("<body>");
@@ -111,11 +111,11 @@ public class OpenIDLoginDialog extends Dialog {
                 }
 
                 Client client = Client.create(cc);
-                URI uri = UriBuilder.fromUri(crServerUri).port(9998).build();
+                URI uri = UriBuilder.fromUri(crServerUri).build();
                 WebResource webResource = client.resource(uri);
                 TokenExchangeInfo exchangeInfo;
                 try {
-                    exchangeInfo = webResource.path("/login/openid/exchange").path(loginToken).accept(ProtobufProviders.APPLICATION_XPROTOBUF_TYPE).get(TokenExchangeInfo.class);
+                    exchangeInfo = webResource.path("/login/oauth/exchange").path(loginToken).accept(ProtobufProviders.APPLICATION_XPROTOBUF_TYPE).get(TokenExchangeInfo.class);
                 } catch (ClientHandlerException e) {
                     writeResponse(writer, e.getMessage());
                     return;
@@ -127,7 +127,7 @@ public class OpenIDLoginDialog extends Dialog {
                 }
 
                 OpenIDLoginDialog.this.email = exchangeInfo.getEmail();
-                OpenIDLoginDialog.this.authCookie = exchangeInfo.getAuthCookie();
+                OpenIDLoginDialog.this.authToken = exchangeInfo.getAuthToken();
 
                 getShell().getDisplay().asyncExec(new Runnable() {
                     @Override
@@ -149,8 +149,8 @@ public class OpenIDLoginDialog extends Dialog {
         return email;
     }
 
-    public String getAuthCookie() {
-        return authCookie;
+    public String getAuthToken() {
+        return authToken;
     }
 
     @Override
@@ -198,8 +198,8 @@ public class OpenIDLoginDialog extends Dialog {
     @Override
     protected Control createDialogArea(Composite parent) {
         Browser browser = new Browser(parent, SWT.NONE);
-        UriBuilder googleUrl = UriBuilder.fromUri(crServerUri).path("/login/openid/google").queryParam("redirect_to", String.format("http://localhost:%d/{token}/{action}", connector.getLocalPort()));
-        UriBuilder yahooUrl = UriBuilder.fromUri(crServerUri).path("/login/openid/yahoo").queryParam("redirect_to", String.format("http://localhost:%d/{token}/{action}", connector.getLocalPort()));
+        UriBuilder googleUrl = UriBuilder.fromUri(crServerUri).path("/login/oauth/google").queryParam("redirect_to", String.format("http://localhost:%d/{token}/{action}", connector.getLocalPort()));
+        UriBuilder yahooUrl = UriBuilder.fromUri(crServerUri).path("/login/oauth/yahoo").queryParam("redirect_to", String.format("http://localhost:%d/{token}/{action}", connector.getLocalPort()));
 
         InputStream input = getClass().getClassLoader().getResourceAsStream("/data/login.html");
         ByteArrayOutputStream output = new ByteArrayOutputStream(128 * 1024);
@@ -233,7 +233,7 @@ public class OpenIDLoginDialog extends Dialog {
 
         if (ret == Dialog.OK) {
             System.out.println(dialog.getEmail());
-            System.out.println(dialog.getAuthCookie());
+            System.out.println(dialog.getAuthToken());
         } else {
 
         }

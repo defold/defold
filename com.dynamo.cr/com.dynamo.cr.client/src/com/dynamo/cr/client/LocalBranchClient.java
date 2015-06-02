@@ -12,8 +12,6 @@ import org.eclipse.core.runtime.Path;
 
 import com.dynamo.cr.branchrepo.BranchRepositoryException;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
-import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
 import com.dynamo.cr.protocol.proto.Protocol.CommitDesc;
 import com.dynamo.cr.protocol.proto.Protocol.Log;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
@@ -241,26 +239,6 @@ public class LocalBranchClient implements IBranchClient {
         } catch (Exception e) {
             throw new RepositoryException(String.format("Unable to reset resource '%s'", target), e);
         }
-    }
-
-    @Override
-    public BuildDesc build(boolean rebuild) throws RepositoryException {
-        throw new RuntimeException("Not implemented");
-    }
-
-    @Override
-    public BuildDesc getBuildStatus(int id) throws RepositoryException {
-        throw new RuntimeException("Not implemented");
-    }
-
-    @Override
-    public void cancelBuild(int id) throws RepositoryException {
-        throw new RuntimeException("Not implemented");
-    }
-
-    @Override
-    public BuildLog getBuildLogs(int id) throws RepositoryException {
-        throw new RuntimeException("Not implemented");
     }
 
 }

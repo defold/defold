@@ -11,16 +11,9 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
+    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
                           TileGridResource* tile_grid, const char* filename)
     {
-        dmGameSystemDDF::TileGrid* tile_grid_ddf;
-        dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &tile_grid_ddf);
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
         dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
         if (r != dmResource::RESULT_OK)
         {
@@ -98,15 +91,37 @@ namespace dmGameSystem
         }
     }
 
+    dmResource::Result ResTileGridPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+                                            void* context,
+                                            const void* buffer, uint32_t buffer_size,
+                                            void **preload_data,
+                                            const char* filename)
+    {
+        dmGameSystemDDF::TileGrid* tile_grid_ddf;
+        dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &tile_grid_ddf);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmResource::PreloadHint(hint_info, tile_grid_ddf->m_TileSet);
+        dmResource::PreloadHint(hint_info, tile_grid_ddf->m_Material);
+
+        *preload_data = tile_grid_ddf;
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResTileGridCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
+            void* preload_data,
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
         TileGridResource* tile_grid = new TileGridResource();
+        dmGameSystemDDF::TileGrid* tile_grid_ddf = (dmGameSystemDDF::TileGrid*) preload_data;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, buffer, buffer_size, tile_grid, filename);
+        dmResource::Result r = AcquireResources(((PhysicsContext*)context)->m_Context2D, factory, tile_grid_ddf, tile_grid, filename);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) tile_grid;

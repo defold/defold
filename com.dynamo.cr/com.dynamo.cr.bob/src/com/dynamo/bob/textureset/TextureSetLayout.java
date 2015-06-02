@@ -9,6 +9,22 @@ import java.util.List;
  *
  */
 public class TextureSetLayout {
+
+    public static class Grid {
+        public int columns;
+        public int rows;
+
+        public Grid( int columns, int rows ) {
+            this.columns = columns;
+            this.rows    = rows;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%d columns, %d rows", columns, rows);
+        }
+    }
+
     public static class Rect {
         public Object id;
         public int x, y, width, height;
@@ -73,14 +89,58 @@ public class TextureSetLayout {
 
     }
 
-    public static Layout layout(int margin, List<Rect> rectangles, boolean rotate, boolean fast) {
+    public static Layout packedLayout(int margin, List<Rect> rectangles, boolean rotate) {
         if (rectangles.size() == 0) {
             return new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>());
         }
-        return createMaxRectsLayout(margin, rectangles, rotate, fast);
+
+        return createMaxRectsLayout(margin, rectangles, rotate);
     }
 
-    public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, boolean fast) {
+    private static int getExponentNextOrMatchingPowerOfTwo(int value) {
+        int exponent = 0;
+        while (value > (1<<exponent)) {
+            ++exponent;
+        }
+        return exponent;
+    }
+
+    public static Layout gridLayout(int margin, List<Rect> rectangles, Grid gridSize ) {
+
+        // We assume here that all images have the same size,
+        // since they will be "packed" into a uniformly sized grid.
+        int cellWidth  = rectangles.get(0).width;
+        int cellHeight = rectangles.get(0).height;
+
+        // Scale layout area so it's a power of two
+        int inputWidth  = gridSize.columns * cellWidth + margin*2;
+        int inputHeight = gridSize.rows * cellHeight + margin*2;
+        int layoutWidth = 1 << getExponentNextOrMatchingPowerOfTwo(inputWidth);
+        int layoutHeight = 1 << getExponentNextOrMatchingPowerOfTwo(inputHeight);
+
+        int x = margin;
+        int y = margin;
+
+        // Loop through all images and put them right after each other
+        Layout layout = new Layout(layoutWidth, layoutHeight, rectangles);
+        for (Rect r : layout.getRectangles()) {
+
+            r.x = x;
+            r.y = y;
+
+             if (x + cellWidth >= inputWidth - margin) {
+                 x = margin;
+                 y += cellHeight;
+             } else {
+                 x += cellWidth;
+             }
+
+        }
+
+        return layout;
+    }
+
+    public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate) {
         int defaultMaxPageSize = 1024;
         final int defaultMinPageSize = 16;
 
@@ -92,14 +152,13 @@ public class TextureSetLayout {
         settings.paddingX = margin;
         settings.paddingY = margin;
         settings.rotation = rotate;
-        settings.fast = fast;
         settings.square = false;
 
         // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
         int maxLengthScale = 0;
         for (Rect r : rectangles) {
-            maxLengthScale = Math.max(maxLengthScale, r.width + 2 * margin);
-            maxLengthScale = Math.max(maxLengthScale, r.height + 2 * margin);
+            maxLengthScale = Math.max(maxLengthScale, r.width + margin);
+            maxLengthScale = Math.max(maxLengthScale, r.height + margin);
         }
         settings.maxPageHeight = Math.max(settings.maxPageHeight, maxLengthScale);
         settings.maxPageWidth = Math.max(settings.maxPageWidth, maxLengthScale);

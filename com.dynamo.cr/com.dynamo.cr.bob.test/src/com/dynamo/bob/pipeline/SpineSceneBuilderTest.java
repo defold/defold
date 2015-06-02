@@ -10,6 +10,7 @@ import java.util.Map;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.AnimationSet;
@@ -137,7 +138,8 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         addImage("/test.png", 16, 16);
         StringBuilder src = new StringBuilder();
         src.append("images { image:  \"/test.png\" }");
-        addFile("/skeleton_atlas.atlas", src.toString());
+        build("/skeleton_atlas.atlas", src.toString());
+        
         src = new StringBuilder();
         src.append("spine_json: \"/skeleton.json\"");
         src.append(" atlas: \"/skeleton_atlas.atlas\"");

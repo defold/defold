@@ -27,23 +27,19 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
         view.setMessage(Messages.BundleAndroidPresenter_DIALOG_MESSAGE);
         view.setErrorMessage(null);
 
-        if (releaseMode) {
-            if (certificate.length() == 0) {
-                return;
-            }
-
-            if (key.length() == 0) {
-                return;
-            }
-
-            if (!new File(certificate).isFile()) {
-                view.setErrorMessage("Certificate not found");
-                return;
-            }
-            if (!new File(key).isFile()) {
-                view.setErrorMessage("Key not found");
-                return;
-            }
+        final boolean certProvided = !certificate.isEmpty();
+        final boolean keyProvided = !key.isEmpty();
+        if (certProvided && !new File(certificate).isFile()) {
+            view.setErrorMessage("Certificate not found");
+            return;
+        }
+        if (keyProvided && !new File(key).isFile()) {
+            view.setErrorMessage("Key not found");
+            return;
+        }
+        // enable view only if both key and cert are provided or neither of them
+        if((!certProvided && keyProvided) || (certProvided && !keyProvided)) {
+        	return;
         }
 
         // Only warnings after this point
@@ -68,6 +64,10 @@ public class BundleAndroidPresenter implements BundleAndroidDialog.IPresenter {
 
     public String getCertificate() {
         return certificate;
+    }
+    
+    public boolean isReleaseMode() {
+    	return releaseMode;
     }
 
     @Override

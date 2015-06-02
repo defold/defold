@@ -8,7 +8,10 @@ import javax.vecmath.Quat4d;
 
 import org.eclipse.swt.events.MouseEvent;
 
+import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.SetPropertiesOperation;
 import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation.ITransformer;
 
 @SuppressWarnings("serial")
@@ -22,8 +25,21 @@ public class RotateManipulator extends TransformManipulator<Quat4d> {
 
         @Override
         public void set(Node n, Quat4d value) {
-            n.setRotation(value);
+            if(n.isOverridable())
+            {
+                IPropertyAccessor<Object, ISceneModel> accessor = getNodePropertyAccessor(n);
+                boolean overridden = accessor.isOverridden(n, "rotation", n.getModel());
+                if(overridden) {
+                    n.setRotation(value);
+                } else {
+                    SetPropertiesOperation<Object, ISceneModel> op = new SetPropertiesOperation<Object, ISceneModel>(n, "rotation", accessor, RotateManipulator.this.originalRotation, value, overridden, n.getModel());
+                    n.getModel().executeOperation(op);
+                }
+            } else {
+                n.setRotation(value);
+            }
         }
+
     }
 
     private CircleManipulator xCircleManipulator;
@@ -78,7 +94,7 @@ public class RotateManipulator extends TransformManipulator<Quat4d> {
             }
             rotation.set(originalLocalTransforms.get(i));
             rotation.mul(localDelta, rotation);
-            node.setRotation(rotation);
+            node.applyRotation(rotation);
         }
     }
 

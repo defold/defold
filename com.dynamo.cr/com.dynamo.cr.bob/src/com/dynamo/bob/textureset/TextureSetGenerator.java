@@ -18,6 +18,7 @@ import org.apache.commons.lang3.tuple.MutablePair;
 
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
+import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.textureset.proto.TextureSetProto;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
@@ -135,12 +136,17 @@ public class TextureSetGenerator {
      * @return {@link AtlasMap}
      */
     public static TextureSetResult generate(List<BufferedImage> images, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate, boolean fast) {
+            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate, boolean useTileGrid, Grid gridSize) {
 
         images = createInnerPadding(images, innerPadding);
         images = extrudeBorders(images, extrudeBorders);
 
-        Layout layout = layout(margin, images, rotate, fast);
+        Layout layout;
+        if (useTileGrid) {
+            layout = TextureSetLayout.gridLayout(margin, rectanglesFromImages(images), gridSize);
+        } else {
+            layout = packedImageLayout(margin, images, rotate);
+        }
 
         rotateImages(layout, images);
 
@@ -205,14 +211,8 @@ public class TextureSetGenerator {
         return images;
     }
 
-    private static Layout layout(int margin, List<BufferedImage> images, boolean rotate, boolean fast) {
-        List<Rect> rectangles = new ArrayList<Rect>(images.size());
-        int index = 0;
-        for (BufferedImage image : images) {
-            rectangles.add(new Rect(index++, image.getWidth(), image.getHeight()));
-        }
-
-        Layout layout = TextureSetLayout.layout(margin, rectangles, rotate, fast);
+    private static Layout packedImageLayout(int margin, List<BufferedImage> images, boolean rotate ) {
+        Layout layout = TextureSetLayout.packedLayout(margin, rectanglesFromImages(images), rotate);
         Collections.sort(layout.getRectangles(), new Comparator<Rect>() {
             @Override
             public int compare(Rect r1, Rect r2) {
@@ -222,6 +222,16 @@ public class TextureSetGenerator {
             }
         });
         return layout;
+    }
+
+    private static List<Rect> rectanglesFromImages( List<BufferedImage> images ) {
+        List<Rect> rectangles = new ArrayList<Rect>(images.size());
+        int index = 0;
+        for (BufferedImage image : images) {
+            rectangles.add(new Rect(index++, image.getWidth(), image.getHeight()));
+        }
+
+        return rectangles;
     }
 
     private static BufferedImage composite(List<BufferedImage> images, Layout layout) {
