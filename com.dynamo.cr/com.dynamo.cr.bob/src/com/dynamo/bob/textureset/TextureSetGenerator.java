@@ -14,7 +14,7 @@ import java.util.List;
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
 
-import org.apache.commons.lang3.tuple.MutablePair;
+import org.apache.commons.lang3.Pair;
 
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
@@ -154,7 +154,7 @@ public class TextureSetGenerator {
 
         List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
 
-        MutablePair<TextureSet.Builder, List<UVTransform>> textureSet = genVertexData(image, rects, iterator, genOutlines, genAtlasVertices);
+        Pair<TextureSet.Builder, List<UVTransform>> textureSet = genVertexData(image, rects, iterator, genOutlines, genAtlasVertices);
 
         TextureSetResult result = new TextureSetResult();
         result.builder = textureSet.left;
@@ -260,7 +260,7 @@ public class TextureSetGenerator {
         return new UVTransform(new Point2d(r.x * xs, r.y * ys), new Vector2d(xs * r.width, ys * r.height), r.rotated);
     }
 
-    private static MutablePair<TextureSet.Builder, List<UVTransform>> genVertexData(BufferedImage image, List<Rect> rects, AnimIterator iterator,
+    private static Pair<TextureSet.Builder, List<UVTransform>> genVertexData(BufferedImage image, List<Rect> rects, AnimIterator iterator,
             boolean genOutlines, boolean genAtlasVertices) {
         TextureSet.Builder textureSet = TextureSet.newBuilder();
         List<UVTransform> uvTransforms = new ArrayList<UVTransform>();
@@ -388,7 +388,7 @@ public class TextureSetGenerator {
         } else {
             textureSet.setOutlineVertices(ByteString.EMPTY);
         }
-        return new MutablePair<TextureSet.Builder, List<UVTransform>>(textureSet, uvTransforms);
+        return new Pair<TextureSet.Builder, List<UVTransform>>(textureSet, uvTransforms);
     }
 
     private static short toShortUV(float fuv) {

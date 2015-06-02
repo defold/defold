@@ -4,8 +4,8 @@
 
     <path id="classpath">
         <fileset dir="lib" includes="*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/jars" includes="protobuf-java*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/jars" includes="commons*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="protobuf-java*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
@@ -184,11 +184,9 @@
 
         <jar jarfile="tmp/external-libs.jar">
             <zipgroupfileset dir="../com.dynamo.cr.common/ext">
-              <include name="vecmath.jar"/>
-            </zipgroupfileset>
-            <zipgroupfileset dir="../com.dynamo.cr.common/jars">
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
+              <include name="vecmath.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
               <include name="*.jar"/>
