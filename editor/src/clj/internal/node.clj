@@ -16,8 +16,6 @@
   [property-type]
   (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
 
-(defn- pfnk? [f] (contains? (meta f) :schema))
-
 (defn warn [node-id node-type label input-schema error]
   (println "WARNING: node " node-id
            "- type:" (:name node-type)
@@ -49,6 +47,41 @@
         (c/cache-hit cache @(:hits evaluation-context))
         (c/cache-encache cache local-for-encache)))
     result))
+
+(defn- property-visible?
+  [property-type kwargs]
+  (if-let [vfn (:visible property-type)]
+    (vfn kwargs)
+    true))
+
+(defn- property-enabled?
+  [property-type kwargs]
+  (if-let [efn (:enabled property-type)]
+    (efn kwargs)
+    true))
+
+(defn- gather-property
+  [self kwargs prop]
+  (let [type              (-> self gt/properties prop)
+        value             (get self prop)
+        problems          (t/property-validate type value)
+        enabled?          (property-enabled? type kwargs)
+        visible?          (property-visible? type kwargs)]
+    {:node-id             (gt/node-id self)
+     :value               value
+     :type                type
+     :validation-problems problems
+     :enabled             enabled?
+     :visible             visible?}))
+
+(defn gather-properties
+  "Production function that delivers the definition and value
+for all properties of this node."
+  [kwargs]
+  (let [self           (:self kwargs)
+        kwargs         (dissoc kwargs :self)
+        property-names (-> self gt/properties keys)]
+    (zipmap property-names (map (partial gather-property self kwargs) property-names))))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
@@ -84,6 +117,35 @@
 (defn- from-supertypes [local op]                (map op (:supertypes local)))
 (defn- combine-with    [local op zero into-coll] (op (reduce op zero into-coll) local))
 
+(declare attach-output)
+
+(defn- property-auxiliary-inputs
+  [key properties]
+  (reduce
+   (fn [inputs [property property-type]]
+     (if-let [vfn (get property-type key)]
+       (into inputs (keys (dissoc (pf/input-schema vfn) t/Keyword)))
+       inputs))
+   #{}
+   properties))
+
+(def ^:private visibility-inputs (partial property-auxiliary-inputs :visible))
+(def ^:private enablement-inputs (partial property-auxiliary-inputs :enabled))
+
+(defn- properties-output-arguments
+  [properties]
+  (cons :self (concat (set (keys properties))
+                      (visibility-inputs properties)
+                      (enablement-inputs properties))))
+
+(defn attach-properties-output
+  [node-type-description]
+  (let [properties      (:properties node-type-description)
+        argument-names  (properties-output-arguments properties)
+        argument-schema (zipmap argument-names (repeat t/Any))]
+    (attach-output node-type-description :properties t/Any #{} #{}
+                   (s/schematize-fn (fn [args] (gather-properties args)) (s/=> t/Any argument-schema)))))
+
 (defn- invert-map
   [m]
   (apply merge-with into
@@ -93,7 +155,7 @@
 
 (defn inputs-for
   [production-fn]
-  (if (pfnk? production-fn)
+  (if (gt/pfnk? production-fn)
     (into #{} (keys (dissoc (pf/input-schema production-fn) t/Keyword :this :g)))
     #{}))
 
@@ -113,9 +175,7 @@
 (defn description->input-dependencies
    [{:keys [transforms properties] :as description}]
    (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))
-         transforms (assoc transforms
-                     :properties (set (keys properties))
-                     :self       (set (keys properties)))]
+         transforms (assoc transforms :self (set (keys properties)))]
      (invert-map transforms)))
 
 (defn attach-input-dependencies
@@ -144,6 +204,7 @@ not called directly."
     (update-in [:substitutes]         combine-with merge      {} (from-supertypes description :substitutes))
     (update-in [:cardinalities]       combine-with merge      {} (from-supertypes description :cardinalities))
     (update-in [:property-types]      combine-with merge      {} (from-supertypes description :property-types))
+    attach-properties-output
     attach-input-dependencies
     map->NodeTypeImpl))
 
@@ -192,7 +253,7 @@ not called directly."
   "Update the node type description with the given output."
   [description label schema properties options & [production-fn]]
   (when (fn? production-fn)
-    (assert (pfnk? production-fn) (format "Node output %s needs a production function that is a dynamo.graph/fnk for %s"  label production-fn)))
+    (assert (gt/pfnk? production-fn) (format "Node output %s needs a production function that is a dynamo.graph/fnk for %s"  label production-fn)))
 
   (cond-> (update-in description [:transform-types] assoc label schema)
 
@@ -326,8 +387,8 @@ must be part of a protocol or interface attached to the description."
 (defn node-type-forms
   "Given all the forms in a defnode macro, emit the forms that will build the node type description."
   [symb forms]
-  (list* `-> {:name (str symb)}
-    (map node-type-form forms)))
+  (concat [`-> {:name (str symb)}]
+          (map node-type-form forms)))
 
 (defn defaults
   "Return a map of default values for the node type."
@@ -461,7 +522,7 @@ must be part of a protocol or interface attached to the description."
                                   pfn-input#
                                   (s/check schema# pfn-input#))]
        (let [~'error (gt/error validation-error# (gt/node-id ~'this) ~transform)]
-         (warn (gt/node-id ~'this) ~node-type-name ~transform schema# ~'error)
+         (warn (gt/node-id ~'this) ~node-type-name ~transform schema# validation-error#)
          ~(if output-multi? `[~'error] 'error))
        (let [~'result ((~transform (gt/transforms' ~node-type-name)) pfn-input#)]
          ~epilogue
@@ -539,6 +600,7 @@ must be part of a protocol or interface attached to the description."
        (case (:type ~'event)
          ~@(mapcat (fn [e] [e `((get (gt/event-handlers' ~node-type-name) ~e) ~'self ~'event)]) (keys (gt/event-handlers' node-type)))
          nil))]))
+
 
 (defn- subtract-keys
   [m1 m2]

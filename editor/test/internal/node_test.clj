@@ -37,7 +37,18 @@
     'string-value :overridden-indirect-by-symbol))
 
 (g/defnode SimpleTestNode
-  (property foo t/Str (default "FOO!")))
+  (property foo (t/maybe t/Str) (default "FOO!")))
+
+(g/defnode VisibilityTestNode
+  (input bar (t/maybe t/Str))
+  (property baz (t/maybe t/Str) (visible (g/fnk [bar] (not (nil? bar))))))
+
+(g/defnode SimpleIntTestNode
+  (property foo (t/maybe t/Int) (default 0)))
+
+(g/defnode EnablementTestNode
+  (input bar (t/maybe t/Int))
+  (property baz (t/maybe t/Str) (enabled (g/fnk [bar] (pos? bar)))))
 
 (g/defnode NodeWithEvents
   (on :mousedown
@@ -125,19 +136,56 @@
       (is (= (g/node-id source) (g/node-value source :node-id) (g/node-value sink :a-node-id))))))
 
 (defn- expect-modified
-  [properties f]
+  [node-type properties f]
   (with-clean-system
-    (let [[node]    (tx-nodes (g/make-node world SimpleTestNode :foo "one"))
+    (let [[node]    (tx-nodes (g/make-node world node-type :foo "one"))
           tx-result (g/transact (f node))]
       (let [modified (into #{} (map second (:outputs-modified tx-result)))]
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
-  (expect-modified #{:properties :foo :self} (fn [node] (g/set-property    node :foo "two")))
-  (expect-modified #{:properties :foo :self} (fn [node] (g/update-property node :foo str/reverse)))
-  (expect-modified #{}                       (fn [node] (g/set-property    node :foo "one")))
-  (expect-modified #{}                       (fn [node] (g/update-property node :foo identity))))
+  (expect-modified SimpleTestNode #{:properties :foo :self} (fn [node] (g/set-property    node :foo "two")))
+  (expect-modified SimpleTestNode #{:properties :foo :self} (fn [node] (g/update-property node :foo str/reverse)))
+  (expect-modified SimpleTestNode #{}                       (fn [node] (g/set-property    node :foo "one")))
+  (expect-modified SimpleTestNode #{}                       (fn [node] (g/update-property node :foo identity))))
 
+(deftest invalidating-visibility-properties
+  (with-clean-system
+    (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
+                                  (g/make-node world VisibilityTestNode))]
+      (g/transact(g/connect snode :foo vnode :bar))
+      (let [tx-result     (g/transact (g/set-property snode :foo "hi"))
+            vnode-results (filter #(= (first %) (g/node-id vnode)) (:outputs-modified tx-result))
+            modified      (into #{} (map second vnode-results))]
+        (is (= #{:properties} modified))))))
+
+(deftest visibility-properties
+  (with-clean-system
+    (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
+                                  (g/make-node world VisibilityTestNode))]
+      (g/transact (g/connect snode :foo vnode :bar))
+      (is (= true (get-in (g/node-value vnode :properties) [:baz :visible])))
+      (g/transact (g/set-property snode :foo nil))
+      (is (= false (get-in (g/node-value vnode :properties) [:baz :visible]))))))
+
+(deftest invalidating-enablement-properties
+  (with-clean-system
+    (let [[snode enode] (tx-nodes (g/make-node world SimpleIntTestNode)
+                                  (g/make-node world EnablementTestNode))]
+      (g/transact(g/connect snode :foo enode :bar))
+      (let [tx-result     (g/transact (g/set-property snode :foo 1))
+            enode-results (filter #(= (first %) (g/node-id enode)) (:outputs-modified tx-result))
+            modified      (into #{} (map second enode-results))]
+        (is (= #{:properties} modified))))))
+
+(deftest enablement-properties
+  (with-clean-system
+    (let [[snode enode] (tx-nodes (g/make-node world SimpleIntTestNode :foo 1)
+                                  (g/make-node world EnablementTestNode))]
+      (g/transact (g/connect snode :foo enode :bar))
+      (is (= true (get-in (g/node-value enode :properties) [:baz :enabled])))
+      (g/transact (g/set-property snode :foo -1))
+      (is (= false (get-in (g/node-value enode :properties) [:baz :enabled]))))))
 
 (g/defnode ProductionFunctionInputsNode
   (input in       t/Keyword)

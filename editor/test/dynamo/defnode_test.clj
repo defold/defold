@@ -205,6 +205,9 @@
   (inherits TwoPropertyNode)
   (property another-property t/Int (default -1)))
 
+(g/defnode VisibiltyFunctionPropertyNode
+  (property a-property t/Str (visible (g/fnk [foo] true))))
+
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode)]
@@ -240,14 +243,20 @@
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
       (is (= {:another-property #{:properties :another-property :self}
-              :a-property #{:properties :a-property :self}}
+              :a-property       #{:properties :a-property :self}}
              (g/input-dependencies node)))))
 
   (testing "do not allow a property to shadow an input of the same name"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode ReflexiveFeedbackPropertySingularToSingular
                           (property port dynamo.types/Keyword (default :x))
-                          (input port dynamo.types/Keyword :inject)))))))
+                          (input port dynamo.types/Keyword :inject))))))
+
+  (testing "visibility dependencies include properties"
+    (let [node (g/construct VisibiltyFunctionPropertyNode)]
+      (is (= {:foo #{:properties}
+              :a-property #{:properties :a-property :self}}
+             (g/input-dependencies node))))))
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
@@ -392,9 +401,7 @@
   (property validated-internal DefaultProperty
             (validate always-valid (fn [value] true)))
   (property literally-disabled TypedProperty
-            (enabled false))
-  (property functionally-disabled TypedProperty
-            (enabled #(pos? %))))
+            (enabled (g/fnk [] false))))
 
 (g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
