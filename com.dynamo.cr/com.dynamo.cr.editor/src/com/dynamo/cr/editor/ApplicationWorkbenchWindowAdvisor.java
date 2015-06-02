@@ -48,9 +48,6 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
     }
 
     // TODO: This one isn't invoked in Eclipse 4. See WorkbenchWindowAdvisor#createWindowContents
-    // This disables the following featurse:
-    // * Tips in the top of the editor (ITipManager)
-    // * Build progress in the bottom left
     @Override
     public void createWindowContents(final Shell shell) {
         editorWindow = EditorUIPlugin.getDefault().createWindow(shell, getWindowConfigurer());
@@ -76,9 +73,7 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
     @Override
     public void dispose() {
         super.dispose();
-        if (this.editorWindow != null) {
-            this.editorWindow.dispose();
-        }
+        this.editorWindow.dispose();
     }
 
     private static final String JUSTUPDATED = "justUpdated";
