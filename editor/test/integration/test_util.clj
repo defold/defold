@@ -50,11 +50,11 @@
     (project/get-resource-node project (workspace/file-resource workspace path))))
 
 (defn empty-selection? [project]
-  (let [sel (g/node-value project :selection)]
+  (let [sel (g/node-value project :selected-node-ids)]
     (empty? sel)))
 
 (defn selected? [project tgt-node]
-  (let [sel (g/node-value project :selection)]
+  (let [sel (g/node-value project :selected-node-ids)]
     (not (nil? (some #{(g/node-id tgt-node)} sel)))))
 
 (g/defnode DummyAppView
