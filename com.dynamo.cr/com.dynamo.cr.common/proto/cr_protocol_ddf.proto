@@ -63,14 +63,14 @@ message TokenExchangeInfo {
     required string login_token = 4;
     required Type type = 5;
     // Only set if type == LOGIN
-    optional string auth_cookie = 6;
+    optional string auth_token = 6;
     optional int64 user_id = 7;
 }
 
 message LoginInfo {
     required string email = 1;
     required int64 user_id = 2;
-    required string auth_cookie = 3;
+    required string auth_token = 3;
     optional string first_name = 4;
     optional string last_name = 5;
 }
@@ -101,12 +101,6 @@ message ProjectTemplateInfoList {
     repeated ProjectTemplateInfo templates = 1;
 }
 
-// Status of the project in relation to the user who fetched the information
-enum ProjectStatus {
-    PROJECT_STATUS_OK = 0;
-    PROJECT_STATUS_UNQUALIFIED = -1;
-}
-
 message ProjectInfo {
     required int64 id = 1;
     required string name = 2;
@@ -117,21 +111,10 @@ message ProjectInfo {
     required int64 lastUpdated = 8;
     required string repositoryUrl = 9;
     optional string iOSExecutableUrl = 10;
-    optional ProjectStatus status = 11 [default = PROJECT_STATUS_OK];
 }
 
 message ProjectInfoList {
     repeated ProjectInfo projects = 1;
-}
-
-message ApplicationInfo {
-    required string name = 1;
-    required string version = 2;
-    required int32 size = 3;
-}
-
-message LaunchInfo {
-    repeated string args = 1;
 }
 
 message ProjectList {
@@ -176,33 +159,6 @@ message BranchStatus
 message BranchList
 {
     repeated string branches = 1;
-}
-
-message BuildDesc
-{
-    enum Activity
-    {
-        IDLE = 0;
-        BUILDING = 1;
-    }
-
-    enum Result
-    {
-        OK = 0;
-        ERROR = 1;
-    }
-
-    required int32 id = 1;
-    required Activity build_activity = 2;
-    required Result build_result = 3;
-    required int32 progress = 4;
-    required int32 work_amount = 5;
-}
-
-message BuildLog
-{
-    required string std_out = 1;
-    required string std_err = 2;
 }
 
 enum ResolveStage
@@ -276,38 +232,6 @@ message InvitationAccountInfo
 {
     required int32 original_count = 1;
     required int32 current_count = 2;
-}
-
-message ProductInfo {
-    required int64 id = 1;
-    required string name = 2;
-    required int32 max_member_count = 3;
-    required int32 fee = 4;
-    required string signup_url = 5;
-}
-
-message ProductInfoList {
-    repeated ProductInfo products = 1;
-}
-
-message CreditCardInfo {
-    required string masked_number = 1;
-    required int32 expiration_month = 2;
-    required int32 expiration_year = 3;
-}
-
-enum UserSubscriptionState {
-    CANCELED = 0;
-    PENDING = 1;
-    ACTIVE = 2;
-}
-
-message UserSubscriptionInfo {
-    required ProductInfo product = 1;
-    required UserSubscriptionState state = 2;
-    optional CreditCardInfo credit_card = 3;
-    optional string update_url = 4;
-    optional string cancellation_message = 5;
 }
 
 message NewsSubscriber {

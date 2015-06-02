@@ -206,7 +206,8 @@ namespace dmEngineService
             }
             else if (strcmp(key, "HOSTNAME") == 0)
             {
-                return self->m_LocalAddress;
+                // this will be filled in by the SSDP response
+                return "${HTTP-HOST}";
             }
             else if (strcmp(key, "ENGINE_VERSION") == 0)
             {
@@ -280,7 +281,8 @@ namespace dmEngineService
             m_DeviceDesc.m_DeviceDescription = m_DeviceDescXml;
 
             dmSSDP::NewParams ssdp_params;
-            ssdp_params.m_MaxAge = 3;
+            ssdp_params.m_MaxAge = 60;
+            ssdp_params.m_AnnounceInterval = 30;
             dmSSDP::HSSDP ssdp;
             dmSSDP::Result sr = dmSSDP::New(&ssdp_params, &ssdp);
             if (sr != dmSSDP::RESULT_OK)

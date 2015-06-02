@@ -1,11 +1,14 @@
-import ctypes, os, sys
+import ctypes, os, sys, platform
 
 if sys.platform == "darwin":
     libname = "libdlib_shared.dylib"
     libdir = "lib/darwin"
 elif sys.platform == "linux2":
     libname = "libdlib_shared.so"
-    libdir = "lib/linux"
+    if platform.architecture()[0] == '64bit':
+        libdir = "lib/x86_64-linux"
+    else:
+        libdir = "lib/linux"
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
     libdir = "lib/win32"

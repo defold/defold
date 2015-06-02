@@ -10,20 +10,20 @@ namespace dmRender
         m_Type = type;
     }
 
-    Command::Command(CommandType type, uint32_t op0)
+    Command::Command(CommandType type, uintptr_t op0)
     {
         m_Type = type;
         m_Operands[0] = op0;
     }
 
-    Command::Command(CommandType type, uint32_t op0, uint32_t op1)
+    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1)
     {
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
     }
 
-    Command::Command(CommandType type, uint32_t op0, uint32_t op1, uint32_t op2)
+    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2)
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -31,7 +31,7 @@ namespace dmRender
         m_Operands[2] = op2;
     }
 
-    Command::Command(CommandType type, uint32_t op0, uint32_t op1, uint32_t op2, uint32_t op3)
+    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2, uintptr_t op3)
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -152,7 +152,7 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DRAW:
                 {
-                    dmRender::Draw(render_context, (dmRender::Predicate*)c->m_Operands[0], (dmRender::HNamedConstantBuffer)c->m_Operands[1]);
+                    dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0], (dmRender::HNamedConstantBuffer)c->m_Operands[1]);
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG3D:

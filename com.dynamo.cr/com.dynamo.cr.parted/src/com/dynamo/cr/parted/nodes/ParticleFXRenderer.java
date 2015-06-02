@@ -32,6 +32,14 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     public void setup(RenderContext renderContext, ParticleFXNode node) {
         Pointer context = node.getContext();
 
+        // We need to simulate the particles in setup() instead of render() so
+        // that all the emitter nodes get the absolute latest simulation data
+        // before rendering.
+        if (renderContext.getPass().equals(Pass.TRANSPARENT)) {
+            double dt = renderContext.getDt();
+            node.simulate(dt);
+        }
+
         if (context != null && passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), null);
 
@@ -59,9 +67,6 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             RenderData<ParticleFXNode> renderData) {
 
         GL2 gl = renderContext.getGL();
-
-        double dt = renderContext.getDt();
-        node.simulate(dt);
 
         TextRenderer textRenderer = renderContext.getSmallTextRenderer();
 

@@ -204,6 +204,29 @@ TEST_F(dmHttpClientParserTest, TestHeaders)
     ASSERT_EQ((size_t) 3, m_Headers.size());
 }
 
+TEST_F(dmHttpClientParserTest, TestWhitespaceHeaders)
+{
+    const char* headers = "HTTP/1.1 200 OK\r\n"
+"Content-Type:  text/html;charset=UTF-8\r\n"
+"Content-Length:  21\r\n"
+"Server:  Jetty(7.0.2.v20100331)\r\n"
+"\r\n";
+
+    dmHttpClientPrivate::ParseResult r;
+    r = Parse(headers);
+    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+
+    ASSERT_EQ(1, m_Major);
+    ASSERT_EQ(1, m_Minor);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_EQ("OK", m_StatusString);
+
+    ASSERT_EQ("text/html;charset=UTF-8", m_Headers["Content-Type"]);
+    ASSERT_EQ("21", m_Headers["Content-Length"]);
+    ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
+    ASSERT_EQ((size_t) 3, m_Headers.size());
+}
+
 TEST_F(dmHttpClientParserTest, TestContent)
 {
     const char* headers = "HTTP/1.1 200 OK\r\n"
@@ -387,6 +410,52 @@ TEST_P(dmHttpClientTest, ServerClose)
         dmSocket::Result sock_r = dmHttpClient::GetLastSocketResult(m_Client);
         ASSERT_TRUE(r == dmHttpClient::RESULT_UNEXPECTED_EOF || sock_r == dmSocket::RESULT_CONNRESET || sock_r == dmSocket::RESULT_PIPE);
     }
+}
+
+void ShutdownThread(void *args)
+{
+    bool* gotit = (bool*) args;
+    while (true)
+    {
+        // Now we give the test time to connect and be in-flight
+        dmTime::Sleep(1000 * 500);
+        if (dmHttpClient::ShutdownConnectionPool() > 0) {
+            // it was in flight and now it should be cancelled and fail.
+            *gotit = true;
+        } else {
+            break; // done.
+        }
+    }
+}
+
+TEST_P(dmHttpClientTest, ClientThreadedShutdown)
+{
+    bool gotit = false;
+    for (int i=0;i<10;i++) {
+        // Create a request that proceeds for a long time and cancel it in-flight with the
+        // shutdown thread. If it managed to get the conneciton it will set gotit to true.
+        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, "cst");
+        dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10000");
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+
+        // Wait until no are open
+        dmThread::Join(thr);
+
+        // Pool shut down; must fail.
+        r = dmHttpClient::Get(m_Client, "/sleep/10000");
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+
+        dmHttpClient::ReopenConnectionPool();
+
+        if (gotit)
+            break;
+    }
+
+    ASSERT_TRUE(gotit);
+
+    // Reopened so should succeed.
+    dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
 }
 
 TEST_P(dmHttpClientTest, ContentSizes)
@@ -637,15 +706,21 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
 
 TEST_P(dmHttpClientTest, PathWithSpaces)
 {
-    char buf[128];
+    char buf[128], uri[128];
 
+    // should fail since it is not properly encoded.
+    // NOTE: Really really should be only encoding the 'message' and not the whole path.
+    //       But Encode for now is kind to not encode '/'
     const char* message = "testing 1 2";
     snprintf(buf, 128, "/echo/%s", message);
+    dmURI::Encode(buf, uri, sizeof(uri));
+
     m_Content = "";
-    dmHttpClient::Result r = dmHttpClient::Get(m_Client, buf);
+    dmHttpClient::Result r = dmHttpClient::Get(m_Client, uri);
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
     ASSERT_STREQ(message, m_Content.c_str());
 }
+
 
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
                         dmHttpClientTest,
@@ -870,103 +945,6 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
     dmHttpClient::Delete(client);
-}
-
-TEST(dmHttpClient, Escape)
-{
-    char src[1024];
-    char dst[1024];
-#define CPY_TO_BUF(s) strcpy(src, s);
-
-    CPY_TO_BUF("")
-    dmHttpClient::Escape(src, dst, sizeof(dst));
-    ASSERT_STREQ("", dst);
-
-    CPY_TO_BUF(" ")
-    dmHttpClient::Escape(src, dst, sizeof(dst));
-    ASSERT_STREQ("%20", dst);
-
-    CPY_TO_BUF("foo")
-    dmHttpClient::Escape(src, dst, sizeof(dst));
-    ASSERT_STREQ("foo", dst);
-
-    CPY_TO_BUF("foo bar")
-    dmHttpClient::Escape(src, dst, sizeof(dst));
-    ASSERT_STREQ("foo%20bar", dst);
-
-    CPY_TO_BUF("to[0]")
-    dmHttpClient::Escape(src, dst, sizeof(dst));
-    ASSERT_STREQ("to%5B0%5D", dst);
-
-#undef CPY_TO_BUF
-}
-
-TEST(dmHttpClient, EscapeBufferSize)
-{
-    char src[1024];
-    char dst[1024];
-#define CPY_TO_BUF(s) strcpy(src, s);
-    dmHttpClient::Result r;
-
-    CPY_TO_BUF("")
-    r = dmHttpClient::Escape(src, dst, 1);
-    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-    ASSERT_STREQ("", dst);
-
-    dst[1] = '!';
-    CPY_TO_BUF(" ")
-    r = dmHttpClient::Escape(src, dst, 1);
-    ASSERT_EQ(dmHttpClient::RESULT_INVAL, r);
-    ASSERT_EQ('!', dst[1]);
-
-    dst[2] = '!';
-    CPY_TO_BUF(" ")
-    r = dmHttpClient::Escape(src, dst, 2);
-    ASSERT_EQ(dmHttpClient::RESULT_INVAL, r);
-    ASSERT_EQ('!', dst[2]);
-
-    dst[3] = '!';
-    CPY_TO_BUF(" ")
-    r = dmHttpClient::Escape(src, dst, 3);
-    ASSERT_EQ(dmHttpClient::RESULT_INVAL, r);
-    ASSERT_EQ('!', dst[3]);
-
-    dst[4] = '!';
-    CPY_TO_BUF(" ")
-    r = dmHttpClient::Escape(src, dst, 4);
-    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-    ASSERT_STREQ("%20", dst);
-    ASSERT_EQ('!', dst[4]);
-
-#undef CPY_TO_BUF
-}
-
-TEST(dmHttpClient, Unescape)
-{
-    char buf[1024];
-#define CPY_TO_BUF(s) strcpy(buf, s);
-
-    CPY_TO_BUF("")
-    dmHttpClient::Unescape(buf, buf);
-    ASSERT_STREQ("", buf);
-
-    CPY_TO_BUF("foo")
-    dmHttpClient::Unescape(buf, buf);
-    ASSERT_STREQ("foo", buf);
-
-    CPY_TO_BUF("%20")
-    dmHttpClient::Unescape(buf, buf);
-    ASSERT_STREQ(" ", buf);
-
-    CPY_TO_BUF("fbconnect://success?request=575262345875717&to%5B0%5D=100006469467942&to%5B1%5D=100006622931864&to%5B2%5D=100006677888489&to%5B3%5D=100006751147236&to%5B4%5D=100006793533882")
-    dmHttpClient::Unescape(buf, buf);
-    ASSERT_STREQ("fbconnect://success?request=575262345875717&to[0]=100006469467942&to[1]=100006622931864&to[2]=100006677888489&to[3]=100006751147236&to[4]=100006793533882", buf);
-
-    CPY_TO_BUF("foo+bar")
-    dmHttpClient::Unescape(buf, buf);
-    ASSERT_STREQ("foo bar", buf);
-
-#undef CPY_TO_BUF
 }
 
 int main(int argc, char **argv)

@@ -21,7 +21,7 @@ public class Win32Bundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getExe(Platform.X86Win32, "dmengine_release");
+        String exe = Bob.getDmengineExe(Platform.X86Win32, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -34,6 +34,10 @@ public class Win32Bundler implements IBundler {
         for (String name : Arrays.asList("game.projectc", "game.darc")) {
             FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
+
+        // Touch both OpenAL32.dll and wrap_oal.dll so they get included in the step below
+        Bob.getLib(Platform.X86Win32, "OpenAL32");
+        Bob.getLib(Platform.X86Win32, "wrap_oal");
 
         // Copy Executable and DLL:s
         File exeOut = new File(appDir, String.format("%s.exe", title));

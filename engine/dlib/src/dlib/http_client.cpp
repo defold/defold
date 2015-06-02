@@ -67,6 +67,12 @@ namespace dmHttpClient
             return m_Pool;
         }
 
+        dmConnectionPool::HPool GetPoolNoCreate()
+        {
+            DM_MUTEX_SCOPED_LOCK(m_Mutex);
+            return m_Pool;
+        }
+
     private:
         dmConnectionPool::HPool m_Pool;
         dmMutex::Mutex          m_Mutex;
@@ -818,9 +824,7 @@ bail:
     {
         dmSocket::Result sock_res;
 
-        char encoded_path[DMPATH_MAX_PATH];
-        dmURI::Encode(path, encoded_path, DMPATH_MAX_PATH);
-        sock_res = SendRequest(client, &response, encoded_path, method);
+        sock_res = SendRequest(client, &response, path, method);
 
         if (sock_res != dmSocket::RESULT_OK)
         {
@@ -910,8 +914,9 @@ bail:
 
             client->m_SocketResult = dmSocket::RESULT_OK;
             Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure);
-            if (r != RESULT_OK)
+            if (r != RESULT_OK) {
                 return r;
+            }
 
             r = DoDoRequest(client, response, path, method);
             if (r != RESULT_OK && r != RESULT_NOT_200_OK) {
@@ -1041,91 +1046,19 @@ bail:
         return client->m_HttpCache;
     }
 
-    // http://en.wikipedia.org/wiki/Percent-encoding
-    static bool IsUnreserved(char c)
+    uint32_t ShutdownConnectionPool()
     {
-        if (c >= 'a' && c <= 'z') {
-            return true;
-        } else if (c >= 'A' && c <= 'Z') {
-            return true;
-        } else if (c >= '0' && c <= '9') {
-            return true;
-        } else {
-            switch (c) {
-            case '-':
-            case '_':
-            case '.':
-            case '~':
-                return true;
-            }
+        dmConnectionPool::HPool pool = g_PoolCreator.GetPoolNoCreate();
+        if (pool) {
+            return dmConnectionPool::Shutdown(pool, dmSocket::SHUTDOWNTYPE_READWRITE);
         }
-        return false;
+        return 0;
     }
 
-    Result Escape(const char* src, char* dst, uint32_t dst_len)
+    void ReopenConnectionPool()
     {
-        assert(src != (const char*) dst);
-        assert(dst_len > 0);
-
-        Result r = RESULT_OK;
-        uint32_t dst_left = dst_len - 1; // Make room for null termination
-        const char* s = src;
-        char* d = dst;
-        while (*s) {
-            char c = *s;
-            if (IsUnreserved(c)) {
-                if (dst_left >= 1) {
-                    *d = c;
-                    s++;
-                    d++;
-                    dst_left--;
-                } else {
-                    r = RESULT_INVAL;
-                    break;
-                }
-            } else {
-                if (dst_left >= 3) {
-                    DM_SNPRINTF(d, 4, "%%%02X", c);
-                    s++;
-                    d += 3;
-                    dst_left -= 3;
-                } else {
-                    r = RESULT_INVAL;
-                    break;
-                }
-            }
-        }
-
-        *d = '\0';
-
-        return r;
-    }
-
-    void Unescape(const char* src, char* dst)
-    {
-        size_t left = strlen(src);
-        while (left > 0) {
-            if (src[0] == '+') {
-                *dst = ' ';
-                src++;
-                left--;
-            }
-            else if (left > 2 && src[0] == '%' && isxdigit(src[1]) && isxdigit(src[2])) {
-                char tmp[3];
-                tmp[0] = src[1];
-                tmp[1] = src[2];
-                tmp[2] = '\0';
-                *dst = (char) strtoul(tmp, 0, 16);
-                src += 3;
-                left -= 3;
-            } else {
-                *dst = *src;
-                src++;
-                left--;
-            }
-            dst++;
-        }
-        *dst = '\0';
+        dmConnectionPool::HPool pool = g_PoolCreator.GetPool();
+        dmConnectionPool::Reopen(pool);
     }
 
 #undef HTTP_CLIENT_SENDALL_AND_BAIL

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -90,28 +91,87 @@ namespace dmURI
         }
     }
 
-    void Encode(const char *str, char* out, uint32_t out_size)
+    // http://en.wikipedia.org/wiki/Percent-encoding
+    static bool IsUnreserved(char c)
     {
-        dmStrlCpy(out, str, out_size);
-        char* p = out;
-        while (*p != 0)
-        {
-            if (*p == ' ')
-                *p = '+';
-            ++p;
+        if (c >= 'a' && c <= 'z') {
+            return true;
+        } else if (c >= 'A' && c <= 'Z') {
+            return true;
+        } else if (c >= '0' && c <= '9') {
+            return true;
+        } else {
+            switch (c) {
+            case '-':
+            case '_':
+            case '.':
+            case '~':
+            case '/':
+                return true;
+            }
         }
+        return false;
     }
 
-    void Decode(const char *str, char* out, uint32_t out_size)
+    void Encode(const char* src, char* dst, uint32_t dst_len)
     {
-        dmStrlCpy(out, str, out_size);
-        char* p = out;
-        while (*p != 0)
-        {
-            if (*p == '+')
-                *p = ' ';
-            ++p;
+        assert(src != (const char*) dst);
+        assert(dst_len > 0);
+
+        uint32_t dst_left = dst_len - 1; // Make room for null termination
+        const char* s = src;
+        char* d = dst;
+        while (*s) {
+            char c = *s;
+            if (IsUnreserved(c)) {
+                if (dst_left >= 1) {
+                    *d = c;
+                    s++;
+                    d++;
+                    dst_left--;
+                } else {
+                    break;
+                }
+            } else {
+                if (dst_left >= 3) {
+                    DM_SNPRINTF(d, 4, "%%%02X", c);
+                    s++;
+                    d += 3;
+                    dst_left -= 3;
+                } else {
+                    break;
+                }
+            }
         }
+
+        *d = '\0';
+    }
+
+    void Decode(const char* src, char* dst)
+    {
+        size_t left = strlen(src);
+        while (left > 0) {
+            if (src[0] == '+') {
+                *dst = ' ';
+                src++;
+                left--;
+            }
+            else if (left > 2 && src[0] == '%' && isxdigit(src[1]) && isxdigit(src[2])) {
+                char tmp[3];
+                tmp[0] = src[1];
+                tmp[1] = src[2];
+                tmp[2] = '\0';
+                *dst = (char) strtoul(tmp, 0, 16);
+                src += 3;
+                left -= 3;
+            } else {
+                *dst = *src;
+                src++;
+                left--;
+            }
+            dst++;
+        }
+        *dst = '\0';
     }
 
 }   // namespace dmURI

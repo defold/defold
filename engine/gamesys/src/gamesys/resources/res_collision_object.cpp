@@ -151,11 +151,11 @@ range_error:
             dmResource::Result factory_result = dmResource::Get(factory, resource->m_DDF->m_CollisionShape, &res);
             if (factory_result == dmResource::RESULT_OK)
             {
-                uint32_t tile_grid_type;
+                dmResource::ResourceType tile_grid_type;
                 factory_result = dmResource::GetTypeFromExtension(factory, "tilegridc", &tile_grid_type);
                 if (factory_result == dmResource::RESULT_OK)
                 {
-                    uint32_t res_type;
+                    dmResource::ResourceType res_type;
                     factory_result = dmResource::GetType(factory, res, &res_type);
                     if (factory_result == dmResource::RESULT_OK && res_type == tile_grid_type)
                     {
@@ -271,6 +271,7 @@ range_error:
     dmResource::Result ResCollisionObjectCreate(dmResource::HFactory factory,
                                              void* context,
                                              const void* buffer, uint32_t buffer_size,
+                                             void* preload_data,
                                              dmResource::SResourceDescriptor* resource,
                                              const char* filename)
     {

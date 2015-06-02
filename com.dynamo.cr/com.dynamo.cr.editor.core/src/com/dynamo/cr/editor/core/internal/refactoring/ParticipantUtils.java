@@ -195,7 +195,14 @@ public class ParticipantUtils {
     }
 
     static Set<IResourceType> findCandidateResourceTypes(IResourceType subjectResourceType) {
+        Set<IResourceType> visited = new HashSet<IResourceType>();
+        return findCandidateResourceTypesInternal(subjectResourceType, visited);
+    }
+
+    static Set<IResourceType> findCandidateResourceTypesInternal(IResourceType subjectResourceType, Set<IResourceType> visited) {
         final IResourceTypeRegistry registry = EditorCorePlugin.getDefault();
+
+        visited.add(subjectResourceType);
 
         /*
          * Loop over all resource types. If the resource type in question can reference subject file
@@ -223,9 +230,10 @@ public class ParticipantUtils {
 
         Set<IResourceType> newResourceTypes = new HashSet<IResourceType>();
         for (IResourceType rt : candidateResourceTypes) {
-            // If embeddable continue searching in hierarchy
-            if (rt.isEmbeddable()) {
-                Set<IResourceType> tmp = findCandidateResourceTypes(rt);
+            // If embeddable continue searching in hierarchy, but avoid infinitely recursing when there
+            // are possible loops.
+            if (rt.isEmbeddable() && !visited.contains(rt)) {
+                Set<IResourceType> tmp = findCandidateResourceTypesInternal(rt, visited);
                 newResourceTypes.addAll(tmp);
             }
         }

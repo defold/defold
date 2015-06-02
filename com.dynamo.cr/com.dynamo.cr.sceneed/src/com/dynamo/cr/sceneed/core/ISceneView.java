@@ -24,6 +24,7 @@ public interface ISceneView extends ISelectionListener {
 
         void onSelectAll(IPresenterContext presenterContext);
         void onRefresh();
+        void onRefreshSceneView();
 
         void onLoad(String type, InputStream contents) throws IOException, CoreException;
 

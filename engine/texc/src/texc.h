@@ -16,12 +16,33 @@ namespace dmTexc
         PF_L8,
         PF_R8G8B8,
         PF_R8G8B8A8,
+
+        PF_RGB_PVRTC_2BPPV1,
+        PF_RGB_PVRTC_4BPPV1,
+        PF_RGBA_PVRTC_2BPPV1,
+        PF_RGBA_PVRTC_4BPPV1,
+        PF_RGB_ETC1,
+        /*
+        JIRA issue: DEF-994
+        PF_RGB_DXT1,
+        PF_RGBA_DXT1,
+        PF_RGBA_DXT3,
+        PF_RGBA_DXT5
+        */
     };
 
     enum ColorSpace
     {
         CS_LRGB,
         CS_SRGB,
+    };
+
+    enum CompressionLevel
+    {
+        CL_FAST,
+        CL_NORMAL,
+        CL_HIGH,
+        CL_BEST,
     };
 
     struct Header
@@ -66,6 +87,7 @@ namespace dmTexc
     DM_TEXC_PROTO(void, Destroy, HTexture texture);
 
     DM_TEXC_PROTO(bool, GetHeader, HTexture texture, Header* out_header);
+    DM_TEXC_PROTO(uint32_t, GetDataSize, HTexture texture, uint32_t mip_map);
     DM_TEXC_PROTO(uint32_t, GetData, HTexture texture, void* out_data, uint32_t out_data_size);
 
     /**
@@ -86,7 +108,7 @@ namespace dmTexc
     /**
      * Transcode a texture into another format.
      */
-    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space);
+    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel);
 
 #undef DM_TEXC_PROTO
 
