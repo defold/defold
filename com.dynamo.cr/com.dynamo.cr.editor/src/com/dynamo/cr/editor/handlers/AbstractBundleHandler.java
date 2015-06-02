@@ -51,6 +51,7 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
             HashMap<String, String> bobArgs = new HashMap<String, String>();
             bobArgs.put("archive", "true");
             bobArgs.put("bundle-output", outputDirectory);
+            bobArgs.put("texture-profiles", "true"); // Always use texture profiles when bundling
             setProjectOptions(bobArgs);
 
             Map<String, String> args = new HashMap<String, String>();

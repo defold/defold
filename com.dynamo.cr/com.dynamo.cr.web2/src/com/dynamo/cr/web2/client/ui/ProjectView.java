@@ -71,8 +71,6 @@ public class ProjectView extends Composite {
     @UiField HTMLPanel addMemberPanel;
     @UiField Anchor iOSDownload;
     @UiField Label signedExeInfo;
-    @UiField
-    HTMLPanel unqualifiedWarning;
     @UiField TextBox libraryUrl;
 
     private final MultiWordSuggestOracle suggestions = new MultiWordSuggestOracle();
@@ -142,7 +140,7 @@ public class ProjectView extends Composite {
 
             Image gravatar = new Image(ClientUtil.createGravatarUrl(memberInfo.getEmail(), 48));
             this.members2.setWidget(i, 0, gravatar);
-            this.members2.setText(i, 1, memberInfo.getFirstName() + " " + memberInfo.getLastName());
+            this.members2.setText(i, 1, memberInfo.getFirstName() + " " + memberInfo.getLastName()  + " (" + memberInfo.getEmail() +")");
 
             if (isOwner && !(memberInfo.getId() == userId)) {
                 Button removeButton = new Button("Remove");
@@ -173,9 +171,6 @@ public class ProjectView extends Composite {
         }
 
         iOSDownload.setHref("itms-services://?action=download-manifest&url=" + iOSUrl);
-
-        unqualifiedWarning.setVisible(projectInfo.getStatus().equals(ProjectInfo.PROJECT_STATUS_UNQUALIFIED));
-
         libraryUrl.setText("http://" + Window.Location.getHost() + "/p/" + projectInfo.getOwner().getId() + "/" + projectInfo.getId() + "/archive");
     }
 

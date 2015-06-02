@@ -43,7 +43,8 @@ namespace dmSSDP
         /// UPnP device type
         const char* m_DeviceType;
 
-        /// Device description in XML form
+        /// Device description template in XML form.
+        /// This can include the variable ${HTTP-HOST} in the url
         const char* m_DeviceDescription;
 
         /// Unique Device Name, eg uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8
@@ -61,10 +62,14 @@ namespace dmSSDP
             memset(this, 0, sizeof(*this));
             m_MaxAge = 1800;
             m_Announce = 1;
+            m_AnnounceInterval = 900;
         }
 
         /// Time an advertisement is valid
         uint32_t m_MaxAge;
+
+        /// Frequency of sending announcement messages. This is typically m_MaxAge / 2
+        uint32_t m_AnnounceInterval;
 
         /// Announce registered devices. Default is true
         uint32_t m_Announce : 1;

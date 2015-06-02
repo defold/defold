@@ -1,21 +1,7 @@
 package dmResourceServer;
 
-//import "ddf_extensions.proto";
-
 option java_package = "com.dynamo.cr.proto";
 option java_outer_classname = "Config";
-
-message Command
-{
-    repeated string args = 1;
-}
-
-message Application
-{
-    required string platform = 1;
-    required string name = 2;
-    required string path = 3;
-}
 
 message ProjectTemplate {
     required string id = 1;
@@ -23,41 +9,18 @@ message ProjectTemplate {
     required string description = 3;
 }
 
-message BillingProduct {
-    required int32 id = 1;
-    required string name = 2;
-    required string handle = 3;
-    required int32 fee = 4;
-    required int32 max_member_count = 5;
-    required int32 default = 6;
-}
-
 message Configuration
 {
-    required string branch_root = 2;
-    repeated string filters = 3;
     required int32 service_port = 4;
     optional int32 ssl_service_port = 41;
     optional string keystore = 42;
     optional string keystore_password = 43;
-    required int32 build_data_port = 5;
-    // Actual port for git server
-    required int32 gitsrv_port = 39;
     // Exposed port to the client, i.e. editor
     required int32 git_port = 40;
     required string persistence_unit_name = 6;
     required string repository_root = 7;
-    required string progress_re = 8;
-    required Command configure_command = 9;
-    required Command build_command = 10;
-    required Command rebuild_command = 11;
-    required Command exe_command = 12;
-    repeated Application applications = 13;
     repeated ProjectTemplate project_templates = 14;
-    optional string repository_group = 15;
-    optional string builtins_directory = 16;
     required string hostname = 17;
-    optional int32 data_server_enabled = 18 [default=1];
     optional int32 max_project_count = 19 [default=10];
 
     // smtp
@@ -76,24 +39,12 @@ message Configuration
     // signed engines
     required string signed_engine_root = 28;
 
-    // billing
-    required string billing_shared_key = 29;
-    required string billing_api_url = 30;
-    required string billing_api_key = 31;
-    repeated BillingProduct products = 32;
-
-    // downloads
-    optional string redirectDownloadsHost = 33;
-    optional int32 redirectDownloadsPort = 34 [default=8080];
-
     // Grizzly test
     optional int32 grizzly_idle_timeout = 35;
 
     // Max number of users registered until the open registration will be closed
     optional int32 open_registration_max_users = 36 [default=1000];
     optional int32 open_invitation_count = 37 [default=3];
-
-    optional bool go_git_srv = 38 [default=true];
 }
 
 message EMailTemplate

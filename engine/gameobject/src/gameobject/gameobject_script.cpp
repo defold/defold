@@ -324,14 +324,14 @@ namespace dmGameObject
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
         {
-            if (sender.m_Socket != dmGameObject::GetMessageSocket(collection))
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, index, &receiver, &sender);
+            if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
                 return; // Actually never reached
             }
 
-            dmMessage::URL receiver;
-            dmScript::ResolveURL(L, index, &receiver, &sender);
             HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
@@ -353,7 +353,7 @@ namespace dmGameObject
 
             if (component_ext != 0x0)
             {
-                uint32_t resource_type;
+                dmResource::ResourceType resource_type;
                 dmResource::Result resource_res = dmResource::GetTypeFromExtension(instance->m_Collection->m_Factory, component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
@@ -394,7 +394,7 @@ namespace dmGameObject
      * @name go.get
      * @param url url of the game object or component having the property (hash|string|url)
      * @param id id of the property to retrieve (hash|string)
-     * @return the value of the specified property (number|hash|url|vmath.vec3|vmath.vec4|vmath.quat|boolean)
+     * @return the value of the specified property (number|hash|url|vector3|vector4|quaternion|boolean)
      * @examples
      * <p>Get a property "speed" from a script "player", the property must be declared in the player-script:</p>
      * <pre>
@@ -474,7 +474,7 @@ namespace dmGameObject
      * @name go.set
      * @param url url of the game object or component having the property (hash|string|url)
      * @param id id of the property to set (hash|string)
-     * @param value the value to set (number|hash|url|vmath.vec3|vmath.vec4|vmath.quat|boolean)
+     * @param value the value to set (number|hash|url|vector3|vector4|quaternion|boolean)
      * @examples
      * <p>Set a property "speed" of a script "player", the property must be declared in the player-script:</p>
      * <pre>
@@ -612,7 +612,30 @@ namespace dmGameObject
     int Script_GetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetScale(instance));
+        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
+        return 1;
+    }
+
+    /*# gets the 3d scale factor of the instance
+     * The scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
+     *
+     * @name go.get_scale_vector
+     * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
+     * @return scale factor (vector)
+     * @examples
+     * <p>Get the scale of the instance the script is attached to:</p>
+     * <pre>
+     * local s = go.get_scale_vector()
+     * </pre>
+     * <p>Get the scale of another instance "x":</p>
+     * <pre>
+     * local s = go.get_scale_vector("x")
+     * </pre>
+     */
+    int Script_GetScaleVector(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
         return 1;
     }
 
@@ -674,7 +697,7 @@ namespace dmGameObject
      * NOTE! Physics are currently not affected when setting scale from this function.
      *
      * @name go.set_scale
-     * @param scale uniform scale factor, must be greater than 0 (number)
+     * @param scale vector or uniform scale factor, must be greater than 0 (number)
      * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
      * @examples
      * <p>Set the scale of the instance the script is attached to:</p>
@@ -691,6 +714,19 @@ namespace dmGameObject
     int Script_SetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
+
+        // Supports both vector and number
+        if (dmScript::IsVector3(L, 1))
+        {
+            Vector3 scale = *dmScript::CheckVector3(L, 1);
+            if (scale.getX() <= 0.0f || scale.getY() <= 0.0f || scale.getZ() <= 0.0f)
+            {
+                return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
+            }
+            dmGameObject::SetScale(instance, scale);
+            return 0;
+        }
+
         lua_Number v = luaL_checknumber(L, 1);
         if (v <= 0.0)
         {
@@ -765,7 +801,7 @@ namespace dmGameObject
     int Script_GetWorldScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetWorldScale(instance));
+        lua_pushnumber(L, dmGameObject::GetWorldUniformScale(instance));
         return 1;
     }
 
@@ -812,6 +848,20 @@ namespace dmGameObject
         return instance->m_Script->m_LuaState;
     }
 
+    void LuaCurveRelease(dmEasing::Curve* curve)
+    {
+        ScriptInstance* script_instance = (ScriptInstance*)curve->userdata1;
+        lua_State* L = GetLuaState(script_instance);
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+        assert(top == lua_gettop(L));
+    }
+
     void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
@@ -826,7 +876,7 @@ namespace dmGameObject
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = component_id;
 
-        int ref = (int)userdata2;
+        int ref = (int) (((uintptr_t) userdata2) & 0xffffffff);
 
         if (finished)
         {
@@ -873,8 +923,8 @@ namespace dmGameObject
      *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
      *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
      * </ul>
-     * @param to target property value (number|vmath.vec3|vmath.vec4|vmath.quat)
-     * @param easing easing to use during animation (constant), see the <a href="/doc/properties">properties guide</a> for a complete list
+     * @param to target property value (number|vector3|vector4|quaternion)
+     * @param easing easing to use during animation. Either specify a constant, see the <a href="/doc/properties">properties guide</a> for a complete list, or a vmath.vector with a curve. (constant|vector)
      * @param duration duration of the animation in seconds (number)
      * @param [delay] delay before the animation starts in seconds (number)
      * @param [complete_function] function to call when the animation has completed (function)
@@ -886,6 +936,22 @@ namespace dmGameObject
      * end
      * function init(self)
      *     go.animate(go.get_id(), "position.x", go.PLAYBACK_ONCE_FORWARD, 10, go.EASING_LINEAR, 1, 0, x_done)
+     * end
+     * </pre>
+     *
+     * <p>Animate the y positin of a game object using a crazy custom easing curve:</p>
+     * <pre>
+     * function init(self)
+     *     local values = { 0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1 }
+     *      local vec = vmath.vector(values)
+     *      go.animate("go", "position.y", go.PLAYBACK_LOOP_PINGPONG, 100, vec, 2.0)
      * end
      * </pre>
      */
@@ -926,9 +992,29 @@ namespace dmGameObject
         {
             return luaL_error(L, "only numerical values can be used as target values for animation");
         }
-        lua_Integer easing = luaL_checkinteger(L, 5);
-        if (easing >= dmEasing::TYPE_COUNT)
-            return luaL_error(L, "invalid playback mode when starting an animation");
+
+        dmEasing::Curve curve;
+        if (lua_isnumber(L, 5))
+        {
+            curve.type = (dmEasing::Type)luaL_checkinteger(L, 5);
+            if (curve.type >= dmEasing::TYPE_COUNT)
+                return luaL_error(L, "invalid easing constant");
+        }
+        else if (dmScript::IsVector(L, 5))
+        {
+            curve.type = dmEasing::TYPE_FLOAT_VECTOR;
+            curve.vector = dmScript::CheckVector(L, 5);
+
+            lua_pushvalue(L, 5);
+            curve.release_callback = LuaCurveRelease;
+            curve.userdata1 = i;
+            curve.userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        else
+        {
+            return luaL_error(L, "easing must be either a easing constant or a vmath.vector");
+        }
+
         float duration = (float) luaL_checknumber(L, 6);
         float delay = 0.0f;
         if (top > 6)
@@ -947,7 +1033,7 @@ namespace dmGameObject
         }
 
         result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
-                (Playback)playback, property_var, (dmEasing::Type)easing, duration, delay, stopped, userdata1, userdata2);
+                (Playback)playback, property_var, curve, duration, delay, stopped, userdata1, userdata2);
         switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:
@@ -1070,9 +1156,7 @@ namespace dmGameObject
     }
 
     /*# deletes a game object instance
-     * <div>Use this function to delete a game object identified by its id.</div>
-     *
-     * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
+     * <div>Delete a game object identified by its id.</div>
      *
      * @name go.delete
      * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string|url)
@@ -1082,7 +1166,7 @@ namespace dmGameObject
      * </p>
      * <pre>
      * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
-     * go.detele(id) -- delete the game object
+     * go.delete(id) -- delete the game object
      * </pre>
      */
     int Script_Delete(lua_State* L)
@@ -1096,6 +1180,73 @@ namespace dmGameObject
         return 0;
     }
 
+    /*# deletes a set of game object instance
+     * <div>Delete all game objects simultaneously as listed in table.
+     * The table values (not keys) should be game object ids (hashes).</div>
+     *
+     * @name go.delete_all
+     * @param [ids] table with values of instance ids (hashes) to be deleted
+     * @examples
+     * <p>
+     * An example how to delete game objects listed in a table
+     * </p>
+     * <pre>
+     * -- List the objects to be deleted
+     * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
+     * go.delete_all(ids)
+     * </pre>
+     * <p>
+     * An example how to delete game objects spawned via a collectionfactory
+     * </p>
+     * <pre>
+     * -- Spawn a collection of game objects.
+     * local ids = collectionfactory.create("#collectionfactory")
+     * ...
+     * -- Delete all objects listed in the table 'ids'.
+     * go.delete_all(ids)
+     * </pre>
+     */
+    int Script_DeleteAll(lua_State* L)
+    {
+        const int top = lua_gettop(L);
+        if (lua_gettop(L) != 1 || !lua_istable(L, 1)) {
+            dmLogWarning("go.delete_all() needs a table as its first argument");
+            return 0;
+        }
+
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+
+        // read table
+        lua_pushnil(L);
+        while (lua_next(L, 1)) {
+
+            // value should be hashes
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, -1, &receiver, 0x0);
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            {
+                luaL_error(L, "function called can only access instances within the same collection.");
+            }
+
+            Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            if (todelete)
+            {
+                dmGameObject::HCollection collection = todelete->m_Collection;
+                dmGameObject::Delete(collection, todelete);
+            }
+            else
+            {
+                dmLogWarning("go.delete_all(): instance could not be resolved");
+            }
+
+            lua_pop(L, 1);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     /*# constructs a ray in world space from a position in screen space
      *
      * NOTE! Don't use this function, WIP!
@@ -1103,7 +1254,7 @@ namespace dmGameObject
      * @name go.screen_ray
      * @param x x-coordinate of the screen space position (number)
      * @param y y-coordinate of the screen space position (number)
-     * @return position and direction of the ray in world space (vmath.vector3, vmath.vector3)
+     * @return position and direction of the ray in world space (vector3, vector3)
      */
     int Script_ScreenRay(lua_State* L)
     {
@@ -1125,7 +1276,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name the name of the property (string)
-     * @param value default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. (number, hash, url, vector3, vector4, quat)
+     * @param value default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. (number|hash|url|vector3|vector4|quaternion)
      * @examples
      * <p>
      * This example demonstrates how to define a property called "health" in a script.
@@ -1193,7 +1344,7 @@ namespace dmGameObject
         }
         if (!valid_type)
         {
-            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, boolean, hash, URL, vector3, vector4 or quat.", lua_typename(L, lua_type(L, 2)));
+            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, boolean, hash, URL, vector3, vector4 or quaternion.", lua_typename(L, lua_type(L, 2)));
         }
         assert(top == lua_gettop(L));
         return 0;
@@ -1206,6 +1357,7 @@ namespace dmGameObject
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
         {"get_scale",           Script_GetScale},
+        {"get_scale_vector",    Script_GetScaleVector},
         {"set_position",        Script_SetPosition},
         {"set_rotation",        Script_SetRotation},
         {"set_scale",           Script_SetScale},
@@ -1216,6 +1368,7 @@ namespace dmGameObject
         {"animate",             Script_Animate},
         {"cancel_animations",   Script_CancelAnimations},
         {"delete",              Script_Delete},
+        {"delete_all",          Script_DeleteAll},
         {"screen_ray",          Script_ScreenRay},
         {"property",            Script_Property},
         {0, 0}
@@ -1390,6 +1543,7 @@ bail:
             return 0;
         }
 
+        lua_pop(L, 1);
         return script;
     }
 
@@ -1822,8 +1976,12 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *   <tr><td><code>repeated</code></td><td>If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.</td></tr>
      *   <tr><td><code>x</code></td><td>The x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>y</code></td><td>The y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_x</code></td><td>The screen space x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_y</code></td><td>The screen space y value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dx</code></td><td>The change in x value of a pointer device, if present.</td></tr>
      *   <tr><td><code>dy</code></td><td>The change in y value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_dx</code></td><td>The change in screen space x value of a pointer device, if present.</td></tr>
+     *   <tr><td><code>screen_dy</code></td><td>The change in screen space y value of a pointer device, if present.</td></tr>
      *   <tr><td><code>touch</code></td><td>List of touch input, one element per finger, if present. See table below about touch input</td></tr>
      * </table>
      *
@@ -1840,6 +1998,9 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *   <tr><td><code>y</code></td><td>The y touch location.</td></tr>
      *   <tr><td><code>dx</code></td><td>The change in x value.</td></tr>
      *   <tr><td><code>dy</code></td><td>The change in y value.</td></tr>
+     *   <tr><td><code>acc_x</code></td><td>Accelerometer x value (if present).</td></tr>
+     *   <tr><td><code>acc_y</code></td><td>Accelerometer y value (if present).</td></tr>
+     *   <tr><td><code>acc_z</code></td><td>Accelerometer z value (if present).</td></tr>
      * </table>
      *
      * @name on_input

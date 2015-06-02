@@ -48,7 +48,7 @@ public class FileHandler extends ResourceHandler {
                     int i = line.indexOf(' ');
                     URI uri;
                     try {
-                        uri = new URI(URLDecoder.decode(line.substring(0, i), "UTF-8"));
+                        uri = new URI(line.substring(0, i));
                         uri = uri.normalize(); // http://foo.com//a -> http://foo.com/a
                     } catch (URISyntaxException e) {
                         logger.warn(e.getMessage(), e);

@@ -41,6 +41,7 @@ namespace dmGameSystem
         dmArray<Layer>              m_Layers;
         Vectormath::Aos::Vector3    m_Translation;
         Vectormath::Aos::Quat       m_Rotation;
+        Vectormath::Aos::Matrix4    m_RenderWorldTransform;
         dmGameObject::HInstance     m_Instance;
         TileGridResource*           m_TileGridResource;
         uint16_t*                   m_Cells;
@@ -78,6 +79,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompTileGridAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
     dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params);
+
+    dmGameObject::UpdateResult CompTileGridRender(const dmGameObject::ComponentsRenderParams& params);
 
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 

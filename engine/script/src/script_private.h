@@ -5,6 +5,7 @@
 
 #define SCRIPT_CONTEXT "__script_context"
 #define SCRIPT_MAIN_THREAD "__script_main_thread"
+#define SCRIPT_ERROR_HANDLER_VAR "__error_handler"
 
 namespace dmScript
 {

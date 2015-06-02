@@ -392,4 +392,9 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
         return this.presenter;
     }
 
+    @Override
+    public ISceneModel getModel() {
+        return this.sceneModel;
+    }
+
 }

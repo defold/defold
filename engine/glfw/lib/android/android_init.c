@@ -33,6 +33,8 @@
 #include "android_log.h"
 #include "android_util.h"
 
+#include <android/sensor.h>
+
 //************************************************************************
 //****                  GLFW internal functions                       ****
 //************************************************************************
@@ -50,6 +52,9 @@ extern int g_autoCloseKeyboard;
 extern int g_SpecialKeyActive;
 
 static int g_appLaunchInterrupted = 0;
+
+static ASensorEventQueue* g_sensorEventQueue = 0;
+static ASensorRef g_accelerometer = 0;
 
 static void initThreads( void )
 {
@@ -161,6 +166,21 @@ static const char* GetCmdName(int32_t cmd)
 
 #undef CASE_RETURN
 
+static void computeIconifiedState()
+{
+    // We do not cancel iconified status when RESUME is received, as we can
+    // see the following order of commands when returning from a locked state:
+    // RESUME, TERM_WINDOW, INIT_WINDOW, GAINED_FOCUS
+    // We can also encounter this order of commands:
+    // RESUME, GAINED_FOCUS
+    // Between RESUME and INIT_WINDOW, the application could attempt to perform
+    // operations without a current GL context.
+    //
+    // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
+    // Iconified unless opened, active and resumed (not paused)
+    _glfwWin.iconified = !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused);
+}
+
 static void handleCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand: %s", GetCmdName(cmd));
     switch (cmd)
@@ -173,6 +193,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             create_gl_surface(&_glfwWin);
         }
         _glfwWin.opened = 1;
+        computeIconifiedState();
         break;
     case APP_CMD_TERM_WINDOW:
         if (!_glfwInitialized) {
@@ -187,40 +208,105 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         destroy_gl_surface(&_glfwWin);
         break;
     case APP_CMD_GAINED_FOCUS:
-        // We do not cancel iconified status when RESUME is received, as we can
-        // see the following order of commands when returning from a locked state:
-        // RESUME, TERM_WINDOW, INIT_WINDOW, GAINED_FOCUS
-        // We can also encounter this order of commands:
-        // RESUME, GAINED_FOCUS
-        // Between RESUME and INIT_WINDOW, the application could attempt to perform
-        // operations without a current GL context.
-        _glfwWin.iconified = 0;
         _glfwWin.active = 1;
+        computeIconifiedState();
         break;
     case APP_CMD_LOST_FOCUS:
         if (g_KeyboardActive) {
             _glfwShowKeyboard(0, 0, 0);
         }
         _glfwWin.active = 0;
+        computeIconifiedState();
         break;
     case APP_CMD_START:
         break;
     case APP_CMD_STOP:
         break;
     case APP_CMD_RESUME:
+        _glfwWin.paused = 0;
+        if (g_sensorEventQueue && g_accelerometer) {
+            ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
+        }
+        computeIconifiedState();
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
         // See _glfwPlatformSwapBuffers for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
-        _glfwWin.iconified = 1;
+        _glfwWin.paused = 1;
+        if (g_sensorEventQueue && g_accelerometer) {
+            ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
+        }
+        computeIconifiedState();
         break;
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
         final_gl(&_glfwWin);
         break;
     }
+}
+
+static GLFWTouch* touchById(void *ref)
+{
+    int32_t i;
+    for (i=0;i!=_glfwInput.TouchCount;i++)
+    {
+        if (_glfwInput.Touch[i].Reference == ref)
+            return &_glfwInput.Touch[i];
+    }
+    return 0;
+}
+
+static GLFWTouch* touchGetOrAlloc(void *ref)
+{
+    // Return existing touch or a memset:ed new.
+    GLFWTouch *touch = touchById(ref);
+    if (touch) {
+        return touch;
+    }
+
+    if (_glfwInput.TouchCount < GLFW_MAX_TOUCH) {
+        touch = &_glfwInput.Touch[_glfwInput.TouchCount++];
+        memset(touch, 0x00, sizeof(GLFWTouch));
+        touch->Reference = ref;
+        return touch;
+    }
+
+    return 0;
+}
+
+static void touchStart(void *ref, int32_t x, int32_t y)
+{
+    GLFWTouch *touch = touchGetOrAlloc(ref);
+    if (touch)
+    {
+        touch->Phase = GLFW_PHASE_BEGAN;
+        touch->X = x;
+        touch->Y = y;
+        touch->DX = 0;
+        touch->DY = 0;
+    }
+}
+
+static void* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
+{
+    GLFWTouch *touch = touchGetOrAlloc(ref);
+    if (touch)
+    {
+        touch->Phase = phase;
+        touch->DX = x - touch->X;
+        touch->DY = y - touch->Y;
+        touch->X = x;
+        touch->Y = y;
+        return ref;
+    }
+    return 0;
+}
+
+inline void *pointerIdToRef(int32_t id)
+{
+    return (void*)(0x1 + id);
 }
 
 // return 1 to handle the event, 0 for default handling
@@ -235,27 +321,63 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             _glfwShowKeyboard(0, 0, 0);
         }
 
-        int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK ;
-        int32_t x = AMotionEvent_getX(event, 0);
-        int32_t y = AMotionEvent_getY(event, 0);
+        // touch_handling
+        int32_t action = AMotionEvent_getAction(event);
+        int32_t pointer_index = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+        int32_t pointer_id = AMotionEvent_getPointerId(event, pointer_index);
+
+        void *pointer_ref = pointerIdToRef(pointer_id);
+
+        int32_t x = AMotionEvent_getX(event, pointer_index);
+        int32_t y = AMotionEvent_getY(event, pointer_index);
         _glfwInput.MousePosX = x;
         _glfwInput.MousePosY = y;
 
-        switch (action)
+        int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
+
+        switch (action_action)
         {
-        case AMOTION_EVENT_ACTION_DOWN:
-            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
-            break;
-        case AMOTION_EVENT_ACTION_UP:
-            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
-            break;
-        case AMOTION_EVENT_ACTION_MOVE:
-            if( _glfwWin.mousePosCallback )
-            {
-                _glfwWin.mousePosCallback(x, y);
-            }
-            break;
+            case AMOTION_EVENT_ACTION_DOWN:
+                _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+                touchStart(pointer_ref, x, y);
+                break;
+            case AMOTION_EVENT_ACTION_UP:
+                _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+                touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED);
+                break;;
+            case AMOTION_EVENT_ACTION_POINTER_DOWN:
+                touchStart(pointer_ref, x, y);
+                break;
+            case AMOTION_EVENT_ACTION_POINTER_UP:
+                touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED);
+                break;
+            case AMOTION_EVENT_ACTION_CANCEL:
+                touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED);
+                break;
+            case AMOTION_EVENT_ACTION_MOVE:
+                {
+                    // these events contain updates for all pointers.
+                    int i, max = AMotionEvent_getPointerCount(event);
+                    for (i=0;i<max;i++)
+                    {
+                        x = AMotionEvent_getX(event, i);
+                        y = AMotionEvent_getY(event, i);
+                        pointer_ref = pointerIdToRef(AMotionEvent_getPointerId(event, i));
+                        touchUpdate(pointer_ref, x, y, GLFW_PHASE_MOVED);
+                        if (i == 0 && _glfwWin.mousePosCallback)
+                        {
+                            _glfwWin.mousePosCallback(x, y);
+                        }
+                    }
+                }
+                break;
         }
+
+        if (_glfwWin.touchCallback && _glfwInput.TouchCount > 0)
+        {
+            _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
+        }
+
         return 1;
     }
     else if (event_type == AINPUT_EVENT_TYPE_KEY)
@@ -335,6 +457,7 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
     return 0;
 }
 
+
 void _glfwPreMain(struct android_app* state)
 {
     LOGV("_glfwPreMain");
@@ -382,6 +505,30 @@ static int LooperCallback(int fd, int events, void* data)
     return 1;
 }
 
+static int SensorCallback(int fd, int events, void* data)
+{
+    // clear sensor event queue
+    ASensorEvent e;
+    while (ASensorEventQueue_getEvents(g_sensorEventQueue, &e, 1) > 0)
+    {
+        _glfwInput.AccX = e.acceleration.x;
+        _glfwInput.AccY = e.acceleration.y;
+        _glfwInput.AccZ = e.acceleration.z;
+    }
+    return 1;
+}
+
+int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
+{
+    // This trickery is to align scale and axises to what
+    // iOS outputs (as that was implemented first)
+    const float scale = - 1.0 / ASENSOR_STANDARD_GRAVITY;
+    *x = scale * _glfwInput.AccX;
+    *y = scale * _glfwInput.AccY;
+    *z = scale * _glfwInput.AccZ;
+    return 1;
+}
+
 int _glfwPlatformInit( void )
 {
     LOGV("_glfwPlatformInit");
@@ -394,6 +541,7 @@ int _glfwPlatformInit( void )
     _glfwWin.context = EGL_NO_CONTEXT;
     _glfwWin.surface = EGL_NO_SURFACE;
     _glfwWin.iconified = 1;
+    _glfwWin.paused = 1;
     _glfwWin.app = g_AndroidApp;
 
     int result = pipe(_glfwWin.m_Pipefd);
@@ -403,6 +551,22 @@ int _glfwPlatformInit( void )
     result = ALooper_addFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &_glfwWin);
     if (result != 1) {
         LOGF("Could not add file descriptor to looper: %d", result);
+    }
+
+    ASensorManager* sensorManager = ASensorManager_getInstance();
+    if (!sensorManager) {
+        LOGF("Could not get sensor manager");
+    }
+
+    g_sensorEventQueue = ASensorManager_createEventQueue(sensorManager, g_AndroidApp->looper, ALOOPER_POLL_CALLBACK, SensorCallback, &_glfwWin);
+    if (!g_sensorEventQueue) {
+        LOGF("Could not create event queue");
+    }
+
+    g_accelerometer = ASensorManager_getDefaultSensor(sensorManager, ASENSOR_TYPE_ACCELEROMETER);
+    if (g_accelerometer) {
+        ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
+        ASensorEventQueue_setEventRate(g_sensorEventQueue, g_accelerometer, 1000000/60);
     }
 
     // Initialize thread package
@@ -442,12 +606,16 @@ int _glfwPlatformTerminate( void )
     // Close OpenGL window
     glfwCloseWindow();
 
+
     int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0]);
     if (result != 1) {
         LOGF("Could not remove fd from looper: %d", result);
     }
 
     close(_glfwWin.m_Pipefd[0]);
+
+    ASensorManager* sensorManager = ASensorManager_getInstance();
+    ASensorManager_destroyEventQueue(sensorManager, g_sensorEventQueue);
 
     // Close the other pipe on the java thread
     JNIEnv* env = g_AndroidApp->activity->env;
@@ -457,7 +625,7 @@ int _glfwPlatformTerminate( void )
     (*vm)->DetachCurrentThread(vm);
 
     // Call finish and let Android life cycle take care of the termination
-     ANativeActivity_finish(g_AndroidApp->activity);
+    ANativeActivity_finish(g_AndroidApp->activity);
 
      // Wait for gl context destruction
     while (_glfwWin.display != EGL_NO_DISPLAY)

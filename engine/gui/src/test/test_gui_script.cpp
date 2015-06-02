@@ -45,6 +45,8 @@ public:
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
+        context_params.m_PhysicalWidth = 1;
+        context_params.m_PhysicalHeight = 1;
         m_Context = dmGui::NewContext(&context_params);
     }
 
@@ -95,6 +97,7 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
 
     const char* src = "function init(self)\n"
@@ -370,6 +373,36 @@ TEST_F(dmGuiScriptTest, TestPieNodeScript)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestSlice9)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local n = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    assert(gui.get_slice9(n) == vmath.vector4(0,0,0,0))\n"
+            "    local v = vmath.vector4(12,34,56,78)\n"
+            "    gui.set_slice9(n, v)\n"
+            "    assert(gui.get_slice9(n) == v)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
 void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
@@ -386,6 +419,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
 
     // Set position
@@ -423,6 +457,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
     params.m_MaxAnimations = 32;
     params.m_UserData = this;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
     dmGui::SetSceneScript(scene, script);
 
     // Set position
@@ -458,6 +493,52 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
     dmGui::DeleteScene(scene);
 
     dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestCustomEasingAnimation)
+{
+	dmGui::HScript script = NewScript(m_Context);
+
+	dmGui::NewSceneParams params;
+	params.m_MaxNodes = 64;
+	params.m_MaxAnimations = 32;
+	params.m_UserData = this;
+
+	dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+	dmGui::SetSceneResolution(scene, 1, 1);
+	dmGui::SetSceneScript(scene, script);
+
+	// Create custom curve from vmath.vector and pass along to gui.animate
+	const char* src =
+			"function init(self)\n"
+			"    local n1 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+			"    gui.set_pivot(n1, gui.PIVOT_SW)\n"
+			"    gui.set_position(n1, vmath.vector3(0, 0, 0))\n"
+			"    local curve = vmath.vector( {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0} );\n"
+			"    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(1, 1, 1), curve, 1)\n"
+			"end\n";
+
+	dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+	ASSERT_EQ(dmGui::RESULT_OK, result);
+
+	result = dmGui::InitScene(scene);
+	ASSERT_EQ(dmGui::RESULT_OK, result);
+
+	Vectormath::Aos::Matrix4 transform;
+	dmGui::RenderScene(scene, RenderNodesStoreTransform, &transform);
+
+	ASSERT_NEAR(0.0f, transform.getElem(3, 0), EPSILON);
+
+	for (int i = 0; i < 60; ++i)
+	{
+		dmGui::RenderScene(scene, RenderNodesStoreTransform, &transform);
+		ASSERT_NEAR((float)i / 60.0f, transform.getElem(3, 0), EPSILON);
+		dmGui::UpdateScene(scene, 1.0f / 60.0f);
+	}
+
+	dmGui::DeleteScene(scene);
+
+	dmGui::DeleteScript(script);
 }
 
 TEST_F(dmGuiScriptTest, TestCancelAnimation)

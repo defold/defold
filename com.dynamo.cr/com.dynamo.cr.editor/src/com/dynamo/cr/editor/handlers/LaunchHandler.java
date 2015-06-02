@@ -29,6 +29,7 @@ import org.eclipse.ui.internal.ide.actions.BuildUtilities;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.engine.Engine;
@@ -102,6 +103,14 @@ public class LaunchHandler extends AbstractHandler {
                     args.put("location", "local");
                 else
                     args.put("location", "remote");
+
+                HashMap<String, String> bobArgs = new HashMap<String, String>();
+                boolean enableTextureProfiles = store.getBoolean(PreferenceConstants.P_TEXTURE_PROFILES);
+                if (enableTextureProfiles) {
+                    bobArgs.put("texture-profiles", "true");
+                }
+
+                BobUtil.putBobArgs(bobArgs, args);
 
                 try {
                     project.build(rebuild ? IncrementalProjectBuilder.FULL_BUILD : IncrementalProjectBuilder.INCREMENTAL_BUILD,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);

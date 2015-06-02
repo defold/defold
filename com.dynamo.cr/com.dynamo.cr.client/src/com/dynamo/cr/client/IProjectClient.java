@@ -2,10 +2,8 @@ package com.dynamo.cr.client;
 
 import java.io.InputStream;
 
-import com.dynamo.cr.protocol.proto.Protocol.ApplicationInfo;
 import com.dynamo.cr.protocol.proto.Protocol.BranchList;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
-import com.dynamo.cr.protocol.proto.Protocol.LaunchInfo;
 import com.dynamo.cr.protocol.proto.Protocol.ProjectInfo;
 
 public interface IProjectClient extends IClient {
@@ -29,12 +27,6 @@ public interface IProjectClient extends IClient {
     public void setProjectInfo(ProjectInfo projectInfo) throws RepositoryException;
 
     public void uploadEngine(String platform, InputStream stream) throws RepositoryException;
-
-    public LaunchInfo getLaunchInfo() throws RepositoryException;
-
-    public ApplicationInfo getApplicationInfo(String platform) throws RepositoryException;
-
-    public InputStream getApplicationData(String platform) throws RepositoryException;
 
     public byte[] downloadEngine(String platform, String key) throws RepositoryException;
 

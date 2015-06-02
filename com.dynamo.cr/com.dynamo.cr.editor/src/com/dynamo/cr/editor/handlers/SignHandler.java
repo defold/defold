@@ -6,6 +6,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,6 +29,9 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.util.Exec;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
@@ -122,7 +127,31 @@ public class SignHandler extends AbstractHandler {
                 properties.put("CFBundleExecutable", "dmengine");
                 properties.put("CFBundleIdentifier", projectProperties.getStringValue("ios", "bundle_identifier", "dmengine"));
 
-                String engine = Engine.getDefault().getEnginePath("ios");
+                if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+                    Integer displayWidth = projectProperties.getIntValue("display", "width");
+                    Integer displayHeight = projectProperties.getIntValue("display", "height");
+                    if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                        properties.put("UISupportedInterfaceOrientations",      "UIInterfaceOrientationLandscapeRight");
+                        properties.put("UISupportedInterfaceOrientations~ipad", "UIInterfaceOrientationLandscapeRight");
+                    } else {
+                        properties.put("UISupportedInterfaceOrientations",      "UIInterfaceOrientationPortrait");
+                        properties.put("UISupportedInterfaceOrientations~ipad", "UIInterfaceOrientationPortrait");
+                    }
+                }
+
+                String engineArmv7 = Engine.getDefault().getEnginePath("ios");
+                String engineArm64 = Engine.getDefault().getEnginePath("arm64-ios");
+
+                // Create universal binary
+                Path tmpDir = Files.createTempDirectory("lipoTmp");
+                tmpDir.toFile().deleteOnExit();
+                File tmpFile = new File(tmpDir.toAbsolutePath().toString(), "dmengine");
+                tmpFile.deleteOnExit();
+                String engine = tmpFile.getPath();
+
+                // Run lipo to add armv7 + arm64 together into universal bin
+                Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", engineArmv7, engineArm64, "-output", engine );
+
                 String ipaPath = signer.sign(identity, profile, engine, properties);
                 monitor.worked(1);
 

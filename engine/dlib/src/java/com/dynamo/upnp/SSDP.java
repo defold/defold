@@ -34,6 +34,7 @@ public class SSDP implements ISSDP {
     private byte[] buffer;
     private Map<String, DeviceInfo> discoveredDevices = new HashMap<String, DeviceInfo>();
     private int changeCount = 0;
+    private long timeOutThreshold = 0;
 
     private static final String M_SEARCH_PAYLOAD =
               "M-SEARCH * HTTP/1.1\r\n"
@@ -164,7 +165,7 @@ public class SSDP implements ISSDP {
                             discoveredDevices.put(usn, device);
                             ++changeCount;
                         } else {
-                            // The port might have changed (for identical usn) so we check
+                            // The address might have changed (for identical usn) so we check
                             // for equality here (equals in DeviceInfo compares headers)
                             if (!discDevice.equals(device)) {
                                 discoveredDevices.put(usn, device);

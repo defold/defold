@@ -11,8 +11,10 @@
 #include <graphics/graphics.h>
 #include <graphics/graphics_util.h>
 #include <render/render.h>
+#include <render/display_profiles.h>
 #include <render/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
+#include <render/render_ddf.h>
 
 #include "comp_gui.h"
 
@@ -29,6 +31,7 @@ extern uint32_t GUI_FPC_SIZE;
 namespace dmGameSystem
 {
     dmRender::HRenderType g_GuiRenderType = dmRender::INVALID_RENDER_TYPE_HANDLE;
+    dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     struct GuiWorld;
     struct GuiRenderNode
@@ -123,6 +126,173 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    bool SetNode(const dmGui::HScene scene, dmGui::HNode n, const dmGuiDDF::NodeDesc* node_desc)
+    {
+        bool result = true;
+
+        // properties
+        dmGui::SetNodePosition(scene, n, Point3(node_desc->m_Position.getXYZ()));
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
+        Vector4 color;
+        color.setXYZ(node_desc->m_Color.getXYZ());
+        color.setW(node_desc->m_Alpha);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, color);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SIZE, node_desc->m_Size);
+        color.setXYZ(node_desc->m_Outline.getXYZ());
+        color.setW(node_desc->m_OutlineAlpha);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_OUTLINE, color);
+        color.setXYZ(node_desc->m_Shadow.getXYZ());
+        color.setW(node_desc->m_ShadowAlpha);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SHADOW, color);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SLICE9, node_desc->m_Slice9);
+
+        // texture and texture animation setup
+        if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
+        {
+            const size_t path_str_size_max = 512;
+            size_t path_str_size = strlen(node_desc->m_Texture)+1;
+            if(path_str_size > path_str_size_max)
+            {
+                dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %lu characters (max %lu).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
+                result = false;
+            }
+            else
+            {
+                char texture_str[path_str_size_max];
+                dmStrlCpy(texture_str, node_desc->m_Texture, path_str_size);
+
+                char* texture_anim_name = strstr(texture_str, "/");
+                if(texture_anim_name)
+                    *texture_anim_name++ = 0;
+
+                dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_str);
+                if (gui_result != dmGui::RESULT_OK)
+                {
+                    dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                    result = false;
+                }
+
+                if(texture_anim_name != NULL)
+                {
+                    gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name);
+                    if (gui_result != dmGui::RESULT_OK)
+                    {
+                        dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        result = false;
+                    }
+                }
+            }
+        }
+        else
+        {
+            dmGui::SetNodeTexture(scene, n, "");
+        }
+
+        // layer setup
+        if (node_desc->m_Layer != 0x0 && *node_desc->m_Layer != '\0')
+        {
+            dmGui::Result gui_result = dmGui::SetNodeLayer(scene, n, node_desc->m_Layer);
+            if (gui_result != dmGui::RESULT_OK)
+            {
+                dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                result = false;
+            }
+        }
+        else
+        {
+            dmGui::SetNodeLayer(scene, n, "");
+        }
+
+        // attributes
+        dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
+        // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
+        if (blend_mode == dmGui::BLEND_MODE_ADD_ALPHA)
+            blend_mode = dmGui::BLEND_MODE_ADD;
+        dmGui::SetNodeBlendMode(scene, n, blend_mode);
+
+        dmGui::SetNodePivot(scene, n, (dmGui::Pivot) node_desc->m_Pivot);
+        dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
+        dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
+        dmGui::SetNodeAdjustMode(scene, n, (dmGui::AdjustMode) node_desc->m_AdjustMode);
+        dmGui::SetNodeInheritAlpha(scene, n, node_desc->m_InheritAlpha);
+
+        dmGui::SetNodeClippingMode(scene, n, (dmGui::ClippingMode) node_desc->m_ClippingMode);
+        dmGui::SetNodeClippingVisible(scene, n, node_desc->m_ClippingVisible);
+        dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
+
+        // type specific attributes
+        switch(node_desc->m_Type)
+        {
+            case dmGuiDDF::NodeDesc::TYPE_TEXT:
+                dmGui::SetNodeText(scene, n, node_desc->m_Text);
+                dmGui::SetNodeFont(scene, n, node_desc->m_Font);
+                dmGui::SetNodeLineBreak(scene, n, node_desc->m_LineBreak);
+            break;
+
+            case dmGuiDDF::NodeDesc::TYPE_PIE:
+                dmGui::SetNodePerimeterVertices(scene, n, node_desc->m_Perimetervertices);
+                dmGui::SetNodeInnerRadius(scene, n, node_desc->m_Innerradius);
+                dmGui::SetNodeOuterBounds(scene, n, (dmGui::PieBounds) node_desc->m_Outerbounds);
+                dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
+            break;
+
+            default:
+            break;
+        }
+
+        dmGui::SetNodeResetPoint(scene, n);
+        return result;
+    }
+
+    void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode n, const void* node_desc)
+    {
+        SetNode(scene, n, (const dmGuiDDF::NodeDesc*) node_desc);
+    }
+
+    void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
+    {
+        dmArray<dmhash_t> scene_layouts;
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        scene_layouts.SetCapacity(layout_count);
+        for(uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            dmGui::Result r = dmGui::GetLayoutId(scene, i, id);
+            if(r != dmGui::RESULT_OK)
+            {
+                dmLogError("GetLayoutId failed(%d). Index out of range", r);
+                break;
+            }
+            scene_layouts.Push(id);
+        }
+
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), &scene_layouts);
+        if(layout_id != GetLayout(scene))
+        {
+            dmhash_t current_layout_id = GetLayout(scene);
+
+            dmRender::DisplayProfileDesc profile_desc;
+            GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
+            dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
+            dmGui::SetLayout(scene, layout_id, SetNodeCallback);
+
+            // Notify the scene script. The callback originates from the dmGraphics::SetWindowSize firing the callback.
+            char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
+            dmMessage::Message* message = (dmMessage::Message*)buf;
+            message->m_Sender = dmMessage::URL();
+            message->m_Receiver = dmMessage::URL();
+            message->m_Id = dmHashString64("layout_changed");
+            message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
+            message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
+            dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
+            message_data->m_Id = layout_id;
+            message_data->m_PreviousId = current_layout_id;
+            DispatchMessage(scene, message);
+        }
+    }
+
     bool SetupGuiScene(dmGui::HScene scene, GuiSceneResource* scene_resource)
     {
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
@@ -142,10 +312,10 @@ namespace dmGameSystem
             }
         }
 
-        for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
+        for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
-            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) scene_resource->m_Textures[i]);
+            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) scene_resource->m_GuiTextureSets[i].m_Texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -163,73 +333,36 @@ namespace dmGameSystem
             }
         }
 
+        uint32_t layouts_count = scene_desc->m_Layouts.m_Count;
+        if(layouts_count != 0)
+        {
+            dmGui::AllocateLayouts(scene, scene_desc->m_Nodes.m_Count, layouts_count);
+            for (uint32_t i = 0; i < layouts_count; ++i)
+            {
+                const char* name = scene_desc->m_Layouts[i].m_Name;
+                dmGui::Result r = dmGui::AddLayout(scene, name);
+                if (r != dmGui::RESULT_OK) {
+                    dmLogError("Unable to add layout '%s' to scene (%d)", name,  r);
+                    return false;
+                }
+            }
+        }
+
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
         {
-            const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
-
             // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
+            const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
             dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
-            dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
-            // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
-            if (blend_mode == dmGui::BLEND_MODE_ADD_ALPHA)
-                blend_mode = dmGui::BLEND_MODE_ADD;
-            dmGui::AdjustMode adjust_mode = (dmGui::AdjustMode) node_desc->m_AdjustMode;
-
             Vector4 position = node_desc->m_Position;
             Vector4 size = node_desc->m_Size;
             dmGui::HNode n = dmGui::NewNode(scene, Point3(position.getXYZ()), Vector3(size.getXYZ()), type);
             if (n)
             {
-                if (node_desc->m_Type == dmGuiDDF::NodeDesc::TYPE_TEXT)
-                {
-                    dmGui::SetNodeText(scene, n, node_desc->m_Text);
-                    dmGui::SetNodeFont(scene, n, node_desc->m_Font);
-                    dmGui::SetNodeLineBreak(scene, n, node_desc->m_LineBreak);
-                }
                 if (node_desc->m_Id)
-                {
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
-                }
-                if (node_desc->m_Texture != 0x0 && *node_desc->m_Texture != '\0')
-                {
-                    dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, node_desc->m_Texture);
-                    if (gui_result != dmGui::RESULT_OK)
-                    {
-                        dmLogError("The texture '%s' could not be set for the '%s', result: %d.", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
-                        result = false;
-                    }
-                }
-                if (node_desc->m_Layer != 0x0 && *node_desc->m_Layer != '\0')
-                {
-                    dmGui::Result gui_result = dmGui::SetNodeLayer(scene, n, node_desc->m_Layer);
-                    if (gui_result != dmGui::RESULT_OK)
-                    {
-                        dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
-                        result = false;
-                    }
-                }
-
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, node_desc->m_Color);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_OUTLINE, node_desc->m_Outline);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SHADOW, node_desc->m_Shadow);
-                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SLICE9, node_desc->m_Slice9);
-                dmGui::SetNodeBlendMode(scene, n, blend_mode);
-                dmGui::SetNodePivot(scene, n, (dmGui::Pivot) node_desc->m_Pivot);
-                dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
-                dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
-                dmGui::SetNodeAdjustMode(scene, n, adjust_mode);
-                dmGui::SetNodeResetPoint(scene, n);
-                dmGui::SetNodeInheritAlpha(scene, n, node_desc->m_InheritAlpha);
-
-                dmGui::SetNodePerimeterVertices(scene, n, node_desc->m_Perimetervertices);
-                dmGui::SetNodeInnerRadius(scene, n, node_desc->m_Innerradius);
-                dmGui::SetNodeOuterBounds(scene, n, (dmGui::PieBounds) node_desc->m_Outerbounds);
-                dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
-                dmGui::SetNodeClippingMode(scene, n, (dmGui::ClippingMode) node_desc->m_ClippingMode);
-                dmGui::SetNodeClippingVisible(scene, n, node_desc->m_ClippingVisible);
-                dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
+                result = SetNode(scene, n, node_desc);
+                if(layouts_count != 0)
+                    dmGui::SetNodeLayoutDesc(scene, n, node_desc, 0, layouts_count);
             }
             else
             {
@@ -255,6 +388,55 @@ namespace dmGameSystem
                 dmGui::SetNodeParent(scene, n, p);
             }
         }
+
+        if(layouts_count != 0)
+        {
+            for (uint32_t l = 0; l < layouts_count; ++l)
+            {
+                uint16_t layout_index = dmGui::GetLayoutIndex(scene, dmHashString64(scene_desc->m_Layouts[l].m_Name));
+                for (uint32_t i = 0; i < scene_desc->m_Layouts[l].m_Nodes.m_Count; ++i)
+                {
+                    const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Layouts[l].m_Nodes[i];
+                    dmGui::HNode n = dmGui::GetNodeById(scene, node_desc->m_Id);
+                    if (n)
+                    {
+                        dmGui::SetNodeLayoutDesc(scene, n, node_desc, layout_index, layout_index);
+                    }
+                    else
+                    {
+                        dmLogError("The default node for '%s' could not be found in the scene.", node_desc->m_Id);
+                    }
+                }
+            }
+
+            // we might have any resolution starting the scene, so let's set the best alternative layout directly
+            dmArray<dmhash_t> scene_layouts;
+            scene_layouts.SetCapacity(layouts_count+1);
+            for(uint16_t i = 0; i < layouts_count+1; ++i)
+            {
+                dmhash_t id;
+                dmGui::Result r = dmGui::GetLayoutId(scene, i, id);
+                if(r != dmGui::RESULT_OK)
+                {
+                    dmLogError("GetLayoutId failed(%d). Index out of range", r);
+                    break;
+                }
+                scene_layouts.Push(id);
+            }
+
+            uint32_t display_width, display_height;
+            dmGui::GetPhysicalResolution(scene, display_width, display_height);
+            dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles)dmGui::GetDisplayProfiles(scene);
+            dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, display_width, display_height, 0, &scene_layouts);
+            if(layout_id != dmGui::DEFAULT_LAYOUT)
+            {
+                dmRender::DisplayProfileDesc profile_desc;
+                GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
+                dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
+                dmGui::SetLayout(scene, layout_id, SetNodeCallback);
+            }
+        }
+
         return result;
     }
 
@@ -277,6 +459,8 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
+        scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
+        scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
 
@@ -341,8 +525,18 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext    m_RenderContext;
         GuiWorld*                   m_GuiWorld;
-        uint32_t                    m_NextZ;
+
+        // This order value is increased during rendering for each
+        // render object generated, then used to make sure the final
+        // draw order will follow the order objects are generated in,
+        // and to allow font rendering to be sorted into the right place.
+        uint32_t                    m_NextSortOrder;
     };
+
+    inline uint32_t MakeFinalRenderOrder(uint32_t scene_order, uint32_t sub_order)
+    {
+        return (scene_order << 16) + sub_order;
+    }
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
     {
@@ -430,7 +624,7 @@ namespace dmGameSystem
             params.m_ShadowColor = shadow;
             params.m_Text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
-            params.m_Depth = gui_context->m_NextZ;
+            params.m_Depth = 0;
             params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
@@ -479,6 +673,8 @@ namespace dmGameSystem
             }
             dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
         }
+
+        dmRender::FlushTexts(gui_context->m_RenderContext, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     void RenderBoxNodes(dmGui::HScene scene,
@@ -498,7 +694,11 @@ namespace dmGameSystem
 
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
-        dmRender::RenderObject& ro = gui_world->m_GuiRenderObjects[ro_count];
+
+        GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
+        dmRender::RenderObject& ro = gro.m_RenderObject;
+        gro.m_SortOrder = gui_context->m_NextSortOrder++;
+
         // NOTE: ro might be uninitialized and we don't want to create a stack allocated temporary
         // See case 2264
         ro.Init();
@@ -516,7 +716,6 @@ namespace dmGameSystem
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = vertex_count * node_count;
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
-        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);
@@ -540,7 +739,6 @@ namespace dmGameSystem
             const Vector4& color = node_colors[i];
             const dmGui::HNode node = entries[i].m_Node;
 
-            ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
             // Pre-multiplied alpha
             Vector4 pm_color(color);
             pm_color.setX(color.getX() * color.getW());
@@ -574,20 +772,60 @@ namespace dmGameSystem
             // 3 *-*-----*-*
 
             // v are '1-v'
-            xs[0] = ys[0] = us[0] = vs[3] = 0;
-            xs[3] = ys[3] = us[3] = vs[0] = 1;
+            xs[0] = ys[0] = 0;
+            xs[3] = ys[3] = 1;
+            bool uv_rotated;
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+            if(tc)
+            {
+                static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
+                uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+                bool flip_u, flip_v;
+                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+                if(uv_rotated)
+                {
+                    const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
+                    const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
+                    us[uI[0]] = tc[0];
+                    us[uI[1]] = tc[0] + (su * slice9.getW());
+                    us[uI[2]] = tc[2] - (su * slice9.getY());
+                    us[uI[3]] = tc[2];
+                    vs[vI[0]] = tc[1];
+                    vs[vI[1]] = tc[1] + (sv * slice9.getX());
+                    vs[vI[2]] = tc[5] - (sv * slice9.getZ());
+                    vs[vI[3]] = tc[5];
+                }
+                else
+                {
+                    const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
+                    const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
+                    us[uI[0]] = tc[0];
+                    us[uI[1]] = tc[0] + (su * slice9.getX());
+                    us[uI[2]] = tc[4] - (su * slice9.getZ());
+                    us[uI[3]] = tc[4];
+                    vs[vI[0]] = tc[1];
+                    vs[vI[1]] = tc[1] - (sv * slice9.getW());
+                    vs[vI[2]] = tc[3] + (sv * slice9.getY());
+                    vs[vI[3]] = tc[3];
+                }
+            }
+            else
+            {
+                uv_rotated = false;
+                us[0] = 0;
+                us[1] = su * slice9.getX();
+                us[2] = 1 - su * slice9.getZ();
+                us[3] = 1;
+                vs[0] = 1;
+                vs[1] = 1 - sv * slice9.getW();
+                vs[2] = sv * slice9.getY();
+                vs[3] = 0;
+            }
 
             xs[1] = sx * slice9.getX();
             xs[2] = 1 - sx * slice9.getZ();
-
             ys[1] = sy * slice9.getW();
             ys[2] = 1 - sy * slice9.getY();
-
-            us[1] = su * slice9.getX();
-            us[2] = 1 - su * slice9.getZ();
-
-            vs[1] = 1 - sv * slice9.getW();
-            vs[2] = sv * slice9.getY();
 
             const Matrix4* transform = &node_transforms[i];
             Vectormath::Aos::Vector4 pts[4][4];
@@ -599,6 +837,11 @@ namespace dmGameSystem
                 }
             }
 
+            BoxVertex v00, v10, v01, v11;
+            v00.SetColor(bcolor);
+            v10.SetColor(bcolor);
+            v01.SetColor(bcolor);
+            v11.SetColor(bcolor);
             for (int y=0;y<3;y++)
             {
                 for (int x=0;x<3;x++)
@@ -607,13 +850,24 @@ namespace dmGameSystem
                     const int x1 = x+1;
                     const int y0 = y;
                     const int y1 = y+1;
-
-                    // v<x><y>
-                    BoxVertex v00(pts[y0][x0], us[x0], vs[y0], bcolor);
-                    BoxVertex v10(pts[y0][x1], us[x1], vs[y0], bcolor);
-                    BoxVertex v01(pts[y1][x0], us[x0], vs[y1], bcolor);
-                    BoxVertex v11(pts[y1][x1], us[x1], vs[y1], bcolor);
-
+                    v00.SetPosition(pts[y0][x0]);
+                    v10.SetPosition(pts[y0][x1]);
+                    v01.SetPosition(pts[y1][x0]);
+                    v11.SetPosition(pts[y1][x1]);
+                    if(uv_rotated)
+                    {
+                        v00.SetUV(us[y0], vs[x0]);
+                        v10.SetUV(us[y0], vs[x1]);
+                        v01.SetUV(us[y1], vs[x0]);
+                        v11.SetUV(us[y1], vs[x1]);
+                    }
+                    else
+                    {
+                        v00.SetUV(us[x0], vs[y0]);
+                        v10.SetUV(us[x1], vs[y0]);
+                        v01.SetUV(us[x0], vs[y1]);
+                        v11.SetUV(us[x1], vs[y1]);
+                    }
                     gui_world->m_ClientVertexBuffer.Push(v00);
                     gui_world->m_ClientVertexBuffer.Push(v10);
                     gui_world->m_ClientVertexBuffer.Push(v11);
@@ -623,8 +877,22 @@ namespace dmGameSystem
                 }
             }
         }
+    }
 
-        dmRender::AddToRender(gui_context->m_RenderContext, &ro);
+    // Computes max vertices required in the vertex buffer to draw a pie node with a
+    // given number of perimeter vertices in its configuration.
+    inline uint32_t ComputeRequiredVertices(uint32_t perimeter_vertices)
+    {
+        // 1.  Minimum is capped to 4
+        // 2a. There will always be one extra needed to complete a full fill.
+        //     I.e. an 8-gon will need 9 vertices around, where the first and last
+        //     overlap. (+1)
+        // 2b. If the shape has rectangular bounds and pass through all four corners,
+        //     there will be 4 vertices inserted around the loop. (+4)
+        // 3.  Each vertex around the perimeter has its twin along the inside (*2)
+        // 4.  To draw all pie nodes in one draw call as a strip, each pie adds two
+        //     doubled vertices to tie it together (+2)
+        return 2 * (dmMath::Max<uint32_t>(perimeter_vertices, 4) + 5) + 2;
     }
 
     void RenderPieNodes(dmGui::HScene scene,
@@ -644,7 +912,10 @@ namespace dmGameSystem
 
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
-        dmRender::RenderObject& ro = gui_world->m_GuiRenderObjects[ro_count];
+
+        GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
+        dmRender::RenderObject& ro = gro.m_RenderObject;
+        gro.m_SortOrder = gui_context->m_NextSortOrder++;
 
         // NOTE: ro might be uninitialized and we don't want to create a stack allocated temporary
         // See case 2264
@@ -661,7 +932,6 @@ namespace dmGameSystem
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = 0;
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
-        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);
@@ -673,12 +943,7 @@ namespace dmGameSystem
         uint32_t max_total_vertices = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            // Computation for required number of vertices:
-            // 1. four extra corner vertices per node (if rect bounds)
-            // 2. above times 2 for inner and outer vertices
-            // 3. one extra step for where we close the loop with exact overlapping start/stop
-            const uint32_t perimeterVertices = dmMath::Max<uint32_t>(4, dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node));
-            max_total_vertices += (perimeterVertices + 4) * 2 + 2;
+            max_total_vertices += ComputeRequiredVertices(dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node));
         }
 
         if (gui_world->m_ClientVertexBuffer.Remaining() < max_total_vertices) {
@@ -693,8 +958,6 @@ namespace dmGameSystem
 
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
-
-            ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
 
             // Pre-multiplied alpha
             Vector4 pm_color(color);
@@ -719,11 +982,59 @@ namespace dmGameSystem
             }
 
             stopAngle = dmMath::Min(360.0f, stopAngle) * PI / 180.0f;
-            const uint32_t generate = ceilf(stopAngle / ad) + 1;
+
+            // 1. Division computes number of cirlce segments needed, and we need 1 more
+            // vertex than that (1 lone segment = 2 perimeter vertices).
+            // 2. Round up because 48 deg fill drawn with 45 deg segmenst should be be rendered
+            // as 45+3. (Set limit to if segment exceeds more than 1/1000 to allow for some
+            // floating point imprecision)
+            const uint32_t generate = floorf(stopAngle / ad + 0.999f) + 1;
 
             float lastAngle = 0;
             float nextCorner = 0.25f * PI; // upper right rectangle corner at 45 deg
             bool first = true;
+
+            float u0,su,v0,sv;
+            bool uv_rotated;
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+            if(tc)
+            {
+                bool flip_u, flip_v;
+                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+                uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+                if(uv_rotated ? flip_v : flip_u)
+                {
+                    su = -(tc[4] - tc[0]);
+                    u0 = tc[0] - su;
+                }
+                else
+                {
+                    u0 = tc[0];
+                    su = tc[4] - u0;
+                }
+                uint32_t v0i = uv_rotated ? 1 : 3;
+                uint32_t v1i = uv_rotated ? 5 : 1;
+                if(uv_rotated ? flip_u : flip_v)
+                {
+                    sv = -(tc[v1i] - tc[v0i]);
+                    v0 = tc[v0i] - sv;
+                }
+                else
+                {
+                    v0 = tc[v0i];
+                    sv = tc[v1i] - v0;
+                }
+            }
+            else
+            {
+                uv_rotated = false;
+                u0 = 0.0f;
+                su = 1.0f;
+                v0 = 0.0f;
+                sv = 1.0f;
+            }
+
+            uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
             for (int j=0;j!=generate;j++)
             {
                 float a;
@@ -751,7 +1062,7 @@ namespace dmGameSystem
                 // make inner vertex
                 float u = 0.5f + innerMultiplier * c;
                 float v = 0.5f + innerMultiplier * s;
-                BoxVertex vInner(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u, 1-v, bcolor);
+                BoxVertex vInner(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), bcolor);
 
                 // make outer vertex
                 float d;
@@ -762,7 +1073,7 @@ namespace dmGameSystem
 
                 u = 0.5f + d * c;
                 v = 0.5f + d * s;
-                BoxVertex vOuter(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u, 1-v, bcolor);
+                BoxVertex vOuter(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), bcolor);
 
                 // both inner & outer are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
@@ -779,11 +1090,11 @@ namespace dmGameSystem
                 if (j == generate-1)
                     gui_world->m_ClientVertexBuffer.Push(vOuter);
             }
+
+            assert((gui_world->m_ClientVertexBuffer.Size() - sizeBefore) <= ComputeRequiredVertices(dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node)));
         }
 
         ro.m_VertexCount = gui_world->m_ClientVertexBuffer.Size() - ro.m_VertexStart;
-
-        dmRender::AddToRender(gui_context->m_RenderContext, &ro);
     }
 
     void RenderNodes(dmGui::HScene scene,
@@ -847,8 +1158,6 @@ namespace dmGameSystem
             prev_texture = texture;
             prev_font = font;
             prev_stencil_scope = stencil_scope;
-
-            gui_context->m_NextZ++;
 
             ++i;
         }
@@ -938,6 +1247,54 @@ namespace dmGameSystem
         dmGraphics::SetTexture((dmGraphics::HTexture) texture, tparams);
     }
 
+    dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
+    {
+        TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
+        dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
+        uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
+        if (anim_index)
+        {
+            if (texture_set_res->m_TextureSet->m_TexCoords.m_Count == 0)
+            {
+                return dmGui::FETCH_ANIMATION_UNKNOWN_ERROR;
+            }
+            dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];
+            uint32_t playback_index = animation->m_Playback;
+            if(playback_index >= dmGui::PLAYBACK_COUNT)
+                return dmGui::FETCH_ANIMATION_INVALID_PLAYBACK;
+
+            out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
+            out_data->m_Start = animation->m_Start;
+            out_data->m_End = animation->m_End;
+            out_data->m_Width = animation->m_Width;
+            out_data->m_Height = animation->m_Height;
+            out_data->m_FPS = animation->m_Fps;
+            out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
+            out_data->m_FlipVertical = animation->m_FlipVertical;
+
+            static struct PlaybackTranslation
+            {
+                dmGui::Playback m_Table[dmGui::PLAYBACK_COUNT];
+                PlaybackTranslation()
+                {
+                    m_Table[dmGameSystemDDF::PLAYBACK_NONE]            = dmGui::PLAYBACK_NONE;
+                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_FORWARD]    = dmGui::PLAYBACK_ONCE_FORWARD;
+                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD]   = dmGui::PLAYBACK_ONCE_BACKWARD;
+                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_FORWARD]    = dmGui::PLAYBACK_LOOP_FORWARD;
+                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD]   = dmGui::PLAYBACK_LOOP_BACKWARD;
+                    m_Table[dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG]   = dmGui::PLAYBACK_LOOP_PINGPONG;
+                    m_Table[dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG;
+                }
+            } ddf_playback_map;
+            out_data->m_Playback = ddf_playback_map.m_Table[playback_index];
+            return dmGui::FETCH_ANIMATION_OK;
+        }
+        else
+        {
+            return dmGui::FETCH_ANIMATION_NOT_FOUND;
+        }
+    }
+
     dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         gui_component->m_AddedToUpdate = true;
@@ -947,54 +1304,95 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        GuiContext* gui_context = (GuiContext*)params.m_Context;
 
-        // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* gui_component = gui_world->m_Components[i];
-            if (gui_component->m_Enabled && gui_component->m_AddedToUpdate) {
+            if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)
+            {
                 dmGui::UpdateScene(gui_component->m_Scene, params.m_UpdateContext->m_DT);
             }
         }
 
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
+    {
+        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+        {
+            for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
+            {
+                dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                dmRender::AddToRender(params.m_Context, ro);
+            }
+        }
+    }
+
+    dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
+    {
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        GuiContext* gui_context = (GuiContext*)params.m_Context;
+
+        dmGui::RenderSceneParams rp;
+        rp.m_RenderNodes = &RenderNodes;
+        rp.m_NewTexture = &NewTexture;
+        rp.m_DeleteTexture = &DeleteTexture;
+        rp.m_SetTextureData = &SetTextureData;
+
         RenderGuiContext render_gui_context;
         render_gui_context.m_RenderContext = gui_context->m_RenderContext;
         render_gui_context.m_GuiWorld = gui_world;
-        render_gui_context.m_NextZ = 0;
+        render_gui_context.m_NextSortOrder = 0;
 
         uint32_t total_node_count = 0;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled && c->m_AddedToUpdate)
-            {
-                total_node_count += dmGui::GetNodeCount(c->m_Scene);
-            }
+            if (!c->m_Enabled || !c->m_AddedToUpdate)
+                continue;
+            total_node_count += dmGui::GetNodeCount(c->m_Scene);
         }
 
         uint32_t total_gui_render_objects_count = (total_node_count<<1) + (total_node_count>>3);
-        if (gui_world->m_GuiRenderObjects.Capacity() < total_gui_render_objects_count)
-        {
-            // NOTE: m_GuiRenderObjects *before* rendering as pointers
-            // to render-objects are passed to the render-system
-            // Given batching the capacity is perhaps a bit over the top
-            // We also need to include one possible state per node + worst case batching every 8th
+        if (gui_world->m_GuiRenderObjects.Capacity() < total_gui_render_objects_count) {
             gui_world->m_GuiRenderObjects.SetCapacity(total_gui_render_objects_count);
         }
+
         gui_world->m_GuiRenderObjects.SetSize(0);
         gui_world->m_ClientVertexBuffer.SetSize(0);
+
+        uint32_t lastEnd = 0;
+
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled && c->m_AddedToUpdate) {
-                dmGui::RenderSceneParams rp;
-                rp.m_RenderNodes = &RenderNodes;
-                rp.m_NewTexture = &NewTexture;
-                rp.m_DeleteTexture = &DeleteTexture;
-                rp.m_SetTextureData = &SetTextureData;
-                dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
+            if (!c->m_Enabled || !c->m_AddedToUpdate)
+                continue;
+
+            // Render scene and see how many render objects it added, then we add those individually.
+            dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
+            const uint32_t count = gui_world->m_GuiRenderObjects.Size() - lastEnd;
+
+            dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(gui_context->m_RenderContext, count);
+            dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(gui_context->m_RenderContext, &RenderListDispatch, gui_world);
+            dmRender::RenderListEntry* write_ptr = render_list;
+
+            uint32_t render_order = dmGui::GetRenderOrder(c->m_Scene);
+            while (lastEnd < gui_world->m_GuiRenderObjects.Size())
+            {
+                const GuiRenderObject& gro = gui_world->m_GuiRenderObjects[lastEnd];
+                write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
+                write_ptr->m_Order = MakeFinalRenderOrder(render_order, gro.m_SortOrder);
+                write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
+                write_ptr->m_BatchKey = lastEnd;
+                write_ptr->m_TagMask = dmRender::GetMaterialTagMask(gro.m_RenderObject.m_Material);
+                write_ptr->m_Dispatch = dispatch;
+                write_ptr++;
+                lastEnd++;
             }
+
+            dmRender::RenderListSubmit(gui_context->m_RenderContext, render_list, write_ptr);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -1079,6 +1477,7 @@ namespace dmGameSystem
         dmGui::ClearTextures(gui_component->m_Scene);
         dmGui::ClearFonts(gui_component->m_Scene);
         dmGui::ClearNodes(gui_component->m_Scene);
+        dmGui::ClearLayouts(gui_component->m_Scene);
         if (SetupGuiScene(gui_component->m_Scene, scene_resource))
         {
             result = dmGui::InitScene(gui_component->m_Scene);

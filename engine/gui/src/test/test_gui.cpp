@@ -67,6 +67,23 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
     return &src;
 }
 
+void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
+{
+    dmGui::SetSceneResolution(scene, width, height);
+    dmGui::SetDefaultResolution(scene->m_Context, width, height);
+}
+
+dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
+{
+    out_data->Init();
+    static float uv_quad[] = {0,1,0,0, 1,0,1,1};
+    out_data->m_TexCoords = &uv_quad[0];
+    out_data->m_End = 1;
+    out_data->m_FPS = 30;
+    out_data->m_FlipHorizontal = 1;
+    return dmGui::FETCH_ANIMATION_OK;
+}
+
 class dmGuiTest : public ::testing::Test
 {
 public:
@@ -91,6 +108,10 @@ public:
         context_params.m_GetUserDataCallback = GetUserDataCallback;
         context_params.m_ResolvePathCallback = ResolvePathCallback;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
+        context_params.m_PhysicalWidth = 1;
+        context_params.m_PhysicalHeight = 1;
+        context_params.m_DefaultProjectWidth = 1;
+        context_params.m_DefaultProjectHeight = 1;
 
         m_Context = dmGui::NewContext(&context_params);
         // Bogus font for the metric callback to be run (not actually using the default font)
@@ -99,7 +120,10 @@ public:
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
+        params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
+        params.m_OnWindowResizeCallback = OnWindowResizeCallback;
         m_Scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneResolution(m_Scene, 1, 1);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
     }
@@ -216,13 +240,194 @@ TEST_F(dmGuiTest, Name)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
+TEST_F(dmGuiTest, ContextAndSceneResolution)
+{
+    uint32_t width, height;
+    dmGui::GetPhysicalResolution(m_Context, width, height);
+    ASSERT_EQ(1, width);
+    ASSERT_EQ(1, height);
+    dmGui::GetSceneResolution(m_Scene, width, height);
+    ASSERT_EQ(1, width);
+    ASSERT_EQ(1, height);
+    dmGui::SetSceneResolution(m_Scene, 2, 3);
+    dmGui::GetSceneResolution(m_Scene, width, height);
+    ASSERT_EQ(2, width);
+    ASSERT_EQ(3, height);
+    dmGui::SetPhysicalResolution(m_Context, 4, 5);
+    dmGui::GetPhysicalResolution(m_Context, width, height);
+    ASSERT_EQ(4, width);
+    ASSERT_EQ(5, height);
+    dmGui::GetSceneResolution(m_Scene, width, height);
+    ASSERT_EQ(4, width);
+    ASSERT_EQ(5, height);
+}
+
+void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode node, const void *node_desc)
+{
+    dmGui::SetNodePosition(scene, node, *((Point3 *)node_desc));
+}
+
+TEST_F(dmGuiTest, Layouts)
+{
+    // layout creation and access
+    dmGui::Result r;
+    const char *l1_name = "layout1";
+    const char *l2_name = "layout2";
+    dmGui::AllocateLayouts(m_Scene, 2, 2);
+    r = dmGui::AddLayout(m_Scene, l1_name);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::AddLayout(m_Scene, l2_name);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmhash_t ld_hash, l1_hash, l2_hash;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetLayoutId(m_Scene, 0, ld_hash));
+    ASSERT_EQ(dmGui::DEFAULT_LAYOUT, ld_hash);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetLayoutId(m_Scene, 1, l1_hash));
+    ASSERT_EQ(dmHashString64(l1_name), l1_hash);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetLayoutId(m_Scene, 2, l2_hash));
+    ASSERT_EQ(dmHashString64(l2_name), l2_hash);
+
+    uint16_t ld_index = dmGui::GetLayoutIndex(m_Scene, dmGui::DEFAULT_LAYOUT);
+    ASSERT_EQ(0, ld_index);
+    uint16_t l1_index = dmGui::GetLayoutIndex(m_Scene, l1_hash);
+    ASSERT_EQ(1, l1_index);
+    uint16_t l2_index = dmGui::GetLayoutIndex(m_Scene, l2_hash);
+    ASSERT_EQ(2, l2_index);
+    ASSERT_EQ(3, dmGui::GetLayoutCount(m_Scene));
+
+    Point3 p0(0,0,0);
+    Point3 p1(1,0,0);
+    Point3 p2(2,0,0);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(3,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    ASSERT_EQ(3, dmGui::GetNodePosition(m_Scene, node).getX());
+
+    // set data for layout index range 0-2
+    r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p0, 0, 2);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // test all layouts
+    dmGui::SetLayout(m_Scene, dmGui::DEFAULT_LAYOUT, SetNodeCallback);
+    ASSERT_EQ(dmGui::DEFAULT_LAYOUT, dmGui::GetLayout(m_Scene));
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 0);
+
+    dmGui::SetLayout(m_Scene, l1_hash, SetNodeCallback);
+    ASSERT_EQ(l1_hash, dmGui::GetLayout(m_Scene));
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 0);
+
+    dmGui::SetLayout(m_Scene, l2_hash, SetNodeCallback);
+    ASSERT_EQ(l2_hash, dmGui::GetLayout(m_Scene));
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 0);
+
+    // set data for layout independently index 0,1,2
+    r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p1, 1, 1);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+    r = dmGui::SetNodeLayoutDesc(m_Scene, node, &p2, 2, 2);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    // test all layouts
+    dmGui::SetLayout(m_Scene, dmGui::DEFAULT_LAYOUT, SetNodeCallback);
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 0);
+
+    dmGui::SetLayout(m_Scene, l1_hash, SetNodeCallback);
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 1);
+
+    dmGui::SetLayout(m_Scene, l2_hash, SetNodeCallback);
+    ASSERT_EQ(dmGui::GetNodePosition(m_Scene, node).getX(), 2);
+
+    // test script functions
+    const char* s = "function init(self)\n"
+                    "    assert(hash(\"layout1\") == gui.get_layout())\n"
+                    "end\n"
+                    "function update(self, dt)\n"
+                    "    assert(hash(\"layout2\") == gui.get_layout())\n"
+                    "end\n";
+
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::SetLayout(m_Scene, l1_hash, SetNodeCallback);
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::SetLayout(m_Scene, l2_hash, SetNodeCallback);
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, FlipbookAnim)
+{
+    int t1, ts1;
+    dmGui::Result r;
+
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    uint64_t fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
+
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(dmHashString64("ta1"), fb_id);
+
+    const float* fb_uv = dmGui::GetNodeFlipbookAnimUV(m_Scene, node);
+    ASSERT_NE((const float*) 0, fb_uv);
+    ASSERT_EQ(0, fb_uv[0]);
+    ASSERT_EQ(1, fb_uv[1]);
+    ASSERT_EQ(0, fb_uv[2]);
+    ASSERT_EQ(0, fb_uv[3]);
+    ASSERT_EQ(1, fb_uv[4]);
+    ASSERT_EQ(0, fb_uv[5]);
+    ASSERT_EQ(1, fb_uv[6]);
+    ASSERT_EQ(1, fb_uv[7]);
+
+    bool fb_flipx = false, fb_flipy = false;
+    dmGui::GetNodeFlipbookAnimUVFlip(m_Scene, node, fb_flipx, fb_flipy);
+    ASSERT_EQ(true, fb_flipx);
+    ASSERT_EQ(false, fb_flipy);
+
+    dmGui::CancelNodeFlipbookAnim(m_Scene, node);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(0, fb_id);
+
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(dmHashString64("ta1"), fb_id);
+
+    dmGui::ClearTextures(m_Scene);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(0, fb_id);
+
+    r = dmGui::AddTexture(m_Scene, "t2", (void*) &t1, 0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t2");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
+}
+
 TEST_F(dmGuiTest, TextureFontLayer)
 {
     int t1, t2;
+    int ts1, ts2;
     int f1, f2;
 
-    dmGui::AddTexture(m_Scene, "t1", (void*) &t1);
-    dmGui::AddTexture(m_Scene, "t2", (void*) &t2);
+    dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1);
+    dmGui::AddTexture(m_Scene, "t2", (void*) &t2, (void*) &ts2);
     dmGui::AddFont(m_Scene, "f1", &f1);
     dmGui::AddFont(m_Scene, "f2", &f2);
     dmGui::AddLayer(m_Scene, "l1");
@@ -246,8 +451,9 @@ TEST_F(dmGuiTest, TextureFontLayer)
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::AddTexture(m_Scene, "t2", &t1);
+    dmGui::AddTexture(m_Scene, "t2", (void*) &t1, (void*) &ts1);
     ASSERT_EQ(&t1, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
+    ASSERT_EQ(&ts1, m_Scene->m_Nodes[node & 0xffff].m_Node.m_TextureSet);
 
     dmGui::RemoveTexture(m_Scene, "t2");
     ASSERT_EQ((void*)0, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
@@ -381,12 +587,56 @@ TEST_F(dmGuiTest, DynamicTexture)
     dmGui::RenderScene(m_Scene, rp, &count);
 }
 
+TEST_F(dmGuiTest, ScriptFlipbookAnim)
+{
+    int t1, ts1;
+    dmGui::Result r;
+
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    const char* id = "n";
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id);
+
+    const char* s = "local ref_val = 0\n"
+                    "local frame_count = 0\n"
+                    "\n"
+                    "function flipbook_complete(self, node)\n"
+                    "   ref_val = ref_val + 1\n"
+                    "end\n"
+                    "\n"
+                    "function init(self)\n"
+                    "    local n = gui.get_node(\"n\")\n"
+                    "    gui.set_texture(n, \"t1\")\n"
+                    "    local id = hash(\"ta1\")\n"
+                    "    gui.play_flipbook(n, id)\n"
+                    "    local id2 = gui.get_flipbook(n)\n"
+                    "    assert(id == id2)\n"
+                    "    gui.cancel_flipbook(n)\n"
+                    "    id2 = gui.get_flipbook(n)\n"
+                    "    gui.play_flipbook(n, id, flipbook_complete)\n"
+                    "    assert(id ~= id2)\n"
+                    "end\n"
+                    "\n"
+                    "function update(self, dt)\n"
+                    "    assert(ref_val == frame_count)\n"
+                    "    frame_count = frame_count + 1\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 30.0f));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 30.0f));
+}
+
 TEST_F(dmGuiTest, ScriptTextureFontLayer)
 {
-    int t;
+    int t, ts;
     int f;
 
-    dmGui::AddTexture(m_Scene, "t", (void*) &t);
+    dmGui::AddTexture(m_Scene, "t", (void*) &t, (void*) &ts);
     dmGui::AddFont(m_Scene, "f", &f);
     dmGui::AddLayer(m_Scene, "l");
 
@@ -530,7 +780,7 @@ TEST_F(dmGuiTest, AnimateNode)
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)
     {
         dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-        dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.5f, 0, 0, 0);
+        dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.5f, 0, 0, 0);
 
         ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -551,6 +801,36 @@ TEST_F(dmGuiTest, AnimateNode)
     }
 }
 
+TEST_F(dmGuiTest, CustomEasingAnimation)
+{
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+
+    dmVMath::FloatVector vector(64);
+	dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
+	curve.vector = &vector;
+
+	// fill as linear curve
+	for (int i = 0; i < 64; ++i) {
+		float t = i / 63.0f;
+		vector.values[i] = t;
+	}
+
+	dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+	dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), curve, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+
+	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+
+	// Animation
+	for (int i = 0; i < 60; ++i)
+	{
+		ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), (float)i / 60.0f, EPSILON);
+		dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+	}
+
+	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
+	dmGui::DeleteNode(m_Scene, node);
+}
+
 TEST_F(dmGuiTest, Playback)
 {
     const float duration = 4 / 60.0f;
@@ -559,7 +839,7 @@ TEST_F(dmGuiTest, Playback)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_BACKWARD, duration, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_BACKWARD, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
@@ -573,7 +853,7 @@ TEST_F(dmGuiTest, Playback)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f / 4.0f, EPSILON);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_FORWARD, duration, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_LOOP_FORWARD, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
@@ -587,7 +867,7 @@ TEST_F(dmGuiTest, Playback)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_BACKWARD, duration, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_LOOP_BACKWARD, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
@@ -601,7 +881,7 @@ TEST_F(dmGuiTest, Playback)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_PINGPONG, duration, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_LOOP_PINGPONG, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
@@ -624,7 +904,7 @@ TEST_F(dmGuiTest, AnimateNode2)
 {
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -642,7 +922,7 @@ TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
 {
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -664,7 +944,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
 {
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::HNode node2 = 0;
@@ -693,7 +973,7 @@ void MyAnimationComplete(dmGui::HScene scene,
 {
     MyAnimationCompleteCount++;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(scene, node, property, Vector4(2,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(2,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
     // Check that we reached target position
     *(Point3*)userdata2 = dmGui::GetNodePosition(scene, node);
 }
@@ -703,7 +983,7 @@ TEST_F(dmGuiTest, AnimateComplete)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     Point3 completed_position;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -740,7 +1020,7 @@ void MyPingPongComplete1(dmGui::HScene scene,
 {
     ++PingPongCount;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(scene, node, property, Vector4(0,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(0,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
@@ -750,14 +1030,14 @@ void MyPingPongComplete2(dmGui::HScene scene,
 {
     ++PingPongCount;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 }
 
 TEST_F(dmGuiTest, PingPong)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -780,7 +1060,7 @@ TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
     dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeParent(m_Scene, child, parent);
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, child, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, child, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
 
     dmGui::SetNodeEnabled(m_Scene, parent, false);
 
@@ -803,8 +1083,8 @@ TEST_F(dmGuiTest, Reset)
     // Set reset point only for the first node
     dmGui::SetNodeResetPoint(m_Scene, n1);
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, n1, property, Vector4(1, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
-    dmGui::AnimateNodeHash(m_Scene, n2, property, Vector4(101, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, n1, property, Vector4(1, 0, 0, 0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, n2, property, Vector4(101, 0, 0, 0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
 
     dmGui::ResetNodes(m_Scene);
@@ -1705,9 +1985,9 @@ TEST_F(dmGuiTest, ReplaceAnimation)
     dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
 
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, node2, property, Vector4(123,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 0.5f, 0, 0, 0, 0);
-    dmGui::AnimateNodeHash(m_Scene, node1, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
-    dmGui::AnimateNodeHash(m_Scene, node1, property, Vector4(10,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node2, property, Vector4(123,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 0.5f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node1, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node1, property, Vector4(10,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
 
     for (int i = 0; i < 60; ++i)
     {
@@ -1854,8 +2134,8 @@ TEST_F(dmGuiTest, Bug352)
 {
     dmGui::AddFont(m_Scene, "big_score", 0);
     dmGui::AddFont(m_Scene, "score", 0);
-    dmGui::AddTexture(m_Scene, "left_hud", 0);
-    dmGui::AddTexture(m_Scene, "right_hud", 0);
+    dmGui::AddTexture(m_Scene, "left_hud", 0,0);
+    dmGui::AddTexture(m_Scene, "right_hud", 0,0);
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));
@@ -1903,8 +2183,8 @@ TEST_F(dmGuiTest, Scaling)
     uint32_t physical_width = 640;
     uint32_t physical_height = 480;
 
-    dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2.0f, height/2.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
@@ -1925,10 +2205,10 @@ TEST_F(dmGuiTest, Anchoring)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
 
-    dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
@@ -1962,10 +2242,10 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
 
-    dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
 
     const char* s = "function init(self)\n"
                     "    assert (1024 == gui.get_width())\n"
@@ -2029,10 +2309,10 @@ TEST_F(dmGuiTest, AdjustMode)
     uint32_t physical_width = 1280;
     uint32_t physical_height = 320;
 
-    dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
     float min_ref_scale = dmMath::Min(ref_scale.getX(), ref_scale.getY());
     float max_ref_scale = dmMath::Max(ref_scale.getX(), ref_scale.getY());
 
@@ -2143,8 +2423,9 @@ TEST_F(dmGuiTest, Picking)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
     float ref_scale = 0.5f;
-    dmGui::SetResolution(m_Context, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetDefaultResolution(m_Context, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
+    dmGui::SetSceneResolution(m_Scene, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
 
     Vector3 size(10, 10, 0);
     Point3 pos(size * 0.5f);
@@ -2175,7 +2456,6 @@ TEST_F(dmGuiTest, ScriptPicking)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
-    dmGui::SetResolution(m_Context, physical_width, physical_height);
 
     char buffer[1024];
 
@@ -2237,7 +2517,7 @@ TEST_F(dmGuiTest, EnableDisable)
     ASSERT_FALSE(rendered);
 
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_COLOR);
-    dmGui::AnimateNodeHash(m_Scene, n1, property, Vector4(0.0f, 0.0f, 0.0f, 0.0f), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0x0, 0x0, 0x0);
+    dmGui::AnimateNodeHash(m_Scene, n1, property, Vector4(0.0f, 0.0f, 0.0f, 0.0f), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0x0, 0x0, 0x0);
     ASSERT_EQ(4U, m_Scene->m_Animations.Size());
 
     // Test no animation evaluation
@@ -3115,6 +3395,7 @@ TEST_F(dmGuiTest, PhysResUpdatesTransform)
     ASSERT_LT(lengthSqr(p - next_p), EPSILON);
 
     dmGui::SetPhysicalResolution(m_Context, 10, 10);
+    dmGui::SetSceneResolution(m_Scene, 1, 1);
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, &next_transform);
 
     next_p = next_transform.getCol3();

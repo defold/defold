@@ -22,7 +22,7 @@ public class SettingsView extends Composite {
     @UiField SideBar sideBar;
     @UiField HTMLPanel settingsPanel;
     @UiField CheckBox subscriptionStatus;
-    @UiField InlineLabel authCookie;
+    @UiField InlineLabel authToken;
 
     interface DashboardUiBinder extends UiBinder<Widget, SettingsView> {
     }
@@ -48,11 +48,11 @@ public class SettingsView extends Composite {
         this.subscriptionStatus.setValue(status);
     }
 
-    public void setAuthCookie(String authCookie) {
-        if (authCookie == null) {
-            this.authCookie.setText("invalid");
+    public void setAuthToken(String authToken) {
+        if (authToken == null) {
+            this.authToken.setText("invalid");
         } else {
-            this.authCookie.setText(authCookie);
+            this.authToken.setText(authToken);
         }
     }
 

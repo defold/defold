@@ -293,12 +293,12 @@ GLFWAPI void GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun )
 
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z)
 {
-	return _glfwPlatformGetAcceleration(x, y, z);
+    return _glfwPlatformGetAcceleration(x, y, z);
 }
 
 GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count)
 {
-    int i;
+    int i, j;
     int n = _glfwInput.TouchCount;
     if (count < n)
         n = count;
@@ -307,6 +307,29 @@ GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_coun
 
     for (i = 0; i < n; ++i) {
         touch[i] = _glfwInput.Touch[i];
+    }
+
+    // Now to give a view where BEGAN and CANCELLED/ENDED are only
+    // seen once for every touch and call to glfwGetTouch, we do an update pass here.
+    //
+    // This should perhaps be done logically per frame, but since there is auto event polling
+    // causing event polling to be 2 times per frame, that is no good location to do it.
+    for (i=0;i<_glfwInput.TouchCount;i++) {
+        switch (_glfwInput.Touch[i].Phase) {
+            case GLFW_PHASE_CANCELLED:
+            case GLFW_PHASE_ENDED:
+                // These are erased so they do not appear a second time
+                _glfwInput.TouchCount--;
+                for (j=i;j<_glfwInput.TouchCount;j++)
+                    _glfwInput.Touch[j] = _glfwInput.Touch[j+1];
+                i--;
+                break;
+            case GLFW_PHASE_BEGAN:
+                _glfwInput.Touch[i].Phase = GLFW_PHASE_STATIONARY;
+                break;
+            default:
+                break;
+        }
     }
 
     return 1;

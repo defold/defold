@@ -14,16 +14,61 @@ namespace dmTexc
     {
         switch (pixel_format)
         {
+        // Raw
         case PF_L8:
             return pvrtexture::PixelType('l', 0, 0, 0, 8, 0, 0, 0);
         case PF_R8G8B8:
             return pvrtexture::PixelType('r', 'g', 'b', 0, 8, 8, 8, 0);
         case PF_R8G8B8A8:
             return pvrtexture::PixelType('r', 'g', 'b', 'a', 8, 8, 8, 8);
+
+        // PVRTC
+        case PF_RGB_PVRTC_2BPPV1:
+            return ePVRTPF_PVRTCI_2bpp_RGB;
+        case PF_RGB_PVRTC_4BPPV1:
+            return ePVRTPF_PVRTCI_4bpp_RGB;
+        case PF_RGBA_PVRTC_2BPPV1:
+            return ePVRTPF_PVRTCI_2bpp_RGBA;
+        case PF_RGBA_PVRTC_4BPPV1:
+            return ePVRTPF_PVRTCI_4bpp_RGBA;
+
+        // ETC
+        case PF_RGB_ETC1:
+            return ePVRTPF_ETC1;
+
+        // DXT
+        /*
+        JIRA issue: DEF-994
+        case PF_RGB_DXT1:
+        case PF_RGBA_DXT1:
+            return ePVRTPF_DXT1;
+        case PF_RGBA_DXT3:
+            return ePVRTPF_DXT3;
+        case PF_RGBA_DXT5:
+            return ePVRTPF_DXT5;
+            break;
+        */
         }
         // Should never get here
         assert(false);
         return pvrtexture::PixelType();
+    }
+
+    static pvrtexture::ECompressorQuality ConvertCompressionLevel(CompressionLevel compression_level)
+    {
+        switch (compression_level)
+        {
+            case CL_FAST:
+                return pvrtexture::ePVRTCFast;
+            case CL_NORMAL:
+                return pvrtexture::ePVRTCNormal;
+            case CL_HIGH:
+                return pvrtexture::ePVRTCHigh;
+            case CL_BEST:
+                return pvrtexture::ePVRTCBest;
+        }
+
+        return pvrtexture::ePVRTCNormal;
     }
 
     static EPVRTColourSpace ConvertColorSpace(ColorSpace color_space)
@@ -85,6 +130,13 @@ namespace dmTexc
         }
     }
 
+    uint32_t GetDataSize(HTexture texture, uint32_t mip_map)
+    {
+        pvrtexture::CPVRTexture* t = (pvrtexture::CPVRTexture*)texture;
+        uint32_t size = t->getDataSize(mip_map);
+        return size;
+    }
+
     uint32_t GetData(HTexture texture, void* out_data, uint32_t out_data_size)
     {
         uint8_t* out = (uint8_t*)out_data;
@@ -93,7 +145,7 @@ namespace dmTexc
         uint32_t mip_maps = t->getNumMIPLevels();
         for (uint32_t mip_map = 0; mip_map < mip_maps; ++mip_map)
         {
-            uint32_t size = t->getTextureSize(mip_map) * t->getBitsPerPixel() / 8;
+            uint32_t size = GetDataSize(t, mip_map);
             size = dmMath::Min(size, out_data_size - offset);
             void* data = t->getDataPtr(mip_map);
             memcpy(out, data, size);
@@ -123,12 +175,12 @@ namespace dmTexc
         return pvrtexture::GenerateMIPMaps(*t, pvrtexture::eResizeLinear);
     }
 
-    bool Transcode(HTexture texture, PixelFormat pixel_format, ColorSpace color_space)
+    bool Transcode(HTexture texture, PixelFormat pixel_format, ColorSpace color_space, CompressionLevel compression_level)
     {
         pvrtexture::PixelType pf = ConvertPixelFormat(pixel_format);
         EPVRTVariableType var_type = ePVRTVarTypeUnsignedByteNorm;
         EPVRTColourSpace cs = ConvertColorSpace(color_space);
-        pvrtexture::ECompressorQuality quality = pvrtexture::ePVRTCNormal;
+        pvrtexture::ECompressorQuality quality = ConvertCompressionLevel(compression_level);
         bool dither = true;
         return pvrtexture::Transcode(*(pvrtexture::CPVRTexture*)texture, pf, var_type,
                 cs, quality, dither);
@@ -167,9 +219,10 @@ namespace dmTexc
     DM_TEXC_TRAMPOLINE5(HTexture, Create, uint32_t, uint32_t, PixelFormat, ColorSpace, void*);
     DM_TEXC_TRAMPOLINE1(void, Destroy, HTexture);
     DM_TEXC_TRAMPOLINE2(bool, GetHeader, HTexture, Header*);
+    DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSize, HTexture, uint32_t);
     DM_TEXC_TRAMPOLINE3(uint32_t, GetData, HTexture, void*, uint32_t);
     DM_TEXC_TRAMPOLINE3(bool, Resize, HTexture, uint32_t, uint32_t);
     DM_TEXC_TRAMPOLINE1(bool, PreMultiplyAlpha, HTexture);
     DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
-    DM_TEXC_TRAMPOLINE3(bool, Transcode, HTexture, PixelFormat, ColorSpace);
+    DM_TEXC_TRAMPOLINE4(bool, Transcode, HTexture, PixelFormat, ColorSpace, CompressionLevel);
 }
