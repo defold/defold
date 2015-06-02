@@ -298,7 +298,7 @@
       (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
       (if (empty? to-be-marked)
         already-marked
-        (let [next-wave (mapcat #(apply marked-downstream-nodes this %) to-be-marked)]
+        (let [next-wave (set (mapcat #(apply marked-downstream-nodes this %) to-be-marked))]
           (recur (into already-marked to-be-marked) next-wave (dec iterations-remaining)))))))
 
 (defn multigraph-basis

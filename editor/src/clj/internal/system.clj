@@ -86,7 +86,7 @@
 
 (defn merge-or-push-history
   [history gref old-graph new-graph outputs-modified]
-  (let [new-state (history-state (graph-label new-graph) new-graph (sequence-label new-graph) outputs-modified)
+  (let [new-state (history-state (graph-label new-graph) new-graph (sequence-label new-graph) (set outputs-modified))
         tape-op   (if (=* (:tx-sequence-label new-graph) (:tx-sequence-label old-graph))
                     merge-into-top
                     conj)]
