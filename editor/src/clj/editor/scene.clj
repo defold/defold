@@ -261,11 +261,10 @@
     (into {} (map (fn [[pass renderables]] [pass (render-sort renderables camera viewport)]) renderables))))
 
 (g/defnk produce-selected-renderables [selection selection-renderables]
-  (let [renderables (apply merge-with #(concat %1 %2) selection-renderables)
-        renderable-by-id (into {} (mapcat (fn [[pass v]] (map #(do [(:node-id %) %]) v)) renderables))]
-    (filter (comp not nil?) (map #(get renderable-by-id %) selection))))
+  (let [selected-set (set selection)]
+    (mapcat (fn [m] (mapcat (fn [[pass v]] (filter #(selected-set (:node-id %)) v)) m)) selection-renderables)))
 
-(g/defnk produce-selected-tool-renderables [tool-selection renderables]
+(g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:user-data %)]}) tool-selection)))
 
 (g/defnode SceneRenderer
