@@ -55,6 +55,15 @@ def gen_dc(task):
 
 def build(bld):
 
+    if bld.env['PLATFORM'] == 'js-web':
+        lib_dirs = None
+        if 'JS_LIB_PATHS' in bld.env:
+            lib_dirs = bld.env['JS_LIB_PATHS']
+        else:
+            lib_dirs = {}
+            lib_dirs['library_sound.js'] = '../src/js'
+            bld.env['JS_LIB_PATHS'] = lib_dirs
+
     wavs = ["booster_on_sfx.wav",
             "door_opening.wav",
             "drumloop.wav",

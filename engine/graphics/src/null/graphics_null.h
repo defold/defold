@@ -86,6 +86,7 @@ namespace dmGraphics
         uint32_t                    m_Height;
         uint32_t                    m_WindowWidth;
         uint32_t                    m_WindowHeight;
+        uint32_t                    m_Dpi;
         int32_t                     m_ScissorRect[4];
         uint32_t                    m_StencilMask;
         uint32_t                    m_StencilFuncRef;

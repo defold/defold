@@ -456,6 +456,8 @@ namespace dmPhysics
                     add_data.m_UserDataA = object_a->getUserPointer();
                     add_data.m_ObjectB = object_b;
                     add_data.m_UserDataB = object_b->getUserPointer();
+                    add_data.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
+                    add_data.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
                     OverlapCacheAdd(cache, add_data);
                 }
             }

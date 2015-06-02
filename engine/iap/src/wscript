@@ -8,6 +8,14 @@ def build(bld):
     embed_source = ''
     source = []
 
+    bld.new_task_gen(source = 'iap_ios.mm',
+                     target = 'iap_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.new_task_gen(source = 'iap_ios.mm',
+                     target = 'iap_doc.json',
+                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ['iap_ios.mm']
     elif re.match('.*?android', bld.env.PLATFORM):
@@ -29,8 +37,12 @@ def build(bld):
                          destfile='iap_android.jar')
 
         bld.install_files('${PREFIX}/share/java', 'iap_android.jar')
+
     else:
         source += ['iap_null.cpp']
+
+    bld.install_files('${PREFIX}/share/doc', 'iap_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'iap_doc.json')
 
     iap = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = '.',

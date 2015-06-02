@@ -36,7 +36,7 @@
 #define _GLFW_MAC_OS_X
 
 #if defined(__OBJC__)
-#ifdef __arm__
+#if defined(__arm__) || defined(__arm64__)
 #import <UIKit/UIKit.h>
 #else
 #import <Cocoa/Cocoa.h>
@@ -199,6 +199,9 @@ GLFWGLOBAL struct {
 // ========= PLATFORM SPECIFIC PART ======================================
 
     float AccX, AccY, AccZ;
+
+    // which touch is used for mouse emu.
+    void *MouseEmulationTouch;
 
 } _glfwInput;
 

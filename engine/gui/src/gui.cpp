@@ -19,6 +19,8 @@
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
 
+#include <render/display_profiles.h>
+
 #include "gui_private.h"
 #include "gui_script.h"
 
@@ -39,6 +41,7 @@ namespace dmGui
     const uint32_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
     inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color);
+    static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -129,10 +132,11 @@ namespace dmGui
         context->m_GetUserDataCallback = params->m_GetUserDataCallback;
         context->m_ResolvePathCallback = params->m_ResolvePathCallback;
         context->m_GetTextMetricsCallback = params->m_GetTextMetricsCallback;
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
+        context->m_DefaultProjectWidth = params->m_DefaultProjectWidth;
+        context->m_DefaultProjectHeight = params->m_DefaultProjectHeight;
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
+        context->m_Dpi = params->m_Dpi;
         context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
 
@@ -145,10 +149,39 @@ namespace dmGui
         delete context;
     }
 
-    void SetResolution(HContext context, uint32_t width, uint32_t height)
+    void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height)
     {
-        context->m_Width = width;
-        context->m_Height = height;
+        width = context->m_PhysicalWidth;
+        height = context->m_PhysicalHeight;
+    }
+
+    uint32_t GetDisplayDpi(HContext context)
+    {
+        return context->m_Dpi;
+    }
+
+    void GetSceneResolution(HScene scene, uint32_t& width, uint32_t& height)
+    {
+        width = scene->m_Width;
+        height = scene->m_Height;
+    }
+
+    void SetSceneResolution(HScene scene, uint32_t width, uint32_t height)
+    {
+        scene->m_Width = width;
+        scene->m_Height = height;
+        scene->m_ResChanged = 1;
+    }
+
+    void GetPhysicalResolution(HScene scene, uint32_t& width, uint32_t& height)
+    {
+        width = scene->m_Context->m_PhysicalWidth;
+        height = scene->m_Context->m_PhysicalHeight;
+    }
+
+    uint32_t GetDisplayDpi(HScene scene)
+    {
+        return scene->m_Context->m_Dpi;
     }
 
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height)
@@ -157,10 +190,38 @@ namespace dmGui
         context->m_PhysicalHeight = height;
         dmArray<HScene>& scenes = context->m_Scenes;
         uint32_t scene_count = scenes.Size();
+
         for (uint32_t i = 0; i < scene_count; ++i)
         {
-            scenes[i]->m_ResChanged = 1;
+            Scene* scene = scenes[i];
+            scene->m_ResChanged = 1;
+            if(scene->m_OnWindowResizeCallback)
+            {
+                scene->m_OnWindowResizeCallback(scene, width, height);
+            }
         }
+    }
+
+    void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height)
+    {
+        width = context->m_DefaultProjectWidth;
+        height = context->m_DefaultProjectHeight;
+    }
+
+    void SetDefaultResolution(HContext context, uint32_t width, uint32_t height)
+    {
+        context->m_DefaultProjectWidth = width;
+        context->m_DefaultProjectHeight = height;
+    }
+
+    void* GetDisplayProfiles(HScene scene)
+    {
+        return scene->m_Context->m_DisplayProfiles;
+    }
+
+    void SetDisplayProfiles(HContext context, void* display_profiles)
+    {
+        context->m_DisplayProfiles = display_profiles;
     }
 
     void SetDefaultFont(HContext context, void* font)
@@ -219,14 +280,21 @@ namespace dmGui
         scene->m_Material = 0;
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
+        scene->m_Layouts.SetCapacity(1);
         scene->m_DefaultFont = 0;
         scene->m_UserData = params->m_UserData;
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NextVersionNumber = 0;
         scene->m_RenderOrder = 0;
+        scene->m_Width = context->m_DefaultProjectWidth;
+        scene->m_Height = context->m_DefaultProjectHeight;
+        scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
+        scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
+
+        ClearLayouts(scene);
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -285,29 +353,40 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, const char* texture_name, void* texture)
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
         uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Put(texture_hash, texture);
+        scene->m_Textures.Put(texture_hash, TextureInfo(texture, textureset));
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
+            {
                 scene->m_Nodes[i].m_Node.m_Texture = texture;
+                scene->m_Nodes[i].m_Node.m_TextureSet = textureset;
+            }
         }
         return RESULT_OK;
     }
 
     void RemoveTexture(HScene scene, const char* texture_name)
     {
-        uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Erase(texture_hash);
+        uint64_t texture_name_hash = dmHashString64(texture_name);
+        scene->m_Textures.Erase(texture_name_hash);
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
-            if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
-                scene->m_Nodes[i].m_Node.m_Texture = 0;
+            Node& node = scene->m_Nodes[i].m_Node;
+            if (node.m_TextureHash == texture_name_hash)
+            {
+                if(node.m_TextureSet)
+                {
+                    node.m_TextureSet = 0;
+                    CancelNodeFlipbookAnim(scene, GetNodeHandle(&scene->m_Nodes[i]));
+                }
+                node.m_Texture = 0;
+            }
         }
     }
 
@@ -316,7 +395,13 @@ namespace dmGui
         scene->m_Textures.Clear();
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
-            scene->m_Nodes[i].m_Node.m_Texture = 0;
+            Node& node = scene->m_Nodes[i].m_Node;
+            if(node.m_TextureSet)
+            {
+                node.m_TextureSet = 0;
+                CancelNodeFlipbookAnim(scene, GetNodeHandle(&scene->m_Nodes[i]));
+            }
+            node.m_Texture = 0;
         }
     }
 
@@ -464,15 +549,113 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    void AllocateLayouts(HScene scene, size_t node_count, size_t layouts_count)
+    {
+        layouts_count++;
+        size_t capacity = dmMath::Max((uint32_t) layouts_count, scene->m_Layouts.Capacity());
+        scene->m_Layouts.SetCapacity(capacity);
+        scene->m_LayoutsNodeDescs.SetCapacity(layouts_count*node_count);
+        scene->m_LayoutsNodeDescs.SetSize(0);
+    }
+
+    void ClearLayouts(HScene scene)
+    {
+        scene->m_LayoutId = DEFAULT_LAYOUT;
+        scene->m_Layouts.SetSize(0);
+        scene->m_Layouts.Push(DEFAULT_LAYOUT);
+        scene->m_LayoutsNodeDescs.SetCapacity(0);
+    }
+
+    Result AddLayout(HScene scene, const char* layout_id)
+    {
+        if (scene->m_Layouts.Full())
+        {
+            dmLogError("Could not add layout to scene since the buffer is full (%d).", scene->m_Layouts.Capacity());
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        uint64_t layout_hash = dmHashString64(layout_id);
+        scene->m_Layouts.Push(layout_hash);
+        return RESULT_OK;
+    }
+
+    dmhash_t GetLayout(const HScene scene)
+    {
+        return scene->m_LayoutId;
+    }
+
+    uint16_t GetLayoutCount(const HScene scene)
+    {
+        return (uint16_t)scene->m_Layouts.Size();
+    }
+
+    Result GetLayoutId(const HScene scene, uint16_t layout_index, dmhash_t& layout_id_out)
+    {
+        if(layout_index >= (uint16_t)scene->m_Layouts.Size())
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        layout_id_out = scene->m_Layouts[layout_index];
+        return RESULT_OK;
+    }
+
+    uint16_t GetLayoutIndex(const HScene scene, dmhash_t layout_id)
+    {
+        uint32_t i;
+        for(i = 0; i < scene->m_Layouts.Size(); ++i) {
+            if(layout_id == scene->m_Layouts[i])
+                break;
+        }
+        if(i == scene->m_Layouts.Size())
+        {
+            const char *str = (const char*) dmHashReverse64(layout_id, 0x0);
+            dmLogError("Could not get index for layout %s", (str == 0x0 ? "<unknown>" : str));
+            return 0;
+        }
+        return i;
+    }
+
+    Result SetNodeLayoutDesc(const HScene scene, HNode node, const void *desc, uint16_t layout_index_start, uint16_t layout_index_end)
+    {
+        InternalNode* n = GetNode(scene, node);
+        void **table = n->m_Node.m_NodeDescTable;
+        if(table == 0)
+        {
+            if(scene->m_LayoutsNodeDescs.Full())
+                return RESULT_OUT_OF_RESOURCES;
+            size_t table_index = scene->m_LayoutsNodeDescs.Size();
+            scene->m_LayoutsNodeDescs.SetSize(table_index + scene->m_Layouts.Size());
+            n->m_Node.m_NodeDescTable = table = &scene->m_LayoutsNodeDescs[table_index];
+        }
+        assert(layout_index_end < scene->m_Layouts.Size());
+        for(uint16_t i = layout_index_start; i <= layout_index_end; ++i)
+            table[i] = (void*) desc;
+        return RESULT_OK;
+    }
+
+    Result SetLayout(const HScene scene, dmhash_t layout_id, SetNodeCallback set_node_callback)
+    {
+        scene->m_LayoutId = layout_id;
+        uint16_t index = GetLayoutIndex(scene, layout_id);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            InternalNode *n = &scene->m_Nodes[i];
+            if(!n->m_Node.m_NodeDescTable)
+                continue;
+            set_node_callback(scene, GetNodeHandle(n), n->m_Node.m_NodeDescTable[index]);
+            n->m_Node.m_DirtyLocal = 1;
+        }
+        return RESULT_OK;
+    }
+
     HNode GetNodeHandle(InternalNode* node)
     {
         return ((uint32_t) node->m_Version) << 16 | node->m_Index;
     }
 
-    Vector4 CalculateReferenceScale(HContext context)
+    Vector4 CalculateReferenceScale(HScene scene)
     {
-        float scale_x = (float) context->m_PhysicalWidth / (float) context->m_Width;
-        float scale_y = (float) context->m_PhysicalHeight / (float) context->m_Height;
+        float scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
+        float scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
         return Vector4(scale_x, scale_y, 1, 1);
     }
 
@@ -822,7 +1005,7 @@ namespace dmGui
         UpdateDynamicTextures(scene, params, context);
         DeferredDeleteDynamicTextures(scene, params, context);
 
-        Vector4 scale = CalculateReferenceScale(c);
+        Vector4 scale = CalculateReferenceScale(scene);
         c->m_RenderNodes.SetSize(0);
         c->m_RenderTransforms.SetSize(0);
         c->m_RenderColors.SetSize(0);
@@ -880,6 +1063,7 @@ namespace dmGui
             } else {
                 c->m_StencilScopes.Push(0x0);
             }
+            UpdateTextureSetAnimData(scene, n);
         }
 
         scene->m_ResChanged = 0;
@@ -971,6 +1155,10 @@ namespace dmGui
                             anim->m_Backwards ^= 1;
                         }
                     } else {
+                        if (anim->m_Easing.release_callback != 0x0)
+                        {
+                            anim->m_Easing.release_callback(&anim->m_Easing);
+                        }
                         if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
                         {
                             // NOTE: Very important to set m_AnimationCompleteCalled to 1
@@ -1268,6 +1456,7 @@ namespace dmGui
             }
         }
 
+        ClearLayouts(scene);
         return result;
     }
 
@@ -1412,10 +1601,15 @@ namespace dmGui
             node->m_Node.m_HasResetPoint = false;
             node->m_Node.m_TextureHash = 0;
             node->m_Node.m_Texture = 0;
+            node->m_Node.m_TextureSet = 0;
+            node->m_Node.m_TextureSetAnimDesc.Init();
+            node->m_Node.m_FlipbookAnimHash = 0;
+            node->m_Node.m_FlipbookAnimPosition = 0.0f;
             node->m_Node.m_FontHash = 0;
             node->m_Node.m_Font = 0;
             node->m_Node.m_LayerHash = DEFAULT_LAYER;
             node->m_Node.m_LayerIndex = 0;
+            node->m_Node.m_NodeDescTable = 0;
             node->m_Version = version;
             node->m_Index = index;
             node->m_PrevIndex = INVALID_INDEX;
@@ -1660,7 +1854,7 @@ namespace dmGui
             }
 
             Context* context = scene->m_Context;
-            Vector4 screen_dims((float) context->m_Width, (float) context->m_Height, 0.0f, 1.0f);
+            Vector4 screen_dims((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
             Vector4 adjusted_dims = mulPerElem(screen_dims, adjust_scale);
             Vector4 offset = (Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f) - adjusted_dims) * 0.5f;
             // Apply anchoring
@@ -1673,13 +1867,13 @@ namespace dmGui
             else if (node.m_XAnchor == XANCHOR_RIGHT)
             {
                 offset.setX(0.0f);
-                float distance = (context->m_Width - position.getX()) * reference_scale.getX();
+                float distance = (scene->m_Width - position.getX()) * reference_scale.getX();
                 scaled_position.setX(context->m_PhysicalWidth - distance);
             }
             if (node.m_YAnchor == YANCHOR_TOP)
             {
                 offset.setY(0.0f);
-                float distance = (context->m_Height - position.getY()) * reference_scale.getY();
+                float distance = (scene->m_Height - position.getY()) * reference_scale.getY();
                 scaled_position.setY(context->m_PhysicalHeight - distance);
             }
             else if (node.m_YAnchor == YANCHOR_BOTTOM)
@@ -1840,27 +2034,43 @@ namespace dmGui
         return n->m_Node.m_Texture;
     }
 
+    void* GetNodeTextureSet(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_TextureSet;
+    }
+
     dmhash_t GetNodeTextureId(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_TextureHash;
     }
 
+    dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_TextureSet == 0x0 ? 0x0 : n->m_Node.m_FlipbookAnimHash;
+    }
+
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)
     {
-        if (void** texture = scene->m_Textures.Get(texture_id)) {
-            InternalNode* n = GetNode(scene, node);
+        InternalNode* n = GetNode(scene, node);
+        if(n->m_Node.m_TextureSet)
+            CancelNodeFlipbookAnim(scene, node);
+        if (TextureInfo* texture_info = scene->m_Textures.Get(texture_id)) {
             n->m_Node.m_TextureHash = texture_id;
-            n->m_Node.m_Texture = *texture;
+            n->m_Node.m_Texture = texture_info->m_Texture;
+            n->m_Node.m_TextureSet = texture_info->m_TextureSet;
             return RESULT_OK;
         } else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(texture_id)) {
-            InternalNode* n = GetNode(scene, node);
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture->m_Handle;
+            n->m_Node.m_TextureSet = 0x0;
             return RESULT_OK;
-        } else {
-            return RESULT_RESOURCE_NOT_FOUND;
         }
+        n->m_Node.m_Texture = 0;
+        n->m_Node.m_TextureSet = 0;
+        return RESULT_RESOURCE_NOT_FOUND;
     }
 
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id)
@@ -2094,7 +2304,7 @@ namespace dmGui
                                  HNode node,
                                  float* value,
                                  float to,
-                                 dmEasing::Type easing,
+                                 dmEasing::Curve easing,
                                  Playback playback,
                                  float duration,
                                  float delay,
@@ -2156,7 +2366,7 @@ namespace dmGui
                          HNode node,
                          dmhash_t property,
                          const Vector4& to,
-                         dmEasing::Type easing,
+                         dmEasing::Curve easing,
                          Playback playback,
                          float duration,
                          float delay,
@@ -2193,7 +2403,7 @@ namespace dmGui
                      HNode node,
                      Property property,
                      const Vector4& to,
-                     dmEasing::Type easing,
+                     dmEasing::Curve easing,
                      Playback playback,
                      float duration,
                      float delay,
@@ -2257,9 +2467,180 @@ namespace dmGui
         }
     }
 
+    inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value)
+    {
+        uint16_t version = (uint16_t) (node >> 16);
+        uint16_t index = node & 0xffff;
+        InternalNode* n = &scene->m_Nodes[index];
+        assert(n->m_Version == version);
+
+        dmArray<Animation>* animations = &scene->m_Animations;
+        uint32_t n_animations = animations->Size();
+        for (uint32_t i = 0; i < n_animations; ++i)
+        {
+            Animation* anim = &(*animations)[i];
+            if (anim->m_Node == node && anim->m_Value == value)
+                return anim;
+        }
+        return 0;
+    }
+
+    static void CancelAnimationComponent(HScene scene, HNode node, float* value)
+    {
+        Animation* anim = GetComponentAnimation(scene, node, value);
+        if(anim == 0x0)
+            return;
+        anim->m_Cancelled = 1;
+    }
+
+    static inline void AnimateTextureSetAnim(HScene scene, HNode node, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    {
+        InternalNode* n = GetNode(scene, node);
+        TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
+        float anim_frames = (float) (anim_desc.m_End - anim_desc.m_Start);
+        AnimateComponent(
+                scene,
+                node,
+                &n->m_Node.m_FlipbookAnimPosition,
+                1.0f,
+                dmEasing::Curve(dmEasing::TYPE_LINEAR),
+                (Playback) anim_desc.m_Playback,
+                anim_frames / (float) anim_desc.m_FPS,
+                0.0f,
+                anim_complete_callback,
+                callback_userdata1,
+                callback_userdata2);
+    }
+
+    static inline FetchTextureSetAnimResult FetchTextureSetAnim(HScene scene, InternalNode* n, dmhash_t anim)
+    {
+        FetchTextureSetAnimCallback fetch_anim_callback = scene->m_FetchTextureSetAnimCallback;
+        if(fetch_anim_callback == 0x0)
+        {
+            dmLogError("PlayNodeFlipbookAnim called with node in scene with no FetchTextureSetAnimCallback set.");
+            return FETCH_ANIMATION_CALLBACK_ERROR;
+        }
+        return fetch_anim_callback(n->m_Node.m_TextureSet, anim, &n->m_Node.m_TextureSetAnimDesc);
+    }
+
+    static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n)
+    {
+        // if we got a textureset (i.e. texture animation), we want to update the animation in case it is reloaded
+        uint64_t anim_hash = n->m_Node.m_FlipbookAnimHash;
+        if(n->m_Node.m_TextureSet == 0 || anim_hash == 0)
+            return;
+
+        // update animationdata, compare state to current and early bail if equal
+        TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
+        uint64_t current_state = anim_desc.m_State;
+        if(FetchTextureSetAnim(scene, n, anim_hash)!=FETCH_ANIMATION_OK)
+        {
+            // general error in retreiving animation. This could be it being deleted or otherwise changed erraneously
+            anim_desc.Init();
+            CancelAnimationComponent(scene, GetNodeHandle(n), &n->m_Node.m_FlipbookAnimPosition);
+            const char* anim_str = (const char*)dmHashReverse64(anim_hash, 0x0);
+            dmLogWarning("Failed to update animation '%s'.", anim_str == 0 ? "<unknown>" : anim_str);
+            return;
+        }
+
+        if(current_state == anim_desc.m_State)
+            return;
+
+        n->m_Node.m_FlipbookAnimPosition = 0.0f;
+        HNode node = GetNodeHandle(n);
+        if(anim_desc.m_Playback == PLAYBACK_NONE)
+        {
+            CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            return;
+        }
+
+        Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        if(anim && (anim->m_Cancelled == 0))
+            AnimateTextureSetAnim(scene, node, anim->m_AnimationComplete, anim->m_Userdata1, anim->m_Userdata2);
+        else
+            AnimateTextureSetAnim(scene, node, 0, 0, 0);
+    }
+
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_FlipbookAnimPosition = 0.0f;
+        n->m_Node.m_FlipbookAnimHash = 0x0;
+
+        if(anim == 0x0)
+        {
+            dmLogError("PlayNodeFlipbookAnim called with invalid anim name.");
+            return RESULT_INVAL_ERROR;
+        }
+        if(n->m_Node.m_TextureSet == 0x0)
+        {
+            dmLogError("PlayNodeFlipbookAnim called with node not containing animation.");
+            return RESULT_INVAL_ERROR;
+        }
+
+        n->m_Node.m_FlipbookAnimHash = anim;
+        FetchTextureSetAnimResult result = FetchTextureSetAnim(scene, n, anim);
+        if(result != FETCH_ANIMATION_OK)
+        {
+            CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            n->m_Node.m_FlipbookAnimHash = 0;
+            n->m_Node.m_TextureSetAnimDesc.Init();
+            const char* anim_str = (const char*)dmHashReverse64(anim, 0x0);
+            if(result == FETCH_ANIMATION_NOT_FOUND)
+            {
+                dmLogWarning("The animation '%s' could not be found.", anim_str == 0 ? "<unknown>" : anim_str);
+            }
+            else
+            {
+                dmLogWarning("Error playing animation '%s' (result %d).", anim_str == 0 ? "<unknown>" : anim_str, (int32_t) result);
+            }
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        if(n->m_Node.m_TextureSetAnimDesc.m_Playback == PLAYBACK_NONE)
+            CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        else
+            AnimateTextureSetAnim(scene, node, anim_complete_callback, callback_userdata1, callback_userdata2);
+        return RESULT_OK;
+    }
+
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    {
+        return PlayNodeFlipbookAnim(scene, node, dmHashString64(anim), anim_complete_callback, callback_userdata1, callback_userdata2);
+    }
+
+    void CancelNodeFlipbookAnim(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+        n->m_Node.m_FlipbookAnimHash = 0;
+    }
+
+    const float* GetNodeFlipbookAnimUV(HScene scene, HNode node)
+    {
+        InternalNode* in = GetNode(scene, node);
+        Node& n = in->m_Node;
+        if(n.m_TextureSet == 0x0 || n.m_TextureSetAnimDesc.m_TexCoords == 0x0)
+            return 0;
+        TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
+        int32_t anim_frames = anim_desc->m_End - anim_desc->m_Start;
+        int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
+        anim_frame = dmMath::Clamp(anim_frame, 0, anim_frames-1);
+        const float* frame_uv = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_Start + anim_frame)<<3);
+        return frame_uv;
+    }
+
+    void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical)
+    {
+        InternalNode* n = GetNode(scene, node);
+        flip_horizontal = n->m_Node.m_TextureSetAnimDesc.m_FlipHorizontal;
+        flip_vertical = n->m_Node.m_TextureSetAnimDesc.m_FlipVertical;
+    }
+
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
-        Vector4 scale = CalculateReferenceScale(scene->m_Context);
+        Vector4 scale((float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Context->m_DefaultProjectWidth,
+                (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;
         InternalNode* n = GetNode(scene, node);
         CalculateNodeTransform(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);

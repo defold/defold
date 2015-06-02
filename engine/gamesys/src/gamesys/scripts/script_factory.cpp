@@ -33,7 +33,7 @@ namespace dmGameSystem
      * @param [position] the position of the new game object, the position of the game object containing the factory is used by default (vector3)
      * @param [rotation] the rotation of the new game object, the rotation of the game object containing the factory is used by default (quat)
      * @param [properties] the properties defined in a script attached to the new game object (table)
-     * @param [scale] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default (number)
+     * @param [scale] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default (number or vector3)
      * @return the global id of the spawned game object (hash)
      * @examples
      * <p>
@@ -104,13 +104,22 @@ namespace dmGameSystem
             if (actual_prop_buffer_size > prop_buffer_size)
                 return luaL_error(L, "the properties supplied to factory.create are too many.");
         }
-        float scale;
+
+        Vector3 scale;
         if (top >= 5 && !lua_isnil(L, 5))
         {
-            scale = luaL_checknumber(L, 5);
-            if (scale <= 0.0f)
+            if (dmScript::IsVector3(L, 5))
             {
-                return luaL_error(L, "The scale supplied to factory.create must be greater than 0.");
+                scale = *dmScript::CheckVector3(L, 5);
+            }
+            else
+            {
+                float val = luaL_checknumber(L, 5);
+                if (val <= 0.0f)
+                {
+                    return luaL_error(L, "The scale supplied to factory.create must be greater than 0.");
+                }
+                scale = Vector3(val, val, val);
             }
         }
         else
@@ -124,7 +133,7 @@ namespace dmGameSystem
             create_msg->m_Id = id;
             create_msg->m_Position = position;
             create_msg->m_Rotation = rotation;
-            create_msg->m_Scale = scale;
+            create_msg->m_Scale3 = scale;
             dmMessage::URL sender;
             if (!dmScript::GetURL(L, &sender)) {
                 luaL_error(L, "factory.create can not be called from this script type");

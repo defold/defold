@@ -9,8 +9,8 @@ public class LoginInfo extends BaseResponse {
         return this.user_id;
     }-*/;
 
-    public final native String getAuth() /*-{
-        return this.auth_cookie;
+    public final native String getAuthToken() /*-{
+        return this.auth_token;
     }-*/;
 
     public final native String getEmail() /*-{

@@ -10,6 +10,7 @@ import java.util.Set;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -29,6 +30,7 @@ import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.dynamo.proto.DdfMath;
 
 @ProtoParams(messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
@@ -176,7 +178,19 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             }
             Point3d p = MathUtil.ddfToVecmath(collInst.getPosition());
             Quat4d r = MathUtil.ddfToVecmath(collInst.getRotation());
-            double s = collInst.getScale();
+
+            Vector3d s;
+            if (collInst.hasScale3()) {
+                s = MathUtil.ddfToVecmath(collInst.getScale3());
+            } else {
+                double scale = collInst.getScale();
+                if (subCollBuilder.getScaleAlongZ() != 0) {
+                    s = new Vector3d(scale, scale, scale);
+                } else {
+                    s = new Vector3d(scale, scale, 1);
+                }
+            }
+
             for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
                 InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
                 BuilderUtil.checkResource(this.project, owner, "prototype", inst.getPrototype());
@@ -190,21 +204,29 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     instBuilder.clearComponentProperties();
                     instBuilder.addAllComponentProperties(mergeComponentProperties(sourceProperties, overrideProperties));
                 }
+
                 // merge transform for non-children
                 if (!childIds.contains(inst.getId())) {
-                    Point3d instP = MathUtil.ddfToVecmath(inst.getPosition());
-                    if (subCollBuilder.getScaleAlongZ() != 0) {
-                        instP.scale(s);
+
+                    Vector3d instS;
+                    if (inst.hasScale3()) {
+                        instS = MathUtil.ddfToVecmath(inst.getScale3());
                     } else {
-                        instP.set(s * instP.getX(), s * instP.getY(), instP.getZ());
+                        double scale = inst.getScale();
+                        instS = new Vector3d(scale, scale, scale);
                     }
+                    instS.set(instS.getX() * s.getX(), instS.getY() * s.getY(), instS.getZ() * s.getZ());
+
+                    Point3d instP = MathUtil.ddfToVecmath(inst.getPosition());
+                    instP.set(s.getX() * instP.getX(), s.getY() * instP.getY(), s.getZ() * instP.getZ());
+
                     MathUtil.rotate(r, instP);
                     instP.add(p);
                     instBuilder.setPosition(MathUtil.vecmathToDDF(instP));
                     Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
-                    instBuilder.setScale((float)(s * inst.getScale()));
+                    instBuilder.setScale3(MathUtil.vecmathToDDF(instS));
                 }
                 // adjust child ids
                 for (int i = 0; i < instBuilder.getChildrenCount(); ++i) {
@@ -227,11 +249,20 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 }
                 // merge transform for non-children
                 if (!childIds.contains(inst.getId())) {
+                    Vector3d instS;
+                    if (inst.hasScale3()) {
+                        instS = MathUtil.ddfToVecmath(inst.getScale3());
+                    } else {
+                        double scale = inst.getScale();
+                        instS = new Vector3d(scale, scale, scale);
+                    }
+                    instS.set(instS.getX() * s.getX(), instS.getY() * s.getY(), instS.getZ() * s.getZ());
+
                     Point3d instP = MathUtil.ddfToVecmath(inst.getPosition());
                     if (subCollBuilder.getScaleAlongZ() != 0) {
-                        instP.scale(s);
+                        instP.set(s.getX() * instP.getX(), s.getY() * instP.getY(), s.getZ() * instP.getZ());
                     } else {
-                        instP.set(s * instP.getX(), s * instP.getY(), instP.getZ());
+                        instP.set(s.getX() * instP.getX(), s.getY() * instP.getY(), instP.getZ());
                     }
                     MathUtil.rotate(r, instP);
                     instP.add(p);
@@ -239,7 +270,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
-                    instBuilder.setScale((float)(s * inst.getScale()));
+                    instBuilder.setScale3(MathUtil.vecmathToDDF(instS));
                 }
                 // adjust child ids
                 for (int i = 0; i < instBuilder.getChildrenCount(); ++i) {
@@ -273,8 +304,15 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .addAllChildren(desc.getChildrenList())
                 .setPosition(desc.getPosition())
                 .setRotation(desc.getRotation())
-                .setScale(desc.getScale())
                 .addAllComponentProperties(desc.getComponentPropertiesList());
+
+            // Promote to scale3
+            if (desc.hasScale3()) {
+                instBuilder.setScale3(desc.getScale3());
+            } else {
+                double s = desc.getScale();
+                instBuilder.setScale3(MathUtil.vecmathToDDF(new Vector3d(s, s, s)));
+            }
 
             messageBuilder.addInstances(instBuilder);
             ++embedIndex;
@@ -287,6 +325,13 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             for (int j = 0; j < b.getChildrenCount(); ++j) {
                 b.setChildren(j, "/" + b.getChildren(j));
             }
+
+            // Promote to scale3
+            if (!b.hasScale3()) {
+                double s = b.getScale();
+                b.setScale3(MathUtil.vecmathToDDF(new Vector3d(s, s, s)));
+            }
+
             b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
             for (int j = 0; j < b.getComponentPropertiesCount(); ++j) {
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder(b.getComponentProperties(j));

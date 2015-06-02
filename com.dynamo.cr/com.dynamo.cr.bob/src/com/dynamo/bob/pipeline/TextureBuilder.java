@@ -8,25 +8,43 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 @BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec")
 public class TextureBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException {
-        return defaultTask(input);
+
+        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+        // If there is a texture profiles file, we need to make sure
+        // it has been read before building this tile set, add it as an input.
+        String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
+        if (textureProfilesPath != null) {
+            taskBuilder.addInput(this.project.getResource(textureProfilesPath));
+        }
+
+        return taskBuilder.build();
     }
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
 
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
+
         ByteArrayInputStream is = new ByteArrayInputStream(task.input(0).getContent());
         TextureImage texture;
         try {
-            texture = TextureGenerator.generate(is);
+            texture = TextureGenerator.generate(is, texProfile);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

@@ -106,9 +106,20 @@ namespace dmRender
 
     /*# create a new constant buffer.
      *
-     * Constant buffers are used to set shader program variables and are optionally passed to the render.draw function.
+     * Constant buffers are used to set shader program variables and are optionally passed to the render.draw function. The buffer's constant elements can be indexed like an ordinary Lua table, but you can't iterate
+     * over them with pairs() or ipairs().
      * @name render.constant_buffer
      * @return new constant buffer
+     * @examples
+     * <p>Set a "tint" constant in a constant buffer in the render script:</p>
+     * <pre>
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 1, 1, 1)
+     * </pre>
+     * <p>Then use the constant buffer when drawing a predicate:</p>
+     * <pre>
+     * render.draw(self.my_pred, constants)
+     * </pre>
      */
     int RenderScript_ConstantBuffer(lua_State* L)
     {
@@ -313,7 +324,7 @@ namespace dmRender
      *   <li><code>render.STATE_DEPTH_TEST</code></li>
      *   <li><code>render.STATE_STENCIL_TEST</code></li>
      *   <li><code>render.STATE_BLEND</code></li>
-     *   <li><code>render.STATE_ALPHA_TEST</code>No available on iOS/Android</li>
+     *   <li><code>render.STATE_ALPHA_TEST</code> (not available on iOS and Android)</li>
      *   <li><code>render.STATE_CULL_FACE</code></li>
      *   <li><code>render.STATE_POLYGON_OFFSET_FILL</code></li>
      * </ul>
@@ -666,7 +677,7 @@ namespace dmRender
         if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_RENDER_TARGET, (uint32_t)render_target)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_RENDER_TARGET, (uintptr_t)render_target)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -686,7 +697,7 @@ namespace dmRender
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_RENDER_TARGET, (uint32_t)render_target)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_RENDER_TARGET, (uintptr_t)render_target)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -723,7 +734,8 @@ namespace dmRender
      *
      * @name render.enable_texture
      * @param unit texture unit to enable texture for (number)
-     * @param render_target render target for which to enable the specified texture unit (render_target)
+     * @param render_target render target from which to enable the specified texture unit (render_target)
+     * @param buffer_type buffer type from which to enable the texture (constant)
      */
     int RenderScript_EnableTexture(lua_State* L)
     {
@@ -738,7 +750,7 @@ namespace dmRender
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
             if(texture != 0)
             {
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uint32_t)texture)))
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t)texture)))
                     return 0;
                 else
                     return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -747,7 +759,7 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(unit, render_target) called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "%s.enable_texture(unit, render_target, buffer_type) called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
         }
     }
 
@@ -949,7 +961,7 @@ namespace dmRender
             constant_buffer = *tmp;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint32_t)predicate, (uint32_t) constant_buffer)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uintptr_t)predicate, (uintptr_t) constant_buffer)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -993,7 +1005,7 @@ namespace dmRender
 
         Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
         *matrix = view;
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uint32_t)matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uintptr_t)matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1010,7 +1022,7 @@ namespace dmRender
         Vectormath::Aos::Matrix4 projection = *dmScript::CheckMatrix4(L, 1);
         Vectormath::Aos::Matrix4* matrix = new Vectormath::Aos::Matrix4;
         *matrix = projection;
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uint32_t)matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uintptr_t)matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1172,7 +1184,7 @@ namespace dmRender
             bool green = lua_toboolean(L, 2) != 0;
             bool blue = lua_toboolean(L, 3) != 0;
             bool alpha = lua_toboolean(L, 4) != 0;
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_COLOR_MASK, (uint32_t)red, (uint32_t)green, (uint32_t)blue, (uint32_t)alpha)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_COLOR_MASK, (uintptr_t)red, (uintptr_t)green, (uintptr_t)blue, (uintptr_t)alpha)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -1194,7 +1206,7 @@ namespace dmRender
         if (lua_isboolean(L, 1))
         {
             bool mask = lua_toboolean(L, 1) != 0;
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_MASK, (uint32_t)mask)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_MASK, (uintptr_t)mask)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -1434,7 +1446,7 @@ namespace dmRender
             default:
                 return luaL_error(L, "Invalid face types: %s.set_cull_face(self, %d)", RENDER_SCRIPT_LIB_NAME, face_type);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_CULL_FACE, (uint32_t)face_type)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_CULL_FACE, (uintptr_t)face_type)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1451,7 +1463,7 @@ namespace dmRender
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         float factor = luaL_checknumber(L, 1);
         float units = luaL_checknumber(L, 2);
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_POLYGON_OFFSET, (uint32_t)factor, (uint32_t)units)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_POLYGON_OFFSET, (uintptr_t)factor, (uintptr_t)units)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1573,7 +1585,7 @@ namespace dmRender
             else
             {
                 HMaterial material = *mat;
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint32_t)material)))
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uintptr_t)material)))
                 {
                     assert(top == lua_gettop(L));
                     return 0;

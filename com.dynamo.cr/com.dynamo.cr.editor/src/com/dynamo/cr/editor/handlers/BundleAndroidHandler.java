@@ -51,6 +51,9 @@ public class BundleAndroidHandler extends AbstractBundleHandler {
         options.put("certificate", certificate);
         options.put("private-key", key);
         options.put("platform", "armv7-android");
+        if(!presenter.isReleaseMode()) {
+            options.put("debug", "true");
+        }
     }
 
 }

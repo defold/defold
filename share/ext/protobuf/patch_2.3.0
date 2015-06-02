@@ -3,9 +3,9 @@ index de46a3e..ab90a38 100644
 --- a/src/google/protobuf/compiler/subprocess.cc
 +++ b/src/google/protobuf/compiler/subprocess.cc
 @@ -32,6 +32,10 @@
- 
+
  #include <google/protobuf/compiler/subprocess.h>
- 
+
 +#ifdef __EMSCRIPTEN__
 +#include <sys/select.h>
 +#endif
@@ -24,7 +24,7 @@ index f9e8ae8..7a6fa70 100644
 -  static string Subprocess::Win32ErrorMessage(DWORD error_code);
 +  static string Win32ErrorMessage(DWORD error_code);
  #endif
- 
+
   private:
 diff --git a/src/google/protobuf/io/coded_stream.h b/src/google/protobuf/io/coded_stream.h
 index dcbb0d4..3ddf0c3 100644
@@ -33,7 +33,7 @@ index dcbb0d4..3ddf0c3 100644
 @@ -109,6 +109,9 @@
  #ifndef GOOGLE_PROTOBUF_IO_CODED_STREAM_H__
  #define GOOGLE_PROTOBUF_IO_CODED_STREAM_H__
- 
+
 +#ifdef __EMSCRIPTEN__
 +#include <limits.h>
 +#endif
@@ -47,13 +47,26 @@ index 91e6878..fcb97b8 100644
 @@ -32,6 +32,9 @@
  //  Based on original Protocol Buffers design by
  //  Sanjay Ghemawat, Jeff Dean, and others.
- 
+
 +#ifdef __EMSCRIPTEN__
 +#include <iostream>
 +#endif
  #include <stack>
  #include <google/protobuf/stubs/hash.h>
- 
+
+diff --git a/src/google/protobuf/message.h b/src/google/protobuf/message.h
+index c0062f9..98a5812 100644
+--- a/src/google/protobuf/message.h
++++ b/src/google/protobuf/message.h
+@@ -116,7 +116,7 @@
+ // HP C++'s iosfwd doesn't work.
+ #include <iostream>
+ #else
+-#include <iosfwd>
++#include <sstream>
+ #endif
+
+ #include <google/protobuf/message_lite.h>
 diff --git a/src/google/protobuf/stubs/common.cc b/src/google/protobuf/stubs/common.cc
 index 1e2d68d..0204bd6 100644
 --- a/src/google/protobuf/stubs/common.cc
@@ -69,7 +82,7 @@ index 1e2d68d..0204bd6 100644
 @@ -313,6 +314,28 @@ void Mutex::AssertHeld() {
    // TODO(kenton):  Maybe keep track of locking thread ID like with WIN32?
  }
- 
+
 +#elif defined(__EMSCRIPTEN__)
 +
 +struct Mutex::Internal {
@@ -93,5 +106,5 @@ index 1e2d68d..0204bd6 100644
 +}
 +
  #endif
- 
+
  // ===================================================================

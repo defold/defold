@@ -5,7 +5,7 @@ dmglfw = bld.new_task_gen(features = 'cc cstaticlib',
 
 platform = bld.env.PLATFORM
 
-if platform == 'darwin':
+if platform == 'darwin' or platform == 'x86_64-darwin':
     dmglfw.find_sources_in_dirs('. cocoa')
     dmglfw.includes = '. cocoa'
 elif re.match('arm.*?darwin', platform):
@@ -14,7 +14,7 @@ elif re.match('arm.*?darwin', platform):
 elif re.match('arm.*?android', platform):
     dmglfw.find_sources_in_dirs('. android')
     dmglfw.includes = '. android'
-elif platform == 'linux':
+elif platform == 'linux' or platform == 'x86_64-linux':
     dmglfw.find_sources_in_dirs('. x11')
     dmglfw.includes = '. x11'
 elif platform == 'win32':

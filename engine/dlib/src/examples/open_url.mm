@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include "../dlib/sys.h"
 
-#ifdef __arm__
+#if defined(__arm__) || defined(__arm64__)
 #import <UIKit/UIKit.h>
 #else
 #import <Cocoa/Cocoa.h>

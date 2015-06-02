@@ -1,8 +1,0 @@
-lib/ubersource
-lib/stale
-doc/
-.lein*
-.eclipse-classpath
-lib/com.dynamo.cr.sceneed2-0.1.0.jar
-.nrepl-*
-/jars/

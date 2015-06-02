@@ -7,7 +7,7 @@
 #include "sys_private.h"
 #include "dstrings.h"
 
-#ifdef __arm__
+#if defined(__arm__) || defined(__arm64__)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
 #import <AdSupport/AdSupport.h>
@@ -18,7 +18,7 @@
 
 namespace dmSys
 {
-#ifdef __arm__
+#if defined(__arm__) || defined(__arm64__)
     // Only on iOS for now. No autorelease pool etc setup on OSX in dlib
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -112,31 +112,31 @@ namespace dmSys
     }
 
 #else
-    
+
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
         struct utsname uts;
         uname(&uts);
-        
+
         dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
         info->m_DeviceModel[0] = '\0';
-        
+
         const char* default_lang = "en_US";
         const char* lang = default_lang;
-        
+
         NSLocale* locale = [NSLocale currentLocale];
-        
+
         if (0x0 != locale) {
             NSString* preferredLang = [locale localeIdentifier];
             lang = [preferredLang UTF8String];
         }
-        
+
         if (!lang) {
             dmLogWarning("localeIdentifier not available.");
         }
-        
+
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
     }

@@ -120,7 +120,7 @@ TEST(Simple, LoadWithTemplateFunction)
     }
 }
 
-#ifndef __arm__
+#if !(defined(__arm__) || defined(__arm64__))
 // TODO: Disabled on iOS
 // We have add functionality to located tmp-dir on iOS. See issue #624
 TEST(Simple, LoadFromFile)

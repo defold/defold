@@ -29,12 +29,18 @@ namespace dmRender
      */
     typedef struct FontMap* HFontMap;
 
+    /**
+     * Display profiles handle
+     */
+    typedef struct DisplayProfiles* HDisplayProfiles;
+
     enum Result
     {
         RESULT_OK = 0,
         RESULT_INVALID_CONTEXT = -1,
         RESULT_OUT_OF_RESOURCES = -2,
         RESULT_BUFFER_IS_FULL = -3,
+        RESULT_INVALID_PARAMETER = -4,
     };
 
     enum RenderScriptResult
@@ -63,28 +69,6 @@ namespace dmRender
         static const uint32_t MAX_TAG_COUNT = 32;
         uint32_t m_Tags[MAX_TAG_COUNT];
         uint32_t m_TagCount;
-    };
-
-    struct RenderKey
-    {
-        RenderKey()
-        {
-            m_Key = 0;
-        }
-
-        union
-        {
-            struct
-            {
-                uint64_t    m_Depth:32;
-                // NOTE: The order-range is hard-coded in gui_script.cpp
-                // Any changes here must be reflected in dmGui
-                uint64_t    m_Order:3;
-                uint64_t    m_Translucency:1;
-                uint64_t    m_MaterialId:28;
-            };
-            uint64_t        m_Key;
-        };
     };
 
     struct Constant
@@ -130,7 +114,6 @@ namespace dmRender
 
         static const uint32_t MAX_TEXTURE_COUNT = 32;
         static const uint32_t MAX_CONSTANT_COUNT = 4;
-        RenderKey                       m_RenderKey;
         Constant                        m_Constants[MAX_CONSTANT_COUNT];
         Matrix4                         m_WorldTransform;
         Matrix4                         m_TextureTransform;
@@ -150,8 +133,6 @@ namespace dmRender
         uint8_t                         m_FragmentConstantMask;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
-        // Set to true if RenderKey.m_Depth should be filled in
-        uint8_t                         m_CalculateDepthKey : 1;
     };
 
     struct RenderContextParams
@@ -174,12 +155,57 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
+    enum RenderOrder
+    {
+        RENDER_ORDER_BEFORE_WORLD = 0,
+        RENDER_ORDER_WORLD        = 1,
+        RENDER_ORDER_AFTER_WORLD  = 2,
+    };
+
+    typedef uint8_t HRenderListDispatch;
+
+    struct RenderListEntry
+    {
+        Point3 m_WorldPosition;
+        uint32_t m_Order;
+        uint32_t m_BatchKey;
+        uint32_t m_TagMask;
+        uintptr_t m_UserData;
+        uint32_t m_MajorOrder:2;
+        uint32_t m_Dispatch:8;
+    };
+
+    enum RenderListOperation
+    {
+        RENDER_LIST_OPERATION_BEGIN,
+        RENDER_LIST_OPERATION_BATCH,
+        RENDER_LIST_OPERATION_END
+    };
+
+    struct RenderListDispatchParams
+    {
+        HRenderContext m_Context;
+        void* m_UserData;
+        RenderListOperation m_Operation;
+        RenderListEntry* m_Buf;
+        uint32_t* m_Begin;
+        uint32_t* m_End;
+    };
+
+    typedef void (*RenderListDispatchFn)(RenderListDispatchParams const &params);
+
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
+
+    void RenderListBegin(HRenderContext render_context);
+    HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn fn, void *user_data);
+    RenderListEntry* RenderListAlloc(HRenderContext render_context, uint32_t entries);
+    void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end);
+    void RenderListEnd(HRenderContext render_context);
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map);
 
@@ -194,6 +220,10 @@ namespace dmRender
 
     Result AddToRender(HRenderContext context, RenderObject* ro);
     Result ClearRenderObjects(HRenderContext context);
+
+    // Takes the contents of the render list, sorts by view and inserts all the objects in the
+    // render list, unless they already are in place from a previous call.
+    Result DrawRenderList(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
 
     Result Draw(HRenderContext context, Predicate* predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context);
@@ -261,7 +291,7 @@ namespace dmRender
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
-    void                            ApplyMaterialSamplers(dmRender::HRenderContext render_context, HMaterial material);
+    void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, int unit, dmGraphics::HTexture texture);
 
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
@@ -292,7 +322,7 @@ namespace dmRender
     bool                            GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t element_index, float& out_value);
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4 constant);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
-    void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit);
+    void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
 
     uint64_t                        GetMaterialUserData1(HMaterial material);

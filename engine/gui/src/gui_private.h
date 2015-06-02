@@ -70,10 +70,11 @@ namespace dmGui
         GetUserDataCallback             m_GetUserDataCallback;
         ResolvePathCallback             m_ResolvePathCallback;
         GetTextMetricsCallback          m_GetTextMetricsCallback;
-        uint32_t                        m_Width;
-        uint32_t                        m_Height;
         uint32_t                        m_PhysicalWidth;
         uint32_t                        m_PhysicalHeight;
+        uint32_t                        m_DefaultProjectWidth;
+        uint32_t                        m_DefaultProjectHeight;
+        uint32_t                        m_Dpi;
         dmArray<HScene>                 m_Scenes;
         dmArray<RenderEntry>            m_RenderNodes;
         dmArray<Matrix4>                m_RenderTransforms;
@@ -83,6 +84,7 @@ namespace dmGui
         dmArray<uint16_t>               m_StencilScopeIndices;
         dmHID::HContext                 m_HidContext;
         void*                           m_DefaultFont;
+        void*                           m_DisplayProfiles;
         SceneTraversalCache             m_SceneTraversalCache;
     };
 
@@ -121,12 +123,21 @@ namespace dmGui
 
         bool        m_HasResetPoint;
         const char* m_Text;
+
         uint64_t    m_TextureHash;
         void*       m_Texture;
+        void*       m_TextureSet;
+
+        TextureSetAnimDesc m_TextureSetAnimDesc;
+        uint64_t    m_FlipbookAnimHash;
+        float       m_FlipbookAnimPosition;
+
         uint64_t    m_FontHash;
         void*       m_Font;
         dmhash_t    m_LayerHash;
         uint16_t    m_LayerIndex;
+
+        void**      m_NodeDescTable;
     };
 
     struct InternalNode
@@ -162,7 +173,7 @@ namespace dmGui
         float    m_Delay;
         float    m_Elapsed;
         float    m_Duration;
-        dmEasing::Type m_Easing;
+        dmEasing::Curve m_Easing;
         Playback m_Playback;
         AnimationComplete m_AnimationComplete;
         void*    m_Userdata1;
@@ -178,6 +189,13 @@ namespace dmGui
         int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         Context*    m_Context;
         int         m_InstanceReference;
+    };
+
+    struct TextureInfo
+    {
+        TextureInfo(void* texture, void *textureset) : m_Texture(texture), m_TextureSet(textureset) {}
+        void*   m_Texture;
+        void*   m_TextureSet;
     };
 
     struct DynamicTexture
@@ -206,11 +224,14 @@ namespace dmGui
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
         dmArray<Animation>      m_Animations;
-        dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;
+        dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
         void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
+        dmArray<dmhash_t>       m_Layouts;
+        dmArray<void*>          m_LayoutsNodeDescs;
+        dmhash_t                m_LayoutId;
         dmArray<dmhash_t>       m_DeletedDynamicTextures;
         void*                   m_DefaultFont;
         void*                   m_UserData;
@@ -219,7 +240,12 @@ namespace dmGui
         uint16_t                m_NextVersionNumber;
         uint16_t                m_RenderOrder; // For the render-key
         uint16_t                m_NextLayerIndex;
+        uint16_t                m_NextLayoutIndex;
         uint16_t                m_ResChanged : 1;
+        uint32_t                m_Width;
+        uint32_t                m_Height;
+        FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
+        OnWindowResizeCallback   m_OnWindowResizeCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
@@ -239,13 +265,13 @@ namespace dmGui
      */
     void CalculateNodeTransform(HScene scene, InternalNode* node, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform);
 
-    /** calculates the reference scale for a context
+    /** calculates the reference scale for a scene
      * The reference scale is defined as scaling from the predefined screen space to the actual screen space.
      *
-     * @param context context for which to calculate the reference scale
+     * @param scene scene for which to calculate the reference scale
      * @return a scaling vector (ref_scale, ref_scale, 1, 1)
      */
-    Vector4 CalculateReferenceScale(HContext context);
+    Vector4 CalculateReferenceScale(HScene scene);
 
     HNode GetNodeHandle(InternalNode* node);
 }
