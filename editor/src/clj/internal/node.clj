@@ -566,7 +566,7 @@ must be part of a protocol or interface attached to the description."
                    (keys (gt/transforms' node-type)))
          ~@(mapcat (fn [an-input]  [an-input  (list (dollar-name node-type-name an-input) 'this 'evaluation-context)])
                    (subtract-keys (gt/inputs' node-type) (gt/transforms' node-type)))
-         (throw (ex-info (str "No such output, input, or property " label# " exists for node type " ~node-type-name)
+         (throw (ex-info (str "No such output, input, or property " label# " exists for node type " (:name ~node-type-name))
                          {:label label# :node-type ~node-type-name}))))
      ~@(gt/interfaces node-type)
      ~@(gt/protocols node-type)
