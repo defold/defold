@@ -8,6 +8,10 @@ import javax.vecmath.Vector3d;
 
 import org.eclipse.swt.events.MouseEvent;
 
+import com.dynamo.cr.properties.IPropertyAccessor;
+import com.dynamo.cr.properties.IPropertyObjectWorld;
+import com.dynamo.cr.properties.PropertyIntrospector;
+import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation;
@@ -85,4 +89,11 @@ public abstract class TransformManipulator<T> extends RootManipulator {
             transformChanged = false;
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public IPropertyAccessor<Object, ISceneModel> getNodePropertyAccessor(Node n) {
+        PropertyIntrospector<Node, ISceneModel> introspectors = (PropertyIntrospector<Node, ISceneModel>) n.getAdapter(PropertyIntrospector.class);
+        return (IPropertyAccessor<Object, ISceneModel>) (IPropertyAccessor<?, ? extends IPropertyObjectWorld>) introspectors.getAccessor();
+    }
+
 }

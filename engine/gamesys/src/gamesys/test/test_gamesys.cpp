@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/time.h>
 
 #include <gameobject/gameobject_ddf.h>
 
@@ -52,7 +53,27 @@ TEST_P(ResourceTest, Test)
     ASSERT_NE((void*)0, resource);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, resource_name, 0));
+    dmResource::Release(m_Factory, resource);
+}
 
+TEST_P(ResourceTest, TestPreload)
+{    
+    const char* resource_name = GetParam();
+    void* resource;
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
+    dmResource::Result r;
+    for (uint32_t i=0;i<50;i++)
+    {
+        r = dmResource::UpdatePreloader(pr, 10*1000);
+        if (r != dmResource::RESULT_PENDING)
+            break;
+        dmTime::Sleep(10*1000);
+    }
+    
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
+    
+    dmResource::DeletePreloader(pr);
     dmResource::Release(m_Factory, resource);
 }
 
@@ -406,6 +427,17 @@ ResourceFailParams invalid_rs_resources[] =
     {"/render_script/valid.render_scriptc", "/render_script/missing.render_scriptc"},
 };
 INSTANTIATE_TEST_CASE_P(RenderScript, ResourceFailTest, ::testing::ValuesIn(invalid_rs_resources));
+
+/* Display Profiles */
+
+const char* valid_dp_resources[] = {"/display_profiles/valid.display_profilesc"};
+INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceTest, ::testing::ValuesIn(valid_dp_resources));
+
+ResourceFailParams invalid_dp_resources[] =
+{
+    {"/display_profiles/valid.display_profilesc", "/display_profiles/missing.display_profilesc"},
+};
+INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceFailTest, ::testing::ValuesIn(invalid_dp_resources));
 
 /* Script */
 

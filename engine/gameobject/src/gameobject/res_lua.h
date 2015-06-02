@@ -21,6 +21,7 @@ namespace dmGameObject
     dmResource::Result ResLuaCreate(dmResource::HFactory factory,
                                     void* context,
                                     const void* buffer, uint32_t buffer_size,
+                                    void* preload_data,
                                     dmResource::SResourceDescriptor* resource,
                                     const char* filename);
 

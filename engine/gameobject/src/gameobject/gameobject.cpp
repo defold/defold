@@ -17,6 +17,8 @@
 #include "gameobject_script.h"
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
+#include "gameobject_props_ddf.h"
+
 #include "res_collection.h"
 #include "res_prototype.h"
 #include "res_script.h"
@@ -179,6 +181,7 @@ namespace dmGameObject
             {
                 ComponentNewWorldParams params;
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
+                params.m_ComponentIndex = i;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
@@ -248,7 +251,15 @@ namespace dmGameObject
             // member in a hidden context. Reported in DEF-54
             if (regist->m_Collections[i] == collection)
             {
-                regist->m_Collections.EraseSwap(i);
+                // Resize m_Collections manually here instead of using EraseSwap.
+                // This is to keep m_Collections in their spawn order, otherwise we run the risk
+                // of deleting proxy collections before their parent/spawning which in turn is
+                // problematic since the "parent" are going to delete the proxy collections they spawned.
+                for (uint32_t j = i; j < regist->m_Collections.Size() - 1; ++j)
+                {
+                    regist->m_Collections[j] = regist->m_Collections[j+1];
+                }
+                regist->m_Collections.SetSize(regist->m_Collections.Size() - 1);
                 found = true;
                 break;
             }
@@ -291,7 +302,7 @@ namespace dmGameObject
         }
     }
 
-    ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index)
+    ComponentType* FindComponentType(Register* regist, dmResource::ResourceType resource_type, uint32_t* index)
     {
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
@@ -336,7 +347,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result SetUpdateOrderPrio(HRegister regist, uint32_t resource_type, uint16_t prio)
+    Result SetUpdateOrderPrio(HRegister regist, dmResource::ResourceType resource_type, uint16_t prio)
     {
         bool found = false;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
@@ -364,23 +375,23 @@ namespace dmGameObject
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
+        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
+        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "luac", module_context, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
+        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionCreate, &ResCollectionDestroy, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, &ResCollectionDestroy, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "animc", 0, &ResAnimCreate, &ResAnimDestroy, 0x0);
+        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, &ResAnimDestroy, 0x0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -586,17 +597,33 @@ namespace dmGameObject
 
     bool Init(HCollection collection, HInstance instance);
 
-    dmhash_t GenerateUniqueInstanceId(HCollection collection)
+    void GenerateUniqueInstanceId(HCollection collection, char* buf, uint32_t bufsize)
     {
         // global path
         const char* id_format = "%sinstance%d";
-        char id_s[16];
         uint32_t index = 0;
         dmMutex::Lock(collection->m_Mutex);
         index = collection->m_GenInstanceCounter++;
         dmMutex::Unlock(collection->m_Mutex);
-        DM_SNPRINTF(id_s, sizeof(id_s), id_format, ID_SEPARATOR, index);
+        DM_SNPRINTF(buf, bufsize, id_format, ID_SEPARATOR, index);
+    }
+
+    dmhash_t GenerateUniqueInstanceId(HCollection collection)
+    {
+        char id_s[16];
+        GenerateUniqueInstanceId(collection, id_s, sizeof(id_s));
         return dmHashString64(id_s);
+    }
+
+    void GenerateUniqueCollectionInstanceId(HCollection collection, char* buf, uint32_t bufsize)
+    {
+        // global path
+        const char* id_format = "%scollection%d";
+        uint32_t index = 0;
+        dmMutex::Lock(collection->m_Mutex);
+        index = collection->m_GenCollectionInstanceCounter++;
+        dmMutex::Unlock(collection->m_Mutex);
+        DM_SNPRINTF(buf, bufsize, id_format, ID_SEPARATOR, index);
     }
 
     Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t id)
@@ -705,14 +732,400 @@ namespace dmGameObject
         return result;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
+    static bool SetScriptPropertiesFromBuffer(HInstance instance, const char *prototype_name, uint8_t* property_buffer, uint32_t property_buffer_size)
+    {
+        uint32_t next_component_instance_data = 0;
+        dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
+        uint32_t count = components.Size();
+        for (uint32_t i = 0; i < count; ++i) {
+            Prototype::Component& component = components[i];
+            ComponentType* component_type = component.m_Type;
+            uintptr_t* component_instance_data = 0;
+            if (component_type->m_InstanceHasUserData)
+            {
+                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+            }
+            // TODO use the component type identification system once it has been implemented (related to set_tile for tile maps)
+            // TODO this is a bit of a hack, the function should be added as a component callback instead so that the context can be properly handled
+            if (strcmp(component.m_Type->m_Name, "scriptc") == 0 && component.m_Type->m_SetPropertiesFunction != 0x0)
+            {
+                ComponentSetPropertiesParams params;
+                params.m_Instance = instance;
+                params.m_UserData = component_instance_data;
+                PropertyResult result = CreatePropertySetUserDataLua(component_type->m_Context, property_buffer, property_buffer_size, &params.m_PropertySet.m_UserData);
+                if (result == PROPERTY_RESULT_OK)
+                {
+                    params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserDataLua;
+                    params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackLua;
+                    result = component.m_Type->m_SetPropertiesFunction(params);
+                }
+                if (result != PROPERTY_RESULT_OK)
+                {
+                    dmLogError("Could not load properties when spawning '%s'.", prototype_name);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // Supplied 'proto' will be released after this function is done.
+    HInstance SpawnInternal(HCollection collection, Prototype *proto, const char *prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+    {
+        if (collection->m_ToBeDeleted) {
+            dmLogWarning("Spawning is not allowed when the collection is being deleted.");
+            return 0;
+        }
+
+        HInstance instance = dmGameObject::NewInstance(collection, proto, prototype_name);
+        if (instance == 0) {
+            return 0;
+        }
+
+        dmResource::IncRef(collection->m_Factory, proto);
+
+        SetPosition(instance, position);
+        SetRotation(instance, rotation);
+        SetScale(instance, scale);
+        collection->m_WorldTransforms[instance->m_Index] = dmTransform::ToMatrix4(instance->m_Transform);
+
+        dmHashInit64(&instance->m_CollectionPathHashState, true);
+        dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));
+
+        Result result = SetIdentifier(collection, instance, id);
+        if (result == RESULT_IDENTIFIER_IN_USE)
+        {
+            const char* identifier = (const char*)dmHashReverse64(id, 0x0);
+            if (identifier != 0x0)
+            {
+                dmLogError("The identifier '%s' is already in use.", identifier);
+            }
+            else
+            {
+                dmLogError("The identifier '%llu' is already in use.", id);
+            }
+            UndoNewInstance(collection, instance);
+            return 0;
+        }
+
+        bool success = CreateComponents(collection, instance);
+        if (!success) {
+            ReleaseIdentifier(collection, instance);
+            UndoNewInstance(collection, instance);
+            return 0;
+        }
+
+        success = SetScriptPropertiesFromBuffer(instance, prototype_name, property_buffer, property_buffer_size);
+
+        if (success && !Init(collection, instance))
+        {
+            dmLogError("Could not initialize when spawning %s.", prototype_name);
+            success = false;
+        }
+
+        if (success) {
+            AddToUpdate(collection, instance);
+        } else {
+            Delete(collection, instance);
+            return 0;
+        }
+
+        return instance;
+    }
+
+    // Returns if successful or not
+    bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
+    {
+        // Path prefix for collection objects
+        char root_path[32];
+        HashState64 prefixHashState;
+        GenerateUniqueCollectionInstanceId(collection, root_path, sizeof(root_path));
+        dmHashInit64(&prefixHashState, true);
+        dmHashUpdateBuffer64(&prefixHashState, root_path, strlen(root_path));
+
+        // table for output ids
+        id_mapping->SetCapacity(32, collection_desc->m_Instances.m_Count);
+
+        dmArray<HInstance> new_instances;
+        new_instances.SetCapacity(collection_desc->m_Instances.m_Count);
+
+        bool success = true;
+
+        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        {
+            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+            Prototype* proto = 0x0;
+            dmResource::HFactory factory = collection->m_Factory;
+            dmGameObject::HInstance instance = 0x0;
+
+            if (instance_desc.m_Prototype)
+            {
+                dmResource::Result error = dmResource::Get(factory, instance_desc.m_Prototype, (void**)&proto);
+                if (error == dmResource::RESULT_OK) {
+                    instance = dmGameObject::NewInstance(collection, proto, instance_desc.m_Prototype);
+                    if (instance == 0) {
+                        dmResource::Release(factory, proto);
+                        success = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!instance)
+                continue;
+
+            instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
+
+            // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
+            Vector3 scale = instance_desc.m_Scale3;
+            if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0)
+                    scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+
+            instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
+            instance->m_CollectionPathHashState = prefixHashState;
+
+            const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);
+            if (path_end == 0x0) {
+                dmLogError("The id of %s has an incorrect format, missing path specifier.", instance_desc.m_Id);
+                success = false;
+            } else {
+                dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, instance_desc.m_Id, path_end - instance_desc.m_Id + 1);
+            }
+
+            // Construct the full new path id and store in the id mapping table (mapping from prefixless
+            // to with the root_path added)
+            HashState64 new_id_hs = prefixHashState;
+            dmHashUpdateBuffer64(&new_id_hs, instance_desc.m_Id, strlen(instance_desc.m_Id));
+            dmhash_t new_id = dmHashFinal64(&new_id_hs);
+            dmhash_t id = dmHashBuffer64(instance_desc.m_Id, strlen(instance_desc.m_Id));
+            id_mapping->Put(id, new_id);
+            new_instances.Push(instance);
+
+            if (dmGameObject::SetIdentifier(collection, instance, new_id) != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Unable to set identifier for %s%s. Name clash?", root_path, instance_desc.m_Id);
+                success = false;
+            }
+        }
+
+        if (success)
+        {
+            // Setup hierarchy
+            for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+            {
+                const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+
+                dmhash_t *parent_id = id_mapping->Get(dmHashString64(instance_desc.m_Id));
+                assert(parent_id);
+
+                dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, *parent_id);
+                assert(parent);
+
+                for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
+                {
+                    dmhash_t child_id = dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j]));
+
+                    // It is not always the case that 'parent' has had the path prefix prepended to its id, so it is necessary
+                    // to see if a remapping exists.
+                    dmhash_t *new_id = id_mapping->Get(child_id);
+                    if (new_id)
+                    {
+                        child_id = *new_id;
+                    }
+
+                    dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, child_id);
+                    if (child)
+                    {
+                        dmGameObject::Result r = dmGameObject::SetParent(child, parent);
+                        if (r != dmGameObject::RESULT_OK)
+                        {
+                            dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
+                            success = false;
+                        }
+                    }
+                    else
+                    {
+                        dmLogError("Child not found: %s", instance_desc.m_Children[j]);
+                        success = false;
+                    }
+                }
+            }
+        }
+
+        if (success)
+        {
+            // Update the transform for all parent-less objects
+            for (uint32_t i=0;i!=new_instances.Size();i++)
+            {
+                if (!GetParent(new_instances[i]))
+                {
+                    new_instances[i]->m_Transform = dmTransform::Mul(transform, new_instances[i]->m_Transform);
+                }
+
+                // world transforms need to be up to date in time for the script init calls
+                collection->m_WorldTransforms[new_instances[i]->m_Index] = dmTransform::ToMatrix4(new_instances[i]->m_Transform);
+            }
+        }
+
+        // Exit point 1: Before components are created.
+        if (!success)
+        {
+            for (uint32_t i=0;i!=new_instances.Size();i++)
+            {
+                dmResource::Release(collection->m_Factory, new_instances[i]->m_Prototype);
+                ReleaseIdentifier(collection, new_instances[i]);
+                UndoNewInstance(collection, new_instances[i]);
+            }
+            id_mapping->Clear();
+            return false;
+        }
+
+        // Create components and set properties
+        //
+        // First set properties from the collection definition
+        // Then look if there are any properties in the supplied property_buffers for the instance
+
+        // After this point, instances are either removed (through undo) on error, or added
+        // to the 'created' array from which they can be deleted on error.
+        dmArray<HInstance> created;
+        created.SetCapacity(collection_desc->m_Instances.m_Count);
+
+        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        {
+            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+
+            dmhash_t *instance_id = id_mapping->Get(dmHashString64(instance_desc.m_Id));
+            assert(instance_id);
+
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, *instance_id);
+            bool result = dmGameObject::CreateComponents(collection, instance);
+            if (result) {
+                created.Push(instance);
+                // Set properties
+                uint32_t component_instance_data_index = 0;
+                dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
+                uint32_t comp_count = components.Size();
+                for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
+                {
+                    Prototype::Component& component = components[comp_i];
+                    ComponentType* type = component.m_Type;
+                    if (type->m_SetPropertiesFunction != 0x0)
+                    {
+                        if (!type->m_InstanceHasUserData)
+                        {
+                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", (const char*)dmHashReverse64(component.m_Id, 0x0), instance_desc.m_Id);
+                            success = false;
+                            break;
+                        }
+                        ComponentSetPropertiesParams params;
+                        params.m_Instance = instance;
+                        uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
+                        for (uint32_t prop_i = 0; prop_i < comp_prop_count; ++prop_i)
+                        {
+                            const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
+                            if (dmHashString64(comp_prop.m_Id) == component.m_Id)
+                            {
+                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData);
+                                if (!r)
+                                {
+                                    dmLogError("Could not read properties of game object '%s' in collection.", instance_desc.m_Id);
+                                    success = false;
+                                }
+                                else
+                                {
+                                    params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
+                                    params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserData;
+                                }
+                                break;
+                            }
+                        }
+                        uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
+                        params.m_UserData = component_instance_data;
+                        type->m_SetPropertiesFunction(params);
+                    }
+                    if (component.m_Type->m_InstanceHasUserData)
+                        ++component_instance_data_index;
+                }
+
+                // If there is any user supplied properties for this instance, then they should be set now.
+                InstancePropertyBuffer *instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
+                if (instance_properties)
+                {
+                    SetScriptPropertiesFromBuffer(instance, instance_desc.m_Id, instance_properties->property_buffer, instance_properties->property_buffer_size);
+                }
+            } else {
+                UndoNewInstance(collection, instance);
+                success = false;
+            }
+        }
+
+        if (success)
+        {
+            for (uint32_t i=0;i!=created.Size();i++)
+            {
+                if (!Init(collection, created[i]))
+                {
+                    success = false;
+                    break;
+                }
+            }
+        }
+
+        if (!success)
+        {
+            // Fail cleanup
+            for (uint32_t i=0;i!=created.Size();i++)
+                dmGameObject::Delete(collection, created[i]);
+            id_mapping->Clear();
+            return false;
+        }
+
+        for (uint32_t i=0;i!=created.Size();i++)
+        {
+            AddToUpdate(collection, created[i]);
+        }
+
+        return true;
+    }
+
+    bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
+                             const Point3& position, const Quat& rotation, const Vector3& scale,
+                             InstanceIdMap *instances)
+    {
+        // Bypassing the resource system a little bit in order to do this.
+        void *msg;
+        uint32_t msg_size;
+        dmResource::Result r = dmResource::GetRaw(collection->m_Factory, path, &msg, &msg_size);
+        if (r != dmResource::RESULT_OK) {
+            dmLogError("failed to load collection [%s]", path);
+            return false;
+        }
+
+        dmGameObjectDDF::CollectionDesc* collection_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(msg, msg_size, &collection_desc);
+        if (e != dmDDF::RESULT_OK)
+        {
+            dmLogError("Failed to parse collection [%s]", path);
+            return false;
+        }
+
+        dmTransform::Transform transform;
+        transform.SetTranslation(Vector3(position));
+        transform.SetRotation(rotation);
+        transform.SetScale(scale);
+
+        bool success = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances, transform);
+
+        dmDDF::FreeMessage(collection_desc);
+        free(msg);
+
+        return success;
+    }
+
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
         if (prototype_name == 0x0) {
             dmLogError("No prototype to spawn from.");
-            return 0x0;
-        }
-        if (collection->m_ToBeDeleted) {
-            dmLogWarning("Spawning is not allowed when the collection is being deleted.");
             return 0x0;
         }
 
@@ -722,98 +1135,14 @@ namespace dmGameObject
         if (error != dmResource::RESULT_OK) {
             return 0x0;
         }
-        HInstance instance = dmGameObject::NewInstance(collection, proto, prototype_name);
-        if (instance == 0) {
-            dmResource::Release(factory, proto);
-            return 0x0;
-        }
-        if (instance != 0)
-        {
-            SetPosition(instance, position);
-            SetRotation(instance, rotation);
-            SetScale(instance, scale);
-            collection->m_WorldTransforms[instance->m_Index] = instance->m_Transform;
 
-            dmHashInit64(&instance->m_CollectionPathHashState, true);
-            dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));
+        HInstance instance = SpawnInternal(collection, proto, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
 
-            Result result = SetIdentifier(collection, instance, id);
-            if (result == RESULT_IDENTIFIER_IN_USE)
-            {
-                const char* identifier = (const char*)dmHashReverse64(id, 0x0);
-                if (identifier != 0x0)
-                {
-                    dmLogError("The identifier '%s' is already in use.", identifier);
-                }
-                else
-                {
-                    dmLogError("The identifier '%llu' is already in use.", id);
-                }
-                UndoNewInstance(collection, instance);
-                instance = 0;
-            }
-        }
-        if (instance != 0) {
-            bool success = CreateComponents(collection, instance);
-            if (!success) {
-                ReleaseIdentifier(collection, instance);
-                UndoNewInstance(collection, instance);
-                instance = 0;
-            } else {
-                uint32_t next_component_instance_data = 0;
-                dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
-                uint32_t count = components.Size();
-                for (uint32_t i = 0; i < count; ++i) {
-                    Prototype::Component& component = components[i];
-                    ComponentType* component_type = component.m_Type;
-                    uintptr_t* component_instance_data = 0;
-                    if (component_type->m_InstanceHasUserData)
-                    {
-                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
-                    }
-                    // TODO use the component type identification system once it has been implemented (related to set_tile for tile maps)
-                    // TODO this is a bit of a hack, the function should be added as a component callback instead so that the context can be properly handled
-                    if (strcmp(component.m_Type->m_Name, "scriptc") == 0 && component.m_Type->m_SetPropertiesFunction != 0x0)
-                    {
-                        ComponentSetPropertiesParams params;
-                        params.m_Instance = instance;
-                        params.m_UserData = component_instance_data;
-                        PropertyResult result = CreatePropertySetUserDataLua(component_type->m_Context, property_buffer, property_buffer_size, &params.m_PropertySet.m_UserData);
-                        if (result == PROPERTY_RESULT_OK)
-                        {
-                            params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserDataLua;
-                            params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackLua;
-                            result = component.m_Type->m_SetPropertiesFunction(params);
-                        }
-                        if (result != PROPERTY_RESULT_OK)
-                        {
-                            dmLogError("Could not load properties when spawning '%s'.", prototype_name);
-                            success = false;
-                        }
-                    }
-                }
-                if (success && !Init(collection, instance))
-                {
-                    dmLogError("Could not initialize when spawning %s.", prototype_name);
-                    success = false;
-                }
-                if (success) {
-                    // deferred add-to-update
-                    AddToUpdate(collection, instance);
-                }
-                if (!success) {
-                    Delete(collection, instance);
-                    // No need to release the resource here as that happens as a part of destruction
-                    return 0;
-                }
-            }
-        }
         if (instance == 0) {
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
-            if (proto != 0x0) {
-                dmResource::Release(factory, proto);
-            }
         }
+
+        dmResource::Release(factory, proto);
         return instance;
     }
 
@@ -927,21 +1256,21 @@ namespace dmGameObject
             assert(collection->m_Instances[instance->m_Index] == instance);
 
             // Update world transforms since some components might need them in their init-callback
-            dmTransform::Transform* trans = &collection->m_WorldTransforms[instance->m_Index];
+            Matrix4* trans = &collection->m_WorldTransforms[instance->m_Index];
             if (instance->m_Parent == INVALID_INSTANCE_INDEX)
             {
-                *trans = instance->m_Transform;
+                *trans = dmTransform::ToMatrix4(instance->m_Transform);
             }
             else
             {
-                const dmTransform::Transform* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
+                const Matrix4* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
                 if (instance->m_ScaleAlongZ)
                 {
-                    *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
+                    *trans = (*parent_trans) * dmTransform::ToMatrix4(instance->m_Transform);
                 }
                 else
                 {
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, instance->m_Transform);
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, dmTransform::ToMatrix4(instance->m_Transform));
                 }
             }
 
@@ -1449,10 +1778,12 @@ namespace dmGameObject
                 dmGameObjectDDF::TransformResponse response;
                 response.m_Position = dmGameObject::GetPosition(instance);
                 response.m_Rotation = dmGameObject::GetRotation(instance);
-                response.m_Scale = dmGameObject::GetScale(instance);
+                response.m_Scale = dmGameObject::GetUniformScale(instance);
+                response.m_Scale3 = dmGameObject::GetScale(instance);
                 response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
                 response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
-                response.m_WorldScale = dmGameObject::GetWorldScale(instance);
+                response.m_WorldScale = dmGameObject::GetWorldUniformScale(instance);
+                response.m_WorldScale3 = dmGameObject::GetWorldScale(instance);
                 dmhash_t message_id = dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash;
                 uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
@@ -1477,35 +1808,38 @@ namespace dmGameObject
                         dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
 
                 }
-                dmTransform::Transform parent_t;
-                parent_t.SetIdentity();
+                Matrix4 parent_t = Matrix4::identity();
+
                 if (parent)
                 {
                     parent_t = context->m_Collection->m_WorldTransforms[parent->m_Index];
                 }
+
                 if (sp->m_KeepWorldTransform == 0)
                 {
-                    dmTransform::Transform& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
+                    Matrix4& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
                     if (instance->m_ScaleAlongZ)
                     {
-                        world = dmTransform::Mul(parent_t, instance->m_Transform);
+                        world = parent_t * dmTransform::ToMatrix4(instance->m_Transform);
                     }
                     else
                     {
-                        world = dmTransform::MulNoScaleZ(parent_t, instance->m_Transform);
+                        world = dmTransform::MulNoScaleZ(parent_t, dmTransform::ToMatrix4(instance->m_Transform));
                     }
                 }
                 else
                 {
                     if (instance->m_ScaleAlongZ)
                     {
-                        instance->m_Transform = dmTransform::Mul(dmTransform::Inv(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                        instance->m_Transform = dmTransform::ToTransform(inverse(parent_t) * context->m_Collection->m_WorldTransforms[instance->m_Index]);
                     }
                     else
                     {
-                        instance->m_Transform = dmTransform::MulNoScaleZ(dmTransform::Inv(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                        Matrix4 tmp = dmTransform::MulNoScaleZ(inverse(parent_t), context->m_Collection->m_WorldTransforms[instance->m_Index]);
+                        instance->m_Transform = dmTransform::ToTransform(tmp);
                     }
                 }
+
                 dmGameObject::Result result = dmGameObject::SetParent(instance, parent);
 
                 if (result != dmGameObject::RESULT_OK)
@@ -1674,7 +2008,7 @@ namespace dmGameObject
             uint16_t index = root_level[i];
             Instance* instance = collection->m_Instances[index];
             CheckEuler(instance);
-            collection->m_WorldTransforms[index] = instance->m_Transform;
+            collection->m_WorldTransforms[index] = dmTransform::ToMatrix4(instance->m_Transform);
             uint16_t parent_index = instance->m_Parent;
             assert(parent_index == INVALID_INSTANCE_INDEX);
         }
@@ -1689,24 +2023,29 @@ namespace dmGameObject
                 uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
                 CheckEuler(instance);
-                dmTransform::Transform* trans = &collection->m_WorldTransforms[index];
+                Matrix4* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;
                 assert(parent_index != INVALID_INSTANCE_INDEX);
 
-                dmTransform::Transform* parent_trans = &collection->m_WorldTransforms[parent_index];
+                Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
 
                 if (instance->m_ScaleAlongZ)
                 {
-                    *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
+                    *trans = *parent_trans * dmTransform::ToMatrix4(instance->m_Transform);
                 }
                 else
                 {
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, instance->m_Transform);
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, dmTransform::ToMatrix4(instance->m_Transform));
                 }
+
                 if (instance->m_NoInheritScale)
                 {
-                    trans->SetScale(instance->m_Transform.GetScale());
+                    Matrix4 parent = (*parent_trans);
+                    Vector3 scale = dmTransform::ExtractScale(parent);
+                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+                    own.setUpper3x3(Matrix3::scale(Vector3(1/scale.getX(), 1/scale.getY(), 1/scale.getZ())) * own.getUpper3x3());
+                    *trans = (*parent_trans) * own;
                 }
             }
         }
@@ -1757,6 +2096,32 @@ namespace dmGameObject
 
         collection->m_InUpdate = 0;
 
+        return ret;
+    }
+
+    bool Render(HCollection collection)
+    {
+        DM_PROFILE(GameObject, "Render");
+        assert(collection != 0x0);
+
+        bool ret = true;
+        uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
+        for (uint32_t i = 0; i < component_types; ++i)
+        {
+            uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+            ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+            if (component_type->m_RenderFunction)
+            {
+                DM_PROFILE(GameObject, component_type->m_Name);
+                ComponentsRenderParams params;
+                params.m_Collection = collection;
+                params.m_World = collection->m_ComponentWorlds[update_index];
+                params.m_Context = component_type->m_Context;
+                UpdateResult res = component_type->m_RenderFunction(params);
+                if (res != UPDATE_RESULT_OK)
+                    ret = false;
+            }
+        }
         return ret;
     }
 
@@ -2058,30 +2423,53 @@ namespace dmGameObject
         instance->m_Transform.SetScale(scale);
     }
 
-    float GetScale(HInstance instance)
+    float GetUniformScale(HInstance instance)
     {
         return instance->m_Transform.GetUniformScale();
+    }
+
+    Vector3 GetScale(HInstance instance)
+    {
+        return instance->m_Transform.GetScale();
     }
 
     Point3 GetWorldPosition(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return Point3(collection->m_WorldTransforms[instance->m_Index].GetTranslation());
+        Vector4 translation = collection->m_WorldTransforms[instance->m_Index].getCol(3);
+        return Point3(translation.getX(), translation.getY(), translation.getZ());
     }
 
     Quat GetWorldRotation(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return collection->m_WorldTransforms[instance->m_Index].GetRotation();
+        return Quat(collection->m_WorldTransforms[instance->m_Index].getUpper3x3());
     }
 
-    float GetWorldScale(HInstance instance)
+    float GetWorldUniformScale(HInstance instance)
+    {
+        Vector3 scale = GetWorldScale(instance);
+        return dmMath::Max<float>(scale.getX(), dmMath::Max<float>(scale.getY(), scale.getZ()));
+    }
+
+    Vector3 GetWorldScale(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return collection->m_WorldTransforms[instance->m_Index].GetUniformScale();
+        return dmTransform::ExtractScale(collection->m_WorldTransforms[instance->m_Index]);
     }
 
-    const dmTransform::Transform& GetWorldTransform(HInstance instance)
+    /*
+        dmTransform::ToMatrix a dmTransform::Transform from the world transform.
+        When this is not possible, nonsense will be returned.
+    */
+    const dmTransform::Transform GetWorldTransform(HInstance instance)
+    {
+        HCollection collection = instance->m_Collection;
+        Matrix4 mtx = collection->m_WorldTransforms[instance->m_Index];
+        return dmTransform::ToTransform(mtx);
+    }
+
+    const Matrix4 & GetWorldMatrix(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
         return collection->m_WorldTransforms[instance->m_Index];

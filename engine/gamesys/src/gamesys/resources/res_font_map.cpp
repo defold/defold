@@ -12,15 +12,9 @@
 namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
-        const void* buffer, uint32_t buffer_size, dmRender::HFontMap font_map, const char* filename, dmRender::HFontMap* font_map_out)
+        dmRenderDDF::FontMap* ddf, dmRender::HFontMap font_map, const char* filename, dmRender::HFontMap* font_map_out)
     {
         *font_map_out = 0;
-        dmRenderDDF::FontMap* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(buffer, buffer_size, &ddf);
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
 
         dmRender::HMaterial material;
         dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material);
@@ -74,15 +68,38 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+
+    dmResource::Result ResFontMapPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+                                     void* context,
+                                     const void* buffer, uint32_t buffer_size,
+                                     void **preload_data,
+                                     const char* filename)
+    {
+        dmRenderDDF::FontMap* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(buffer, buffer_size, &ddf);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmResource::PreloadHint(hint_info, ddf->m_Material);
+
+        *preload_data = ddf;
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResFontMapCreate(dmResource::HFactory factory,
                                      void* context,
                                      const void* buffer, uint32_t buffer_size,
+                                     void* preload_data,
                                      dmResource::SResourceDescriptor* resource,
                                      const char* filename)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         dmRender::HFontMap font_map;
-        dmResource::Result r = AcquireResources(factory, render_context, buffer, buffer_size, 0, filename, &font_map);
+
+        dmRenderDDF::FontMap* ddf = (dmRenderDDF::FontMap*) preload_data;
+        dmResource::Result r = AcquireResources(factory, render_context, ddf, 0, filename, &font_map);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*)font_map;
@@ -112,7 +129,15 @@ namespace dmGameSystem
                                                 const char* filename)
     {
         dmRender::HFontMap font_map = (dmRender::HFontMap)resource->m_Resource;
-        dmResource::Result r = AcquireResources(factory, (dmRender::HRenderContext)context, buffer, buffer_size, font_map, filename, &font_map);
+
+        dmRenderDDF::FontMap* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(buffer, buffer_size, &ddf);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmResource::Result r = AcquireResources(factory, (dmRender::HRenderContext)context, ddf, font_map, filename, &font_map);
         return r;
     }
 }

@@ -29,13 +29,20 @@ namespace dmThread
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
         pthread_attr_t attr;
+        long page_size = sysconf(_SC_PAGESIZE);
         int ret = pthread_attr_init(&attr);
         assert(ret == 0);
 
+        if (page_size == -1)
+            page_size = 4096;
+
+        if (PTHREAD_STACK_MIN > stack_size)
+            stack_size = PTHREAD_STACK_MIN;
+
         // NOTE: At least on OSX the stack-size must be a multiple of page size
-        stack_size /= 4096;
+        stack_size /= page_size;
         stack_size += 1;
-        stack_size *= 4096;
+        stack_size *= page_size;
 
         ret = pthread_attr_setstacksize(&attr, stack_size);
         assert(ret == 0);

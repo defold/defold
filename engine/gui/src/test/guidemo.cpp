@@ -171,7 +171,6 @@ int main(void)
             GL_RGBA, GL_UNSIGNED_BYTE, &checker_texture_data[0]);
 
     dmGui::SetPhysicalResolution(context, current_width, current_height);
-    dmGui::SetResolution(context, width, height);
 
     dmGui::NewSceneParams params;
     params.m_MaxNodes = 256;
@@ -179,6 +178,7 @@ int main(void)
     for (uint32_t i = 0; i < SCENE_COUNT; ++i)
     {
         dmGui::HScene scene = dmGui::NewScene(context, &params);
+        dmGui::SetSceneResolution(scene, width, height);
         dmGui::HScript script = dmGui::NewScript(context);
         dmGui::SetSceneScript(scene, script);
         g_Scenes[i] = scene;
@@ -197,7 +197,7 @@ int main(void)
         fread(buf, 1, file_size, f);
         fclose(f);
 
-        dmGui::AddTexture(scene, "checker", (void*) checker_texture);
+        dmGui::AddTexture(scene, "checker", (void*) checker_texture, 0);
 
         dmLuaDDF::LuaSource luaSource;
         memset(&luaSource, 0x00, sizeof(luaSource));

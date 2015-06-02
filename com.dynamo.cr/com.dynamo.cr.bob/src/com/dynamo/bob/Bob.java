@@ -123,10 +123,31 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getLib(String name) throws IOException {
+    public static String getLibExecPath(String filename) throws IOException {
+        init();
+        URL url = Bob.class.getResource("/libexec/" + filename);
+        if (url == null) {
+            throw new RuntimeException(String.format("/libexec/%s not found", filename));
+        }
+        File f = new File(rootFolder, filename);
+        if (!f.exists()) {
+            FileUtils.copyURLToFile(url, f);
+        }
+        return f.getAbsolutePath();
+    }
+
+    public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
+        if(debug) {
+            return getExe(platform, "dmengine");
+        }
+        else {
+            return getExe(platform, "dmengine_release");
+        }
+    }
+
+    public static String getLib(Platform platform, String name) throws IOException {
         init();
 
-        Platform platform = Platform.getJavaPlatform();
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         URL url = Bob.class.getResource("/lib/" + libName);
         if (url == null) {
@@ -160,7 +181,10 @@ public class Bob {
         options.addOption("ce", "certificate", true, "Certificate (Android)");
         options.addOption("pk", "private-key", true, "Private key (Android)");
 
-        options.addOption("re", "release", false, "Release mode (when bundling)");
+        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
+
+        options.addOption("tp", "texture-profiles", true, "Use texture profiles.");
+        options.addOption("k", "keep-unused", false, "Keep unused resources in archived output.");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;

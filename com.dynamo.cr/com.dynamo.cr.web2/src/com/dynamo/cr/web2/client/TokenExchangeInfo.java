@@ -29,8 +29,8 @@ public class TokenExchangeInfo extends BaseResponse {
         return this.type;
     }-*/;
 
-    public final native String getAuthCookie() /*-{
-        return this.auth_cookie;
+    public final native String getAuthToken() /*-{
+        return this.auth_token;
     }-*/;
 
 }

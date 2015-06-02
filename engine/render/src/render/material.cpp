@@ -60,15 +60,19 @@ namespace dmRender
             }
         }
 
-        if (constants_count > 0)
+        if ((constants_count + samplers_count) > 0)
         {
-            m->m_NameHashToLocation.SetCapacity(constants_count * 2, constants_count);
+            m->m_NameHashToLocation.SetCapacity((constants_count + samplers_count) * 2, (constants_count + samplers_count));
             m->m_Constants.SetCapacity(constants_count);
         }
 
         if (samplers_count > 0)
         {
             m->m_Samplers.SetCapacity(samplers_count);
+            for (uint32_t i = 0; i < samplers_count; ++i)
+            {
+                m->m_Samplers.Push(Sampler(i));
+            }
         }
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
@@ -103,7 +107,7 @@ namespace dmRender
             }
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
-                m->m_Samplers.Push(Sampler(name_hash, location));
+                m->m_NameHashToLocation.Put(name_hash, location);
             }
         }
 
@@ -184,19 +188,28 @@ namespace dmRender
         }
     }
 
-    void ApplyMaterialSamplers(dmRender::HRenderContext render_context, HMaterial material)
+    void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, int unit, dmGraphics::HTexture texture)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmArray<Sampler>& samplers = material->m_Samplers;
         uint32_t n = samplers.Size();
-        for (uint32_t i = 0; i < n; ++i)
+
+        if (unit < n)
         {
-            const Sampler& s = samplers[i];
-            if (s.m_Unit != -1)
+            const Sampler& s = samplers[unit];
+
+            if (s.m_Location != -1)
             {
                 dmGraphics::SetSampler(graphics_context, s.m_Location, s.m_Unit);
+
+                if (s.m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
+                    s.m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
+                {
+                    dmGraphics::SetTextureParams(texture, s.m_MinFilter, s.m_MagFilter, s.m_UWrap, s.m_VWrap);
+                }
             }
         }
+
     }
 
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
@@ -312,17 +325,23 @@ namespace dmRender
             return -1;
     }
 
-    void SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit)
+    void SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter)
     {
         dmArray<Sampler>& samplers = material->m_Samplers;
+
         uint32_t n = samplers.Size();
-        for (uint32_t i = 0; i < n; ++i)
+        uint32_t i = unit;
+        if (unit < n && name_hash != 0 && material->m_NameHashToLocation.Get(name_hash) != 0)
         {
             Sampler& s = samplers[i];
-            if (s.m_NameHash == name_hash)
-            {
-                s.m_Unit = unit;
-            }
+            s.m_NameHash = name_hash;
+            s.m_Location = *material->m_NameHashToLocation.Get(name_hash);
+            s.m_Unit = unit;
+
+            s.m_UWrap = u_wrap;
+            s.m_VWrap = v_wrap;
+            s.m_MinFilter = min_filter;
+            s.m_MagFilter = mag_filter;
         }
     }
 

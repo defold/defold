@@ -48,7 +48,8 @@ public class IOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getExe(Platform.Armv7Darwin, "dmengine_release");
+        String exeArmv7 = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("debug"));
+        String exeArm64 = Bob.getDmengineExe(Platform.Arm64Darwin, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -81,19 +82,41 @@ public class IOSBundler implements IBundler {
         resourceRulesIn.close();
 
         // Copy icons
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_57x57", "ios_icon_57.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_114x114", "ios_icon_114.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_72x72", "ios_icon_72.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_144x144", "ios_icon_144.png");
+        copyIcon(projectProperties, projectRoot, appDir, "app_icon_57x57", "Icon.png");
+        copyIcon(projectProperties, projectRoot, appDir, "app_icon_114x114", "Icon@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "app_icon_72x72", "Icon-72.png");
+        copyIcon(projectProperties, projectRoot, appDir, "app_icon_144x144", "Icon-72@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "app_icon_76x76", "Icon-76.png");
+        copyIcon(projectProperties, projectRoot, appDir, "app_icon_152x152", "Icon-76@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "app_icon_120x120", "Icon-60@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "app_icon_180x180", "Icon-60@3x.png");
 
         // Copy launch images
+        // iphone 3, 4, 5 portrait
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait~ipad.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait@2x~ipad.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape~ipad.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape@2x~ipad.png");
+
+        // ipad portrait+landscape
+        // backward compatibility with old game.project files with the incorrect launch image sizes
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait.png");
+
+        // iphone 6
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-667h@2x.png");
+
+        // iphone 6 plus portrait+landscape
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
+
+        // ipad retina portrait+landscape
+        // backward compatibility with old game.project files with the incorrect launch image sizes
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape@2x.png");
 
         String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
         List<String> urlSchemes = new ArrayList<String>();
@@ -105,11 +128,36 @@ public class IOSBundler implements IBundler {
         Map<String, Object> properties = new HashMap<String, Object>();
         properties.put("url-schemes", urlSchemes);
 
+        List<String> orientationSupport = new ArrayList<String>();
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+            Integer displayWidth = projectProperties.getIntValue("display", "width");
+            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                orientationSupport.add("LandscapeRight");
+            } else {
+                orientationSupport.add("Portrait");
+            }
+        } else {
+            orientationSupport.add("Portrait");
+            orientationSupport.add("PortraitUpsideDown");
+            orientationSupport.add("LandscapeLeft");
+            orientationSupport.add("LandscapeRight");
+        }
+        properties.put("orientation-support", orientationSupport);
+
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+
+        // Create fat/universal binary
+        File tmpFile = File.createTempFile("dmengine", "");
+        tmpFile.deleteOnExit();
+        String exe = tmpFile.getPath();
+
+        // Run lipo to add exeArmv7 + exeArm64 together into universal bin
+        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
 
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, title));

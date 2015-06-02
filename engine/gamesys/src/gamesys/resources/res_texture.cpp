@@ -16,14 +16,6 @@ namespace dmGameSystem
             return dmGraphics::TEXTURE_FORMAT_RGB;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
             return dmGraphics::TEXTURE_FORMAT_RGBA;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
-            return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
             return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
@@ -34,21 +26,24 @@ namespace dmGameSystem
             return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
             return dmGraphics::TEXTURE_FORMAT_RGB_ETC1;
+        /*
+        JIRA issue: DEF-994
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
+            return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
+        */
         default:
             assert(0);
         }
     }
 
-    dmResource::Result AcquireResources(dmGraphics::HContext context, const void* buffer, uint32_t buffer_size, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
+    dmResource::Result AcquireResources(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
-        *texture_out = 0;
-        dmGraphics::TextureImage* texture_image;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
         bool found_match = false;
         for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
         {
@@ -83,6 +78,15 @@ namespace dmGameSystem
             if (!texture)
                 texture = dmGraphics::NewTexture(context, creation_params);
 
+            // Need to revert to simple bilinear filtering if no mipmaps were supplied
+            if (image->m_MipMapOffset.m_Count <= 1) {
+                if (params.m_MinFilter == dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST) {
+                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+                } else if (params.m_MinFilter == dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST) {
+                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+                }
+            }
+
             for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
             {
                 params.m_MipMap = i;
@@ -112,15 +116,32 @@ namespace dmGameSystem
         }
     }
 
+    dmResource::Result ResTexturePreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+                                           void* context,
+                                           const void* buffer, uint32_t buffer_size,
+                                           void** preload_data,
+                                           const char* filename)
+    {
+        dmGraphics::TextureImage* texture_image;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        *preload_data = texture_image;
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResTextureCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
+                                           void* preload_data,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename)
     {
         dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmGraphics::HTexture texture;
-        dmResource::Result r = AcquireResources(graphics_context, buffer, buffer_size, 0, &texture);
+        dmResource::Result r = AcquireResources(graphics_context, (dmGraphics::TextureImage*) preload_data, 0, &texture);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) texture;
@@ -142,9 +163,16 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
+        dmGraphics::TextureImage* texture_image;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, buffer_size, (&texture_image));
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        
         dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmGraphics::HTexture texture = (dmGraphics::HTexture)resource->m_Resource;
-        dmResource::Result r = AcquireResources(graphics_context, buffer, buffer_size, texture, &texture);
+        dmResource::Result r = AcquireResources(graphics_context, texture_image, texture, &texture);
         return r;
     }
 }

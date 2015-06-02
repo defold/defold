@@ -97,8 +97,6 @@
         <module>../com.dynamo.cr.protobind</module>
         <module>../com.dynamo.cr.protobind.test</module>
         <module>../com.dynamo.cr.integrationtest</module>
-        <module>../com.dynamo.cr.server</module>
-        <module>../com.dynamo.cr.server.test</module>
         <module>../com.dynamo.cr.target</module>
         <module>../com.dynamo.cr.target.test</module>
         <module>../com.dynamo.cr.client</module>
