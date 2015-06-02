@@ -91,13 +91,13 @@ int Launch(int argc, char **argv) {
     const char* tmp = dmConfigFile::GetString(config, "launcher.vmargs", 0);
     char *vm_args = 0;
     if (tmp) {
-    	vm_args = strdup(tmp);
+        vm_args = strdup(tmp);
 
         char* s, *last;
         s = dmStrTok(vm_args, ",", &last);
         while (s) {
             args[i++] = s;
-        	s = dmStrTok(0, ",", &last);
+            s = dmStrTok(0, ",", &last);
         }
     }
 
@@ -116,7 +116,7 @@ int Launch(int argc, char **argv) {
     buffer[0] = 0;
 
     for (int j = 0; j < i - 1; j++) {
-		// We must quote on windows...
+        // We must quote on windows...
         if (j == 0) {
             dmStrlCat(buffer, "\"", buffer_size);
         }
@@ -129,7 +129,7 @@ int Launch(int argc, char **argv) {
         }
     }
 
-	dmLogDebug("%s", buffer);
+    dmLogDebug("%s", buffer);
 
     memset(&si, 0, sizeof(si));
     memset(&pi, 0, sizeof(pi));
@@ -162,10 +162,10 @@ int Launch(int argc, char **argv) {
     delete[] args;
     dmConfigFile::Delete(config);
 
-	return exit_code;
+    return exit_code;
 #else
 
-	pid_t pid = fork();
+    pid_t pid = fork();
     if (pid == 0) {
         int er = execv(args[0], (char *const *) args);
         if (er < 0) {
@@ -175,7 +175,7 @@ int Launch(int argc, char **argv) {
              exit(127);
         }
     }
-	int stat;
+    int stat;
     wait(&stat);
 
     free(vm_args);
@@ -183,18 +183,18 @@ int Launch(int argc, char **argv) {
     dmConfigFile::Delete(config);
 
     if (WIFEXITED(stat)) {
-    	return WEXITSTATUS(stat);
+        return WEXITSTATUS(stat);
     } else {
-    	return 127;
+        return 127;
     }
 #endif
 }
 
 int main(int argc, char **argv) {
-	int ret = Launch(argc, argv);
-	while (ret == 17) {
-		ret = Launch(argc, argv);
+    int ret = Launch(argc, argv);
+    while (ret == 17) {
+        ret = Launch(argc, argv);
 
-	}
+    }
     return ret;
 }
