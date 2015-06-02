@@ -48,29 +48,26 @@
   (input children t/Any))
 
 (g/defnode FResource
-  (property path String)
+  (property path t/Int)
 
-  (output contents String :cached (g/fnk [path] path)))
+  (output contents t/Int :cached (g/fnk [path] path)))
 
 (g/defnode FEditable
-  (input alpha String)
-  (input beta  String)
-  (input gamma String)
+  (input alpha t/Int)
+  (input beta  t/Int)
+  (input gamma t/Int)
 
-  (output omega String :cached (g/fnk [alpha beta gamma] (str alpha " " beta " " gamma)))
-  (output epsilon String :cached (g/fnk [omega] (str/upper-case omega))))
+  (output omega t/Int :cached (g/fnk [alpha beta gamma] (+ alpha beta gamma)))
+  (output epsilon t/Int :cached (g/fnk [omega] (inc omega))))
 
 (g/defnode FView
-  (input omega String)
-  (input view String)
+  (input omega t/Int)
+  (input view t/Int)
 
-  (output scene String :cached (g/fnk [omega view] (str omega " -> " view))))
+  (output scene t/Int :cached (g/fnk [omega view] (+ omega view))))
 
 (defn pile-of-nodes [where tp n] (tx-nodes (repeatedly (int n) #(g/make-node where tp))))
 (defn connection-targets [how-many from] (partition how-many (repeatedly #(rand-nth from))))
-
-(def words (read-string (slurp (io/resource "codenames.edn"))))
-(defn random-names [] (repeatedly (fn [] (str (rand-nth (first words)) " " (rand-nth (second words))))))
 
 (defn build-fake-graphs!
   [resource-count view-node-count]
@@ -88,8 +85,7 @@
       (for [t top-layer]    (g/connect t :self workspace :children))])
 
     (g/transact
-     (mapcat (fn [b w] (g/set-property b :path w))
-             bottom-layer (random-names)))
+     (mapcat #(g/set-property % :path (rand-int 10000)) bottom-layer))
 
     (g/transact
      (mapcat (fn [m [a b c]]
@@ -99,10 +95,11 @@
              middle-layer (connection-targets 3 bottom-layer)))
 
     (g/transact
-     (mapcat (fn [t [o e]]
+     (mapcat (fn [t [o e o2]]
                [(g/connect o :omega   t :alpha)
-                (g/connect e :epsilon t :beta)])
-             top-layer (connection-targets 2 middle-layer)))
+                (g/connect e :epsilon t :beta)
+                (g/connect e :omega   t :gamma)])
+             top-layer (connection-targets 3 middle-layer)))
 
     (g/transact
      (mapcat (fn [v [o e]]
@@ -188,6 +185,40 @@
      (send-off ~agt tally-count (- (. System (nanoTime)) start#))
      ret#))
 
+(defn- run-transactions-for-tracing
+  [actions pulls transaction-time evaluation-time]
+  (loop [i       0
+         actions actions
+         pulls   pulls]
+    (when (seq actions)
+      (let [[node property value] (first actions)]
+        (recording-time transaction-time
+                        (g/transact
+                         (g/set-property node property value)))
+
+        (if (= 0 (mod i 11))
+          (let [[view output] (first pulls)]
+            (recording-time evaluation-time
+                            (g/node-value view output))
+            (recur (inc i) (next actions) (next pulls)))
+          (recur (inc i) (next actions) pulls))))))
+
+(defn do-transactions-for-tracing [n]
+  (with-clean-system
+    (let [transaction-time  (tally-make)
+          evaluation-time   (tally-make)
+          [resources views] (build-fake-graphs! 1000 100)
+          actions           (map (fn [& a] a)
+                                 (repeatedly n #(g/node-id (rand-nth resources)))
+                                 (repeatedly n #(rand-nth [:alpha :beta :gamma]))
+                                 (repeatedly n #(rand-int 10000)))
+          pulls             (map (fn [& a] a)
+                                 (repeatedly #(g/node-id (rand-nth views)))
+                                 (repeatedly #(rand-nth [:view :omega])))]
+      (run-transactions-for-tracing actions pulls transaction-time evaluation-time)
+      (println :transaction-tally (tally-report transaction-time)
+               :evaluation-tally  (tally-report evaluation-time)))))
+
 (defn do-transactions [n]
   (with-clean-system
     (let [transaction-time  (tally-make)
@@ -196,7 +227,7 @@
           actions           (map (fn [& a] a)
                                  (repeatedly n #(g/node-id (rand-nth resources)))
                                  (repeatedly n #(rand-nth [:alpha :beta :gamma]))
-                                 (take n (random-names)))
+                                 (repeatedly n #(rand-int 10000)))
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
                                  (repeatedly #(rand-nth [:view :omega])))]
