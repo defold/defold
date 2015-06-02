@@ -1,6 +1,11 @@
 (ns internal.graph.types
   (:require [schema.core :as s]))
 
+(defn pfnk?
+  "True if the function has a schema. (I.e., it is a valid production function"
+  [f]
+  (contains? (meta f) :schema))
+
 (defprotocol Arc
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))

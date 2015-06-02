@@ -77,6 +77,8 @@
          props#          (reduce merge-props base-props# override-props#)
          ; protocol detection heuristic based on private function `clojure.core/protocol?`
          protocol?#      (fn [~'p] (gt/protocol? ~'p))]
+     (assert (or (nil? (:visible props#)) (gt/pfnk? (:visible props#)))
+             (str "Property " '~name-sym " type " '~value-type " has a visibility function that should be an fnk, but isn't. " (:visible props#)))
      (assert (not (protocol?# value-type#)) (str "Property " '~name-sym " type " '~value-type " looks like a protocol; try (schema.core/protocol " '~value-type ") instead."))
      (map->PropertyTypeImpl props#)))
 

@@ -101,7 +101,7 @@
 
   (property id t/Str)
   (property path (t/maybe t/Str))
-  (property embedded (t/maybe t/Bool) (visible false))
+  (property embedded (t/maybe t/Bool) (visible (g/fnk [] false)))
 
   (input source t/Any)
   (input properties t/Any)
