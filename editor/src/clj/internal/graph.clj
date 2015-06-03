@@ -214,16 +214,16 @@
   a function that returns direct successors for the node. Returns a
   lazy seq of nodes."
   [basis start & {:keys [seen] :or {seen #{}}}]
-  (letfn [(step [stack seen]
-            (if-let [node-label-pair (peek stack)]
-              (if (contains? seen node-label-pair)
-                (step (pop stack) seen)
-                (let [seen (conj seen node-label-pair)
-                      nbrs (remove seen (successors basis node-label-pair))]
-                  (lazy-seq
-                   (cons node-label-pair
-                         (step (into (pop stack) nbrs) seen)))))))]
-    (step start seen)))
+  (loop [stack  start
+         seen   seen
+         result (transient [])]
+    (if-let [node-label-pair (peek stack)]
+      (if (contains? seen node-label-pair)
+        (recur (pop stack) seen result)
+        (let [seen (conj seen node-label-pair)
+              nbrs (remove seen (successors basis node-label-pair))]
+          (recur (into (pop stack) nbrs) seen (conj! result node-label-pair))))
+      (persistent! result))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
