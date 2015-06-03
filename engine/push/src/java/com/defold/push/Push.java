@@ -5,6 +5,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
+import java.util.List;
+import java.util.ArrayList;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -12,6 +15,7 @@ import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.AlarmManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -34,6 +38,8 @@ public class Push {
     private String senderId = "";
 
     private static Push instance;
+    private static AlarmManager am = null;
+    private static List<Intent> scheduledNotifications;
     private IPushListener listener;
 
     private GoogleCloudMessaging gcm;
@@ -62,6 +68,48 @@ public class Push {
                 }
             }
         });
+    }
+
+    public void scheduleNotification(final Activity activity, int notificationId, int timeOffsetSec, String title, String message, String userdata, String group, int priority) {
+
+        if (am == null) {
+            am = (AlarmManager) activity.getSystemService(activity.ALARM_SERVICE);
+            scheduledNotifications = new ArrayList<Intent>();
+        }
+        Intent intent = new Intent(activity, LocalNotificationReceiver.class);
+
+        Bundle extras = new Bundle();
+        int uid = (int)System.currentTimeMillis();
+        extras.putInt("uid", uid);
+        extras.putString("title", title);
+        extras.putString("message", message);
+        extras.putInt("priority", priority);
+        extras.putString("group", group);
+        extras.putString("userdata", userdata);
+        intent.putExtras(extras);
+        intent.setAction("uid" + uid);
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(activity, 0, intent, PendingIntent.FLAG_ONE_SHOT);
+        scheduledNotifications.add(intent);
+        am.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + timeOffsetSec * 1000, pendingIntent);
+
+    }
+
+    public void cancelNotification(final Activity activity, int notificationId)
+    {
+        if (am == null) {
+            am = (AlarmManager) activity.getSystemService(activity.ALARM_SERVICE);
+            scheduledNotifications = new ArrayList<Intent>();
+        }
+
+        if (notificationId < 0 || notificationId >= scheduledNotifications.size())
+        {
+            return;
+        }
+
+        Intent intent = scheduledNotifications.get(notificationId);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(activity, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT);
+        am.cancel(pendingIntent);
     }
 
     public static Push getInstance() {
@@ -187,6 +235,14 @@ public class Push {
                         messageType));
             }
         }
+    }
+
+    void onLocalPush(String msg) {
+        if (listener != null) {
+            Log.d(TAG, "forwarding local message to application");
+            this.listener.onMessage(msg);
+        }
+
     }
 
     private void sendNotification(Context context, Bundle extras) {

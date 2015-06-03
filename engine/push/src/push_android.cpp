@@ -8,6 +8,7 @@
 #include <script/script.h>
 #include <extension/extension.h>
 #include <android_native_app_glue.h>
+#include "push_utils.h"
 
 #define LIB_NAME "push"
 
@@ -64,6 +65,7 @@ struct Push
         m_Self = LUA_NOREF;
         m_Listener.m_Callback = LUA_NOREF;
         m_Listener.m_Self = LUA_NOREF;
+        m_ScheduleLastID = 0;
     }
     int                  m_Callback;
     int                  m_Self;
@@ -75,7 +77,11 @@ struct Push
     jmethodID            m_Start;
     jmethodID            m_Stop;
     jmethodID            m_Register;
+    jmethodID            m_Schedule;
+    jmethodID            m_Cancel;
     int                  m_Pipefd[2];
+
+    int                  m_ScheduleLastID;
 };
 
 Push g_Push;
@@ -134,62 +140,119 @@ int Push_SetListener(lua_State* L)
     return 0;
 }
 
+int Push_Schedule(lua_State* L)
+{
+    int top = lua_gettop(L);
+    int seconds = luaL_checkinteger(L, 1);
+    if (seconds < 0)
+    {
+        lua_pushnil(L);
+        lua_pushstring(L, "invalid seconds argument");
+        return 2;
+    }
+
+    const char* title = luaL_checkstring(L, 2);
+    const char* message = luaL_checkstring(L, 3);
+
+    // param: userdata
+    const char* userdata = 0;
+    if (top > 3) {
+        userdata = luaL_checkstring(L, 4);
+    }
+
+    // param: notification_settings
+    int priority = 3;
+    const char* group = 0;
+    // char* icon = 0;
+    // char* sound = 0;
+    if (top > 4) {
+        luaL_checktype(L, 5, LUA_TTABLE);
+
+        // priority
+        lua_pushstring(L, "priority");
+        lua_gettable(L, 5);
+        if (lua_isnumber(L, -1)) {
+            priority = lua_tointeger(L, -1);
+
+            if (priority < 0) {
+                priority = 0;
+            } else if (priority > 5) {
+                priority = 5;
+            }
+        }
+        lua_pop(L, 1);
+
+        // group
+        lua_pushstring(L, "group");
+        lua_gettable(L, 5);
+        if (lua_isstring(L, -1)) {
+            group = lua_tostring(L, -1);
+        }
+        lua_pop(L, 1);
+
+        /*
+        // icon
+        There is now way of automatically bundle files inside the .app folder (i.e. skipping
+        archiving them inside the .darc), but to have custom notification sounds they need to
+        be accessable from the .app folder.
+
+        lua_pushstring(L, "icon");
+        lua_gettable(L, 5);
+        if (lua_isstring(L, -1)) {
+            icon = lua_tostring(L, -1);
+        }
+        lua_pop(L, 1);
+
+        // sound
+        lua_pushstring(L, "sound");
+        lua_gettable(L, 5);
+        if (lua_isstring(L, -1)) {
+            notification.soundName = [NSString stringWithUTF8String:lua_tostring(L, -1)];
+        }
+        lua_pop(L, 1);
+        */
+    }
+
+    JNIEnv* env = Attach();
+    jstring jtitle    = env->NewStringUTF(title);
+    jstring jmessage  = env->NewStringUTF(message);
+    jstring juserdata = env->NewStringUTF(userdata);
+    jstring jgroup    = env->NewStringUTF(group);
+    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Schedule, g_AndroidApp->activity->clazz, g_Push.m_ScheduleLastID, seconds, jtitle, jmessage, juserdata, jgroup, priority);
+    env->DeleteLocalRef(jgroup);
+    env->DeleteLocalRef(juserdata);
+    env->DeleteLocalRef(jmessage);
+    env->DeleteLocalRef(jtitle);
+    Detach();
+
+    assert(top == lua_gettop(L));
+
+    lua_pushnumber(L, g_Push.m_ScheduleLastID++);
+    return 1;
+
+}
+
+int Push_Cancel(lua_State* L)
+{
+    int cancel_id = luaL_checkinteger(L, 1);
+    JNIEnv* env = Attach();
+    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Cancel, g_AndroidApp->activity->clazz, cancel_id);
+    Detach();
+
+    return 0;
+}
+
 static const luaL_reg Push_methods[] =
 {
     {"register", Push_Register},
     {"set_listener", Push_SetListener},
+
+    {"schedule", Push_Schedule},
+    {"cancel", Push_Cancel},
+
     {0, 0}
 };
 
-// NOTE: Copy-paste from script_json
-static int ToLua(lua_State*L, dmJson::Document* doc, int index)
-{
-    const dmJson::Node& n = doc->m_Nodes[index];
-    const char* json = doc->m_Json;
-    int l = n.m_End - n.m_Start;
-    switch (n.m_Type)
-    {
-    case dmJson::TYPE_PRIMITIVE:
-        if (l == 4 && memcmp(json + n.m_Start, "null", 4) == 0) {
-            lua_pushnil(L);
-        } else if (l == 4 && memcmp(json + n.m_Start, "true", 4) == 0) {
-            lua_pushboolean(L, 1);
-        } else if (l == 5 && memcmp(json + n.m_Start, "false", 5) == 0) {
-            lua_pushboolean(L, 0);
-        } else {
-            double val = atof(json + n.m_Start);
-            lua_pushnumber(L, val);
-        }
-        return index + 1;
-
-    case dmJson::TYPE_STRING:
-        lua_pushlstring(L, json + n.m_Start, l);
-        return index + 1;
-
-    case dmJson::TYPE_ARRAY:
-        lua_createtable(L, n.m_Size, 0);
-        ++index;
-        for (int i = 0; i < n.m_Size; ++i) {
-            index = ToLua(L, doc, index);
-            lua_rawseti(L, -2, i+1);
-        }
-        return index;
-
-    case dmJson::TYPE_OBJECT:
-        lua_createtable(L, 0, n.m_Size);
-        ++index;
-        for (int i = 0; i < n.m_Size; i += 2) {
-            index = ToLua(L, doc, index);
-            index = ToLua(L, doc, index);
-            lua_rawset(L, -3);
-        }
-
-        return index;
-    }
-
-    assert(false && "not reached");
-    return index;
-}
 
 #ifdef __cplusplus
 extern "C" {
@@ -335,7 +398,7 @@ void HandlePushMessageResult(const Command* cmd)
     dmJson::Document doc;
     dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
     if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-        ToLua(L, &doc, 0);
+        JsonToLua(L, &doc, 0);
         dmScript::PCall(L, 2, LUA_MULTRET);
     } else {
         dmLogError("Failed to parse push response (%d)", r);
@@ -400,6 +463,7 @@ dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
     jclass class_loader = env->FindClass("java/lang/ClassLoader");
     jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+
     jstring str_class_name = env->NewStringUTF("com.defold.push.Push");
     jclass push_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
     env->DeleteLocalRef(str_class_name);
@@ -411,6 +475,8 @@ dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;)V");
     g_Push.m_Stop = env->GetMethodID(push_class, "stop", "()V");
     g_Push.m_Register = env->GetMethodID(push_class, "register", "(Landroid/app/Activity;)V");
+    g_Push.m_Schedule = env->GetMethodID(push_class, "scheduleNotification", "(Landroid/app/Activity;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
+    g_Push.m_Cancel = env->GetMethodID(push_class, "cancelNotification", "(Landroid/app/Activity;I)V");
 
     jmethodID get_instance_method = env->GetStaticMethodID(push_class, "getInstance", "()Lcom/defold/push/Push;");
     g_Push.m_Push = env->NewGlobalRef(env->CallStaticObjectMethod(push_class, get_instance_method));
