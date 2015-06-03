@@ -121,13 +121,6 @@
                 (with-clean-system
                   (load-test-project! world))))
 
-(defn foo []
-  (with-clean-system
-    (let [[resources views] (build-fake-graphs! 1000 100)]
-      (ig/pre-traverse (g/now) (list  [(g/node-id (first resources)) :contents]
-                                      [(g/node-id (second resources)) :contents]
-                                      [(g/node-id (first views)) :scene])))))
-
 (defn add-one-node []
   (println "Benching: Adding one node")
   (with-clean-system
