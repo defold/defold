@@ -214,7 +214,7 @@
                                  (repeatedly n #(rand-int 10000)))
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
-                                 (repeatedly #(rand-nth [:view :omega])))]
+                                 (repeat :scene))]
       (run-transactions-for-tracing actions pulls transaction-time evaluation-time)
       (println :transaction-tally (tally-report transaction-time)
                :evaluation-tally  (tally-report evaluation-time)))))
@@ -230,7 +230,7 @@
                                  (repeatedly n #(rand-int 10000)))
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
-                                 (repeatedly #(rand-nth [:view :omega])))]
+                                 (repeat :scene))]
       (assoc
        (do-benchmark
         (format "Run %s transactions of setting a property and pulling values" n)
