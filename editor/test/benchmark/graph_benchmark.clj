@@ -111,9 +111,7 @@
 
 (g/defnode AThing
   (property a-property t/Str (default "Hey"))
-
-  (output an-output t/Str (g/fnk [] "Boo."))
-  )
+  (output an-output t/Str (g/fnk [] "Boo.")))
 
 (g/defnode Container
   (input nodes t/Any))
@@ -168,61 +166,38 @@
        (g/transact (g/connect new-input-node :a-property new-output-node :nodes))
        (g/transact (g/disconnect new-input-node :a-property new-output-node :nodes))))))
 
-(defn tally-make []
-  (agent (long-array 2)))
-
-(defn tally-count [^longs tally nanos]
-  (aset tally 0 (inc (aget tally 0)))
-  (aset tally 1 (+ nanos (aget tally 1)))
-  tally)
-
-(defn tally-report [agt]
-  (let [reps (aget @agt 0)
-        total (aget @agt 1)]
-    (when (not= 0 reps)
-      (double (/ total reps)))))
-
-(defmacro recording-time [agt & body]
-  `(let [start# (. System (nanoTime))
-         ret# ~@body]
-     (send-off ~agt tally-count (- (. System (nanoTime)) start#))
-     ret#))
-
 (defn one-node-value []
-  (with-clean-system (let [txn-results (g/transact [(g/make-node world AThing)])
-                           [new-input-node] (g/tx-nodes-added txn-results)]
-                       (g/node-value new-input-node :an-output))))
-
-(defn one-node-value-bench []
   (with-clean-system
     (let [txn-results (g/transact [(g/make-node world AThing)])
           [new-input-node] (g/tx-nodes-added txn-results)]
-      (do-benchmark "Pull :a-property"
-                    (g/node-value new-input-node :a-property)))))
+      (g/node-value new-input-node :an-output))))
+
+(defn one-node-value-bench []
+  (with-clean-system {:cache-size 0}
+    (let [txn-results (g/transact [(g/make-node world AThing)])
+          [new-input-node] (g/tx-nodes-added txn-results)]
+      (do-benchmark "Pull :an-output"
+                    (g/node-value new-input-node :an-output)))))
 
 (defn- run-transactions-for-tracing
-  [actions pulls transaction-time evaluation-time]
+  [actions pulls]
   (loop [i       0
          actions actions
          pulls   pulls]
     (when (seq actions)
       (let [[node property value] (first actions)]
-        (recording-time transaction-time
-                        (g/transact
-                         (g/set-property node property value)))
+        (g/transact
+         (g/set-property node property value))
 
         (if (= 0 (mod i 11))
           (let [[view output] (first pulls)]
-            (recording-time evaluation-time
-                            (g/node-value view output))
+            (g/node-value view output)
             (recur (inc i) (next actions) (next pulls)))
           (recur (inc i) (next actions) pulls))))))
 
 (defn do-transactions-for-tracing [n]
   (with-clean-system
-    (let [transaction-time  (tally-make)
-          evaluation-time   (tally-make)
-          [resources views] (build-fake-graphs! 1000 100)
+    (let [[resources views] (build-fake-graphs! 1000 100)
           actions           (map (fn [& a] a)
                                  (repeatedly n #(g/node-id (rand-nth resources)))
                                  (repeatedly n #(rand-nth [:alpha :beta :gamma]))
@@ -230,15 +205,11 @@
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
                                  (repeatedly #(rand-nth [:view :omega])))]
-      (run-transactions-for-tracing actions pulls transaction-time evaluation-time)
-      (println :transaction-tally (tally-report transaction-time)
-               :evaluation-tally  (tally-report evaluation-time)))))
+      (run-transactions-for-tracing actions pulls))))
 
 (defn do-transactions [n]
   (with-clean-system
-    (let [transaction-time  (tally-make)
-          evaluation-time   (tally-make)
-          [resources views] (build-fake-graphs! 1000 100)
+    (let [[resources views] (build-fake-graphs! 1000 100)
           actions           (map (fn [& a] a)
                                  (repeatedly n #(g/node-id (rand-nth resources)))
                                  (repeatedly n #(rand-nth [:alpha :beta :gamma]))
@@ -246,26 +217,21 @@
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
                                  (repeat :scene))]
-      (assoc
-       (do-benchmark
-        (format "Run %s transactions of setting a property and pulling values" n)
-        (loop [i       0
-               actions actions
-               pulls   pulls]
-          (when (seq actions)
-            (let [[node property value] (first actions)]
-              (recording-time transaction-time
-                              (g/transact
-                               (g/set-property node property value)))
+      (do-benchmark
+       (format "Run %s transactions of setting a property and pulling values" n)
+       (loop [i       0
+              actions actions
+              pulls   pulls]
+         (when (seq actions)
+           (let [[node property value] (first actions)]
+             (g/transact
+              (g/set-property node property value))
 
-              (if (= 0 (mod i 11))
-                (let [[view output] (first pulls)]
-                  (recording-time evaluation-time
-                                  (g/node-value view output))
-                  (recur (inc i) (next actions) (next pulls)))
-                (recur (inc i) (next actions) pulls))))))
-       :transaction-tally (tally-report transaction-time)
-       :evaluation-tally  (tally-report evaluation-time)))))
+             (if (= 0 (mod i 11))
+               (let [[view output] (first pulls)]
+                 (g/node-value view output)
+                 (recur (inc i) (next actions) (next pulls)))
+               (recur (inc i) (next actions) pulls)))))))))
 
 (defn run-many-transactions []
   (println "=======")
@@ -274,9 +240,7 @@
     (let [bench-results (do-transactions num-trans)
           mean (first (:mean bench-results))]
       (when mean
-        (println (str "TPS Report with " num-trans " txns: " (/ num-trans mean) " transactions per second"))
-        (println (str "The average transaction took " (/ (:transaction-tally bench-results) 1000000) " ms"))
-        (println (str "The average evaluation took " (/ (:evaluation-tally bench-results) 1000000) " ms")))))
+        (println (str "TPS Report with " num-trans " txns: " (/ num-trans mean) " transactions per second")))))
   (println)
   (println "======="))
 

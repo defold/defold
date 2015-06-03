@@ -524,18 +524,17 @@
     `(get ~'this ~argument)))
 
 (defn produce-value-forms [transform output-multi? node-type-name argument-forms argument-schema epilogue]
-  `(time (let [pfn-input# ~argument-forms
-          schema#    ~argument-schema]
-           (println :transform ~transform)
-      (if-let [validation-error# (if (gt/error? pfn-input#)
-                                   pfn-input#
-                                   (s/check schema# pfn-input#))]
-        (let [~'error (gt/error validation-error# (gt/node-id ~'this) ~transform)]
-          (warn (gt/node-id ~'this) ~node-type-name ~transform schema# validation-error#)
-          ~(if output-multi? `[~'error] 'error))
-        (let [~'result ((~transform (gt/transforms' ~node-type-name)) pfn-input#)]
-          ~epilogue
-          ~'result)))))
+  `(let [pfn-input# ~argument-forms
+         schema#    ~argument-schema]
+     (if-let [validation-error# (if (gt/error? pfn-input#)
+                                  pfn-input#
+                                  (s/check schema# pfn-input#))]
+       (let [~'error (gt/error validation-error# (gt/node-id ~'this) ~transform)]
+         (warn (gt/node-id ~'this) ~node-type-name ~transform schema# validation-error#)
+         ~(if output-multi? `[~'error] 'error))
+       (let [~'result ((~transform (gt/transforms' ~node-type-name)) pfn-input#)]
+         ~epilogue
+         ~'result))))
 
 (defn local-cache [evaluation-context transform]
   `(get-in @(:local ~evaluation-context) [(gt/node-id ~'this) ~transform]))
