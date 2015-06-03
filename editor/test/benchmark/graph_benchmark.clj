@@ -110,7 +110,10 @@
     [bottom-layer view-layer]))
 
 (g/defnode AThing
-  (property a-property t/Str (default "Hey")))
+  (property a-property t/Str (default "Hey"))
+
+  (output an-output t/Str (g/fnk [] "Boo."))
+  )
 
 (g/defnode Container
   (input nodes t/Any))
@@ -188,7 +191,14 @@
 (defn one-node-value []
   (with-clean-system (let [txn-results (g/transact [(g/make-node world AThing)])
                            [new-input-node] (g/tx-nodes-added txn-results)]
-                       (g/node-value new-input-node :a-property))))
+                       (g/node-value new-input-node :an-output))))
+
+(defn one-node-value-bench []
+  (with-clean-system
+    (let [txn-results (g/transact [(g/make-node world AThing)])
+          [new-input-node] (g/tx-nodes-added txn-results)]
+      (do-benchmark "Pull :a-property"
+                    (g/node-value new-input-node :a-property)))))
 
 (defn- run-transactions-for-tracing
   [actions pulls transaction-time evaluation-time]
@@ -216,7 +226,7 @@
           actions           (map (fn [& a] a)
                                  (repeatedly n #(g/node-id (rand-nth resources)))
                                  (repeatedly n #(rand-nth [:alpha :beta :gamma]))
-                                 (repeatedly n #(rand-int 10000)))
+                                 (repeat :scene))
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
                                  (repeatedly #(rand-nth [:view :omega])))]
@@ -235,7 +245,7 @@
                                  (repeatedly n #(rand-int 10000)))
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
-                                 (repeatedly #(rand-nth [:view :omega])))]
+                                 (repeat :scene))]
       (assoc
        (do-benchmark
         (format "Run %s transactions of setting a property and pulling values" n)
@@ -277,7 +287,8 @@
   (set-property-some-nodes)
   (add-two-nodes-and-connect-them)
   (add-two-nodes-and-connect-and-disconnect-them)
-  (run-many-transactions))
+  (run-many-transactions)
+  (one-node-value-bench))
 
 (defn -main [& args]
   (println "Running benchmarks and outputing results to ./test/benchmark/bench-results.txt")
