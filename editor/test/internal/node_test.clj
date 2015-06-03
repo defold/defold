@@ -153,7 +153,7 @@
   (with-clean-system
     (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
                                   (g/make-node world VisibilityTestNode))]
-      (g/transact(g/connect snode :foo vnode :bar))
+      (g/transact (g/connect snode :foo vnode :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo "hi"))
             vnode-results (filter #(= (first %) (g/node-id vnode)) (:outputs-modified tx-result))
             modified      (into #{} (map second vnode-results))]
@@ -280,21 +280,14 @@
   (testing "cycle of period 1"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
-        (is (thrown? AssertionError (g/transact
-                                (g/connect node :out-from-in node :in)))))))
+        (g/transact (g/connect node :out-from-in node :in))
+        (is (thrown? AssertionError (g/node-value node :out-from-in))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
-        (is (thrown? AssertionError (g/transact
-                                (concat
-                                 (g/connect node0 :out-from-in node1 :in)
-                                 (g/connect node1 :out-from-in node0 :in))))))))
-  (testing "cycle of period 2 (multiple transactions)"
-    (with-clean-system
-      (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
-        (g/transact (g/connect node0 :out-from-in node1 :in))
-        (is (thrown? AssertionError (g/transact
-                                (g/connect node1 :out-from-in node0 :in))))))))
+        (g/transact [(g/connect node0 :out-from-in node1 :in)
+                     (g/connect node1 :out-from-in node0 :in)])
+        (is (thrown? AssertionError (g/node-value node1 :out-from-in)))))))
 
 (g/defnode BasicNode
   (input basic-input t/Int)

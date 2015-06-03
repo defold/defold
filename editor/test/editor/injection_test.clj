@@ -163,7 +163,7 @@
                           [provider [OutputProvider :context 119]
                            consumer InputConsumer]
                           (g/connect consumer :self provider :nodes))))]
-        (is (= 1 (count (g/nodes-consuming (g/now) provider :context)))))))
+        (is (= 1 (count (g/targets (g/now) (g/node-id provider) :context)))))))
 
   (testing "two consumers each in their own nested scope"
     (with-clean-system
@@ -182,5 +182,5 @@
                            [provider [OutputProvider :context 113]
                             consumer InputConsumer]
                            (g/connect consumer :self provider :nodes))))]
-        (is (= 1 (count (g/nodes-consuming (g/now) provider1 :context))))
-        (is (= 1 (count (g/nodes-consuming (g/now) provider2 :context))))))))
+        (is (= 1 (count (g/targets (g/now) (g/node-id provider1) :context))))
+        (is (= 1 (count (g/targets (g/now) (g/node-id provider2) :context))))))))
