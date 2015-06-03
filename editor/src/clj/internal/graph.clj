@@ -3,6 +3,8 @@
             [internal.graph.types :as gt]
             [schema.core :as s]))
 
+(set! *warn-on-reflection* true)
+
 (deftype ArcBase [source target sourceLabel targetLabel]
   gt/Arc
   (head [_] [source sourceLabel])
