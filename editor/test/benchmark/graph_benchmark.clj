@@ -110,7 +110,7 @@
     [bottom-layer view-layer]))
 
 (g/defnode AThing
-  (property a-property t/Str))
+  (property a-property t/Str (default "Hey")))
 
 (g/defnode Container
   (input nodes t/Any))
@@ -184,6 +184,11 @@
          ret# ~@body]
      (send-off ~agt tally-count (- (. System (nanoTime)) start#))
      ret#))
+
+(defn one-node-value []
+  (with-clean-system (let [txn-results (g/transact [(g/make-node world AThing)])
+                           [new-input-node] (g/tx-nodes-added txn-results)]
+                       (g/node-value new-input-node :a-property))))
 
 (defn- run-transactions-for-tracing
   [actions pulls transaction-time evaluation-time]
