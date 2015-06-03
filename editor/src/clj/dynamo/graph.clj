@@ -513,24 +513,6 @@
    (map #(update %1 0 (partial node-by-id basis))
         (sources basis (node-id node) label))))
 
-(defn nodes-consuming
-  "Find the [node label] pairs for all connections reached from the
-  given node's input label.  The result is a sequence of pairs."
-  ([node label]
-   (nodes-consuming (now) node label))
-  ([basis node label]
-   (map
-    (fn [[node-id label]]
-      [(node-by-id basis node-id) label])
-    (targets basis (node-id node) label))))
-
-(defn node-consuming
-  "Like nodes-consuming, but only returns the first result."
-  ([node label]
-   (node-consuming (now) node label))
-  ([basis node label]
-   (ffirst (nodes-consuming basis node label))))
-
 (defn invalidate!
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as pairs of [node-id label]

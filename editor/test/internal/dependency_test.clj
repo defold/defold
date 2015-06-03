@@ -11,7 +11,7 @@
 
 (defn- dependencies
   [system & pairs]
-  (g/dependencies (is/basis system) (map-first id (partition 2 pairs))))
+  (set (g/dependencies (is/basis system) (map-first id (partition 2 pairs)))))
 
 (g/defnode SingleOutput
   (output out-from-inline t/Str (g/fnk [] "out-from-inline")))

@@ -1,5 +1,6 @@
 (ns internal.graph
-  (:require [dynamo.util :refer [removev map-vals]]
+  (:require [clojure.set :as set]
+            [dynamo.util :refer [removev map-vals stackify]]
             [internal.graph.types :as gt]
             [schema.core :as s]))
 
@@ -147,7 +148,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Dependency tracing
 ;; ---------------------------------------------------------------------------
-(def maximum-graph-coloring-recursion 100)
+(def maximum-graph-coloring-recursion 10000)
 
 (defn- pairs [m] (for [[k vs] m v vs] [k v]))
 
@@ -208,6 +209,35 @@
                     src-id (:name output-type) src-label
                     tgt-id (:name input-type) tgt-label
                     output-schema input-schema))))
+
+
+(defn- successors
+  [basis [node-id output-label]]
+  (let [target-inputs (gt/targets basis node-id output-label)]
+    (apply set/union (map (fn [[node-id input-label]]
+                            (let [set-of-output-labels (get
+                                                        (gt/input-dependencies
+                                                         (node-by-id-at basis node-id)) input-label)
+                                  node-label-pairs (map #(vector node-id %) set-of-output-labels)]
+                              node-label-pairs))
+                          target-inputs))))
+
+(defn- pre-traverse
+  "Traverses a graph depth-first preorder from start, successors being
+  a function that returns direct successors for the node. Returns a
+  lazy seq of nodes."
+  [basis start & {:keys [seen] :or {seen #{}}}]
+  (letfn [(step [stack seen iterations-remaining]
+            (assert (pos? iterations-remaining) "Output tracing stopped; probable cycle in the graph")
+            (when-let [node-label-pair (peek stack)]
+              (if (contains? seen node-label-pair)
+                (step (pop stack) seen (dec iterations-remaining))
+                (let [seen (conj seen node-label-pair)
+                      nbrs (remove seen (successors basis node-label-pair))]
+                  (lazy-seq
+                   (cons node-label-pair
+                         (step (into (pop stack) nbrs) seen (dec iterations-remaining))))))))]
+    (step start seen maximum-graph-coloring-recursion)))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
@@ -292,14 +322,7 @@
 
   (dependencies
     [this to-be-marked]
-    (loop [already-marked       #{}
-           to-be-marked         to-be-marked
-           iterations-remaining maximum-graph-coloring-recursion]
-      (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
-      (if (empty? to-be-marked)
-        already-marked
-        (let [next-wave (set (mapcat #(apply marked-downstream-nodes this %) to-be-marked))]
-          (recur (into already-marked to-be-marked) next-wave (dec iterations-remaining)))))))
+    (pre-traverse this (stackify to-be-marked))))
 
 (defn multigraph-basis
   [graphs]
@@ -308,3 +331,13 @@
 (defn hydrate-after-undo
   [graphs graph-state]
   (assoc graph-state :sarcs (rebuild-sarcs (multigraph-basis (map-vals deref graphs)) graph-state)))
+
+
+
+
+(comment
+;;; todo
+;;; 2. replace lazy-seq with direct recursion.
+;;; 3. use a max-depth countdown to avoid infinite cycles
+
+  )
