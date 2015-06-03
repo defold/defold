@@ -168,12 +168,13 @@
 (defn- render-sort [renderables camera viewport]
   (reverse (sort-by #(render-key camera viewport %) renderables)))
 
-(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables selection]
+(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables tool-renderables selection]
   (when-let [^GLContext context (make-current viewport drawable)]
     (let [gl ^GL2 (.getGL context)
           glu ^GLU (GLU.)
           render-args {:gl gl :glu glu :camera camera :viewport viewport :text-renderer @text-renderer}
-          selection-set (set selection)]
+          selection-set (set selection)
+          renderables (merge-with concat renderables tool-renderables)]
       (.glClearColor gl 0.0 0.0 0.0 1.0)
       (gl/gl-clear gl 0.0 0.0 0.0 1)
       (.glColor4f gl 1.0 1.0 1.0 1.0)
@@ -237,7 +238,7 @@
         (.release context)))
     []))
 
-(g/defnk produce-tool-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
+(g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
   (if-let [^GLContext context (and tool-picking-rect (make-current viewport drawable))]
     (try
       (let [gl ^GL2 (.getGL context)
@@ -248,7 +249,7 @@
                 render-args (assoc render-args :pass pass)]
             (begin-select gl select-buffer)
             (setup-pass context gl glu pass camera viewport tool-picking-rect)
-            (let [renderables (get renderables pass)]
+            (let [renderables (get tool-renderables pass)]
               (doseq [[index renderable] (keep-indexed #(list %1 %2) renderables)]
                 (render-node gl pass renderable (assoc render-args :selected false) index))
               (render-sort (end-select gl select-buffer renderables) camera viewport)))))
@@ -257,12 +258,13 @@
     []))
 
 (g/defnk produce-renderables [renderables camera viewport]
-  (let [renderables (apply merge-with #(concat %1 %2) renderables)]
+  (let [renderables (apply merge-with concat renderables)]
     (into {} (map (fn [[pass renderables]] [pass (render-sort renderables camera viewport)]) renderables))))
 
-(g/defnk produce-selected-renderables [selection selection-renderables]
-  (let [selected-set (set selection)]
-    (mapcat (fn [m] (mapcat (fn [[pass v]] (filter #(selected-set (:node-id %)) v)) m)) selection-renderables)))
+(g/defnk produce-selected-renderables [selection renderables]
+  (let [selected-set (set selection)
+        selection-renderables (filter #(t/selection? (first %)) renderables)]
+    (mapcat (fn [[pass v]] (filter #(selected-set (:node-id %)) v)) selection-renderables)))
 
 (g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:user-data %)]}) tool-selection)))
@@ -275,7 +277,7 @@
   (input viewport Region)
   (input camera Camera)
   (input renderables pass/RenderData :array)
-  (input selection-renderables pass/RenderData :array)
+  (input tool-renderables pass/RenderData)
   (input picking-rect Rect)
   (input tool-picking-rect Rect)
 
@@ -288,8 +290,8 @@
   (output frame BufferedImage :cached produce-frame)
   (output picking-selection t/Any :cached produce-selection)
   (output tool-selection t/Any :cached produce-tool-selection)
-  (output selected-renderables t/Any produce-selected-renderables)
-  (output selected-tool-renderables t/Any produce-selected-tool-renderables))
+  (output selected-renderables t/Any :cached produce-selected-renderables)
+  (output selected-tool-renderables t/Any :cached produce-selected-tool-renderables))
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action input-handler]
@@ -317,7 +319,7 @@
           renderables (into {} (map (fn [pass] [pass [{:node-id node-id
                                                        :render-fn render-fn
                                                        :world-transform (doto (Matrix4d.) (.setIdentity))}]]) passes))
-          renderables (reduce #(merge-with concat %1 %2) renderables (map scene->renderables children))]
+          renderables (doall (reduce #(merge-with concat %1 %2) renderables (map scene->renderables children)))]
       (if transform
         (apply-transform transform renderables)
         renderables))))
@@ -348,8 +350,6 @@
   (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
 
   (output renderables pass/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
-  (output selection-renderables pass/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
-;;  (output viewport Region (g/fnk [viewport] viewport))
   (output image WritableImage :cached (g/fnk [^BufferedImage frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
   (output aabb AABB :cached produce-aabb) ; TODO - base aabb on selection
   (output selection t/Any :cached (g/fnk [selection] selection))
@@ -474,7 +474,6 @@
   (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
 
   (output renderables pass/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
-  (output selection-renderables pass/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
   (output aabb AABB :cached produce-aabb)
@@ -607,7 +606,6 @@
                   (g/connect view            :viewport      camera          :viewport)
                   (g/connect view            :viewport      renderer        :viewport)
                   (g/connect view            :renderables   renderer        :renderables)
-                  (g/connect view            :selection-renderables   renderer        :selection-renderables)
                   (g/connect view            :selection     renderer        :selection)
                   (g/connect renderer        :frame         view            :frame)
 
@@ -624,7 +622,7 @@
                   (g/connect grid   :renderable renderer :renderables)
                   (g/connect camera :camera     grid     :camera)
 
-                  (g/connect tool-controller :renderables renderer :renderables)
+                  (g/connect tool-controller :renderables renderer :tool-renderables)
                   (g/connect view :active-tool tool-controller :active-tool)
                   (g/connect view :viewport    tool-controller          :viewport)
                   (g/connect camera :camera tool-controller :camera)
