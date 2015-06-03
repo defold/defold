@@ -80,6 +80,25 @@
          (map? base)]}
   (clojure.core.cache/seed (LRUCache. {} (clojure.data.priority-map/priority-map) 0 threshold dispose-ch) base))
 
+
+;; ----------------------------------------
+;; Null cache for testing
+;; ----------------------------------------
+(cc/defcache NullCache []
+  cc/CacheProtocol
+  (lookup [_ item] nil)
+  (lookup [_ item not-found] not-found)
+  (has?   [_ item] false)
+  (hit    [this item] this)
+  (miss   [this item result] this)
+  (evict  [this key] this)
+  (seed   [_ base] base))
+
+(defn- null-cache [] (NullCache.))
+
+;; ----------------------------------------
+;; Mutators
+;; ----------------------------------------
 (defn- encache
   [c kvs]
   (when *cache-debug*
@@ -113,7 +132,9 @@
   ([]
    (cache-subsystem default-cache-limit (a/chan (a/dropping-buffer 1))))
   ([limit dispose-ch]
-   (atom (lru-cache-factory {} :threshold limit :dispose-ch dispose-ch))))
+   (atom (if (zero? limit)
+           (null-cache)
+           (lru-cache-factory {} :threshold limit :dispose-ch dispose-ch)))))
 
 (defn cache-snapshot
   [cache]
