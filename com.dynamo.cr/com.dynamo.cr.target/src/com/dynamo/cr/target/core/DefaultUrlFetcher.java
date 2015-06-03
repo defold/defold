@@ -15,6 +15,7 @@ public class DefaultUrlFetcher implements IURLFetcher {
     public String fetch(String url) throws IOException {
         int timeout = 2000;
         URLConnection connection = new URL(url).openConnection();
+        connection.setRequestProperty("Connection",  "close");
         connection.setConnectTimeout(timeout);
         connection.setReadTimeout(timeout);
         InputStream input = connection.getInputStream();
