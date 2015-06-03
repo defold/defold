@@ -652,10 +652,10 @@
   (property position t/Vec3 (default [0 0 0]))
   (property rotation t/Vec3 (default [0 0 0]))
 
-  (output position Vector3d :cached (g/fnk [position] (Vector3d. (double-array position))))
-  (output rotation Quat4d :cached (g/fnk [rotation] (math/euler->quat rotation)))
+  (output position Vector3d :cached (g/fnk [^t/Vec3 position] (Vector3d. (double-array position))))
+  (output rotation Quat4d :cached (g/fnk [^t/Vec3 rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
-  (output scene t/Any :cached (g/fnk [self transform] {:node-id (g/node-id self) :transform transform}))
+  (output scene t/Any :cached (g/fnk [^g/NodeID node-id ^Matrix4d transform] {:node-id node-id :transform transform}))
   (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
 
   scene-tools/Movable
