@@ -101,27 +101,21 @@
 ;; ----------------------------------------
 (defn- encache
   [c kvs]
-  (when *cache-debug*
-    (println 'internal.cache/encache (map first kvs)))
-  (reduce
-   (fn [c [k v]]
-     (cc/miss c k v))
-   c kvs))
+  (if-let [kv (first kvs)]
+    (recur (cc/miss c (first kv) (second kv)) (next kvs))
+    c))
 
 (defn- hits
   [c ks]
-  (when *cache-debug*
-    (println 'internal.cache/hits ks))
-  (reduce
-   (fn [c [k v]]
-     (cc/hit c k))
-   c ks))
+  (if-let [k (ffirst ks)]
+    (recur (cc/hit c k) (next ks))
+    c))
 
 (defn- evict
-  [cache ks]
-  (when *cache-debug*
-    (println 'internal.cache/evict ks))
-  (reduce cc/evict cache ks))
+  [c ks]
+  (if-let [k (first ks)]
+    (recur (cc/evict c k) (next ks))
+    c))
 
 ;; ----------------------------------------
 ;; Interface
