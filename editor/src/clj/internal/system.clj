@@ -11,7 +11,7 @@
 
 (declare graphs)
 
-(def ^:private maximum-cached-items     10000)
+(def ^:private maximum-cached-items     40000)
 (def ^:private maximum-disposal-backlog 2500)
 (def ^:private history-size-max         60)
 
