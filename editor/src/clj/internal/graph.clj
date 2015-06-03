@@ -146,23 +146,6 @@
   (node (node-id->graph (:graphs basis) node-id) node-id))
 
 ;; ---------------------------------------------------------------------------
-;; Dependency tracing
-;; ---------------------------------------------------------------------------
-(def maximum-graph-coloring-recursion 10000)
-
-(defn- pairs [m] (for [[k vs] m v vs] [k v]))
-
-(defn- marked-outputs
-  [basis target-node target-label]
-  (get (gt/input-dependencies (node-by-id-at basis target-node)) target-label))
-
-(defn- marked-downstream-nodes
-  [basis node-id output-label]
-  (for [[target-node target-input] (gt/targets basis node-id output-label)
-        affected-outputs           (marked-outputs basis target-node target-input)]
-    [target-node affected-outputs]))
-
-;; ---------------------------------------------------------------------------
 ;; Type checking
 ;; ---------------------------------------------------------------------------
 
@@ -211,33 +194,36 @@
                     output-schema input-schema))))
 
 
+;; ---------------------------------------------------------------------------
+;; Dependency tracing
+;; ---------------------------------------------------------------------------
 (defn- successors
   [basis [node-id output-label]]
   (let [target-inputs (gt/targets basis node-id output-label)]
-    (apply set/union (map (fn [[node-id input-label]]
-                            (let [set-of-output-labels (get
-                                                        (gt/input-dependencies
-                                                         (node-by-id-at basis node-id)) input-label)
-                                  node-label-pairs (map #(vector node-id %) set-of-output-labels)]
-                              node-label-pairs))
-                          target-inputs))))
+    (apply set/union
+           (map (fn [[node-id input-label]]
+                  (let [set-of-output-labels (get
+                                              (gt/input-dependencies
+                                               (node-by-id-at basis node-id)) input-label)
+                        node-label-pairs (map #(vector node-id %) set-of-output-labels)]
+                    node-label-pairs))
+                target-inputs))))
 
 (defn- pre-traverse
   "Traverses a graph depth-first preorder from start, successors being
   a function that returns direct successors for the node. Returns a
   lazy seq of nodes."
   [basis start & {:keys [seen] :or {seen #{}}}]
-  (letfn [(step [stack seen iterations-remaining]
-            (assert (pos? iterations-remaining) "Output tracing stopped; probable cycle in the graph")
-            (when-let [node-label-pair (peek stack)]
+  (letfn [(step [stack seen]
+            (if-let [node-label-pair (peek stack)]
               (if (contains? seen node-label-pair)
-                (step (pop stack) seen (dec iterations-remaining))
+                (step (pop stack) seen)
                 (let [seen (conj seen node-label-pair)
                       nbrs (remove seen (successors basis node-label-pair))]
                   (lazy-seq
                    (cons node-label-pair
-                         (step (into (pop stack) nbrs) seen (dec iterations-remaining))))))))]
-    (step start seen maximum-graph-coloring-recursion)))
+                         (step (into (pop stack) nbrs) seen)))))))]
+    (step start seen)))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
