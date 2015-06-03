@@ -10,4 +10,5 @@ pom.xml.asc
 /doc/api
 /bin/
 /tmp
+/generated-resources/
 
