@@ -45,5 +45,3 @@
                  (time (g/node-value node :scene))
                  (println "Scene->renderables")
                  (time (g/node-value view :renderables)))))))
-
-(scene->renderables)
