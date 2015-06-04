@@ -61,14 +61,14 @@
   (input save-data t/Any)
   (input scene t/Any)
 
-  (output outline t/Any (g/fnk [self embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
-                                                                 (assoc outline :node-id (g/node-id self) :label (str id suffix)))))
+  (output outline t/Any :cached (g/fnk [node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
+                                                                            (assoc outline :node-id node-id :label (str id suffix)))))
   (output ddf-message t/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
                                                                                        (gen-embed-ddf id position rotation save-data)
                                                                                        (gen-ref-ddf id position rotation save-data))))
-  (output scene t/Any :cached (g/fnk [self transform scene]
+  (output scene t/Any :cached (g/fnk [node-id transform scene]
                                      (assoc scene
-                                            :node-id (g/node-id self)
+                                            :node-id node-id
                                             :transform transform
                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))
 
@@ -85,8 +85,8 @@
                   (.addEmbeddedComponents builder ddf))
                 (.build builder)))})
 
-(g/defnk produce-scene [self child-scenes]
-  {:node-id (g/node-id self)
+(g/defnk produce-scene [node-id child-scenes]
+  {:node-id node-id
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
@@ -99,7 +99,7 @@
   (input child-scenes t/Any :array)
   (input child-ids t/Str :array)
 
-  (output outline t/Any (g/fnk [self outline] {:node-id (g/node-id self) :label "Game Object" :icon game-object-icon :children outline}))
+  (output outline t/Any :cached (g/fnk [node-id outline] {:node-id node-id :label "Game Object" :icon game-object-icon :children outline}))
   (output save-data t/Any :cached produce-save-data)
   (output scene t/Any :cached produce-scene))
 

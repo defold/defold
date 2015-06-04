@@ -15,6 +15,7 @@
   (let [ps (partition 3 forms)]
     `(do
        ~@(map #(list* 'make-pass %) ps)
+       (def all-passes ~(mapv first ps))
        (def selection-passes ~(mapv first (filter second ps)))
        (def render-passes    ~(mapv first (remove second ps))))))
 

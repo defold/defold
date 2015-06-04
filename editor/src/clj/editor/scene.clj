@@ -14,6 +14,7 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.scene-tools :as scene-tools]
+            [editor.project :as project]
             [internal.render.pass :as pass]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -168,12 +169,12 @@
 (defn- render-sort [renderables camera viewport]
   (reverse (sort-by #(render-key camera viewport %) renderables)))
 
-(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables selection]
+(g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables tool-renderables]
   (when-let [^GLContext context (make-current viewport drawable)]
     (let [gl ^GL2 (.getGL context)
           glu ^GLU (GLU.)
           render-args {:gl gl :glu glu :camera camera :viewport viewport :text-renderer @text-renderer}
-          selection-set (set selection)]
+          renderables (apply merge-with concat renderables tool-renderables)]
       (.glClearColor gl 0.0 0.0 0.0 1.0)
       (gl/gl-clear gl 0.0 0.0 0.0 1)
       (.glColor4f gl 1.0 1.0 1.0 1.0)
@@ -182,8 +183,9 @@
               :let [render-args (assoc render-args :pass pass)]]
         (setup-pass context gl glu pass camera viewport)
         (doseq [renderable (get renderables pass)
-                :let [id (:node-id renderable)]]
-          (render-node gl pass renderable (assoc render-args :selected (selection-set id)))))
+                :let [id (:node-id renderable)
+                      selected (:selected renderable)]]
+          (render-node gl pass renderable (assoc render-args :selected selected))))
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image w h)]
         (.release context)
@@ -237,18 +239,19 @@
         (.release context)))
     []))
 
-(g/defnk produce-tool-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
+(g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
   (if-let [^GLContext context (and tool-picking-rect (make-current viewport drawable))]
     (try
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
-            render-args {:gl gl :glu glu :camera camera :viewport viewport}]
+            render-args {:gl gl :glu glu :camera camera :viewport viewport}
+            tool-renderables (apply merge-with concat tool-renderables)]
         (flatten
           (let [pass pass/manipulator-selection
                 render-args (assoc render-args :pass pass)]
             (begin-select gl select-buffer)
             (setup-pass context gl glu pass camera viewport tool-picking-rect)
-            (let [renderables (get renderables pass)]
+            (let [renderables (get tool-renderables pass)]
               (doseq [[index renderable] (keep-indexed #(list %1 %2) renderables)]
                 (render-node gl pass renderable (assoc render-args :selected false) index))
               (render-sort (end-select gl select-buffer renderables) camera viewport)))))
@@ -256,30 +259,50 @@
         (.release context)))
     []))
 
-(g/defnk produce-renderables [renderables camera viewport]
-  (let [renderables (apply merge-with #(concat %1 %2) renderables)]
-    (into {} (map (fn [[pass renderables]] [pass (render-sort renderables camera viewport)]) renderables))))
-
-(g/defnk produce-selected-renderables [selection selection-renderables]
-  (let [selected-set (set selection)]
-    (mapcat (fn [m] (mapcat (fn [[pass v]] (filter #(selected-set (:node-id %)) v)) m)) selection-renderables)))
-
 (g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:user-data %)]}) tool-selection)))
+
+(defn flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables]
+ (let [renderable (:renderable scene)
+       trans-tmpl ^Matrix4d (or (:transform scene) geom/Identity4d)
+       transform (Matrix4d. ^Matrix4d trans-tmpl)
+       world-transform (doto (Matrix4d. world-transform) (.mul transform))
+       selected (contains? selection-set (:node-id scene))
+       new-renderable (assoc (dissoc scene :renderable) :render-fn (:render-fn renderable) :world-transform world-transform :selected selected)]
+   (doseq [pass (:passes renderable)]
+     (conj! (get out-renderables pass) new-renderable)
+     (when (and selected (t/selection? pass))
+       (conj! out-selected-renderables new-renderable)))
+   (doseq [child-scene (:children scene)]
+     (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables))))
+
+(defn produce-render-data [scene selection extra-renderables camera viewport]
+  (let [selection-set (set selection)
+        out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
+        out-selected-renderables (transient [])
+        world-transform (doto (Matrix4d.) (.setIdentity))
+        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables)
+        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat extra-renderables))
+        out-renderables (into {} (map (fn [[pass renderables]] [pass (render-sort (persistent! renderables) camera viewport)]) out-renderables))
+        out-selected-renderables (persistent! out-selected-renderables)]
+    {:all-renderables out-renderables
+     :selected-renderables out-selected-renderables}))
 
 (g/defnode SceneRenderer
   (property name t/Keyword (default :renderer))
   (property gl-drawable GLAutoDrawable)
 
+  (input scene t/Any)
   (input selection t/Any)
   (input viewport Region)
   (input camera Camera)
-  (input renderables pass/RenderData :array)
-  (input selection-renderables pass/RenderData :array)
+  (input extra-renderables pass/RenderData :array)
+  (input tool-renderables pass/RenderData :array)
   (input picking-rect Rect)
   (input tool-picking-rect Rect)
 
-  (output renderables pass/RenderData :cached produce-renderables)
+  (output render-data t/Any :cached (g/fnk [scene selection extra-renderables camera viewport] (produce-render-data scene selection extra-renderables camera viewport)))
+  (output renderables pass/RenderData :cached (g/fnk [render-data] (:all-renderables render-data)))
   (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
                                                       (.order (ByteOrder/nativeOrder))
                                                       (.asIntBuffer))))
@@ -288,8 +311,8 @@
   (output frame BufferedImage :cached produce-frame)
   (output picking-selection t/Any :cached produce-selection)
   (output tool-selection t/Any :cached produce-tool-selection)
-  (output selected-renderables t/Any produce-selected-renderables)
-  (output selected-tool-renderables t/Any produce-selected-tool-renderables))
+  (output selected-renderables t/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
+  (output selected-tool-renderables t/Any :cached produce-selected-tool-renderables))
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action input-handler]
@@ -317,7 +340,7 @@
           renderables (into {} (map (fn [pass] [pass [{:node-id node-id
                                                        :render-fn render-fn
                                                        :world-transform (doto (Matrix4d.) (.setIdentity))}]]) passes))
-          renderables (reduce #(merge-with concat %1 %2) renderables (map scene->renderables children))]
+          renderables (doall (reduce #(merge-with concat %1 %2) renderables (map scene->renderables children)))]
       (if transform
         (apply-transform transform renderables)
         renderables))))
@@ -340,20 +363,18 @@
   (property picking-rect Rect)
 
   (input frame BufferedImage)
-  (input scene t/Any :array)
+  (input scene t/Any)
   (input input-handlers Runnable :array)
   (input selection t/Any)
   (input selected-tool-renderables t/Any)
   (input active-tool t/Keyword)
   (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
 
-  (output renderables pass/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
-  (output selection-renderables pass/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
-;;  (output viewport Region (g/fnk [viewport] viewport))
+  (output scene t/Any (g/fnk [scene] scene))
   (output image WritableImage :cached (g/fnk [^BufferedImage frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
   (output aabb AABB :cached produce-aabb) ; TODO - base aabb on selection
-  (output selection t/Any :cached (g/fnk [selection] selection))
-  (output picking-rect Rect :cached (g/fnk [picking-rect] picking-rect))
+  (output selection t/Any (g/fnk [selection] selection))
+  (output picking-rect Rect (g/fnk [picking-rect] picking-rect))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
@@ -420,6 +441,7 @@
     (.add (.getChildren ^Pane parent) image-view)
     (let [view (g/make-node! scene-graph SceneView :image-view image-view)]
       (let [node-id (g/node-id view)
+            tool-user-data (atom [])
             event-handler (reify EventHandler (handle [this e]
                                                 (let [self (g/node-by-id node-id)
                                                       action (augment-action self (i/action-from-jfx e))
@@ -427,8 +449,11 @@
                                                       y (:y action)
                                                       pos [x y 0.0]
                                                       picking-rect (calc-picking-rect pos pos)]
+                                                  ; Only look for tool selection when the mouse is moving with no button pressed
+                                                  (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
+                                                    (reset! tool-user-data (g/node-value self :selected-tool-renderables)))
                                                   (g/transact (g/set-property self :picking-rect picking-rect))
-                                                  (dispatch-input (g/sources-of self :input-handlers) action (g/node-value self :selected-tool-renderables)))))
+                                                  (dispatch-input (g/sources-of self :input-handlers) action @tool-user-data))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                     (let [bb ^BoundingBox new-val
                                                           w (- (.getMaxX bb) (.getMinX bb))
@@ -467,14 +492,13 @@
 
   (input selection t/Any)
   (input selected-tool-renderables t/Any)
-  (input scene t/Any :array)
+  (input scene t/Any)
   (input frame BufferedImage)
   (input input-handlers Runnable :array)
   (input active-tool t/Keyword)
   (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
 
-  (output renderables pass/RenderData :cached (g/fnk [scene] (scene->renderables scene)))
-  (output selection-renderables pass/RenderData :cached (g/fnk [renderables] (into {} (filter #(t/selection? (first %)) renderables))))
+  (output scene t/Any (g/fnk [scene] scene))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
   (output aabb AABB :cached produce-aabb)
@@ -585,10 +609,12 @@
   (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
 
 (defn setup-view [view resource-node opts]
-  (let [view-graph (g/node->graph-id view)]
+  (let [view-graph (g/node->graph-id view)
+        app-view (:app-view opts)
+        project (:project opts)]
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
-                   selection  [SelectionController :select-fn (:select-fn opts)]
+                   selection  [SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
                    background background/Gradient
                    camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
                    grid       grid/Grid
@@ -600,20 +626,21 @@
                   (g/set-graph-value view-graph :renderer renderer)
                   (g/set-graph-value view-graph :camera   camera)
 
-                  (g/connect background      :renderable    renderer        :renderables)
-                  (g/connect camera          :camera        renderer        :camera)
-                  (g/connect camera          :input-handler view            :input-handlers)
-                  (g/connect view            :aabb          camera          :aabb)
-                  (g/connect view            :viewport      camera          :viewport)
-                  (g/connect view            :viewport      renderer        :viewport)
-                  (g/connect view            :renderables   renderer        :renderables)
-                  (g/connect view            :selection-renderables   renderer        :selection-renderables)
-                  (g/connect view            :selection     renderer        :selection)
-                  (g/connect renderer        :frame         view            :frame)
+                  (g/connect background      :renderable        renderer        :extra-renderables)
+                  (g/connect camera          :camera            renderer        :camera)
+                  (g/connect camera          :input-handler     view            :input-handlers)
+                  (g/connect view            :aabb              camera          :aabb)
+                  (g/connect view            :viewport          camera          :viewport)
+                  (g/connect view            :viewport          renderer        :viewport)
+                  (g/connect view            :scene             renderer        :scene)
 
-                  (g/connect tool-controller :input-handler view :input-handlers)
+                  (g/connect project         :selected-node-ids view            :selection)
+                  (g/connect view            :selection         renderer        :selection)
+                  (g/connect renderer        :frame             view            :frame)
 
-                  (g/connect selection       :renderable        renderer        :renderables)
+                  (g/connect tool-controller :input-handler     view            :input-handlers)
+
+                  (g/connect selection       :renderable        renderer        :tool-renderables)
                   (g/connect selection       :input-handler     view            :input-handlers)
                   (g/connect selection       :picking-rect      renderer        :picking-rect)
                   (g/connect renderer        :picking-selection selection       :picking-selection)
@@ -621,10 +648,13 @@
                   (g/connect view            :picking-rect      renderer        :tool-picking-rect)
                   (g/connect renderer        :selected-tool-renderables view    :selected-tool-renderables)
 
-                  (g/connect grid   :renderable renderer :renderables)
+                  (g/connect grid   :renderable renderer :extra-renderables)
                   (g/connect camera :camera     grid     :camera)
 
-                  (g/connect tool-controller :renderables renderer :renderables)
+
+                  (g/connect tool-controller :renderables renderer :tool-renderables)
+
+                  (g/connect app-view :active-tool view :active-tool)
                   (g/connect view :active-tool tool-controller :active-tool)
                   (g/connect view :viewport    tool-controller          :viewport)
                   (g/connect camera :camera tool-controller :camera)
@@ -654,10 +684,10 @@
   (property position t/Vec3 (default [0 0 0]))
   (property rotation t/Vec3 (default [0 0 0]))
 
-  (output position Vector3d :cached (g/fnk [position] (Vector3d. (double-array position))))
-  (output rotation Quat4d :cached (g/fnk [rotation] (math/euler->quat rotation)))
+  (output position Vector3d :cached (g/fnk [^t/Vec3 position] (Vector3d. (double-array position))))
+  (output rotation Quat4d :cached (g/fnk [^t/Vec3 rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
-  (output scene t/Any :cached (g/fnk [self transform] {:node-id (g/node-id self) :transform transform}))
+  (output scene t/Any :cached (g/fnk [^g/NodeID node-id ^Matrix4d transform] {:node-id node-id :transform transform}))
   (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
 
   scene-tools/Movable

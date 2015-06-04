@@ -19,23 +19,26 @@
 
 (def project-path "resources/test_project")
 
-(defn setup-workspace! [graph]
-  (let [workspace (workspace/make-workspace graph project-path)]
-    (g/transact
-      (concat
-        (scene/register-view-types workspace)))
-    (let [workspace (g/refresh workspace)]
+(defn setup-workspace!
+  ([graph]
+    (setup-workspace! graph project-path))
+  ([graph project-path]
+    (let [workspace (workspace/make-workspace graph project-path)]
       (g/transact
         (concat
-          (collection/register-resource-types workspace)
-          (game-object/register-resource-types workspace)
-          (cubemap/register-resource-types workspace)
-          (image/register-resource-types workspace)
-          (atlas/register-resource-types workspace)
-          (platformer/register-resource-types workspace)
-          (switcher/register-resource-types workspace)
-          (sprite/register-resource-types workspace))))
-    (g/refresh workspace)))
+          (scene/register-view-types workspace)))
+      (let [workspace (g/refresh workspace)]
+        (g/transact
+          (concat
+            (collection/register-resource-types workspace)
+            (game-object/register-resource-types workspace)
+            (cubemap/register-resource-types workspace)
+            (image/register-resource-types workspace)
+            (atlas/register-resource-types workspace)
+            (platformer/register-resource-types workspace)
+            (switcher/register-resource-types workspace)
+            (sprite/register-resource-types workspace))))
+      (g/refresh workspace))))
 
 (defn setup-project!
   [workspace]
@@ -70,11 +73,7 @@
 
 (defn open-scene-view! [project app-view resource-node width height]
   (let [view-graph (g/make-graph! :history false :volatility 2)
-        view (scene/make-preview view-graph resource-node {:select-fn (fn [selection op-seq] (project/select! project selection op-seq))} width height)]
-    (g/transact
-      (concat
-        (g/connect project :selected-node-ids view :selection)
-        (g/connect app-view :active-tool view :active-tool)))
+        view (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)]
     (g/refresh view)))
 
 (defn- fake-input!

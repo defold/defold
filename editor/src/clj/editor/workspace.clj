@@ -2,10 +2,12 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [dynamo.util :refer :all])
-  (:import [java.io File FilterOutputStream]
+  (:import [java.io ByteArrayOutputStream File FilterOutputStream]
+           [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (defprotocol SelectionProvider
@@ -23,9 +25,8 @@ ordinary paths."
 
 (def wrap-stream)
 
-(defn- split-ext [^File f]
-  (let [n ^String (.getPath f)
-        i (.lastIndexOf n ".")]
+(defn- split-ext [^String n]
+  (let [i (.lastIndexOf n ".")]
     (if (pos? i)
       [(subs n 0 i) (subs n (inc i))]
       [n nil])))
@@ -35,7 +36,7 @@ ordinary paths."
 
 (defrecord FileResource [workspace ^File file children]
   Resource
-  (resource-type [this] (get (:resource-types workspace) (second (split-ext file))))
+  (resource-type [this] (get (:resource-types workspace) (second (split-ext (.getPath file)))))
   (source-type [this] (if (.isFile file) :file :folder))
   (read-only? [this] (not (.canWrite file)))
   (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String (:root workspace)) file)))
@@ -76,14 +77,68 @@ ordinary paths."
 (defn make-memory-resource [workspace resource-type data]
   (MemoryResource. workspace resource-type data))
 
+(defrecord ZipResource [workspace name path data children]
+  Resource
+  (resource-type [this] (get (:resource-types workspace) (second (split-ext name))))
+  (source-type [this] (if (zero? (count children)) :file :folder))
+  (read-only? [this] true)
+  (path [this] path)
+  (abs-path [this] nil)
+  (proj-path [this] (str "/" path))
+  ; TODO
+  (url [this] nil)
+  (resource-name [this] name)
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream (:data this) opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (throw (Exception. "Zip resources are read-only")))
+  (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only"))))
+
+(defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
+  (.write w (format "ZipResource{:workspace %s :path %s :children %s}" (:workspace zip-resource) (:path zip-resource) (str (:children zip-resource)))))
+
+(defn- read-zip-entry [^ZipInputStream zip ^ZipEntry e]
+  (let [os (ByteArrayOutputStream.)
+        buf (byte-array (* 1024 16))]
+    (loop [n (.read zip buf 0 (count buf))]
+     (when (> n 0)
+       (.write os buf 0 n)
+       (recur (.read zip buf 0 (count buf)))))
+    (.toByteArray os)))
+
+(defn- load-zip [url]
+  (with-open [zip (ZipInputStream. (io/input-stream url))]
+    (loop [entries []]
+      (let [e (.getNextEntry zip)]
+        (if-not e
+          entries
+          (recur (if (.isDirectory e)
+                   entries
+                   (conj entries {:name (last (string/split (.getName e) #"/"))
+                                  :path (.getName e)
+                                  :buffer (read-zip-entry zip e)}))))))))
+
+(defn- ->zip-resources [workspace path [key val]]
+  (let [path' (str path "/" key)]
+    (if (:path val)
+      (ZipResource. workspace (:name val) (:path val) (:buffer val) nil)
+      (ZipResource. workspace key path' nil (mapv (fn [x] (->zip-resources workspace path' x)) val)))))
+
+(defn- make-zip-tree [workspace file-name]
+  (let [entries (load-zip file-name)]
+    (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
+      (mapv (fn [x] (->zip-resources workspace "" x))))))
+
 (defn- create-resource-tree [workspace ^File file filter-fn]
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace % filter-fn) (filter filter-fn (.listFiles file))))]
     (FileResource. workspace file children)))
 
 (g/defnk produce-resource-tree [self ^String root]
-  (create-resource-tree self (File. root) (fn [^File f]
-                                            (let [name (.getName f)]
-                                              (not (or (= name "build") (= (subs name 0 1) ".")))))))
+  (let [tree (create-resource-tree self (File. root) (fn [^File f]
+                                                       (let [name (.getName f)]
+                                                         (not (or (= name "build") (= (subs name 0 1) "."))))))]
+    (update-in tree [:children] concat (make-zip-tree nil (io/resource "builtins.zip")))))
 
 (g/defnk produce-resource-list [self resource-tree]
   (tree-seq #(= :folder (source-type %)) :children resource-tree))

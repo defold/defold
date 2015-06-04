@@ -4,6 +4,8 @@
             [internal.graph.types :as gt]
             [schema.core :as s]))
 
+(set! *warn-on-reflection* true)
+
 (deftype ArcBase [source target sourceLabel targetLabel]
   gt/Arc
   (head [_] [source sourceLabel])
@@ -77,11 +79,11 @@
 
 (defn sources
   [g node label]
-  (map gt/head (filter #(= label (.targetLabel %)) (get-in g [:tarcs node]))))
+  (map gt/head (filter #(= label (.targetLabel ^ArcBase %)) (get-in g [:tarcs node]))))
 
 (defn targets
   [g node label]
-  (map gt/tail (filter #(= label (.sourceLabel %)) (get-in g [:sarcs node]))))
+  (map gt/tail (filter #(= label (.sourceLabel ^ArcBase %)) (get-in g [:sarcs node]))))
 
 (defn connect-source
   [g source source-label target target-label]

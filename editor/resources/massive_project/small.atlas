@@ -1,0 +1,5 @@
+images {
+  image: "/blue_candy.png"
+}
+margin: 0
+extrude_borders: 0
