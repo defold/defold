@@ -31,13 +31,6 @@ struct PushListener
     int        m_Self;
 };
 
-struct SchedueledNotification
-{
-
-    int id;
-    UILocalNotification* notification;
-};
-
 struct Push
 {
     Push()
@@ -55,7 +48,7 @@ struct Push
             [m_SavedNotification release];
         }
         m_SavedNotification = 0;
-        m_ScheduledNotifications.SetCapacity(32);
+        m_ScheduledID = -1;
     }
 
     lua_State*           m_L;
@@ -65,7 +58,7 @@ struct Push
     PushListener         m_Listener;
     NSDictionary*        m_SavedNotification;
 
-    dmArray<SchedueledNotification> m_ScheduledNotifications;
+    int m_ScheduledID;
 };
 
 Push g_Push;
@@ -80,6 +73,19 @@ static void PushError(lua_State*L, NSError* error)
     } else {
         lua_pushnil(L);
     }
+}
+
+static void UpdateScheduleIDCounter()
+{
+    for (id obj in [[UIApplication sharedApplication] scheduledLocalNotifications]) {
+        UILocalNotification* notification = (UILocalNotification*)obj;
+        int current_id = [(NSNumber*)notification.userInfo[@"id"] intValue];
+        if (current_id > g_Push.m_ScheduledID)
+        {
+            g_Push.m_ScheduledID = current_id;
+        }
+    }
+
 }
 
 static void RunCallback(lua_State* L, int cb, int self, NSData* deviceToken, NSError* error)
@@ -174,7 +180,7 @@ static void RunListener(NSDictionary *userdata, bool local)
         if (local) {
 
             dmJson::Document doc;
-            NSString* json = (NSString*)[userdata objectForKey:@"userdata"];
+            NSString* json = (NSString*)[userdata objectForKey:@"payload"];
             dmJson::Result r = dmJson::Parse([json UTF8String], &doc);
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
                 JsonToLua(L, &doc, 0);
@@ -368,6 +374,8 @@ int Push_SetBadgeCount(lua_State* L)
     return 0;
 }
 
+
+
 /*# Schedule a local push notification to be triggered at a specific time in the future
  *
  * @name push.schedule
@@ -382,6 +390,7 @@ int Push_SetBadgeCount(lua_State* L)
 int Push_Schedule(lua_State* L)
 {
     int top = lua_gettop(L);
+
     int seconds = luaL_checkinteger(L, 1);
     if (seconds < 0)
     {
@@ -390,16 +399,25 @@ int Push_Schedule(lua_State* L)
         return 2;
     }
 
-    const char* title = luaL_checkstring(L, 2);
-    const char* message = luaL_checkstring(L, 3);
+    NSString* title = [NSString stringWithUTF8String:luaL_checkstring(L, 2)];
+    NSString* message = [NSString stringWithUTF8String:luaL_checkstring(L, 3)];
 
-    // param: userdata
-    NSDictionary* userdata = nil;
-    if (top > 3) {
-        userdata = @{@"userdata": [NSString stringWithUTF8String:luaL_checkstring(L, 4)]};
+    if (g_Push.m_ScheduledID == -1)
+    {
+        g_Push.m_ScheduledID = 0;
+        UpdateScheduleIDCounter();
     }
 
-    UILocalNotification *notification = [[UILocalNotification alloc] init];
+    // param: userdata
+    NSMutableDictionary* userdata = [NSMutableDictionary dictionaryWithCapacity:2];
+    userdata[@"id"] = [NSNumber numberWithInt:g_Push.m_ScheduledID];
+    if (top > 3) {
+        userdata[@"payload"] = [NSString stringWithUTF8String:luaL_checkstring(L, 4)];
+    } else {
+        userdata[@"payload"] = nil;
+    }
+
+    UILocalNotification* notification = [[UILocalNotification alloc] init];
     if (notification == nil)
     {
         lua_pushnil(L);
@@ -409,8 +427,8 @@ int Push_Schedule(lua_State* L)
 
     notification.fireDate   = [NSDate dateWithTimeIntervalSinceNow:seconds];
     notification.timeZone   = [NSTimeZone defaultTimeZone];
-    notification.alertTitle = [NSString stringWithUTF8String:title];
-    notification.alertBody  = [NSString stringWithUTF8String:message];
+    notification.alertTitle = title;
+    notification.alertBody  = message;
     notification.soundName  = UILocalNotificationDefaultSoundName;
     notification.userInfo   = userdata;
 
@@ -455,31 +473,88 @@ int Push_Schedule(lua_State* L)
     assert(top == lua_gettop(L));
 
     // need to remember notification so it can be canceled later on
-    SchedueledNotification sn;
-    sn.id = g_Push.m_ScheduledNotifications.Size();
-    sn.notification = notification;
+    lua_pushnumber(L, g_Push.m_ScheduledID++);
 
-    g_Push.m_ScheduledNotifications.Push(sn);
-    lua_pushnumber(L, sn.id);
     return 1;
 }
 
 int Push_Cancel(lua_State* L)
 {
-
     int cancel_id = luaL_checkinteger(L, 1);
-    if (cancel_id >= 0 &&
-        cancel_id < g_Push.m_ScheduledNotifications.Size() &&
-        g_Push.m_ScheduledNotifications[cancel_id].id == cancel_id &&
-        g_Push.m_ScheduledNotifications[cancel_id].notification != nil)
-    {
-        [[UIApplication sharedApplication] cancelLocalNotification:g_Push.m_ScheduledNotifications[cancel_id].notification];
-        g_Push.m_ScheduledNotifications[cancel_id].notification = nil;
+    for (id obj in [[UIApplication sharedApplication] scheduledLocalNotifications]) {
+        UILocalNotification* notification = (UILocalNotification*)obj;
 
+        if ([(NSNumber*)notification.userInfo[@"id"] intValue] == cancel_id)
+        {
+            [[UIApplication sharedApplication] cancelLocalNotification:notification];
+            return 0;
+        }
     }
 
     return 0;
 }
+
+static void NotificationToLua(lua_State* L, UILocalNotification* notification)
+{
+    lua_createtable(L, 0, 6);
+
+    lua_pushstring(L, "seconds");
+    lua_pushnumber(L, [[notification fireDate] timeIntervalSinceNow]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "title");
+    lua_pushstring(L, [[notification alertTitle] UTF8String]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "message");
+    lua_pushstring(L, [[notification alertBody] UTF8String]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "payload");
+    NSString* payload = (NSString*)[[notification userInfo] objectForKey:@"payload"];
+    lua_pushstring(L, [payload UTF8String]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "action");
+    lua_pushstring(L, [[notification alertAction] UTF8String]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "badge_number");
+    lua_pushnumber(L, [notification applicationIconBadgeNumber]);
+    lua_settable(L, -3);
+}
+
+int Push_GetScheduled(lua_State* L)
+{
+    int get_id = luaL_checkinteger(L, 1);
+    for (id obj in [[UIApplication sharedApplication] scheduledLocalNotifications]) {
+        UILocalNotification* notification = (UILocalNotification*)obj;
+
+        if ([(NSNumber*)notification.userInfo[@"id"] intValue] == get_id)
+        {
+            NotificationToLua(L, notification);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int Push_GetAllScheduled(lua_State* L)
+{
+    lua_createtable(L, 0, 0);
+    for (id obj in [[UIApplication sharedApplication] scheduledLocalNotifications]) {
+
+        UILocalNotification* notification = (UILocalNotification*)obj;
+
+        NSNumber* notification_id = (NSNumber*)[[notification userInfo] objectForKey:@"id"];
+        lua_pushnumber(L, [notification_id intValue]);
+        NotificationToLua(L, notification);
+        lua_settable(L, -3);
+    }
+
+    return 1;
+}
+
 
 static const luaL_reg Push_methods[] =
 {
@@ -490,6 +565,8 @@ static const luaL_reg Push_methods[] =
     // local
     {"schedule", Push_Schedule},
     {"cancel", Push_Cancel},
+    {"get_scheduled", Push_GetScheduled},
+    {"get_all_scheduled", Push_GetAllScheduled},
     {0, 0}
 };
 
