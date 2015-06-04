@@ -26,22 +26,42 @@
            [javax.vecmath Point3d Matrix4d]
            [javax.imageio ImageIO]))
 
-(def jit-retry-count 10)
+(def jit-retry-count 20)
 
 (deftest scene->renderables-with-graph
-  (testing "Scene converted into renderables"
-           (with-clean-system
-             (let [workspace      (test-util/setup-workspace! world "resources/massive_project")
-                   project        (test-util/setup-project! workspace)
-                   app-view       (test-util/setup-app-view!)
-                   node           (test-util/resource-node project "/massive.collection")
-                   view           (test-util/open-scene-view! project app-view node 128 128)
-                   go-node-output (first (g/sources-of node :child-scenes))]
-               (doseq [i (range jit-retry-count)]
-                 #_(println "Invalidate")
-                 #_(time (g/transact (g/set-property (first go-node-output) :position [0 0 0])))
-                 #_(time (g/invalidate! [[(g/node-id (first go-node-output)) (second go-node-output)]]))
-                 (println "produce scene")
-                 (time (g/node-value node :scene))
-                 (println "Scene->renderables")
-                 (time (g/node-value view :renderables)))))))
+ (testing "Scene converted into renderables"
+          (with-clean-system
+            (let [workspace      (test-util/setup-workspace! world "resources/massive_project")
+                  project        (test-util/setup-project! workspace)
+                  app-view       (test-util/setup-app-view!)
+                  node           (test-util/resource-node project "/massive.collection")
+                  view           (test-util/open-scene-view! project app-view node 128 128)
+                  go-node-output (first (g/sources-of node :child-scenes))
+                  renderer       (g/graph-value (g/node->graph-id view) :renderer)]
+              (doseq [i (range jit-retry-count)]
+                (println "Invalidate")
+                #_(time (g/transact (g/set-property (first go-node-output) :position [0 0 0])))
+                (time (g/invalidate! [[(g/node-id (first go-node-output)) (second go-node-output)]]))
+                (println "produce scene")
+                (time (g/node-value node :scene))
+                (println "Scene->renderables")
+                (time (g/node-value renderer :renderables)))))))
+
+(deftest scene->renderables-without-graph
+ (testing "Scene converted into renderables, pure conversion"
+          (with-clean-system
+            (let [workspace      (test-util/setup-workspace! world "resources/massive_project")
+                  project        (test-util/setup-project! workspace)
+                  app-view       (test-util/setup-app-view!)
+                  node           (test-util/resource-node project "/massive.collection")
+                  view           (test-util/open-scene-view! project app-view node 128 128)
+                  go-node-output (first (g/sources-of node :child-scenes))]
+              (g/invalidate! [[(g/node-id (first go-node-output)) (second go-node-output)]])
+              (let [scene (g/node-value node :scene)
+                    renderer (g/graph-value (g/node->graph-id view) :renderer)
+                    camera (g/node-value renderer :camera)
+                    viewport (g/node-value view :viewport)]
+                (doseq [i (range jit-retry-count)]
+                  (System/gc)
+                  (println "Scene->renderables")
+                  (time (scene/produce-render-data scene #{1 2 3} [] camera viewport))))))))
