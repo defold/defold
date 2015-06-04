@@ -76,7 +76,7 @@
 
 (defn gather-properties
   "Production function that delivers the definition and value
-for all properties of this node."
+  for all properties of this node."
   [kwargs]
   (let [self           (:self kwargs)
         kwargs         (dissoc kwargs :self)
@@ -87,28 +87,29 @@ for all properties of this node."
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities property-types]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities property-types property-passthroughs]
 
   gt/NodeType
-  (supertypes           [_] supertypes)
-  (interfaces           [_] interfaces)
-  (protocols            [_] protocols)
-  (method-impls         [_] method-impls)
-  (triggers             [_] triggers)
-  (transforms'          [_] transforms)
-  (transform-types'     [_] transform-types)
-  (properties'          [_] properties)
-  (inputs'              [_] inputs)
-  (injectable-inputs'   [_] injectable-inputs)
-  (outputs'             [_] (set (keys transforms)))
-  (cached-outputs'      [_] cached-outputs)
-  (event-handlers'      [_] event-handlers)
-  (input-dependencies'  [_] input-dependencies)
-  (substitute-for'      [_ input] (get substitutes input))
-  (input-type           [_ input] (get inputs input))
-  (input-cardinality    [_ input] (get cardinalities input))
-  (output-type          [_ output] (get transform-types output))
-  (property-type        [_ output] (get property-types output)))
+  (supertypes            [_] supertypes)
+  (interfaces            [_] interfaces)
+  (protocols             [_] protocols)
+  (method-impls          [_] method-impls)
+  (triggers              [_] triggers)
+  (transforms'           [_] transforms)
+  (transform-types'      [_] transform-types)
+  (properties'           [_] properties)
+  (inputs'               [_] inputs)
+  (injectable-inputs'    [_] injectable-inputs)
+  (outputs'              [_] (set (keys transforms)))
+  (cached-outputs'       [_] cached-outputs)
+  (event-handlers'       [_] event-handlers)
+  (input-dependencies'   [_] input-dependencies)
+  (substitute-for'       [_ input] (get substitutes input))
+  (input-type            [_ input] (get inputs input))
+  (input-cardinality     [_ input] (get cardinalities input))
+  (output-type           [_ output] (get transform-types output))
+  (property-type         [_ output] (get property-types output))
+  (property-passthrough? [_ output] (contains? property-passthroughs output)))
 
 (defmethod print-method NodeTypeImpl
   [^NodeTypeImpl v ^java.io.Writer w]
@@ -161,22 +162,22 @@ for all properties of this node."
 
 (defn dependency-seq
   ([desc inputs]
-    (dependency-seq desc #{} inputs))
+   (dependency-seq desc #{} inputs))
   ([desc seen inputs]
-    (mapcat
-      (fn [x]
-        (if (not (seen x))
-          (if-let [recursive (get-in desc [:transforms x])]
-            (dependency-seq desc (conj seen x) (inputs-for recursive))
-            #{x})
-          seen))
-      inputs)))
+   (mapcat
+    (fn [x]
+      (if (not (seen x))
+        (if-let [recursive (get-in desc [:transforms x])]
+          (dependency-seq desc (conj seen x) (inputs-for recursive))
+          #{x})
+        seen))
+    inputs)))
 
 (defn description->input-dependencies
-   [{:keys [transforms properties] :as description}]
-   (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))
-         transforms (assoc transforms :self (set (keys properties)))]
-     (invert-map transforms)))
+  [{:keys [transforms properties] :as description}]
+  (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))
+        transforms (assoc transforms :self (set (keys properties)))]
+    (invert-map transforms)))
 
 (defn attach-input-dependencies
   [description]
@@ -186,27 +187,28 @@ for all properties of this node."
 
 (defn make-node-type
   "Create a node type object from a maplike description of the node.
-This is really meant to be used during macro expansion of `defnode`,
-not called directly."
+  This is really meant to be used during macro expansion of `defnode`,
+  not called directly."
   [description]
   (-> description
-    (update-in [:inputs]              combine-with merge      {} (from-supertypes description gt/inputs'))
-    (update-in [:injectable-inputs]   combine-with set/union #{} (from-supertypes description gt/injectable-inputs'))
-    (update-in [:properties]          combine-with merge      {} (from-supertypes description gt/properties'))
-    (update-in [:transforms]          combine-with merge      {} (from-supertypes description gt/transforms'))
-    (update-in [:transform-types]     combine-with merge      {} (from-supertypes description gt/transform-types'))
-    (update-in [:cached-outputs]      combine-with set/union #{} (from-supertypes description gt/cached-outputs'))
-    (update-in [:event-handlers]      combine-with set/union #{} (from-supertypes description gt/event-handlers'))
-    (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description gt/interfaces))
-    (update-in [:protocols]           combine-with set/union #{} (from-supertypes description gt/protocols))
-    (update-in [:method-impls]        combine-with merge      {} (from-supertypes description gt/method-impls))
-    (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description gt/triggers))
-    (update-in [:substitutes]         combine-with merge      {} (from-supertypes description :substitutes))
-    (update-in [:cardinalities]       combine-with merge      {} (from-supertypes description :cardinalities))
-    (update-in [:property-types]      combine-with merge      {} (from-supertypes description :property-types))
-    attach-properties-output
-    attach-input-dependencies
-    map->NodeTypeImpl))
+      (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/inputs'))
+      (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs'))
+      (update-in [:properties]            combine-with merge      {} (from-supertypes description gt/properties'))
+      (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms'))
+      (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types'))
+      (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs'))
+      (update-in [:event-handlers]        combine-with set/union #{} (from-supertypes description gt/event-handlers'))
+      (update-in [:interfaces]            combine-with set/union #{} (from-supertypes description gt/interfaces))
+      (update-in [:protocols]             combine-with set/union #{} (from-supertypes description gt/protocols))
+      (update-in [:method-impls]          combine-with merge      {} (from-supertypes description gt/method-impls))
+      (update-in [:triggers]              combine-with map-merge  {} (from-supertypes description gt/triggers))
+      (update-in [:substitutes]           combine-with merge      {} (from-supertypes description :substitutes))
+      (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
+      (update-in [:property-types]        combine-with merge      {} (from-supertypes description :property-types))
+      (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
+      attach-properties-output
+      attach-input-dependencies
+      map->NodeTypeImpl))
 
 (def ^:private inputs-properties (juxt :inputs :properties))
 
@@ -244,10 +246,10 @@ not called directly."
 (defn- abstract-function
   [label type]
   (pc/fnk [this]
-    (throw (AssertionError.
-             (format "Node %d does not supply a production function for the abstract '%s' output. Add (output %s %s your-function) to the definition of %s"
-               (gt/node-id this) label
-               label type this)))))
+          (throw (AssertionError.
+                  (format "Node %d does not supply a production function for the abstract '%s' output. Add (output %s %s your-function) to the definition of %s"
+                          (gt/node-id this) label
+                          label type this)))))
 
 (defn attach-output
   "Update the node type description with the given output."
@@ -264,7 +266,10 @@ not called directly."
     (update-in [:transforms] assoc-in [label] (abstract-function label schema))
 
     (not (:abstract properties))
-    (update-in [:transforms] assoc-in [label] production-fn)))
+    (update-in [:transforms] assoc-in [label] production-fn)
+
+    true
+    (update-in [:property-passthroughs] disj label)))
 
 (defn attach-property
   "Update the node type description with the given property."
@@ -281,7 +286,10 @@ not called directly."
     (update-in [:transforms] assoc-in [label] passthrough)
 
     true
-    (update-in [:transform-types] assoc label (:value-type property-type))))
+    (update-in [:transform-types] assoc label (:value-type property-type))
+
+    true
+    (update-in [:property-passthroughs] #(conj (or % #{}) label))))
 
 (defn attach-event-handler
   "Update the node type description with the given event handler."
@@ -292,9 +300,9 @@ not called directly."
   "Update the node type description with the given trigger."
   [description label kinds action]
   (reduce
-    (fn [description kind] (assoc-in description [:triggers kind label] action))
-    description
-    kinds))
+   (fn [description kind] (assoc-in description [:triggers kind label] action))
+   description
+   kinds))
 
 (defn attach-interface
   "Update the node type description with the given interface."
@@ -308,7 +316,7 @@ not called directly."
 
 (defn attach-method-implementation
   "Update the node type description with the given function, which
-must be part of a protocol or interface attached to the description."
+  must be part of a protocol or interface attached to the description."
   [description sym argv fn-def]
   (assoc-in description [:method-impls sym] [argv fn-def]))
 
@@ -321,7 +329,7 @@ must be part of a protocol or interface attached to the description."
       (cond
         (allowed-flags   arg) (recur (conj flags arg) options remainder)
         (allowed-options arg) (do (assert remainder (str "Expected value for option " arg))
-                                 (recur flags (assoc options arg (first remainder)) (rest remainder)))
+                                  (recur flags (assoc options arg (first remainder)) (rest remainder)))
         :else                 [flags options args])
       [flags options args])))
 
@@ -348,41 +356,41 @@ must be part of a protocol or interface attached to the description."
   invoked `defnode` so that symbols and vars resolve correctly."
   [form]
   (match [form]
-    [(['inherits supertype] :seq)]
-    `(attach-supertype ~supertype)
+         [(['inherits supertype] :seq)]
+         `(attach-supertype ~supertype)
 
-    [(['input label schema & remainder] :seq)]
-    (let [[properties options args] (parse-flags-and-options input-flags input-options remainder)]
-      `(attach-input ~(keyword label) ~schema ~properties ~options ~@args))
+         [(['input label schema & remainder] :seq)]
+         (let [[properties options args] (parse-flags-and-options input-flags input-options remainder)]
+           `(attach-input ~(keyword label) ~schema ~properties ~options ~@args))
 
-    [(['output label schema & remainder] :seq)]
-    (let [[properties options args] (parse-flags-and-options output-flags output-options remainder)]
-      (assert (or (:abstract properties) (not (empty? args))) "The output type seems to be missing.")
-      `(attach-output ~(keyword label) ~schema ~properties ~options ~@args))
+         [(['output label schema & remainder] :seq)]
+         (let [[properties options args] (parse-flags-and-options output-flags output-options remainder)]
+           (assert (or (:abstract properties) (not (empty? args))) "The output type seems to be missing.")
+           `(attach-output ~(keyword label) ~schema ~properties ~options ~@args))
 
-    [(['property label tp & options] :seq)]
-    `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label))
+         [(['property label tp & options] :seq)]
+         `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label))
 
-    [(['on label & fn-body] :seq)]
-    `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
+         [(['on label & fn-body] :seq)]
+         `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
 
-    [(['trigger label & rest] :seq)]
-    (let [kinds (vec (take-while keyword? rest))
-          action (drop-while keyword? rest)]
-      (assert (every? valid-trigger-kinds kinds) (apply str "Invalid trigger kind. Valid trigger kinds are: " (interpose ", " valid-trigger-kinds)))
-      `(attach-trigger ~(keyword label) ~kinds ~@action))
+         [(['trigger label & rest] :seq)]
+         (let [kinds (vec (take-while keyword? rest))
+               action (drop-while keyword? rest)]
+           (assert (every? valid-trigger-kinds kinds) (apply str "Invalid trigger kind. Valid trigger kinds are: " (interpose ", " valid-trigger-kinds)))
+           `(attach-trigger ~(keyword label) ~kinds ~@action))
 
-    ;; Interface or protocol function
-    [([nm [& argvec] & remainder] :seq)]
-    `(attach-method-implementation '~nm '~argvec (fn ~argvec ~@remainder))
+         ;; Interface or protocol function
+         [([nm [& argvec] & remainder] :seq)]
+         `(attach-method-implementation '~nm '~argvec (fn ~argvec ~@remainder))
 
-    [impl :guard symbol?]
-    `(cond->
-        (class? ~impl)
-        (attach-interface (symbol (classname ~impl)))
+         [impl :guard symbol?]
+         `(cond->
+              (class? ~impl)
+            (attach-interface (symbol (classname ~impl)))
 
-        (not (class? ~impl))
-        (attach-protocol (fqsymbol '~impl)))))
+            (not (class? ~impl))
+            (attach-protocol (fqsymbol '~impl)))))
 
 (defn node-type-forms
   "Given all the forms in a defnode macro, emit the forms that will build the node type description."
@@ -414,7 +422,7 @@ must be part of a protocol or interface attached to the description."
 
 (defn- deduce-argument-type
   "Return the type of the node's input label (or property). Take care
-   with :array inputs."
+  with :array inputs."
   [record-name node-type argument output]
   (cond
     (property-overloads-output? node-type argument output)
@@ -538,28 +546,32 @@ must be part of a protocol or interface attached to the description."
 (defn node-output-value-function-forms
   [record-name node-type-name node-type]
   (for [[transform pfn]       (gt/transforms' node-type)
-        :let [cached?         ((gt/cached-outputs' node-type) transform)
-              output-multi?   (seq? ((gt/transform-types' node-type) transform))
-              argument-schema (collect-argument-schema transform (pf/input-schema pfn) record-name node-type)
-              argument-forms  (zipmap (keys argument-schema)
-                                      (map (partial node-input-forms transform node-type-name node-type) argument-schema))
-              epilogue        (when cached?
-                                `(swap! (:local ~'evaluation-context) assoc-in [(gt/node-id ~'this) ~transform] ~'result))
-              refresh         `(ig/node-by-id-at (:basis ~'evaluation-context) (gt/node-id ~'this))
-              lookup          (if cached?
-                                `(or ~(local-cache 'evaluation-context transform)
-                                     ~(global-cache 'evaluation-context transform)
-                                     ~(produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))
-                                (produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))]]
+        :let [property-passthrough? (gt/property-passthrough? node-type transform)
+              cached?               ((gt/cached-outputs' node-type) transform)
+              output-multi?         (seq? ((gt/transform-types' node-type) transform))
+              argument-schema       (collect-argument-schema transform (pf/input-schema pfn) record-name node-type)
+              argument-forms        (zipmap (keys argument-schema)
+                                            (map (partial node-input-forms transform node-type-name node-type) argument-schema))
+              epilogue              (when cached?
+                                      `(swap! (:local ~'evaluation-context) assoc-in [(gt/node-id ~'this) ~transform] ~'result))
+              refresh               `(ig/node-by-id-at (:basis ~'evaluation-context) (gt/node-id ~'this))
+              lookup                (if cached?
+                                      `(or ~(local-cache 'evaluation-context transform)
+                                           ~(global-cache 'evaluation-context transform)
+                                           ~(produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))
+                                      (produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))]]
     `(defn ~(dollar-name node-type-name transform) [~'this ~'evaluation-context]
-       (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
-               (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
-       (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
-         ~(if (= transform :self)
-            refresh
-            (if (= transform :this)
-              (gt/node-id ~'this)
-              lookup))))))
+       ~(if property-passthrough?
+          `(get ~'this ~transform)
+          `(do
+             (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
+                     (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
+             (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
+               ~(if (= transform :self)
+                  refresh
+                  (if (= transform :this)
+                    (gt/node-id ~'this)
+                    lookup))))))))
 
 
 (defn node-input-value-function-forms
@@ -637,8 +649,8 @@ must be part of a protocol or interface attached to the description."
 
 (defn define-node-record
   "Create a new class for the node type. This builds a defrecord with
-the node's properties as fields. The record will implement all the interfaces
-and protocols that the node type requires."
+  the node's properties as fields. The record will implement all the interfaces
+  and protocols that the node type requires."
   [record-name node-type-name node-type]
   (eval (node-record-sexps record-name node-type-name node-type)))
 

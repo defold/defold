@@ -250,7 +250,7 @@
 
 (defmacro affected-by [& forms]
   `(let [tx-result# (g/transact ~@forms)]
-     (:outputs-modified tx-result#)))
+     (set (:outputs-modified tx-result#))))
 
 (defn pairwise [f m]
   (for [[k vs] m

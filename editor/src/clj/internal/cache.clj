@@ -80,29 +80,42 @@
          (map? base)]}
   (clojure.core.cache/seed (LRUCache. {} (clojure.data.priority-map/priority-map) 0 threshold dispose-ch) base))
 
+
+;; ----------------------------------------
+;; Null cache for testing
+;; ----------------------------------------
+(cc/defcache NullCache []
+  cc/CacheProtocol
+  (lookup [_ item] nil)
+  (lookup [_ item not-found] not-found)
+  (has?   [_ item] false)
+  (hit    [this item] this)
+  (miss   [this item result] this)
+  (evict  [this key] this)
+  (seed   [_ base] base))
+
+(defn- null-cache [] (NullCache.))
+
+;; ----------------------------------------
+;; Mutators
+;; ----------------------------------------
 (defn- encache
   [c kvs]
-  (when *cache-debug*
-    (println 'internal.cache/encache (map first kvs)))
-  (reduce
-   (fn [c [k v]]
-     (cc/miss c k v))
-   c kvs))
+  (if-let [kv (first kvs)]
+    (recur (cc/miss c (first kv) (second kv)) (next kvs))
+    c))
 
 (defn- hits
   [c ks]
-  (when *cache-debug*
-    (println 'internal.cache/hits ks))
-  (reduce
-   (fn [c [k v]]
-     (cc/hit c k))
-   c ks))
+  (if-let [k (ffirst ks)]
+    (recur (cc/hit c k) (next ks))
+    c))
 
 (defn- evict
-  [cache ks]
-  (when *cache-debug*
-    (println 'internal.cache/evict ks))
-  (reduce cc/evict cache ks))
+  [c ks]
+  (if-let [k (first ks)]
+    (recur (cc/evict c k) (next ks))
+    c))
 
 ;; ----------------------------------------
 ;; Interface
@@ -113,7 +126,9 @@
   ([]
    (cache-subsystem default-cache-limit (a/chan (a/dropping-buffer 1))))
   ([limit dispose-ch]
-   (atom (lru-cache-factory {} :threshold limit :dispose-ch dispose-ch))))
+   (atom (if (zero? limit)
+           (null-cache)
+           (lru-cache-factory {} :threshold limit :dispose-ch dispose-ch)))))
 
 (defn cache-snapshot
   [cache]
