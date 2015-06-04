@@ -137,8 +137,8 @@
                   (.setBlendMode (protobuf/val->pb-enum Sprite$SpriteDesc$BlendMode blend-mode)))))})
 
 (g/defnk produce-scene
-  [self aabb gpu-texture textureset animation blend-mode]
-  (let [scene {:node-id (g/node-id self)
+  [node-id aabb gpu-texture textureset animation blend-mode]
+  (let [scene {:node-id node-id
                :aabb aabb}]
     (if animation
       (let [vertex-binding (vtx/use-with (gen-vertex-buffer textureset animation gen-quad 6) shader)
@@ -191,7 +191,7 @@
                                              (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                              (geom/aabb-incorporate (Point3d. hw hh 0))))
                                          (geom/null-aabb))))
-  (output outline t/Any (g/fnk [self] {:node-id (g/node-id self) :label "Sprite" :icon sprite-icon}))
+  (output outline t/Any :cached (g/fnk [node-id] {:node-id node-id :label "Sprite" :icon sprite-icon}))
   (output save-data t/Any :cached produce-save-data)
   (output scene t/Any :cached produce-scene))
 

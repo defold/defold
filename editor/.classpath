@@ -6,6 +6,7 @@
 			<attribute name="optional" value="true"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="src" path="generated-resources"/>
 	<classpathentry kind="src" path="dev-resources">
 		<attributes>
 			<attribute name="optional" value="true"/>
