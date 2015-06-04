@@ -41,7 +41,10 @@
         <activity android:name="com.defold.iap.IapActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:label="IAP"></activity>
 
         <!-- For Local Notifications -->
-        <activity android:name="com.defold.push.LocalPushDispatchActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+        <activity android:name="com.defold.push.LocalPushDispatchActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:launchMode="singleTask"
+            android:configChanges="keyboardHidden|orientation|screenSize">
             <intent-filter>
                 <action android:name="com.defold.push.FORWARD" />
                 <category android:name="com.defold.push" />
