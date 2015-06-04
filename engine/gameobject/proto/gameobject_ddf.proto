@@ -146,6 +146,7 @@ message CollectionDesc
  *         self.my_action_amount = action.value
  *     end
  * end
+ * </pre>
  */
 message AcquireInputFocus {}
 
