@@ -73,11 +73,7 @@
 
 (defn open-scene-view! [project app-view resource-node width height]
   (let [view-graph (g/make-graph! :history false :volatility 2)
-        view (scene/make-preview view-graph resource-node {:select-fn (fn [selection op-seq] (project/select! project selection op-seq))} width height)]
-    (g/transact
-      (concat
-        (g/connect project :selected-node-ids view :selection)
-        (g/connect app-view :active-tool view :active-tool)))
+        view (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)]
     (g/refresh view)))
 
 (defn- fake-input!

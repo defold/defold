@@ -14,6 +14,7 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.scene-tools :as scene-tools]
+            [editor.project :as project]
             [internal.render.pass :as pass]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
@@ -608,10 +609,12 @@
   (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
 
 (defn setup-view [view resource-node opts]
-  (let [view-graph (g/node->graph-id view)]
+  (let [view-graph (g/node->graph-id view)
+        app-view (:app-view opts)
+        project (:project opts)]
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
-                   selection  [SelectionController :select-fn (:select-fn opts)]
+                   selection  [SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
                    background background/Gradient
                    camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
                    grid       grid/Grid
@@ -623,17 +626,19 @@
                   (g/set-graph-value view-graph :renderer renderer)
                   (g/set-graph-value view-graph :camera   camera)
 
-                  (g/connect background      :renderable    renderer        :extra-renderables)
-                  (g/connect camera          :camera        renderer        :camera)
-                  (g/connect camera          :input-handler view            :input-handlers)
-                  (g/connect view            :aabb          camera          :aabb)
-                  (g/connect view            :viewport      camera          :viewport)
-                  (g/connect view            :viewport      renderer        :viewport)
-                  (g/connect view            :scene         renderer        :scene)
-                  (g/connect view            :selection     renderer        :selection)
-                  (g/connect renderer        :frame         view            :frame)
+                  (g/connect background      :renderable        renderer        :extra-renderables)
+                  (g/connect camera          :camera            renderer        :camera)
+                  (g/connect camera          :input-handler     view            :input-handlers)
+                  (g/connect view            :aabb              camera          :aabb)
+                  (g/connect view            :viewport          camera          :viewport)
+                  (g/connect view            :viewport          renderer        :viewport)
+                  (g/connect view            :scene             renderer        :scene)
 
-                  (g/connect tool-controller :input-handler view :input-handlers)
+                  (g/connect project         :selected-node-ids view            :selection)
+                  (g/connect view            :selection         renderer        :selection)
+                  (g/connect renderer        :frame             view            :frame)
+
+                  (g/connect tool-controller :input-handler     view            :input-handlers)
 
                   (g/connect selection       :renderable        renderer        :tool-renderables)
                   (g/connect selection       :input-handler     view            :input-handlers)
@@ -646,7 +651,10 @@
                   (g/connect grid   :renderable renderer :extra-renderables)
                   (g/connect camera :camera     grid     :camera)
 
+
                   (g/connect tool-controller :renderables renderer :tool-renderables)
+
+                  (g/connect app-view :active-tool view :active-tool)
                   (g/connect view :active-tool tool-controller :active-tool)
                   (g/connect view :viewport    tool-controller          :viewport)
                   (g/connect camera :camera tool-controller :camera)
