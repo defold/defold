@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <dlib/time.h>
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
@@ -43,6 +44,17 @@ static void Detach()
     g_AndroidApp->activity->vm->DetachCurrentThread();
 }
 
+struct ScheduledNotification
+{
+    int id;
+    int seconds;
+    uint64_t timestamp;
+    char* title;
+    char* message;
+    char* payload;
+    int priority;
+};
+
 struct PushListener
 {
     PushListener()
@@ -66,6 +78,7 @@ struct Push
         m_Listener.m_Callback = LUA_NOREF;
         m_Listener.m_Self = LUA_NOREF;
         m_ScheduleLastID = 0;
+        m_ScheduledNotifications.SetCapacity(64);
     }
     int                  m_Callback;
     int                  m_Self;
@@ -81,6 +94,7 @@ struct Push
     jmethodID            m_Cancel;
     int                  m_Pipefd[2];
 
+    dmArray<ScheduledNotification> m_ScheduledNotifications;
     int                  m_ScheduleLastID;
 };
 
@@ -143,6 +157,8 @@ int Push_SetListener(lua_State* L)
 int Push_Schedule(lua_State* L)
 {
     int top = lua_gettop(L);
+    ScheduledNotification sn;
+
     int seconds = luaL_checkinteger(L, 1);
     if (seconds < 0)
     {
@@ -154,15 +170,14 @@ int Push_Schedule(lua_State* L)
     const char* title = luaL_checkstring(L, 2);
     const char* message = luaL_checkstring(L, 3);
 
-    // param: userdata
-    const char* userdata = 0;
+    // param: payload
+    const char* payload = 0;
     if (top > 3) {
-        userdata = luaL_checkstring(L, 4);
+        payload = luaL_checkstring(L, 4);
     }
 
     // param: notification_settings
     int priority = 3;
-    const char* group = 0;
     // char* icon = 0;
     // char* sound = 0;
     if (top > 4) {
@@ -182,15 +197,8 @@ int Push_Schedule(lua_State* L)
         }
         lua_pop(L, 1);
 
-        // group
-        lua_pushstring(L, "group");
-        lua_gettable(L, 5);
-        if (lua_isstring(L, -1)) {
-            group = lua_tostring(L, -1);
-        }
-        lua_pop(L, 1);
-
         /*
+
         // icon
         There is now way of automatically bundle files inside the .app folder (i.e. skipping
         archiving them inside the .darc), but to have custom notification sounds they need to
@@ -213,33 +221,142 @@ int Push_Schedule(lua_State* L)
         */
     }
 
+    sn.id        = g_Push.m_ScheduleLastID++;
+    sn.timestamp = dmTime::GetTime() + seconds * 1000000; // in microseconds
+    sn.title     = strdup(title);
+    sn.message   = strdup(message);
+    sn.payload   = strdup(payload);
+    sn.priority  = priority;
+    g_Push.m_ScheduledNotifications.Push( sn );
+
     JNIEnv* env = Attach();
-    jstring jtitle    = env->NewStringUTF(title);
-    jstring jmessage  = env->NewStringUTF(message);
-    jstring juserdata = env->NewStringUTF(userdata);
-    jstring jgroup    = env->NewStringUTF(group);
-    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Schedule, g_AndroidApp->activity->clazz, g_Push.m_ScheduleLastID, seconds, jtitle, jmessage, juserdata, jgroup, priority);
-    env->DeleteLocalRef(jgroup);
-    env->DeleteLocalRef(juserdata);
+    jstring jtitle   = env->NewStringUTF(sn.title);
+    jstring jmessage = env->NewStringUTF(sn.message);
+    jstring jpayload = env->NewStringUTF(sn.payload);
+    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Schedule, g_AndroidApp->activity->clazz, sn.id, sn.timestamp / 1000, jtitle, jmessage, jpayload, sn.priority);
+    env->DeleteLocalRef(jpayload);
     env->DeleteLocalRef(jmessage);
     env->DeleteLocalRef(jtitle);
     Detach();
 
     assert(top == lua_gettop(L));
 
-    lua_pushnumber(L, g_Push.m_ScheduleLastID++);
+    lua_pushnumber(L, sn.id);
     return 1;
 
+}
+
+
+static void RemoveNotification(int id)
+{
+    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    {
+        ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
+
+        if (sn.id == id)
+        {
+            if (sn.title) {
+                free(sn.title);
+            }
+
+            if (sn.message) {
+                free(sn.message);
+            }
+
+            if (sn.payload) {
+                free(sn.payload);
+            }
+
+            g_Push.m_ScheduledNotifications.EraseSwap(i);
+            break;
+        }
+    }
 }
 
 int Push_Cancel(lua_State* L)
 {
     int cancel_id = luaL_checkinteger(L, 1);
-    JNIEnv* env = Attach();
-    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Cancel, g_AndroidApp->activity->clazz, cancel_id);
-    Detach();
+    dmLogWarning("trying to cancel id: %d", cancel_id);
+
+    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    {
+        ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
+
+        if (sn.id == cancel_id)
+        {
+            dmLogWarning("found! %d", sn.id);
+            JNIEnv* env = Attach();
+            jstring jtitle   = env->NewStringUTF(sn.title);
+            jstring jmessage = env->NewStringUTF(sn.message);
+            jstring jpayload = env->NewStringUTF(sn.payload);
+            env->CallVoidMethod(g_Push.m_Push, g_Push.m_Cancel, g_AndroidApp->activity->clazz, sn.id, jtitle, jmessage, jpayload, sn.priority);
+            env->DeleteLocalRef(jpayload);
+            env->DeleteLocalRef(jmessage);
+            env->DeleteLocalRef(jtitle);
+            Detach();
+
+            RemoveNotification(cancel_id);
+            break;
+        }
+    }
 
     return 0;
+}
+
+static void NotificationToLua(lua_State* L, ScheduledNotification notification)
+{
+    lua_createtable(L, 0, 5);
+
+    lua_pushstring(L, "seconds");
+    lua_pushnumber(L, (notification.timestamp - dmTime::GetTime()) / 1000000.0);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "title");
+    lua_pushstring(L, notification.title);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "message");
+    lua_pushstring(L, notification.message);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "payload");
+    lua_pushstring(L, notification.payload);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "priority");
+    lua_pushnumber(L, notification.priority);
+    lua_settable(L, -3);
+
+}
+
+int Push_GetScheduled(lua_State* L)
+{
+    int get_id = luaL_checkinteger(L, 1);
+    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    {
+        ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
+
+        if (sn.id == get_id)
+        {
+            NotificationToLua(L, sn);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int Push_GetAllScheduled(lua_State* L)
+{
+    lua_createtable(L, 0, 0);
+    for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
+    {
+        ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
+        lua_pushnumber(L, sn.id);
+        NotificationToLua(L, sn);
+        lua_settable(L, -3);
+    }
+
+    return 1;
 }
 
 static const luaL_reg Push_methods[] =
@@ -249,6 +366,8 @@ static const luaL_reg Push_methods[] =
 
     {"schedule", Push_Schedule},
     {"cancel", Push_Cancel},
+    {"get_scheduled", Push_GetScheduled},
+    {"get_all_scheduled", Push_GetAllScheduled},
 
     {0, 0}
 };
@@ -309,6 +428,30 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobje
     {
         j = env->GetStringUTFChars(json, 0);
     }
+
+    Command cmd;
+    cmd.m_Command = CMD_PUSH_MESSAGE_RESULT;
+    cmd.m_Data1 = strdup(j);
+    if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
+        dmLogFatal("Failed to write command");
+    }
+    if (j)
+    {
+        env->ReleaseStringUTFChars(json, j);
+    }
+}
+
+JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onLocalMessage(JNIEnv* env, jobject, jstring json, int id)
+{
+    const char* j = 0;
+
+    if (json)
+    {
+        j = env->GetStringUTFChars(json, 0);
+    }
+
+    // keeping track of local notifications, need to remove from internal list
+    RemoveNotification(id);
 
     Command cmd;
     cmd.m_Command = CMD_PUSH_MESSAGE_RESULT;
@@ -475,8 +618,8 @@ dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;)V");
     g_Push.m_Stop = env->GetMethodID(push_class, "stop", "()V");
     g_Push.m_Register = env->GetMethodID(push_class, "register", "(Landroid/app/Activity;)V");
-    g_Push.m_Schedule = env->GetMethodID(push_class, "scheduleNotification", "(Landroid/app/Activity;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
-    g_Push.m_Cancel = env->GetMethodID(push_class, "cancelNotification", "(Landroid/app/Activity;I)V");
+    g_Push.m_Schedule = env->GetMethodID(push_class, "scheduleNotification", "(Landroid/app/Activity;IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
+    g_Push.m_Cancel = env->GetMethodID(push_class, "cancelNotification", "(Landroid/app/Activity;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
 
     jmethodID get_instance_method = env->GetStaticMethodID(push_class, "getInstance", "()Lcom/defold/push/Push;");
     g_Push.m_Push = env->NewGlobalRef(env->CallStaticObjectMethod(push_class, get_instance_method));

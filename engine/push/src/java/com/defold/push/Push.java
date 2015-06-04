@@ -33,14 +33,14 @@ public class Push {
     public static final String TAG = "push";
     public static final String ACTION_FORWARD_PUSH = "com.defold.push.FORWARD";
     public static final String SAVED_PUSH_MESSAGE_NAME = "saved_push_message";
+    public static final String SAVED_LOCAL_MESSAGE_NAME = "saved_local_message";
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
     private String senderId = "";
 
     private static Push instance;
     private static AlarmManager am = null;
-    private static List<Intent> scheduledNotifications;
-    private IPushListener listener;
+    private IPushListener listener = null;
 
     private GoogleCloudMessaging gcm;
 
@@ -61,6 +61,7 @@ public class Push {
             public void run() {
                 try {
                     startGooglePlay(activity);
+                    loadSavedLocalMessages(activity);
                     loadSavedMessages(activity);
                 } catch (Throwable e) {
                     Log.e(TAG, "Failed to register", e);
@@ -70,46 +71,59 @@ public class Push {
         });
     }
 
-    public void scheduleNotification(final Activity activity, int notificationId, int timeOffsetSec, String title, String message, String userdata, String group, int priority) {
+    public void scheduleNotification(final Activity activity, int notificationId, long timestampMillis, String title, String message, String payload, int priority) {
 
         if (am == null) {
             am = (AlarmManager) activity.getSystemService(activity.ALARM_SERVICE);
-            scheduledNotifications = new ArrayList<Intent>();
         }
         Intent intent = new Intent(activity, LocalNotificationReceiver.class);
 
         Bundle extras = new Bundle();
-        int uid = (int)System.currentTimeMillis();
+        int uid = notificationId;
         extras.putInt("uid", uid);
         extras.putString("title", title);
         extras.putString("message", message);
         extras.putInt("priority", priority);
-        extras.putString("group", group);
-        extras.putString("userdata", userdata);
+        extras.putString("payload", payload);
         intent.putExtras(extras);
         intent.setAction("uid" + uid);
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(activity, 0, intent, PendingIntent.FLAG_ONE_SHOT);
-        scheduledNotifications.add(intent);
-        am.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + timeOffsetSec * 1000, pendingIntent);
+        am.set(AlarmManager.RTC_WAKEUP, timestampMillis, pendingIntent);
 
     }
 
-    public void cancelNotification(final Activity activity, int notificationId)
+    public void cancelNotification(final Activity activity, int notificationId, String title, String message, String payload, int priority)
     {
         if (am == null) {
             am = (AlarmManager) activity.getSystemService(activity.ALARM_SERVICE);
-            scheduledNotifications = new ArrayList<Intent>();
         }
 
-        if (notificationId < 0 || notificationId >= scheduledNotifications.size())
-        {
+        if (notificationId < 0) {
             return;
         }
 
-        Intent intent = scheduledNotifications.get(notificationId);
+        Intent intent = new Intent(activity, LocalNotificationReceiver.class);
+
+        Bundle extras = new Bundle();
+        int uid = notificationId;
+        extras.putInt("uid", uid);
+        extras.putString("title", title);
+        extras.putString("message", message);
+        extras.putInt("priority", priority);
+        extras.putString("payload", payload);
+        intent.putExtras(extras);
+        intent.setAction("uid" + uid);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(activity, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT);
         am.cancel(pendingIntent);
+    }
+
+    public boolean hasListener() {
+        if (this.listener != null) {
+            return true;
+        }
+
+        return false;
     }
 
     public static Push getInstance() {
@@ -177,6 +191,7 @@ public class Push {
     private void loadSavedMessages(Context context) {
         BufferedReader r = null;
         try {
+            // Read saved remote push notifications
             r = new BufferedReader(new InputStreamReader(
                     context.openFileInput(SAVED_PUSH_MESSAGE_NAME)));
             String json = "";
@@ -198,6 +213,35 @@ public class Push {
                 }
             }
             context.deleteFile(SAVED_PUSH_MESSAGE_NAME);
+        }
+    }
+
+    private void loadSavedLocalMessages(Context context) {
+        BufferedReader r = null;
+        try {
+            // Read saved local notifications
+            r = new BufferedReader(new InputStreamReader(
+                    context.openFileInput(SAVED_LOCAL_MESSAGE_NAME)));
+            int id = Integer.parseInt(r.readLine());
+            String json = "";
+            String line = r.readLine();
+            while (line != null) {
+                json += line;
+                line = r.readLine();
+            }
+            this.listener.onLocalMessage(json, id);
+
+        } catch (FileNotFoundException e) {
+        } catch (IOException e) {
+            Log.e(Push.TAG, "Failed to read local message from disk", e);
+        } finally {
+            if (r != null) {
+                try {
+                    r.close();
+                } catch (IOException e) {
+                }
+            }
+            context.deleteFile(SAVED_LOCAL_MESSAGE_NAME);
         }
     }
 
@@ -237,10 +281,10 @@ public class Push {
         }
     }
 
-    void onLocalPush(String msg) {
+    void onLocalPush(String msg, int id) {
         if (listener != null) {
             Log.d(TAG, "forwarding local message to application");
-            this.listener.onMessage(msg);
+            this.listener.onLocalMessage(msg, id);
         }
 
     }

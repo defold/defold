@@ -36,13 +36,14 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
 
         Intent new_intent = new Intent(context, LocalPushDispatchActivity.class).setAction("com.defold.push.FORWARD");
         new_intent.putExtras(extras);
+        new_intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         try
         {
-            PendingIntent contentIntent = PendingIntent.getActivity(context, id, new_intent, 0);
+            PendingIntent contentIntent = PendingIntent.getActivity(context, id, new_intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT);
 
+            // get application icon
             ApplicationInfo info = context.getApplicationInfo();
-
             PackageManager pm = context.getPackageManager();
             Resources resources = pm.getResourcesForApplication(info);
             Bitmap appIconBitmap = BitmapFactory.decodeResource(resources, info.icon);
