@@ -104,3 +104,8 @@ into an arglist."
 (defn collify
   [val-or-coll]
   (if (and (coll? val-or-coll) (not (map? val-or-coll))) val-or-coll [val-or-coll]))
+
+(defn stackify [x]
+  (if (coll? x)
+    (vec x)
+    [x]))
