@@ -35,22 +35,22 @@
 
 (defn- rebuild-sarcs
   [basis graph-state]
-  (def basis* basis)
   (let [gid      (:_gid graph-state)
         all-other-graphs (vals (assoc (:graphs basis) gid graph-state))
         all-arcs (flatten (mapcat (comp vals :tarcs) all-other-graphs))
         all-arcs-filtered (filter (fn [^ArcBase arc] (= (gt/node-id->graph-id (.source arc)) gid)) all-arcs)]
     (reduce
-     (fn [sarcs arc] (update sarcs (.source arc) conjv arc))
+     (fn [sarcs arc] (update sarcs (.source ^ArcBase arc) conjv arc))
      {}
      all-arcs-filtered)))
 
 (defn empty-graph
   []
-  {:nodes   {}
-   :sarcs   {}
-   :tarcs   {}
-   :tx-id   0})
+  {:nodes      {}
+   :sarcs      {}
+   :successors {}
+   :tarcs      {}
+   :tx-id      0})
 
 (defn node-ids    [g] (keys (:nodes g)))
 (defn node-values [g] (vals (:nodes g)))
@@ -199,17 +199,21 @@
 ;; ---------------------------------------------------------------------------
 ;; Dependency tracing
 ;; ---------------------------------------------------------------------------
-(defn- successors
+(defn index-successors
   [basis [node-id output-label]]
   (let [target-inputs (gt/targets basis node-id output-label)]
     (apply set/union
-           (map (fn [[node-id input-label]]
+           (mapv (fn [[node-id input-label]]
                   (let [set-of-output-labels (get
                                               (gt/input-dependencies
                                                (node-by-id-at basis node-id)) input-label)
-                        node-label-pairs (map #(vector node-id %) set-of-output-labels)]
+                        node-label-pairs (mapv #(vector node-id %) set-of-output-labels)]
                     node-label-pairs))
                 target-inputs))))
+
+(defn- successors
+  [basis [node-id output-label]]
+  (get-in basis [:graphs (gt/node-id->graph-id node-id) :successors [node-id output-label]] #{}))
 
 (defn- pre-traverse
   "Traverses a graph depth-first preorder from start, successors being
@@ -317,15 +321,9 @@
   (MultigraphBasis. graphs))
 
 (defn hydrate-after-undo
-  [graphs graph-state]
-  (assoc graph-state :sarcs (rebuild-sarcs (multigraph-basis (map-vals deref graphs)) graph-state)))
-
-
-
-
-(comment
-;;; todo
-;;; 2. replace lazy-seq with direct recursion.
-;;; 3. use a max-depth countdown to avoid infinite cycles
-
-  )
+  [basis graph-state]
+  (let [sarcs (rebuild-sarcs basis graph-state)
+        gid (:_gid graph-state)
+        hydrated-graph (assoc graph-state :sarcs sarcs)
+        new-basis (assoc-in basis [:graphs gid] hydrated-graph)]
+    new-basis))

@@ -6,6 +6,7 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.history :as h]
+            [internal.transaction :as it]
             [service.log :as log])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
@@ -47,8 +48,8 @@
   (AtomicLong. 0))
 
 (defn- new-history
-  [state]
-  {:state      state
+  [graph-ref]
+  {:graph-ref  graph-ref
    :tape       (conj (h/paper-tape history-size-max) [])})
 
 (def ^:private undo-op-keys   [:label])
@@ -100,17 +101,28 @@
        next
        (mapv history-state-map)))
 
+(defn time-warp [history-ref system-snapshot graph outputs-to-refresh]
+  (let [gid                  (:_gid graph)
+        graphs               (graphs system-snapshot)]
+    (-> (map-vals deref graphs)
+        (ig/multigraph-basis)
+        (ig/hydrate-after-undo graph)
+        (it/update-successors* outputs-to-refresh)
+        (get-in [:graphs gid]))))
+
 (defn undo-history
   [history-ref system-snapshot]
   (dosync
-   (let [{:keys [state tape]} @history-ref
-         last-change          (h/ivalue tape)
-         tape                 (h/iprev tape)
-         undo-to              (h/ivalue tape)]
+   (let [{:keys [graph-ref tape]} @history-ref
+         last-change              (h/ivalue tape)
+         tape                     (h/iprev tape)
+         undo-to                  (h/ivalue tape)
+         outputs-to-refresh       (into (history-state-cache-keys last-change) (history-state-cache-keys undo-to))]
      (when undo-to
-       (ref-set state (ig/hydrate-after-undo (graphs system-snapshot) (history-state-graph undo-to)))
-       (alter history-ref assoc :tape tape)
-       (into (history-state-cache-keys last-change) (history-state-cache-keys undo-to))))))
+       (let [graph (time-warp history-ref system-snapshot (history-state-graph undo-to) outputs-to-refresh)]
+         (ref-set graph-ref graph)
+         (alter history-ref assoc :tape tape)
+         outputs-to-refresh)))))
 
 (defn redo-stack [history-ref]
   (->> history-ref
@@ -122,19 +134,21 @@
 (defn redo-history
   [history-ref system-snapshot]
   (dosync
-   (let [{:keys [state tape]} @history-ref
+   (let [{:keys [graph-ref tape]} @history-ref
          previous-change      (h/ivalue tape)
          tape                 (h/inext tape)
-         redo-to              (h/ivalue tape)]
+         redo-to              (h/ivalue tape)
+         outputs-to-refresh   (into (history-state-cache-keys previous-change) (history-state-cache-keys redo-to))]
      (when redo-to
-       (ref-set state (ig/hydrate-after-undo (graphs system-snapshot) (history-state-graph redo-to)))
-       (alter history-ref assoc :tape tape)
-       (into (history-state-cache-keys previous-change) (history-state-cache-keys redo-to))))))
+       (let [graph (time-warp history-ref system-snapshot (history-state-graph redo-to) outputs-to-refresh)]
+         (ref-set graph-ref graph)
+         (alter history-ref assoc :tape tape)
+         outputs-to-refresh)))))
 
 (defn clear-history
   [history-ref]
   (dosync
-   (let [graph         (-> history-ref deref :state deref)
+   (let [graph         (-> history-ref deref :graph-ref deref)
          initial-state (history-state (graph-label graph) graph (sequence-label graph) #{})]
      (alter history-ref update :tape (fn [tape]
                                        (conj (empty tape) initial-state))))))
