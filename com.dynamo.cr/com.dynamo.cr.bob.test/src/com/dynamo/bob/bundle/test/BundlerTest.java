@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 
 import javax.imageio.ImageIO;
@@ -95,25 +96,10 @@ public class BundlerTest {
         }
     }
 
-    void buildWithUnused() throws IOException, CompileExceptionError {
-
-        Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
-
-        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
-
-        project.setOption("platform", platform.getPair());
-        project.setOption("keep-unused", "true");
-        project.setOption("archive", "true");
-        project.findSources(contentRootUnused, new HashSet<String>());
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
-        for (TaskResult taskResult : result) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
-        }
-
+    HashSet<String> readDarcEntries(String root) throws IOException
+    {
         // Read the path entries in the resulting archive
-        RandomAccessFile darcFile = new RandomAccessFile(contentRootUnused + "/build/game.darc", "r");
+        RandomAccessFile darcFile = new RandomAccessFile(root + "/build/game.darc", "r");
         darcFile.readInt();  // Version
         darcFile.readInt();  // Pad
         darcFile.readLong(); // Userdata
@@ -132,11 +118,33 @@ public class BundlerTest {
             entries.add(path);
         }
         darcFile.close();
+        return entries;
+    }
+
+    void buildWithUnused() throws IOException, CompileExceptionError {
+
+        Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
+
+        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        project.setOption("platform", platform.getPair());
+        project.setOption("keep-unused", "true");
+        project.setOption("archive", "true");
+        project.findSources(contentRootUnused, new HashSet<String>());
+        List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
+        for (TaskResult taskResult : result) {
+            assertTrue(taskResult.toString(), taskResult.isOk());
+        }
+
+        HashSet<String> entries = readDarcEntries(contentRootUnused);
 
         assertTrue(entries.contains("/main.collectionc"));
         assertTrue(entries.contains("/unused.collectionc"));
-
     }
+
+
 
     @Test
     public void testBundle() throws IOException, ConfigurationException, CompileExceptionError {
@@ -158,4 +166,45 @@ public class BundlerTest {
         buildWithUnused();
     }
 
+    @Test
+    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError {
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt");
+        createFile(contentRoot, "m.txt", "dummy");
+        build();
+        HashSet<String> entries = readDarcEntries(contentRoot);
+        assertTrue(entries.contains("/m.txt"));
+    }
+
+    @Test
+    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError {
+        File cust = new File(contentRoot, "custom");
+        cust.mkdir();
+        File sub1 = new File(cust, "sub1");
+        File sub2 = new File(cust, "sub2");
+        sub1.mkdir();
+        sub2.mkdir();
+        createFile(contentRoot, "m.txt", "dummy");
+        createFile(sub1.getAbsolutePath(), "s1-1.txt", "dummy");
+        createFile(sub1.getAbsolutePath(), "s1-2.txt", "dummy");
+        createFile(sub2.getAbsolutePath(), "s2-1.txt", "dummy");
+        createFile(sub2.getAbsolutePath(), "s2-2.txt", "dummy");
+
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom,m.txt");
+        build();
+        HashSet<String> entries = readDarcEntries(contentRoot);
+        assertTrue(entries.contains("/m.txt"));
+        assertTrue(entries.contains("/custom/sub1/s1-1.txt"));
+        assertTrue(entries.contains("/custom/sub1/s1-2.txt"));
+        assertTrue(entries.contains("/custom/sub2/s2-1.txt"));
+        assertTrue(entries.contains("/custom/sub2/s2-2.txt"));
+
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom/sub2");
+        build();
+        entries = readDarcEntries(contentRoot);
+        assertFalse(entries.contains("/m.txt"));
+        assertFalse(entries.contains("/custom/sub1/s1-1.txt"));
+        assertFalse(entries.contains("/custom/sub1/s1-2.txt"));
+        assertTrue(entries.contains("/custom/sub2/s2-1.txt"));
+        assertTrue(entries.contains("/custom/sub2/s2-2.txt"));
+    }
 }

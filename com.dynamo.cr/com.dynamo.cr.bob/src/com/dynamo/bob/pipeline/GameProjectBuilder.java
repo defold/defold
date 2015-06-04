@@ -6,6 +6,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -300,8 +301,12 @@ public class GameProjectBuilder extends Builder<Void> {
         for (String s : custom_resources) {
             s = s.trim();
             if (s.length() > 0) {
-                IResource r = project.getResource(s);
-                resources.add(r.output().getAbsPath());
+                ArrayList<String> paths = new ArrayList<String>();
+                project.findResourcePaths(s, paths);
+                for (String path : paths) {
+                    IResource r = project.getResource(path);
+                    resources.add(r.output().getAbsPath());
+                }
             }
         }
 
