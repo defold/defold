@@ -90,7 +90,7 @@
                    path          "/sprite/small_atlas.sprite"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   renderables   (g/node-value view :renderables)]
+                   renderables   (g/node-value (g/graph-value (g/node->graph-id view) :renderer) :renderables)]
                (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
