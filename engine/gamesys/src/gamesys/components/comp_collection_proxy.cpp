@@ -563,6 +563,7 @@ namespace dmGameSystem
      *         msg.post(self.loader, "level_started")
      *     end
      * end
+     * </pre>
      */
 
     /*# tells a collection proxy to disable the referenced collection
