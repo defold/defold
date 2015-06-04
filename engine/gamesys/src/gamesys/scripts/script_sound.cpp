@@ -49,8 +49,8 @@ namespace dmGameSystem
      * the effective window might be larger than specified.
      * </p>
      *
-     * @param group group name [hash|string]
-     * @param window window length in seconds [float]
+     * @param group group name (hash|string)
+     * @param window window length in seconds (number)
      * @name sound.get_rms
      * @return rms values for left and right channel
      */
@@ -80,8 +80,8 @@ namespace dmGameSystem
      * the effective window might be larger than specified.
      * </p>
      *
-     * @param group group name [hash|string]
-     * @param window window length in seconds [float]
+     * @param group group name (hash|string)
+     * @param window window length in seconds (number)
      * @name sound.get_peak
      * @return peak values for left and right channel
      */
@@ -110,8 +110,8 @@ namespace dmGameSystem
      * Note that gain is in linear scale.
      * </p>
      *
-     * @param group group name [hash|string]
-     * @param gain gain in linear scale [float]
+     * @param group group name (hash|string)
+     * @param gain gain in linear scale (number)
      * @name sound.set_group_gain
      */
     int Sound_SetGroupGain(lua_State* L)
@@ -135,7 +135,7 @@ namespace dmGameSystem
      * Note that gain is in linear scale.
      * </p>
      *
-     * @param group group name [hash|string]
+     * @param group group name (hash|string)
      * @name sound.get_group_gain
      * @return gain in linear scale
      */
@@ -158,7 +158,7 @@ namespace dmGameSystem
      * Get all mixer group names
      *
      * @name sound.get_groups
-     * @return table of mixer groups names ([hash])
+     * @return table of mixer groups names (table)
      */
     int Sound_GetGroups(lua_State* L)
     {
@@ -183,7 +183,7 @@ namespace dmGameSystem
      * <p>Note that this function does not return correct group name in release mode</p>
      *
      * @name sound.get_group_name
-     * @param group [hash|string]
+     * @param group group name (hash|string)
      * @return group name (string)
      */
     int Sound_GetGroupName(lua_State* L)

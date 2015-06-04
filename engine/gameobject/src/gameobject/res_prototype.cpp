@@ -22,20 +22,40 @@ namespace dmGameObject
         delete prototype;
     }
 
+    dmResource::Result ResPrototypePreload(dmResource::HFactory factory,
+                                                dmResource::HPreloadHintInfo hint_info,
+                                                void* context,
+                                                const void* buffer, uint32_t buffer_size,
+                                                void** preload_data,
+                                                const char* filename)
+    {
+        dmGameObjectDDF::PrototypeDesc* proto_desc;
+        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
+
+        if (e != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
+        {
+            dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
+            dmResource::PreloadHint(hint_info, component_desc.m_Component);
+        }
+
+        *preload_data = proto_desc;
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResPrototypeCreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
+                                                void* preload_data,
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename)
     {
         HRegister regist = (HRegister)context;
-        dmGameObjectDDF::PrototypeDesc* proto_desc;
-
-        dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
+        dmGameObjectDDF::PrototypeDesc* proto_desc = (dmGameObjectDDF::PrototypeDesc*) preload_data;;
 
         Prototype* proto = new Prototype();
         proto->m_Components.SetCapacity(proto_desc->m_Components.m_Count);

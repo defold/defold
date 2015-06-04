@@ -5,10 +5,10 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResCreateModel(dmResource::HFactory factory,
+    dmResource::Result ResPreloadModel(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
                                       void* context,
                                       const void* buffer, uint32_t buffer_size,
-                                      dmResource::SResourceDescriptor* resource,
+                                      void** preload_data,
                                       const char* filename)
     {
         dmModelDDF::ModelDesc* model_desc;
@@ -17,6 +17,25 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
+
+        dmResource::PreloadHint(hint_info, model_desc->m_Material);
+        for (uint32_t i = 0; i < model_desc->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            dmResource::PreloadHint(hint_info, model_desc->m_Textures[i]);
+        }
+
+        *preload_data = model_desc;
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResCreateModel(dmResource::HFactory factory,
+                                      void* context,
+                                      const void* buffer, uint32_t buffer_size,
+                                      void* preload_data,
+                                      dmResource::SResourceDescriptor* resource,
+                                      const char* filename)
+    {
+        dmModelDDF::ModelDesc* model_desc = (dmModelDDF::ModelDesc*) preload_data;
 
         Mesh* mesh = 0x0;
         dmRender::HMaterial material = 0;
