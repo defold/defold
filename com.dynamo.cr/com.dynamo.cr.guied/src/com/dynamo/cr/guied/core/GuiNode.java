@@ -109,7 +109,7 @@ public class GuiNode extends Node implements Identifiable {
     public GuiNode() {
         super();
         setTransformable(true);
-        setFlags(Flags.COMPONENT_SCALABLE);
+        setFlags(Flags.SCALABLE);
     }
 
     @Override
