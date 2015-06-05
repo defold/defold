@@ -44,7 +44,7 @@ public abstract class Node implements IAdaptable, Serializable {
     public enum Flags {
         TRANSFORMABLE,
         SCALABLE,
- COMPONENT_SCALABLE, LOCKED,
+        LOCKED,
         NO_INHERIT_ROTATION,
         NO_INHERIT_SCALE,
         INVISIBLE
