@@ -468,7 +468,7 @@
         (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
 
         (let [fps-counter (when *fps-debug* (agent (long-array 3 0)))
-              tab         (:tab opts)
+              ^Tab tab    (:tab opts)
               repainter   (proxy [AnimationTimer] []
                             (handle [now]
                               (when *fps-debug* (send-off fps-counter tick now))
