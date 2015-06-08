@@ -359,7 +359,6 @@
   (property image-view ImageView)
   (property viewport Region (default (t/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
-  (property visible t/Bool (default true))
   (property picking-rect Rect)
 
   (input frame BufferedImage)
@@ -436,7 +435,7 @@
         (aset-long fps-counts 0 0)))
     fps-counts))
 
-(defn make-scene-view [scene-graph ^Parent parent]
+(defn- make-scene-view [scene-graph ^Parent parent opts]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
     (let [view (g/make-node! scene-graph SceneView :image-view image-view)]
@@ -469,12 +468,13 @@
         (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
 
         (let [fps-counter (when *fps-debug* (agent (long-array 3 0)))
+              tab         (:tab opts)
               repainter   (proxy [AnimationTimer] []
                             (handle [now]
                               (when *fps-debug* (send-off fps-counter tick now))
                               (let [self                  (g/node-by-id node-id)
                                     image-view ^ImageView (:image-view self)
-                                    visible               (:visible self)]
+                                    visible               (.isSelected tab)]
                                 (when (and visible)
                                   (let [image (g/node-value self :image)]
                                     (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
@@ -663,7 +663,7 @@
                     (g/delete-node grid)))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
-  (let [view (make-scene-view graph parent)]
+  (let [view (make-scene-view graph parent opts)]
     (g/transact
       (setup-view view resource-node opts))
     view))

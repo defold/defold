@@ -219,7 +219,8 @@
             view-graph (g/make-graph! :history false :volatility 2)
             opts       (assoc ((:id view-type) (:view-opts resource-type))
                               :app-view app-view
-                              :project project)
+                              :project project
+                              :tab tab)
             view       (make-view-fn view-graph parent resource-node opts)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
