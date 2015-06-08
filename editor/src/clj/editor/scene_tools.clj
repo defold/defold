@@ -79,14 +79,60 @@
         cp2      (c/camera-project camera viewport (Point3d. (.x x-axis) (.y x-axis) (.z x-axis)))]
     (/ 1.0 (Math/abs (- (.x cp1) (.x cp2))))))
 
-(defn render-manip [^GL2 gl pass color vertex-buffers]
-  (doseq [[mode vertex-buffer vertex-count] vertex-buffers
-          :let [vertex-binding (vtx/use-with vertex-buffer shader)
-                color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
-          :when (> vertex-count 0)]
-    (gl/with-enabled gl [shader vertex-binding]
-      (shader/set-uniform shader gl "color" color)
-      (gl/gl-draw-arrays gl mode 0 vertex-count))))
+(defn- manip->screen? [manip]
+  (case manip
+    (:move-screen :rot-screen) true
+    false))
+
+(defn- manip->normal [manip]
+  (case manip
+    :move-x [1.0 0.0 0.0]
+    :move-y [0.0 1.0 0.0]
+    :move-z [0.0 0.0 1.0]
+    :move-xy [0.0 0.0 1.0]
+    :move-xz [0.0 1.0 0.0]
+    :move-yz [1.0 0.0 0.0]
+    :move-screen [0.0 0.0 1.0]
+    :rot-x [1.0 0.0 0.0]
+    :rot-y [0.0 1.0 0.0]
+    :rot-z [0.0 0.0 1.0]
+    :rot-screen [0.0 0.0 1.0]
+    :scale-x [1.0 0.0 0.0]
+    :scale-y [0.0 1.0 0.0]
+    :scale-z [0.0 0.0 1.0]
+    :scale-xy [0.0 0.0 1.0]
+    :scale-xz [0.0 1.0 0.0]
+    :scale-yz [1.0 0.0 0.0]
+    :scale-uniform [0.0 0.0 1.0]))
+
+(defn- manip-visible? [manip ^Matrix4d view]
+  (if (manip->screen? manip)
+    true
+    (let [dir (Vector3d. (double-array (manip->normal manip)))
+          _ (.transform view dir)]
+      (case manip
+        (:move-x :move-y :move-z :scale-x :scale-y :scale-z) (< (Math/abs (.z dir)) 0.99)
+        (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (> (Math/abs (.z dir)) 0.06)
+        true))))
+
+(defn render-manips [^GL2 gl render-args renderables count]
+  (let [camera (:camera render-args)
+        renderable (first renderables)
+        world-transform (:world-transform renderable)
+        user-data (:user-data renderable)
+        manip (:manip user-data)
+        color (:color user-data)
+        vertex-buffers (:vertex-buffers user-data)]
+    (when (manip-visible? manip (c/camera-view-matrix camera))
+      (gl/gl-push-matrix gl
+        (gl/gl-mult-matrix-4d gl world-transform)
+        (doseq [[mode vertex-buffer vertex-count] vertex-buffers
+                :let [vertex-binding (vtx/use-with vertex-buffer shader)
+                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
+                :when (> vertex-count 0)]
+          (gl/with-enabled gl [shader vertex-binding]
+            (shader/set-uniform shader gl "color" color)
+            (gl/gl-draw-arrays gl mode 0 vertex-count)))))))
 
 ; Vertex generation and transformations
 
@@ -162,27 +208,6 @@
 (def axis-rotation-radius 100.0)
 (def screen-rotation-radius 120.0)
 
-(defn- manip->normal [manip]
-  (case manip
-    :move-x [1.0 0.0 0.0]
-    :move-y [0.0 1.0 0.0]
-    :move-z [0.0 0.0 1.0]
-    :move-xy [0.0 0.0 1.0]
-    :move-xz [0.0 1.0 0.0]
-    :move-yz [1.0 0.0 0.0]
-    :move-screen [0.0 0.0 1.0]
-    :rot-x [1.0 0.0 0.0]
-    :rot-y [0.0 1.0 0.0]
-    :rot-z [0.0 0.0 1.0]
-    :rot-screen [0.0 0.0 1.0]
-    :scale-x [1.0 0.0 0.0]
-    :scale-y [0.0 1.0 0.0]
-    :scale-z [0.0 0.0 1.0]
-    :scale-xy [0.0 0.0 1.0]
-    :scale-xz [0.0 1.0 0.0]
-    :scale-yz [1.0 0.0 0.0]
-    :scale-uniform [0.0 0.0 1.0]))
-
 (defn- manip->sub-manips [manip]
   (case manip
     :move-x #{}
@@ -239,11 +264,6 @@
     :scale-yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
     :scale-uniform (AxisAngle4d.)))
 
-(defn- manip->screen? [manip]
-  (case manip
-    (:move-screen :rot-screen) true
-    false))
-
 (defn- manip-enabled? [manip active-manip tool-active?]
   (if (#{:rot-x :rot-y :rot-z :rot-xy :rot-xz :rot-yz :rot-screen} manip)
     true
@@ -254,16 +274,6 @@
            (and (#{:scale-x :scale-y :scale-z} manip)
                 (#{:scale-xy :scale-xz :scale-yz :scale-uniform} active-manip)))
        true)))
-
-(defn- manip-visible? [manip ^Matrix4d view]
-  (if (manip->screen? manip)
-    true
-    (let [dir (Vector3d. (double-array (manip->normal manip)))
-          _ (.transform view dir)]
-      (case manip
-        (:move-x :move-y :move-z :scale-x :scale-y :scale-z) (< (Math/abs (.z dir)) 0.99)
-        (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (> (Math/abs (.z dir)) 0.06)
-        true))))
 
 (defn- manip->vertices [manip]
   (case manip
@@ -290,11 +300,10 @@
               (.setRotation wt rotation)))
         _ (.mul wt rotation-mat)]
     {:node-id id
-    :user-data manip
-    :render-fn (g/fnk [gl pass camera]
-                      (when (manip-visible? manip (c/camera-view-matrix camera))
-                        (render-manip gl pass color vertex-buffers)))
-    :world-transform wt}))
+     :selection-data manip
+     :render-fn render-manips
+     :user-data {:color color :vertex-buffers vertex-buffers :manip manip}
+     :world-transform wt}))
 
 (def transform-tools
   (let [move-manips [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen]
@@ -316,7 +325,7 @@
     (.get m v)
     v))
 
-(g/defnk produce-renderables [self active-tool camera viewport selected-renderables active-manip hot-manip start-action]
+(g/defnk produce-renderables [node-id active-tool camera viewport selected-renderables active-manip hot-manip start-action]
   (if (not (contains? transform-tools active-tool))
     {}
     (let [tool (get transform-tools active-tool)
@@ -333,8 +342,8 @@
               vertices-fn #(manip->vertices %)
               manips (get-in transform-tools [active-tool :manips])
               inv-view (doto (c/camera-view-matrix camera) (.invert))
-              renderables (map #(gen-manip-renderable (g/node-id self) % world-transform (rotation-fn %) (vertices-fn %) (color-fn %) inv-view)
-                               (filter filter-fn manips))]
+              renderables (vec (map #(gen-manip-renderable node-id % world-transform (rotation-fn %) (vertices-fn %) (color-fn %) inv-view)
+                                   (filter filter-fn manips)))]
           (reduce #(assoc %1 %2 renderables) {} [pass/manipulator pass/manipulator-selection]))))))
 
 (defn- action->line [action]
@@ -406,9 +415,9 @@
           total-delta (doto (Vector3d.) (.sub pos start-pos))]
       (apply-fn start-pos pos))))
 
-(defn handle-input [self action user-data]
+(defn handle-input [self action selection-data]
   (case (:type action)
-    :mouse-pressed (if-let [manip (first (get user-data (g/node-id self)))]
+    :mouse-pressed (if-let [manip (first (get selection-data (g/node-id self)))]
                      (let [active-tool (:active-tool self)
                            tool (get transform-tools active-tool)
                            filter-fn (:filter-fn tool)
@@ -449,7 +458,7 @@
                          (apply-manipulator original-values manip start-action prev-action action camera viewport)))
                      (g/transact (g/set-property self :prev-action action))
                      nil)
-                   (let [manip (first (get user-data (g/node-id self)))]
+                   (let [manip (first (get selection-data (g/node-id self)))]
                      (when (not= manip (:hot-manip self))
                        (g/transact (g/set-property self :hot-manip manip)))
                      action))

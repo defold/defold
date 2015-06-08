@@ -57,9 +57,7 @@
    (.restore psm gl)
    image))
 
-(def PASS_SHIFT        32)
-(def INDEX_SHIFT       (+ PASS_SHIFT 4))
-(def MANIPULATOR_SHIFT 62)
+(def INDEX_SHIFT 4)
 
 (def outline-color [(/ 43.0 255) (/ 25.0 255) (/ 116.0 255)])
 (def selected-outline-color [(/ 69.0 255) (/ 255.0 255) (/ 162.0 255)])
@@ -85,9 +83,9 @@
     (long (* Integer/MAX_VALUE (.z p)))))
 
 (defn render-key [camera viewport obj]
-  (+ (z-distance camera viewport obj)
-     (bit-shift-left (or (:index obj) 0)        INDEX_SHIFT)
-     (bit-shift-left (or (:manipulator? obj) 0) MANIPULATOR_SHIFT)))
+  (- Long/MAX_VALUE
+     (+ (z-distance camera viewport obj)
+        (bit-shift-left (:index obj 0) INDEX_SHIFT))))
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -108,28 +106,6 @@
       (when (t/model-transform? pass)
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
       (pass/prepare-gl pass gl glu)))
-
-(defn render-node
-  ([^GL2 gl pass renderable render-args]
-    (render-node gl pass renderable render-args nil))
-  ([^GL2 gl pass renderable render-args gl-name]
-    (gl/gl-push-matrix
-      gl
-      (when gl-name
-        (.glPushName gl gl-name))
-      (when (t/model-transform? pass)
-        (gl/gl-mult-matrix-4d gl (:world-transform renderable)))
-      (try
-        (when (:render-fn renderable)
-          ((:render-fn renderable) render-args))
-        (catch Exception e
-          (log/error :exception e
-                     :pass pass
-                     :render-fn (:render-fn renderable)
-                     :message "skipping renderable"))
-        (finally
-          (when gl-name
-            (.glPopName gl)))))))
 
 (defrecord TextRendererRef [^TextRenderer text-renderer ^GLContext context]
   clojure.lang.IDeref
@@ -166,15 +142,58 @@
     (when-let [^GLContext context (.getContext drawable)]
       (doto context (.makeCurrent)))))
 
+(defn render-nodes
+  ([^GL2 gl render-args renderables count]
+    (render-nodes gl render-args renderables count nil))
+  ([^GL2 gl render-args renderables count gl-name]
+    (when-let [render-fn (:render-fn (first renderables))]
+      (try
+        (when gl-name
+          (.glPushName gl gl-name))
+        (render-fn gl render-args renderables count)
+        (catch Exception e
+          (log/error :exception e
+                     :pass (:pass render-args)
+                     :render-fn render-fn
+                     :message "skipping renderable"))
+        (finally
+          (when gl-name
+          (.glPopName gl)))))))
+
+(defn batch-render [gl render-args renderables gl-names? key-fn]
+  (loop [renderables renderables
+         offset 0
+         batch-index 0
+         batches (transient [])]
+    (if-let [renderable (first renderables)]
+      (let [first-key (key-fn renderable)
+            first-render-fn (:render-fn renderable)
+            count (loop [renderables (rest renderables)
+                         count 1]
+                    (let [renderable (first renderables)
+                          key (key-fn renderable)
+                          render-fn (:render-fn renderable)
+                          break? (or (not= first-render-fn render-fn) (nil? first-key) (nil? key) (not= first-key key))]
+                      (if break?
+                        count
+                        (recur (rest renderables) (inc count)))))]
+        (when (> count 0)
+          (let [gl-name (if gl-names? batch-index nil)]
+            (render-nodes gl render-args (subvec renderables 0 count) count gl-name))
+          (let [end (+ offset count)]
+            ; TODO - long conversion should not be necessary?
+            (recur (subvec renderables count) (long end) (inc batch-index) (conj! batches [offset end])))))
+      (persistent! batches))))
+
 (defn- render-sort [renderables camera viewport]
-  (reverse (sort-by #(render-key camera viewport %) renderables)))
+  (sort-by #(render-key camera viewport %) renderables))
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables tool-renderables]
   (when-let [^GLContext context (make-current viewport drawable)]
     (let [gl ^GL2 (.getGL context)
           glu ^GLU (GLU.)
-          render-args {:gl gl :glu glu :camera camera :viewport viewport :text-renderer @text-renderer}
-          renderables (apply merge-with concat renderables tool-renderables)]
+          render-args {:glu glu :camera camera :viewport viewport :text-renderer @text-renderer}
+          renderables (apply merge-with (fn [renderables tool-renderables] (apply conj renderables tool-renderables)) renderables tool-renderables)]
       (.glClearColor gl 0.0 0.0 0.0 1.0)
       (gl/gl-clear gl 0.0 0.0 0.0 1)
       (.glColor4f gl 1.0 1.0 1.0 1.0)
@@ -182,10 +201,7 @@
       (doseq [pass pass/render-passes
               :let [render-args (assoc render-args :pass pass)]]
         (setup-pass context gl glu pass camera viewport)
-        (doseq [renderable (get renderables pass)
-                :let [id (:node-id renderable)
-                      selected (:selected renderable)]]
-          (render-node gl pass renderable (assoc render-args :selected selected))))
+        (batch-render gl render-args (get renderables pass) false :batch-key))
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image w h)]
         (.release context)
@@ -212,18 +228,25 @@
        (recur (inc (+ name-count offset 2)) (dec hits-left) (conj selected-names name)))
      selected-names)))
 
-(defn- end-select [^GL2 gl select-buffer renderables]
+(defn- end-select [^GL2 gl select-buffer renderables batches]
   (.glFlush gl)
   (let [hits (.glRenderMode gl GL2/GL_RENDER)
         selected-names (parse-select-buffer hits select-buffer)]
-    (map #(nth renderables %) selected-names)))
+    (loop [names selected-names
+           selected (transient [])]
+      (if-let [name (first names)]
+        (let [batch (get batches name)]
+          (doseq [renderable (subvec renderables (first batch) (second batch))]
+            (conj! selected renderable))
+          (recur (rest names) selected))
+        (persistent! selected)))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (if-let [^GLContext context (and picking-rect (make-current viewport drawable))]
     (try
       (let [gl ^GL2 (.getGL context)
             glu ^GLU (GLU.)
-            render-args {:gl gl :glu glu :camera camera :viewport viewport}
+            render-args {:glu glu :camera camera :viewport viewport}
             selection-set (set selection)]
         (flatten
           (for [pass pass/selection-passes
@@ -231,10 +254,9 @@
             (do
               (begin-select gl select-buffer)
               (setup-pass context gl glu pass camera viewport picking-rect)
-              (let [renderables (get renderables pass)]
-                (doseq [[index renderable] (keep-indexed #(list %1 %2) renderables)]
-                  (render-node gl pass renderable (assoc render-args :selected (selection-set (:node-id renderable))) index))
-                (render-sort (end-select gl select-buffer renderables) camera viewport))))))
+              (let [renderables (get renderables pass)
+                    batches (batch-render gl render-args renderables true :select-batch-key)]
+                (render-sort (end-select gl select-buffer renderables batches) camera viewport))))))
       (finally
         (.release context)))
     []))
@@ -251,16 +273,15 @@
                 render-args (assoc render-args :pass pass)]
             (begin-select gl select-buffer)
             (setup-pass context gl glu pass camera viewport tool-picking-rect)
-            (let [renderables (get tool-renderables pass)]
-              (doseq [[index renderable] (keep-indexed #(list %1 %2) renderables)]
-                (render-node gl pass renderable (assoc render-args :selected false) index))
-              (render-sort (end-select gl select-buffer renderables) camera viewport)))))
+            (let [renderables (get tool-renderables pass)
+                  batches (batch-render gl render-args renderables true :select-batch-key)]
+              (render-sort (end-select gl select-buffer renderables batches) camera viewport)))))
       (finally
         (.release context)))
     []))
 
 (g/defnk produce-selected-tool-renderables [tool-selection]
-  (apply merge-with concat {} (map #(do {(:node-id %) [(:user-data %)]}) tool-selection)))
+  (apply merge-with concat {} (map #(do {(:node-id %) [(:selection-data %)]}) tool-selection)))
 
 (defn flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables]
  (let [renderable (:renderable scene)
@@ -268,7 +289,7 @@
        transform (Matrix4d. ^Matrix4d trans-tmpl)
        world-transform (doto (Matrix4d. world-transform) (.mul transform))
        selected (contains? selection-set (:node-id scene))
-       new-renderable (assoc (dissoc scene :renderable) :render-fn (:render-fn renderable) :world-transform world-transform :selected selected)]
+       new-renderable (assoc (dissoc scene :renderable) :render-fn (:render-fn renderable) :world-transform world-transform :selected selected :user-data (:user-data renderable) :batch-key (:batch-key renderable))]
    (doseq [pass (:passes renderable)]
      (conj! (get out-renderables pass) new-renderable)
      (when (and selected (t/selection? pass))
@@ -276,14 +297,14 @@
    (doseq [child-scene (:children scene)]
      (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables))))
 
-(defn produce-render-data [scene selection extra-renderables camera viewport]
+(defn produce-render-data [scene selection aux-renderables camera viewport]
   (let [selection-set (set selection)
         out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
         out-selected-renderables (transient [])
         world-transform (doto (Matrix4d.) (.setIdentity))
         render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables)
-        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat extra-renderables))
-        out-renderables (into {} (map (fn [[pass renderables]] [pass (render-sort (persistent! renderables) camera viewport)]) out-renderables))
+        out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
+        out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables) camera viewport))]) out-renderables))
         out-selected-renderables (persistent! out-selected-renderables)]
     {:all-renderables out-renderables
      :selected-renderables out-selected-renderables}))
@@ -296,12 +317,12 @@
   (input selection t/Any)
   (input viewport Region)
   (input camera Camera)
-  (input extra-renderables pass/RenderData :array)
+  (input aux-renderables pass/RenderData :array)
   (input tool-renderables pass/RenderData :array)
   (input picking-rect Rect)
   (input tool-picking-rect Rect)
 
-  (output render-data t/Any :cached (g/fnk [scene selection extra-renderables camera viewport] (produce-render-data scene selection extra-renderables camera viewport)))
+  (output render-data t/Any :cached (g/fnk [scene selection aux-renderables camera viewport] (produce-render-data scene selection aux-renderables camera viewport)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:all-renderables render-data)))
   (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
                                                       (.order (ByteOrder/nativeOrder))
@@ -322,37 +343,6 @@
                 ((g/node-value node label) node action user-data))))
           action input-handlers))
 
-(defn- apply-transform [^Matrix4d transform renderables]
-  (let [apply-tx (fn [renderable]
-                   (let [^Matrix4d world-transform (or (:world-transform renderable) (doto (Matrix4d.) (.setIdentity)))]
-                     (assoc renderable :world-transform (doto (Matrix4d. transform)
-                                                          (.mul world-transform)))))]
-    (into {} (map (fn [[pass lst]] [pass (map apply-tx lst)]) renderables))))
-
-(defn- any-list? [v]
-  (or (seq? v) (list? v) (vector? v)))
-
-(defn scene->renderables [scene]
-  (if (any-list? scene)
-    (reduce #(merge-with concat %1 %2) {} (map scene->renderables scene))
-    (let [{:keys [node-id transform aabb renderable children]} scene
-          {:keys [render-fn passes]} renderable
-          renderables (into {} (map (fn [pass] [pass [{:node-id node-id
-                                                       :render-fn render-fn
-                                                       :world-transform (doto (Matrix4d.) (.setIdentity))}]]) passes))
-          renderables (doall (reduce #(merge-with concat %1 %2) renderables (map scene->renderables children)))]
-      (if transform
-        (apply-transform transform renderables)
-        renderables))))
-
-(defn- aabb [v]
-  (:aabb v (geom/null-aabb)))
-
-(g/defnk produce-aabb [scene]
-  (if (any-list? scene)
-    (reduce #(geom/aabb-union %1 (aabb %2)) (geom/null-aabb) scene)
-    (aabb scene)))
-
 (g/defnode SceneView
   (inherits core/Scope)
 
@@ -371,7 +361,7 @@
 
   (output scene t/Any (g/fnk [scene] scene))
   (output image WritableImage :cached (g/fnk [^BufferedImage frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
-  (output aabb AABB :cached produce-aabb) ; TODO - base aabb on selection
+  (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb)))) ; TODO - base aabb on selection
   (output selection t/Any (g/fnk [selection] selection))
   (output picking-rect Rect (g/fnk [picking-rect] picking-rect))
 
@@ -476,8 +466,12 @@
                                     image-view ^ImageView (:image-view self)
                                     visible               (.isSelected tab)]
                                 (when (and visible)
-                                  (let [image (g/node-value self :image)]
-                                    (when (not= image (.getImage image-view)) (.setImage image-view image)))))))]
+                                  (try
+                                    (let [image (g/node-value self :image)]
+                                      (when (not= image (.getImage image-view)) (.setImage image-view image)))
+                                    (catch Exception e
+                                      (.setImage image-view nil)
+                                      (.stop ^AnimationTimer this)))))))]
           (g/transact (g/set-property view :repainter repainter))
           (.start repainter)))
       (g/refresh view))))
@@ -501,40 +495,43 @@
   (output scene t/Any (g/fnk [scene] scene))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
-  (output aabb AABB :cached produce-aabb)
+  (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb))))
   (output selection t/Any :cached (g/fnk [selection] selection))
   (output picking-rect Rect :cached (g/fnk [picking-rect] picking-rect)))
 
 (defn make-preview-view [graph width height]
   (g/make-node! graph PreviewView :width width :height height))
 
-(defn render-selection-box [^GL2 gl start current]
-  (when (and start current)
-    (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
-          max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
-          min-p (reduce min-fn [start current])
-          min-x (nth min-p 0)
-          min-y (nth min-p 1)
-          max-p (reduce max-fn [start current])
-          max-x (nth max-p 0)
-          max-y (nth max-p 1)
-          z 0.0
-          c (double-array (map #(/ % 255.0) [131 188 212]))]
-      (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-      (.glBegin gl GL2/GL_LINE_LOOP)
-      (.glVertex3d gl min-x min-y z)
-      (.glVertex3d gl min-x max-y z)
-      (.glVertex3d gl max-x max-y z)
-      (.glVertex3d gl max-x min-y z)
-      (.glEnd gl)
+(defn render-selection-box [^GL2 gl render-args renderables count]
+  (let [user-data (:user-data (first renderables))
+        start (:start user-data)
+        current (:current user-data)]
+    (when (and start current)
+     (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
+           max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
+           min-p (reduce min-fn [start current])
+           min-x (nth min-p 0)
+           min-y (nth min-p 1)
+           max-p (reduce max-fn [start current])
+           max-x (nth max-p 0)
+           max-y (nth max-p 1)
+           z 0.0
+           c (double-array (map #(/ % 255.0) [131 188 212]))]
+       (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
+       (.glBegin gl GL2/GL_LINE_LOOP)
+       (.glVertex3d gl min-x min-y z)
+       (.glVertex3d gl min-x max-y z)
+       (.glVertex3d gl max-x max-y z)
+       (.glVertex3d gl max-x min-y z)
+       (.glEnd gl)
 
-      (.glBegin gl GL2/GL_QUADS)
-      (.glColor4d gl (nth c 0) (nth c 1) (nth c 2) 0.2)
-      (.glVertex3d gl min-x, min-y, z);
-      (.glVertex3d gl min-x, max-y, z);
-      (.glVertex3d gl max-x, max-y, z);
-      (.glVertex3d gl max-x, min-y, z);
-      (.glEnd gl))))
+       (.glBegin gl GL2/GL_QUADS)
+       (.glColor4d gl (nth c 0) (nth c 1) (nth c 2) 0.2)
+       (.glVertex3d gl min-x, min-y, z);
+       (.glVertex3d gl min-x, max-y, z);
+       (.glVertex3d gl max-x, max-y, z);
+       (.glVertex3d gl max-x, min-y, z);
+       (.glEnd gl)))))
 
 (defn- select [controller op-seq mode]
   (let [controller (g/refresh controller)
@@ -605,7 +602,9 @@
   (input scene t/Any)
 
   (output picking-rect Rect :cached produce-picking-rect)
-  (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d) :render-fn (g/fnk [gl] (render-selection-box gl start current))}]}))
+  (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
+                                                                                    :render-fn render-selection-box
+                                                                                    :user-data {:start start :current current}}]}))
   (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
 
 (defn setup-view [view resource-node opts]
@@ -626,7 +625,7 @@
                   (g/set-graph-value view-graph :renderer renderer)
                   (g/set-graph-value view-graph :camera   camera)
 
-                  (g/connect background      :renderable        renderer        :extra-renderables)
+                  (g/connect background      :renderable        renderer        :aux-renderables)
                   (g/connect camera          :camera            renderer        :camera)
                   (g/connect camera          :input-handler     view            :input-handlers)
                   (g/connect view            :aabb              camera          :aabb)
@@ -648,7 +647,7 @@
                   (g/connect view            :picking-rect      renderer        :tool-picking-rect)
                   (g/connect renderer        :selected-tool-renderables view    :selected-tool-renderables)
 
-                  (g/connect grid   :renderable renderer :extra-renderables)
+                  (g/connect grid   :renderable renderer :aux-renderables)
                   (g/connect camera :camera     grid     :camera)
 
 

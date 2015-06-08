@@ -91,7 +91,9 @@
   (let [vertex-binding (vtx/use-with unit-sphere cubemap-shader)]
     {:node-id         (g/node-id self)
      :aabb        aabb
-     :renderable {:render-fn (g/fnk [gl camera] (render-cubemap gl camera gpu-texture vertex-binding))
+     :renderable {:render-fn (fn [gl render-args renderables count]
+                               (let [camera (:camera render-args)]
+                                 (render-cubemap gl camera gpu-texture vertex-binding)))
                   :passes [pass/transparent]}}))
 
 (g/defnode CubemapNode
