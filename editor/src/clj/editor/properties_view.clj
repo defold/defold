@@ -171,32 +171,57 @@
       (GridPane/setConstraints label 1 row)
       (GridPane/setConstraints control 2 row)
       (.add (.getChildren grid) label)
-      (.add (.getChildren grid) control))))
+      (.add (.getChildren grid) control)
+      [[key (g/node-id node)] setter])))
+
+(defn- flatten-nodes [nodes]
+  ; TODO: This function is a bit special as we don't support multi-selection yet
+  ; We pick the first node and include potential sub-nodes. For multi-selection
+  ; we'll probably have to do something quite different from this
+  ; See also create-properties about the multi-selection comment
+  (if-let [node (first nodes)]
+    (concat [node] (when (satisfies? core/MultiNode node)
+                     (flatten-nodes (core/sub-nodes node))))
+    []))
+
+(defn- create-properties-node [workspace grid node]
+  (let [properties (g/properties node)]
+    (mapcat (fn [[key p]]
+              (let [row (/ (.size (.getChildren grid)) 2)]
+                (create-properties-row workspace grid node key p row)))
+         properties)))
 
 (defn- create-properties [workspace grid nodes]
   ; TODO - add multi-selection support for properties view
-  (when-let [node (first nodes)]
-    (let [properties (g/properties node)]
-      (doseq [[key p] properties]
-        (let [row (/ (.size (.getChildren grid)) 2)]
-          (create-properties-row workspace grid node key p row)))
-      (when (satisfies? core/MultiNode node)
-        (let [sub-nodes (core/sub-nodes node)]
-          (when (not (empty? sub-nodes))
-            (create-properties workspace grid sub-nodes)))))))
+  (doall (mapcat (fn [node] (create-properties-node workspace grid node)) nodes)))
 
-(defn- update-grid [parent workspace nodes]
-  (if nodes
-    (let [grid (GridPane.)]
+(defn- make-grid [parent workspace nodes node-ids]
+  (let [grid (GridPane.)]
       (.setPadding grid (Insets. 10 10 10 10))
       (.setHgap grid 4)
       (.setVgap grid 6)
-      (create-properties workspace grid nodes)
+      (let [setters (create-properties workspace grid nodes)]
+        ; NOTE: Note setters is a sequence of [[property-key node-id] setter..]
+        (ui/user-data! parent ::setters (apply hash-map setters)))
       (ui/children! parent [grid])
-      grid)
-    (do
-      (ui/children! parent [])
-      nil)))
+      grid))
+
+(defn- refresh-grid [parent workspace nodes]
+  (let [setters (ui/user-data parent ::setters)]
+    (doseq [node nodes]
+      (doseq [[key p] (g/properties node)]
+        (let [setter (get setters [key (g/node-id node)])]
+          (setter (get node key)))))))
+
+(defn- update-grid [parent workspace nodes]
+  ; NOTE: We cache the ui based on the ::nodes-ids user-data
+  (let [all-nodes (flatten-nodes nodes)
+        node-ids (map g/node-id all-nodes)]
+    (if (not= node-ids (ui/user-data parent ::node-ids))
+      (do
+        (make-grid parent workspace all-nodes node-ids)
+        (ui/user-data! parent ::node-ids node-ids))
+      (refresh-grid parent workspace all-nodes))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
