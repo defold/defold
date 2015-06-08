@@ -131,7 +131,7 @@ static void RunCallback(lua_State* L, int cb, int self, NSData* deviceToken, NSE
     assert(top == lua_gettop(L));
 }
 
-static void ToLua(lua_State*L, id obj)
+static void ObjCToLua(lua_State*L, id obj)
 {
     if ([obj isKindOfClass:[NSString class]]) {
         const char* str = [((NSString*) obj) UTF8String];
@@ -146,14 +146,14 @@ static void ToLua(lua_State*L, id obj)
         for (NSString* key in dict) {
             lua_pushstring(L, [key UTF8String]);
             id value = [dict objectForKey:key];
-            ToLua(L, (NSDictionary*) value);
+            ObjCToLua(L, (NSDictionary*) value);
             lua_rawset(L, -3);
         }
     } else if ([obj isKindOfClass:[NSArray class]]) {
         NSArray* a = (NSArray*) obj;
         lua_createtable(L, [a count], 0);
         for (int i = 0; i < [a count]; ++i) {
-            ToLua(L, [a objectAtIndex: i]);
+            ObjCToLua(L, [a objectAtIndex: i]);
             lua_rawseti(L, -2, i+1);
         }
     } else {
@@ -183,17 +183,17 @@ static void RunListener(NSDictionary *userdata, bool local)
             NSString* json = (NSString*)[userdata objectForKey:@"payload"];
             dmJson::Result r = dmJson::Parse([json UTF8String], &doc);
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-                JsonToLua(L, &doc, 0);
+                dmScript::JsonToLua(L, &doc, 0);
             } else {
                 dmLogError("Failed to parse local push response (%d)", r);
             }
             dmJson::Free(&doc);
 
-            lua_pushnumber(L, 1);
+            lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_LOCAL);
 
         } else {
-            ToLua(L, userdata);
-            lua_pushnumber(L, 0);
+            ObjCToLua(L, userdata);
+            lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
         }
 
         int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
@@ -329,7 +329,7 @@ int Push_Register(lua_State* L)
 
 /*# set push listener
  *
- * The listener callback has the following signature: function(self, message, error_msg, origin) where message is a table
+ * The listener callback has the following signature: function(self, payload, origin) where payload is a table
  * with the push payload.
  * @name push.set_listener
  * @param listener listener function
@@ -381,8 +381,8 @@ int Push_SetBadgeCount(lua_State* L)
  * @name push.schedule
  * @param time Number of seconds, into the future until the notification should be triggered
  * @param title Localized title to be displayed to the user if the application is not running.
- * @param message Localized message to be displayed to the user if the application is not running.
- * @param userdata JSON string to be passed to the registered listener function
+ * @param alert Localized body message of the notification to be displayed to the user if the application is not running.
+ * @param payload JSON string to be passed to the registered listener function
  * @param notification_settings Table with notification and platform specific data
  * @return id Unique id that can be used to cancel the notification
  * @return err Error string if something went wrong, otherwise nil
@@ -567,6 +567,7 @@ static const luaL_reg Push_methods[] =
     {"cancel", Push_Cancel},
     {"get_scheduled", Push_GetScheduled},
     {"get_all_scheduled", Push_GetAllScheduled},
+
     {0, 0}
 };
 
@@ -618,6 +619,9 @@ dmExtension::Result InitializePush(dmExtension::Params* params)
     SETCONSTANT(NOTIFICATION_BADGE, UIRemoteNotificationTypeBadge);
     SETCONSTANT(NOTIFICATION_SOUND, UIRemoteNotificationTypeSound);
     SETCONSTANT(NOTIFICATION_ALERT, UIRemoteNotificationTypeAlert);
+
+    SETCONSTANT(ORIGIN_REMOTE, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
+    SETCONSTANT(ORIGIN_LOCAL,  DM_PUSH_EXTENSION_ORIGIN_LOCAL);
 
 #undef SETCONSTANT
 

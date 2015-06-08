@@ -7,6 +7,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/configfile.h>
+#include <dlib/json.h>
 #include <resource/resource.h>
 #include <ddf/ddf.h>
 
@@ -445,6 +446,15 @@ namespace dmScript
      * Wraps luaL_loadbuffer but takes dmLuaDDF::LuaSource instead of buffer directly.
      */
     int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source);
+
+    /**
+     * Convert a JSON document to Lua table.
+     * @param L lua state
+     * @param doc JSON document
+     * @param index index of JSON node
+     * @return index of next JSON node to handle
+     */
+    int JsonToLua(lua_State*L, dmJson::Document* doc, int index);
 }
 
 #endif // DM_SCRIPT_H
