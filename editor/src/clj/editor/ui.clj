@@ -99,11 +99,11 @@
   `(Platform/runLater
     (fn [] ~@body)))
 
-(defn- set-user-data [^Node node key val]
+(defn user-data! [^Node node key val]
   (let [ud (or (.getUserData node) {})]
     (.setUserData node (assoc ud key val))))
 
-(defn- get-user-data [^Node node key]
+(defn user-data [^Node node key]
   (get (.getUserData node) key))
 
 (defmacro event-handler [event & body]
@@ -324,17 +324,17 @@
  (let [root (.getRoot scene)]
    (if-let [menubar (.lookup root menubar-id)]
      (let [desc (make-desc menubar menu-id command-context selection-provider)]
-       (set-user-data root ::menubar desc))
+       (user-data! root ::menubar desc))
      (log/warn :message (format "menubar %s not found" menubar-id)))))
 
 (defn- refresh-menubar [md]
  (let [menu (realize-menu (:menu-id md))
        control ^MenuBar (:control md)]
-   (when-not (= menu (get-user-data control ::menu))
+   (when-not (= menu (user-data control ::menu))
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
      (.addAll (.getMenus control) (to-array (make-menu md menu)))
-     (set-user-data control ::menu menu))))
+     (user-data! control ::menu menu))))
 
 (defn- refresh-menu-state [^Menu menu command-context]
   (doseq [m (.getItems menu)]
@@ -350,15 +350,15 @@
   (let [root (.getRoot scene)]
     (if-let [toolbar (.lookup root toolbar-id)]
       (let [desc (make-desc toolbar menu-id command-context selection-provider)]
-        (set-user-data root ::toolbars (assoc-in (get-user-data root ::toolbars) [toolbar-id] desc)))
+        (user-data! root ::toolbars (assoc-in (user-data root ::toolbars) [toolbar-id] desc)))
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
 
 (defn- refresh-toolbar [td]
  (let [menu (realize-menu (:menu-id td))
        ^Pane control (:control td)]
-   (when-not (= menu (get-user-data control ::menu))
+   (when-not (= menu (user-data control ::menu))
      (.clear (.getChildren control))
-     (set-user-data control ::menu menu)
+     (user-data! control ::menu menu)
      (doseq [menu-item menu]
        (let [button (ToggleButton. (:label menu-item))
              icon (:icon menu-item)
@@ -383,8 +383,8 @@
 
 (defn refresh [^Scene scene]
  (let [root (.getRoot scene)
-       toolbar-descs (vals (get-user-data root ::toolbars))]
-   (when-let [md (get-user-data root ::menubar)]
+       toolbar-descs (vals (user-data root ::toolbars))]
+   (when-let [md (user-data root ::menubar)]
      (refresh-menubar md)
      (refresh-menubar-state (:control md) (make-command-context md)))
    (doseq [td toolbar-descs]
