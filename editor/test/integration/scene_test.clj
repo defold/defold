@@ -135,6 +135,7 @@
            (with-clean-system
              (let [workspace     (test-util/setup-workspace! world)
                    project       (test-util/setup-project! workspace)
+                   project-graph (g/node->graph-id project)
                    app-view      (test-util/setup-app-view!)
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
@@ -149,11 +150,14 @@
                (is (= 0.0 (.x (pos go-node))))
                (test-util/mouse-drag! view 64 64 68 64)
                (is (not= 0.0 (.x (pos go-node))))
+               (g/undo project-graph)
                ; Rotate tool
                (test-util/set-active-tool! app-view :rotate)
                (is (= 0.0 (.x (rot go-node))))
-               (test-util/mouse-drag! view 64 64 64 68)
+               ;; begin drag at y = 80 to hit y axis (for x rotation)
+               (test-util/mouse-drag! view 64 80 64 84)
                (is (not= 0.0 (.x (rot go-node))))
+               (g/undo project-graph)
                ; Scale tool
                (test-util/set-active-tool! app-view :scale)
                (is (= 1.0 (.x (scale go-node))))
