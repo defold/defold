@@ -234,10 +234,12 @@
   (let [vertex-buffer (gen-renderable-vertex-buffer texture-packing)
         vertex-binding (vtx/use-with vertex-buffer atlas-shader)]
     {:aabb aabb
-     :renderable {:render-fn (g/fnk [gl glu text-renderer pass]
-                                    (cond
-                                      (= pass pass/overlay)     (render-overlay gl text-renderer texture-packing)
-                                      (= pass pass/transparent) (render-texture-packing gl texture-packing vertex-binding gpu-texture)))
+     :renderable {:render-fn (fn [gl render-args renderables count]
+                               (let [pass (:pass render-args)
+                                     text-renderer (:text-renderer render-args)]
+                                 (cond
+                                   (= pass pass/overlay)     (render-overlay gl text-renderer texture-packing)
+                                   (= pass pass/transparent) (render-texture-packing gl texture-packing vertex-binding gpu-texture))))
                   :passes [pass/overlay pass/transparent]}}))
 
 (g/defnode AtlasNode

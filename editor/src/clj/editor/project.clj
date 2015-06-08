@@ -142,11 +142,13 @@ ordinary paths."
   ([project nodes]
     (select! project nodes (gensym)))
   ([project nodes op-seq]
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Select")
-        (select project nodes)))))
+    (let [old-nodes (g/node-value project :selected-nodes)]
+      (when (not= nodes old-nodes)
+        (g/transact
+          (concat
+            (g/operation-sequence op-seq)
+            (g/operation-label "Select")
+            (select project nodes)))))))
 
 (defn make-project [graph workspace]
   (first

@@ -67,8 +67,12 @@
                     (nth (:aabbs grids) grid-index))))))
 
 (defn render-scaled-grids
-  [^GL2 gl camera grids]
-  (let [view-matrix (c/camera-view-matrix camera)
+  [^GL2 gl pass renderables count]
+  (let [renderable (first renderables)
+        user-render-data (:user-render-data renderable)
+        camera (:camera user-render-data)
+        grids (:grids user-render-data)
+        view-matrix (c/camera-view-matrix camera)
         dir         (double-array 4)
         _           (.getRow view-matrix 2 dir)]
     (gl/gl-lines gl
@@ -79,7 +83,9 @@
   [camera grids]
   {pass/transparent
    [{:world-transform geom/Identity4d
-     :render-fn       (g/fnk [gl] (render-scaled-grids gl camera grids))}]})
+     :render-fn       render-scaled-grids
+     :user-render-data {:camera camera
+                        :grids grids}}]})
 
 (def axis-vectors
   [(Vector4d. 1.0 0.0 0.0 0.0)

@@ -29,25 +29,20 @@
 (defn- make-aabb [min max]
   (reduce geom/aabb-incorporate (geom/null-aabb) (map #(Point3d. (double-array (conj % 0))) [min max])))
 
-(defn- world-x [node]
-  (let [scene (g/node-value node :scene)
-        renderables (scene/scene->renderables scene)]
-    (.getElement (:world-transform (first (second (first renderables)))) 0 3)))
-
 (deftest gen-scene
   (testing "Scene generation"
            (let [cases {"/logic/atlas_sprite.collection"
                         (fn [node]
                           (let [go (ffirst (g/sources-of node :child-scenes))]
-                            (is (= 0.0 (world-x node)))
+                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
                             (g/transact (g/set-property go :position [10 0 0]))
-                            (is (= 10.0 (world-x node)))))
+                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/logic/atlas_sprite.go"
                         (fn [node]
                           (let [component (ffirst (g/sources-of node :child-scenes))]
-                            (is (= 0.0 (world-x node)))
+                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
                             (g/transact (g/set-property component :position [10 0 0]))
-                            (is (= 10.0 (world-x node)))))
+                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/sprite/atlas.sprite"
                         (fn [node]
                           (let [scene (g/node-value node :scene)
@@ -75,9 +70,11 @@
                         }]
              (with-clean-system
                (let [workspace     (test-util/setup-workspace! world)
-                     project       (test-util/setup-project! workspace)]
+                     project       (test-util/setup-project! workspace)
+                     app-view      (test-util/setup-app-view!)]
                  (doseq [[path test-fn] cases]
-                   (let [node (test-util/resource-node project path)]
+                   (let [node (test-util/resource-node project path)
+                         view (test-util/open-scene-view! project app-view node 128 128)]
                      (is (not (nil? node)) (format "Could not find '%s'" path))
                      (test-fn node))))))))
 
@@ -94,7 +91,7 @@
                (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
-  (testing "Scene generation"
+  (testing "Scene selection"
            (with-clean-system
              (let [workspace     (test-util/setup-workspace! world)
                    project       (test-util/setup-project! workspace)
@@ -122,6 +119,21 @@
                  (is (test-util/selected? project go-node))
                  (test-util/mouse-click! view 32 32 modifiers)
                  (is (test-util/selected? project resource-node)))))))
+
+(deftest scene-multi-selection
+  (testing "Scene multi selection"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world)
+                   project       (test-util/setup-project! workspace)
+                   app-view      (test-util/setup-app-view!)
+                   path          "/logic/two_atlas_sprites.collection"
+                   resource-node (test-util/resource-node project path)
+                   view          (test-util/open-scene-view! project app-view resource-node 128 128)
+                   go-nodes      (map first (g/sources-of resource-node :child-scenes))]
+               (is (test-util/empty-selection? project))
+               ; Drag entire screen
+               (test-util/mouse-drag! view 0 0 128 128)
+               (is (every? #(test-util/selected? project %) go-nodes))))))
 
 (defn- pos [node]
   (g/node-value node :position))
