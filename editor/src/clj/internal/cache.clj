@@ -51,7 +51,7 @@
                        ch))))
   (evict [this key]
          (let [v (get cache key ::miss)]
-           (if (= v ::miss)
+           (if (= ::miss v)
              this
              (do
                (post-removal ch v)
