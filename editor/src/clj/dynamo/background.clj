@@ -10,7 +10,7 @@
 (def grad-top-color    (gl/color 123 143 167))
 (def grad-bottom-color (gl/color  28  29  31))
 
-(g/defnk render-gradient [^GL2 gl]
+(defn render-gradient [^GL2 gl pass renderables count]
   (let [x0           (float -1.0)
         x1           (float 1.0)
         y0           (float -1.0)
@@ -24,4 +24,4 @@
       (gl/gl-vertex-2f x0 y0))))
 
 (g/defnode Gradient
-  (output renderable p/RenderData (fnk [this] {p/background [{:world-transform geom/Identity4d :render-fn #'render-gradient}]})))
+  (output renderable p/RenderData (fnk [this] {p/background [{:world-transform geom/Identity4d :render-fn render-gradient}]})))

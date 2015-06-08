@@ -152,7 +152,8 @@
   (let [scene {:node-id (g/node-id self) :aabb aabb}
         vertex-buffer (gen-vertex-buffer control-points)]
     (if vertex-buffer
-      (assoc scene :renderable {:render-fn (g/fnk [gl] (render-platformer gl base-texture-tex vertex-buffer))
+      (assoc scene :renderable {:render-fn (fn [gl render-args renderables count]
+                                             (render-platformer gl base-texture-tex vertex-buffer))
                                 :passes [pass/transparent]})
      scene)))
 
