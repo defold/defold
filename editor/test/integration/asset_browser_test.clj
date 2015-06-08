@@ -31,6 +31,7 @@
       (with-clean-system
         (let [workspace  (test-util/setup-workspace! world)
               project    (test-util/setup-project! workspace)
+              app-view      (test-util/setup-app-view!)
               view-graph (g/make-graph! :history false :volatility 2)]
           (doseq [query queries
                   :let [results (project/find-resources project query)]]
@@ -39,7 +40,9 @@
                   resource-type (project/get-resource-type resource-node)
                   view-type (first (:view-types resource-type))
                   make-preview-fn (:make-preview-fn view-type)
-                  view-opts ((:id view-type) (:view-opts resource-type))
+                  view-opts (assoc ((:id view-type) (:view-opts resource-type))
+                                   :app-view app-view
+                                   :project project)
                   view (make-preview-fn view-graph resource-node view-opts 128 128)]
               (let [image (g/node-value view :frame)]
                 (is (not (nil? image)))))))))))
