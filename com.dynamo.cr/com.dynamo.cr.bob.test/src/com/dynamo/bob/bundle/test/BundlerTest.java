@@ -168,7 +168,7 @@ public class BundlerTest {
 
     @Test
     public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError {
-        createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt");
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
         HashSet<String> entries = readDarcEntries(contentRoot);
@@ -189,7 +189,7 @@ public class BundlerTest {
         createFile(sub2.getAbsolutePath(), "s2-1.txt", "dummy");
         createFile(sub2.getAbsolutePath(), "s2-2.txt", "dummy");
 
-        createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom,m.txt");
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom,m.txt\n[display]\nwidth=640\nheight=480\n");
         build();
         HashSet<String> entries = readDarcEntries(contentRoot);
         assertTrue(entries.contains("/m.txt"));
@@ -198,7 +198,7 @@ public class BundlerTest {
         assertTrue(entries.contains("/custom/sub2/s2-1.txt"));
         assertTrue(entries.contains("/custom/sub2/s2-2.txt"));
 
-        createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom/sub2");
+        createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
         entries = readDarcEntries(contentRoot);
         assertFalse(entries.contains("/m.txt"));
