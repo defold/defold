@@ -19,8 +19,7 @@ public class LocalPushDispatchActivity extends Activity {
             Bundle extras = getIntent().getExtras();
             if (extras != null) {
 
-                if (Push.getInstance().hasListener())
-                {
+                if (Push.getInstance().hasListener()) {
                     Push.getInstance().onLocalPush(extras.getString("payload"), extras.getInt("uid"));
                 } else {
 

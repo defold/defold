@@ -21,11 +21,6 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
 
     NotificationManager nm;
 
-    static int PRIORITY_LUT[] = { Notification.PRIORITY_MIN,
-                                  Notification.PRIORITY_LOW,
-                                  Notification.PRIORITY_HIGH,
-                                  Notification.PRIORITY_MAX };
-
     @Override
     public void onReceive(Context context, Intent intent) {
 
@@ -38,8 +33,7 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
         new_intent.putExtras(extras);
         new_intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
-        try
-        {
+        try {
             PendingIntent contentIntent = PendingIntent.getActivity(context, id, new_intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT);
 
             // get application icon
@@ -53,19 +47,17 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
                 .setSmallIcon(info.icon)
                 .setContentTitle(extras.getString("title"))
                 .setContentText(extras.getString("message"))
-                // .setGroup(extras.getString("group"))
                 .setWhen(System.currentTimeMillis())
                 .setContentIntent(contentIntent)
-                .setPriority(PRIORITY_LUT[extras.getInt("priority")]);
+                .setPriority(extras.getInt("priority"));
 
             Notification notification = builder.build();
             notification.defaults = Notification.DEFAULT_ALL;
             notification.flags |= Notification.FLAG_AUTO_CANCEL;
             nm.notify(id, notification);
 
-        } catch (PackageManager.NameNotFoundException e)
-        {
-            System.out.println("PackageManager.NameNotFoundException!");
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e("LocalNotificationReceiver", "PackageManager.NameNotFoundException!");
         }
 
     }
