@@ -283,7 +283,6 @@ public class Push {
 
     void onLocalPush(String msg, int id) {
         if (listener != null) {
-            Log.d(TAG, "forwarding local message to application");
             this.listener.onLocalMessage(msg, id);
         }
 

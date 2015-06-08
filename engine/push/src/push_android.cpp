@@ -17,8 +17,9 @@ extern struct android_app* g_AndroidApp;
 
 struct Push;
 
-#define CMD_REGISTRATION_RESULT (0)
-#define CMD_PUSH_MESSAGE_RESULT (1)
+#define CMD_REGISTRATION_RESULT  (0)
+#define CMD_PUSH_MESSAGE_RESULT  (1)
+#define CMD_LOCAL_MESSAGE_RESULT (2)
 
 struct Command
 {
@@ -177,7 +178,7 @@ int Push_Schedule(lua_State* L)
     }
 
     // param: notification_settings
-    int priority = 3;
+    int priority = 2;
     // char* icon = 0;
     // char* sound = 0;
     if (top > 4) {
@@ -189,10 +190,10 @@ int Push_Schedule(lua_State* L)
         if (lua_isnumber(L, -1)) {
             priority = lua_tointeger(L, -1);
 
-            if (priority < 0) {
-                priority = 0;
-            } else if (priority > 5) {
-                priority = 5;
+            if (priority < -2) {
+                priority = -2;
+            } else if (priority > 2) {
+                priority = 2;
             }
         }
         lua_pop(L, 1);
@@ -227,6 +228,9 @@ int Push_Schedule(lua_State* L)
     sn.message   = strdup(message);
     sn.payload   = strdup(payload);
     sn.priority  = priority;
+    if (g_Push.m_ScheduledNotifications.Remaining() == 0) {
+        g_Push.m_ScheduledNotifications.SetCapacity(g_Push.m_ScheduledNotifications.Capacity()*2);
+    }
     g_Push.m_ScheduledNotifications.Push( sn );
 
     JNIEnv* env = Attach();
@@ -276,7 +280,6 @@ static void RemoveNotification(int id)
 int Push_Cancel(lua_State* L)
 {
     int cancel_id = luaL_checkinteger(L, 1);
-    dmLogWarning("trying to cancel id: %d", cancel_id);
 
     for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
@@ -284,7 +287,6 @@ int Push_Cancel(lua_State* L)
 
         if (sn.id == cancel_id)
         {
-            dmLogWarning("found! %d", sn.id);
             JNIEnv* env = Attach();
             jstring jtitle   = env->NewStringUTF(sn.title);
             jstring jmessage = env->NewStringUTF(sn.message);
@@ -454,7 +456,7 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onLocalMessage(JNIEnv* env, 
     RemoveNotification(id);
 
     Command cmd;
-    cmd.m_Command = CMD_PUSH_MESSAGE_RESULT;
+    cmd.m_Command = CMD_LOCAL_MESSAGE_RESULT;
     cmd.m_Data1 = strdup(j);
     if (write(g_Push.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
@@ -513,7 +515,7 @@ void HandleRegistrationResult(const Command* cmd)
     assert(top == lua_gettop(L));
 }
 
-void HandlePushMessageResult(const Command* cmd)
+void HandlePushMessageResult(const Command* cmd, bool local)
 {
     if (g_Push.m_Listener.m_Callback == LUA_NOREF) {
         dmLogError("No callback set");
@@ -538,11 +540,20 @@ void HandlePushMessageResult(const Command* cmd)
         return;
     }
 
+
+
     dmJson::Document doc;
     dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
     if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-        JsonToLua(L, &doc, 0);
-        dmScript::PCall(L, 2, LUA_MULTRET);
+        dmScript::JsonToLua(L, &doc, 0);
+
+        if (local) {
+            lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_LOCAL);
+        } else {
+            lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
+        }
+
+        dmScript::PCall(L, 3, LUA_MULTRET);
     } else {
         dmLogError("Failed to parse push response (%d)", r);
     }
@@ -563,7 +574,10 @@ static int LooperCallback(int fd, int events, void* data)
             HandleRegistrationResult(&cmd);
             break;
         case CMD_PUSH_MESSAGE_RESULT:
-            HandlePushMessageResult(&cmd);
+            HandlePushMessageResult(&cmd, false);
+            break;
+        case CMD_LOCAL_MESSAGE_RESULT:
+            HandlePushMessageResult(&cmd, true);
             break;
 
         default:
@@ -668,6 +682,23 @@ dmExtension::Result InitializePush(dmExtension::Params* params)
     lua_State*L = params->m_L;
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, Push_methods);
+
+#define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); \
+        lua_setfield(L, -2, #name);\
+
+    // Values from http://developer.android.com/reference/android/support/v4/app/NotificationCompat.html#PRIORITY_DEFAULT
+    SETCONSTANT(PRIORITY_MIN,     -2);
+    SETCONSTANT(PRIORITY_LOW,     -1);
+    SETCONSTANT(PRIORITY_DEFAULT,  0);
+    SETCONSTANT(PRIORITY_HIGH,     1);
+    SETCONSTANT(PRIORITY_MAX,      2);
+
+    SETCONSTANT(ORIGIN_REMOTE, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
+    SETCONSTANT(ORIGIN_LOCAL,  DM_PUSH_EXTENSION_ORIGIN_LOCAL);
+
+#undef SETCONSTANT
+
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
     return dmExtension::RESULT_OK;
