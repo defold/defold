@@ -108,6 +108,7 @@
                           (g/connect a :out-from-inline z :string-input)
                           (g/connect a :out-from-inline w :string-input)))
             deps        (dependencies system a :out-from-inline)]
+        (def basis* (g/now))
         (is (= deps
                #{[(id a) :out-from-inline]
                  [(id w) :out-from-input]
