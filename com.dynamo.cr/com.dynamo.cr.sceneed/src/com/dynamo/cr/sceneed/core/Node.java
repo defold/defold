@@ -263,7 +263,7 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public Vector3d getScale() {
-        return this.scale;
+        return new Vector3d(this.scale);
     }
 
     public static void eulerToQuat(Tuple3d euler, Quat4d quat) {
