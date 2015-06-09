@@ -88,10 +88,10 @@ public class SplashHandler extends AbstractSplashHandler implements PaintListene
 
             Shell splashShell = getSplash();
             if (splashShell == null) {
-            	// In Eclipse 4 this one is invoke whenever a bundle change
-            	// and after the splash is disposed.
-            	// See org.eclipse.ui.internal.Workbench$StartupProgressBundleListener.bundleChanged
-            	return;
+                // In Eclipse 4 this one is invoke whenever a bundle change
+                // and after the splash is disposed.
+                // See org.eclipse.ui.internal.Workbench$StartupProgressBundleListener.bundleChanged
+                return;
             }
             Display display = splashShell.getDisplay();
 
@@ -141,13 +141,13 @@ public class SplashHandler extends AbstractSplashHandler implements PaintListene
 
     @Override
     public void paintControl(PaintEvent e) {
-        int progressY = 385;
 
         double progress = monitor.worked / (double) monitor.totalWork;
         GC gc = new GC(canvas);
         int width = canvas.getSize().x;
         int progressWidth = progressBg.getBounds().width;
         int progressHeight = progressBg.getBounds().height;
+        int progressY = canvas.getSize().y-progressHeight-1;
         int x = width / 2 - progressWidth / 2;
         int w = (int) (progressWidth * progress + 0.5);
         gc.drawImage(progressBg, x, progressY);
@@ -155,7 +155,7 @@ public class SplashHandler extends AbstractSplashHandler implements PaintListene
 
         String text = String.format("Version %s", EditorCorePlugin.getDefault().getVersion());
         int textWidth = gc.stringExtent(text).x;
-        gc.setBackground(new Color(getSplash().getDisplay(), 255, 255, 255));
+        gc.setBackground(new Color(getSplash().getDisplay(), 240, 242, 246));
         gc.drawText(text, width / 2 - textWidth / 2, 360 - gc.getFontMetrics().getHeight() / 2);
 
         if (ribbon != null) {
