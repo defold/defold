@@ -51,7 +51,7 @@
 
 (defmethod create-property-control! String [_ workspace on-new-value]
   (let [text (TextField.)
-        setter #(.setText text (str %))]
+        setter #(ui/text! text (str %))]
     (.setOnAction text (ui/event-handler event (on-new-value (.getText text))))
     [text setter]))
 
@@ -63,7 +63,7 @@
 
 (defmethod create-property-control! t/Int [_ workspace on-new-value]
   (let [text (TextField.)
-        setter #(.setText text (str %))]
+        setter #(ui/text! text (str %))]
     (.setOnAction text (ui/event-handler event (on-new-value (to-int (.getText text)))))
     [text setter]))
 
@@ -80,7 +80,7 @@
         box (HBox.)
         setter (fn [vec]
                  (doseq-indexed [t [x y z] i]
-                   (.setText ^TextField t (str (nth vec i)))))
+                   (ui/text! t (str (nth vec i)))))
         handler (ui/event-handler event (on-new-value (mapv #(to-double (.getText ^TextField %)) [x y z])))]
 
     (.setSpacing box 6)
@@ -126,7 +126,7 @@
 
 (defmethod create-property-control! :default [_ workspace on-new-value]
   (let [text (TextField.)
-        setter #(.setText text (str %))]
+        setter #(ui/text! text (str %))]
     (.setDisable text true)
     [text setter]))
 
@@ -134,7 +134,7 @@
   (let [box (HBox.)
         button (Button. "...")
         text (TextField.)
-        setter #(.setText text (when % (workspace/proj-path %)))]
+        setter #(ui/text! text (when % (workspace/proj-path %)))]
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
                                      (on-new-value resource))))
     (ui/children! box [text button])
