@@ -23,6 +23,7 @@ Require-Bundle: org.eclipse.ui,
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Export-Package: com.dynamo.cr.guied.core,
- com.dynamo.cr.guied.refactoring
+ com.dynamo.cr.guied.refactoring,
+ com.dynamo.cr.guied.util
 Bundle-Activator: com.dynamo.cr.guied.Activator
 Import-Package: com.dynamo.cr.tileeditor.scene

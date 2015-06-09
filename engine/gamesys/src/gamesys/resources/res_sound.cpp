@@ -7,17 +7,9 @@
 namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory,
-                                        const void* buffer, uint32_t buffer_size,
+                                        dmSoundDDF::SoundDesc* sound_desc,
                                         Sound** sound)
     {
-        dmSoundDDF::SoundDesc* sound_desc;
-
-        dmDDF::Result e = dmDDF::LoadMessage<dmSoundDDF::SoundDesc>(buffer, buffer_size, &sound_desc);
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
         dmSound::HSoundData sound_data = 0;
         dmResource::Result fr = dmResource::Get(factory, sound_desc->m_Sound, (void**) &sound_data);
         if (fr == dmResource::RESULT_OK)
@@ -40,14 +32,35 @@ namespace dmGameSystem
         return fr;
     }
 
+
+    dmResource::Result ResSoundPreload(dmResource::HFactory factory,
+                                       dmResource::HPreloadHintInfo hint_info,
+                                       void* context,
+                                       const void* buffer, uint32_t buffer_size,
+                                       void** preload_data,
+                                       const char* filename)
+    {
+        dmSoundDDF::SoundDesc* sound_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmSoundDDF::SoundDesc>(buffer, buffer_size, &sound_desc);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        dmResource::PreloadHint(hint_info, sound_desc->m_Sound);
+        *preload_data = sound_desc;
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResSoundCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
+                                           void* preload_data,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename)
     {
+        dmSoundDDF::SoundDesc* sound_desc = (dmSoundDDF::SoundDesc*) preload_data;
         Sound* sound;
-        dmResource::Result r = AcquireResources(factory, buffer, buffer_size, &sound);
+        dmResource::Result r = AcquireResources(factory, sound_desc, &sound);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*) sound;

@@ -37,6 +37,9 @@ namespace dmGameSystem
         uint32_t                        m_Enabled : 1;
         uint32_t                        m_Unloaded : 1;
         uint32_t                        m_AddedToUpdate : 1;
+
+        dmResource::HPreloader          m_Preloader;
+        dmMessage::URL                  m_LoadSender, m_LoadReceiver;
     };
 
     struct CollectionProxyWorld
@@ -44,6 +47,25 @@ namespace dmGameSystem
         dmArray<CollectionProxyComponent>   m_Components;
         dmIndexPool32                       m_IndexPool;
     };
+
+    static dmGameObject::UpdateResult DoLoad(dmResource::HFactory factory, CollectionProxyComponent *proxy)
+    {
+        dmResource::Result result = dmResource::Get(factory, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
+        if (result != dmResource::RESULT_OK)
+        {
+            dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+        if (dmMessage::IsSocketValid(proxy->m_LoadSender.m_Socket))
+        {
+            dmMessage::Result msg_result = dmMessage::Post(&proxy->m_LoadReceiver, &proxy->m_LoadSender, dmHashString64("proxy_loaded"), 0, 0, 0, 0);
+            if (msg_result != dmMessage::RESULT_OK)
+            {
+                dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
+            }
+        }
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
 
     dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -65,6 +87,11 @@ namespace dmGameSystem
         dmResource::HFactory factory = context->m_Factory;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
+            dmResource::HPreloader preloader = proxy_world->m_Components[i].m_Preloader;
+            if (preloader != 0)
+            {
+                dmResource::DeletePreloader(preloader);
+            }
             dmGameObject::HCollection collection = proxy_world->m_Components[i].m_Collection;
             if (collection != 0)
             {
@@ -132,6 +159,18 @@ namespace dmGameSystem
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
             if (!proxy->m_AddedToUpdate) {
                 continue;
+            }
+            if (proxy->m_Preloader != 0)
+            {
+                CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
+                dmResource::HFactory factory = context->m_Factory;
+                dmResource::Result r = dmResource::UpdatePreloader(proxy->m_Preloader, 10*1000);
+                if (r != dmResource::RESULT_PENDING)
+                {
+                    DoLoad(factory, proxy);
+                    dmResource::DeletePreloader(proxy->m_Preloader);
+                    proxy->m_Preloader = 0;
+                }
             }
             if (proxy->m_Collection != 0)
             {
@@ -271,25 +310,28 @@ namespace dmGameSystem
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
-        if (params.m_Message->m_Id == dmHashString64("load"))
+
+        if (params.m_Message->m_Id == dmHashString64("load") || params.m_Message->m_Id == dmHashString64("async_load"))
         {
             if (proxy->m_Collection == 0)
             {
-                proxy->m_Unloaded = 0;
-                // TODO: asynchronous loading
-                dmResource::Result result = dmResource::Get(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
-                if (result != dmResource::RESULT_OK)
+                if (proxy->m_Preloader != 0)
                 {
-                    dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);
-                    return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                    dmLogWarning("The collection %s is already being loaded.", proxy->m_Resource->m_DDF->m_Collection);
+                    return dmGameObject::UPDATE_RESULT_OK;
                 }
-                if (dmMessage::IsSocketValid(params.m_Message->m_Sender.m_Socket))
+
+                proxy->m_Unloaded = 0;
+                proxy->m_LoadSender = params.m_Message->m_Sender;
+                proxy->m_LoadReceiver = params.m_Message->m_Receiver;
+
+                if (params.m_Message->m_Id == dmHashString64("async_load"))
                 {
-                    dmMessage::Result msg_result = dmMessage::Post(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, dmHashString64("proxy_loaded"), 0, 0, 0, 0);
-                    if (msg_result != dmMessage::RESULT_OK)
-                    {
-                        LogMessageError(params.m_Message, "proxy_loaded could not be posted: %d", msg_result);
-                    }
+                    proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection);
+                }
+                else
+                {
+                    return DoLoad(context->m_Factory, proxy);
                 }
             }
             else
@@ -299,6 +341,11 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmHashString64("unload"))
         {
+            if (proxy->m_Preloader != 0)
+            {
+                dmResource::DeletePreloader(proxy->m_Preloader);
+                proxy->m_Preloader = 0;
+            }
             if (proxy->m_Collection != 0)
             {
                 dmResource::Release(context->m_Factory, proxy->m_Collection);
@@ -430,6 +477,43 @@ namespace dmGameSystem
      * </pre>
      */
 
+    /*# tells a collection proxy to start asynchronous loading of the referenced collection
+     * <p>
+     * Post this message to a collection-proxy-component to start background loading of the referenced collection.
+     * When the loading has completed, the message <code>proxy_loaded</code> will be sent back to the script.
+     * </p>
+     * <p>
+     * A loaded collection must be initialized (message <code>init</code>) and enabled (message <code>enable</code>) in order to be simulated and drawn.
+     * </p>
+     * @message
+     * @name async_load
+     * @examples
+     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
+     * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
+     * <pre>
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("start_level") then
+     *         -- some script tells us to start loading the level
+     *         msg.post("#proxy", "async_load")
+     *         -- store sender for later notification
+     *         self.loader = sender
+     *     elseif message_id == hash("proxy_loaded") then
+     *         -- enable the collection and let the loader know
+     *         msg.post(sender, "enable")
+     *         msg.post(self.loader, message_id)
+     *     end
+     * end
+     * </pre>
+
+    /*# reports that a collection proxy has loaded its referenced collection
+     * <p>
+     * This message is sent back to the script that initiated a collection proxy load when the referenced
+     * collection is loaded. See documentation for "load" for examples how to use.
+     * </p>
+     * @message
+     * @name proxy_loaded
+     */
+
     /*# tells a collection proxy to initialize the loaded collection
      * Post this message to a collection-proxy-component to initialize the game objects and components in the referenced collection.
      * Sending <code>enable</code> to an uninitialized collection proxy automatically initializes it.
@@ -479,6 +563,7 @@ namespace dmGameSystem
      *         msg.post(self.loader, "level_started")
      *     end
      * end
+     * </pre>
      */
 
     /*# tells a collection proxy to disable the referenced collection
@@ -557,5 +642,14 @@ namespace dmGameSystem
      *     end
      * end
      * </pre>
+     */
+
+    /*# reports that a collection proxy has unloaded its referenced collection
+     * <p>
+     * This message is sent back to the script that initiated an unload with a collection proxy when
+     * the referenced collection is unloaded. See documentation for "unload" for examples how to use.
+     * </p>
+     * @message
+     * @name proxy_unloaded
      */
 }

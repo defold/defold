@@ -69,6 +69,7 @@ message InstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 8;
 }
 
 message EmbeddedInstanceDesc
@@ -80,6 +81,7 @@ message EmbeddedInstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 8;
 }
 
 message InstancePropertyDesc
@@ -95,6 +97,7 @@ message CollectionInstanceDesc
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
     optional float          scale       = 5 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 7;
     repeated InstancePropertyDesc instance_properties = 6;
 }
 
@@ -143,6 +146,7 @@ message CollectionDesc
  *         self.my_action_amount = action.value
  *     end
  * end
+ * </pre>
  */
 message AcquireInputFocus {}
 
@@ -224,7 +228,9 @@ message TransformResponse
     required dmMath.Point3  world_position  = 3;
     required dmMath.Quat    world_rotation  = 4;
     optional float          scale           = 5 [default = 1.0];
+    optional dmMath.Vector3 scale3          = 7;
     optional float          world_scale     = 6 [default = 1.0];
+    optional dmMath.Vector3 world_scale3    = 8;
 }
 
 /*# sets the parent of the receiving instance

@@ -11,7 +11,7 @@
 
 using namespace Vectormath::Aos;
 
-dmResource::Result ResCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result ResCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     // The resource is not relevant for this test
     resource->m_Resource = (void*)new uint8_t[4];
@@ -61,7 +61,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, ResCreate, ResDestroy, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, ResDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -212,14 +212,14 @@ TEST_F(PropsTest, PropsSpawn)
     ASSERT_EQ(top, lua_gettop(L));
     ASSERT_LT(0u, size_used);
     ASSERT_LT(size_used, buffer_size);
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_spawn.goc", dmHashString64("test_id"), buffer, buffer_size, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), 1.0f);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_spawn.goc", dmHashString64("test_id"), buffer, buffer_size, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
 }
 
 TEST_F(PropsTest, PropsSpawnNoProperties)
 {
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), 1.0f);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
 }
@@ -478,7 +478,7 @@ TEST_F(PropsTest, PropsGetSetScript)
 }
 
 #define ASSERT_SPAWN_FAILS(path)\
-    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, path, dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1.0f);\
+    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, path, dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));\
     ASSERT_EQ(0, i);
 
 TEST_F(PropsTest, PropsGetBadURL)

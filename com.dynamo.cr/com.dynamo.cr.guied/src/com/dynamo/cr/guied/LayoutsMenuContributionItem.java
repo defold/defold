@@ -13,7 +13,6 @@ import org.eclipse.ui.menus.CommandContributionItem;
 import org.eclipse.ui.menus.CommandContributionItemParameter;
 import org.eclipse.ui.services.IServiceLocator;
 
-import com.dynamo.cr.guied.core.GuiSceneNode;
 import com.dynamo.cr.guied.util.Layouts;
 import com.dynamo.cr.guied.GuiSceneEditor;
 
@@ -37,9 +36,7 @@ public class LayoutsMenuContributionItem extends CompoundContributionItem {
             return null;
         }
 
-        GuiSceneNode scene  = (GuiSceneNode)((GuiSceneEditor)editorPart).getModel().getRoot();
-        assert((scene instanceof GuiSceneNode) == true);
-        List<Layouts.Layout> layoutList = Layouts.getLayoutList(scene.getLayouts());
+        List<Layouts.Layout> layoutList = Layouts.getLayoutList();
         IContributionItem[] list = new IContributionItem[layoutList.size()];
         int i = 0;
         for (Layouts.Layout layout : layoutList) {

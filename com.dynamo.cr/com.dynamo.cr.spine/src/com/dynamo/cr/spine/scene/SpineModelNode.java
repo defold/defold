@@ -322,7 +322,7 @@ public class SpineModelNode extends ComponentTypeNode {
                     node = new SpineBoneNode(b.name);
                     node.setTranslation(b.localT.position);
                     node.setRotation(b.localT.rotation);
-                    node.setComponentScale(b.localT.scale);
+                    node.setScale(b.localT.scale);
                     nodes.put(b.name, node);
                 }
                 Node parent = this;

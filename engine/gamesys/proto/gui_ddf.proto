@@ -149,6 +149,27 @@ message SceneDesc
     repeated LayoutDesc  layouts                 = 9;
 }
 
+/*# reports a layout change
+ * <p>
+ * This message is broadcast to every GUI component when a layout change has been initiated
+ * on device.
+ * </p>
+ * 
+ * @message
+ * @name layout_changed
+ * @param id the id of the layout the engine is changing to (hash)
+ * @param previous_id the id of the layout the engine is changing from (hash)
+ * @examples
+ * 
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *    if message_id == hash("layout_changed") and message.id == hash("Landscape") then
+ *        -- switching layout to "Landscape"...
+ *        ...
+ *    end
+ * end
+ * </pre>
+ */
 message LayoutChanged
 {
     required uint64 id = 1;
