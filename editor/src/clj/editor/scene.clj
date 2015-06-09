@@ -5,8 +5,7 @@
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
             [dynamo.grid :as grid]
-            [dynamo.types :as t]
-            [dynamo.types :refer [IDisposable dispose]]
+            [dynamo.types :as t :refer [IDisposable dispose]]
             [dynamo.util :as util]
             [editor.camera :as c]
             [editor.core :as core]
@@ -349,7 +348,7 @@
   (property image-view ImageView)
   (property viewport Region (default (t/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
-  (property picking-rect Rect)
+  (property picking-rect (t/maybe Rect))
 
   (input frame BufferedImage)
   (input scene t/Any)
