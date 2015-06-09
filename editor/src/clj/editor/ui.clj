@@ -167,7 +167,9 @@
 (extend-type TextInputControl
   Text
   (text [this] (.getText this))
-  (text! [this val] (.setText this val)))
+  ; TODO: This is hack to reduce the cpu usage due to bug DEFEDIT-131
+  (text! [this val] (when-not (= val (.getText this))
+                     (.setText this val))))
 
 (extend-type TextInputControl
   HasAction
