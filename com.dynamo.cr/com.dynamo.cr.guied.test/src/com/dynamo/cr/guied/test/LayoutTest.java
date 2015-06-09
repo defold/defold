@@ -332,28 +332,26 @@ public class LayoutTest extends AbstractNodeTest {
     @Test
     public void testLayoutsMethods() throws Exception {
         setupLayouts();
-        Layouts layouts = this.sceneNode.getLayouts();
-
-        Layout l1 = Layouts.getLayout(layouts, "Landscape");
+        Layout l1 = Layouts.getLayout("Landscape");
         assertTrue(l1 != null);
         assertTrue(l1.getId().compareTo("Landscape")==0);
-        Layout l2 = Layouts.getLayout(layouts, "Portrait");
+        Layout l2 = Layouts.getLayout("Portrait");
         assertTrue(l2 != null);
         assertTrue(l2.getId().compareTo("Portrait")==0);
-        Layout l3 = Layouts.getLayout(layouts, "Portrait2");
+        Layout l3 = Layouts.getLayout("Portrait2");
         assertTrue(l3 != null);
         assertTrue(l3.getId().compareTo("Portrait2")==0);
-        Layout l4 = Layouts.getLayout(layouts, "Portrait3");
+        Layout l4 = Layouts.getLayout("Portrait3");
         assertTrue(l4 != null);
         assertTrue(l4.getId().compareTo("Portrait3")==0);
-        Layout l5 = Layouts.getLayout(layouts, "Landscape2");
+        Layout l5 = Layouts.getLayout("Landscape2");
         assertTrue(l5 != null);
         assertTrue(l5.getId().compareTo("Landscape2")==0);
-        Layout l6 = Layouts.getLayout(layouts, "Landscape3");
+        Layout l6 = Layouts.getLayout("Landscape3");
         assertTrue(l6 != null);
         assertTrue(l6.getId().compareTo("Landscape3")==0);
 
-        List<String> lIdList = Layouts.getLayoutIds(layouts);
+        List<String> lIdList = Layouts.getLayoutIds();
         assertThat(lIdList.size(), equalTo(7));
         assertTrue(lIdList.contains(l1.getId()));
         assertTrue(lIdList.contains(l2.getId()));
@@ -362,22 +360,22 @@ public class LayoutTest extends AbstractNodeTest {
         assertTrue(lIdList.contains(l5.getId()));
         assertTrue(lIdList.contains(l6.getId()));
 
-        String lM = Layouts.getMatchingLayout(layouts, new ArrayList<String>(), 1280, 720, 0);
+        String lM = Layouts.getMatchingLayout(new ArrayList<String>(), 1280, 720, 0);
         assertThat(lM, equalTo("Landscape"));
-        lM = Layouts.getMatchingLayout(layouts, new ArrayList<String>(), 720, 1280, 0);
+        lM = Layouts.getMatchingLayout(new ArrayList<String>(), 720, 1280, 0);
         assertThat(lM, equalTo("Portrait"));
-        lM = Layouts.getMatchingLayout(layouts, new ArrayList<String>(), 721, 1280, 0); // testing result is first found match
+        lM = Layouts.getMatchingLayout(new ArrayList<String>(), 721, 1280, 0); // testing result is first found match
         assertThat(lM, equalTo("Portrait2"));
-        lM = Layouts.getMatchingLayout(layouts, new ArrayList<String>(), 1280, 722, 0); // testing multiple qualifiers
+        lM = Layouts.getMatchingLayout(new ArrayList<String>(), 1280, 722, 0); // testing multiple qualifiers
         assertThat(lM, equalTo("Landscape3"));
 
         // cherry picking
         ArrayList<String> choices = new ArrayList<String>();
         choices.add("Landscape");
-        lM = Layouts.getMatchingLayout(layouts, choices, 721, 1280, 0);
+        lM = Layouts.getMatchingLayout(choices, 721, 1280, 0);
         assertThat(lM, equalTo("Landscape"));
         choices.add("Portrait");
-        lM = Layouts.getMatchingLayout(layouts, choices, 721, 1280, 0);
+        lM = Layouts.getMatchingLayout(choices, 721, 1280, 0);
         assertThat(lM, equalTo("Portrait"));
     }
 

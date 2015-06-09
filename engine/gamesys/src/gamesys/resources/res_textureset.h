@@ -31,9 +31,16 @@ namespace dmGameSystem
         dmPhysics::HHullSet2D               m_HullSet;
     };
 
+    dmResource::Result ResTextureSetPreload(dmResource::HFactory factory, dmResource::HPreloadHintInfo hint_info,
+            void* context,
+            const void* buffer, uint32_t buffer_size,
+            void** preload_data,
+            const char* filename);
+
     dmResource::Result ResTextureSetCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
+            void* preload_data,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
