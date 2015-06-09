@@ -394,7 +394,7 @@ namespace dmGameObject
      * @name go.get
      * @param url url of the game object or component having the property (hash|string|url)
      * @param id id of the property to retrieve (hash|string)
-     * @return the value of the specified property (number|hash|url|vmath.vec3|vmath.vec4|vmath.quat|boolean)
+     * @return the value of the specified property (number|hash|url|vector3|vector4|quaternion|boolean)
      * @examples
      * <p>Get a property "speed" from a script "player", the property must be declared in the player-script:</p>
      * <pre>
@@ -474,7 +474,7 @@ namespace dmGameObject
      * @name go.set
      * @param url url of the game object or component having the property (hash|string|url)
      * @param id id of the property to set (hash|string)
-     * @param value the value to set (number|hash|url|vmath.vec3|vmath.vec4|vmath.quat|boolean)
+     * @param value the value to set (number|hash|url|vector3|vector4|quaternion|boolean)
      * @examples
      * <p>Set a property "speed" of a script "player", the property must be declared in the player-script:</p>
      * <pre>
@@ -612,7 +612,30 @@ namespace dmGameObject
     int Script_GetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetScale(instance));
+        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
+        return 1;
+    }
+
+    /*# gets the 3d scale factor of the instance
+     * The scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
+     *
+     * @name go.get_scale_vector
+     * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
+     * @return scale factor (vector)
+     * @examples
+     * <p>Get the scale of the instance the script is attached to:</p>
+     * <pre>
+     * local s = go.get_scale_vector()
+     * </pre>
+     * <p>Get the scale of another instance "x":</p>
+     * <pre>
+     * local s = go.get_scale_vector("x")
+     * </pre>
+     */
+    int Script_GetScaleVector(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
         return 1;
     }
 
@@ -674,7 +697,7 @@ namespace dmGameObject
      * NOTE! Physics are currently not affected when setting scale from this function.
      *
      * @name go.set_scale
-     * @param scale uniform scale factor, must be greater than 0 (number)
+     * @param scale vector or uniform scale factor, must be greater than 0 (number)
      * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
      * @examples
      * <p>Set the scale of the instance the script is attached to:</p>
@@ -691,6 +714,19 @@ namespace dmGameObject
     int Script_SetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
+
+        // Supports both vector and number
+        if (dmScript::IsVector3(L, 1))
+        {
+            Vector3 scale = *dmScript::CheckVector3(L, 1);
+            if (scale.getX() <= 0.0f || scale.getY() <= 0.0f || scale.getZ() <= 0.0f)
+            {
+                return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
+            }
+            dmGameObject::SetScale(instance, scale);
+            return 0;
+        }
+
         lua_Number v = luaL_checknumber(L, 1);
         if (v <= 0.0)
         {
@@ -765,7 +801,7 @@ namespace dmGameObject
     int Script_GetWorldScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetWorldScale(instance));
+        lua_pushnumber(L, dmGameObject::GetWorldUniformScale(instance));
         return 1;
     }
 
@@ -887,8 +923,8 @@ namespace dmGameObject
      *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
      *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
      * </ul>
-     * @param to target property value (number|vmath.vec3|vmath.vec4|vmath.quat)
-     * @param easing easing to use during animation (constant), see the <a href="/doc/properties">properties guide</a> for a complete list
+     * @param to target property value (number|vector3|vector4|quaternion)
+     * @param easing easing to use during animation. Either specify a constant, see the <a href="/doc/properties">properties guide</a> for a complete list, or a vmath.vector with a curve. (constant|vector)
      * @param duration duration of the animation in seconds (number)
      * @param [delay] delay before the animation starts in seconds (number)
      * @param [complete_function] function to call when the animation has completed (function)
@@ -900,6 +936,22 @@ namespace dmGameObject
      * end
      * function init(self)
      *     go.animate(go.get_id(), "position.x", go.PLAYBACK_ONCE_FORWARD, 10, go.EASING_LINEAR, 1, 0, x_done)
+     * end
+     * </pre>
+     *
+     * <p>Animate the y positin of a game object using a crazy custom easing curve:</p>
+     * <pre>
+     * function init(self)
+     *     local values = { 0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1 }
+     *      local vec = vmath.vector(values)
+     *      go.animate("go", "position.y", go.PLAYBACK_LOOP_PINGPONG, 100, vec, 2.0)
      * end
      * </pre>
      */
@@ -1202,7 +1254,7 @@ namespace dmGameObject
      * @name go.screen_ray
      * @param x x-coordinate of the screen space position (number)
      * @param y y-coordinate of the screen space position (number)
-     * @return position and direction of the ray in world space (vmath.vector3, vmath.vector3)
+     * @return position and direction of the ray in world space (vector3, vector3)
      */
     int Script_ScreenRay(lua_State* L)
     {
@@ -1224,7 +1276,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name the name of the property (string)
-     * @param value default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. (number, hash, url, vector3, vector4, quat)
+     * @param value default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. (number|hash|url|vector3|vector4|quaternion)
      * @examples
      * <p>
      * This example demonstrates how to define a property called "health" in a script.
@@ -1292,7 +1344,7 @@ namespace dmGameObject
         }
         if (!valid_type)
         {
-            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, boolean, hash, URL, vector3, vector4 or quat.", lua_typename(L, lua_type(L, 2)));
+            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, boolean, hash, URL, vector3, vector4 or quaternion.", lua_typename(L, lua_type(L, 2)));
         }
         assert(top == lua_gettop(L));
         return 0;
@@ -1305,6 +1357,7 @@ namespace dmGameObject
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
         {"get_scale",           Script_GetScale},
+        {"get_scale_vector",    Script_GetScaleVector},
         {"set_position",        Script_SetPosition},
         {"set_rotation",        Script_SetRotation},
         {"set_scale",           Script_SetScale},

@@ -8,16 +8,36 @@
 
 namespace dmGameObject
 {
-    dmResource::Result ResScriptCreate(dmResource::HFactory factory,
-                                       void* context,
-                                       const void* buffer, uint32_t buffer_size,
-                                       dmResource::SResourceDescriptor* resource,
-                                       const char* filename)
+    dmResource::Result ResScriptPreload(dmResource::HFactory factory,
+                                             dmResource::HPreloadHintInfo hint_info,
+                                             void* context,
+                                             const void* buffer, uint32_t buffer_size,
+                                             void** preload_data,
+                                             const char* filename)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
+            
+        uint32_t n_modules = lua_module->m_Modules.m_Count;
+        for (uint32_t i = 0; i < n_modules; ++i)
+        {
+            dmResource::PreloadHint(hint_info, lua_module->m_Resources[i]);
+        }
+        
+        *preload_data = lua_module;    
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResScriptCreate(dmResource::HFactory factory,
+                                       void* context,
+                                       const void* buffer, uint32_t buffer_size,
+                                       void* preload_data,
+                                       dmResource::SResourceDescriptor* resource,
+                                       const char* filename)
+    {
+        dmLuaDDF::LuaModule* lua_module = (dmLuaDDF::LuaModule*) preload_data;
 
         dmScript::HContext script_context = (dmScript::HContext)context;
         lua_State* L = dmScript::GetLuaState(script_context);

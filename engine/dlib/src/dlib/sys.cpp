@@ -212,13 +212,19 @@ namespace dmSys
         jclass file_class = env->FindClass("java/io/File");
         jmethodID getPathMethod = env->GetMethodID(file_class, "getPath", "()Ljava/lang/String;");
         jstring path_obj = (jstring) env->CallObjectMethod(files_dir_obj, getPathMethod);
-        const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
 
         Result res = RESULT_OK;
-        if (dmStrlCpy(path, filesDir, path_len) >= path_len) {
-            res = RESULT_INVAL;
+
+        if (path_obj) {
+            const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
+
+            if (dmStrlCpy(path, filesDir, path_len) >= path_len) {
+                res = RESULT_INVAL;
+            }
+            env->ReleaseStringUTFChars(path_obj, filesDir);
+        } else {
+            res = RESULT_UNKNOWN;
         }
-        env->ReleaseStringUTFChars(path_obj, filesDir);
         activity->vm->DetachCurrentThread();
         return res;
     }
@@ -404,12 +410,15 @@ namespace dmSys
             jclass file_class = env->FindClass("java/io/File");
             jmethodID getPathMethod = env->GetMethodID(file_class, "getPath", "()Ljava/lang/String;");
             jstring path_obj = (jstring) env->CallObjectMethod(files_dir_obj, getPathMethod);
-            const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
-
-            if (dmStrlCpy(path, filesDir, path_len) >= path_len) {
-                res = RESULT_INVAL;
+            if (path_obj) {
+                const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
+                if (dmStrlCpy(path, filesDir, path_len) >= path_len) {
+                    res = RESULT_INVAL;
+                }
+                env->ReleaseStringUTFChars(path_obj, filesDir);
+            } else {
+                res = RESULT_UNKNOWN;
             }
-            env->ReleaseStringUTFChars(path_obj, filesDir);
         }
         activity->vm->DetachCurrentThread();
         return res;
@@ -505,13 +514,17 @@ namespace dmSys
         jstring countryObj = (jstring) env->CallObjectMethod(locale, get_country_method);
         jstring languageObj = (jstring) env->CallObjectMethod(locale, get_language_method);
 
-        const char* country = env->GetStringUTFChars(countryObj, NULL);
-        const char* language = env->GetStringUTFChars(languageObj, NULL);
-        dmStrlCpy(info->m_Language, language, sizeof(info->m_Language));
-        dmStrlCpy(info->m_DeviceLanguage, language, sizeof(info->m_DeviceLanguage));
-        dmStrlCpy(info->m_Territory, country, sizeof(info->m_Territory));
-        env->ReleaseStringUTFChars(countryObj, country);
-        env->ReleaseStringUTFChars(languageObj, language);
+        if (countryObj) {
+            const char* country = env->GetStringUTFChars(countryObj, NULL);
+            dmStrlCpy(info->m_Territory, country, sizeof(info->m_Territory));
+            env->ReleaseStringUTFChars(countryObj, country);
+        }
+        if (languageObj) {
+            const char* language = env->GetStringUTFChars(languageObj, NULL);
+            dmStrlCpy(info->m_Language, language, sizeof(info->m_Language));
+            dmStrlCpy(info->m_DeviceLanguage, language, sizeof(info->m_DeviceLanguage));
+            env->ReleaseStringUTFChars(languageObj, language);
+        }
 
         jclass build_class = env->FindClass("android/os/Build");
         jstring manufacturerObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MANUFACTURER", "Ljava/lang/String;"));
@@ -520,15 +533,21 @@ namespace dmSys
         jclass build_version_class = env->FindClass("android/os/Build$VERSION");
         jstring releaseObj = (jstring) env->GetStaticObjectField(build_version_class, env->GetStaticFieldID(build_version_class, "RELEASE", "Ljava/lang/String;"));
 
-        const char* manufacturer = env->GetStringUTFChars(manufacturerObj, NULL);
-        const char* model = env->GetStringUTFChars(modelObj, NULL);
-        const char* release = env->GetStringUTFChars(releaseObj, NULL);
-        dmStrlCpy(info->m_Manufacturer, manufacturer, sizeof(info->m_Manufacturer));
-        dmStrlCpy(info->m_DeviceModel, model, sizeof(info->m_DeviceModel));
-        dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
-        env->ReleaseStringUTFChars(manufacturerObj, manufacturer);
-        env->ReleaseStringUTFChars(modelObj, model);
-        env->ReleaseStringUTFChars(releaseObj, release);
+        if (manufacturerObj) {
+            const char* manufacturer = env->GetStringUTFChars(manufacturerObj, NULL);
+            dmStrlCpy(info->m_Manufacturer, manufacturer, sizeof(info->m_Manufacturer));
+            env->ReleaseStringUTFChars(manufacturerObj, manufacturer);
+        }
+        if (modelObj) {
+            const char* model = env->GetStringUTFChars(modelObj, NULL);
+            dmStrlCpy(info->m_DeviceModel, model, sizeof(info->m_DeviceModel));
+            env->ReleaseStringUTFChars(modelObj, model);
+        }
+        if (releaseObj) {
+            const char* release = env->GetStringUTFChars(releaseObj, NULL);
+            dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
+            env->ReleaseStringUTFChars(releaseObj, release);
+        }
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID get_content_resolver_method = env->GetMethodID(activity_class, "getContentResolver", "()Landroid/content/ContentResolver;");
@@ -540,9 +559,11 @@ namespace dmSys
             jmethodID get_string_method = env->GetStaticMethodID(secure_class, "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
             jstring android_id_obj = (jstring) env->CallStaticObjectMethod(secure_class, get_string_method, content_resolver, android_id_string);
             env->DeleteLocalRef(android_id_string);
-            const char* android_id = env->GetStringUTFChars(android_id_obj, NULL);
-            dmStrlCpy(info->m_DeviceIdentifier, android_id, sizeof(info->m_DeviceIdentifier));
-            env->ReleaseStringUTFChars(android_id_obj, android_id);
+            if (android_id_obj) {
+                const char* android_id = env->GetStringUTFChars(android_id_obj, NULL);
+                dmStrlCpy(info->m_DeviceIdentifier, android_id, sizeof(info->m_DeviceIdentifier));
+                env->ReleaseStringUTFChars(android_id_obj, android_id);
+            }
         } else {
             dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
         }

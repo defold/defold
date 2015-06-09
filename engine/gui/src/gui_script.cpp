@@ -779,7 +779,7 @@ namespace dmGui
      *
      * </p>
      * @param to target property value (vector3|vector4)
-     * @param easing easing to use during animation (constant). See gui.EASING_* constants
+     * @param easing easing to use during animation. Either specify one of the gui.EASING_* constants or provide a vmath.vector with a custom curve. (constant|vector)
      * @param duration duration of the animation (number)
      * @param [delay] delay before the animation starts (number)
      * @param [complete_function] function to call when the animation has completed (function)
@@ -802,6 +802,7 @@ namespace dmGui
      * </p>
      * <p>
      * How to start a sequenced animation where the node fades in to white during 0.5 seconds, stays visible for 2 seconds and then fades out:
+     * </p>
      * <pre>
      * local function on_animation_done(self, node)
      *     -- fade out node, but wait 2 seconds before the animation starts
@@ -816,6 +817,23 @@ namespace dmGui
      *     -- animate the node immediately and call on_animation_done when the animation has completed
      *     gui.animate(my_node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5, 0.0, on_animation_done)
      * end
+     * </pre>
+     * <p>How to animate a node's y position using a crazy custom easing curve:</p>
+     * <pre>
+     * function init(self)
+     *     local values = { 0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1,
+     *                      0, 0, 0, 0, 0, 0, 0, 0,
+     *                      1, 1, 1, 1, 1, 1, 1, 1 }
+     *     local vec = vmath.vector(values)
+     *     local node = gui.get_node("box")
+     *     gui.animate(node, "position.y", 100, vec, 4.0, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+     * end
+     * </pre>
      */
     int LuaAnimate(lua_State* L)
     {
@@ -2341,8 +2359,8 @@ namespace dmGui
      *
      * @name gui.pick_node
      * @param node node to be tested for picking (node)
-     * @param x x-coordinate in screen-space
-     * @param y y-coordinate in screen-space
+     * @param x x-coordinate (see <a href="#on_input">on_input</a> )
+     * @param y y-coordinate (see <a href="#on_input">on_input</a> )
      * @return pick result (boolean)
      */
     static int LuaPickNode(lua_State* L)

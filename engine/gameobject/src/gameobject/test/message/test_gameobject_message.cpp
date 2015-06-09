@@ -36,7 +36,7 @@ protected:
 
         m_MessageTargetCounter = 0;
 
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, ResMessageTargetCreate, ResMessageTargetDestroy, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, 0, ResMessageTargetCreate, ResMessageTargetDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         // MessageTargetComponent
@@ -75,6 +75,7 @@ protected:
     static dmResource::Result ResMessageTargetCreate(dmResource::HFactory factory,
                                            void* context,
                                            const void* buffer, uint32_t buffer_size,
+                                           void *preload_data,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename);
     static dmResource::Result ResMessageTargetDestroy(dmResource::HFactory factory,
@@ -104,7 +105,7 @@ const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");
 const static dmhash_t POST_DDF_ID = TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash;
 const static dmhash_t POST_NAMED_TO_INST_ID = dmHashString64("post_named_to_instance");
 
-dmResource::Result MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+dmResource::Result MessageTest::ResMessageTargetCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, void* preload_data, dmResource::SResourceDescriptor* resource, const char* filename)
 {
     TestGameObjectDDF::MessageTarget* obj;
     dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(buffer, buffer_size, &obj);
@@ -413,10 +414,10 @@ TEST_F(MessageTest, TestGameObjectTransform)
 
     Vectormath::Aos::Point3 position = dmGameObject::GetPosition(go);
     Vectormath::Aos::Quat rotation = dmGameObject::GetRotation(go);
-    float scale = dmGameObject::GetScale(go);
+    float scale = dmGameObject::GetUniformScale(go);
     Vectormath::Aos::Point3 world_position = dmGameObject::GetWorldPosition(go);
     Vectormath::Aos::Quat world_rotation = dmGameObject::GetWorldRotation(go);
-    float world_scale = dmGameObject::GetWorldScale(go);
+    float world_scale = dmGameObject::GetWorldUniformScale(go);
 
     ASSERT_EQ(position.getX(), context.m_Position.getX());
     ASSERT_EQ(rotation.getX(), context.m_Rotation.getX());

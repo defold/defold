@@ -24,10 +24,13 @@
 #include <dlib/profile.h>
 #include <dlib/message.h>
 #include <dlib/sys.h>
+#include <dlib/time.h>
+#include <dlib/mutex.h>
 
 #include "resource.h"
 #include "resource_archive.h"
 #include "resource_ddf.h"
+#include "resource_private.h"
 
 /*
  * TODO:
@@ -49,26 +52,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
-struct SResourceType
-{
-    SResourceType()
-    {
-        memset(this, 0, sizeof(*this));
-    }
-    const char*       m_Extension;
-    void*             m_Context;
-    FResourceCreate   m_CreateFunction;
-    FResourceDestroy  m_DestroyFunction;
-    FResourceRecreate m_RecreateFunction;
-};
-
-// This is both for the total resource path, ie m_UriParts.X concatenated with relative path
-const uint32_t RESOURCE_PATH_MAX = 1024;
-
-const uint32_t MAX_RESOURCE_TYPES = 128;
-
-static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size);
-
 struct ResourceReloadedCallbackPair
 {
     ResourceReloadedCallback    m_Callback;
@@ -87,6 +70,12 @@ struct SResourceFactory
     dmArray<ResourceReloadedCallbackPair>*       m_ResourceReloadedCallbacks;
     SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
     uint32_t                                     m_ResourceTypesCount;
+
+    // Guard for anything that touches anything that could be shared
+    // with GetRaw (used for async threaded loading). HttpClient, m_Buffer
+    // m_BuiltinsArchive and m_Archive
+    dmMutex::Mutex                               m_LoadMutex;
+
     // dmResource::Get recursion depth
     uint32_t                                     m_RecursionDepth;
     // List of resources currently in dmResource::Get call-stack
@@ -94,9 +83,11 @@ struct SResourceFactory
 
     dmMessage::HSocket                           m_Socket;
 
+
     dmURI::Parts                                 m_UriParts;
     dmHttpClient::HClient                        m_HttpClient;
     dmHttpCache::HCache                          m_HttpCache;
+    LoadBufferType*                              m_HttpBuffer;
 
     dmArray<char>                                m_Buffer;
 
@@ -113,7 +104,7 @@ struct SResourceFactory
     dmResourceArchive::HArchive                  m_Archive;
 };
 
-static SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
+SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
 {
     for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
     {
@@ -146,6 +137,26 @@ static void GetCanonicalPath(const char* base_dir, const char* relative_dir, cha
     *dest = '\0';
 }
 
+void GetCanonicalPath(HFactory factory, const char* relative_dir, char* buf)
+{
+    return GetCanonicalPath(factory->m_UriParts.m_Path, relative_dir, buf);
+}
+
+Result CheckSuppliedResourcePath(const char* name)
+{
+    if (name[0] == 0)
+    {
+        dmLogError("Empty resource path");
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+    if (name[0] != '/')
+    {
+        dmLogError("Resource path is not absolute (%s)", name);
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+    return RESULT_OK;
+}
+
 void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
 {
     params->m_MaxResources = 1024;
@@ -165,10 +176,10 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
         if (factory->m_HttpContentLength < 0) {
             dmLogError("Content-Length negative (%d)", factory->m_HttpContentLength);
         } else {
-            if (factory->m_Buffer.Capacity() < factory->m_HttpContentLength) {
-                factory->m_Buffer.SetCapacity(factory->m_HttpContentLength);
+            if (factory->m_HttpBuffer->Capacity() < factory->m_HttpContentLength) {
+                factory->m_HttpBuffer->SetCapacity(factory->m_HttpContentLength);
             }
-            factory->m_Buffer.SetSize(0);
+            factory->m_HttpBuffer->SetSize(0);
         }
     }
 }
@@ -181,13 +192,13 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
     // We must set http-status here. For direct cached result HttpHeader is not called.
     factory->m_HttpStatus = status_code;
 
-    if (factory->m_Buffer.Remaining() < content_data_size) {
-        uint32_t diff = content_data_size - factory->m_Buffer.Remaining();
+    if (factory->m_HttpBuffer->Remaining() < content_data_size) {
+        uint32_t diff = content_data_size - factory->m_HttpBuffer->Remaining();
         // NOTE: Resizing the the array can be inefficient but sometimes we don't know the actual size, i.e. when "Content-Size" isn't set
-        factory->m_Buffer.OffsetCapacity(diff + 1024 * 1024);
+        factory->m_HttpBuffer->OffsetCapacity(diff + 1024 * 1024);
     }
 
-    factory->m_Buffer.PushArray((const char*) content_data, content_data_size);
+    factory->m_HttpBuffer->PushArray((const char*) content_data, content_data_size);
     factory->m_HttpTotalBytesStreamed += content_data_size;
 }
 
@@ -215,6 +226,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+    factory->m_HttpBuffer = 0;
     factory->m_HttpClient = 0;
     factory->m_HttpCache = 0;
     if (strcmp(factory->m_UriParts.m_Scheme, "http") == 0)
@@ -324,6 +336,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         factory->m_BuiltinsArchive = 0;
     }
 
+    factory->m_LoadMutex = dmMutex::New();
     return factory;
 }
 
@@ -345,7 +358,10 @@ void DeleteFactory(HFactory factory)
     {
         dmResourceArchive::Delete(factory->m_Archive);
     }
-
+    if (factory->m_LoadMutex)
+    {
+        dmMutex::Delete(factory->m_LoadMutex);
+    }
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     if (factory->m_ResourceHashToFilename)
@@ -390,6 +406,7 @@ void UpdateFactory(HFactory factory)
 Result RegisterType(HFactory factory,
                            const char* extension,
                            void* context,
+                           FResourcePreload preload_function,
                            FResourceCreate create_function,
                            FResourceDestroy destroy_function,
                            FResourceRecreate recreate_function)
@@ -410,6 +427,7 @@ Result RegisterType(HFactory factory,
     SResourceType resource_type;
     resource_type.m_Extension = extension;
     resource_type.m_Context = context;
+    resource_type.m_PreloadFunction = preload_function;
     resource_type.m_CreateFunction = create_function;
     resource_type.m_DestroyFunction = destroy_function;
     resource_type.m_RecreateFunction = recreate_function;
@@ -419,20 +437,21 @@ Result RegisterType(HFactory factory,
     return RESULT_OK;
 }
 
-static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive archive, const char* path, const char* original_name, uint32_t* resource_size)
+// Assumes m_LoadMutex is already held
+static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive archive, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     dmResourceArchive::EntryInfo entry_info;
     dmResourceArchive::Result r = dmResourceArchive::FindEntry(archive, original_name, &entry_info);
     if (r == dmResourceArchive::RESULT_OK)
     {
         uint32_t file_size = entry_info.m_Size;
-        if (factory->m_Buffer.Capacity() < file_size) {
-            factory->m_Buffer.SetCapacity(file_size);
+        if (buffer->Capacity() < file_size) {
+            buffer->SetCapacity(file_size);
         }
 
-        factory->m_Buffer.SetSize(0);
-        dmResourceArchive::Read(archive, &entry_info, factory->m_Buffer.Begin());
-        factory->m_Buffer.SetSize(file_size);
+        buffer->SetSize(0);
+        dmResourceArchive::Read(archive, &entry_info, buffer->Begin());
+        buffer->SetSize(file_size);
         *resource_size = file_size;
 
         return RESULT_OK;
@@ -447,12 +466,14 @@ static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive arch
     }
 }
 
-
-static Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
+// Assumes m_LoadMutex is already held
+Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
+    DM_PROFILE(Resource, "LoadResource");
+
     if (factory->m_BuiltinsArchive)
     {
-        if (LoadFromArchive(factory, factory->m_BuiltinsArchive, path, original_name, resource_size) == RESULT_OK)
+        if (LoadFromArchive(factory, factory->m_BuiltinsArchive, path, original_name, resource_size, buffer) == RESULT_OK)
         {
             return RESULT_OK;
         }
@@ -463,6 +484,7 @@ static Result DoLoadResource(HFactory factory, const char* path, const char* ori
     {
         // Load over HTTP
         *resource_size = 0;
+        factory->m_HttpBuffer = buffer;
         factory->m_HttpContentLength = -1;
         factory->m_HttpTotalBytesStreamed = 0;
         factory->m_HttpFactoryResult = RESULT_OK;
@@ -503,7 +525,7 @@ static Result DoLoadResource(HFactory factory, const char* path, const char* ori
     }
     else if (factory->m_Archive)
     {
-        Result r =  LoadFromArchive(factory, factory->m_Archive, path, original_name, resource_size);
+        Result r = LoadFromArchive(factory, factory->m_Archive, path, original_name, resource_size, buffer);
         return r;
     }
     else
@@ -518,14 +540,14 @@ static Result DoLoadResource(HFactory factory, const char* path, const char* ori
                 return RESULT_IO_ERROR;
         }
 
-        if (factory->m_Buffer.Capacity() < file_size) {
-            factory->m_Buffer.SetCapacity(file_size);
+        if (buffer->Capacity() < file_size) {
+            buffer->SetCapacity(file_size);
         }
-        factory->m_Buffer.SetSize(0);
+        buffer->SetSize(0);
 
-        r = dmSys::LoadResource(path, factory->m_Buffer.Begin(), file_size, &file_size);
+        r = dmSys::LoadResource(path, buffer->Begin(), file_size, &file_size);
         if (r == dmSys::RESULT_OK) {
-            factory->m_Buffer.SetSize(file_size);
+            buffer->SetSize(file_size);
             *resource_size = file_size;
             return RESULT_OK;
         } else {
@@ -537,19 +559,32 @@ static Result DoLoadResource(HFactory factory, const char* path, const char* ori
     }
 }
 
-static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
+// Takes the lock.
+Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+{
+    // Called from async queue so we wrap around a lock
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    return DoLoadResourceLocked(factory, path, original_name, resource_size, buffer);
+}
+
+// Assumes m_LoadMutex is already held
+Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size)
 {
     if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
     factory->m_Buffer.SetSize(0);
 
-    Result r = DoLoadResource(factory, path, original_name, resource_size);
-
+    Result r = DoLoadResourceLocked(factory, path, original_name, resource_size, &factory->m_Buffer);
+    if (r == RESULT_OK)
+        *buffer = factory->m_Buffer.Begin();
+    else
+        *buffer = 0;
     return r;
 }
 
-Result DoGet(HFactory factory, const char* name, void** resource)
+// Assumes m_LoadMutex is already held
+static Result DoGet(HFactory factory, const char* name, void** resource)
 {
     assert(name);
     assert(resource);
@@ -558,36 +593,8 @@ Result DoGet(HFactory factory, const char* name, void** resource)
 
     *resource = 0;
 
-    if (name[0] == 0)
-    {
-        dmLogError("Empty resource path");
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
-
-    if (name[0] != '/')
-    {
-        dmLogError("Resource path is not absolute (%s)", name);
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
-
-#if 1
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
-
-#else
-#ifdef _WIN32
-    char canonical_path[_PATH_MAX];
-    char *canonical_path_p = _fullpath(canonical_path, name, _PATH_MAX);
-#else
-    char canonical_path[PATH_MAX];
-    char *canonical_path_p = realpath(name, canonical_path);
-#endif
-
-    if (canonical_path_p == 0)
-    {
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
-#endif
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
@@ -606,6 +613,7 @@ Result DoGet(HFactory factory, const char* name, void** resource)
         return RESULT_OUT_OF_RESOURCES;
     }
 
+
     const char* ext = strrchr(name, '.');
     if (ext)
     {
@@ -618,14 +626,17 @@ Result DoGet(HFactory factory, const char* name, void** resource)
             return RESULT_UNKNOWN_RESOURCE_TYPE;
         }
 
+        void *buffer;
         uint32_t file_size;
-        Result result = LoadResource(factory, canonical_path, name, &file_size);
+        Result result = LoadResource(factory, canonical_path, name, &buffer, &file_size);
         if (result != RESULT_OK) {
             if (result == RESULT_RESOURCE_NOT_FOUND) {
                 dmLogWarning("Resource not found: %s", name);
             }
             return result;
         }
+
+        assert(buffer == factory->m_Buffer.Begin());
 
         // TODO: We should *NOT* allocate SResource dynamically...
         SResourceDescriptor tmp_resource;
@@ -634,7 +645,19 @@ Result DoGet(HFactory factory, const char* name, void** resource)
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
 
-        Result create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, factory->m_Buffer.Begin(), file_size, &tmp_resource, name);
+        void *preload_data = 0;
+        Result create_error = RESULT_OK;
+
+        if (resource_type->m_PreloadFunction)
+        {
+            // Pass in a null preloader
+            create_error = resource_type->m_PreloadFunction(factory, 0, resource_type->m_Context, buffer, file_size, &preload_data, name);
+        }
+
+        if (create_error == RESULT_OK)
+        {
+            create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, buffer, file_size, preload_data, &tmp_resource, name);
+        }
 
         // Restore to default buffer size
         if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
@@ -644,13 +667,7 @@ Result DoGet(HFactory factory, const char* name, void** resource)
 
         if (create_error == RESULT_OK)
         {
-            assert(tmp_resource.m_Resource); // TODO: Or handle gracefully!
-            factory->m_Resources->Put(canonical_path_hash, tmp_resource);
-            factory->m_ResourceToHash->Put((uintptr_t) tmp_resource.m_Resource, canonical_path_hash);
-            if (factory->m_ResourceHashToFilename)
-            {
-                factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
-            }
+            InsertResource(factory, name, canonical_path_hash, &tmp_resource);
             *resource = tmp_resource.m_Resource;
             return RESULT_OK;
         }
@@ -669,6 +686,16 @@ Result DoGet(HFactory factory, const char* name, void** resource)
 
 Result Get(HFactory factory, const char* name, void** resource)
 {
+    assert(name);
+    assert(resource);
+    *resource = 0;
+
+    Result chk = CheckSuppliedResourcePath(name);
+    if (chk != RESULT_OK)
+        return chk;
+
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+
     dmArray<const char*>& stack = factory->m_GetResourceStack;
     if (factory->m_RecursionDepth == 0)
     {
@@ -678,7 +705,7 @@ Result Get(HFactory factory, const char* name, void** resource)
     ++factory->m_RecursionDepth;
 
     uint32_t n = stack.Size();
-    for (uint32_t i = 0; i < n; ++i)
+    for (uint32_t i=0;i<n;i++)
     {
         if (strcmp(stack[i], name) == 0)
         {
@@ -693,49 +720,74 @@ Result Get(HFactory factory, const char* name, void** resource)
             return RESULT_RESOURCE_LOOP_ERROR;
         }
     }
+    fflush(stdout);
 
     if (stack.Full())
     {
         stack.SetCapacity(stack.Capacity() + 16);
     }
     stack.Push(name);
+
     Result r = DoGet(factory, name, resource);
     stack.SetSize(stack.Size() - 1);
     --factory->m_RecursionDepth;
     return r;
 }
 
+SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash)
+{
+    return factory->m_Resources->Get(canonical_path_hash);
+}
+
+Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor)
+{
+    if (factory->m_Resources->Full())
+    {
+        return RESULT_OUT_OF_RESOURCES;
+    }
+
+    assert(descriptor->m_Resource);
+    assert(descriptor->m_ReferenceCount == 1);
+
+    factory->m_Resources->Put(canonical_path_hash, *descriptor);
+    factory->m_ResourceToHash->Put((uintptr_t) descriptor->m_Resource, canonical_path_hash);
+    if (factory->m_ResourceHashToFilename)
+    {
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(factory, path, canonical_path);
+        factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
+    }
+
+    return RESULT_OK;
+}
+
 Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size)
 {
+    DM_PROFILE(Resource, "GetRaw");
+
     assert(name);
     assert(resource);
     assert(resource_size);
 
-    DM_PROFILE(Resource, "GetRaw");
-
     *resource = 0;
     *resource_size = 0;
 
-    if (name[0] == 0)
-    {
-        dmLogError("Empty resource path");
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
+    Result chk = CheckSuppliedResourcePath(name);
+    if (chk != RESULT_OK)
+        return chk;
 
-    if (name[0] != '/')
-    {
-        dmLogError("Resource path is not absolute (%s)", name);
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
 
+    void* buffer;
     uint32_t file_size;
-    Result result = LoadResource(factory, canonical_path, name, &file_size);
+    Result result = LoadResource(factory, canonical_path, name, &buffer, &file_size);
     if (result == RESULT_OK) {
         *resource = malloc(file_size);
-        memcpy(*resource, factory->m_Buffer.Begin(), file_size);
+        assert(buffer == factory->m_Buffer.Begin());
+        memcpy(*resource, buffer, file_size);
         *resource_size = file_size;
     }
     return result;
@@ -760,12 +812,14 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     if (!resource_type->m_RecreateFunction)
         return RESULT_NOT_SUPPORTED;
 
+    void* buffer;
     uint32_t file_size;
-    Result result = LoadResource(factory, canonical_path, name, &file_size);
+    Result result = LoadResource(factory, canonical_path, name, &buffer, &file_size);
     if (result != RESULT_OK)
         return result;
 
-    Result create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_Buffer.Begin(), file_size, rd, name);
+    assert(buffer == factory->m_Buffer.Begin());
+    Result create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, buffer, file_size, rd, name);
     if (create_result == RESULT_OK)
     {
         if (factory->m_ResourceReloadedCallbacks)
@@ -786,6 +840,8 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
 
 Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+
     // Always verify cache for reloaded resources
     if (factory->m_HttpCache)
         dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
@@ -967,4 +1023,3 @@ void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallba
 }
 
 }
-
