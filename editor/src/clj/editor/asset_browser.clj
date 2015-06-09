@@ -86,7 +86,7 @@
   (run [] (prn "REFRESH NOW!") ))
 
 (handler/defhandler :show-in-desktop
-  (enabled? [selection] (= 1 (count selection)) )
+  (enabled? [selection] (and (= 1 (count selection)) (not= nil (workspace/abs-path (first selection)))) )
   (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))
                          dir (if (.isFile f) (.getParentFile f) f)]
                      (.open (Desktop/getDesktop) dir))))
