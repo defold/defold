@@ -51,6 +51,8 @@
   (property baz (t/maybe t/Str) (enabled (g/fnk [bar] (pos? bar)))))
 
 (g/defnode NodeWithEvents
+  (property message-processed t/Bool (default false))
+
   (on :mousedown
       (g/transact
        (g/set-property self :message-processed true))
@@ -354,3 +356,30 @@
     (let [[node]     (tx-nodes (g/make-node world PropertyValidationNode :even-number 1))
           properties (g/node-value node :properties)]
       (is (= ["only even numbers are allowed"] (some-> properties :even-number :validation-problems))))))
+
+(g/defnk pass-through [i] i)
+
+(g/defnode Dummy
+  (property foo t/Str (default "FOO!"))
+  (input i t/Any)
+  (output o t/Any pass-through))
+
+(deftest error-on-bad-source-label
+  (testing "AssertionError on bad source label"
+    (with-clean-system
+      (let [[node1 node2] (tx-nodes (g/make-node world Dummy)
+                                    (g/make-node world Dummy))]
+        (is (thrown? AssertionError (g/connect! node1 :no-such-label node2 :i)))))))
+
+(deftest error-on-bad-target-label
+  (testing "AssertionError on bad target label"
+    (with-clean-system
+      (let [[node1 node2] (tx-nodes (g/make-node world Dummy)
+                                    (g/make-node world Dummy))]
+        (is (thrown? AssertionError (g/connect! node1 :o node2 :no-such-label)))))))
+
+(deftest error-on-bad-property
+  (testing "AssertionError on setting bad property"
+    (with-clean-system
+      (let [[node] (tx-nodes (g/make-node world Dummy))]
+        (is (thrown? AssertionError (g/set-property! node :no-such-property 4711)))))))
