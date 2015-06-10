@@ -43,12 +43,10 @@
 
 (defn slice [^ByteBuffer bb offsets]
   (let [dup (.duplicate bb)]
-    (doall
-      (for [o offsets]
-       (do
-         (.position dup o)
-         (doto (.slice dup)
-           (.order (.order bb))))))))
+    (mapv (fn [o] (do
+                   (.position dup o)
+                   (doto (.slice dup)
+                     (.order (.order bb))))) offsets)))
 
 (extend-type ByteBuffer
   ByteStringCoding
