@@ -1971,6 +1971,10 @@ namespace dmGameObject
             {
                 if (dmMessage::IsSocketValid(sockets[i]))
                 {
+                    if (dmMessage::HasMessages(sockets[i]))
+                    {
+                        UpdateTransforms(collection);
+                    }
                     uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
                     if (message_count > 0)
                         iterate = true;
@@ -1998,6 +2002,11 @@ namespace dmGameObject
     void UpdateTransforms(HCollection collection)
     {
         DM_PROFILE(GameObject, "UpdateTransforms");
+
+        if (!collection->m_DirtyTransforms)
+        {
+            return;
+        }
 
         // Calculate world transforms
         // First root-level instances
@@ -2049,6 +2058,8 @@ namespace dmGameObject
                 }
             }
         }
+
+        collection->m_DirtyTransforms = 0;
     }
 
     bool Update(HCollection collection, const UpdateContext* update_context)
@@ -2088,7 +2099,10 @@ namespace dmGameObject
             // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
             // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
             // into UpdateTrasform, then Update or similar
-            UpdateTransforms(collection);
+            collection->m_DirtyTransforms |= component_type->m_WritesTransforms;
+            if (component_type->m_ReadsTransforms) {
+                UpdateTransforms(collection);
+            }
 
             if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
                 ret = false;
