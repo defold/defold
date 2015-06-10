@@ -11,6 +11,7 @@
             [integration.test-util :as test-util]
             [internal.graph :as ig]
             [internal.graph.generator :as ggen]
+            [internal.graph.types :as gt]
             [internal.system :as isys]))
 
 
@@ -141,11 +142,11 @@
           project-graph (isys/graph @g/*the-system* (:project-graph r))
           affected-num    100
           chosen-node-ids (repeatedly affected-num (partial rand-nth (ig/node-ids project-graph)))
-          chosen-nodes    (map #(ig/node project-graph %) chosen-node-ids)
-          chosen-props    (map (fn [node] (rand-nth (vec (disj (into #{} (keys node)) :_id)))) chosen-nodes)]
-      (do-benchmark  (str "Set Property on " affected-num " Nodes")
-                     (doseq [chosen-node chosen-nodes]
-                       (g/transact (g/set-property chosen-node :a-property nil)))))))
+          chosen-nodes    (mapv #(ig/node project-graph %) chosen-node-ids)
+          chosen-props    (mapv (fn [node]  (rand-nth (vec (disj (set (keys (gt/properties node))) :id)))) chosen-nodes)]
+      (str "Set Property on " affected-num " Nodes")
+      (do-benchmark (str "Set Property on " affected-num " Nodes")
+                    (mapv (fn [node property] (g/set-property node property nil)) chosen-nodes chosen-props)))))
 
 (defn add-two-nodes-and-connect-them []
   (with-clean-system
@@ -200,7 +201,7 @@
     (let [[resources views] (build-fake-graphs! 1000 100)
           actions           (map (fn [& a] a)
                                  (repeatedly n #(g/node-id (rand-nth resources)))
-                                 (repeatedly n #(rand-nth [:alpha :beta :gamma]))
+                                 (repeat n :path)
                                  (repeat :scene))
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
@@ -212,7 +213,7 @@
     (let [[resources views] (build-fake-graphs! 1000 100)
           actions           (map (fn [& a] a)
                                  (repeatedly n #(g/node-id (rand-nth resources)))
-                                 (repeatedly n #(rand-nth [:alpha :beta :gamma]))
+                                 (repeat n :path)
                                  (repeatedly n #(rand-int 10000)))
           pulls             (map (fn [& a] a)
                                  (repeatedly #(g/node-id (rand-nth views)))
@@ -245,14 +246,15 @@
   (println "======="))
 
 (defn run-benchmarks []
-  (network-creation)
-  (add-one-node)
-  (add-one-node-delete-one-node)
-  (set-property-some-nodes)
-  (add-two-nodes-and-connect-them)
-  (add-two-nodes-and-connect-and-disconnect-them)
-  (run-many-transactions)
-  (one-node-value-bench))
+ (network-creation)
+ (add-one-node)
+ (add-one-node-delete-one-node)
+ (set-property-some-nodes)
+ (add-two-nodes-and-connect-them)
+ (add-two-nodes-and-connect-and-disconnect-them)
+ (run-many-transactions)
+ (one-node-value-bench)
+  )
 
 (defn -main [& args]
   (println "Running benchmarks and outputing results to ./test/benchmark/bench-results.txt")
