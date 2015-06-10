@@ -619,7 +619,9 @@ namespace dmGameObject
         ComponentGetProperty    m_GetPropertyFunction;
         ComponentSetProperty    m_SetPropertyFunction;
         uint32_t                m_InstanceHasUserData : 1;
-        uint32_t                m_Reserved : 31;
+        uint32_t                m_ReadsTransforms : 1;
+        uint32_t                m_WritesTransforms : 1;
+        uint32_t                m_Reserved : 29;
         uint16_t                m_UpdateOrderPrio;
     };
 
