@@ -12,7 +12,8 @@
 (g/defnode Resource
   (input a String)
   (output b t/Keyword (fnk [] :ok))
-  (output c String upcase-a))
+  (output c String upcase-a)
+  (property d String (default 1)))
 
 (g/defnode Downstream
   (input consumer t/Keyword))
@@ -45,10 +46,10 @@
         (is (= [] (g/targets after id1 :b))))))
   (testing "simple update"
     (with-clean-system
-      (let [[resource] (tx-nodes (g/make-node world Resource :c 0))
-            tx-result  (g/transact (it/update-property resource :c (fnil + 0) [42]))]
+      (let [[resource] (tx-nodes (g/make-node world Resource :d 0))
+            tx-result  (g/transact (it/update-property resource :d (fnil + 0) [42]))]
         (is (= :ok (:status tx-result)))
-        (is (= 42 (:c (g/node-by-id (:basis tx-result) (:_id resource))))))))
+        (is (= 42 (:d (g/node-by-id (:basis tx-result) (:_id resource))))))))
   (testing "node deletion"
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (g/make-node world Resource)
@@ -89,6 +90,7 @@
 (g/defnode TriggerExecutionCounter
   (input downstream t/Any)
   (property any-property t/Bool)
+  (property dynamic-property t/Any)
 
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity))
 
