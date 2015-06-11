@@ -273,6 +273,7 @@
      graph-id
      [atlas-image [AtlasImage :path image]]
      (g/connect img-node    :content     atlas-image :src-image)
+     (g/connect atlas-image :self        base-node   :nodes)
      (g/connect atlas-image src-label    parent      tgt-label)
      (g/connect atlas-image :outline     parent      :outline)
      (g/connect atlas-image :ddf-message parent      :img-ddf))))
@@ -289,6 +290,7 @@
         (g/make-nodes
           (g/node->graph-id self)
           [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim) :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
+          (g/connect atlas-anim :self        self :nodes)
           (g/connect atlas-anim :animation   self :animations)
           (g/connect atlas-anim :outline     self :outline)
           (g/connect atlas-anim :ddf-message self :anim-ddf)
