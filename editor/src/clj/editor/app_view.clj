@@ -72,17 +72,17 @@
 (defn- on-tabs-changed [app-view]
   (invalidate app-view :open-resources))
 
-(handler/defhandler :move-tool
+(handler/defhandler :move-tool :global
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
   (state [app-view] (= (:active-tool (g/refresh app-view)) :move)))
 
-(handler/defhandler :scale-tool
+(handler/defhandler :scale-tool :global
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale)))
 
-(handler/defhandler :rotate-tool
+(handler/defhandler :rotate-tool :global
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate)))
@@ -98,20 +98,20 @@
                   :icon "icons/transform_scale.png"
                   :command :scale-tool}])
 
-(handler/defhandler :quit
+(handler/defhandler :quit :global
   (enabled? [] true)
   (run [] (prn "QUIT NOW!")))
 
-(handler/defhandler :new
+(handler/defhandler :new :global
   (enabled? [] true)
   (run [] (prn "NEW NOW!")))
 
-(handler/defhandler :open
+(handler/defhandler :open :global
   (enabled? [] true)
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
-(handler/defhandler :logout
+(handler/defhandler :logout :global
   (enabled? [] true)
   (run [prefs] (login/logout prefs)))
 
@@ -126,7 +126,7 @@
     (.setScene stage scene)
     (ui/show! stage)))
 
-(handler/defhandler :about
+(handler/defhandler :about :global
   (enabled? [] true)
   (run [] (make-about-dialog)))
 
@@ -160,7 +160,13 @@
                              {:label "Redo"
                               :acc "Shift+Shortcut+Z"
                               :icon "icons/redo.png"
-                              :command :redo}]}
+                              :command :redo}
+                             {:label :separator}
+                             {:label "Delete"
+                              :acc "Shortcut+BACKSPACE"
+                              :icon_ "icons/redo.png"
+                              :command :delete}
+                             ]}
                  {:label "Help"
                   :children [{:label "About"
                               :command :about}]}])
@@ -173,11 +179,13 @@
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))
-        command-context {:app-view app-view
-                         :project project
-                         :project-graph project-graph
-                         :prefs prefs
-                         :workspace (:workspace project)}]
+        env {:app-view app-view
+             :project project
+             :project-graph project-graph
+             :prefs prefs
+             :workspace (:workspace project)}]
+
+    (ui/context! (.getRoot (.getScene stage)) :global env project)
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -192,8 +200,8 @@
           (onChanged [this change]
             (on-tabs-changed app-view)))))
 
-    (ui/register-toolbar (.getScene stage) command-context (DummySelectionProvider.) "#toolbar" ::toolbar)
-    (ui/register-menubar (.getScene stage) command-context (DummySelectionProvider.) "#menu-bar" ::menubar)
+    (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
+    (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
     (let [refresh-timer (proxy [AnimationTimer] []
                           (handle [now]
                             ; TODO: Not invoke this function every frame...
@@ -228,7 +236,7 @@
         (project/select! project [resource-node]))
       (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))
 
-(handler/defhandler :open-asset
+(handler/defhandler :open-asset :global
   (enabled? [] true)
   (run [workspace project app-view] (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
                                       (open-resource app-view workspace project resource))))
