@@ -222,7 +222,7 @@
     (and (= GameObjectInstanceNode (g/node-type node))
          (:embedded node))))
 
-(handler/defhandler :add-from-file
+(handler/defhandler :add-from-file :global
   (enabled? [selection] (and (single-selection? selection)
                              (or (selected-collection? selection)
                                  (selected-embedded-instance? selection))))
@@ -267,7 +267,7 @@
                     (g/connect go-node     :id          self    :ids))
       (g/make-node (g/node->graph-id self) GameObjectInstanceNode :id id :embedded true))))
 
-(handler/defhandler :add
+(handler/defhandler :add :global
   (enabled? [selection] (and (single-selection? selection)
                              (or (selected-collection? selection)
                                  (selected-embedded-instance? selection))))
@@ -312,7 +312,7 @@
                      (g/connect source-node :scene        coll-node :scene)]
                     []))))
 
-(handler/defhandler :add-secondary-from-file
+(handler/defhandler :add-secondary-from-file :global
   (enabled? [selection] (and (single-selection? selection)
                              (selected-collection? selection)))
   (run [selection] (let [coll-node (g/node-by-id (first selection))

@@ -135,7 +135,7 @@
                   :icon "icons/cross.png"
                   :command :delete}])
 
-(handler/defhandler :delete
+(handler/defhandler :delete :global
     (enabled? [selection] (= 1 (count selection)))
     (run [selection] (g/transact
                        (concat
@@ -150,7 +150,7 @@
       (.getSelectionModel)
       (.getSelectedItems)
       (.addListener selection-listener))
-  (ui/register-context-menu tree-view {} selection-provider ::outline-menu)
+  (ui/register-context-menu tree-view ::outline-menu)
   (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                (proxy [TreeCell] []
                                                  (updateItem [item empty]

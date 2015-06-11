@@ -153,7 +153,7 @@
             (g/operation-label "Add Component")
             (project/select project [comp-node])))))))
 
-(handler/defhandler :add-from-file
+(handler/defhandler :add-from-file :global
     (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
     (run [selection] (add-component-handler (g/node-by-id (first selection)))))
 
@@ -196,7 +196,7 @@
           ((:load-fn component-type) project source-node (io/reader (:resource source-node)))
           (project/select project [comp-node]))))))
 
-(handler/defhandler :add
+(handler/defhandler :add :global
     (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
     (run [selection] (add-embedded-component-handler (g/node-by-id (first selection)))))
 
