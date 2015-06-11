@@ -115,6 +115,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
+    conf.env['STATICLIB_TRACKING'] = 'tracking'
 
     if operating_sys != 'ios' and operating_sys != 'android' and operating_sys != 'web':
         conf.env['STATICLIB_RECORD'] = 'record'

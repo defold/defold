@@ -1,0 +1,24 @@
+#! /usr/bin/env python
+import os, re
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    tracking = bld.new_task_gen(features = 'cxx cstaticlib embed ddf',
+                                includes = ['.', '../proto'],
+                                proto_gen_py = True,
+                                proto_gen_cc = True,
+                                protoc_includes = '../proto',
+                                locallibs = 'tracking_lua_script',
+                                embed_source = 'lua/tracking.lua',
+                                target = 'tracking')
+                                
+    tracking.find_sources_in_dirs('.')
+    tracking.find_sources_in_dirs('../proto/tracking')
+    
+    bld.add_subdirs('test')
+    bld.install_files('${PREFIX}/include/tracking', 'tracking.h')
+    bld.install_files('${PREFIX}/share/proto', '../proto/tracking/tracking_ddf.proto')
+
