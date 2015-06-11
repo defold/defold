@@ -127,8 +127,16 @@ namespace dmScript
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data);
 
-    void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
+    /**
+     * Push DDF message to Lua stack
+     * @param L Lua state
+     * @param descriptor Field descriptor
+     * @param pointers_are_offets if pointers are offsets
+     * @param data DDF data
+     */
+    void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
+    void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
     /**
      * Serialize a table to a buffer
@@ -188,11 +196,11 @@ namespace dmScript
     void PushVector(lua_State* L, dmVMath::FloatVector* v);
 
     /**
-	 * Check if the value in the supplied index on the lua stack is a Vector.
-	 * @param L Lua state
-	 * @param index Index of the value
-	 * @return The FloatVector value
-	 */
+     * Check if the value in the supplied index on the lua stack is a Vector.
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The FloatVector value
+     */
     dmVMath::FloatVector* CheckVector(lua_State* L, int index);
 
     /**
