@@ -485,7 +485,7 @@ public class Server {
         for (RevCommit revCommit : revLog) {
             CommitDesc.Builder commit = CommitDesc.newBuilder();
             commit.setId(revCommit.getId().toString());
-            commit.setMessage(revCommit.getCommitterIdent().getName());
+            commit.setMessage(revCommit.getShortMessage());
             commit.setEmail(revCommit.getCommitterIdent().getEmailAddress());
             long commitTime = revCommit.getCommitTime();
             commit.setDate(formatter.print(new DateTime(commitTime * 1000)));
