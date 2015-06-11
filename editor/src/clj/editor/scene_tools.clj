@@ -468,11 +468,11 @@
   (property start-action t/Any)
   (property prev-action t/Any)
   (property original-values t/Any)
-  
+
   (property hot-manip t/Any)
   (property active-manip t/Any)
   (property op-seq t/Any)
-  
+
   (input active-tool t/Keyword)
   (input camera t/Any)
   (input viewport t/Any)
