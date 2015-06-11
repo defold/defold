@@ -1,0 +1,22 @@
+package dmTrackingDDF;
+
+import "ddf/ddf_extensions.proto";
+
+option java_package = "com.dynamo.tracking.proto";
+option java_outer_classname = "Tracking";
+
+message TrackingAttribute {
+    required string key = 1;
+    required string value = 2;
+}
+
+message TrackingMetric {
+    required string key = 1;
+    required float value = 2;
+}
+
+message TrackingEvent {
+    required string type = 1;
+    repeated TrackingAttribute attributes = 2;
+    repeated TrackingMetric metrics = 3;
+}

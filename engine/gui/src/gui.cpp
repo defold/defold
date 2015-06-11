@@ -1242,7 +1242,7 @@ namespace dmGui
 
                     if (message->m_Descriptor)
                     {
-                        dmScript::PushDDF(L, (dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data);
+                        dmScript::PushDDF(L, (dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data, true);
                     }
                     else if (message->m_DataSize > 0)
                     {

@@ -249,21 +249,9 @@ namespace dmGameObject
 
             if (params.m_Message->m_Descriptor != 0)
             {
-                // adjust char ptrs to global mem space
-                char* data = (char*)params.m_Message->m_Data;
-                dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)params.m_Message->m_Descriptor;
-                for (uint8_t i = 0; i < descriptor->m_FieldCount; ++i)
-                {
-                    dmDDF::FieldDescriptor* field = &descriptor->m_Fields[i];
-                    uint32_t field_type = field->m_Type;
-                    if (field_type == dmDDF::TYPE_STRING)
-                    {
-                        *((uintptr_t*)&data[field->m_Offset]) = (uintptr_t)data + *((uintptr_t*)(data + field->m_Offset));
-                    }
-                }
                 // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                 // lua_cpcall?
-                dmScript::PushDDF(L, descriptor, (const char*) params.m_Message->m_Data);
+                dmScript::PushDDF(L, (const dmDDF::Descriptor*)params.m_Message->m_Descriptor, (const char*) params.m_Message->m_Data, true);
             }
             else
             {

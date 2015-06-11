@@ -49,6 +49,17 @@ message OptionalNoDefaultValue
     optional Enum enum_value = 3;
 }
 
+message RepeatedItem
+{
+    optional string string_optional = 1;
+    required string string_required = 2;
+}
+
+message RepeatedContainer
+{
+    repeated RepeatedItem items = 1;
+}
+
 message LuaDDFBufferOverflow
 {
     required uint32 uint_value = 1;
