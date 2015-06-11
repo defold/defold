@@ -120,8 +120,10 @@
   (let [path (if source-node (workspace/proj-path (:resource source-node)) "")]
     (g/make-nodes (g/node->graph-id self)
                   [comp-node [ComponentNode :id id :position position :rotation rotation :path path]]
-                  (g/connect comp-node :outline self :outline)
-                  (if source-node
+                  (concat
+                   (g/connect comp-node :outline self :outline)
+                   (g/connect comp-node :self    self :nodes)
+                   (when source-node
                     (concat
                       (g/connect comp-node   :ddf-message self      :ref-ddf)
                       (g/connect comp-node   :id          self      :child-ids)
@@ -129,8 +131,7 @@
                       (g/connect source-node :self        comp-node :source)
                       (connect-if-output source-node :outline comp-node :outline)
                       (connect-if-output source-node :save-data comp-node :save-data)
-                      (connect-if-output source-node :scene comp-node :scene))
-                    []))))
+                      (connect-if-output source-node :scene comp-node :scene)))))))
 
 (defn add-component-handler [self]
   (let [project (:parent self)
@@ -167,13 +168,16 @@
                     (g/connect source-node :outline     comp-node :outline)
                     (g/connect source-node :save-data   comp-node :save-data)
                     (g/connect source-node :scene       comp-node :scene)
+                    (g/connect source-node :self        self      :nodes)
                     (g/connect comp-node   :outline     self      :outline)
                     (g/connect comp-node   :ddf-message self      :embed-ddf)
                     (g/connect comp-node   :id          self      :child-ids)
-                    (g/connect comp-node   :scene       self      :child-scenes))
+                    (g/connect comp-node   :scene       self      :child-scenes)
+                    (g/connect comp-node   :self        self      :nodes))
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
-                    (g/connect comp-node   :outline      self      :outline)))))
+                    (g/connect comp-node   :outline      self      :outline)
+                    (g/connect comp-node   :self         self      :nodes)))))
 
 (defn add-embedded-component-handler [self]
   (let [project (:parent self)

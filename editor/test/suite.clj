@@ -18,12 +18,12 @@
                        editor.injection-test
                        editor.math-test
                        editor.project-test
-                       editor.scope-test
                        editor.ui-test
                        integration.undo-test
                        integration.asset-browser-test
                        integration.save-test
                        integration.scene-test
+                       integration.scope-test
                        internal.cache-test
                        internal.connection-rules
                        internal.dependency-test
