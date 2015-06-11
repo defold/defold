@@ -213,24 +213,29 @@
         (let [setter (get setters [key (g/node-id node)])]
           (setter (get node key)))))))
 
-(defn- update-grid [parent workspace nodes]
+(defn- update-grid [parent self workspace nodes]
   ; NOTE: We cache the ui based on the ::nodes-ids user-data
   (let [all-nodes (flatten-nodes nodes)
-        node-ids (map g/node-id all-nodes)]
-    (if (not= node-ids (ui/user-data parent ::node-ids))
+        node-ids (map g/node-id all-nodes)
+        prev-ids (ui/user-data parent ::node-ids)]
+    (if (not= node-ids prev-ids)
+      (let [grid (make-grid parent workspace all-nodes node-ids)]
+        (ui/user-data! parent ::node-ids node-ids)
+        (g/set-property! self :prev-grid-pane grid)
+        grid)
       (do
-        (make-grid parent workspace all-nodes node-ids)
-        (ui/user-data! parent ::node-ids node-ids))
-      (refresh-grid parent workspace all-nodes))))
+        (refresh-grid parent workspace all-nodes)
+        (:prev-grid-pane self)))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property repainter AnimationTimer)
   (property workspace t/Any)
+  (property prev-grid-pane (t/maybe GridPane))
 
   (input selection t/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view workspace selection] (update-grid parent-view workspace selection)))
+  (output grid-pane GridPane :cached (g/fnk [parent-view self workspace selection] (update-grid parent-view self workspace selection)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
