@@ -1971,6 +1971,7 @@ namespace dmGameObject
             {
                 if (dmMessage::IsSocketValid(sockets[i]))
                 {
+                    // Make sure the transforms are updated if we are about to dispatch messages
                     if (dmMessage::HasMessages(sockets[i]) && collection->m_DirtyTransforms)
                     {
                         UpdateTransforms(collection);
@@ -2058,7 +2059,7 @@ namespace dmGameObject
             }
         }
 
-        collection->m_DirtyTransforms = 0;
+        collection->m_DirtyTransforms = false;
     }
 
     bool Update(HCollection collection, const UpdateContext* update_context)
@@ -2083,6 +2084,7 @@ namespace dmGameObject
 
             DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
 
+            // Avoid to call UpdateTransforms for each/all component types.
             if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
                 UpdateTransforms(collection);
             }
@@ -2099,9 +2101,9 @@ namespace dmGameObject
                 if (res != UPDATE_RESULT_OK)
                     ret = false;
             }
-            // TODO: Solve this better! Right now the worst is assumed, which is that every component updates some transforms as well as
-            // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
-            // into UpdateTrasform, then Update or similar
+
+            // Mark the collections transforms as dirty if this component could have updated
+            // them in its update function.
             collection->m_DirtyTransforms |= component_type->m_WritesTransforms;
 
             if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
