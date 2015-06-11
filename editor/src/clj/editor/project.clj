@@ -71,6 +71,23 @@ ordinary paths."
                      (doseq [{:keys [resource content]} save-data]
                        (spit resource content)))))
 
+(defn- build-target [basis target]
+  (let [node (g/node-by-id basis (:node-id target))]
+    ((:build-fn target) node basis (:resource target) [] (:user-data target))))
+
+(defn build [project node]
+  (let [build-targets (g/node-value node :build-targets)
+        basis (g/now)]
+    (pmap #(build-target basis %) build-targets)))
+
+(defn build-and-write [project node]
+  (let [build-results (build project node)]
+    (doseq [{:keys [resource content]} build-results
+            :let [parent (-> (File. ^String (workspace/abs-path resource))
+                           (.getParentFile))]]
+      (when (not (.exists parent))
+        (.mkdirs parent))
+      (spit resource content))))
 
 (handler/defhandler :undo
     (enabled? [project-graph] (g/has-undo? project-graph))
@@ -84,6 +101,13 @@ ordinary paths."
                 [{:label "Save All"
                   :acc "Shortcut+S"
                   :command :save-all}])
+
+(ui/extend-menu ::menubar :editor.app-view/edit
+                [{:label "Project"
+                  :id ::project
+                  :children [{:label "Build"
+                              :acc "Shortcut+B"
+                              :command :build}]}])
 
 (g/defnode Project
   (inherits core/Scope)
@@ -120,6 +144,12 @@ ordinary paths."
 (defn get-resource-node [project resource]
   (let [nodes-by-resource (g/node-value project :nodes-by-resource)]
     (get nodes-by-resource resource)))
+
+(handler/defhandler :build
+    (enabled? [] true)
+    (run [project] (let [workspace (:workspace project)
+                         game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))]
+                     (build-and-write project game-project))))
 
 (defn resolve-resource-node [base-resource-node path]
   (let [project (:parent base-resource-node)
