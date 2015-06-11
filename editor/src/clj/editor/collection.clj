@@ -201,15 +201,16 @@
     (g/make-nodes (g/node->graph-id self)
                   [go-node [GameObjectInstanceNode :id id :path path
                             :position position :rotation rotation :scale scale]]
-                  (if source-node
-                    (concat
+                  (concat
+                   (g/connect go-node :self self :nodes)
+                   (when source-node
+                     (concat
                       (g/connect go-node     :ddf-message self    :ref-inst-ddf)
                       (g/connect go-node     :id          self    :ids)
                       (g/connect source-node :self        go-node :source)
                       (g/connect source-node :outline     go-node :outline)
                       (g/connect source-node :save-data   go-node :save-data)
-                      (g/connect source-node :scene       go-node :scene))
-                    []))))
+                      (g/connect source-node :scene       go-node :scene)))))))
 
 (defn- single-selection? [selection]
   (= 1 (count selection)))
@@ -263,9 +264,14 @@
                     (g/connect source-node :outline     go-node :outline)
                     (g/connect source-node :save-data   go-node :save-data)
                     (g/connect source-node :scene       go-node :scene)
+                    (g/connect source-node :self        self    :nodes)
                     (g/connect go-node     :ddf-message self    :embed-inst-ddf)
-                    (g/connect go-node     :id          self    :ids))
-      (g/make-node (g/node->graph-id self) GameObjectInstanceNode :id id :embedded true))))
+                    (g/connect go-node     :id          self    :ids)
+                    (g/connect go-node     :self        self    :nodes))
+      (g/make-nodes (g/node->graph-id self)
+                    [go-node [GameObjectInstanceNode :id id :embedded true]]
+                    (g/connect go-node     :self        self    :nodes)))))
+
 
 (handler/defhandler :add :global
   (enabled? [selection] (and (single-selection? selection)
@@ -301,16 +307,18 @@
     (g/make-nodes (g/node->graph-id self)
                   [coll-node [CollectionInstanceNode :id id :path path
                               :position position :rotation rotation :scale scale]]
-                  (g/connect coll-node :outline self :child-outlines)
-                  (if source-node
-                    [(g/connect coll-node   :ddf-message  self :ref-coll-ddf)
-                     (g/connect coll-node   :id           self :ids)
-                     (g/connect coll-node   :scene        self :child-scenes)
-                     (g/connect source-node :self         coll-node :source)
-                     (g/connect source-node :outline      coll-node :outline)
-                     (g/connect source-node :save-data    coll-node :save-data)
-                     (g/connect source-node :scene        coll-node :scene)]
-                    []))))
+                  (concat
+                   (g/connect coll-node :outline self :child-outlines)
+                   (g/connect coll-node :self    self :nodes)
+                   (when source-node
+                     (concat
+                      (g/connect coll-node   :ddf-message  self :ref-coll-ddf)
+                      (g/connect coll-node   :id           self :ids)
+                      (g/connect coll-node   :scene        self :child-scenes)
+                      (g/connect source-node :self         coll-node :source)
+                      (g/connect source-node :outline      coll-node :outline)
+                      (g/connect source-node :save-data    coll-node :save-data)
+                      (g/connect source-node :scene        coll-node :scene)))))))
 
 (handler/defhandler :add-secondary-from-file :global
   (enabled? [selection] (and (single-selection? selection)

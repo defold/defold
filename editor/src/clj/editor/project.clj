@@ -56,10 +56,12 @@ ordinary paths."
     (when (not (empty? new-nodes))
       (recur project new-nodes))))
 
-(defn load-project [project]
-  (let [nodes (make-nodes project (g/node-value project :resources))]
-    (load-nodes (g/refresh project) nodes)
-    (g/refresh project)))
+(defn load-project
+  ([project] (load-project project (g/node-value project :resources)))
+  ([project resources]
+   (let [nodes (make-nodes project resources)]
+     (load-nodes (g/refresh project) nodes)
+     (g/refresh project))))
 
 (defn make-embedded-resource [project type data]
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
