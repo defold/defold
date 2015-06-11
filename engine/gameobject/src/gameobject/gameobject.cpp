@@ -1971,13 +1971,17 @@ namespace dmGameObject
             {
                 if (dmMessage::IsSocketValid(sockets[i]))
                 {
-                    if (dmMessage::HasMessages(sockets[i]))
+                    if (dmMessage::HasMessages(sockets[i]) && collection->m_DirtyTransforms)
                     {
                         UpdateTransforms(collection);
                     }
                     uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
                     if (message_count > 0)
+                    {
+                        collection->m_DirtyTransforms = true;
                         iterate = true;
+                    }
+
                 }
             }
             ++iteration_count;
@@ -2003,11 +2007,6 @@ namespace dmGameObject
     {
         DM_PROFILE(GameObject, "UpdateTransforms");
 
-        if (!collection->m_DirtyTransforms)
-        {
-            return;
-        }
-
         // Calculate world transforms
         // First root-level instances
         dmArray<uint16_t>& root_level = collection->m_LevelIndices[0];
@@ -2023,6 +2022,7 @@ namespace dmGameObject
         }
 
         // World-transform for levels 1..MAX_HIERARCHICAL_DEPTH-1
+        Matrix4 own;
         for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
             dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
@@ -2038,22 +2038,21 @@ namespace dmGameObject
                 assert(parent_index != INVALID_INSTANCE_INDEX);
 
                 Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
+                own = dmTransform::ToMatrix4(instance->m_Transform);
 
                 if (instance->m_ScaleAlongZ)
                 {
-                    *trans = *parent_trans * dmTransform::ToMatrix4(instance->m_Transform);
+                    *trans = *parent_trans * own;
                 }
                 else
                 {
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, dmTransform::ToMatrix4(instance->m_Transform));
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, own);
                 }
 
                 if (instance->m_NoInheritScale)
                 {
-                    Matrix4 parent = (*parent_trans);
-                    Vector3 scale = dmTransform::ExtractScale(parent);
-                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
-                    own.setUpper3x3(Matrix3::scale(Vector3(1/scale.getX(), 1/scale.getY(), 1/scale.getZ())) * own.getUpper3x3());
+                    Vector3 scale = dmTransform::ExtractScale(*parent_trans);
+                    own.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * own.getUpper3x3());
                     *trans = (*parent_trans) * own;
                 }
             }
@@ -2084,6 +2083,10 @@ namespace dmGameObject
 
             DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
 
+            if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
+                UpdateTransforms(collection);
+            }
+
             if (component_type->m_UpdateFunction)
             {
                 DM_PROFILE(GameObject, component_type->m_Name);
@@ -2100,15 +2103,15 @@ namespace dmGameObject
             // demands updated child-transforms. Many redundant calculations. This could be solved by splitting the component Update-callback
             // into UpdateTrasform, then Update or similar
             collection->m_DirtyTransforms |= component_type->m_WritesTransforms;
-            if (component_type->m_ReadsTransforms) {
-                UpdateTransforms(collection);
-            }
 
             if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
                 ret = false;
         }
 
         collection->m_InUpdate = 0;
+        if (collection->m_DirtyTransforms) {
+            UpdateTransforms(collection);
+        }
 
         return ret;
     }
