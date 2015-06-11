@@ -317,6 +317,7 @@ int Push_Register(lua_State* L)
             uitypes |= UIUserNotificationTypeAlert;
 
         [[UIApplication sharedApplication] registerUserNotificationSettings:[UIUserNotificationSettings settingsForTypes:uitypes categories:nil]];
+        [[UIApplication sharedApplication] registerForRemoteNotifications];
 
     } else {
         [[UIApplication sharedApplication] registerForRemoteNotificationTypes: types];
