@@ -152,7 +152,7 @@
                               :acc "Shortcut+Q"
                               :command :quit}]}
                  {:label "Edit"
-                  :id ::file
+                  :id ::edit
                   :children [{:label "Undo"
                               :acc "Shortcut+Z"
                               :icon "icons/undo.png"
