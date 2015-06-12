@@ -18,6 +18,7 @@ import com.dynamo.cr.protocol.proto.Protocol.UserInfo;
 import com.dynamo.cr.server.Server;
 import com.dynamo.cr.server.model.Project;
 import com.dynamo.cr.server.model.User;
+import com.dynamo.cr.server.util.TrackingID;
 
 public class ResourceUtil {
 
@@ -84,7 +85,8 @@ public class ResourceUtil {
             .setRepositoryUrl(String.format("http://%s:%d%s/%d", configuration.getHostname(),
                     configuration.getGitPort(),
                     getGitBaseUri(configuration),
-                    project.getId()));
+                    project.getId()))
+            .setTrackingId(TrackingID.trackingID((int) (project.getId() & 0xffffffff)));
 
         if (Server.getEngineFile(configuration, Long.toString(project.getId()), "ios").exists()) {
             String key = Server.getEngineDownloadKey(project);
