@@ -165,7 +165,7 @@
   (input src-image BufferedImage)
   (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
-  (output outline t/Any (g/fnk [self path] {:self self :label (path->id path) :icon image-icon}))
+  (output outline t/Any (g/fnk [node-id path] {:node-id node-id :label (path->id path) :icon image-icon}))
   (output ddf-message t/Any :cached (g/fnk [path] (.build (doto (AtlasProto$AtlasImage/newBuilder) (.setImage path))))))
 
 (g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]
@@ -190,7 +190,7 @@
 
   (output animation Animation (g/fnk [this id frames fps flip-horizontal flip-vertical playback]
                                      (->Animation id frames fps flip-horizontal flip-vertical playback)))
-  (output outline t/Any (g/fnk [self id outline] {:self self :label id :children outline :icon animation-icon}))
+  (output outline t/Any (g/fnk [node-id id outline] {:node-id node-id :label id :children outline :icon animation-icon}))
   (output ddf-message t/Any :cached produce-anim-ddf))
 
 (g/defnk produce-save-data [resource margin extrude-borders img-ddf anim-ddf]
@@ -259,7 +259,7 @@
   (output texture-packing TexturePacking :cached produce-texture-packing)
   (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
   (output textureset      TextureSet     :cached produce-textureset)
-  (output outline         t/Any          :cached (g/fnk [self outline] {:self self :label "Atlas" :children outline :icon atlas-icon}))
+  (output outline         t/Any          :cached (g/fnk [node-id outline] {:node-id node-id :label "Atlas" :children outline :icon atlas-icon}))
   (output save-data       t/Any          :cached produce-save-data)
   (output scene           t/Any          :cached produce-scene))
 
