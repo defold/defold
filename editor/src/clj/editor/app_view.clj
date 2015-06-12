@@ -18,7 +18,7 @@
            [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList ListChangeListener]
            [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
+           [javafx.event ActionEvent Event EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
@@ -115,6 +115,14 @@
   (enabled? [] true)
   (run [prefs] (login/logout prefs)))
 
+(handler/defhandler :close :global
+  (enabled? [] true)
+  (run [app-view] (when-let [tab (-> (:tab-pane app-view) (.getSelectionModel) (.getSelectedItem))]
+                    (.remove (.getTabs (:tab-pane app-view)) tab)
+                    ; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
+                    ; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
+                    (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))))
+
 (defn make-about-dialog []
   (let [root ^Parent (FXMLLoader/load (io/resource "about.fxml"))
         stage (Stage.)
@@ -145,6 +153,10 @@
                              {:label "Open Asset"
                               :acc "Shift+Shortcut+R"
                               :command :open-asset}
+                             {:label :separator}
+                             {:label "Close"
+                              :acc "Shortcut+W"
+                              :command :close}
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
