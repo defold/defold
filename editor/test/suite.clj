@@ -24,6 +24,7 @@
                        integration.save-test
                        integration.scene-test
                        integration.scope-test
+                       integration.collection-test
                        internal.cache-test
                        internal.connection-rules
                        internal.dependency-test
