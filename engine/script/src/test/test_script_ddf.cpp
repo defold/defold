@@ -253,18 +253,18 @@ TEST_F(ScriptDDFTest, RepeatedFieldDDFFromLua)
         lua_setfield(L, -2, "string_required");
         lua_rawseti(L, -2, i+1);
     }
-    
+
     lua_setfield(L, -2, "items");
-        
+
     char *buf = new char[1024];
-    
+
     dmScript::CheckDDF(L, TestScript::RepeatedContainer::m_DDFDescriptor, buf, 1024, -1);
     TestScript::RepeatedContainer* msg = (TestScript::RepeatedContainer*) buf;
     ASSERT_EQ(msg->m_Items.m_Count, 10);
-    
+
     lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
-    
+
     delete[] buf;
 }
 
@@ -274,35 +274,48 @@ TEST_F(ScriptDDFTest, RepeatedFieldDDFToLua)
     TestScript::RepeatedItem* items = new TestScript::RepeatedItem[2];
     msg->m_Items.m_Count = 2;
     msg->m_Items.m_Data = items;
-    
+
     items[0].m_StringOptional = "opt0";
     items[0].m_StringRequired = "req0";
     items[1].m_StringOptional = 0;
     items[1].m_StringRequired = "req1";
-    
-    dmScript::PushDDF(L, TestScript::RepeatedContainer::m_DDFDescriptor, (const char*) msg);
-    
-    lua_getfield(L, -1, "items");
-    ASSERT_EQ(false, lua_isnil(L, -1));
-    
-    lua_rawgeti(L, -1, 1);
-    lua_getfield(L, -1, "string_required");
-    ASSERT_EQ(0, strcmp(lua_tostring(L, -1), "req0"));
-    lua_pop(L, 1);
-    lua_getfield(L, -1, "string_optional");
-    ASSERT_EQ(0, strcmp(lua_tostring(L, -1), "opt0"));
-    lua_pop(L, 2);
 
-    lua_rawgeti(L, -1, 2);
-    lua_getfield(L, -1, "string_required");
-    ASSERT_EQ(0, strcmp(lua_tostring(L, -1), "req1"));
+    // first iteration tests with PushDDF with real pointers, second time around with offsets
+    dmScript::PushDDF(L, TestScript::RepeatedContainer::m_DDFDescriptor, (const char*) msg, false);
+    for (int i=0;i<2;i++)
+    {
+        lua_getfield(L, -1, "items");
+        ASSERT_EQ(false, lua_isnil(L, -1));
+
+        lua_rawgeti(L, -1, 1);
+        lua_getfield(L, -1, "string_required");
+        ASSERT_EQ(0, strcmp(lua_tostring(L, -1), "req0"));
+        lua_pop(L, 1);
+        lua_getfield(L, -1, "string_optional");
+        ASSERT_EQ(0, strcmp(lua_tostring(L, -1), "opt0"));
+        lua_pop(L, 2);
+
+        lua_rawgeti(L, -1, 2);
+        lua_getfield(L, -1, "string_required");
+        ASSERT_EQ(0, strcmp(lua_tostring(L, -1), "req1"));
+        lua_pop(L, 1);
+        lua_getfield(L, -1, "string_optional");
+        ASSERT_EQ(true, lua_isnil(L, -1) || !strcmp(lua_tostring(L, -1), ""));
+        lua_pop(L, 3);
+
+        if (i == 0)
+        {
+            char* buf = new char[512];
+            dmScript::CheckDDF(L, TestScript::RepeatedContainer::m_DDFDescriptor, buf, 512, -1);
+            lua_pop(L, 1);
+            dmScript::PushDDF(L, TestScript::RepeatedContainer::m_DDFDescriptor, (const char*) buf, true);
+            delete[] buf;
+        }
+    }
+
     lua_pop(L, 1);
-    lua_getfield(L, -1, "string_optional");
-    ASSERT_EQ(true, lua_isnil(L, -1));
-    lua_pop(L, 2);
-    
-    lua_pop(L, 1);
-    
+
+
     delete[] items;
     delete msg;
 }
