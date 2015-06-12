@@ -72,6 +72,7 @@ public class ProjectView extends Composite {
     @UiField Anchor iOSDownload;
     @UiField Label signedExeInfo;
     @UiField TextBox libraryUrl;
+    @UiField Label trackingId;
 
     private final MultiWordSuggestOracle suggestions = new MultiWordSuggestOracle();
     private Presenter listener;
@@ -116,6 +117,7 @@ public class ProjectView extends Composite {
         this.iOSDownload.setVisible(false);
         this.signedExeInfo.setText("");
         this.libraryUrl.setText("");
+        this.trackingId.setText("");
     }
 
     public void setProjectInfo(int userId, ProjectInfo projectInfo, String iOSUrl) {
@@ -172,6 +174,7 @@ public class ProjectView extends Composite {
 
         iOSDownload.setHref("itms-services://?action=download-manifest&url=" + iOSUrl);
         libraryUrl.setText("http://" + Window.Location.getHost() + "/p/" + projectInfo.getOwner().getId() + "/" + projectInfo.getId() + "/archive");
+        trackingId.setText(projectInfo.getTrackingId());
     }
 
     public void setLog(int userId, Log log) {

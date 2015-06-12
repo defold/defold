@@ -111,7 +111,7 @@ message ProjectInfo {
     required int64 lastUpdated = 8;
     required string repositoryUrl = 9;
     optional string iOSExecutableUrl = 10;
-    optional string tracking_id = 11 [default = ""];
+    optional string trackingId = 11 [default = ""];
 }
 
 message ProjectInfoList {
