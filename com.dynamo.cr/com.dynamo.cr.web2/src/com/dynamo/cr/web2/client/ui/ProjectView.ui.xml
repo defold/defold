@@ -73,6 +73,10 @@
                         <p>
                         <g:TextBox ui:field="libraryUrl" addStyleNames="{style.libraryUrl}"/>
                         </p>
+                        Tracking ID:
+                        <p>
+                            <g:Label ui:field="trackingId"/>
+                        </p>
                         <h2>Members</h2>
                         <g:FlexTable ui:field="members2"></g:FlexTable>
 
