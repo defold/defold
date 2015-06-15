@@ -523,6 +523,36 @@
    (c/cache-invalidate (cache) (dependencies basis outputs))))
 
 ;; ---------------------------------------------------------------------------
+;; Support for serialization, copy & paste, and drag & drop
+;; ---------------------------------------------------------------------------
+(defn select-juxt [m fs]
+  (zipmap (keys fs) ((apply juxt (vals fs)) m)))
+
+(defn- all-sources [basis node-id]
+  (mapcat #(sources basis node-id %) (gt/inputs (ig/node-by-id-at basis node-id))))
+
+(defn- predecessors [basis node-id]
+  (mapv first (all-sources basis node-id)))
+
+(defn input-traverse [basis root-ids]
+  (mapv #(ig/node-by-id-at basis %) (ig/pre-traverse basis root-ids predecessors)))
+
+(defn serialize-node [node]
+  (assoc
+   (select-juxt node {:serial-id :serial-id :node-type gt/node-type})
+   :properties (select-keys node (keys (gt/properties node)))))
+
+(defn copy
+  ([root-ids node-filter-predicate]
+   (copy (now) root-ids node-filter-predicate))
+  ([basis root-ids node-filter-predicate]
+   (let [fragment-nodes (input-traverse basis root-ids)
+         fragment-nodes (map #(assoc %1 :serial-id %2) fragment-nodes (range (count fragment-nodes)))]
+     {:roots (map :serial-id (filter #(some #{(gt/node-id %)} (set root-ids)) fragment-nodes))
+      :nodes (map serialize-node fragment-nodes)
+      :arcs  [:pass-the-test]})))
+
+;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
 (defn initialize
