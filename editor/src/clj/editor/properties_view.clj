@@ -185,10 +185,14 @@
     []))
 
 (defn- create-properties-node [workspace grid node]
-  (let [properties (g/properties node)]
+  (let [properties (g/properties node)
+        properties-value (g/node-value node :properties)]
     (mapcat (fn [[key p]]
-              (let [row (/ (.size (.getChildren grid)) 2)]
-                (create-properties-row workspace grid node key p row)))
+              (let [visible (get-in properties-value [key :visible])
+                    ;;enabled (get-in properties-value [key :enabled])
+                    row (/ (.size (.getChildren grid)) 2)]
+                (when visible
+                  (create-properties-row workspace grid node key p row))))
          properties)))
 
 (defn- create-properties [workspace grid nodes]
