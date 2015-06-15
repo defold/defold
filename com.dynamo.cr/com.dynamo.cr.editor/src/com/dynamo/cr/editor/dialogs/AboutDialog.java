@@ -86,7 +86,7 @@ public class AboutDialog extends Shell {
         Label copyrightLabel = newLabel(SWT.NONE);
         GridDataFactory.fillDefaults().align(SWT.CENTER, SWT.CENTER)
                 .applyTo(copyrightLabel);
-        copyrightLabel.setText("Copyright (c) 2011-2014, Defold AB");
+        copyrightLabel.setText("Copyright (c) 2009-2015, Midasplayer Technology AB");
 
         Label copyrightLabel2 = newLabel(SWT.NONE);
         GridDataFactory.fillDefaults().align(SWT.CENTER, SWT.CENTER)
