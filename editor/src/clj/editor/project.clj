@@ -41,7 +41,7 @@ ordinary paths."
           (if (not= (workspace/source-type resource) :folder)
             (g/make-nodes
               project-graph
-              [new-resource [node-type :resource resource :project project :resource-type resource-type]]
+              [new-resource [node-type :resource resource :project-id (g/node-id project) :resource-type resource-type]]
               (g/connect new-resource :self project :nodes)
               (if ((g/outputs' node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
@@ -110,6 +110,9 @@ ordinary paths."
 (defn get-resource-type [resource-node]
   (when resource-node (workspace/resource-type (:resource resource-node))))
 
+(defn get-project [resource-node]
+  (g/node-by-id (:project-id resource-node)))
+
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
         matcher (.getPathMatcher file-system (str "glob:" query))]
@@ -125,7 +128,7 @@ ordinary paths."
     (get nodes-by-resource resource)))
 
 (defn resolve-resource-node [base-resource-node path]
-  (let [project (:project base-resource-node)
+  (let [project (get-project base-resource-node)
         resource (workspace/resolve-resource (:resource base-resource-node) path)]
     (get-resource-node project resource)))
 

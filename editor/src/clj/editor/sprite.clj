@@ -218,7 +218,7 @@
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:image} labels)
     (let [image (:image self)
-          project (:project self)]
+          project (project/get-project self)]
       (concat
         (disconnect-all self :textureset)
         (disconnect-all self :gpu-texture)
