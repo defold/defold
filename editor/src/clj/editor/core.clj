@@ -81,7 +81,6 @@ connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes t/Any :array)
-  (property parent   t/Any (visible (g/fnk [] false)))
 
   (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted           #'dispose-nodes))

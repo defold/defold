@@ -134,7 +134,7 @@
                       (connect-if-output source-node :scene comp-node :scene)))))))
 
 (defn add-component-handler [self]
-  (let [project (:parent self)
+  (let [project (:project self)
         workspace (:workspace (:resource self))
         component-exts (map :ext (workspace/get-resource-types workspace :component))]
     (when-let [; TODO - filter component files
@@ -163,7 +163,7 @@
     (if-let [resource-type (and resource (workspace/resource-type resource))]
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
-                     source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
+                     source-node [(:node-type resource-type) :resource resource :project project :resource-type resource-type]]
                     (g/connect source-node :self        comp-node :source)
                     (g/connect source-node :outline     comp-node :outline)
                     (g/connect source-node :save-data   comp-node :save-data)
@@ -180,7 +180,7 @@
                     (g/connect comp-node   :self         self      :nodes)))))
 
 (defn add-embedded-component-handler [self]
-  (let [project (:parent self)
+  (let [project (:project self)
         workspace (:workspace (:resource self))
         ; TODO - add sub menu with all components
         component-type (first (workspace/get-resource-types workspace :component))
