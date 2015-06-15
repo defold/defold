@@ -209,7 +209,7 @@ namespace dmTracking
         dmScript::SetInstance(L);
     }
 
-    void SimpleEvent(HContext context, const char *type)
+    void PostSimpleEvent(HContext context, const char *type)
     {
         uint32_t sz = sizeof(dmTrackingDDF::TrackingEvent) + strlen(type) + 1;
         dmTrackingDDF::TrackingEvent* evt = (dmTrackingDDF::TrackingEvent*) malloc(sz);
