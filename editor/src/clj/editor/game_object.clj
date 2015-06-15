@@ -32,22 +32,25 @@
 
 (defn- gen-ref-ddf [id ^Vector3d position ^Vector3d rotation save-data]
   (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
-        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
+        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)
+        component (and (:resource save-data) (workspace/proj-path (:resource save-data)))]
     (.build (doto (GameObject$ComponentDesc/newBuilder)
               (.setId id)
               (.setPosition protobuf-position)
               (.setRotation protobuf-rotation)
-              (.setComponent (workspace/proj-path (:resource save-data)))))))
+              (.setComponent (or component ".unknown"))))))
 
 (defn- gen-embed-ddf [id ^Vector3d position ^Vector3d rotation save-data]
   (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
-        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
+        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)
+        type (and (:resource save-data) (:ext (workspace/resource-type (:resource save-data))))
+        data (:content save-data)]
     (.build (doto (GameObject$EmbeddedComponentDesc/newBuilder)
               (.setId id)
-              (.setType (:ext (workspace/resource-type (:resource save-data))))
+              (.setType (or type "unknown"))
               (.setPosition protobuf-position)
               (.setRotation protobuf-rotation)
-              (.setData (:content save-data))))))
+              (.setData (or data ""))))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -75,15 +78,24 @@
   core/MultiNode
   (sub-nodes [self] (if (:embedded self) [(g/node-value self :source)] [])))
 
-(g/defnk produce-save-data [resource ref-ddf embed-ddf]
+(g/defnk produce-proto-msg [ref-ddf embed-ddf]
+  (let [^GameObject$PrototypeDesc$Builder builder (GameObject$PrototypeDesc/newBuilder)]
+    (doseq [^GameObject$ComponentDesc ddf ref-ddf]
+      (.addComponents builder ddf))
+    (doseq [^GameObject$EmbeddedComponentDesc ddf embed-ddf]
+      (.addEmbeddedComponents builder ddf))
+    (.build builder)))
+
+(g/defnk produce-save-data [resource proto-msg]
   {:resource resource
-   :content (protobuf/pb->str
-              (let [^GameObject$PrototypeDesc$Builder builder (GameObject$PrototypeDesc/newBuilder)]
-                (doseq [^GameObject$ComponentDesc ddf ref-ddf]
-                  (.addComponents builder ddf))
-                (doseq [^GameObject$EmbeddedComponentDesc ddf embed-ddf]
-                  (.addEmbeddedComponents builder ddf))
-                (.build builder)))})
+   :content (protobuf/pb->str proto-msg)})
+
+(g/defnk produce-build-targets [node-id resource proto-msg]
+  [{:node-id node-id
+    :resource (workspace/make-build-resource resource)
+    :build-fn (fn [self basis resource dep-resources user-data]
+                {:resource resource :content (protobuf/pb->bytes (:proto-msg user-data))})
+    :user-data {:proto-msg proto-msg}}])
 
 (g/defnk produce-scene [node-id child-scenes]
   {:node-id node-id
@@ -100,7 +112,9 @@
   (input child-ids t/Str :array)
 
   (output outline t/Any :cached (g/fnk [node-id outline] {:node-id node-id :label "Game Object" :icon game-object-icon :children outline}))
+  (output proto-msg t/Any :cached produce-proto-msg)
   (output save-data t/Any :cached produce-save-data)
+  (output build-targets t/Any :cached produce-build-targets)
   (output scene t/Any :cached produce-scene))
 
 (defn- connect-if-output [out-node out-label in-node in-label]

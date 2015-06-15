@@ -158,6 +158,12 @@ ordinary paths."
   (io/make-output-stream [this opts] (let [file (File. ^String (abs-path this))] (wrap-stream (workspace this) (io/make-output-stream file opts) file)))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
+(defn make-build-resource
+  ([resource]
+    (make-build-resource resource nil))
+  ([resource prefix]
+    (BuildResource. resource prefix)))
+
 (defn- create-resource-tree [workspace ^File file filter-fn]
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace % filter-fn) (filter filter-fn (.listFiles file))))]
     (FileResource. workspace file children)))
@@ -176,7 +182,7 @@ ordinary paths."
 
 (defn register-resource-type [workspace & {:keys [ext build-ext node-type load-fn icon view-types view-opts tags template]}]
   (let [resource-type {:ext ext
-                       :build-ext build-ext
+                       :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
                        :icon icon
@@ -238,10 +244,10 @@ ordinary paths."
             (throw (Exception. (format "File %s already opened" file))))
           (conj rs file)))
   (proxy [FilterOutputStream] [stream]
-    (close []
-      (let [^FilterOutputStream this this]
-        (swap! (:opened-files workspace) disj file)
-           (proxy-super close)))))
+   (close []
+     (let [^FilterOutputStream this this]
+       (swap! (:opened-files workspace) disj file)
+          (proxy-super close)))))
 
 (defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
   (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
