@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <dlib/align.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -367,7 +368,7 @@ namespace dmResource
                 if (buffer_size < SCRATCH_BUFFER_THRESHOLD && buffer_size <= (SCRATCH_BUFFER_SIZE - preloader->m_ScratchBufferPos))
                 {
                     req->m_Buffer = &preloader->m_ScratchBuffer[preloader->m_ScratchBufferPos];
-                    preloader->m_ScratchBufferPos += buffer_size;
+                    preloader->m_ScratchBufferPos += DM_ALIGN(buffer_size, 8);
                 }
                 else
                 {
