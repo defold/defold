@@ -1,5 +1,6 @@
 #include "script.h"
 #include <dlib/hashtable.h>
+#include <dlib/align.h>
 
 #include <string.h>
 extern "C"
@@ -166,16 +167,6 @@ namespace dmScript
         if (f->m_Label == dmDDF::LABEL_REPEATED)
         {
             luaL_checktype(L, -1, LUA_TTABLE);
-            char* next = (*data_start) + sizeof(dmDDF::RepeatedField);
-            if (next > *data_end)
-            {
-                luaL_error(L, "Message data does not fit");
-            }
-
-            dmDDF::RepeatedField* repeated = (dmDDF::RepeatedField*) where;
-            repeated->m_ArrayCount = lua_objlen(L, -1);
-            repeated->m_Array = (uintptr_t)*data_start - (uintptr_t)buffer;
-            n = repeated->m_ArrayCount;
 
             switch (f->m_Type)
             {
@@ -208,11 +199,19 @@ namespace dmScript
                     assert(false);
             }
 
-            where = *data_start;
-            if (where + n * sz > *data_end)
+            n = lua_objlen(L, -1);
+            *data_start = (char*)DM_ALIGN(*data_start, 8);
+            if (*data_start + n * sz > *data_end)
             {
                 luaL_error(L, "Message too large.");
+                return;
             }
+
+            dmDDF::RepeatedField* repeated = (dmDDF::RepeatedField*) where;
+            repeated->m_ArrayCount = n;
+            repeated->m_Array = (uintptr_t)*data_start - (uintptr_t)buffer;
+
+            where = *data_start;
             *data_start += n * sz;
             array = true;
         }
