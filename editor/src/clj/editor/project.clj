@@ -22,7 +22,8 @@ ordinary paths."
 
   (property resource (t/protocol workspace/Resource) (visible (g/fnk [] false)))
 
-  (output save-data t/Any (g/fnk [resource] {:resource resource})))
+  (output save-data t/Any (g/fnk [resource] {:resource resource}))
+  (output build-targets t/Any (g/fnk [] [])))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -72,22 +73,27 @@ ordinary paths."
                        (spit resource content)))))
 
 (defn- build-target [basis target]
-  (let [node (g/node-by-id basis (:node-id target))]
-    ((:build-fn target) node basis (:resource target) [] (:user-data target))))
+  (let [node (g/node-by-id basis (:node-id target))
+        ; TODO - merge resources
+        dep-resources (into {} (map #(let [resource (:resource %)] [resource resource]) (:deps target)))]
+    ((:build-fn target) node basis (:resource target) dep-resources (:user-data target))))
 
 (defn build [project node]
-  (let [build-targets (g/node-value node :build-targets)
+  (let [build-targets (mapcat #(tree-seq (comp boolean :deps) :deps %) (g/node-value node :build-targets))
         basis (g/now)]
-    (pmap #(build-target basis %) build-targets)))
+    (mapv #(build-target basis %) build-targets)))
 
 (defn build-and-write [project node]
   (let [build-results (build project node)]
     (doseq [{:keys [resource content]} build-results
             :let [parent (-> (File. ^String (workspace/abs-path resource))
                            (.getParentFile))]]
+      ; Create underlying directories
       (when (not (.exists parent))
         (.mkdirs parent))
-      (spit resource content))))
+      ; Write bytes
+      (with-open [out (io/output-stream resource)]
+        (.write out ^bytes content)))))
 
 (handler/defhandler :undo
     (enabled? [project-graph] (g/has-undo? project-graph))

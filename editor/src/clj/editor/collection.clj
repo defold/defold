@@ -17,7 +17,7 @@
             [editor.handler :as handler]
             [editor.dialogs :as dialogs]
             [internal.render.pass :as pass])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
+  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc GameObject$InstanceDesc$Builder
             GameObject$EmbeddedInstanceDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -31,6 +31,7 @@
            [org.apache.commons.io FilenameUtils]))
 
 (def collection-icon "icons/bricks.png")
+(def path-sep "/")
 
 (defn- gen-embed-ddf [id child-ids ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
   (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
@@ -108,6 +109,7 @@
   (input outline t/Any)
   (input child-outlines t/Any :array)
   (input save-data t/Any)
+  (input build-targets t/Any)
   (input scene t/Any)
   (input child-scenes t/Any :array)
   (input child-ids t/Str :array)
@@ -121,6 +123,10 @@
                                            (if embedded
                                              (gen-embed-ddf id child-ids position rotation scale save-data)
                                              (gen-ref-ddf id child-ids position rotation scale save-data))))
+  (output build-targets t/Any (g/fnk [build-targets ddf-message transform] [(assoc (first build-targets)
+                                                                                   :user-data (assoc (get (first build-targets) :user-data)
+                                                                                                     :instance-msg ddf-message
+                                                                                                     :transform transform))]))
   (output scene t/Any :cached (g/fnk [node-id transform scene child-scenes embedded]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (:aabb scene) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
@@ -131,13 +137,70 @@
                                                           :renderable {:passes [pass/selection]})
                                                    {:children child-scenes})))))
 
-(g/defnk produce-save-data [resource name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
+(g/defnk produce-proto-msg [name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
+  (.build (doto (GameObject$CollectionDesc/newBuilder)
+            (.setName name)
+            (.addAllInstances ref-inst-ddf)
+            (.addAllEmbeddedInstances embed-inst-ddf)
+            (.addAllCollectionInstances ref-coll-ddf))))
+
+(g/defnk produce-save-data [resource proto-msg]
   {:resource resource
-   :content (protobuf/pb->str (.build (doto (GameObject$CollectionDesc/newBuilder)
-                                        (.setName name)
-                                        (.addAllInstances ref-inst-ddf)
-                                        (.addAllEmbeddedInstances embed-inst-ddf)
-                                        (.addAllCollectionInstances ref-coll-ddf))))})
+   :content (protobuf/pb->str proto-msg)})
+
+(defn- ->instance-builder [msg resource] ^GameObject$InstanceDesc$Builder
+  (let [builder (-> (if (instance? GameObject$EmbeddedInstanceDesc msg)
+                      (-> (GameObject$InstanceDesc/newBuilder)
+                        (.setId (.getId msg))
+                        (.addAllChildren (.getChildrenList msg))
+                        (.setPosition (.getPosition msg))
+                        (.setRotation (.getRotation msg))
+                        (.addAllComponentProperties (.getComponentPropertiesList msg)))
+                      (GameObject$InstanceDesc/newBuilder msg))
+                  (.setPrototype (workspace/proj-path resource)))]
+    (if (.hasScale3 msg)
+      (.setScale3 builder (.getScale3 msg))
+      (let [s (.getScale msg)]
+        (.setScale3 builder (protobuf/vecmath->pb (Vector3d. s s s)))))))
+
+(defn- externalize [inst-data resources]
+  (map (fn [data]
+         (let [[resource msg transform] data
+               resource (get resources resource)
+               builder (->instance-builder msg resource)
+               pos (Point3d.)
+               rot (Quat4d.)
+               scale (Vector3d.)
+               _ (math/split-mat4 transform pos rot scale)
+               child-ids (.getChildrenList builder)]
+           (.build (-> builder
+                     (.setId (str path-sep (.getId builder)))
+                     (.clearChildren)
+                     (.addAllChildren (map #(str path-sep %) child-ids))
+                     (.setPosition (protobuf/vecmath->pb pos))
+                     (.setRotation (protobuf/vecmath->pb rot))
+                     (.setScale3 (protobuf/vecmath->pb scale)))))) inst-data))
+
+(defn build-collection [self basis resource dep-resources user-data]
+  (let [{:keys [name instance-data]} user-data
+        instance-msgs (externalize instance-data dep-resources)
+        msg (.build
+              (doto (GameObject$CollectionDesc/newBuilder)
+                (.setName name)
+                (.addAllInstances instance-msgs)))]
+    {:resource resource :content (protobuf/pb->bytes msg)}))
+
+(g/defnk produce-build-targets [node-id name resource proto-msg sub-build-targets dep-build-targets]
+  (let [sub-build-targets (flatten sub-build-targets)
+        dep-build-targets (flatten dep-build-targets)
+        instance-data (map #(let [user-data (get % :user-data)]
+                              [(:resource %) (get user-data :instance-msg) (get user-data :transform)]) dep-build-targets)
+        instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
+    [{:node-id node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-collection
+      :user-data {:name name :instance-data instance-data}
+      :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}]))
 
 (g/defnode CollectionNode
   (inherits project/ResourceNode)
@@ -150,13 +213,38 @@
   (input ref-coll-ddf t/Any :array)
   (input child-scenes t/Any :array)
   (input ids t/Str :array)
+  (input sub-build-targets t/Any :array)
+  (input dep-build-targets t/Any :array)
 
-  (output outline t/Any :cached (g/fnk [node-id child-outlines] {:node-id node-id :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
+  (output proto-msg t/Any :cached produce-proto-msg)
   (output save-data t/Any :cached produce-save-data)
+  (output build-targets t/Any :cached produce-build-targets)
+  (output outline t/Any :cached (g/fnk [node-id child-outlines] {:node-id node-id :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
   (output scene t/Any :cached (g/fnk [node-id child-scenes]
                                      {:node-id node-id
                                       :children child-scenes
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))})))
+
+(defn- flatten-instance-data [data base-id base-transform all-child-ids]
+  (let [[resource msg ^Matrix4d transform] data
+        builder (->instance-builder msg resource)
+        is-child? (contains? all-child-ids (.getId builder))
+        child-ids (.getChildrenList builder)
+        builder (doto builder
+                  (.setId (str base-id (.getId builder)))
+                  (.clearChildren)
+                  (.addAllChildren (map #(str base-id %) child-ids)))
+        msg (.build builder)
+        transform (if is-child?
+                    transform
+                    (doto (Matrix4d. transform) (.mul base-transform transform)))]
+    [resource msg transform]))
+
+(g/defnk produce-coll-inst-build-targets [id transform build-targets]
+  (let [base-id (str id path-sep)
+        instance-data (get-in build-targets [0 :user-data :instance-data])
+        child-ids (reduce (fn [child-ids [_ msg _]] (into child-ids (.getChildrenList msg))) #{} instance-data)]
+    (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids) instance-data))))
 
 (g/defnode CollectionInstanceNode
   (inherits ScalableSceneNode)
@@ -168,6 +256,7 @@
   (input outline t/Any)
   (input save-data t/Any)
   (input scene t/Any)
+  (input build-targets t/Any)
 
   (output outline t/Any :cached (g/fnk [node-id id path outline] (let [suffix (format " (%s)" path)]
                                                                    (merge outline {:node-id node-id :label (str id suffix) :icon collection-icon}))))
@@ -186,7 +275,8 @@
                                            :node-id node-id
                                            :transform transform
                                            :aabb (geom/aabb-transform (:aabb scene) transform)
-                                           :renderable {:passes [pass/selection]}))))
+                                           :renderable {:passes [pass/selection]})))
+  (output build-targets t/Any produce-coll-inst-build-targets))
 
 (defn- gen-instance-id [coll-node base]
   (let [ids (g/node-value coll-node :ids)]
@@ -203,12 +293,14 @@
                             :position position :rotation rotation :scale scale]]
                   (if source-node
                     (concat
-                      (g/connect go-node     :ddf-message self    :ref-inst-ddf)
-                      (g/connect go-node     :id          self    :ids)
-                      (g/connect source-node :self        go-node :source)
-                      (g/connect source-node :outline     go-node :outline)
-                      (g/connect source-node :save-data   go-node :save-data)
-                      (g/connect source-node :scene       go-node :scene))
+                      (g/connect go-node     :ddf-message   self    :ref-inst-ddf)
+                      (g/connect go-node     :build-targets self    :dep-build-targets)
+                      (g/connect go-node     :id            self    :ids)
+                      (g/connect source-node :self          go-node :source)
+                      (g/connect source-node :outline       go-node :outline)
+                      (g/connect source-node :save-data     go-node :save-data)
+                      (g/connect source-node :build-targets go-node :build-targets)
+                      (g/connect source-node :scene         go-node :scene))
                     []))))
 
 (defn- single-selection? [selection]
@@ -259,12 +351,14 @@
                     [go-node [GameObjectInstanceNode :id id :embedded true
                               :position position :rotation rotation :scale scale]
                      source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
-                    (g/connect source-node :self        go-node :source)
-                    (g/connect source-node :outline     go-node :outline)
-                    (g/connect source-node :save-data   go-node :save-data)
-                    (g/connect source-node :scene       go-node :scene)
-                    (g/connect go-node     :ddf-message self    :embed-inst-ddf)
-                    (g/connect go-node     :id          self    :ids))
+                    (g/connect source-node :self          go-node :source)
+                    (g/connect source-node :outline       go-node :outline)
+                    (g/connect source-node :save-data     go-node :save-data)
+                    (g/connect source-node :build-targets go-node :build-targets)
+                    (g/connect source-node :scene         go-node :scene)
+                    (g/connect go-node     :ddf-message   self    :embed-inst-ddf)
+                    (g/connect go-node     :build-targets self    :dep-build-targets)
+                    (g/connect go-node     :id            self    :ids))
       (g/make-node (g/node->graph-id self) GameObjectInstanceNode :id id :embedded true))))
 
 (handler/defhandler :add
@@ -303,13 +397,15 @@
                               :position position :rotation rotation :scale scale]]
                   (g/connect coll-node :outline self :child-outlines)
                   (if source-node
-                    [(g/connect coll-node   :ddf-message  self :ref-coll-ddf)
-                     (g/connect coll-node   :id           self :ids)
-                     (g/connect coll-node   :scene        self :child-scenes)
-                     (g/connect source-node :self         coll-node :source)
-                     (g/connect source-node :outline      coll-node :outline)
-                     (g/connect source-node :save-data    coll-node :save-data)
-                     (g/connect source-node :scene        coll-node :scene)]
+                    [(g/connect coll-node   :ddf-message   self :ref-coll-ddf)
+                     (g/connect coll-node   :id            self :ids)
+                     (g/connect coll-node   :scene         self :child-scenes)
+                     (g/connect coll-node   :build-targets self :sub-build-targets)
+                     (g/connect source-node :self          coll-node :source)
+                     (g/connect source-node :outline       coll-node :outline)
+                     (g/connect source-node :save-data     coll-node :save-data)
+                     (g/connect source-node :scene         coll-node :scene)
+                     (g/connect source-node :build-targets coll-node :build-targets)]
                     []))))
 
 (handler/defhandler :add-secondary-from-file
