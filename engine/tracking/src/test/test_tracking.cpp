@@ -301,7 +301,7 @@ TEST_F(dmTrackingTest, TestSafeSaveFail)
 
     // event test
     const char *type = "evt-1";
-    dmTracking::SimpleEvent(m_Tracking, type);
+    dmTracking::PostSimpleEvent(m_Tracking, type);
     dmTracking::Update(m_Tracking, 10.0f);
 
     lua_getglobal(m_LuaState, "test_assert_request_has_event");
@@ -396,7 +396,7 @@ TEST_F(dmTrackingTest, TestSimpleEvent)
 
     const char *type = "evt-1";
 
-    dmTracking::SimpleEvent(m_Tracking, type);
+    dmTracking::PostSimpleEvent(m_Tracking, type);
     dmTracking::Update(m_Tracking, 0.1f);
 
     lua_getglobal(m_LuaState, "test_assert_request_has_event");
@@ -410,7 +410,7 @@ TEST_F(dmTrackingTest, TestEventBatching)
 
     for (int i=0;i<10;i++)
     {
-        dmTracking::SimpleEvent(m_Tracking, "generic");
+        dmTracking::PostSimpleEvent(m_Tracking, "generic");
     }
 
     dmTracking::Update(m_Tracking, 1.0f);
@@ -439,7 +439,7 @@ TEST_F(dmTrackingTest, TestEventResend)
 
     for (int i=0;i<10;i++)
     {
-        dmTracking::SimpleEvent(m_Tracking, "generic");
+        dmTracking::PostSimpleEvent(m_Tracking, "generic");
     }
 
     dmTracking::Update(m_Tracking, 1.0f);
@@ -486,7 +486,7 @@ TEST_F(dmTrackingTest, TestEventSpam)
     {
         for (int i=0;i<4000;i++)
         {
-            dmTracking::SimpleEvent(m_Tracking, "generic");
+            dmTracking::PostSimpleEvent(m_Tracking, "generic");
         }
 
         dmTracking::Update(m_Tracking, 1.0f);
@@ -511,7 +511,7 @@ TEST_F(dmTrackingTest, TestManyEventsNoSave)
     {
         for (int i=0;i<4;i++)
         {
-            dmTracking::SimpleEvent(m_Tracking, "generic");
+            dmTracking::PostSimpleEvent(m_Tracking, "generic");
         }
 
         dmTracking::Update(m_Tracking, 1.0f);
@@ -538,7 +538,7 @@ TEST_F(dmTrackingTest, TestManySessions)
 
     for (int i=0;i<10;i++)
     {
-        dmTracking::SimpleEvent(m_Tracking, "generic");
+        dmTracking::PostSimpleEvent(m_Tracking, "generic");
     }
 
     dmTracking::Update(m_Tracking, 1.0f);
@@ -553,7 +553,7 @@ TEST_F(dmTrackingTest, TestManySessions)
         // post one session-<i> event each session
         char buf[64];
         sprintf(buf, "session-%d", j);
-        dmTracking::SimpleEvent(m_Tracking, buf);
+        dmTracking::PostSimpleEvent(m_Tracking, buf);
 
         for (int k=0;k<50;k++)
         {

@@ -848,7 +848,7 @@ bail:
                 {
                     if (engine->m_TrackingContext)
                     {
-                        dmTracking::SimpleEvent(engine->m_TrackingContext, "@Invoke");
+                        dmTracking::PostSimpleEvent(engine->m_TrackingContext, "@Invoke");
                     }
                     engine->m_WasIconified = false;
                 }

@@ -208,7 +208,7 @@ function save(force)
             if state.dirty and meta_data.files[i].num_events > 0 then
                 local fn = sys.get_save_file(app_save_dir, meta_data.files[i].name);
                 if not wrap_sys_save(fn, file_data[i]) then
-                    -- just abort with fail withou resetting the dirty flag
+                    -- just abort with fail without resetting the dirty flag
                     return false
                 end
                 state.dirty = false
@@ -457,7 +457,7 @@ function update(dt)
         time_to_next_save = SAVE_INTERVAL
         if need_save then
             save()
-	end
+    end
     end
 end
 
