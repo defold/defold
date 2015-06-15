@@ -230,7 +230,7 @@
   (run [selection] (if (selected-embedded-instance? selection)
                      (game-object/add-component-handler (g/node-value (first selection) :source))
                      (let [coll-node (g/node-by-id (first selection))
-                           project (:parent coll-node)
+                           project (:project coll-node)
                            workspace (:workspace (:resource coll-node))
                            ext "go"]
                        (when-let [; TODO - filter game object files
@@ -259,7 +259,7 @@
       (g/make-nodes (g/node->graph-id self)
                     [go-node [GameObjectInstanceNode :id id :embedded true
                               :position position :rotation rotation :scale scale]
-                     source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
+                     source-node [(:node-type resource-type) :resource resource :project project :resource-type resource-type]]
                     (g/connect source-node :self        go-node :source)
                     (g/connect source-node :outline     go-node :outline)
                     (g/connect source-node :save-data   go-node :save-data)
@@ -280,7 +280,7 @@
     (run [selection] (if (selected-embedded-instance? selection)
                        (game-object/add-embedded-component-handler (g/node-value (first selection) :source))
                        (let [coll-node (g/node-by-id (first selection))
-                            project (:parent coll-node)
+                            project (:project coll-node)
                             workspace (:workspace (:resource coll-node))
                             ext "go"
                             resource-type (workspace/get-resource-type workspace ext)
@@ -324,7 +324,7 @@
   (enabled? [selection] (and (single-selection? selection)
                              (selected-collection? selection)))
   (run [selection] (let [coll-node (g/node-by-id (first selection))
-                         project (:parent coll-node)
+                         project (:project coll-node)
                          workspace (:workspace (:resource coll-node))
                          ext "collection"
                          resource-type (workspace/get-resource-type workspace ext)]
