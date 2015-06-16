@@ -261,16 +261,18 @@ public class GameProjectBuilder extends Builder<Void> {
             try {
                 Method newBuilder = klass.getDeclaredMethod("newBuilder");
                 builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
-                builder.mergeFrom(resource.output().getContent());
+                final byte[] content = resource.output().getContent();
+                if(content == null) {
+                	throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
+                }
+                builder.mergeFrom(content);
                 Object message = builder.build();
                 findResources(project, (Message) message, resources);
 
-            } catch(NullPointerException e) {
-            	throw new CompileExceptionError(resource, 0, "Unable to find and build resource " + resource.getPath());
             } catch(CompileExceptionError e) {
-            	throw e;
+                throw e;
             } catch(Exception e) {
-            	throw new RuntimeException(e);
+                throw new RuntimeException(e);
             }
         } else {
             throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
