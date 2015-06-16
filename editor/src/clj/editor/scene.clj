@@ -443,11 +443,13 @@
                                                   (g/transact (g/set-property self :picking-rect picking-rect))
                                                   (dispatch-input (g/sources-of self :input-handlers) action @tool-user-data))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
-                                                    (let [bb ^BoundingBox new-val
-                                                          w (- (.getMaxX bb) (.getMinX bb))
-                                                          h (- (.getMaxY bb) (.getMinY bb))]
-                                                      (flip-y (:image-view (g/node-by-id node-id)) h)
-                                                      (g/transact (g/set-property node-id :viewport (t/->Region 0 w 0 h))))))]
+                                                    (Platform/runLater
+                                                     (fn []
+                                                       (let [bb ^BoundingBox (.getBoundsInParent (.getParent parent))
+                                                             w (- (.getMaxX bb) (.getMinX bb))
+                                                             h (- (.getMaxY bb) (.getMinY bb))]
+                                                         (flip-y (:image-view (g/node-by-id node-id)) h)
+                                                         (g/transact (g/set-property node-id :viewport (t/->Region 0 w 0 h))))))))]
         (.setOnMousePressed parent event-handler)
         (.setOnMouseReleased parent event-handler)
         (.setOnMouseClicked parent event-handler)

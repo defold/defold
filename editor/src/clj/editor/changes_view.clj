@@ -28,14 +28,14 @@
                   :icon "icons/site_backup_and_restore.png"
                   :command :revert}])
 
-(handler/defhandler :revert
-  (enabled? [selection] (pos? (count selection)))
+(handler/defhandler :revert :asset-browser
+  (enabled? [selection] (prn selection) (pos? (count selection)))
   (run [selection git list-view]
        (doseq [status selection]
          (git/revert git [(or (:new-path status) (:old-path status))]))
        (refresh! git list-view)))
 
-(handler/defhandler :diff
+(handler/defhandler :diff :asset-browser
   (enabled? [selection] (= 1 (count selection)))
   (run [selection git list-view]
        (let [status (first selection)
@@ -55,7 +55,8 @@
             list-view (.lookup parent "#changes")]
         (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
         ; TODO: Should we really include both git and list-view in the context. Have to think about this
-        (ui/register-context-menu list-view {:git (:git event) :list-view list-view} list-view ::changes-menu)
+        (ui/context! list-view :asset-browser {:git (:git event) :list-view list-view} list-view)
+        (ui/register-context-menu list-view ::changes-menu)
         (ui/cell-factory! list-view status-render)
         (ui/on-action! refresh (fn [_] (refresh! (:git event) list-view)))
         (refresh! (:git event) list-view)))

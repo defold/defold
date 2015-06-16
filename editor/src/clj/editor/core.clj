@@ -82,9 +82,6 @@ connected to the Scope's :nodes input.
 When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes t/Any :array)
 
-  (property tag      t/Keyword (visible (g/fnk [] false)))
-  (property parent   t/Any (visible (g/fnk [] false)))
-
   (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted           #'dispose-nodes))
 
@@ -128,16 +125,6 @@ Outputs:
                 :node-ref (g/node-id this)
                 :commands outline-commands
                 :children outline-children})))
-
-(g/defnode RootScope
-  "There should be exactly one RootScope in the graph, with ID 1.
-RootScope has no parent."
-  (inherits Scope)
-  (property tag t/Keyword (default :root)))
-
-(defmethod print-method RootScope__
-  [^RootScope__ v ^java.io.Writer w]
-  (.write w (str "<RootScope{:_id " (:_id v) "}>")))
 
 (defprotocol MultiNode
   (sub-nodes [self] "Return all contained nodes"))

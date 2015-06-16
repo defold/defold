@@ -291,17 +291,19 @@
     (g/make-nodes (g/node->graph-id self)
                   [go-node [GameObjectInstanceNode :id id :path path
                             :position position :rotation rotation :scale scale]]
-                  (if source-node
-                    (concat
-                      (g/connect go-node     :ddf-message   self    :ref-inst-ddf)
-                      (g/connect go-node     :build-targets self    :dep-build-targets)
-                      (g/connect go-node     :id            self    :ids)
-                      (g/connect source-node :self          go-node :source)
-                      (g/connect source-node :outline       go-node :outline)
-                      (g/connect source-node :save-data     go-node :save-data)
-                      (g/connect source-node :build-targets go-node :build-targets)
-                      (g/connect source-node :scene         go-node :scene))
-                    []))))
+                  (concat
+                    (g/connect go-node :self self :nodes)
+                    (if source-node
+                      (concat
+                        (g/connect go-node     :ddf-message   self    :ref-inst-ddf)
+                        (g/connect go-node     :build-targets self    :dep-build-targets)
+                        (g/connect go-node     :id            self    :ids)
+                        (g/connect source-node :self          go-node :source)
+                        (g/connect source-node :outline       go-node :outline)
+                        (g/connect source-node :save-data     go-node :save-data)
+                        (g/connect source-node :build-targets go-node :build-targets)
+                        (g/connect source-node :scene         go-node :scene))
+                      [])))))
 
 (defn- single-selection? [selection]
   (= 1 (count selection)))
@@ -314,14 +316,14 @@
     (and (= GameObjectInstanceNode (g/node-type node))
          (:embedded node))))
 
-(handler/defhandler :add-from-file
+(handler/defhandler :add-from-file :global
   (enabled? [selection] (and (single-selection? selection)
                              (or (selected-collection? selection)
                                  (selected-embedded-instance? selection))))
   (run [selection] (if (selected-embedded-instance? selection)
                      (game-object/add-component-handler (g/node-value (first selection) :source))
                      (let [coll-node (g/node-by-id (first selection))
-                           project (:parent coll-node)
+                           project (project/get-project coll-node)
                            workspace (:workspace (:resource coll-node))
                            ext "go"]
                        (when-let [; TODO - filter game object files
@@ -358,17 +360,20 @@
                     (g/connect source-node :scene         go-node :scene)
                     (g/connect go-node     :ddf-message   self    :embed-inst-ddf)
                     (g/connect go-node     :build-targets self    :dep-build-targets)
-                    (g/connect go-node     :id            self    :ids))
-      (g/make-node (g/node->graph-id self) GameObjectInstanceNode :id id :embedded true))))
+                    (g/connect go-node     :id            self    :ids)
+                    (g/connect go-node     :self          self    :nodes))
+      (g/make-nodes (g/node->graph-id self)
+                    [go-node [GameObjectInstanceNode :id id :embedded true]]
+                    (g/connect go-node     :self          self    :nodes)))))
 
-(handler/defhandler :add
+(handler/defhandler :add :global
   (enabled? [selection] (and (single-selection? selection)
                              (or (selected-collection? selection)
                                  (selected-embedded-instance? selection))))
     (run [selection] (if (selected-embedded-instance? selection)
                        (game-object/add-embedded-component-handler (g/node-value (first selection) :source))
                        (let [coll-node (g/node-by-id (first selection))
-                            project (:parent coll-node)
+                            project (project/get-project coll-node)
                             workspace (:workspace (:resource coll-node))
                             ext "go"
                             resource-type (workspace/get-resource-type workspace ext)
@@ -396,6 +401,7 @@
                   [coll-node [CollectionInstanceNode :id id :path path
                               :position position :rotation rotation :scale scale]]
                   (g/connect coll-node :outline self :child-outlines)
+                  (g/connect coll-node :self    self :nodes)
                   (if source-node
                     [(g/connect coll-node   :ddf-message   self :ref-coll-ddf)
                      (g/connect coll-node   :id            self :ids)
@@ -408,11 +414,11 @@
                      (g/connect source-node :build-targets coll-node :build-targets)]
                     []))))
 
-(handler/defhandler :add-secondary-from-file
+(handler/defhandler :add-secondary-from-file :global
   (enabled? [selection] (and (single-selection? selection)
                              (selected-collection? selection)))
   (run [selection] (let [coll-node (g/node-by-id (first selection))
-                         project (:parent coll-node)
+                         project (project/get-project coll-node)
                          workspace (:workspace (:resource coll-node))
                          ext "collection"
                          resource-type (workspace/get-resource-type workspace ext)]

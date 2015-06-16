@@ -114,6 +114,21 @@
 (defn scene [^Node node]
   (.getScene node))
 
+(defn context! [^Node node name env selection-provider]
+  (user-data! node ::context {:name name
+                              :env env
+                              :selection-provider selection-provider}))
+
+(defn- contexts []
+  (->>
+    (loop [^Node node (.getFocusOwner ^Scene (.getScene ^Stage @*main-stage*))
+          ctxs []]
+     (if-not node
+       ctxs
+       (recur (.getParent node) (conj ctxs (user-data node ::context)))))
+    (remove nil?)
+    (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx)))))))
+
 (defn add-style! [^Node node ^String class]
   (.add (.getStyleClass node) class))
 
@@ -271,14 +286,9 @@
 
 (def ^:private make-menu nil)
 
-(defn- make-desc [control menu-id command-context selection-provider]
+(defn- make-desc [control menu-id]
   {:control control
-   :menu-id menu-id
-   :command-context command-context
-   :selection-provider selection-provider})
-
-(defn- make-command-context [desc]
-  (assoc (:command-context desc) :selection (workspace/selection (:selection-provider desc))))
+   :menu-id menu-id})
 
 (defn- create-menu-item [desc item]
   (if (:children item)
@@ -293,23 +303,22 @@
       (when (:acc item)
         (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
       (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
-      (.setDisable menu-item (not (handler/enabled? command (make-command-context desc))))
-      (.setOnAction menu-item (event-handler event (handler/run command (make-command-context desc)) ))
+      (.setDisable menu-item (not (handler/enabled? command (contexts))))
+      (.setOnAction menu-item (event-handler event (handler/run command (contexts)) ))
       menu-item)))
 
 (defn- ^MenuItem make-menu [desc menu]
-  (let [command-context (make-command-context desc)]
-    (->> menu
-      (mapv (fn [item] (if (= :separator (:label item))
-                         (SeparatorMenuItem.)
-                         (create-menu-item desc item)))))))
+  (->> menu
+    (mapv (fn [item] (if (= :separator (:label item))
+                       (SeparatorMenuItem.)
+                       (create-menu-item desc item))))))
 
 (defn- populate-context-menu [^ContextMenu context-menu desc menu]
   (let [items (make-menu desc menu)]
     (.addAll (.getItems context-menu) (to-array items))))
 
-(defn register-context-menu [^Control control command-context selection-provider menu-id]
-  (let [desc (make-desc control menu-id command-context selection-provider)]
+(defn register-context-menu [^Control control menu-id]
+  (let [desc (make-desc control menu-id)]
     (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
       (event-handler event
                      (when-not (.isConsumed event)
@@ -321,11 +330,11 @@
                          (.show cm control (.getScreenX ^ContextMenuEvent event) (.getScreenY ^ContextMenuEvent event))
                          (.consume event)))))))
 
-(defn register-menubar [^Scene scene command-context selection-provider menubar-id menu-id ]
+(defn register-menubar [^Scene scene  menubar-id menu-id ]
   ; TODO: See comment below about top-level items. Should be enforced here
  (let [root (.getRoot scene)]
    (if-let [menubar (.lookup root menubar-id)]
-     (let [desc (make-desc menubar menu-id command-context selection-provider)]
+     (let [desc (make-desc menubar menu-id)]
        (user-data! root ::menubar desc))
      (log/warn :message (format "menubar %s not found" menubar-id)))))
 
@@ -338,20 +347,20 @@
      (.addAll (.getMenus control) (to-array (make-menu md menu)))
      (user-data! control ::menu menu))))
 
-(defn- refresh-menu-state [^Menu menu command-context]
+(defn- refresh-menu-state [^Menu menu]
   (doseq [m (.getItems menu)]
     (if (instance? Menu m)
-      (refresh-menu-state m command-context)
-      (.setDisable ^Menu m (not (handler/enabled? (keyword (.getId ^Menu m)) command-context))))))
+      (refresh-menu-state m)
+      (.setDisable ^Menu m (not (handler/enabled? (keyword (.getId ^Menu m)) (contexts)))))))
 
-(defn- refresh-menubar-state [^MenuBar menubar command-context]
+(defn- refresh-menubar-state [^MenuBar menubar]
   (doseq [m (.getMenus menubar)]
-    (refresh-menu-state m command-context)))
+    (refresh-menu-state m)))
 
-(defn register-toolbar [^Scene scene command-context selection-provider toolbar-id menu-id ]
+(defn register-toolbar [^Scene scene toolbar-id menu-id ]
   (let [root (.getRoot scene)]
     (if-let [toolbar (.lookup root toolbar-id)]
-      (let [desc (make-desc toolbar menu-id command-context selection-provider)]
+      (let [desc (make-desc toolbar menu-id)]
         (user-data! root ::toolbars (assoc-in (user-data root ::toolbars) [toolbar-id] desc)))
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
 
@@ -369,17 +378,16 @@
            (.setGraphic button (jfx/get-image-view icon)))
          (when (:command menu-item)
            (.setId button (name (:command menu-item)))
-           (.setOnAction button (event-handler event (handler/run (:command menu-item)
-                                                                  (make-command-context td)))))
+           (.setOnAction button (event-handler event (handler/run (:command menu-item) (contexts)))))
          (.add (.getChildren control) button))))))
 
-(defn- refresh-toolbar-state [^Pane toolbar command-context]
+(defn- refresh-toolbar-state [^Pane toolbar]
   (let [nodes (.getChildren toolbar)
         ids (map #(.getId ^Node %) nodes)]
     (doseq [^Node n nodes]
-      (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-context)))
+      (.setDisable n (not (handler/enabled? (keyword (.getId n)) (contexts))))
       (when (instance? ToggleButton n)
-        (if (handler/state (keyword (.getId n)) command-context)
+        (if (handler/state (keyword (.getId n)) (contexts))
          (.setSelected ^Toggle n true)
          (.setSelected ^Toggle n false))))))
 
@@ -388,10 +396,10 @@
        toolbar-descs (vals (user-data root ::toolbars))]
    (when-let [md (user-data root ::menubar)]
      (refresh-menubar md)
-     (refresh-menubar-state (:control md) (make-command-context md)))
+     (refresh-menubar-state (:control md)))
    (doseq [td toolbar-descs]
      (refresh-toolbar td)
-     (refresh-toolbar-state (:control td) (make-command-context td)))))
+     (refresh-toolbar-state (:control td)))))
 
 (defn modal-progress [title total-work worker-fn]
   (run-now
