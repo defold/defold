@@ -1,0 +1,161 @@
+animations {
+  id: "star"
+  images {
+    image: "/stars/star_00.png"
+  }
+  images {
+    image: "/stars/star_01.png"
+  }
+  images {
+    image: "/stars/star_02.png"
+  }
+  images {
+    image: "/stars/star_03.png"
+  }
+  images {
+    image: "/stars/star_04.png"
+  }
+  images {
+    image: "/stars/star_05.png"
+  }
+  images {
+    image: "/stars/star_06.png"
+  }
+  images {
+    image: "/stars/star_07.png"
+  }
+  images {
+    image: "/stars/star_08.png"
+  }
+  images {
+    image: "/stars/star_09.png"
+  }
+  images {
+    image: "/stars/star_10.png"
+  }
+  images {
+    image: "/stars/star_11.png"
+  }
+  images {
+    image: "/stars/star_12.png"
+  }
+  images {
+    image: "/stars/star_13.png"
+  }
+  images {
+    image: "/stars/star_14.png"
+  }
+  images {
+    image: "/stars/star_15.png"
+  }
+  images {
+    image: "/stars/star_16.png"
+  }
+  images {
+    image: "/stars/star_17.png"
+  }
+  images {
+    image: "/stars/star_18.png"
+  }
+  images {
+    image: "/stars/star_19.png"
+  }
+  images {
+    image: "/stars/star_20.png"
+  }
+  images {
+    image: "/stars/star_21.png"
+  }
+  images {
+    image: "/stars/star_22.png"
+  }
+  images {
+    image: "/stars/star_23.png"
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "bonus_star"
+  images {
+    image: "/stars/bonus_star_00.png"
+  }
+  images {
+    image: "/stars/bonus_star_01.png"
+  }
+  images {
+    image: "/stars/bonus_star_02.png"
+  }
+  images {
+    image: "/stars/bonus_star_03.png"
+  }
+  images {
+    image: "/stars/bonus_star_04.png"
+  }
+  images {
+    image: "/stars/bonus_star_05.png"
+  }
+  images {
+    image: "/stars/bonus_star_06.png"
+  }
+  images {
+    image: "/stars/bonus_star_07.png"
+  }
+  images {
+    image: "/stars/bonus_star_08.png"
+  }
+  images {
+    image: "/stars/bonus_star_09.png"
+  }
+  images {
+    image: "/stars/bonus_star_10.png"
+  }
+  images {
+    image: "/stars/bonus_star_11.png"
+  }
+  images {
+    image: "/stars/bonus_star_12.png"
+  }
+  images {
+    image: "/stars/bonus_star_13.png"
+  }
+  images {
+    image: "/stars/bonus_star_14.png"
+  }
+  images {
+    image: "/stars/bonus_star_15.png"
+  }
+  images {
+    image: "/stars/bonus_star_16.png"
+  }
+  images {
+    image: "/stars/bonus_star_17.png"
+  }
+  images {
+    image: "/stars/bonus_star_18.png"
+  }
+  images {
+    image: "/stars/bonus_star_19.png"
+  }
+  images {
+    image: "/stars/bonus_star_20.png"
+  }
+  images {
+    image: "/stars/bonus_star_21.png"
+  }
+  images {
+    image: "/stars/bonus_star_22.png"
+  }
+  images {
+    image: "/stars/bonus_star_23.png"
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 0
+extrude_borders: 0
+inner_padding: 0
