@@ -1,5 +1,6 @@
 (ns internal.copy-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.set :as set]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :as ts]
             [dynamo.types :as t]))
@@ -33,13 +34,21 @@
       (g/transact
        (g/connect node2 :produces-value node1 :consumes-value))
 
-      (let [fragment (g/copy [node1-id] (constantly false))
-            fragment-nodes (:nodes fragment)]
-        (is (= [0]  (:roots fragment)))
-        (is (= [0 1] (map :serial-id fragment-nodes)))
+      (let [fragment            (g/copy [node1-id] (constantly false))
+            fragment-nodes      (:nodes fragment)
+            serial-ids          (map :serial-id fragment-nodes)
+            arc-node-references (into #{} (concat (map #(:node-id (first %))  (:arcs fragment))
+                                                  (map #(:node-id (second %)) (:arcs fragment))))]
+        (is (= 1 (count (:roots fragment))))
+        (is (every? integer? (:roots fragment)))
+        (is (every? integer? serial-ids))
+        (is (= (count serial-ids) (count (distinct serial-ids))))
         (is (= [ConsumerNode ProducerNode] (map :node-type fragment-nodes)))
         (is (= {:a-property "foo"} (:properties (first fragment-nodes))))
-        (is (= 1 (count (:arcs fragment))))))))
+        (is (= 1 (count (:arcs fragment))))
+        (is (every? #(satisfies? g/Producer %) (map first (:arcs fragment))))
+        (is (every? #(satisfies? g/Consumer %) (map second (:arcs fragment))))
+        (is (empty? (set/difference (set arc-node-references) (set serial-ids))))))))
 
 
 ;;  diamond copy: four nodes in a diamond formation.
