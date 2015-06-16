@@ -144,8 +144,27 @@ void _glfwPlatformSwapBuffers( void )
         return;
     }
 
-    eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
-    CHECK_EGL_ERROR
+    if (!eglSwapBuffers(_glfwWin.display, _glfwWin.surface))
+    {
+        // Error checking inspired by Android implementation of GLSurfaceView:
+        // http://grepcode.com/file/repository.grepcode.com/java/ext/com.google.android/android/5.1.0_r1/android/opengl/GLSurfaceView.java?av=f
+        EGLint error = eglGetError();
+        if (error != EGL_SUCCESS) {
+
+            if (error == EGL_CONTEXT_LOST) {
+                LOGE("eglSwapBuffers failed due to EGL_CONTEXT_LOST!");
+                assert(0);
+                return;
+            } else {
+                // Other errors typically mean that the current surface is bad,
+                // probably because the SurfaceView surface has been destroyed,
+                // but we haven't been notified yet.
+                // Ignore error, but log for debugging purpose.
+                LOGW("eglSwapBuffers failed, eglGetError: %X", error);
+                return;
+            }
+        }
+    }
 
     /*
      The preferred way of handling orientation changes is probably
