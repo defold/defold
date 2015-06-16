@@ -282,10 +282,10 @@ function on_config_response(self, id, response)
         server_config = json.decode(response.response)
         if server_config["stid_url"] and server_config["event_url"] then
             on_request_success();
-    else
-        -- go into fail mode.
-        on_request_failure();
-    end
+	else
+            -- go into fail mode.
+            on_request_failure();
+        end
     end
 end
 
@@ -298,16 +298,27 @@ function on_stid_response(self, id, response)
     end
 end
 
+local escapes = {
+    ["\x22"] = "\\\"",
+    ["\x5C"] = "\\",
+    ["\x2F"] = "\\/",
+    ["\x08"] = "\\b",
+    ["\x0C"] = "\\f",
+    ["\x0A"] = "\\n",
+    ["\x0D"] = "\\r",
+    ["\x09"] = "\\t"
+}
+
 function json_str(value)
-    return "\"" .. value .. "\""
+    return "\"" .. string.gsub(value, ".", escapes) .. "\""
 end
 
 function json_field(name, value)
-    return "\"" .. name .. "\":" .. value
+    return json_str(name) .. ":" .. value
 end
 
 function json_str_field(name, value)
-    return "\"" .. name .. "\":\"" .. value .. "\""
+    return json_str(name) .. ":" .. json_str(value)
 end
 
 function json_array(t, insert)
