@@ -14,7 +14,7 @@ local sys_field_mapping = {
     country = "territory",
     platform = "system_name",
     platform_version = "system_version",
-    model = "model",
+    model = "device_model",
     manufacturer = "manufacturer"
 }
 
