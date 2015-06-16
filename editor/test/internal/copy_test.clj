@@ -108,11 +108,6 @@
         (is (= 1 (count (:arcs fragment))))
         (is (= 2 (count fragment-nodes)))))))
 
-
-;;  cross graph copy: two nodes, in different graphs, cuts off at graph boundary
-;;  resource: two nodes, one arc, upstream is a resource
-;;  no functions: one node, a property which is a function, should not be serialized
-
 (g/defnode FunctionPropertyNode
   (property a-function t/Any))
 
@@ -122,3 +117,43 @@
           fragment      (g/copy [(g/node-id node1)] (constantly false))
           fragment-node (first (:nodes fragment))]
       (is (not (contains? (:properties fragment-node) :a-function))))))
+
+;;  resource: two nodes, one arc, upstream is a resource
+(g/defnode StopperNode
+  "Not serializable"
+  (input  discards-value t/Str)
+  (output produces-value t/Str (g/fnk [] "here")))
+
+(defn- stop-at-stoppers [node]
+  (not (= "StopperNode" (:name (g/node-type node)))))
+
+(defrecord StopArc [id label]
+  g/Producer)
+
+(defn- serialize-stopper [node label]
+  (StopArc. (g/node-id node) label))
+
+(deftest serialization-uses-predicates
+  (ts/with-clean-system
+    (let [[node1 node2 node3 node4] (ts/tx-nodes (g/make-node world ConsumerNode)
+                                                 (g/make-node world ConsumeAndProduceNode)
+                                                 (g/make-node world StopperNode)
+                                                 (g/make-node world ProducerNode))
+          node1-id                  (g/node-id node1)]
+      (g/transact
+       [(g/connect node2 :produces-value node1 :consumes-value)
+        (g/connect node3 :produces-value node2 :consumes-value)
+        (g/connect node4 :produces-value node3 :discards-value)])
+      ;;; - where to stop?
+      ;;; how to replace any node in arc with some other representation (serialize)?
+      ;;; how to re-serialize a particular reprensation in a node arc that is custom?
+
+      (let [fragment       (g/copy [node1-id] {:continue? stop-at-stoppers
+                                               :write-handlers {StopperNode serialize-stopper}})
+            fragment-nodes (:nodes fragment)]
+        (is (= 2 (count (:arcs fragment))))
+        (is (= 2 (count fragment-nodes)))
+        (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "StopperNode")))
+        (is (contains? (into #{} (map (comp class first) (:arcs fragment))) StopArc))
+        (is (every? #(satisfies? g/Producer %) (map first (:arcs fragment))))
+        (is (every? #(satisfies? g/Consumer %) (map second (:arcs fragment))))))))
