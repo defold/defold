@@ -11,11 +11,12 @@
             [internal.transaction :as it]
             [plumbing.core :as pc]
             [plumbing.fnk.pfnk :as pf]
-            [potemkin.namespaces :refer [import-vars]]))
+            [potemkin.namespaces :refer [import-vars]])
+  (:import [internal.graph.types Arc]))
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
+(import-vars [internal.graph.types Producer Consumer NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
 
 (import-vars [internal.graph type-compatible?])
 
@@ -525,32 +526,44 @@
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
 ;; ---------------------------------------------------------------------------
+(defrecord ProducerBase [node-id label]
+  gt/Producer)
+
+(defrecord ConsumerBase [node-id label]
+  gt/Consumer)
+
 (defn select-juxt [m fs]
   (zipmap (keys fs) ((apply juxt (vals fs)) m)))
 
 (defn- all-sources [basis node-id]
-  (mapcat #(sources basis node-id %) (gt/inputs (ig/node-by-id-at basis node-id))))
+  (gt/arcs-by-tail basis node-id))
 
-(defn- predecessors [basis node-id]
-  (mapv first (all-sources basis node-id)))
+(defn- predecessors [basis ^Arc arc]
+  (mapv #(all-sources basis (.target %)) (gt/arcs-by-tail basis (.source arc))))
 
 (defn input-traverse [basis root-ids]
-  (mapv #(ig/node-by-id-at basis %) (ig/pre-traverse basis root-ids predecessors)))
+  (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) predecessors))
 
 (defn serialize-node [node]
   (assoc
-   (select-juxt node {:serial-id :serial-id :node-type gt/node-type})
+   (select-juxt node {:serial-id gt/node-id :node-type gt/node-type})
    :properties (select-keys node (keys (gt/properties node)))))
+
+(defn serialize-arc [arc]
+  [(apply ->ProducerBase (gt/head arc))
+   (apply ->ConsumerBase (gt/tail arc))])
 
 (defn copy
   ([root-ids node-filter-predicate]
    (copy (now) root-ids node-filter-predicate))
   ([basis root-ids node-filter-predicate]
-   (let [fragment-nodes (input-traverse basis root-ids)
-         fragment-nodes (map #(assoc %1 :serial-id %2) fragment-nodes (range (count fragment-nodes)))]
-     {:roots (map :serial-id (filter #(some #{(gt/node-id %)} (set root-ids)) fragment-nodes))
+   (let [fragment-arcs (input-traverse basis root-ids)
+         fragment-node-ids (into #{} (concat (map #(.target %) fragment-arcs)
+                                             (map #(.source %) fragment-arcs)))
+         fragment-nodes (map #(ig/node-by-id-at basis %) fragment-node-ids)]
+     {:roots (map gt/node-id (filter #(some #{(gt/node-id %)} (set root-ids)) fragment-nodes))
       :nodes (map serialize-node fragment-nodes)
-      :arcs  [:pass-the-test]})))
+      :arcs  (map serialize-arc fragment-arcs)})))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
