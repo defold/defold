@@ -539,7 +539,7 @@
   (gt/arcs-by-tail basis node-id))
 
 (defn- predecessors [basis ^Arc arc]
-  (mapv #(all-sources basis (.target %)) (gt/arcs-by-tail basis (.source arc))))
+  (mapcat #(all-sources basis (.target %)) (gt/arcs-by-tail basis (.source arc))))
 
 (defn input-traverse [basis root-ids]
   (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) predecessors))

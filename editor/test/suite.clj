@@ -27,6 +27,7 @@
                        integration.collection-test
                        internal.cache-test
                        internal.connection-rules
+                       internal.copy-test
                        internal.dependency-test
                        internal.graph.graph-test
                        internal.graph.types-test
