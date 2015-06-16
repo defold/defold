@@ -217,11 +217,17 @@
              :triggers-to-fire (update triggers-to-fire node-id assoc :deleted [])))
     ctx))
 
+(defn- assert-has-property-label
+  [node label]
+  (assert (contains? node label)
+          (format "Attemping to use property %s from %s, but it does not exist" label (:name (gt/node-type node)))))
+
 (defmethod perform :update-property
   [{:keys [basis triggers-to-fire properties-modified] :as ctx}
    {:keys [node-id property fn args]}]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-    (let [old-value          (get node property)
+    (let [_                  (assert-has-property-label node property)
+          old-value          (get node property)
           [basis-after node] (gt/update-property basis node-id property fn args)
           new-value          (get node property)]
       (if (= old-value new-value)
