@@ -532,22 +532,27 @@
 (defrecord ConsumerBase [node-id label]
   gt/Consumer)
 
-(defn select-juxt [m fs]
-  (zipmap (keys fs) ((apply juxt (vals fs)) m)))
-
 (defn- all-sources [basis node-id]
   (gt/arcs-by-tail basis node-id))
 
+(defn- in-same-graph? [gid nid]
+  (= gid (node-id->graph-id nid)))
+
 (defn- predecessors [basis ^Arc arc]
-  (mapcat #(all-sources basis (.target %)) (gt/arcs-by-tail basis (.source arc))))
+  (let [sid (.source arc)
+        gid (node-id->graph-id sid)
+        all-arcs (mapcat #(all-sources basis (.target ^Arc %)) (gt/arcs-by-tail basis sid))]
+    (filterv #(in-same-graph? gid (.source ^Arc %)) all-arcs)))
 
 (defn input-traverse [basis root-ids]
   (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) predecessors))
 
 (defn serialize-node [node]
-  (assoc
-   (select-juxt node {:serial-id gt/node-id :node-type gt/node-type})
-   :properties (select-keys node (keys (gt/properties node)))))
+  (let [all-node-properties    (select-keys node (keys (gt/properties node)))
+        properties-without-fns (filterm (comp not fn? val) all-node-properties)]
+    {:serial-id (gt/node-id node)
+     :node-type (gt/node-type node)
+     :properties properties-without-fns}))
 
 (defn serialize-arc [arc]
   [(apply ->ProducerBase (gt/head arc))
@@ -558,8 +563,9 @@
    (copy (now) root-ids node-filter-predicate))
   ([basis root-ids node-filter-predicate]
    (let [fragment-arcs (input-traverse basis root-ids)
-         fragment-node-ids (into #{} (concat (map #(.target %) fragment-arcs)
-                                             (map #(.source %) fragment-arcs)))
+         fragment-node-ids (into (set root-ids)
+                                 (concat (map #(.target %) fragment-arcs)
+                                         (map #(.source %) fragment-arcs)))
          fragment-nodes (map #(ig/node-by-id-at basis %) fragment-node-ids)]
      {:roots (map gt/node-id (filter #(some #{(gt/node-id %)} (set root-ids)) fragment-nodes))
       :nodes (map serialize-node fragment-nodes)

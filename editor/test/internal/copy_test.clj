@@ -60,7 +60,7 @@
                                                  (g/make-node world ConsumeAndProduceNode)
                                                  (g/make-node world ConsumeAndProduceNode)
                                                  (g/make-node world ProducerNode) )
-          node1-id (g/node-id node1)]
+          node1-id                  (g/node-id node1)]
       (g/transact
        [(g/connect node2 :produces-value node1 :consumes-value)
         (g/connect node3 :produces-value node1 :consumes-value)
@@ -71,18 +71,54 @@
             serial-ids          (map :serial-id fragment-nodes)
             arc-node-references (into #{} (concat (map #(:node-id (first %))  (:arcs fragment))
                                                   (map #(:node-id (second %)) (:arcs fragment))))]
-        (is (= 1 (count (:roots fragment))))
-        (is (every? integer? (:roots fragment)))
-        (is (every? integer? serial-ids))
-        (is (= (count serial-ids) (count (distinct serial-ids))))
         (is (= 4 (count (:arcs fragment))))
         (is (= 4 (count fragment-nodes)))
-        (is (every? #(satisfies? g/Producer %) (map first (:arcs fragment))))
-        (is (every? #(satisfies? g/Consumer %) (map second (:arcs fragment))))
         (is (empty? (set/difference (set arc-node-references) (set serial-ids))))))))
 
-;;  diamond copy: four nodes in a diamond formation.
-;;  short circuit an infinite cycle
+
+(deftest short-circut
+  (ts/with-clean-system
+    (let [[node1 node2 node3] (ts/tx-nodes (g/make-node world ConsumerNode)
+                                           (g/make-node world ConsumeAndProduceNode)
+                                           (g/make-node world ConsumeAndProduceNode))
+          node1-id            (g/node-id node1)]
+      (g/transact
+       [(g/connect node2 :produces-value node1 :consumes-value)
+        (g/connect node3 :produces-value node2 :consumes-value)
+        (g/connect node2 :produces-value node3 :consumes-value)])
+      (let [fragment            (g/copy [node1-id] (constantly true))
+            fragment-nodes      (:nodes fragment)]
+        (is (= 3 (count (:arcs fragment))))
+        (is (= 3 (count fragment-nodes)))))))
+
+
+(deftest cross-graph-copy
+  (ts/with-clean-system
+    (let [g1                  (g/make-graph!)
+          g2                  (g/make-graph!)
+          [node1 node2 node3] (ts/tx-nodes (g/make-node g1 ConsumerNode)
+                                           (g/make-node g1 ConsumeAndProduceNode)
+                                           (g/make-node g2 ProducerNode))
+          node1-id            (g/node-id node1)]
+      (g/transact
+       [(g/connect node2 :produces-value node1 :consumes-value)
+        (g/connect node3 :produces-value node2 :consumes-value)])
+      (let [fragment            (g/copy [node1-id] (constantly true))
+            fragment-nodes      (:nodes fragment)]
+        (is (= 1 (count (:arcs fragment))))
+        (is (= 2 (count fragment-nodes)))))))
+
+
 ;;  cross graph copy: two nodes, in different graphs, cuts off at graph boundary
 ;;  resource: two nodes, one arc, upstream is a resource
 ;;  no functions: one node, a property which is a function, should not be serialized
+
+(g/defnode FunctionPropertyNode
+  (property a-function t/Any))
+
+(deftest no-functions
+  (ts/with-clean-system
+    (let [[node1]       (ts/tx-nodes (g/make-node world FunctionPropertyNode :a-function (fn [] false)))
+          fragment      (g/copy [(g/node-id node1)] (constantly false))
+          fragment-node (first (:nodes fragment))]
+      (is (not (contains? (:properties fragment-node) :a-function))))))
