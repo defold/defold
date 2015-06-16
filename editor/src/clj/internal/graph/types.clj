@@ -6,9 +6,6 @@
   [f]
   (contains? (meta f) :schema))
 
-(defprotocol Consumer)
-(defprotocol Producer)
-
 (defprotocol Arc
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))
