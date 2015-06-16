@@ -157,7 +157,7 @@ ordinary paths."
   (let [nodes-by-resource (g/node-value project :nodes-by-resource)]
     (get nodes-by-resource resource)))
 
-(handler/defhandler :build
+(handler/defhandler :build :global
     (enabled? [] true)
     (run [project] (let [workspace (:workspace project)
                          game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))]
