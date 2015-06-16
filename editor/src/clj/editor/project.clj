@@ -21,6 +21,7 @@ ordinary paths."
   (inherits core/Scope)
 
   (property resource (t/protocol workspace/Resource) (visible (g/fnk [] false)))
+  (property project t/Any (visible (g/fnk [] false)))
 
   (output save-data t/Any (g/fnk [resource] {:resource resource}))
   (output build-targets t/Any (g/fnk [] [])))
@@ -41,7 +42,7 @@ ordinary paths."
           (if (not= (workspace/source-type resource) :folder)
             (g/make-nodes
               project-graph
-              [new-resource [node-type :resource resource :parent project :resource-type resource-type]]
+              [new-resource [node-type :resource resource :project-id (g/node-id project) :resource-type resource-type]]
               (g/connect new-resource :self project :nodes)
               (if ((g/outputs' node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
@@ -57,16 +58,18 @@ ordinary paths."
     (when (not (empty? new-nodes))
       (recur project new-nodes))))
 
-(defn load-project [project]
-  (let [nodes (make-nodes project (g/node-value project :resources))]
-    (load-nodes (g/refresh project) nodes)
-    (g/refresh project)))
+(defn load-project
+  ([project] (load-project project (g/node-value project :resources)))
+  ([project resources]
+   (let [nodes (make-nodes project resources)]
+     (load-nodes (g/refresh project) nodes)
+     (g/refresh project))))
 
 (defn make-embedded-resource [project type data]
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
     (workspace/make-memory-resource (:workspace project) resource-type data)))
 
-(handler/defhandler :save-all
+(handler/defhandler :save-all :global
     (enabled? [] true)
     (run [project] (let [save-data (g/node-value project :save-data)]
                      (doseq [{:keys [resource content]} save-data]
@@ -95,11 +98,11 @@ ordinary paths."
       (with-open [out (io/output-stream resource)]
         (.write out ^bytes content)))))
 
-(handler/defhandler :undo
+(handler/defhandler :undo :global
     (enabled? [project-graph] (g/has-undo? project-graph))
     (run [project-graph] (g/undo project-graph)))
 
-(handler/defhandler :redo
+(handler/defhandler :redo :global
     (enabled? [project-graph] (g/has-redo? project-graph))
     (run [project-graph] (g/redo project-graph)))
 
@@ -137,6 +140,9 @@ ordinary paths."
 (defn get-resource-type [resource-node]
   (when resource-node (workspace/resource-type (:resource resource-node))))
 
+(defn get-project [resource-node]
+  (g/node-by-id (:project-id resource-node)))
+
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
         matcher (.getPathMatcher file-system (str "glob:" query))]
@@ -158,7 +164,7 @@ ordinary paths."
                      (build-and-write project game-project))))
 
 (defn resolve-resource-node [base-resource-node path]
-  (let [project (:parent base-resource-node)
+  (let [project (get-project base-resource-node)
         resource (workspace/resolve-resource (:resource base-resource-node) path)]
     (get-resource-node project resource)))
 

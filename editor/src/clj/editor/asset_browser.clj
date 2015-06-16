@@ -73,19 +73,19 @@
 (defn- is-file-resource [x] (and (satisfies? workspace/Resource x)
                                  (= :file (workspace/source-type x))))
 
-(handler/defhandler :open
+(handler/defhandler :open :asset-browser
   (enabled? [selection] (every? is-file-resource selection))
   (run [selection] (prn "Open" selection "NOW!")))
 
-(handler/defhandler :delete
+(handler/defhandler :delete :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
   (run [selection] (prn "Delete" selection "NOW!")))
 
-(handler/defhandler :refresh
+(handler/defhandler :refresh :asset-browser
   (enabled? [] true)
   (run [] (prn "REFRESH NOW!") ))
 
-(handler/defhandler :show-in-desktop
+(handler/defhandler :show-in-desktop :asset-browser
   (enabled? [selection] (and (= 1 (count selection)) (not= nil (workspace/abs-path (first selection)))) )
   (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))
                          dir (if (.isFile f) (.getParentFile f) f)]
@@ -110,8 +110,9 @@
                                                             (proxy-super setText name))
                                                           (proxy-super setGraphic (jfx/get-image-view (workspace/resource-icon resource)))))))))
 
-    (ui/register-context-menu tree-view {} tree-view ::resource-menu)
+    (ui/register-context-menu tree-view ::resource-menu)
     (.setRoot tree-view (tree-item (g/node-value workspace :resource-tree)))))
 
 (defn make-asset-browser [workspace tree-view open-resource-fn]
+  (ui/context! tree-view :asset-browser {} tree-view)
   (setup-asset-browser workspace tree-view open-resource-fn))
