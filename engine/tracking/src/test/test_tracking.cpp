@@ -404,6 +404,20 @@ TEST_F(dmTrackingTest, TestSimpleEvent)
     ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
 }
 
+TEST_F(dmTrackingTest, TestEscaping)
+{
+    StartAndProvideConfigAndStid("stid-1234");
+
+    const char *type = "\n\t\b\rText\n\n!\"Quotes\"";
+
+    dmTracking::PostSimpleEvent(m_Tracking, type);
+    dmTracking::Update(m_Tracking, 0.1f);
+
+    lua_getglobal(m_LuaState, "test_assert_request_has_event");
+    lua_pushstring(m_LuaState, type);
+    ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
+}
+
 TEST_F(dmTrackingTest, TestEventBatching)
 {
     StartAndProvideConfigAndStid("stid-1234");
