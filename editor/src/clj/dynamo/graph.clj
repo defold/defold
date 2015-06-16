@@ -587,6 +587,12 @@
       :nodes (map serialize-node fragment-nodes)
       :arcs  (map #(serialize-arc basis write-handlers %) fragment-arcs)})))
 
+(defn paste
+  ([g fragment]
+   (paste (now) g fragment))
+  ([basis g fragment]
+   "put all the good logic here :)"))
+
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------

@@ -29,30 +29,38 @@
 
 ;;   )
 
+(defn simple-copy-fragment [world]
+  (let [[node1 node2] (ts/tx-nodes (g/make-node world ConsumerNode)
+                                   (g/make-node world ProducerNode))
+        node1-id      (g/node-id node1)
+        node2-id      (g/node-id node2)]
+    (g/transact
+     (g/connect node2 :produces-value node1 :consumes-value))
+    (g/copy [node1-id] (constantly false))))
+
 (deftest simple-copy
   (ts/with-clean-system
-    (let [[node1 node2] (ts/tx-nodes (g/make-node world ConsumerNode)
-                                     (g/make-node world ProducerNode))
-          node1-id      (g/node-id node1)
-          node2-id      (g/node-id node2)]
-      (g/transact
-       (g/connect node2 :produces-value node1 :consumes-value))
+    (let [fragment            (simple-copy-fragment world)
+          fragment-nodes      (:nodes fragment)
+          serial-ids          (map :serial-id fragment-nodes)
+          arc-node-references (into #{} (concat (map #(:node-id (first %))  (:arcs fragment))
+                                                (map #(:node-id (second %)) (:arcs fragment))))]
+      (is (= 1 (count (:roots fragment))))
+      (is (every? integer? (:roots fragment)))
+      (is (every? integer? serial-ids))
+      (is (= (count serial-ids) (count (distinct serial-ids))))
+      (is (= [ConsumerNode ProducerNode] (map :node-type fragment-nodes)))
+      (is (= {:a-property "foo"} (:properties (first fragment-nodes))))
+      (is (= 1 (count (:arcs fragment))))
+      (is (every? #(instance? Endpoint %) (map first (:arcs fragment))))
+      (is (every? #(instance? Endpoint %) (map second (:arcs fragment))))
+      (is (empty? (set/difference (set arc-node-references) (set serial-ids)))))))
 
-      (let [fragment            (g/copy [node1-id] (constantly false))
-            fragment-nodes      (:nodes fragment)
-            serial-ids          (map :serial-id fragment-nodes)
-            arc-node-references (into #{} (concat (map #(:node-id (first %))  (:arcs fragment))
-                                                  (map #(:node-id (second %)) (:arcs fragment))))]
-        (is (= 1 (count (:roots fragment))))
-        (is (every? integer? (:roots fragment)))
-        (is (every? integer? serial-ids))
-        (is (= (count serial-ids) (count (distinct serial-ids))))
-        (is (= [ConsumerNode ProducerNode] (map :node-type fragment-nodes)))
-        (is (= {:a-property "foo"} (:properties (first fragment-nodes))))
-        (is (= 1 (count (:arcs fragment))))
-        (is (every? #(instance? Endpoint %) (map first (:arcs fragment))))
-        (is (every? #(instance? Endpoint %) (map second (:arcs fragment))))
-        (is (empty? (set/difference (set arc-node-references) (set serial-ids))))))))
+(deftest simple-paste
+  (ts/with-clean-system
+    (let [fragment            (simple-copy-fragment world)
+          paste-tx-data       (g/paste world fragment)]
+      (is (= 2 (count {:root-node-ids paste-tx-data}))))))
 
 
 (deftest diamond-copy
