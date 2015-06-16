@@ -6,6 +6,9 @@
   [f]
   (contains? (meta f) :schema))
 
+(defprotocol Consumer)
+(defprotocol Producer)
+
 (defprotocol Arc
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))
@@ -56,6 +59,8 @@
 
 (defprotocol IBasis
   (node-by-property [this label value])
+  (arcs-by-head     [this node-id])
+  (arcs-by-tail     [this node-id])
   (sources          [this node-id] [this node-id label])
   (targets          [this node-id] [this node-id label])
   (add-node         [this value]                 "returns [basis real-value]")

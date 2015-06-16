@@ -229,12 +229,20 @@
     [_ label value]
     (filter #(= value (get % label)) (mapcat vals graphs)))
 
+  (arcs-by-tail
+    [this node-id]
+    (get-in (node-id->graph graphs node-id) [:tarcs node-id]))
+
+  (arcs-by-head
+    [this node-id]
+    (get-in (node-id->graph graphs node-id) [:sarcs node-id]))
+
   (sources
     [this node-id]
     (map gt/head
          (filter (fn [^ArcBase arc]
                    (node-by-id-at this (.source arc)))
-                 (get-in (node-id->graph graphs node-id) [:tarcs node-id]))))
+                 (arcs-by-tail this node-id))))
 
   (sources
     [this node-id label]
@@ -242,14 +250,14 @@
          (filter (fn [^ArcBase arc]
                    (and (= label (.targetLabel arc))
                         (node-by-id-at this (.source arc))))
-                 (get-in (node-id->graph graphs node-id) [:tarcs node-id]))))
+                 (arcs-by-tail this node-id))))
 
   (targets
     [this node-id]
     (map gt/tail
          (filter (fn [^ArcBase arc]
                    (node-by-id-at this (.target arc)))
-                 (get-in (node-id->graph graphs node-id) [:sarcs node-id]))))
+                 (arcs-by-head this node-id))))
 
   (targets
     [this node-id label]
@@ -257,7 +265,7 @@
          (filter (fn [^ArcBase arc]
                    (and (= label (.sourceLabel arc))
                         (node-by-id-at this (.target arc))))
-                 (get-in (node-id->graph graphs node-id) [:sarcs node-id]))))
+                 (arcs-by-head this node-id))))
 
   (add-node
     [this node]
