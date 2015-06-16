@@ -16,7 +16,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types Producer Consumer NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
+(import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
 
 (import-vars [internal.graph type-compatible?])
 
@@ -526,11 +526,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
 ;; ---------------------------------------------------------------------------
-(defrecord ProducerBase [node-id label]
-  gt/Producer)
-
-(defrecord ConsumerBase [node-id label]
-  gt/Consumer)
+(defrecord Endpoint [node-id label])
 
 (defn- all-sources [basis node-id]
   (gt/arcs-by-tail basis node-id))
@@ -555,15 +551,17 @@
      :properties properties-without-fns}))
 
 (defn- default-write-handler [node label]
-  (->ProducerBase (gt/node-id node) label))
+  (Endpoint. (gt/node-id node) label))
 
 (defn serialize-arc [basis write-handlers arc]
-  (let [[pid label] (gt/head arc)
+  (let [[pid plabel] (gt/head arc)
+        [cid clabel] (gt/tail arc)
         pnode (ig/node-by-id-at basis pid)
+        cnode (ig/node-by-id-at basis cid)
         pnode-type (gt/node-type pnode)
         write-handler (get write-handlers pnode-type default-write-handler)]
-   [(write-handler pnode label)
-    (apply ->ConsumerBase (gt/tail arc))]))
+   [(write-handler pnode plabel)
+    (default-write-handler cnode clabel)]))
 
 (defn guard [f g]
   (fn [& args]

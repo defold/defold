@@ -3,7 +3,8 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :as ts]
-            [dynamo.types :as t]))
+            [dynamo.types :as t])
+  (:import [dynamo.graph Endpoint]))
 
 ;;  simple copy: two nodes, one arc
 (g/defnode ConsumerNode
@@ -49,8 +50,8 @@
         (is (= [ConsumerNode ProducerNode] (map :node-type fragment-nodes)))
         (is (= {:a-property "foo"} (:properties (first fragment-nodes))))
         (is (= 1 (count (:arcs fragment))))
-        (is (every? #(satisfies? g/Producer %) (map first (:arcs fragment))))
-        (is (every? #(satisfies? g/Consumer %) (map second (:arcs fragment))))
+        (is (every? #(instance? Endpoint %) (map first (:arcs fragment))))
+        (is (every? #(instance? Endpoint %) (map second (:arcs fragment))))
         (is (empty? (set/difference (set arc-node-references) (set serial-ids))))))))
 
 
@@ -127,8 +128,7 @@
 (defn- stop-at-stoppers [node]
   (not (= "StopperNode" (:name (g/node-type node)))))
 
-(defrecord StopArc [id label]
-  g/Producer)
+(defrecord StopArc [id label])
 
 (defn- serialize-stopper [node label]
   (StopArc. (g/node-id node) label))
@@ -154,6 +154,5 @@
         (is (= 2 (count (:arcs fragment))))
         (is (= 2 (count fragment-nodes)))
         (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "StopperNode")))
-        (is (contains? (into #{} (map (comp class first) (:arcs fragment))) StopArc))
-        (is (every? #(satisfies? g/Producer %) (map first (:arcs fragment))))
-        (is (every? #(satisfies? g/Consumer %) (map second (:arcs fragment))))))))
+        (is (= #{StopArc Endpoint} (into #{} (map (comp class first) (:arcs fragment)))))
+        (is (= #{Endpoint} (into #{} (map (comp class second) (:arcs fragment)))))))))
