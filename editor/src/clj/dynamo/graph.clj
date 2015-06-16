@@ -544,8 +544,8 @@
         all-arcs (mapcat #(all-sources basis (.target ^Arc %)) (gt/arcs-by-tail basis sid))]
     (filterv #(in-same-graph? gid (.source ^Arc %)) all-arcs)))
 
-(defn input-traverse [basis root-ids]
-  (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) predecessors))
+(defn input-traverse [basis pred root-ids]
+  (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
 
 (defn serialize-node [node]
   (let [all-node-properties    (select-keys node (keys (gt/properties node)))
@@ -554,22 +554,40 @@
      :node-type (gt/node-type node)
      :properties properties-without-fns}))
 
-(defn serialize-arc [arc]
-  [(apply ->ProducerBase (gt/head arc))
-   (apply ->ConsumerBase (gt/tail arc))])
+(defn- default-write-handler [node label]
+  (->ProducerBase (gt/node-id node) label))
+
+(defn serialize-arc [basis write-handlers arc]
+  (let [[pid label] (gt/head arc)
+        pnode (ig/node-by-id-at basis pid)
+        pnode-type (gt/node-type pnode)
+        write-handler (get write-handlers pnode-type default-write-handler)]
+   [(write-handler pnode label)
+    (apply ->ConsumerBase (gt/tail arc))]))
+
+(defn guard [f g]
+  (fn [& args]
+    (when (apply f args)
+      (apply g args))))
+
+(defn guard-arc [f g]
+  (guard
+   (fn [basis ^Arc arc]
+     (f (ig/node-by-id-at basis (.source arc))))
+   g))
 
 (defn copy
-  ([root-ids node-filter-predicate]
-   (copy (now) root-ids node-filter-predicate))
-  ([basis root-ids node-filter-predicate]
-   (let [fragment-arcs (input-traverse basis root-ids)
+  ([root-ids opts]
+   (copy (now) root-ids opts))
+  ([basis root-ids {:keys [continue? write-handlers] :or {continue? (constantly true)} :as opts}]
+   (let [fragment-arcs     (input-traverse basis (guard-arc continue? predecessors) root-ids)
          fragment-node-ids (into (set root-ids)
                                  (concat (map #(.target %) fragment-arcs)
                                          (map #(.source %) fragment-arcs)))
-         fragment-nodes (map #(ig/node-by-id-at basis %) fragment-node-ids)]
+         fragment-nodes    (filter continue? (map #(ig/node-by-id-at basis %) fragment-node-ids))]
      {:roots (map gt/node-id (filter #(some #{(gt/node-id %)} (set root-ids)) fragment-nodes))
       :nodes (map serialize-node fragment-nodes)
-      :arcs  (map serialize-arc fragment-arcs)})))
+      :arcs  (map #(serialize-arc basis write-handlers %) fragment-arcs)})))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
