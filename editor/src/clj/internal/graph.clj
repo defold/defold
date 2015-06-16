@@ -242,7 +242,7 @@
     (map gt/head
          (filter (fn [^ArcBase arc]
                    (node-by-id-at this (.source arc)))
-                 (arcs-by-tail this node-id))))
+                 (gt/arcs-by-tail this node-id))))
 
   (sources
     [this node-id label]
@@ -250,14 +250,14 @@
          (filter (fn [^ArcBase arc]
                    (and (= label (.targetLabel arc))
                         (node-by-id-at this (.source arc))))
-                 (arcs-by-tail this node-id))))
+                 (gt/arcs-by-tail this node-id))))
 
   (targets
     [this node-id]
     (map gt/tail
          (filter (fn [^ArcBase arc]
                    (node-by-id-at this (.target arc)))
-                 (arcs-by-head this node-id))))
+                 (gt/arcs-by-head this node-id))))
 
   (targets
     [this node-id label]
@@ -265,7 +265,7 @@
          (filter (fn [^ArcBase arc]
                    (and (= label (.sourceLabel arc))
                         (node-by-id-at this (.target arc))))
-                 (arcs-by-head this node-id))))
+                 (gt/arcs-by-head this node-id))))
 
   (add-node
     [this node]
