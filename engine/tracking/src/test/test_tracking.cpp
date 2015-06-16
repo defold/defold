@@ -13,10 +13,10 @@ extern "C"
 {
     #include <lua/lauxlib.h>
     #include <lua/lualib.h>
-
-    extern unsigned char TEST_TRACKING_LUA[];
-    extern uint32_t TEST_TRACKING_LUA_SIZE;
 }
+
+extern unsigned char TEST_TRACKING_LUA[];
+extern uint32_t TEST_TRACKING_LUA_SIZE;
 
 /*
     Tracking system tests. These tests make use of test_tracking.lua which hooks functions

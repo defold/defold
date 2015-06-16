@@ -8,10 +8,10 @@ extern "C"
 {
     #include <lua/lauxlib.h>
     #include <lua/lualib.h>
-
-    extern unsigned char TRACKING_LUA[];
-    extern uint32_t TRACKING_LUA_SIZE;
 }
+
+extern unsigned char TRACKING_LUA[];
+extern uint32_t TRACKING_LUA_SIZE;
 
 namespace dmTracking
 {
