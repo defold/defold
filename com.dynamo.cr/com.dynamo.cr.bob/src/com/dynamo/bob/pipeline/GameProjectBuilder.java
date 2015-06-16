@@ -265,8 +265,12 @@ public class GameProjectBuilder extends Builder<Void> {
                 Object message = builder.build();
                 findResources(project, (Message) message, resources);
 
-            } catch (Exception e) {
-                throw new RuntimeException("A problem occurred when trying to find resource '" + resource.getPath() + "'. " + e.getMessage());
+            } catch(NullPointerException e) {
+            	throw new CompileExceptionError(resource, 0, "Unable to find and build resource " + resource.getPath());
+            } catch(CompileExceptionError e) {
+            	throw e;
+            } catch(Exception e) {
+            	throw new RuntimeException(e);
             }
         } else {
             throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
