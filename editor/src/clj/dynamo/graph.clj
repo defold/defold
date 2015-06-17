@@ -587,11 +587,27 @@
       :nodes (map serialize-node fragment-nodes)
       :arcs  (map #(serialize-arc basis write-handlers %) fragment-arcs)})))
 
+(defn- deserialize-node
+  [g {:keys [node-type properties] :as node-spec}]
+  (apply make-node g node-type (mapcat identity properties)))
+
+(defn- deserialize-arc
+  [id-dictionary [source target]]
+  (let [real-src-id (get id-dictionary (:node-id source))
+        real-tgt-id (get id-dictionary (:node-id target))]
+    (connect real-src-id (:label source) real-tgt-id (:label target))))
+
 (defn paste
   ([g fragment]
    (paste (now) g fragment))
   ([basis g fragment]
-   "put all the good logic here :)"))
+   (let [node-txs      (vec (mapcat #(deserialize-node g %) (:nodes fragment)))
+         nodes         (map :node node-txs)
+         id-dictionary (zipmap (map :serial-id (:nodes fragment)) (map #(gt/node-id (:node %)) node-txs))
+         connect-txs   (mapcat #(deserialize-arc id-dictionary %) (:arcs fragment))]
+     {:root-node-ids (map #(get id-dictionary %) (:roots fragment))
+      :nodes         nodes
+      :tx-data       (into node-txs connect-txs)})))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
