@@ -98,10 +98,14 @@ ordinary paths."
 (defn targets-by-key [build-targets]
   (into {} (map #(let [key (target-key %)] [key (assoc % :key key)]) build-targets)))
 
+(defn prune-build-cache! [cache build-targets]
+  (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
+
 (defn build [project node]
   (let [basis (g/now)
         build-cache (:build-cache project)
         build-targets (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %) (g/node-value node :build-targets)))]
+    (prune-build-cache! build-cache build-targets)
     (mapv #(build-target basis (second %) build-targets build-cache) build-targets)))
 
 (defn- prune-fs [files-on-disk built-files]
@@ -114,11 +118,16 @@ ordinary paths."
       (when (not keep?)
         (.delete file)))))
 
+(defn prune-fs-build-cache! [cache build-results]
+  (let [build-resources (set (map :resource build-results))]
+    (reset! cache (into {} (filter (fn [[resource key]] (contains? build-resources resource)) @cache)))))
+
 (defn build-and-write [project node]
   (let [files-on-disk (file-seq (io/file (workspace/build-path (:workspace project))))
         build-results (build project node)
         fs-build-cache (:fs-build-cache project)]
     (prune-fs files-on-disk (map #(File. (workspace/abs-path (:resource %))) build-results))
+    (prune-fs-build-cache! fs-build-cache build-results)
     (doseq [result build-results
             :let [{:keys [resource content key]} result
                   abs-path (workspace/abs-path resource)

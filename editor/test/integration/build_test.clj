@@ -123,3 +123,33 @@
                  (let [build-results (project/build project resource-node)]
                    (is (> (count build-results) 0))
                    (is (not-any? :cached first-build-results))))))))
+
+(deftest prune-build-cache
+  (testing "Verify the build cache works as expected"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)]
+               (let [path "/main/main.collection"
+                     resource-node (test-util/resource-node project path)
+                     _ (project/build project resource-node)
+                     cache-count (count @(:build-cache project))]
+                 (g/transact
+                   (for [[node label] (g/sources-of resource-node :dep-build-targets)]
+                     (g/delete-node node)))
+                 (project/build project resource-node)
+                 (is (< (count @(:build-cache project)) cache-count)))))))
+
+(deftest prune-fs-build-cache
+  (testing "Verify the fs build cache works as expected"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)]
+               (let [path "/main/main.collection"
+                     resource-node (test-util/resource-node project path)
+                     _ (project/build-and-write project resource-node)
+                     cache-count (count @(:fs-build-cache project))]
+                 (g/transact
+                   (for [[node label] (g/sources-of resource-node :dep-build-targets)]
+                     (g/delete-node node)))
+                 (project/build-and-write project resource-node)
+                 (is (< (count @(:fs-build-cache project)) cache-count)))))))
