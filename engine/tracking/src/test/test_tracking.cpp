@@ -74,11 +74,21 @@ class dmTrackingTest : public ::testing::Test
             ASSERT_EQ(0, dmScript::PCall(m_LuaState, 0, 0));
         }
 
-        virtual void TearDown()
+        // Finalizing tracking forces a save, which is not good
+        // if we want to emulate abrupt shutdown, so make it optional.
+        virtual void DoTearDown(bool finalize_tracking)
         {
-            dmTracking::Finalize(m_Tracking);
+            if (finalize_tracking)
+            {
+                dmTracking::Finalize(m_Tracking);
+            }
             dmTracking::Delete(m_Tracking);
             dmConfigFile::Delete(m_Config);
+        }
+
+        virtual void TearDown()
+        {
+            DoTearDown(true);
         }
 
         // Helper that starts tracking and responds to the first HTTP request that asks
@@ -123,7 +133,7 @@ class dmTrackingTest : public ::testing::Test
             lua_getglobal(m_LuaState, "__saves");
             ASSERT_NE(0, dmScript::CheckTable(m_LuaState, buf, 65536, 1));
 
-            TearDown();
+            DoTearDown(false);
             SetUp();
 
             dmScript::PushTable(m_LuaState, buf);
@@ -171,7 +181,7 @@ TEST_F(dmTrackingTest, TestGetConfigFailing)
     lua_getglobal(m_LuaState, "test_assert_has_no_request");
     ASSERT_EQ(0, dmScript::PCall(m_LuaState, 0, 0));
 
-    dmTracking::Update(m_Tracking, 3.0f);
+    dmTracking::Update(m_Tracking, 10.0f);
 
     lua_getglobal(m_LuaState, "test_respond_with_failure");
     lua_pushnumber(m_LuaState, 500.0f);
@@ -353,6 +363,49 @@ TEST_F(dmTrackingTest, TestPersist)
     // New session
     DoNewSession();
 
+    // Now we should see the install event being sent again with the same
+    // stid provided from before
+    lua_getglobal(m_LuaState, "test_assert_request_stid");
+    lua_pushstring(m_LuaState, TEST_STID);
+    ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
+
+    lua_getglobal(m_LuaState, "test_assert_request_has_event");
+    lua_pushstring(m_LuaState, "@Install");
+    ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
+}
+
+TEST_F(dmTrackingTest, TestPersistStid)
+{
+    const char *TEST_STID = "remember-me-STID";
+
+    StartAndProvideConfig();
+    dmTracking::Update(m_Tracking, 0.0f);
+
+    lua_getglobal(m_LuaState, "test_respond_with_stid");
+    lua_pushnumber(m_LuaState, 200.0f);
+    lua_pushstring(m_LuaState, TEST_STID);
+    ASSERT_EQ(0, dmScript::PCall(m_LuaState, 2, 0));
+
+    dmTracking::Update(m_Tracking, 0.0f);
+
+    // correct stid
+    lua_getglobal(m_LuaState, "test_assert_request_stid");
+    lua_pushstring(m_LuaState, TEST_STID);
+    ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
+
+    // now fail on install
+    lua_getglobal(m_LuaState, "test_respond_with_blank");
+    lua_pushnumber(m_LuaState, 200.0f);
+    ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
+
+    dmTracking::Update(m_Tracking, 0.33f);
+
+    // New session
+    DoNewSession();
+
+    dmTracking::PostSimpleEvent(m_Tracking, "@Invoke");
+
+    dmTracking::Update(m_Tracking, 0.33f);
 
     // Now we should see the install event being sent again with the same
     // stid provided from before
@@ -362,9 +415,8 @@ TEST_F(dmTrackingTest, TestPersist)
 
     // correct event
     lua_getglobal(m_LuaState, "test_assert_request_has_event");
-    lua_pushstring(m_LuaState, "@Install");
+    lua_pushstring(m_LuaState, "@Invoke");
     ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
-
 }
 
 TEST_F(dmTrackingTest, TestDDFMessage)

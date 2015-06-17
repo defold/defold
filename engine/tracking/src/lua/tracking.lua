@@ -256,7 +256,6 @@ end
 function on_request_failure()
     time_to_next_send = (1.0 + 0.5 * math.random()) * retry_timer
     retry_timer = retry_timer * 2
-
     local count = table.getn(meta_data.files)
     for i=1,count do
         file_state[i].persist = true
@@ -282,7 +281,7 @@ function on_config_response(self, id, response)
         server_config = json.decode(response.response)
         if server_config["stid_url"] and server_config["event_url"] then
             on_request_success();
-	else
+    else
             -- go into fail mode.
             on_request_failure();
         end
@@ -295,6 +294,8 @@ function on_stid_response(self, id, response)
     else
         meta_data.stid = response.response;
         on_request_success();
+        -- now time to force save.
+        save(true)
     end
 end
 
