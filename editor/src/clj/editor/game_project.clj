@@ -86,7 +86,11 @@
 (defn- root-node [self properties category key]
   (let [path (property properties category key)
         ; TODO - hack for compiled files in game.project
-        path (subs path 0 (dec (count path)))]
+        path (subs path 0 (dec (count path)))
+        ; TODO - hack for inconsistencies in game.project paths
+        path (if (.startsWith path "/")
+               path
+               (str "/" path))]
     (project/resolve-resource-node self path)))
 
 (defn load-game-project [project self input]
