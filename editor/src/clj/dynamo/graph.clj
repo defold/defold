@@ -18,7 +18,7 @@
 
 (import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
 
-(import-vars [internal.graph type-compatible?])
+(import-vars [internal.graph type-compatible? node-by-id-at])
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
@@ -556,15 +556,17 @@
 (defn- default-read-handler [id-dictionary endpoint]
   [(get id-dictionary (:node-id endpoint)) (:label endpoint)])
 
+(defn- lookup-handler [handlers node not-found]
+  (let [all-types (into #{(node-type node)} (supertypes (node-type node)))]
+    (or (first (map #(get handlers %) all-types)) not-found)))
+
 (defn serialize-arc [basis write-handlers arc]
-  (let [[pid plabel] (gt/head arc)
-        [cid clabel] (gt/tail arc)
-        pnode (ig/node-by-id-at basis pid)
-        cnode (ig/node-by-id-at basis cid)
-        pnode-type (gt/node-type pnode)
-        write-handler (get write-handlers pnode-type default-write-handler)]
-   [(write-handler pnode plabel)
-    (default-write-handler cnode clabel)]))
+  (let [[pid plabel]  (gt/head arc)
+        [cid clabel]  (gt/tail arc)
+        pnode         (ig/node-by-id-at basis pid)
+        cnode         (ig/node-by-id-at basis cid)
+        write-handler (lookup-handler write-handlers pnode default-write-handler)]
+   [(write-handler pnode plabel) (default-write-handler cnode clabel)]))
 
 (defn guard [f g]
   (fn [& args]
@@ -582,13 +584,12 @@
    (copy (now) root-ids opts))
   ([basis root-ids {:keys [continue? write-handlers] :or {continue? (constantly true)} :as opts}]
    (let [fragment-arcs     (input-traverse basis (guard-arc continue? predecessors) root-ids)
-         fragment-node-ids (into (set root-ids)
-                                 (concat (map #(.target %) fragment-arcs)
-                                         (map #(.source %) fragment-arcs)))
-         fragment-nodes    (filter continue? (map #(ig/node-by-id-at basis %) fragment-node-ids))]
-     {:roots (map gt/node-id (filter #(some #{(gt/node-id %)} (set root-ids)) fragment-nodes))
-      :nodes (map serialize-node fragment-nodes)
-      :arcs  (map #(serialize-arc basis write-handlers %) fragment-arcs)})))
+         fragment-node-ids (into #{} (concat (map #(.target %) fragment-arcs) (map #(.source %) fragment-arcs)))
+         fragment-nodes    (filter continue? (map #(ig/node-by-id-at basis %) fragment-node-ids))
+         root-nodes        (map #(ig/node-by-id-at basis %) root-ids)]
+     {:roots root-ids
+      :nodes (mapv serialize-node (into #{} (concat root-nodes fragment-nodes)))
+      :arcs  (mapv #(serialize-arc basis write-handlers %) fragment-arcs)})))
 
 (defn- deserialize-node
   [g {:keys [node-type properties] :as node-spec}]
@@ -599,6 +600,7 @@
   (let [read-handler            (get read-handlers (class source) (partial default-read-handler id-dictionary))
         [real-src-id src-label] (read-handler source)
         [real-tgt-id tgt-label] (default-read-handler id-dictionary target)]
+    (assert real-src-id (str "Don't know how to resolve " (pr-str source) " to a node. You might need to put a :read-handler on the call to dynamo.graph/paste"))
     (connect real-src-id src-label real-tgt-id tgt-label)))
 
 (defn paste
