@@ -101,21 +101,44 @@ ordinary paths."
 (defn build [project node]
   (let [basis (g/now)
         build-cache (:build-cache project)
-        all-build-files (into {} (map #(do [(.getAbsolutePath %) (.lastModified %)]) (file-seq (io/file (workspace/build-path (:workspace project))))))
         build-targets (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %) (g/node-value node :build-targets)))]
     (mapv #(build-target basis (second %) build-targets build-cache) build-targets)))
 
+(defn- prune-fs [files-on-disk built-files]
+  (let [files-on-disk (reverse files-on-disk)
+        built (set built-files)]
+    (doseq [file files-on-disk
+            :let [dir? (.isDirectory file)
+                  empty? (= 0 (count (.listFiles file)))
+                  keep? (or (and dir? (not empty?)) (contains? built file))]]
+      (when (not keep?)
+        (.delete file)))))
+
 (defn build-and-write [project node]
-  (let [build-results (build project node)]
-    (doseq [{:keys [resource content]} build-results
-            :let [parent (-> (File. ^String (workspace/abs-path resource))
-                           (.getParentFile))]]
-      ; Create underlying directories
-      (when (not (.exists parent))
-        (.mkdirs parent))
-      ; Write bytes
-      (with-open [out (io/output-stream resource)]
-        (.write out ^bytes content)))))
+  (let [files-on-disk (file-seq (io/file (workspace/build-path (:workspace project))))
+        build-results (build project node)
+        fs-build-cache (:fs-build-cache project)]
+    (prune-fs files-on-disk (map #(File. (workspace/abs-path (:resource %))) build-results))
+    (doseq [result build-results
+            :let [{:keys [resource content key]} result
+                  abs-path (workspace/abs-path resource)
+                  mtime (let [f (File. abs-path)]
+                          (if (.exists f)
+                            (.lastModified f)
+                            0))
+                  build-key [key mtime]
+                  cached? (= (get @fs-build-cache resource) build-key)]]
+      (when (not cached?)
+        (let [parent (-> (File. ^String (workspace/abs-path resource))
+                       (.getParentFile))]
+          ; Create underlying directories
+          (when (not (.exists parent))
+            (.mkdirs parent))
+          ; Write bytes
+          (with-open [out (io/output-stream resource)]
+            (.write out ^bytes content))
+          (let [f (File. abs-path)]
+            (swap! fs-build-cache assoc resource [key (.lastModified f)])))))))
 
 (handler/defhandler :undo :global
     (enabled? [project-graph] (g/has-undo? project-graph))
@@ -140,11 +163,15 @@ ordinary paths."
 (defn clear-build-cache [project]
   (reset! (:build-cache project) {}))
 
+(defn clear-fs-build-cache [project]
+  (reset! (:fs-build-cache project) {}))
+
 (g/defnode Project
   (inherits core/Scope)
 
   (property workspace t/Any)
   (property build-cache t/Any)
+  (property fs-build-cache t/Any)
 
   (input selected-node-ids t/Any :array)
   (input selected-nodes t/Any :array)
@@ -220,6 +247,6 @@ ordinary paths."
    (g/tx-nodes-added
      (g/transact
        (g/make-nodes graph
-                     [project [Project :workspace workspace :build-cache (atom {})]]
+                     [project [Project :workspace workspace :build-cache (atom {}) :fs-build-cache (atom {})]]
                      (g/connect workspace :resource-list project :resources)
                      (g/connect workspace :resource-types project :resource-types))))))
