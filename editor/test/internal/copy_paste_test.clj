@@ -21,17 +21,6 @@
 
   (output produces-value t/Str (g/fnk [consumes-value] (str/join " " consumes-value))))
 
-;; (comment
-;;   {:roots #{id-of-the-most-important-copied-node}
-;;    :nodes #{{:serial-id 'id1' :node-type NodeType}
-;;             {:serial-id 'id2' :node-type NodeType
-;;              :properties {property-name property-value}}
-;;             :arcs  #{[#producer{ id2 :bar} #consumer{id1 :foo}]
-;;                      [#producer{ id2 :bar} #consumer{id2 :bar} "proj/local/path.png"]
-;;                      [#resource{ "/images/1.jpg" :image} #consumer{ id1 :images}] }}}
-
-;;   )
-
 (defn simple-copy-fragment [world]
   (let [[node1 node2] (ts/tx-nodes (g/make-node world ConsumerNode)
                                    (g/make-node world ProducerNode))
@@ -74,7 +63,7 @@
       (is (= (g/node-id node1) (first (:root-node-ids paste-data))))
       (is (g/connected? (g/now) (g/node-id node2) :produces-value (g/node-id node1) :consumes-value)))))
 
-(deftest poste-and-clone
+(deftest paste-and-clone
   (ts/with-clean-system
     (let [fragment           (simple-copy-fragment world)
           paste-once         (g/paste world fragment {})
@@ -120,14 +109,13 @@
           paste-tx-data   (:tx-data paste-data)
           paste-tx-result (g/transact paste-tx-data)
           new-nodes-added (g/tx-nodes-added paste-tx-result)
-          [node1 node2 node3 node4]   (:nodes paste-data)]
+          new-root        (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 4 (count (:nodes paste-data))))
       (is (= [:create-node :create-node :create-node :create-node
               :connect     :connect     :connect     :connect]  (map :type paste-tx-data)))
       (is (= 4 (count new-nodes-added)))
-      (is (= (g/node-id node1) (first (:root-node-ids paste-data))))
-      (is (= (g/node-value node1 :produces-value) "A string A string")))))
+      (is (= (g/node-value new-root :produces-value) "A string A string")))))
 
 
 (deftest short-circuit
@@ -144,7 +132,6 @@
             fragment-nodes      (:nodes fragment)]
         (is (= 3 (count (:arcs fragment))))
         (is (= 3 (count fragment-nodes)))))))
-
 
 (deftest cross-graph-copy
   (ts/with-clean-system
@@ -219,9 +206,10 @@
           paste-tx-data               (:tx-data paste-data)
           paste-tx-result             (g/transact paste-tx-data)
           new-nodes-added             (g/tx-nodes-added paste-tx-result)
-          [node1 node2]               (:nodes paste-data)]
+          new-root                    (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))
+          new-leaf                    (first (remove #(= (g/node-id %) (g/node-id new-root)) (:nodes paste-data)))]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count (:nodes paste-data)) (count new-nodes-added)))
       (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
-      (is (g/connected? (g/now) (g/node-id original-stopper) :produces-value (g/node-id node2) :consumes-value))
-      (is (= "the one and only" (g/node-value node1 :produces-value))))))
+      (is (g/connected? (g/now) (g/node-id original-stopper) :produces-value (g/node-id new-leaf) :consumes-value))
+      (is (= "the one and only" (g/node-value new-root :produces-value))))))
