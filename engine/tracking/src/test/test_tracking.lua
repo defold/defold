@@ -6,6 +6,22 @@ local __tail = 1;
 local __num_saves = 0
 __saves = {};
 
+-- snippet from http://lua-users.org/wiki/CopyTable
+function deepcopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[deepcopy(orig_key)] = deepcopy(orig_value)
+        end
+        setmetatable(copy, deepcopy(getmetatable(orig)))
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+
 function test_setup_hooks()
     sys.get_save_file = function(app_id, file_name)
         return app_id .. "_" .. file_name;
@@ -21,13 +37,13 @@ function test_setup_hooks()
         __head = __head + 1;
     end
     sys.save = function(fn, table)
-        __saves[fn] = table
+        __saves[fn] = deepcopy(table)
         __num_saves = __num_saves + 1
         return true
     end
     sys.load = function(fn)
         if __saves[fn] then
-            return __saves[fn]
+            return deepcopy(__saves[fn])
         end
         return {}
     end
