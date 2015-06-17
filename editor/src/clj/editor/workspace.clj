@@ -21,7 +21,8 @@ ordinary paths."
   (abs-path [this])
   (proj-path [this])
   (url [this])
-  (resource-name [this]))
+  (resource-name [this])
+  (workspace [this]))
 
 (def wrap-stream)
 
@@ -44,6 +45,7 @@ ordinary paths."
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
   (url [this] (relative-path (File. ^String (:root workspace)) file))
   (resource-name [this] (.getName file))
+  (workspace [this] workspace)
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream file opts))
@@ -64,6 +66,7 @@ ordinary paths."
   (proj-path [this] nil)
   (url [this] nil)
   (resource-name [this] nil)
+  (workspace [this] workspace)
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -88,6 +91,7 @@ ordinary paths."
   ; TODO
   (url [this] nil)
   (resource-name [this] name)
+  (workspace [this] workspace)
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (:data this) opts))
@@ -130,6 +134,39 @@ ordinary paths."
     (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
       (mapv (fn [x] (->zip-resources workspace "" x))))))
 
+(def build-dir "/build/default/")
+
+(defn build-path [workspace]
+  (str (:root workspace) build-dir))
+
+(defrecord BuildResource [resource prefix suffix]
+  Resource
+  (resource-type [this] (resource-type resource))
+  (source-type [this] (source-type resource))
+  (read-only? [this] false)
+  (path [this] (let [ext (:build-ext (resource-type this) "unknown")]
+                 (if-let [path (path resource)]
+                   (str (first (split-ext path)) "." ext)
+                   (str prefix "_generated_" suffix "." ext))))
+  (abs-path [this] (.getAbsolutePath (File. ^String (str (build-path (workspace this)) (path this)))))
+  (proj-path [this] (str "/" (path this)))
+  ; TODO
+  (url [this] nil)
+  (resource-name [this] (resource-name resource))
+  (workspace [this] (workspace resource))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream (File. ^String (abs-path this)) opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (let [file (File. ^String (abs-path this))] (wrap-stream (workspace this) (io/make-output-stream file opts) file)))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+
+(defn make-build-resource
+  ([resource]
+    (make-build-resource resource nil))
+  ([resource prefix]
+    (BuildResource. resource prefix (gensym))))
+
 (defn- create-resource-tree [workspace ^File file filter-fn]
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace % filter-fn) (filter filter-fn (.listFiles file))))]
     (FileResource. workspace file children)))
@@ -146,8 +183,9 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (:view-types workspace) id))
 
-(defn register-resource-type [workspace & {:keys [ext node-type load-fn icon view-types view-opts tags template]}]
+(defn register-resource-type [workspace & {:keys [ext build-ext node-type load-fn icon view-types view-opts tags template]}]
   (let [resource-type {:ext ext
+                       :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
                        :icon icon
@@ -209,10 +247,10 @@ ordinary paths."
             (throw (Exception. (format "File %s already opened" file))))
           (conj rs file)))
   (proxy [FilterOutputStream] [stream]
-    (close []
-      (let [^FilterOutputStream this this]
-        (swap! (:opened-files workspace) disj file)
-           (proxy-super close)))))
+   (close []
+     (let [^FilterOutputStream this this]
+       (swap! (:opened-files workspace) disj file)
+          (proxy-super close)))))
 
 (defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
   (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
