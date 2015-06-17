@@ -26,7 +26,7 @@
                      [javafx-wrapper                              "0.1.0"]
                      [commons-io/commons-io                       "2.3"]
                      [org.clojure/tools.nrepl                     "0.2.7" :exclusions [org.clojure/clojure]]
-                     [cider/cider-nrepl                           "0.9.0-SNAPSHOT" :exclusions [org.clojure/tools.nrepl]]
+                     [cider/cider-nrepl                           "0.9.0" :exclusions [org.clojure/tools.nrepl]]
                      [org.clojure/data.json                       "0.2.6"]
 
                      [com.nanohttpd/nanohttpd                     "2.1.1"]
