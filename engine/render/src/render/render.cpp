@@ -109,7 +109,7 @@ namespace dmRender
 
         context->m_OutOfResources = 0;
 
-        context->m_RenderListDispatch.SetCapacity(256);
+        context->m_RenderListDispatch.SetCapacity(255);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
@@ -143,7 +143,11 @@ namespace dmRender
 
     HRenderListDispatch RenderListMakeDispatch(HRenderContext render_context, RenderListDispatchFn fn, void *user_data)
     {
-        assert(render_context->m_RenderListDispatch.Size() < render_context->m_RenderListDispatch.Capacity());
+        if (render_context->m_RenderListDispatch.Size() == render_context->m_RenderListDispatch.Capacity())
+        {
+            dmLogError("Exhausted number of render dispatches. Too many collections?");
+            return RENDERLIST_INVALID_DISPATCH;
+        }
 
         // store & return index
         RenderListDispatch d;
@@ -443,13 +447,16 @@ namespace dmRender
             if (i < count && (last_entry->m_Dispatch == base[*idx].m_Dispatch && last_entry->m_BatchKey == base[*idx].m_BatchKey))
                 continue;
 
-            assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
-            const RenderListDispatch* d = &context->m_RenderListDispatch[last_entry->m_Dispatch];
+            if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
+            {
+                assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
+                const RenderListDispatch* d = &context->m_RenderListDispatch[last_entry->m_Dispatch];
+                params.m_UserData = d->m_UserData;
+                params.m_Begin = last;
+                params.m_End = idx;
+                d->m_Fn(params);
+            }
 
-            params.m_UserData = d->m_UserData;
-            params.m_Begin = last;
-            params.m_End = idx;
-            d->m_Fn(params);
             last = idx;
         }
 
