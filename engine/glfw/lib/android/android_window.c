@@ -155,6 +155,11 @@ void _glfwPlatformSwapBuffers( void )
                 LOGE("eglSwapBuffers failed due to EGL_CONTEXT_LOST!");
                 assert(0);
                 return;
+            } else if (error == EGL_BAD_SURFACE) {
+                // Recreate surface
+                LOGE("eglSwapBuffers failed due to EGL_BAD_SURFACE, trying to recreate surface!");
+                create_gl_surface(&_glfwWin);
+                return;
             } else {
                 // Other errors typically mean that the current surface is bad,
                 // probably because the SurfaceView surface has been destroyed,
