@@ -25,6 +25,7 @@
                        integration.scene-test
                        integration.scope-test
                        integration.collection-test
+                       integration.copy-paste-test
                        internal.cache-test
                        internal.connection-rules
                        internal.copy-paste-test
