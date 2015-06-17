@@ -394,7 +394,7 @@ namespace dmRender
         GlyphVertex* vertices = (GlyphVertex*)text_context.m_ClientBuffer;
 
         if (text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size()) {
-            dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", text_context.m_VertexIndex / 4);
+            dmLogWarning("Fontrenderer: Render object count reached limit (%d)", text_context.m_RenderObjectIndex);
             return;
         }
 
@@ -562,10 +562,10 @@ namespace dmRender
 
         if (text_context.m_Batches.Size() > 0) {
 
-            RenderObject* ro_begin = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex];
+            RenderObject* ro_begin = text_context.m_RenderObjects.Begin() + text_context.m_RenderObjectIndex;
             text_context.m_Batches.Iterate(CreateFontVertexData, render_context);
             text_context.m_Batches.Clear();
-            RenderObject* ro_end = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex];
+            RenderObject* ro_end = text_context.m_RenderObjects.Begin() + text_context.m_RenderObjectIndex;
 
             const uint32_t count = ro_end - ro_begin;
 
