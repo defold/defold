@@ -523,6 +523,16 @@
   ([basis outputs]
    (c/cache-invalidate (cache) (dependencies basis outputs))))
 
+(defn node-instance?
+  "Returns true if the node is a member of a given type, including
+   supertypes."
+  [type node]
+  (let [node-type  (node-type node)
+        supertypes (supertypes node-type)
+        all-types  (into #{node-type} supertypes)]
+    (all-types type)))
+
+
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
 ;; ---------------------------------------------------------------------------
@@ -557,8 +567,8 @@
   [(get id-dictionary (:node-id endpoint)) (:label endpoint)])
 
 (defn- lookup-handler [handlers node not-found]
-  (let [all-types (into #{(node-type node)} (supertypes (node-type node)))]
-    (or (first (map #(get handlers %) all-types)) not-found)))
+  (let [all-types (conj (supertypes (node-type node)) (node-type node))]
+    (or (some #(get handlers %) all-types) not-found)))
 
 (defn serialize-arc [basis write-handlers arc]
   (let [[pid plabel]  (gt/head arc)
