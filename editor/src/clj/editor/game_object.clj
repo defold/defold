@@ -90,12 +90,16 @@
   {:resource resource
    :content (protobuf/pb->str proto-msg)})
 
+(defn- build-game-object [self basis resource dep-resources user-data]
+  ; TODO - MASSIVE HACK (protobuf is passed as seq of byte-array)
+  {:resource resource :content (byte-array (:proto-msg user-data))})
+
 (g/defnk produce-build-targets [node-id resource proto-msg]
   [{:node-id node-id
     :resource (workspace/make-build-resource resource)
-    :build-fn (fn [self basis resource dep-resources user-data]
-                {:resource resource :content (protobuf/pb->bytes (:proto-msg user-data))})
-    :user-data {:proto-msg proto-msg}}])
+    :build-fn build-game-object
+    ; TODO - MASSIVE HACK (protobuf is passed as seq of byte-array)
+    :user-data {:proto-msg (seq (protobuf/pb->bytes proto-msg))}}])
 
 (g/defnk produce-scene [node-id child-scenes]
   {:node-id node-id
