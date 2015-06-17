@@ -136,7 +136,10 @@ ordinary paths."
 
 (def build-dir "/build/default/")
 
-(defrecord BuildResource [resource prefix]
+(defn build-path [workspace]
+  (str (:root workspace) build-dir))
+
+(defrecord BuildResource [resource prefix suffix]
   Resource
   (resource-type [this] (resource-type resource))
   (source-type [this] (source-type resource))
@@ -144,8 +147,8 @@ ordinary paths."
   (path [this] (let [ext (:build-ext (resource-type this) "unknown")]
                  (if-let [path (path resource)]
                    (str (first (split-ext path)) "." ext)
-                   (str prefix "_generated_" (gensym) "." ext))))
-  (abs-path [this] (.getAbsolutePath (File. ^String (str (:root (workspace this)) build-dir (path this)))))
+                   (str prefix "_generated_" suffix "." ext))))
+  (abs-path [this] (.getAbsolutePath (File. ^String (str (build-path (workspace this)) (path this)))))
   (proj-path [this] (str "/" (path this)))
   ; TODO
   (url [this] nil)
@@ -162,7 +165,7 @@ ordinary paths."
   ([resource]
     (make-build-resource resource nil))
   ([resource prefix]
-    (BuildResource. resource prefix)))
+    (BuildResource. resource prefix (gensym))))
 
 (defn- create-resource-tree [workspace ^File file filter-fn]
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace % filter-fn) (filter filter-fn (.listFiles file))))]
