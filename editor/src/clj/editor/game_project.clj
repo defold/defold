@@ -34,7 +34,8 @@
   {:resource resource
    :content content})
 
-(defn- build-game-project [])
+(defn- build-game-project [self basis resource dep-resources user-data]
+  {:resource resource :content (.getBytes (:content user-data))})
 
 (g/defnode GameProjectNode
   (inherits project/ResourceNode)
@@ -48,8 +49,7 @@
   (output build-targets t/Any :cached (g/fnk [node-id resource content dep-build-targets]
                                              [{:node-id node-id
                                                :resource (workspace/make-build-resource resource)
-                                               :build-fn (fn [self basis resource dep-resources user-data]
-                                                           {:resource resource :content (.getBytes (:content user-data))})
+                                               :build-fn build-game-project
                                                :user-data {:content content}
                                                :deps (vec (flatten dep-build-targets))}])))
 

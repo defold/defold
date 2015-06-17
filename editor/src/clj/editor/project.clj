@@ -1,7 +1,8 @@
 (ns editor.project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.set :as set]
+            [clojure.java.io :as io]
             [dynamo.file :as file]
             [dynamo.graph :as g]
             [dynamo.property :as dp]
@@ -75,16 +76,34 @@ ordinary paths."
                      (doseq [{:keys [resource content]} save-data]
                        (spit resource content)))))
 
-(defn- build-target [basis target]
-  (let [node (g/node-by-id basis (:node-id target))
-        ; TODO - merge resources
-        dep-resources (into {} (map #(let [resource (:resource %)] [resource resource]) (:deps target)))]
-    ((:build-fn target) node basis (:resource target) dep-resources (:user-data target))))
+(defn- target-key [target]
+  [(:resource (:resource target))
+   (:build-fn target)
+   (:user-data target)])
+
+(defn- build-target [basis target all-targets build-cache]
+  (let [resource (:resource target)
+        key (:key target)
+        cache (let [cache (get @build-cache resource)] (and (= key (:key cache)) cache))]
+    (if cache
+     cache
+     (let [node (g/node-by-id basis (:node-id target))
+           dep-resources (into {} (map #(let [resource (:resource %)
+                                              key (target-key %)] [resource (:resource (get all-targets key))]) (:deps target)))
+           result ((:build-fn target) node basis resource dep-resources (:user-data target))
+           result (assoc result :key key)]
+       (swap! build-cache assoc resource (assoc result :cached true))
+       result))))
+
+(defn targets-by-key [build-targets]
+  (into {} (map #(let [key (target-key %)] [key (assoc % :key key)]) build-targets)))
 
 (defn build [project node]
-  (let [build-targets (mapcat #(tree-seq (comp boolean :deps) :deps %) (g/node-value node :build-targets))
-        basis (g/now)]
-    (mapv #(build-target basis %) build-targets)))
+  (let [basis (g/now)
+        build-cache (:build-cache project)
+        all-build-files (into {} (map #(do [(.getAbsolutePath %) (.lastModified %)]) (file-seq (io/file (workspace/build-path (:workspace project))))))
+        build-targets (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %) (g/node-value node :build-targets)))]
+    (mapv #(build-target basis (second %) build-targets build-cache) build-targets)))
 
 (defn build-and-write [project node]
   (let [build-results (build project node)]
@@ -118,10 +137,14 @@ ordinary paths."
                               :acc "Shortcut+B"
                               :command :build}]}])
 
+(defn clear-build-cache [project]
+  (reset! (:build-cache project) {}))
+
 (g/defnode Project
   (inherits core/Scope)
 
   (property workspace t/Any)
+  (property build-cache t/Any)
 
   (input selected-node-ids t/Any :array)
   (input selected-nodes t/Any :array)
@@ -194,9 +217,9 @@ ordinary paths."
 
 (defn make-project [graph workspace]
   (first
-    (g/tx-nodes-added
-      (g/transact
-        (g/make-nodes graph
-                      [project [Project :workspace workspace]]
-                      (g/connect workspace :resource-list project :resources)
-                      (g/connect workspace :resource-types project :resource-types))))))
+   (g/tx-nodes-added
+     (g/transact
+       (g/make-nodes graph
+                     [project [Project :workspace workspace :build-cache (atom {})]]
+                     (g/connect workspace :resource-list project :resources)
+                     (g/connect workspace :resource-types project :resource-types))))))

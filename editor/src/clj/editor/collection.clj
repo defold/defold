@@ -123,10 +123,11 @@
                                            (if embedded
                                              (gen-embed-ddf id child-ids position rotation scale save-data)
                                              (gen-ref-ddf id child-ids position rotation scale save-data))))
-  (output build-targets t/Any (g/fnk [build-targets ddf-message transform] [(assoc (first build-targets)
-                                                                                   :user-data (assoc (get (first build-targets) :user-data)
-                                                                                                     :instance-msg ddf-message
-                                                                                                     :transform transform))]))
+  (output build-targets t/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
+                                                                             [(assoc target :instance-data {:resource (:resource target)
+                                                                                                            :instance-msg ddf-message
+                                                                                                            :transform transform})])))
+
   (output scene t/Any :cached (g/fnk [node-id transform scene child-scenes embedded]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (:aabb scene) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
@@ -165,9 +166,9 @@
 
 (defn- externalize [inst-data resources]
   (map (fn [data]
-         (let [[resource msg transform] data
+         (let [{:keys [resource instance-msg transform]} data
                resource (get resources resource)
-               builder (->instance-builder msg resource)
+               builder (->instance-builder instance-msg resource)
                pos (Point3d.)
                rot (Quat4d.)
                scale (Vector3d.)
@@ -193,8 +194,7 @@
 (g/defnk produce-build-targets [node-id name resource proto-msg sub-build-targets dep-build-targets]
   (let [sub-build-targets (flatten sub-build-targets)
         dep-build-targets (flatten dep-build-targets)
-        instance-data (map #(let [user-data (get % :user-data)]
-                              [(:resource %) (get user-data :instance-msg) (get user-data :transform)]) dep-build-targets)
+        instance-data (map :instance-data dep-build-targets)
         instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
     [{:node-id node-id
       :resource (workspace/make-build-resource resource)
@@ -226,24 +226,24 @@
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))})))
 
 (defn- flatten-instance-data [data base-id base-transform all-child-ids]
-  (let [[resource msg ^Matrix4d transform] data
-        builder (->instance-builder msg resource)
+  (let [{:keys [resource instance-msg ^Matrix4d transform]} data
+        builder (->instance-builder instance-msg resource)
         is-child? (contains? all-child-ids (.getId builder))
         child-ids (.getChildrenList builder)
         builder (doto builder
                   (.setId (str base-id (.getId builder)))
                   (.clearChildren)
                   (.addAllChildren (map #(str base-id %) child-ids)))
-        msg (.build builder)
+        instance-msg (.build builder)
         transform (if is-child?
                     transform
                     (doto (Matrix4d. transform) (.mul base-transform transform)))]
-    [resource msg transform]))
+    {:resource resource :instance-msg instance-msg :transform transform}))
 
 (g/defnk produce-coll-inst-build-targets [id transform build-targets]
   (let [base-id (str id path-sep)
         instance-data (get-in build-targets [0 :user-data :instance-data])
-        child-ids (reduce (fn [child-ids [_ msg _]] (into child-ids (.getChildrenList msg))) #{} instance-data)]
+        child-ids (reduce (fn [child-ids data] (into child-ids (.getChildrenList (:instance-msg data)))) #{} instance-data)]
     (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids) instance-data))))
 
 (g/defnode CollectionInstanceNode
