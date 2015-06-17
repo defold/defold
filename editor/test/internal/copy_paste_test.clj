@@ -62,7 +62,7 @@
 (deftest simple-paste
   (ts/with-clean-system
     (let [fragment        (simple-copy-fragment world)
-          paste-data      (g/paste world fragment)
+          paste-data      (g/paste world fragment {})
           paste-tx-data   (:tx-data paste-data)
           paste-tx-result (g/transact paste-tx-data)
           new-nodes-added (g/tx-nodes-added paste-tx-result)
@@ -77,10 +77,10 @@
 (deftest poste-and-clone
   (ts/with-clean-system
     (let [fragment           (simple-copy-fragment world)
-          paste-once         (g/paste world fragment)
+          paste-once         (g/paste world fragment {})
           paste-once-result  (g/transact (:tx-data paste-once))
           [node1-once node2-once] (g/tx-nodes-added paste-once-result)
-          paste-twice        (g/paste world fragment)
+          paste-twice        (g/paste world fragment {})
           paste-twice-result (g/transact (:tx-data paste-twice))
           [node1-twice node2-twice] (g/tx-nodes-added paste-twice-result)]
       (is (not= (g/node-id node1-once) (g/node-id node1-twice)))
@@ -116,7 +116,7 @@
 (deftest diamond-paste
   (ts/with-clean-system
     (let [fragment        (diamond-copy-fragment world)
-          paste-data      (g/paste world fragment)
+          paste-data      (g/paste world fragment {})
           paste-tx-data   (:tx-data paste-data)
           paste-tx-result (g/transact paste-tx-data)
           new-nodes-added (g/tx-nodes-added paste-tx-result)
@@ -130,7 +130,7 @@
       (is (= (g/node-value node1 :produces-value) "A string A string")))))
 
 
-(deftest short-circut
+(deftest short-circuit
   (ts/with-clean-system
     (let [[node1 node2 node3] (ts/tx-nodes (g/make-node world ConsumerNode)
                                            (g/make-node world ConsumeAndProduceNode)
@@ -175,8 +175,9 @@
 ;;  resource: two nodes, one arc, upstream is a resource
 (g/defnode StopperNode
   "Not serializable"
+  (property a-property t/Str)
   (input  discards-value t/Str)
-  (output produces-value t/Str (g/fnk [] "here")))
+  (output produces-value t/Str (g/fnk [a-property] a-property)))
 
 (defn- stop-at-stoppers [node]
   (not (= "StopperNode" (:name (g/node-type node)))))
@@ -186,26 +187,41 @@
 (defn- serialize-stopper [node label]
   (StopArc. (g/node-id node) label))
 
-(deftest serialization-uses-predicates
-  (ts/with-clean-system
-    (let [[node1 node2 node3 node4] (ts/tx-nodes (g/make-node world ConsumerNode)
-                                                 (g/make-node world ConsumeAndProduceNode)
-                                                 (g/make-node world StopperNode)
-                                                 (g/make-node world ProducerNode))
-          node1-id                  (g/node-id node1)]
+(defn serialization-uses-predicates-copy-fragment [world]
+  (let [[node1 node2 node3 node4] (ts/tx-nodes (g/make-node world ConsumeAndProduceNode)
+                                               (g/make-node world ConsumeAndProduceNode)
+                                               (g/make-node world StopperNode :a-property "the one and only")
+                                               (g/make-node world ProducerNode))]
       (g/transact
        [(g/connect node2 :produces-value node1 :consumes-value)
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node4 :produces-value node3 :discards-value)])
-      ;;; - where to stop?
-      ;;; how to replace any node in arc with some other representation (serialize)?
-      ;;; how to re-serialize a particular reprensation in a node arc that is custom?
+      [node3 (g/copy [(g/node-id node1)] {:continue? stop-at-stoppers
+                                     :write-handlers {StopperNode serialize-stopper}})]))
 
-      (let [fragment       (g/copy [node1-id] {:continue? stop-at-stoppers
-                                               :write-handlers {StopperNode serialize-stopper}})
-            fragment-nodes (:nodes fragment)]
-        (is (= 2 (count (:arcs fragment))))
-        (is (= 2 (count fragment-nodes)))
-        (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "StopperNode")))
-        (is (= #{StopArc Endpoint} (into #{} (map (comp class first) (:arcs fragment)))))
-        (is (= #{Endpoint} (into #{} (map (comp class second) (:arcs fragment)))))))))
+(deftest serialization-uses-predicates
+  (ts/with-clean-system
+    (let [[_ fragment]   (serialization-uses-predicates-copy-fragment world)
+          fragment-nodes (:nodes fragment)]
+      (is (= 2 (count (:arcs fragment))))
+      (is (= 2 (count fragment-nodes)))
+      (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "StopperNode")))
+      (is (= #{StopArc Endpoint} (into #{} (map (comp class first) (:arcs fragment)))))
+      (is (= #{Endpoint} (into #{} (map (comp class second) (:arcs fragment))))))))
+
+(defn resolve-by-id [record]
+  [(:id record) (:label record)])
+
+(deftest deserialization-with-resolver
+  (ts/with-clean-system
+    (let [[original-stopper fragment] (serialization-uses-predicates-copy-fragment world)
+          paste-data                  (g/paste world fragment {:read-handlers {StopArc resolve-by-id}})
+          paste-tx-data               (:tx-data paste-data)
+          paste-tx-result             (g/transact paste-tx-data)
+          new-nodes-added             (g/tx-nodes-added paste-tx-result)
+          [node1 node2]               (:nodes paste-data)]
+      (is (= 1 (count (:root-node-ids paste-data))))
+      (is (= 2 (count (:nodes paste-data)) (count new-nodes-added)))
+      (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
+      (is (g/connected? (g/now) (g/node-id original-stopper) :produces-value (g/node-id node2) :consumes-value))
+      (is (= "the one and only" (g/node-value node1 :produces-value))))))
