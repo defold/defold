@@ -352,12 +352,13 @@
       (g/make-nodes (g/node->graph-id self)
                     [go-node [GameObjectInstanceNode :id id :embedded true
                               :position position :rotation rotation :scale scale]
-                     source-node [(:node-type resource-type) :resource resource :parent project :resource-type resource-type]]
+                     source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project) :resource-type resource-type]]
                     (g/connect source-node :self          go-node :source)
                     (g/connect source-node :outline       go-node :outline)
                     (g/connect source-node :save-data     go-node :save-data)
                     (g/connect source-node :build-targets go-node :build-targets)
                     (g/connect source-node :scene         go-node :scene)
+                    (g/connect source-node :self          self    :nodes)
                     (g/connect go-node     :ddf-message   self    :embed-inst-ddf)
                     (g/connect go-node     :build-targets self    :dep-build-targets)
                     (g/connect go-node     :id            self    :ids)
