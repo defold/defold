@@ -1,6 +1,6 @@
 (ns editor.math
   (:import [java.lang Math]
-           [javax.vecmath Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d]))
 
 (def epsilon 0.000001)
 (def epsilon-sq (* epsilon epsilon))
@@ -114,3 +114,28 @@
           recip-cos-half (/ 1.0 cos-half)
         axis (doto (Vector3d.) (.cross unit-from unit-to) (.scale recip-cos-half))]
       (doto (Quat4d. (.x axis) (.y axis) (.z axis) (* 0.5 cos-half))))))
+
+(defn unit-axis [dimension-index] ^Vector3d
+  (case dimension-index
+    0 (Vector3d. 1 0 0)
+    1 (Vector3d. 0 1 0)
+    2 (Vector3d. 0 0 1)))
+
+(defn split-mat4 [^Matrix4d mat ^Point3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
+  (let [tmp (Vector4d.)
+        _ (.getColumn mat 3 tmp)
+        _ (.set out-position (.getX tmp) (.getY tmp) (.getZ tmp))
+        tmp (Vector3d.)
+        mat3 (Matrix3d.)
+        _ (.getRotationScale mat mat3)
+        scale (double-array 3)]
+    (doseq [col (range 3)]
+      (.getColumn mat3 col tmp)
+      (let [s (.length tmp)
+            axis (if (> s epsilon)
+                   (doto tmp (.scale (/ 1.0 s)))
+                   (unit-axis col))]
+        (aset scale col s)
+        (.setColumn mat3 col axis))
+      (.set out-rotation mat3)
+      (.set out-scale scale))))

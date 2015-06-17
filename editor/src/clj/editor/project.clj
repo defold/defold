@@ -1,7 +1,8 @@
 (ns editor.project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.set :as set]
+            [clojure.java.io :as io]
             [dynamo.file :as file]
             [dynamo.graph :as g]
             [dynamo.property :as dp]
@@ -23,7 +24,8 @@ ordinary paths."
   (property resource (t/protocol workspace/Resource) (visible (g/fnk [] false)))
   (property project t/Any (visible (g/fnk [] false)))
 
-  (output save-data t/Any (g/fnk [resource] {:resource resource})))
+  (output save-data t/Any (g/fnk [resource] {:resource resource}))
+  (output build-targets t/Any (g/fnk [] [])))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -74,6 +76,78 @@ ordinary paths."
                      (doseq [{:keys [resource content]} save-data]
                        (spit resource content)))))
 
+(defn- target-key [target]
+  [(:resource (:resource target))
+   (:build-fn target)
+   (:user-data target)])
+
+(defn- build-target [basis target all-targets build-cache]
+  (let [resource (:resource target)
+        key (:key target)
+        cache (let [cache (get @build-cache resource)] (and (= key (:key cache)) cache))]
+    (if cache
+     cache
+     (let [node (g/node-by-id basis (:node-id target))
+           dep-resources (into {} (map #(let [resource (:resource %)
+                                              key (target-key %)] [resource (:resource (get all-targets key))]) (:deps target)))
+           result ((:build-fn target) node basis resource dep-resources (:user-data target))
+           result (assoc result :key key)]
+       (swap! build-cache assoc resource (assoc result :cached true))
+       result))))
+
+(defn targets-by-key [build-targets]
+  (into {} (map #(let [key (target-key %)] [key (assoc % :key key)]) build-targets)))
+
+(defn prune-build-cache! [cache build-targets]
+  (reset! cache (into {} (filter (fn [[resource result]] (contains? build-targets (:key result))) @cache))))
+
+(defn build [project node]
+  (let [basis (g/now)
+        build-cache (:build-cache project)
+        build-targets (targets-by-key (mapcat #(tree-seq (comp boolean :deps) :deps %) (g/node-value node :build-targets)))]
+    (prune-build-cache! build-cache build-targets)
+    (mapv #(build-target basis (second %) build-targets build-cache) build-targets)))
+
+(defn- prune-fs [files-on-disk built-files]
+  (let [files-on-disk (reverse files-on-disk)
+        built (set built-files)]
+    (doseq [file files-on-disk
+            :let [dir? (.isDirectory file)
+                  empty? (= 0 (count (.listFiles file)))
+                  keep? (or (and dir? (not empty?)) (contains? built file))]]
+      (when (not keep?)
+        (.delete file)))))
+
+(defn prune-fs-build-cache! [cache build-results]
+  (let [build-resources (set (map :resource build-results))]
+    (reset! cache (into {} (filter (fn [[resource key]] (contains? build-resources resource)) @cache)))))
+
+(defn build-and-write [project node]
+  (let [files-on-disk (file-seq (io/file (workspace/build-path (:workspace project))))
+        build-results (build project node)
+        fs-build-cache (:fs-build-cache project)]
+    (prune-fs files-on-disk (map #(File. (workspace/abs-path (:resource %))) build-results))
+    (prune-fs-build-cache! fs-build-cache build-results)
+    (doseq [result build-results
+            :let [{:keys [resource content key]} result
+                  abs-path (workspace/abs-path resource)
+                  mtime (let [f (File. abs-path)]
+                          (if (.exists f)
+                            (.lastModified f)
+                            0))
+                  build-key [key mtime]
+                  cached? (= (get @fs-build-cache resource) build-key)]]
+      (when (not cached?)
+        (let [parent (-> (File. ^String (workspace/abs-path resource))
+                       (.getParentFile))]
+          ; Create underlying directories
+          (when (not (.exists parent))
+            (.mkdirs parent))
+          ; Write bytes
+          (with-open [out (io/output-stream resource)]
+            (.write out ^bytes content))
+          (let [f (File. abs-path)]
+            (swap! fs-build-cache assoc resource [key (.lastModified f)])))))))
 
 (handler/defhandler :undo :global
     (enabled? [project-graph] (g/has-undo? project-graph))
@@ -88,10 +162,25 @@ ordinary paths."
                   :acc "Shortcut+S"
                   :command :save-all}])
 
+(ui/extend-menu ::menubar :editor.app-view/edit
+                [{:label "Project"
+                  :id ::project
+                  :children [{:label "Build"
+                              :acc "Shortcut+B"
+                              :command :build}]}])
+
+(defn clear-build-cache [project]
+  (reset! (:build-cache project) {}))
+
+(defn clear-fs-build-cache [project]
+  (reset! (:fs-build-cache project) {}))
+
 (g/defnode Project
   (inherits core/Scope)
 
   (property workspace t/Any)
+  (property build-cache t/Any)
+  (property fs-build-cache t/Any)
 
   (input selected-node-ids t/Any :array)
   (input selected-nodes t/Any :array)
@@ -127,6 +216,12 @@ ordinary paths."
   (let [nodes-by-resource (g/node-value project :nodes-by-resource)]
     (get nodes-by-resource resource)))
 
+(handler/defhandler :build :global
+    (enabled? [] true)
+    (run [project] (let [workspace (:workspace project)
+                         game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))]
+                     (build-and-write project game-project))))
+
 (defn resolve-resource-node [base-resource-node path]
   (let [project (get-project base-resource-node)
         resource (workspace/resolve-resource (:resource base-resource-node) path)]
@@ -158,9 +253,9 @@ ordinary paths."
 
 (defn make-project [graph workspace]
   (first
-    (g/tx-nodes-added
-      (g/transact
-        (g/make-nodes graph
-                      [project [Project :workspace workspace]]
-                      (g/connect workspace :resource-list project :resources)
-                      (g/connect workspace :resource-types project :resource-types))))))
+   (g/tx-nodes-added
+     (g/transact
+       (g/make-nodes graph
+                     [project [Project :workspace workspace :build-cache (atom {}) :fs-build-cache (atom {})]]
+                     (g/connect workspace :resource-list project :resources)
+                     (g/connect workspace :resource-types project :resource-types))))))
