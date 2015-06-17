@@ -553,6 +553,9 @@
 (defn- default-write-handler [node label]
   (Endpoint. (gt/node-id node) label))
 
+(defn- default-read-handler [id-dictionary endpoint]
+  [(get id-dictionary (:node-id endpoint)) (:label endpoint)])
+
 (defn serialize-arc [basis write-handlers arc]
   (let [[pid plabel] (gt/head arc)
         [cid clabel] (gt/tail arc)
@@ -592,19 +595,20 @@
   (apply make-node g node-type (mapcat identity properties)))
 
 (defn- deserialize-arc
-  [id-dictionary [source target]]
-  (let [real-src-id (get id-dictionary (:node-id source))
-        real-tgt-id (get id-dictionary (:node-id target))]
-    (connect real-src-id (:label source) real-tgt-id (:label target))))
+  [id-dictionary read-handlers [source target]]
+  (let [read-handler            (get read-handlers (class source) (partial default-read-handler id-dictionary))
+        [real-src-id src-label] (read-handler source)
+        [real-tgt-id tgt-label] (default-read-handler id-dictionary target)]
+    (connect real-src-id src-label real-tgt-id tgt-label)))
 
 (defn paste
-  ([g fragment]
-   (paste (now) g fragment))
-  ([basis g fragment]
+  ([g fragment opts]
+   (paste (now) g fragment opts))
+  ([basis g fragment {:keys [read-handlers] :as opts}]
    (let [node-txs      (vec (mapcat #(deserialize-node g %) (:nodes fragment)))
          nodes         (map :node node-txs)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) (map #(gt/node-id (:node %)) node-txs))
-         connect-txs   (mapcat #(deserialize-arc id-dictionary %) (:arcs fragment))]
+         connect-txs   (mapcat #(deserialize-arc id-dictionary read-handlers %) (:arcs fragment))]
      {:root-node-ids (map #(get id-dictionary %) (:roots fragment))
       :nodes         nodes
       :tx-data       (into node-txs connect-txs)})))
