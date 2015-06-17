@@ -58,9 +58,18 @@
 
 (deftest simple-paste
   (ts/with-clean-system
-    (let [fragment            (simple-copy-fragment world)
-          paste-tx-data       (g/paste world fragment)]
-      (is (= 2 (count {:root-node-ids paste-tx-data}))))))
+    (let [fragment        (simple-copy-fragment world)
+          paste-data      (g/paste world fragment)
+          paste-tx-data   (:tx-data paste-data)
+          paste-tx-result (g/transact paste-tx-data)
+          new-nodes-added (g/tx-nodes-added paste-tx-result)
+          [node1 node2]   (:nodes paste-data)]
+      (is (= 1 (count (:root-node-ids paste-data))))
+      (is (= 2 (count (:nodes paste-data))))
+      (is (= [:create-node :create-node :connect]  (map :type paste-tx-data)))
+      (is (= 2 (count new-nodes-added)))
+      (is (= (g/node-id node1) (first (:root-node-ids paste-data))))
+      (is (g/connected? (g/now) (g/node-id node2) :produces-value (g/node-id node1) :consumes-value)))))
 
 
 (deftest diamond-copy
