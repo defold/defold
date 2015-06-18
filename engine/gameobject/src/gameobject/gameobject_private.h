@@ -97,7 +97,7 @@ namespace dmGameObject
         }
 
         dmTransform::Transform m_Transform;
-        
+
         // Shadowed rotation expressed in euler coordinates
         Vector3 m_EulerRotation;
         // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
@@ -215,6 +215,7 @@ namespace dmGameObject
             m_InUpdate = 0;
             m_ToBeDeleted = 0;
             m_ScaleAlongZ = 0;
+            m_DirtyTransforms = 1;
 
             m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
             m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
@@ -296,6 +297,7 @@ namespace dmGameObject
         uint32_t                 m_ToBeDeleted : 1;
         // If the game object dynamically created in this collection should have the Z component of the position affected by scale
         uint32_t                 m_ScaleAlongZ : 1;
+        uint32_t                 m_DirtyTransforms : 1;
     };
 
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
