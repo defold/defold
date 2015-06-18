@@ -17,18 +17,13 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           proj-graph-id (g/make-graph! :history true :volatility 1)
-          old-count (node-count (g/graph proj-graph-id))
-          project (project/make-project proj-graph-id workspace)
-          old-node-ids (set (ig/node-ids (g/graph proj-graph-id)))]
+          project (project/make-project proj-graph-id workspace)]
       (project/load-project project)
-      (let [new-count (node-count (g/graph proj-graph-id))
-            new-node-ids (set (ig/node-ids (g/graph proj-graph-id)))]
-        (is (not= old-count new-count))
-        (g/delete-node! project)
-        (let [final-count (node-count (g/graph proj-graph-id))
-              final-node-ids (set (ig/node-ids (g/graph proj-graph-id)))
-              orphans (map g/node-by-id (clojure.set/difference final-node-ids old-node-ids))]
-          (is (= 0 (count orphans))))))))
+      (is (not= 0 (node-count (g/graph proj-graph-id))))
+      (g/delete-node! project)
+      (let [final-node-ids (set (ig/node-ids (g/graph proj-graph-id)))
+            orphans (map g/node-by-id final-node-ids)]
+        (is (= 0 (count orphans)))))))
 
 (defn check-disposes-nodes
   [resource-type-name inline-resource]
@@ -41,8 +36,7 @@
           mem-resource (project/make-embedded-resource project resource-type-name inline-resource)]
       (project/load-project project [mem-resource])
       (let [new-resource-node (project/get-resource-node project mem-resource)
-            new-count (node-count (g/graph graph-id))
-            new-node-ids (set (ig/node-ids (g/graph graph-id)))]
+            new-count (node-count (g/graph graph-id))]
         (is (> new-count old-count))
         (g/delete-node! new-resource-node)
         (let [final-count (node-count (g/graph graph-id))
