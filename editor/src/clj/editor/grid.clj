@@ -1,5 +1,5 @@
-(ns dynamo.grid
-  (:require [dynamo.camera :as c]
+(ns editor.grid
+  (:require [editor.camera :as c]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]

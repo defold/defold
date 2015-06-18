@@ -5,7 +5,6 @@
   (:import [clojure.lang Compiler]))
 
 (def test-namespaces '[dynamo.buffers-test
-                       dynamo.camera-test
                        dynamo.defnode-test
                        dynamo.geom-test
                        dynamo.gl.translate-test
