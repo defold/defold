@@ -5,7 +5,7 @@
   (:import [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
-           [java.io Reader]))
+           [java.io Reader ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
@@ -38,6 +38,13 @@ placed into the protocol buffer."
 (defn pb->str
   [^Message pb]
   (TextFormat/printToString pb))
+
+(defn pb->bytes
+  [^Message pb]
+  (let [out (ByteArrayOutputStream. (* 4 1024))]
+    (.writeTo pb out)
+    (.close out)
+    (.toByteArray out)))
 
 (defn val->pb-enum
   [^Class enum-class val]
