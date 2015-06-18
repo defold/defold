@@ -110,18 +110,33 @@ namespace dmSoundCodec
         bool fmt_found = false;
         bool data_found = false;
 
+        if (buffer_size < sizeof(RiffHeader)) {
+            return RESULT_INVALID_FORMAT;
+        }
+
         if (header->m_ChunkID == FOUR_CC('R', 'I', 'F', 'F') &&
             header->m_Format == FOUR_CC('W', 'A', 'V', 'E')) {
 
+            const char* begin = (const char*) buffer;
             const char* current = (const char*) buffer;
             const char* end = (const char*) buffer + buffer_size;
             current += sizeof(RiffHeader);
             do {
                 CommonHeader header;
+                if (current + sizeof(header) > end) {
+                    // not enough bytes left for a full header. just ignore this.
+                    break;
+                }
+
                 memcpy(&header, current, sizeof(header));
                 header.SwapHeader();
                 if (header.m_ChunkID == FOUR_CC('f', 'm', 't', ' ')) {
                     FmtChunk fmt;
+                    if (current + sizeof(fmt) > end) {
+                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", current - begin, buffer_size);
+                        return RESULT_INVALID_FORMAT;
+                    }
+
                     memcpy(&fmt, current, sizeof(fmt));
                     fmt.Swap();
                     fmt_found = true;
@@ -130,7 +145,6 @@ namespace dmSoundCodec
                         dmLogWarning("Only wav-files with PCM format supported");
                         return RESULT_INVALID_FORMAT;
                     }
-
                     streamTemp.m_Info.m_Rate = fmt.m_SampleRate;
                     streamTemp.m_Info.m_Channels = fmt.m_NumChannels;
                     streamTemp.m_Info.m_BitsPerSample = fmt.m_BitsPerSample;
@@ -138,6 +152,11 @@ namespace dmSoundCodec
                 } else if (header.m_ChunkID == FOUR_CC('d', 'a', 't', 'a')) {
                     // NOTE: We don't byte-swap PCM-data and a potential problem on big-endian architectures
                     DataChunk data;
+                    if (current + sizeof(data) > end) {
+                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", current - begin, buffer_size);
+                        return RESULT_INVALID_FORMAT;
+                    }
+
                     memcpy(&data, current, sizeof(data));
                     data.Swap();
                     streamTemp.m_Buffer = (void*) (current + sizeof(DataChunk));
