@@ -298,16 +298,16 @@
 (deftest nodes-can-have-outputs
   (testing "outputs must be defined with symbols"
     (is (thrown? Compiler$CompilerException
-                 (eval '(dynamo.graph/defnode BadOutput (output :not-a-symbol t/Str :abstract))))))
+                 (eval '(dynamo.graph/defnode BadOutput (output :not-a-symbol dynamo.types/Str :abstract))))))
   (testing "outputs must be defined with a schema"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output a-output (fn [] "not a schema") :abstract))))))
   (testing "outputs must have flags after the schema and before the production function"
     (is (thrown? AssertionError
-                 (eval '(dynamo.graph/defnode BadOutput (output a-output t/Str (g/fnk []) :cached))))))
+                 (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.types/Str (dynamo.graph/fnk []) :cached))))))
   (testing "outputs must either have a production function defined or be marked as abstract"
     (is (thrown? Compiler$CompilerException
-                 (eval '(dynamo.graph/defnode BadOutput (output a-output t/Str))))))
+                 (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.types/Str))))))
   (testing "basic output definition"
     (let [node (g/construct MultipleOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string]]

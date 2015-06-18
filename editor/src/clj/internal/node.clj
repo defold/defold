@@ -384,7 +384,6 @@
 
          [(['output label schema & remainder] :seq)]
          (do (assert-symbol "output" label)
-             (assert-schema "output" schema)
              (let [[properties options args] (parse-flags-and-options output-flags output-options remainder)]
                (assert (or (:abstract properties) (not (empty? args)))
                        (format "The output %s is missing a production function. Either define the production function or mark it as :abstract." label))
