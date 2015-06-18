@@ -7,11 +7,11 @@
   (:import [javafx.fxml FXMLLoader]
            [javafx.scene Scene]
            [javafx.scene.control Menu MenuBar MenuItem]
-           [javafx.scene.layout Pane]
+           [javafx.scene.layout Pane VBox]
            [javafx.stage Stage]))
 
 (defn- make-fake-stage []
-  (let [root (FXMLLoader/load (io/resource "editor.fxml"))
+  (let [root (VBox.)
         stage (Stage.)
         scene (Scene. root)]
     (.setScene stage scene)
