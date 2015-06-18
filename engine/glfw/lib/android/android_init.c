@@ -541,7 +541,7 @@ int _glfwPlatformInit( void )
     _glfwWin.context = EGL_NO_CONTEXT;
     _glfwWin.surface = EGL_NO_SURFACE;
     _glfwWin.iconified = 1;
-    _glfwWin.paused = 1;
+    _glfwWin.paused = 0;
     _glfwWin.app = g_AndroidApp;
 
     int result = pipe(_glfwWin.m_Pipefd);
