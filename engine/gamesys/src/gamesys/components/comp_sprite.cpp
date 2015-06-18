@@ -612,9 +612,7 @@ namespace dmGameSystem
          *   support per sprite correct sorting.
          */
 
-        SpriteContext* context = (SpriteContext*)params.m_Context;
         SpriteWorld* world = (SpriteWorld*)params.m_World;
-        UpdateTransforms(world, context->m_Subpixels);
         Animate(world, params.m_UpdateContext->m_DT);
 
         PostMessages(world);
@@ -647,6 +645,9 @@ namespace dmGameSystem
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+
+        UpdateTransforms(sprite_world, sprite_context->m_Subpixels);
+
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
