@@ -3,6 +3,7 @@
 #include <dlib/json.h>
 #include <extension/extension.h>
 #include <script/script.h>
+#include "push_utils.h"
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -47,6 +48,7 @@ struct Push
             [m_SavedNotification release];
         }
         m_SavedNotification = 0;
+        m_ScheduledID = -1;
     }
 
     lua_State*           m_L;
@@ -55,6 +57,8 @@ struct Push
     id<UIApplicationDelegate> m_AppDelegate;
     PushListener         m_Listener;
     NSDictionary*        m_SavedNotification;
+
+    int m_ScheduledID;
 };
 
 Push g_Push;
@@ -69,6 +73,19 @@ static void PushError(lua_State*L, NSError* error)
     } else {
         lua_pushnil(L);
     }
+}
+
+static void UpdateScheduleIDCounter()
+{
+    for (id obj in [[UIApplication sharedApplication] scheduledLocalNotifications]) {
+        UILocalNotification* notification = (UILocalNotification*)obj;
+        int current_id = [(NSNumber*)notification.userInfo[@"id"] intValue];
+        if (current_id > g_Push.m_ScheduledID)
+        {
+            g_Push.m_ScheduledID = current_id;
+        }
+    }
+
 }
 
 static void RunCallback(lua_State* L, int cb, int self, NSData* deviceToken, NSError* error)
@@ -114,7 +131,7 @@ static void RunCallback(lua_State* L, int cb, int self, NSData* deviceToken, NSE
     assert(top == lua_gettop(L));
 }
 
-static void ToLua(lua_State*L, id obj)
+static void ObjCToLua(lua_State*L, id obj)
 {
     if ([obj isKindOfClass:[NSString class]]) {
         const char* str = [((NSString*) obj) UTF8String];
@@ -129,19 +146,62 @@ static void ToLua(lua_State*L, id obj)
         for (NSString* key in dict) {
             lua_pushstring(L, [key UTF8String]);
             id value = [dict objectForKey:key];
-            ToLua(L, (NSDictionary*) value);
+            ObjCToLua(L, (NSDictionary*) value);
             lua_rawset(L, -3);
         }
     } else if ([obj isKindOfClass:[NSArray class]]) {
         NSArray* a = (NSArray*) obj;
         lua_createtable(L, [a count], 0);
         for (int i = 0; i < [a count]; ++i) {
-            ToLua(L, [a objectAtIndex: i]);
+            ObjCToLua(L, [a objectAtIndex: i]);
             lua_rawseti(L, -2, i+1);
         }
     } else {
         dmLogWarning("Unsupported value '%s' (%s)", [[obj description] UTF8String], [[[obj class] description] UTF8String]);
         lua_pushnil(L);
+    }
+}
+
+static void RunListener(NSDictionary *userdata, bool local)
+{
+    if (g_Push.m_Listener.m_Callback != LUA_NOREF)
+    {
+        lua_State* L = g_Push.m_Listener.m_L;
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
+
+        // Setup self
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        // Local notifications are supplied as JSON
+        if (local) {
+
+            dmJson::Document doc;
+            NSString* json = (NSString*)[userdata objectForKey:@"payload"];
+            dmJson::Result r = dmJson::Parse([json UTF8String], &doc);
+            if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
+                dmScript::JsonToLua(L, &doc, 0);
+            } else {
+                dmLogError("Failed to parse local push response (%d)", r);
+            }
+            dmJson::Free(&doc);
+
+            lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_LOCAL);
+
+        } else {
+            ObjCToLua(L, userdata);
+            lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
+        }
+
+        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+        if (ret != 0) {
+            dmLogError("Error running push callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+        }
+        assert(top == lua_gettop(L));
     }
 }
 
@@ -164,24 +224,21 @@ static void ToLua(lua_State*L, id obj)
         return;
     }
 
-    lua_State* L = g_Push.m_Listener.m_L;
-    int top = lua_gettop(L);
+    RunListener(userInfo, false);
+}
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
+- (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification {
+    RunListener(notification.userInfo, true);
+}
 
-    // Setup self
-    lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Self);
-    lua_pushvalue(L, -1);
-    dmScript::SetInstance(L);
-
-    ToLua(L, userInfo);
-
-    int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
-    if (ret != 0) {
-        dmLogError("Error running push callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
+{
+    UILocalNotification *localNotification = [launchOptions objectForKey:UIApplicationLaunchOptionsLocalNotificationKey];
+    if (localNotification) {
+        RunListener(localNotification.userInfo, true);
     }
-    assert(top == lua_gettop(L));
+
+    return YES;
 }
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
@@ -246,7 +303,26 @@ int Push_Register(lua_State* L)
     dmScript::GetInstance(L);
     g_Push.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    [[UIApplication sharedApplication] registerForRemoteNotificationTypes: types];
+    // iOS 8 API
+    if ([[UIApplication sharedApplication] respondsToSelector:@selector(registerUserNotificationSettings:)]) {
+        UIUserNotificationType uitypes = UIUserNotificationTypeNone;
+
+        if (types & UIRemoteNotificationTypeBadge)
+            uitypes |= UIUserNotificationTypeBadge;
+
+        if (types & UIRemoteNotificationTypeSound)
+            uitypes |= UIUserNotificationTypeSound;
+
+        if (types & UIRemoteNotificationTypeAlert)
+            uitypes |= UIUserNotificationTypeAlert;
+
+        [[UIApplication sharedApplication] registerUserNotificationSettings:[UIUserNotificationSettings settingsForTypes:uitypes categories:nil]];
+        [[UIApplication sharedApplication] registerForRemoteNotifications];
+
+    } else {
+        [[UIApplication sharedApplication] registerForRemoteNotificationTypes: types];
+    }
+
 
     assert(top == lua_gettop(L));
     return 0;
@@ -254,7 +330,7 @@ int Push_Register(lua_State* L)
 
 /*# set push listener
  *
- * The listener callback has the following signature: function(self, message) where message is a table
+ * The listener callback has the following signature: function(self, payload, origin) where payload is a table
  * with the push payload.
  * @name push.set_listener
  * @param listener listener function
@@ -299,11 +375,200 @@ int Push_SetBadgeCount(lua_State* L)
     return 0;
 }
 
+
+
+/*# Schedule a local push notification to be triggered at a specific time in the future
+ *
+ * @name push.schedule
+ * @param time Number of seconds, into the future until the notification should be triggered
+ * @param title Localized title to be displayed to the user if the application is not running.
+ * @param alert Localized body message of the notification to be displayed to the user if the application is not running.
+ * @param payload JSON string to be passed to the registered listener function
+ * @param notification_settings Table with notification and platform specific data
+ * @return id Unique id that can be used to cancel the notification
+ * @return err Error string if something went wrong, otherwise nil
+ */
+int Push_Schedule(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    int seconds = luaL_checkinteger(L, 1);
+    if (seconds < 0)
+    {
+        lua_pushnil(L);
+        lua_pushstring(L, "invalid seconds argument");
+        return 2;
+    }
+
+    NSString* title = [NSString stringWithUTF8String:luaL_checkstring(L, 2)];
+    NSString* message = [NSString stringWithUTF8String:luaL_checkstring(L, 3)];
+
+    if (g_Push.m_ScheduledID == -1)
+    {
+        g_Push.m_ScheduledID = 0;
+        UpdateScheduleIDCounter();
+    }
+
+    // param: userdata
+    NSMutableDictionary* userdata = [NSMutableDictionary dictionaryWithCapacity:2];
+    userdata[@"id"] = [NSNumber numberWithInt:g_Push.m_ScheduledID];
+    if (top > 3) {
+        userdata[@"payload"] = [NSString stringWithUTF8String:luaL_checkstring(L, 4)];
+    } else {
+        userdata[@"payload"] = nil;
+    }
+
+    UILocalNotification* notification = [[UILocalNotification alloc] init];
+    if (notification == nil)
+    {
+        lua_pushnil(L);
+        lua_pushstring(L, "could not allocate local notification");
+        return 2;
+    }
+
+    notification.fireDate   = [NSDate dateWithTimeIntervalSinceNow:seconds];
+    notification.timeZone   = [NSTimeZone defaultTimeZone];
+    notification.alertTitle = title;
+    notification.alertBody  = message;
+    notification.soundName  = UILocalNotificationDefaultSoundName;
+    notification.userInfo   = userdata;
+
+    // param: notification_settings
+    if (top > 4) {
+        luaL_checktype(L, 5, LUA_TTABLE);
+
+        // action
+        lua_pushstring(L, "action");
+        lua_gettable(L, 5);
+        if (lua_isstring(L, -1)) {
+            notification.alertAction = [NSString stringWithUTF8String:lua_tostring(L, -1)];
+        }
+        lua_pop(L, 1);
+
+        // badge_number
+        lua_pushstring(L, "badge_number");
+        lua_gettable(L, 5);
+        if (lua_isnumber(L, -1)) {
+            notification.applicationIconBadgeNumber = lua_tointeger(L, -1);
+        }
+        lua_pop(L, 1);
+
+        // sound
+        /*
+
+        There is now way of automatically bundle files inside the .app folder (i.e. skipping
+        archiving them inside the .darc), but to have custom notification sounds they need to
+        be accessable from the .app folder.
+
+        lua_pushstring(L, "sound");
+        lua_gettable(L, 5);
+        if (lua_isstring(L, -1)) {
+            notification.soundName = [NSString stringWithUTF8String:lua_tostring(L, -1)];
+        }
+        lua_pop(L, 1);
+        */
+    }
+
+    [[UIApplication sharedApplication] scheduleLocalNotification:notification];
+
+    assert(top == lua_gettop(L));
+
+    // need to remember notification so it can be canceled later on
+    lua_pushnumber(L, g_Push.m_ScheduledID++);
+
+    return 1;
+}
+
+int Push_Cancel(lua_State* L)
+{
+    int cancel_id = luaL_checkinteger(L, 1);
+    for (id obj in [[UIApplication sharedApplication] scheduledLocalNotifications]) {
+        UILocalNotification* notification = (UILocalNotification*)obj;
+
+        if ([(NSNumber*)notification.userInfo[@"id"] intValue] == cancel_id)
+        {
+            [[UIApplication sharedApplication] cancelLocalNotification:notification];
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+static void NotificationToLua(lua_State* L, UILocalNotification* notification)
+{
+    lua_createtable(L, 0, 6);
+
+    lua_pushstring(L, "seconds");
+    lua_pushnumber(L, [[notification fireDate] timeIntervalSinceNow]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "title");
+    lua_pushstring(L, [[notification alertTitle] UTF8String]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "message");
+    lua_pushstring(L, [[notification alertBody] UTF8String]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "payload");
+    NSString* payload = (NSString*)[[notification userInfo] objectForKey:@"payload"];
+    lua_pushstring(L, [payload UTF8String]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "action");
+    lua_pushstring(L, [[notification alertAction] UTF8String]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "badge_number");
+    lua_pushnumber(L, [notification applicationIconBadgeNumber]);
+    lua_settable(L, -3);
+}
+
+int Push_GetScheduled(lua_State* L)
+{
+    int get_id = luaL_checkinteger(L, 1);
+    for (id obj in [[UIApplication sharedApplication] scheduledLocalNotifications]) {
+        UILocalNotification* notification = (UILocalNotification*)obj;
+
+        if ([(NSNumber*)notification.userInfo[@"id"] intValue] == get_id)
+        {
+            NotificationToLua(L, notification);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int Push_GetAllScheduled(lua_State* L)
+{
+    lua_createtable(L, 0, 0);
+    for (id obj in [[UIApplication sharedApplication] scheduledLocalNotifications]) {
+
+        UILocalNotification* notification = (UILocalNotification*)obj;
+
+        NSNumber* notification_id = (NSNumber*)[[notification userInfo] objectForKey:@"id"];
+        lua_pushnumber(L, [notification_id intValue]);
+        NotificationToLua(L, notification);
+        lua_settable(L, -3);
+    }
+
+    return 1;
+}
+
+
 static const luaL_reg Push_methods[] =
 {
     {"register", Push_Register},
     {"set_listener", Push_SetListener},
     {"set_badge_count", Push_SetBadgeCount},
+
+    // local
+    {"schedule", Push_Schedule},
+    {"cancel", Push_Cancel},
+    {"get_scheduled", Push_GetScheduled},
+    {"get_all_scheduled", Push_GetAllScheduled},
+
     {0, 0}
 };
 
@@ -355,6 +620,9 @@ dmExtension::Result InitializePush(dmExtension::Params* params)
     SETCONSTANT(NOTIFICATION_BADGE, UIRemoteNotificationTypeBadge);
     SETCONSTANT(NOTIFICATION_SOUND, UIRemoteNotificationTypeSound);
     SETCONSTANT(NOTIFICATION_ALERT, UIRemoteNotificationTypeAlert);
+
+    SETCONSTANT(ORIGIN_REMOTE, DM_PUSH_EXTENSION_ORIGIN_REMOTE);
+    SETCONSTANT(ORIGIN_LOCAL,  DM_PUSH_EXTENSION_ORIGIN_LOCAL);
 
 #undef SETCONSTANT
 
