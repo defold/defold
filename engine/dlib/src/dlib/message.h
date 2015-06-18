@@ -128,6 +128,13 @@ namespace dmMessage
     bool IsSocketValid(HSocket socket);
 
     /**
+     * Test if a socket has any messages
+     * @param socket Socket
+     * @return if the socket has messages or not
+     */
+    bool HasMessages(HSocket socket);
+
+    /**
      * Resets the given URL to default values.
      * @note Previously the URL wasn't reset in the constructor and certain calls
      *       to ResetURL might currently be redundant
