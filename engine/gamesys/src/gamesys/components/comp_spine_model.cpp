@@ -1008,9 +1008,6 @@ namespace dmGameSystem
                 component.m_MeshProperties.SetSize(0);
             }
         }
-
-        UpdateTransforms(world);
-
         Animate(world, params.m_UpdateContext->m_DT);
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -1053,6 +1050,8 @@ namespace dmGameSystem
         SpineModelContext* context = (SpineModelContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+
+        UpdateTransforms(world);
 
         dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
         const uint32_t count = components.Size();
