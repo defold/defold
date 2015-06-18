@@ -251,14 +251,15 @@
 
 (extend-type TreeView
   workspace/SelectionProvider
-  (selection [this] (->> this
+  (selection [this] (some->> this
                       (.getSelectionModel)
                       (.getSelectedItems)
-                      (map #(.getValue ^TreeItem %)))))
+                      (filter (comp not nil?))
+                      (mapv #(.getValue ^TreeItem %)))))
 
 (extend-type ListView
   workspace/SelectionProvider
-  (selection [this] (->> this
+  (selection [this] (some->> this
                       (.getSelectionModel)
                       (.getSelectedItems)
                       (vec))))
