@@ -428,7 +428,9 @@ int Push_Schedule(lua_State* L)
 
     notification.fireDate   = [NSDate dateWithTimeIntervalSinceNow:seconds];
     notification.timeZone   = [NSTimeZone defaultTimeZone];
-    notification.alertTitle = title;
+    if ([notification respondsToSelector:@selector(alertTitle)]) {
+        [notification setValue:title forKey:@"alertTitle"];
+    }
     notification.alertBody  = message;
     notification.soundName  = UILocalNotificationDefaultSoundName;
     notification.userInfo   = userdata;
@@ -504,7 +506,11 @@ static void NotificationToLua(lua_State* L, UILocalNotification* notification)
     lua_settable(L, -3);
 
     lua_pushstring(L, "title");
-    lua_pushstring(L, [[notification alertTitle] UTF8String]);
+    if ([notification respondsToSelector:@selector(alertTitle)]) {
+        lua_pushstring(L, [[notification valueForKey:@"alertTitle"] UTF8String]);
+    } else {
+        lua_pushnil(L);
+    }
     lua_settable(L, -3);
 
     lua_pushstring(L, "message");
