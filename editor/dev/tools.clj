@@ -5,7 +5,8 @@
             [dynamo.graph :as g]
             [dynamo.image :refer :all]
             [dynamo.types :as t]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt]
+            [internal.java :as java]))
 
 (defmacro tap [x] `(do (prn ~(str "**** " &form " ") ~x) ~x))
 
@@ -83,7 +84,7 @@
 
 (defn protobuf-fields
   [protobuf-msg-cls]
-  (for [fld (.getFields (internal.java/invoke-no-arg-class-method protobuf-msg-cls "getDescriptor"))]
+  (for [fld (.getFields (java/invoke-no-arg-class-method protobuf-msg-cls "getDescriptor"))]
     {:name (.getName fld)
      :type (let [t (.getJavaType fld)]
              (if (not= com.google.protobuf.Descriptors$FieldDescriptor$JavaType/MESSAGE t)
