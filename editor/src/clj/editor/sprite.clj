@@ -201,6 +201,18 @@
                                   :passes [pass/transparent pass/selection pass/outline]}))
      scene)))
 
+(defn- build-sprite [self basis resource dep-resources user-data]
+  ; TODO - MASSIVE HACK (protobuf is passed as a string)
+  (with-in-str (:proto-msg user-data)
+    {:resource resource :content (protobuf/pb->bytes (protobuf/read-text Sprite$SpriteDesc *in*))}))
+
+(g/defnk produce-build-targets [node-id save-data]
+  [{:node-id node-id
+    :resource (workspace/make-build-resource (:resource save-data))
+    :build-fn build-sprite
+    ; TODO - MASSIVE HACK (protobuf is passed as a string)
+    :user-data {:proto-msg (:content save-data)}}])
+
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
     (let [outputs (g/outputs atlas-node)]
@@ -249,7 +261,8 @@
                                          (geom/null-aabb))))
   (output outline t/Any :cached (g/fnk [node-id] {:node-id node-id :label "Sprite" :icon sprite-icon}))
   (output save-data t/Any :cached produce-save-data)
-  (output scene t/Any :cached produce-scene))
+  (output scene t/Any :cached produce-scene)
+  (output build-targets t/Any :cached produce-build-targets))
 
 (defn load-sprite [project self input]
   (let [sprite (protobuf/pb->map (protobuf/read-text Sprite$SpriteDesc input))

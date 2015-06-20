@@ -63,6 +63,7 @@
   (input outline t/Any)
   (input save-data t/Any)
   (input scene t/Any)
+  (input build-targets t/Any)
 
   (output outline t/Any :cached (g/fnk [node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
                                                                             (assoc outline :node-id node-id :label (str id suffix)))))
@@ -74,6 +75,11 @@
                                             :node-id node-id
                                             :transform transform
                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))
+  (output build-targets t/Any :cached (g/fnk [build-targets ddf-message transform]
+                                             (let [target (first build-targets)]
+                                               [(assoc target :instance-data {:resource (:resource target)
+                                                                              :instance-msg ddf-message
+                                                                              :transform transform})])))
 
   core/MultiNode
   (sub-nodes [self] (if (:embedded self) [(g/node-value self :source)] [])))
@@ -90,16 +96,37 @@
   {:resource resource
    :content (protobuf/pb->str proto-msg)})
 
-(defn- build-game-object [self basis resource dep-resources user-data]
-  ; TODO - MASSIVE HACK (protobuf is passed as seq of byte-array)
-  {:resource resource :content (byte-array (:proto-msg user-data))})
+(defn- ->instance-builder [msg resource] ^GameObject$ComponentDesc$Builder
+(-> (if (instance? GameObject$EmbeddedComponentDesc msg)
+      (-> (GameObject$ComponentDesc/newBuilder)
+        (.setId (.getId msg))
+        (.setPosition (.getPosition msg))
+        (.setRotation (.getRotation msg)))
+      (GameObject$ComponentDesc/newBuilder msg))
+  (.setComponent (workspace/proj-path resource))))
 
-(g/defnk produce-build-targets [node-id resource proto-msg]
+(defn- externalize [inst-data resources]
+  (map (fn [data]
+         (let [{:keys [resource instance-msg transform]} data
+               resource (get resources resource)
+               builder (->instance-builder instance-msg resource)]
+           (.build builder))) inst-data))
+
+(defn- build-game-object [self basis resource dep-resources user-data]
+  (let [instance-msgs (externalize (:instance-data user-data) dep-resources)
+        msg (.build
+              (doto (GameObject$PrototypeDesc/newBuilder)
+                (.addAllComponents instance-msgs)))]
+    ; TODO - MASSIVE HACK (protobuf is passed as a string)
+    {:resource resource :content (protobuf/pb->bytes msg)}))
+
+(g/defnk produce-build-targets [node-id resource proto-msg dep-build-targets]
   [{:node-id node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-game-object
-    ; TODO - MASSIVE HACK (protobuf is passed as seq of byte-array)
-    :user-data {:proto-msg (seq (protobuf/pb->bytes proto-msg))}}])
+    ; TODO - MASSIVE HACK (protobuf is passed as a string)
+    :user-data {:proto-msg (protobuf/pb->str proto-msg) :instance-data (map :instance-data (flatten dep-build-targets))}
+    :deps (flatten dep-build-targets)}])
 
 (g/defnk produce-scene [node-id child-scenes]
   {:node-id node-id
@@ -114,6 +141,7 @@
   (input embed-ddf t/Any :array)
   (input child-scenes t/Any :array)
   (input child-ids t/Str :array)
+  (input dep-build-targets t/Any :array)
 
   (output outline t/Any :cached (g/fnk [node-id outline] {:node-id node-id :label "Game Object" :icon game-object-icon :children outline}))
   (output proto-msg t/Any :cached produce-proto-msg)
@@ -141,6 +169,7 @@
                   (concat
                    (g/connect comp-node :outline self :outline)
                    (g/connect comp-node :self    self :nodes)
+                   (g/connect comp-node :build-targets    self :dep-build-targets)
                    (when source-node
                     (concat
                       (g/connect comp-node   :ddf-message self      :ref-ddf)
@@ -149,7 +178,8 @@
                       (g/connect source-node :self        comp-node :source)
                       (connect-if-output source-node :outline comp-node :outline)
                       (connect-if-output source-node :save-data comp-node :save-data)
-                      (connect-if-output source-node :scene comp-node :scene)))))))
+                      (connect-if-output source-node :scene comp-node :scene)
+                      (connect-if-output source-node :build-targets comp-node :build-targets)))))))
 
 (defn add-component-handler [self]
   (let [project (project/get-project self)
@@ -186,12 +216,14 @@
                     (g/connect source-node :outline     comp-node :outline)
                     (g/connect source-node :save-data   comp-node :save-data)
                     (g/connect source-node :scene       comp-node :scene)
+                    (g/connect source-node :build-targets       comp-node :build-targets)
                     (g/connect source-node :self        self      :nodes)
                     (g/connect comp-node   :outline     self      :outline)
                     (g/connect comp-node   :ddf-message self      :embed-ddf)
                     (g/connect comp-node   :id          self      :child-ids)
                     (g/connect comp-node   :scene       self      :child-scenes)
-                    (g/connect comp-node   :self        self      :nodes))
+                    (g/connect comp-node   :self        self      :nodes)
+                    (g/connect comp-node   :build-targets        self      :dep-build-targets))
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
                     (g/connect comp-node   :outline      self      :outline)
