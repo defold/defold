@@ -1,12 +1,12 @@
 (ns dynamo.image-test
-  (:require [dynamo.geom :refer :all]
+  (:require [clojure.java.io :refer [as-url file]]
+            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
-            [clojure.java.io :refer [as-url file]]
-            [schema.test]
-            [dynamo.image :refer :all])
+            [dynamo.image :refer :all]
+            [editor.geom :refer :all]
+            [schema.test])
   (:import [java.awt.image BufferedImage]))
 
 (use-fixtures :once schema.test/validate-schemas)

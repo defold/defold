@@ -84,11 +84,11 @@ Here is an example that uses a uniform variable to be set by the application.
 There are some examples in the testcases in dynamo.shader.translate-test."
   (:require [clojure.string :as string]
             [clojure.walk :as walk]
-            [dynamo.geom :as g]
             [dynamo.gl :as gl]
             [dynamo.gl.protocols :refer [GlBind GlEnable]]
             [dynamo.types :as t]
-            [editor.buffers :refer [bbuf->string]])
+            [editor.buffers :refer [bbuf->string]]
+            [editor.geom :as g])
   (:import [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2 GLContext]
            [javax.vecmath Matrix4d Vector4f Point3d]))

@@ -2,7 +2,6 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
-            [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
@@ -10,6 +9,7 @@
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.camera :as c]
+            [editor.geom :as geom]
             [editor.project :as project]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])

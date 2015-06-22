@@ -1,8 +1,8 @@
 (ns editor.project-test
   (:require [clojure.test :refer :all]
-            [dynamo.file :as f]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer [with-clean-system]]
+            [editor.file :as f]
             [editor.project :as p])
   (:import [java.io StringReader]))
 

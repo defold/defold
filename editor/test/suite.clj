@@ -6,7 +6,7 @@
 
 (def test-namespaces '[editor.buffers-test
                        dynamo.defnode-test
-                       dynamo.geom-test
+                       editor.geom-test
                        dynamo.gl.translate-test
                        dynamo.gl.vertex-test
                        dynamo.image-test
