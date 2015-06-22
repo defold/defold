@@ -20,29 +20,6 @@
 (prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IRecord        clojure.lang.IDeref)
 
-(defn- subscriber-id
-  [n]
-  (if (number? n)
-    n
-    (gt/node-id n)))
-
-(defn- address-to
-  [node body]
-  (assoc body ::node-id (subscriber-id node)))
-
-(defn- publish
-  [{publish-to :publish-to} msg]
-  (a/put! publish-to msg))
-
-(defn- publish-all
-  [sys msgs]
-  (doseq [s msgs]
-    (publish sys s)))
-
-(defn- subscribe
-  [{subscribe-to :subscribe-to} node]
-  (a/sub subscribe-to (subscriber-id node) (a/chan 100)))
-
 (defn- integer-counter
   []
   (AtomicLong. 0))
@@ -213,15 +190,11 @@
   [configuration]
   (let [disposal-queue (make-disposal-queue configuration)
         initial-graph  (make-initial-graph configuration)
-        pubch          (a/chan 100)
-        subch          (a/pub pubch ::node-id (fn [_] (a/dropping-buffer 100)))
         cache          (make-cache configuration disposal-queue)]
     (-> {:disposal-queue disposal-queue
          :graphs         {}
          :id-generators  {}
-         :cache          cache
-         :publish-to     pubch
-         :subscribe-to   subch}
+         :cache          cache}
         (attach-graph initial-graph))))
 
 (defn dispose!
