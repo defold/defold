@@ -1,4 +1,4 @@
-(ns dynamo.buffers
+(ns editor.buffers
   (:import [java.nio Buffer ByteBuffer ByteOrder IntBuffer]
            [com.google.protobuf ByteString]))
 

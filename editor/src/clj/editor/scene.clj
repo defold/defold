@@ -1,12 +1,12 @@
 (ns editor.scene
   (:require [clojure.set :as set]
-            [dynamo.background :as background]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
             [dynamo.types :as t :refer [IDisposable dispose]]
             [dynamo.util :as util]
             [editor.camera :as c]
+            [editor.background :as background]
             [editor.core :as core]
             [editor.grid :as grid]
             [editor.input :as i]

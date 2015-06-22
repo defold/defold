@@ -82,13 +82,13 @@ Here is an example that uses a uniform variable to be set by the application.
     (setq gl_FragColor (vec4 uv.x uv.y 0.0 1.0))))
 
 There are some examples in the testcases in dynamo.shader.translate-test."
-  (:require [clojure.walk :as walk]
-            [clojure.string :as string]
-            [dynamo.buffers :refer [bbuf->string]]
-            [dynamo.gl :as gl]
+  (:require [clojure.string :as string]
+            [clojure.walk :as walk]
             [dynamo.geom :as g]
+            [dynamo.gl :as gl]
+            [dynamo.gl.protocols :refer [GlBind GlEnable]]
             [dynamo.types :as t]
-            [dynamo.gl.protocols :refer [GlBind GlEnable]])
+            [editor.buffers :refer [bbuf->string]])
   (:import [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2 GLContext]
            [javax.vecmath Matrix4d Vector4f Point3d]))
