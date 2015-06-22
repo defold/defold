@@ -22,16 +22,16 @@ After the vertex is populated, you can bind its data to shader attributes
 using the `use-with` function. This returns a binding suitable for use in
 the `do-gl` macro from `dynamo.gl`."
   (:require [clojure.string :as str]
-            [dynamo.buffers :as b]
-            [dynamo.types :refer [IDisposable dispose]]
+            [dynamo.gl :as gl]
             [dynamo.gl.protocols :refer [GlBind GlEnable]]
             [dynamo.gl.shader :as shader]
-            [dynamo.gl :as gl])
+            [dynamo.types :refer [IDisposable dispose]]
+            [editor.buffers :as b])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
-           [java.nio ByteBuffer]
-           [com.jogamp.common.nio Buffers]
-           [java.util.concurrent.atomic AtomicLong AtomicBoolean]
            [com.google.protobuf ByteString]
+           [com.jogamp.common.nio Buffers]
+           [java.nio ByteBuffer]
+           [java.util.concurrent.atomic AtomicLong AtomicBoolean]
            [javax.media.opengl GL GL2]))
 
 (def type-sizes

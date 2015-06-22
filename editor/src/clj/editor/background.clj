@@ -1,4 +1,4 @@
-(ns dynamo.background
+(ns editor.background
   (:require [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]

@@ -4,7 +4,7 @@
             [dynamo.messages :as m])
   (:import [clojure.lang Compiler]))
 
-(def test-namespaces '[dynamo.buffers-test
+(def test-namespaces '[editor.buffers-test
                        dynamo.defnode-test
                        dynamo.geom-test
                        dynamo.gl.translate-test
