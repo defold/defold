@@ -1,11 +1,10 @@
 (ns editor.outline-view
   (:require [dynamo.graph :as g]
-            [editor.jfx :as jfx]
-            [editor.menu :as menu]
-            [editor.ui :as ui]
+            [dynamo.types :as t]
             [editor.handler :as handler]
-            [editor.workspace :as workspace]
-            [dynamo.types :as t])
+            [editor.jfx :as jfx]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.application Platform]
