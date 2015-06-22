@@ -1,15 +1,26 @@
 (ns editor.ui-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
+            [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [editor.handler :as handler])
-  (:import [javafx.scene Scene]
+            [editor.workspace :as workspace])
+  (:import [javafx.fxml FXMLLoader]
+           [javafx.scene Scene]
            [javafx.scene.control Menu MenuBar MenuItem]
-           [javafx.scene.layout Pane]))
+           [javafx.scene.layout Pane VBox]
+           [javafx.stage Stage]))
+
+(defn- make-fake-stage []
+  (let [root (VBox.)
+        stage (Stage.)
+        scene (Scene. root)]
+    (.setScene stage scene)
+    stage))
 
 (defn fixture [f]
   (with-redefs [ui/*menus* (atom {})
-                handler/*handlers* (atom {})]
+                handler/*handlers* (atom {})
+                ui/*main-stage* (atom (ui/run-now (make-fake-stage)))]
     (f)))
 
 (use-fixtures :each fixture)
@@ -106,4 +117,3 @@
           c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
       (is (= 2 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))))
-

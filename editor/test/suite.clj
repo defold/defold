@@ -5,7 +5,6 @@
   (:import [clojure.lang Compiler]))
 
 (def test-namespaces '[dynamo.buffers-test
-                       dynamo.camera-test
                        dynamo.defnode-test
                        dynamo.geom-test
                        dynamo.gl.translate-test
@@ -25,8 +24,10 @@
                        integration.scene-test
                        integration.scope-test
                        integration.collection-test
+                       integration.copy-paste-test
                        internal.cache-test
                        internal.connection-rules
+                       internal.copy-paste-test
                        internal.dependency-test
                        internal.graph.graph-test
                        internal.graph.types-test
