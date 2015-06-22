@@ -212,6 +212,18 @@
 
 (def ^:private inputs-properties (juxt :inputs :properties))
 
+(defn schema? [x] (satisfies? s/Schema x))
+
+(defn- assert-form-kind [kind-label required-kind label form]
+  (assert (required-kind form) (str "defnode " label " requires a " kind-label " not a " (class form) " of " form)))
+
+(def assert-symbol (partial assert-form-kind "symbol" symbol?))
+(def assert-schema (partial assert-form-kind "schema" schema?))
+(defn assert-pfnk [label production-fn]
+  (assert
+   (gt/pfnk? production-fn)
+   (format "Node output %s needs a production function that is a dynamo.graph/fnk" label)))
+
 (defn- name-available
   [description label]
   (not (some #{label} (mapcat keys (inputs-properties description)))))
@@ -227,6 +239,8 @@
   (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
   (assert (not (gt/protocol? schema))
           (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (t/protocol) instead" label (:name description)))
+  (assert-schema "input" schema)
+
   (let [property-schema (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)]
     (cond->
         (assoc-in description [:inputs label] property-schema)
@@ -253,23 +267,27 @@
 
 (defn attach-output
   "Update the node type description with the given output."
-  [description label schema properties options & [production-fn]]
-  (when (fn? production-fn)
-    (assert (gt/pfnk? production-fn) (format "Node output %s needs a production function that is a dynamo.graph/fnk for %s"  label production-fn)))
+  [description label schema properties options & remainder]
+  (assert-schema "output" schema)
+  (let [production-fn (first remainder)]
+    (when-not (:abstract properties)
+      (assert-pfnk label production-fn))
+    (assert
+     (empty? (rest remainder))
+     (format "Options and flags for output %s must go before the production function." label))
+    (cond-> (update-in description [:transform-types] assoc label schema)
 
-  (cond-> (update-in description [:transform-types] assoc label schema)
+      (:cached properties)
+      (update-in [:cached-outputs] #(conj (or % #{}) label))
 
-    (:cached properties)
-    (update-in [:cached-outputs] #(conj (or % #{}) label))
+      (:abstract properties)
+      (update-in [:transforms] assoc-in [label] (abstract-function label schema))
 
-    (:abstract properties)
-    (update-in [:transforms] assoc-in [label] (abstract-function label schema))
+      (not (:abstract properties))
+      (update-in [:transforms] assoc-in [label] production-fn)
 
-    (not (:abstract properties))
-    (update-in [:transforms] assoc-in [label] production-fn)
-
-    true
-    (update-in [:property-passthroughs] disj label)))
+      true
+      (update-in [:property-passthroughs] disj label))))
 
 (defn attach-property
   "Update the node type description with the given property."
@@ -357,28 +375,36 @@
   [form]
   (match [form]
          [(['inherits supertype] :seq)]
-         `(attach-supertype ~supertype)
+         (do (assert-symbol "inherits" supertype)
+             `(attach-supertype ~supertype))
 
          [(['input label schema & remainder] :seq)]
-         (let [[properties options args] (parse-flags-and-options input-flags input-options remainder)]
-           `(attach-input ~(keyword label) ~schema ~properties ~options ~@args))
+         (do (assert-symbol "input" label)
+             (let [[properties options args] (parse-flags-and-options input-flags input-options remainder)]
+               `(attach-input ~(keyword label) ~schema ~properties ~options ~@args)))
 
          [(['output label schema & remainder] :seq)]
-         (let [[properties options args] (parse-flags-and-options output-flags output-options remainder)]
-           (assert (or (:abstract properties) (not (empty? args))) "The output type seems to be missing.")
-           `(attach-output ~(keyword label) ~schema ~properties ~options ~@args))
+         (do (assert-symbol "output" label)
+             (let [[properties options args] (parse-flags-and-options output-flags output-options remainder)]
+               (assert (or (:abstract properties) (not (empty? args)))
+                       (format "The output %s is missing a production function. Either define the production function or mark it as :abstract." label))
+               `(attach-output ~(keyword label) ~schema ~properties ~options ~@args)))
 
          [(['property label tp & options] :seq)]
-         `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label))
+         (do (assert-symbol "property" label)
+             `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label)))
 
          [(['on label & fn-body] :seq)]
          `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
 
          [(['trigger label & rest] :seq)]
-         (let [kinds (vec (take-while keyword? rest))
-               action (drop-while keyword? rest)]
-           (assert (every? valid-trigger-kinds kinds) (apply str "Invalid trigger kind. Valid trigger kinds are: " (interpose ", " valid-trigger-kinds)))
-           `(attach-trigger ~(keyword label) ~kinds ~@action))
+         (do
+           (assert-symbol "trigger" label)
+           (let [kinds (vec (take-while keyword? rest))
+                action (drop-while keyword? rest)]
+             (assert (every? valid-trigger-kinds kinds) (apply str "Invalid trigger kind. Valid trigger kinds are: " (interpose ", " valid-trigger-kinds)))
+             (assert (not (empty? action)) "Trigger must have an action")
+            `(attach-trigger ~(keyword label) ~kinds ~@action)))
 
          ;; Interface or protocol function
          [([nm [& argvec] & remainder] :seq)]

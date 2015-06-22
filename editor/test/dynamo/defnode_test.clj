@@ -46,12 +46,14 @@
   (inherits MixinNode))
 
 (deftest inheritance
- (is (= [IRootNode]           (g/supertypes ChildNode)))
- (is (= ChildNode             (g/node-type (g/construct ChildNode))))
- (is (= [ChildNode]           (g/supertypes GChild)))
- (is (= GChild                (g/node-type (g/construct GChild))))
- (is (= [ChildNode MixinNode] (g/supertypes GGChild)))
- (is (= GGChild               (g/node-type (g/construct GGChild)))))
+  (is (= [IRootNode]           (g/supertypes ChildNode)))
+  (is (= ChildNode             (g/node-type (g/construct ChildNode))))
+  (is (= [ChildNode]           (g/supertypes GChild)))
+  (is (= GChild                (g/node-type (g/construct GChild))))
+  (is (= [ChildNode MixinNode] (g/supertypes GGChild)))
+  (is (= GGChild               (g/node-type (g/construct GGChild))))
+  (is (thrown? Compiler$CompilerException (eval '(dynamo.graph/defnode BadInheritance (inherits :not-a-symbol)))))
+  (is (thrown? Compiler$CompilerException (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
 
 (g/defnode OneInputNode
   (input an-input t/Str))
@@ -74,6 +76,12 @@
   (input multiple-collection-values [t/Str] :array))
 
 (deftest nodes-can-have-inputs
+  (testing "inputs must be defined with symbols"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode BadInput (input :not-a-symbol t/Str))))))
+  (testing "inputs must be defined with a schema"
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode BadInput (input a-input (fn [] "not a schema")))))))
   (testing "labeled input"
     (let [node (g/construct OneInputNode)]
       (is (:an-input (g/inputs' OneInputNode)))
@@ -256,7 +264,17 @@
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
       (is (= {:foo #{:properties}
               :a-property #{:properties :a-property :self}}
-             (g/input-dependencies node))))))
+             (g/input-dependencies node)))))
+
+  (testing "properties are named by symbols"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode BadProperty
+                          (property :not-a-symbol dynamo.types/Keyword))))))
+
+  (testing "property types have schemas"
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode BadProperty
+                          (property a-symbol :not-a-type)))))))
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
@@ -268,7 +286,7 @@
   (input string-input t/Str)
 
   (output string-output         t/Str                                                 string-production-fnk)
-  (output integer-output        IntegerProperty                                       integer-production-fnk)
+  (output integer-output        t/Int                                                 integer-production-fnk)
   (output cached-output         t/Str           :cached                               string-production-fnk)
   (output inline-string         t/Str                                                 (g/fnk [string-input] "inline-string")))
 
@@ -288,12 +306,27 @@
   (output indirect-calculation t/Str (g/fnk [direct-calculation] direct-calculation)))
 
 (deftest nodes-can-have-outputs
+  (testing "outputs must be defined with symbols"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode BadOutput (output :not-a-symbol dynamo.types/Str :abstract))))))
+  (testing "outputs must be defined with a schema"
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode BadOutput (output a-output (fn [] "not a schema") :abstract))))))
+  (testing "outputs must have flags after the schema and before the production function"
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.types/Str (dynamo.graph/fnk []) :cached))))))
+  (testing "outputs must either have a production function defined or be marked as abstract"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.types/Str))))))
   (testing "basic output definition"
     (let [node (g/construct MultipleOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string]]
         (is (get (g/outputs' MultipleOutputNode) expected-output))
         (is (get (g/outputs  node)               expected-output)))
-      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str}]
+      (doseq [[label expected-schema] {:string-output t/Str
+                                       :integer-output t/Int
+                                       :cached-output t/Str
+                                       :inline-string t/Str}]
         (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
       (is (:cached-output (g/cached-outputs' MultipleOutputNode)))
       (is (:cached-output (g/cached-outputs node)))))
@@ -303,7 +336,11 @@
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :abstract-output]]
         (is (get (g/outputs' InheritedOutputNode) expected-output))
         (is (get (g/outputs  node)               expected-output)))
-      (doseq [[label expected-schema] {:string-output t/Str :integer-output IntegerProperty :cached-output t/Str :inline-string t/Str :abstract-output t/Str}]
+      (doseq [[label expected-schema] {:string-output t/Str
+                                       :integer-output t/Int
+                                       :cached-output t/Str
+                                       :inline-string t/Str
+                                       :abstract-output t/Str}]
         (is (= expected-schema (get-in InheritedOutputNode [:transform-types label]))))
       (is (:cached-output (g/cached-outputs' InheritedOutputNode)))
       (is (:cached-output (g/cached-outputs node)))))
@@ -478,4 +515,14 @@
                    (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))
     (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
           (eval '(dynamo.graph/defnode NoSuchTriggerNode
-                   (trigger nope :modified (fn [& _] :nope))))))))
+                   (trigger nope :modified (fn [& _] :nope)))))))
+
+  (testing "triggers are named by symbols"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode BadTriggerName
+                          (trigger :not-a-symbol :added (fn [& _] :ok)))))))
+
+  (testing "triggers have actions"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode MissingAction
+                          (trigger a-symbol :added)))))))
