@@ -1,5 +1,5 @@
 (ns editor.grid
-  (:require [dynamo.gl :as gl]
+  (:require [editor.gl :as gl]
             [dynamo.graph :as g]
             [dynamo.property :as dp]
             [dynamo.types :as t :refer [min-p max-p]]

@@ -1,4 +1,4 @@
-(ns dynamo.gl.vertex
+(ns editor.gl.vertex
   "This namespace contains macros and functions to deal with vertex buffers.
 
 The first step is to define a vertex format using the `defvertex` macro.
@@ -20,11 +20,11 @@ There are no bulk memory copies needed.)
 
 After the vertex is populated, you can bind its data to shader attributes
 using the `use-with` function. This returns a binding suitable for use in
-the `do-gl` macro from `dynamo.gl`."
+the `do-gl` macro from `editor.gl`."
   (:require [clojure.string :as str]
-            [dynamo.gl :as gl]
-            [dynamo.gl.protocols :refer [GlBind GlEnable]]
-            [dynamo.gl.shader :as shader]
+            [editor.gl :as gl]
+            [editor.gl.protocols :refer [GlBind GlEnable]]
+            [editor.gl.shader :as shader]
             [dynamo.types :refer [IDisposable dispose]]
             [editor.buffers :as b])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
@@ -460,7 +460,7 @@ the `do-gl` macro from `dynamo.gl`."
   At the time when `use-with` is called, it binds the buffer to GL as a GL_ARRAY_BUFFER.
   This is also when it binds attribs to the shader.
 
-  This function returns an object that satisfies dynamo.gl.protocols/GlEnable,
-  dynamo.gl.protocols/GlDisable."
+  This function returns an object that satisfies editor.gl.protocols/GlEnable,
+  editor.gl.protocols/GlDisable."
   [^PersistentVertexBuffer vertex-buffer shader]
   (->VertexBufferShaderLink vertex-buffer shader (atom {})))
