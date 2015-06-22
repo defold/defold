@@ -264,7 +264,17 @@
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
       (is (= {:foo #{:properties}
               :a-property #{:properties :a-property :self}}
-             (g/input-dependencies node))))))
+             (g/input-dependencies node)))))
+
+  (testing "properties are named by symbols"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode BadProperty
+                          (property :not-a-symbol dynamo.types/Keyword))))))
+
+  (testing "property types have schemas"
+    (is (thrown? AssertionError
+                 (eval '(dynamo.graph/defnode BadProperty
+                          (property a-symbol :not-a-type)))))))
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
@@ -505,4 +515,14 @@
                    (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))
     (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
           (eval '(dynamo.graph/defnode NoSuchTriggerNode
-                   (trigger nope :modified (fn [& _] :nope))))))))
+                   (trigger nope :modified (fn [& _] :nope)))))))
+
+  (testing "triggers are named by symbols"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode BadTriggerName
+                          (trigger :not-a-symbol :added (fn [& _] :ok)))))))
+
+  (testing "triggers have actions"
+    (is (thrown? Compiler$CompilerException
+                 (eval '(dynamo.graph/defnode MissingAction
+                          (trigger a-symbol :added)))))))

@@ -360,6 +360,7 @@
   (assert (symbol? s))
   (let [{:keys [ns name]} (meta (resolve s))]
     (symbol (str ns) (str name))))
+
 (def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections})
 (def ^:private input-flags   #{:inject :array})
 (def ^:private input-options #{:substitute})
@@ -390,16 +391,20 @@
                `(attach-output ~(keyword label) ~schema ~properties ~options ~@args)))
 
          [(['property label tp & options] :seq)]
-         `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label))
+         (do (assert-symbol "property" label)
+             `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label)))
 
          [(['on label & fn-body] :seq)]
          `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
 
          [(['trigger label & rest] :seq)]
-         (let [kinds (vec (take-while keyword? rest))
-               action (drop-while keyword? rest)]
-           (assert (every? valid-trigger-kinds kinds) (apply str "Invalid trigger kind. Valid trigger kinds are: " (interpose ", " valid-trigger-kinds)))
-           `(attach-trigger ~(keyword label) ~kinds ~@action))
+         (do
+           (assert-symbol "trigger" label)
+           (let [kinds (vec (take-while keyword? rest))
+                action (drop-while keyword? rest)]
+             (assert (every? valid-trigger-kinds kinds) (apply str "Invalid trigger kind. Valid trigger kinds are: " (interpose ", " valid-trigger-kinds)))
+             (assert (not (empty? action)) "Trigger must have an action")
+            `(attach-trigger ~(keyword label) ~kinds ~@action)))
 
          ;; Interface or protocol function
          [([nm [& argvec] & remainder] :seq)]
