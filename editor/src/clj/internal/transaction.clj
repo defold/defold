@@ -107,12 +107,12 @@
 
 (defn- mark-activated
   [{:keys [basis] :as ctx} node-id input-label]
-  (let [dirty-deps (get (gt/input-dependencies (ig/node-by-id-at basis node-id)) input-label)]
+  (let [dirty-deps (-> (ig/node-by-id-at basis node-id) gt/node-type gt/input-dependencies (get input-label))]
     (update-in ctx [:nodes-affected node-id] set/union dirty-deps)))
 
 (defn- activate-all-outputs
   [{:keys [basis] :as ctx} node-id node]
-  (let [all-labels  (gt/outputs node)
+  (let [all-labels  (-> node gt/node-type gt/output-labels)
         ctx         (update-in ctx [:nodes-affected node-id] set/union all-labels)
         all-targets (into #{[node-id nil]} (mapcat #(gt/targets basis node-id %) all-labels))]
     (reduce
@@ -146,7 +146,7 @@
            :nodes-added      (conj nodes-added node-id)
            :new-event-loops  (if (gt/message-target? full-node) (conj new-event-loops node-id) new-event-loops)
            :triggers-to-fire (update triggers-to-fire node-id assoc :added [])
-           :nodes-affected   (merge-with set/union nodes-affected {node-id (gt/outputs full-node)}))))
+           :nodes-affected   (merge-with set/union nodes-affected {node-id (-> full-node gt/node-type gt/output-labels)}))))
 
 (defn- disconnect-inputs
   [ctx target-node target-label]
@@ -183,11 +183,13 @@
           new-node         (merge to-node old-node)
 
           ;; disconnect inputs that no longer exist
-          vanished-inputs  (set/difference (gt/inputs old-node) (gt/inputs new-node))
+          vanished-inputs  (set/difference (-> old-node gt/node-type gt/input-labels)
+                                           (-> new-node gt/node-type gt/input-labels))
           ctx              (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in))  ctx vanished-inputs)
 
           ;; disconnect outputs that no longer exist
-          vanished-outputs (set/difference (gt/outputs old-node) (gt/outputs new-node))
+          vanished-outputs (set/difference (-> old-node gt/node-type gt/output-labels)
+                                           (-> new-node gt/node-type gt/output-labels))
           ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
 
           [basis-after _]  (gt/replace-node basis node-id new-node)
@@ -204,8 +206,8 @@
   [{:keys [basis nodes-deleted old-event-loops nodes-added triggers-to-fire] :as ctx}
    {:keys [node-id]}]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-    (let [all-labels         (set/union (gt/inputs node) (gt/outputs node))
-          ctx                (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in))  ctx (gt/inputs node))
+    (let [all-labels         (set/union (-> node gt/node-type gt/input-labels) (-> node gt/node-type gt/output-labels))
+          ctx                (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in)) ctx (-> node gt/node-type gt/input-labels))
           basis              (:basis ctx)
           [basis node]       (gt/delete-node basis node-id)
           ctx                (update-in ctx [:nodes-affected node-id] set/union all-labels)]

@@ -2,8 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.property :as dp :refer [defproperty]]
-            [dynamo.types :as t])
-  (:import [dynamo.property DefaultPresenter]))
+            [dynamo.types :as t]))
 
 (defprotocol MyProtocol)
 
@@ -242,76 +241,6 @@
 (defproperty InheritsFromVec3Prop Vec3Prop)
 
 (defproperty UnregisteredProp [t/Keyword t/Str t/Num])
-
-(defrecord CustomPresenter []
-  dp/Presenter)
-
-(defrecord FirstCustomPresenter []
-  dp/Presenter)
-
-(defrecord SecondCustomPresenter []
-  dp/Presenter)
-
-(defrecord ThirdCustomPresenter []
-  dp/Presenter)
-
-(deftest lookup-presenter
-  (testing "when the property is not registered, returns a default presenter"
-    (is (instance? DefaultPresenter (dp/lookup-presenter {} StringProp)))
-    (is (instance? DefaultPresenter (dp/lookup-presenter {} TaggedProp))))
-  (testing "overriding registry"
-    (are [type-to-register property-to-look-up expected-presenter]
-      (let [registry (dp/register-presenter {} type-to-register (->CustomPresenter))
-            actual-presenter (dp/lookup-presenter registry property-to-look-up)]
-        (instance? expected-presenter actual-presenter))
-                                        ;type-to-register    property-to-look-up  expected-presenter
-      {:value-type t/Str}  StringProp           CustomPresenter
-      {:value-type t/Str}  UnregisteredProp     DefaultPresenter
-      {:value-type t/Vec3} InheritsFromVec3Prop CustomPresenter
-      {:value-type t/Vec3} Vec3Prop             CustomPresenter))
-  (testing "presenters with tags"
-    (are [type-to-register property-to-look-up expected-presenter]
-      (let [registry (dp/register-presenter {} type-to-register (->CustomPresenter))
-            actual-presenter (dp/lookup-presenter registry property-to-look-up)]
-        (instance? expected-presenter actual-presenter))
-                                        ;type-to-register                    property-to-look-up  expected-presenter
-      {:value-type t/Keyword}              UntaggedProp         CustomPresenter
-      {:value-type t/Keyword}              TaggedProp           CustomPresenter
-      {:value-type t/Keyword :tag :first}  UntaggedProp         DefaultPresenter
-      {:value-type t/Keyword :tag :first}  TaggedProp           CustomPresenter
-      {:value-type t/Str}                  UntaggedProp         DefaultPresenter
-      {:value-type t/Str     :tag :first}  UntaggedProp         DefaultPresenter
-      {:value-type t/Str     :tag :first}  TaggedProp           DefaultPresenter
-      {:value-type t/Keyword :tag :second} TaggedProp           DefaultPresenter
-      {:value-type t/Keyword :tag :second} TaggedChild          CustomPresenter
-      {:value-type t/Keyword :tag :second} MultipleTags         CustomPresenter
-      {:value-type t/Keyword :tag :third}  TaggedChild          DefaultPresenter
-      {:value-type t/Keyword :tag :third}  MultipleTags         CustomPresenter))
-  (testing "tag precedence"
-    (let [registry (-> {}
-                       (dp/register-presenter {:value-type t/Keyword}              (->CustomPresenter))
-                       (dp/register-presenter {:value-type t/Keyword :tag :first}  (->FirstCustomPresenter))
-                       (dp/register-presenter {:value-type t/Keyword :tag :second} (->SecondCustomPresenter))
-                       (dp/register-presenter {:value-type t/Keyword :tag :third}  (->ThirdCustomPresenter)))]
-      (are [property-to-look-up expected-presenter] (instance? expected-presenter (dp/lookup-presenter registry property-to-look-up))
-                                        ;property-to-look-up          expected-presenter
-           UntaggedProp                  CustomPresenter
-           TaggedProp                    FirstCustomPresenter
-           ChildOfTaggedProp             FirstCustomPresenter
-           GrandchildOfTaggedProp        FirstCustomPresenter
-           ChildOfTaggedPropWithOverride FirstCustomPresenter
-           TaggedChild                   SecondCustomPresenter
-           MultipleTags                  ThirdCustomPresenter))))
-
-(deftest presenter-event-map
-  (are [event-map expected-presenter-event-map] (= expected-presenter-event-map (dp/presenter-event-map event-map))
-       {}                                     {}
-       {:widget "FILTER ME"}                  {}
-       {:type :some-type}                     {:type :some-type}
-       {:type :some-type :widget "FILTER ME"} {:type :some-type}
-       {:character \d}                        {::dp/character \d}
-       {:type :some-type :character \d}       {:type :some-type ::dp/character \d}))
-
 
 (defproperty PropWithoutEnablement t/Any)
 

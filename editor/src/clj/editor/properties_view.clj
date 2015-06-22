@@ -185,7 +185,7 @@
     []))
 
 (defn- create-properties-node [workspace grid node]
-  (let [properties (g/properties node)
+  (let [properties (-> node g/node-type g/properties)
         properties-value (g/node-value node :properties)]
     (mapcat (fn [[key p]]
               (let [visible (get-in properties-value [key :visible])
@@ -213,7 +213,7 @@
 (defn- refresh-grid [parent workspace nodes]
   (let [setters (ui/user-data parent ::setters)]
     (doseq [node nodes]
-      (doseq [[key p] (g/properties node)]
+      (doseq [[key p] (-> node g/node-type g/properties)]
         (when-let [setter (get setters [key (g/node-id node)])]
           (setter (get node key)))))))
 
