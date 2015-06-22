@@ -2,7 +2,7 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.set :as set]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]
+            [dynamo.util :refer [collify map-vals apply-if-fn]]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]

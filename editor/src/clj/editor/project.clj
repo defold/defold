@@ -7,7 +7,6 @@ ordinary paths."
             [dynamo.graph :as g]
             [dynamo.property :as dp]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]
             [editor.core :as core]
             [editor.workspace :as workspace]
             [editor.handler :as handler]

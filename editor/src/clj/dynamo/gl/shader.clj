@@ -88,7 +88,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [dynamo.gl :as gl]
             [dynamo.geom :as g]
             [dynamo.types :as t]
-            [dynamo.gl.protocols :refer :all])
+            [dynamo.gl.protocols :refer [GlBind GlEnable]])
   (:import [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2 GLContext]
            [javax.vecmath Matrix4d Vector4f Point3d]))
@@ -413,4 +413,3 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (make-shader
     (slurp (t/replace-extension sdef "vp"))
     (slurp (t/replace-extension sdef "fp"))))
-

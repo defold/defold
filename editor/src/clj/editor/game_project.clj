@@ -1,10 +1,8 @@
 (ns editor.game-project
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
-            [dynamo.buffers :refer :all]
             [dynamo.graph :as g]
-            [dynamo.types :as t :refer :all]
-            [dynamo.ui :refer :all]
+            [dynamo.types :as t]
             [editor.project :as project]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc  GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc$Builder]

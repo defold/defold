@@ -1,6 +1,5 @@
 (ns editor.atlas
   (:require [clojure.string :as str]
-            [dynamo.buffers :refer :all]
             [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
@@ -8,11 +7,9 @@
             [dynamo.gl.texture :as texture]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.image :refer :all]
             [dynamo.property :as dp]
             [dynamo.texture :as tex]
-            [dynamo.types :as t :refer :all]
-            [dynamo.ui :refer :all]
+            [dynamo.types :as t :refer [map->Animation AnimationPlayback ->Animation]]
             [editor.project :as project]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])

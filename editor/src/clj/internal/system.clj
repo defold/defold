@@ -1,7 +1,7 @@
 (ns internal.system
   (:require [clojure.core.async :as a]
             [dynamo.util :as util]
-            [dynamo.util :refer :all]
+            [dynamo.util :refer [map-vals]]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
