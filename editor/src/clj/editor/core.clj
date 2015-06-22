@@ -27,9 +27,9 @@
   (into #{}
      (filter compatible?
         (for [in-node   in-nodes
-              in-label  (g/injectable-inputs in-node)
+              in-label  (-> in-node g/node-type g/injectable-inputs)
               out-node  out-nodes
-              out-label (keys (g/transform-types out-node))]
+              out-label (keys (-> out-node g/node-type g/transform-types))]
             [out-node out-label in-node in-label]))))
 
 (defn inject-new-nodes

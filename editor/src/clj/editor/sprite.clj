@@ -200,7 +200,7 @@
 
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
-    (let [outputs (g/outputs atlas-node)]
+    (let [outputs (-> atlas-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:textureset :gpu-texture])
         [(g/connect atlas-node :textureset self :textureset)
         (g/connect atlas-node :gpu-texture self :gpu-texture)]

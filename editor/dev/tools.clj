@@ -71,7 +71,7 @@
 
 (defn all-outputs
   ([node-id]
-   (map #(outputs-from node-id %) (-> (node node-id) g/outputs)))
+   (map #(outputs-from node-id %) (-> (node node-id) g/node-type g/output-labels)))
   ([gid nid]
    (all-outputs (gt/make-node-id gid nid))))
 
