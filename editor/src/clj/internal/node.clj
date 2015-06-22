@@ -62,7 +62,7 @@
 
 (defn- gather-property
   [self kwargs prop]
-  (let [type              (-> self gt/properties prop)
+  (let [type              (-> self gt/node-type gt/properties prop)
         value             (get self prop)
         problems          (t/property-validate type value)
         enabled?          (property-enabled? type kwargs)
@@ -80,7 +80,7 @@
   [kwargs]
   (let [self           (:self kwargs)
         kwargs         (dissoc kwargs :self)
-        property-names (-> self gt/properties keys)]
+        property-names (-> self gt/node-type gt/properties keys)]
     (zipmap property-names (map (partial gather-property self kwargs) property-names))))
 
 ;; ---------------------------------------------------------------------------
@@ -95,16 +95,16 @@
   (protocols             [_] protocols)
   (method-impls          [_] method-impls)
   (triggers              [_] triggers)
-  (transforms'           [_] transforms)
-  (transform-types'      [_] transform-types)
-  (properties'           [_] properties)
-  (inputs'               [_] inputs)
-  (injectable-inputs'    [_] injectable-inputs)
-  (outputs'              [_] (set (keys transforms)))
-  (cached-outputs'       [_] cached-outputs)
-  (event-handlers'       [_] event-handlers)
-  (input-dependencies'   [_] input-dependencies)
-  (substitute-for'       [_ input] (get substitutes input))
+  (transforms            [_] transforms)
+  (transform-types       [_] transform-types)
+  (properties            [_] properties)
+  (inputs                [_] inputs)
+  (injectable-inputs     [_] injectable-inputs)
+  (outputs               [_] (set (keys transforms)))
+  (cached-outputs        [_] cached-outputs)
+  (event-handlers        [_] event-handlers)
+  (input-dependencies    [_] input-dependencies)
+  (substitute-for        [_ input] (get substitutes input))
   (input-type            [_ input] (get inputs input))
   (input-cardinality     [_ input] (get cardinalities input))
   (output-type           [_ output] (get transform-types output))
@@ -191,13 +191,13 @@
   not called directly."
   [description]
   (-> description
-      (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/inputs'))
-      (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs'))
-      (update-in [:properties]            combine-with merge      {} (from-supertypes description gt/properties'))
-      (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms'))
-      (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types'))
-      (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs'))
-      (update-in [:event-handlers]        combine-with set/union #{} (from-supertypes description gt/event-handlers'))
+      (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/inputs))
+      (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
+      (update-in [:properties]            combine-with merge      {} (from-supertypes description gt/properties))
+      (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
+      (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
+      (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs))
+      (update-in [:event-handlers]        combine-with set/union #{} (from-supertypes description gt/event-handlers))
       (update-in [:interfaces]            combine-with set/union #{} (from-supertypes description gt/interfaces))
       (update-in [:protocols]             combine-with set/union #{} (from-supertypes description gt/protocols))
       (update-in [:method-impls]          combine-with merge      {} (from-supertypes description gt/method-impls))
@@ -427,7 +427,7 @@
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (map-vals t/property-default-value (gt/properties' node-type)))
+  (map-vals t/property-default-value (gt/properties node-type)))
 
 (defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
 (defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
@@ -498,19 +498,19 @@
 
 (defn- lookup-multivalued-input
   [node-type-name node-type input]
-  (if (gt/substitute-for' node-type input)
+  (if (gt/substitute-for node-type input)
     `(let [inputs# ~(input-value-forms input)
-           sub#     (gt/substitute-for' ~node-type-name ~input)]
+           sub#     (gt/substitute-for ~node-type-name ~input)]
        (map #(if (gt/error? %) (apply-if-fn sub#) %) inputs#))
     (input-value-forms input)))
 
 (defn- lookup-singlevalued-input
   [node-type-name node-type input]
-  (if (gt/substitute-for' node-type input)
+  (if (gt/substitute-for node-type input)
     `(let [inputs#     ~(input-value-forms input)
            no-input?#  (empty? inputs#)
            input#      (first inputs#)
-           sub#        (gt/substitute-for' ~node-type-name ~input)]
+           sub#        (gt/substitute-for ~node-type-name ~input)]
        (if (or no-input?# (gt/error? input#))
          (apply-if-fn sub#)
          input#))
@@ -558,7 +558,7 @@
        (let [~'error (gt/error validation-error# (gt/node-id ~'this) ~transform)]
          (warn (gt/node-id ~'this) ~node-type-name ~transform schema# validation-error#)
          ~(if output-multi? `[~'error] 'error))
-       (let [~'result ((~transform (gt/transforms' ~node-type-name)) pfn-input#)]
+       (let [~'result ((~transform (gt/transforms ~node-type-name)) pfn-input#)]
          ~epilogue
          ~'result))))
 
@@ -571,10 +571,10 @@
 
 (defn node-output-value-function-forms
   [record-name node-type-name node-type]
-  (for [[transform pfn]       (gt/transforms' node-type)
+  (for [[transform pfn]       (gt/transforms node-type)
         :let [property-passthrough? (gt/property-passthrough? node-type transform)
-              cached?               ((gt/cached-outputs' node-type) transform)
-              output-multi?         (seq? ((gt/transform-types' node-type) transform))
+              cached?               ((gt/cached-outputs node-type) transform)
+              output-multi?         (seq? ((gt/transform-types node-type) transform))
               argument-schema       (collect-argument-schema transform (pf/input-schema pfn) record-name node-type)
               argument-forms        (zipmap (keys argument-schema)
                                             (map (partial node-input-forms transform node-type-name node-type) argument-schema))
@@ -602,7 +602,7 @@
 
 (defn node-input-value-function-forms
   [record-name node-type-name node-type]
-  (for [[input input-schema] (gt/inputs' node-type)]
+  (for [[input input-schema] (gt/inputs node-type)]
     `(defn ~(dollar-name node-type-name input) [~'this ~'evaluation-context]
        ~(input-lookup-forms node-type-name node-type input))))
 
@@ -616,8 +616,8 @@
 (defn node-value-function-names
   [node-type-name node-type]
   (map (partial dollar-name node-type-name)
-       (concat (keys (gt/transforms' node-type))
-               (keys (gt/inputs' node-type)))))
+       (concat (keys (gt/transforms node-type))
+               (keys (gt/inputs node-type)))))
 
 (defn declare-node-value-function-names
   [node-type-name node-type]
@@ -627,16 +627,16 @@
 
 (defn- state-vector
   [node-type]
-  (conj (mapv (comp symbol name) (keys (gt/properties' node-type))) '_id ))
+  (conj (mapv (comp symbol name) (keys (gt/properties node-type))) '_id ))
 
 (defn- message-processor
   [node-type-name node-type]
-  (when (not-empty (gt/event-handlers' node-type))
+  (when (not-empty (gt/event-handlers node-type))
     `[gt/MessageTarget
       (gt/process-one-event
        [~'self ~'event]
        (case (:type ~'event)
-         ~@(mapcat (fn [e] [e `((get (gt/event-handlers' ~node-type-name) ~e) ~'self ~'event)]) (keys (gt/event-handlers' node-type)))
+         ~@(mapcat (fn [e] [e `((get (gt/event-handlers ~node-type-name) ~e) ~'self ~'event)]) (keys (gt/event-handlers node-type)))
          nil))]))
 
 
@@ -648,24 +648,14 @@
   [record-name node-type-name node-type]
   `(defrecord ~record-name ~(state-vector node-type)
      gt/Node
-     (node-id             [this#]    (:_id this#))
-     (node-type           [_]        ~node-type-name)
-     (inputs              [_]        (set (keys (gt/inputs' ~node-type-name))))
-     (input-types         [_]        (gt/inputs' ~node-type-name))
-     (injectable-inputs   [_]        (gt/injectable-inputs' ~node-type-name))
-     (outputs             [_]        (gt/outputs' ~node-type-name))
-     (transforms          [_]        (gt/transforms' ~node-type-name))
-     (transform-types     [_]        (gt/transform-types' ~node-type-name))
-     (cached-outputs      [_]        (gt/cached-outputs' ~node-type-name))
-     (properties          [_]        (gt/properties' ~node-type-name))
-     (input-dependencies  [_]        (gt/input-dependencies' ~node-type-name))
-     (substitute-for      [_ input#] (gt/substitute-for' ~node-type-name input#))
-     (produce-value       [~'this label# ~'evaluation-context]
+     (node-id        [this#]    (:_id this#))
+     (node-type      [_]        ~node-type-name)
+     (produce-value  [~'this label# ~'evaluation-context]
        (case label#
          ~@(mapcat (fn [an-output] [an-output (list (dollar-name node-type-name an-output) 'this 'evaluation-context)])
-                   (keys (gt/transforms' node-type)))
+                   (keys (gt/transforms node-type)))
          ~@(mapcat (fn [an-input]  [an-input  (list (dollar-name node-type-name an-input) 'this 'evaluation-context)])
-                   (subtract-keys (gt/inputs' node-type) (gt/transforms' node-type)))
+                   (subtract-keys (gt/inputs node-type) (gt/transforms node-type)))
          (throw (ex-info (str "No such output, input, or property " label# " exists for node type " (:name ~node-type-name))
                          {:label label# :node-type ~node-type-name}))))
      ~@(gt/interfaces node-type)
@@ -694,7 +684,7 @@
         (str "#" '~node-type-name "{" (:_id ~node)
              ~@(interpose-every 3 ", "
                                 (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))])
-                                        (keys (gt/properties' node-type))))
+                                        (keys (gt/properties node-type))))
              "}")))))
 
 (defn define-print-method

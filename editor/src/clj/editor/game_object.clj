@@ -117,7 +117,7 @@
   (output scene t/Any :cached produce-scene))
 
 (defn- connect-if-output [out-node out-label in-node in-label]
-  (if ((g/outputs out-node) out-label)
+  (if ((-> out-node g/node-type g/output-labels) out-label)
     (g/connect out-node out-label in-node in-label)
     []))
 

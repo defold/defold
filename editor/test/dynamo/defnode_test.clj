@@ -16,18 +16,18 @@
     (let [super-type (in/make-node-type {:inputs {:an-input t/Str}})
           node-type  (in/make-node-type {:supertypes [super-type]})]
       (is (= [super-type] (g/supertypes node-type)))
-      (is (= {:an-input t/Str} (g/inputs' node-type)))))
+      (is (= {:an-input t/Str} (g/inputs node-type)))))
   (testing "supports multiple inheritance"
     (let [super-type (in/make-node-type {:inputs {:an-input t/Str}})
           mixin-type (in/make-node-type {:inputs {:mixin-input t/Str}})
           node-type  (in/make-node-type {:supertypes [super-type mixin-type]})]
       (is (= [super-type mixin-type] (g/supertypes node-type)))
-      (is (= {:an-input t/Str :mixin-input t/Str} (g/inputs' node-type)))))
+      (is (= {:an-input t/Str :mixin-input t/Str} (g/inputs node-type)))))
   (testing "supports inheritance hierarchy"
     (let [grandparent-type (in/make-node-type {:inputs {:grandparent-input t/Str}})
           parent-type      (in/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input t/Str}})
           node-type        (in/make-node-type {:supertypes [parent-type]})]
-      (is (= {:parent-input t/Str :grandparent-input t/Str} (g/inputs' node-type))))))
+      (is (= {:parent-input t/Str :grandparent-input t/Str} (g/inputs node-type))))))
 
 (g/defnode BasicNode)
 
@@ -84,25 +84,21 @@
                  (eval '(dynamo.graph/defnode BadInput (input a-input (fn [] "not a schema")))))))
   (testing "labeled input"
     (let [node (g/construct OneInputNode)]
-      (is (:an-input (g/inputs' OneInputNode)))
-      (is (= t/Str (:an-input (g/input-types node))))
-      (is (:an-input (g/inputs node)))))
+      (is (:an-input (g/inputs OneInputNode)))
+      (is (= t/Str (g/input-type OneInputNode :an-input)))
+      (is (= t/Str (-> OneInputNode g/inputs (get :an-input))))))
   (testing "inherited input"
     (let [node (g/construct InheritedInputNode)]
-      (is (:an-input (g/inputs' InheritedInputNode)))
-      (is (= t/Str (:an-input (g/input-types node))))
-      (is (:an-input (g/inputs node)))))
+      (is (:an-input (g/inputs InheritedInputNode)))
+      (is (= t/Str (g/input-type InheritedInputNode :an-input)))
+      (is (= t/Str (-> InheritedInputNode g/inputs (get :an-input))))))
   (testing "inputs can be flagged for injection"
     (let [node (g/construct InjectableInputNode)]
-      (is (:for-injection (g/injectable-inputs' InjectableInputNode)))))
+      (is (:for-injection (g/injectable-inputs InjectableInputNode)))))
   (testing "inputs can have substitute values to use when there is no source"
-    (is (= substitute-value-fn   (g/substitute-for' SubstitutingInputNode :substitute-fn)))
-    (is (= #'substitute-value-fn (g/substitute-for' SubstitutingInputNode :var-to-fn)))
-    (is (= "inline literal"      (g/substitute-for' SubstitutingInputNode :inline-literal)))
-    (let [node (g/construct SubstitutingInputNode)]
-      (is (= substitute-value-fn   (g/substitute-for node :substitute-fn)))
-      (is (= #'substitute-value-fn (g/substitute-for node :var-to-fn)))
-      (is (= "inline literal"      (g/substitute-for node :inline-literal)))))
+    (is (= substitute-value-fn   (g/substitute-for SubstitutingInputNode :substitute-fn)))
+    (is (= #'substitute-value-fn (g/substitute-for SubstitutingInputNode :var-to-fn)))
+    (is (= "inline literal"      (g/substitute-for SubstitutingInputNode :inline-literal))))
 
   (testing "the default cardinality is :one"
     (is (= :one (g/input-cardinality CardinalityInputNode :single-scalar-value)))
@@ -219,15 +215,14 @@
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode)]
-      (is (:a-property (g/properties' SinglePropertyNode)))
-      (is (:a-property (g/properties node)))
+      (is (:a-property (g/property-labels SinglePropertyNode)))
+      (is (:a-property (-> node g/node-type g/property-labels)))
       (is (some #{:a-property} (keys node)))))
 
   (testing "two properties"
     (let [node (g/construct TwoPropertyNode)]
-      (is (:a-property       (g/properties' TwoPropertyNode)))
-      (is (:another-property (g/properties node)))
-      (is (:a-property       (g/properties node)))
+      (is (contains? (g/property-labels TwoPropertyNode) :a-property))
+      (is (contains? (g/property-labels TwoPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
 
@@ -237,9 +232,8 @@
 
   (testing "properties are inherited"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (:a-property       (g/properties' InheritedPropertyNode)))
-      (is (:another-property (g/properties node)))
-      (is (:a-property       (g/properties node)))
+      (is (contains? (g/property-labels InheritedPropertyNode) :a-property))
+      (is (contains? (g/property-labels InheritedPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
 
@@ -252,7 +246,7 @@
     (let [node (g/construct InheritedPropertyNode)]
       (is (= {:another-property #{:properties :another-property :self}
               :a-property       #{:properties :a-property :self}}
-             (g/input-dependencies node)))))
+             (-> node g/node-type g/input-dependencies)))))
 
   (testing "do not allow a property to shadow an input of the same name"
     (is (thrown? AssertionError
@@ -264,7 +258,7 @@
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
       (is (= {:foo #{:properties}
               :a-property #{:properties :a-property :self}}
-             (g/input-dependencies node)))))
+             (-> node g/node-type g/input-dependencies)))))
 
   (testing "properties are named by symbols"
     (is (thrown? Compiler$CompilerException
@@ -285,10 +279,10 @@
   (input integer-input t/Int)
   (input string-input t/Str)
 
-  (output string-output         t/Str                                                 string-production-fnk)
-  (output integer-output        t/Int                                                 integer-production-fnk)
-  (output cached-output         t/Str           :cached                               string-production-fnk)
-  (output inline-string         t/Str                                                 (g/fnk [string-input] "inline-string")))
+  (output string-output  t/Str         string-production-fnk)
+  (output integer-output t/Int         integer-production-fnk)
+  (output cached-output  t/Str :cached string-production-fnk)
+  (output inline-string  t/Str         (g/fnk [string-input] "inline-string")))
 
 (g/defnode AbstractOutputNode
   (output abstract-output t/Str :abstract))
@@ -321,47 +315,40 @@
   (testing "basic output definition"
     (let [node (g/construct MultipleOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string]]
-        (is (get (g/outputs' MultipleOutputNode) expected-output))
-        (is (get (g/outputs  node)               expected-output)))
+        (is (get (g/output-labels MultipleOutputNode) expected-output)))
       (doseq [[label expected-schema] {:string-output t/Str
                                        :integer-output t/Int
                                        :cached-output t/Str
                                        :inline-string t/Str}]
-        (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
-      (is (:cached-output (g/cached-outputs' MultipleOutputNode)))
-      (is (:cached-output (g/cached-outputs node)))))
+        (is (= expected-schema (-> MultipleOutputNode g/transform-types (get label)))))
+      (is (:cached-output (g/cached-outputs MultipleOutputNode)))))
 
   (testing "output inheritance"
     (let [node (g/construct InheritedOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :abstract-output]]
-        (is (get (g/outputs' InheritedOutputNode) expected-output))
-        (is (get (g/outputs  node)               expected-output)))
+        (is (get (g/output-labels InheritedOutputNode) expected-output)))
       (doseq [[label expected-schema] {:string-output t/Str
                                        :integer-output t/Int
                                        :cached-output t/Str
                                        :inline-string t/Str
                                        :abstract-output t/Str}]
-        (is (= expected-schema (get-in InheritedOutputNode [:transform-types label]))))
-      (is (:cached-output (g/cached-outputs' InheritedOutputNode)))
-      (is (:cached-output (g/cached-outputs node)))))
+        (is (= expected-schema (-> InheritedOutputNode g/transform-types (get label)))))
+      (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
 
   (testing "output dependencies include transforms and their inputs"
-    (let [node (g/construct MultipleOutputNode)]
-      (is (= {:project #{:integer-output}
-              :string-input #{:inline-string}
-              :integer-input #{:string-output :cached-output}}
-             (g/input-dependencies node))))
-    (let [node (g/construct InheritedOutputNode)]
-      (is (= {:project #{:integer-output}
-              :string-input #{:inline-string}
-              :integer-input #{:string-output :abstract-output :cached-output}}
-             (g/input-dependencies node)))))
+    (is (= {:project #{:integer-output}
+            :string-input #{:inline-string}
+            :integer-input #{:string-output :cached-output}}
+           (g/input-dependencies MultipleOutputNode)))
+    (is (= {:project #{:integer-output}
+            :string-input #{:inline-string}
+            :integer-input #{:string-output :abstract-output :cached-output}}
+           (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
-    (let [node (g/construct TwoLayerDependencyNode)]
-      (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property :self}
-              :direct-calculation #{:indirect-calculation}}
-             (g/input-dependencies node)))))
+    (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property :self}
+            :direct-calculation #{:indirect-calculation}}
+           (g/input-dependencies TwoLayerDependencyNode))))
 
   (testing "outputs defined without the type cause a compile error"
     (is (not (nil? (eval '(dynamo.graph/defnode FooNode
@@ -403,7 +390,7 @@
   (with-clean-system
     (testing "nodes with event handlers implement MessageTarget"
       (let [[node] (tx-nodes (g/make-node world OneEventNode))]
-        (is (:an-event (g/event-handlers' OneEventNode)))
+        (is (:an-event (g/event-handlers OneEventNode)))
         (is (satisfies? g/MessageTarget node))
         (is (= :ok (g/dispatch-message (g/now) node :an-event)))))
     (testing "nodes without event handlers do not implement MessageTarget"
@@ -411,7 +398,7 @@
         (is (not (satisfies? g/MessageTarget node)))))
     (testing "nodes can inherit handlers from their supertypes"
       (let [[node] (tx-nodes (g/make-node world InheritedEventNode))]
-        (is ((every-pred :an-event :mixin-event :another-event) (g/event-handlers' InheritedEventNode)))
+        (is ((every-pred :an-event :mixin-event :another-event) (g/event-handlers InheritedEventNode)))
         (is (= :ok         (g/dispatch-message (g/now) node :an-event)))
         (is (= :mixin-ok   (g/dispatch-message (g/now) node :mixin-event)))
         (is (= :another-ok (g/dispatch-message (g/now) node :another-event)))))))

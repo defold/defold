@@ -6,8 +6,10 @@
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [dynamo.types :as t]
             [internal.graph :as ig]
-            [internal.graph.types :as gt])
+            [internal.graph.types :as gt]
+            [internal.node :as in])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
 (def min-node-count 80)
@@ -23,13 +25,24 @@
 (defn- next-node-id [] (swap! id-counter inc))
 (defn- reset-node-id [] (reset! id-counter 0))
 
-(defrecord FakeNode [_id ins outs]
-  gt/Node
-  (node-id [this] _id)
-  (inputs  [this] ins)
-  (outputs [this] outs))
+(g/defnode FakeNode
+  (input t t/Any :array)
+  (input u t/Any :array)
+  (input v t/Any :array)
+  (input w t/Any :array)
+  (input x t/Any :array)
+  (input y t/Any :array)
+  (input z t/Any :array)
 
-(defn node [ins outs] (FakeNode. nil ins outs))
+  (output t t/Any (g/fnk [t u v w x y z] (list t u v w x y z)))
+  (output u t/Any (g/fnk [u v w x y z]   (list u v w x y z)))
+  (output v t/Any (g/fnk [v w x y z]     (list v w x y z)))
+  (output w t/Any (g/fnk [w x y z]       (list w x y z)))
+  (output x t/Any (g/fnk [x y z]         (list x y z)))
+  (output y t/Any (g/fnk [y z]           (list y z)))
+  (output z t/Any (g/fnk [z]             (list z))))
+
+(defn node [ins outs] (g/construct FakeNode))
 
 (defn pair
   [m n]
@@ -43,7 +56,7 @@
 
 (defn gen-arcs
   [nodes]
-  (pair (map-nodes gt/outputs nodes) (map-nodes gt/inputs nodes)))
+  (pair (map-nodes #(-> % gt/node-type gt/output-labels) nodes) (map-nodes #(-> % gt/node-type gt/input-labels) nodes)))
 
 (def gen-label
   (gen/not-empty
