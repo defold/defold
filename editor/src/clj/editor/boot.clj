@@ -60,7 +60,6 @@
   core/ICreate
   (post-create
    [this basis event]
-   (println "CurveEditor/post-create. body " event)
    (let [btn (Button.)]
      (ui/text! btn "Curve Editor WIP!")
      (.add (.getChildren ^VBox (:parent event)) btn)))
