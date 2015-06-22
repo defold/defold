@@ -43,12 +43,7 @@
 
 (defn node? [v] (satisfies? Node v))
 
-(defprotocol MessageTarget
-  (process-one-event [this event]))
-
-(defn message-target? [v] (satisfies? MessageTarget v))
-
-(defprotocol IBasis
+0(defprotocol IBasis
   (node-by-property [this label value])
   (arcs-by-head     [this node-id])
   (arcs-by-tail     [this node-id])
