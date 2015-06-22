@@ -16,7 +16,7 @@
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels MessageTarget process-one-event error? error])
+(import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
 
 (import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
 
@@ -263,22 +263,11 @@
   actions or automatic counters. So they will only cascade until the
   limit `internal.transaction/maximum-retrigger-count` is reached.
 
-  (on _message_type_ _form_)
-
-  The form will be evaluated inside a transactional body. This means
-  that it can use the special clauses to create nodes, change
-  connections, update properties, and so on.
-
-  A node definition allows any number of 'on' clauses.
-
-  A node may also implement protocols or interfaces, using a syntax
+    A node may also implement protocols or interfaces, using a syntax
   identical to `deftype` or `defrecord`. A node may implement any
   number of such protocols.
 
-  Every node always implements dynamo.types/Node.
-
-  If there are any event handlers defined for the node type, then it
-  will also implement MessageTarget."
+  Every node always implements dynamo.types/Node."
   [symb & body]
   (let [[symb forms] (ctm/name-with-attributes symb body)
         record-name  (in/classname-for symb)
