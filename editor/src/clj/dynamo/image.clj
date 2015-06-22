@@ -1,9 +1,9 @@
 (ns dynamo.image
   (:require [clojure.java.io :as io]
-            [dynamo.geom :refer [clamper]]
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.core :as core]
+            [editor.geom :refer [clamper]]
             [schema.core :as s])
   (:import [dynamo.types Rect Image]
            [java.awt Color]

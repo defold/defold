@@ -1,8 +1,8 @@
 (ns editor.camera
-  (:require [dynamo.geom :as geom]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [editor.geom :as geom]
             [editor.math :as math]
             [schema.core :as s])
   (:import [dynamo.types Camera Region AABB]

@@ -3,7 +3,7 @@
             [editor.camera :as camera]
             [editor.math :as math]
             [dynamo.types :as t]
-            [dynamo.geom :as geom])
+            [editor.geom :as geom])
   (:import [dynamo.types Camera Region AABB]
            [javax.vecmath Point3d]
            [javax.vecmath SingularMatrixException]))

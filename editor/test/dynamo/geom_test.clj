@@ -1,10 +1,10 @@
 (ns dynamo.geom-test
-  (:require [dynamo.geom :refer :all]
-            [dynamo.types :refer :all]
+  (:require [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
+            [dynamo.types :refer :all]
+            [editor.geom :refer :all]
             [schema.test])
   (:import [com.defold.util Geometry]
            [javax.vecmath Point3d]))
