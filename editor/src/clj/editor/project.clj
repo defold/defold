@@ -259,3 +259,42 @@ ordinary paths."
                      [project [Project :workspace workspace :build-cache (atom {}) :fs-build-cache (atom {})]]
                      (g/connect workspace :resource-list project :resources)
                      (g/connect workspace :resource-types project :resource-types))))))
+
+;;; Support for copy&paste, drag&drop
+(def resource? (partial g/node-instance? ResourceNode))
+
+(defrecord ResourceReference [path label])
+
+(defn make-reference [node label] (ResourceReference. (workspace/proj-path (:resource node)) label))
+
+(defn resolve-reference [workspace project reference]
+  (let [resource      (workspace/resolve-resource project (:path reference))
+        resource-node (get-resource-node project resource)]
+    [(g/node-id resource-node) (:label reference)]))
+
+(defn copy
+  "Copy a fragment of the project graph. This returns a 'fragment' that
+   can be pasted back into the graph elsewhere. The fragment will include
+   the root nodes passed in as arguments, along with all their inputs.
+
+   Collecting the inputs stops when it reaches a resource node. Those are
+   replaced with references. When the fragment is pasted, the copies will
+   use the same resource nodes, rather than copying files."
+  [root-ids]
+  (g/copy root-ids {:continue? (comp not resource?)
+                    :write-handlers {ResourceNode make-reference}}))
+
+(defn paste
+  "Paste a fragment into the project graph. This returns a map with two keys:
+   - :root-node-ids - Contains a list of the new node IDs for the roots of the fragment.
+   - :tx-data - Transaction steps that will ultimately build the fragment.
+
+   When this call returns, it has only created the :tx-data for you. You still need
+   to wrap it in a call to dynamo.graph/transact.
+
+   This allows you to do things like:
+   (g/transact
+     [(g/operation-label \"paste sprite\")
+  (:tx-data (g/paste fragment))])"
+  [workspace project fragment]
+  (g/paste (g/node-id->graph-id (g/node-id project)) fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}}))

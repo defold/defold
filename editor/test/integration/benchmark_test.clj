@@ -39,13 +39,10 @@
                   go-node-output (first (g/sources-of node :child-scenes))
                   renderer       (g/graph-value (g/node->graph-id view) :renderer)]
               (doseq [i (range jit-retry-count)]
-                (println "Invalidate")
-                #_(time (g/transact (g/set-property (first go-node-output) :position [0 0 0])))
-                (time (g/invalidate! [[(g/node-id (first go-node-output)) (second go-node-output)]]))
-                (println "produce scene")
-                (time (g/node-value node :scene))
-                (println "Scene->renderables")
-                (time (g/node-value renderer :renderables)))))))
+                #_(g/transact (g/set-property (first go-node-output) :position [0 0 0]))
+                (g/invalidate! [[(g/node-id (first go-node-output)) (second go-node-output)]])
+                (g/node-value node :scene)
+                (g/node-value renderer :renderables))))))
 
 (deftest scene->renderables-without-graph
  (testing "Scene converted into renderables, pure conversion"
@@ -63,5 +60,4 @@
                     viewport (g/node-value view :viewport)]
                 (doseq [i (range jit-retry-count)]
                   (System/gc)
-                  (println "Scene->renderables")
-                  (time (scene/produce-render-data scene #{1 2 3} [] camera viewport))))))))
+                  (scene/produce-render-data scene #{1 2 3} [] camera viewport)))))))

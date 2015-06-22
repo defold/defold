@@ -1,7 +1,6 @@
 (ns editor.atlas
   (:require [clojure.string :as str]
             [dynamo.buffers :refer :all]
-            [dynamo.camera :refer :all]
             [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
