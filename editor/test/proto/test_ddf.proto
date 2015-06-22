@@ -1,0 +1,70 @@
+package TestScript;
+
+import "ddf/ddf_math.proto";
+
+option java_package = "com.defold.editor.test";
+
+message Transform
+{
+    required dmMath.Vector3 position = 1;
+    required dmMath.Quat rotation = 2;
+}
+
+message SubMsg
+{
+    required uint32 uint_value = 1;
+}
+
+enum Enum
+{
+    ENUM_VAL0 = 0;
+    ENUM_VAL1 = 1;
+}
+
+message Msg
+{
+    required uint32 uint_value = 1;
+    required int32 int_value = 2;
+    required string string_value = 3;
+    required dmMath.Vector3 vec3_value = 4;
+    required dmMath.Vector4 vec4_value = 5;
+    required dmMath.Quat quat_value = 6;
+    required dmMath.Matrix4 matrix4_value = 7;
+    required SubMsg sub_msg_value = 8;
+    required Enum enum_value = 9;
+    required bool bool_value = 10;
+}
+
+message DefaultValue
+{
+    optional uint32 uint_value = 1 [ default = 10 ];
+    optional string string_value = 2  [ default = "test" ];
+    optional dmMath.Quat quat_value = 3;
+    optional Enum enum_value = 4 [ default = ENUM_VAL1 ];
+    optional bool bool_value = 5 [ default = true ];
+}
+
+message OptionalNoDefaultValue
+{
+    optional uint32 uint_value = 1;
+    optional string string_value = 2;
+    optional Enum enum_value = 3;
+}
+
+message LuaDDFBufferOverflow
+{
+    required uint32 uint_value = 1;
+    required string string_value = 3;
+}
+
+message EmptyMsg {}
+
+message Uint64Msg
+{
+    required uint64 uint64_value = 1;
+}
+
+message RepeatedUints
+{
+    repeated uint32 uint_values = 1;
+}
