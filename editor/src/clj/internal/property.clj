@@ -1,7 +1,7 @@
 (ns internal.property
   (:require [clojure.core.match :refer [match]]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]
+            [dynamo.util :refer [apply-if-fn var-get-recursive]]
             [internal.graph.types :as gt]
             [schema.core :as s]))
 

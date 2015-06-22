@@ -1,5 +1,5 @@
 (ns dynamo.file.protobuf
-  (:require [camel-snake-kebab :refer :all]
+  (:require [camel-snake-kebab :refer [->camelCase ->kebab-case]]
             [clojure.java.io :as io]
             [internal.java :as j])
   (:import [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]

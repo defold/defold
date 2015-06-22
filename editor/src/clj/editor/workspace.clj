@@ -4,8 +4,7 @@ ordinary paths."
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
-            [dynamo.util :refer :all])
+            [dynamo.types :as t])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
