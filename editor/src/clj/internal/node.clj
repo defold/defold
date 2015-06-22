@@ -629,17 +629,6 @@
   [node-type]
   (conj (mapv (comp symbol name) (keys (gt/properties node-type))) '_id ))
 
-(defn- message-processor
-  [node-type-name node-type]
-  (when (not-empty (gt/event-handlers node-type))
-    `[gt/MessageTarget
-      (gt/process-one-event
-       [~'self ~'event]
-       (case (:type ~'event)
-         ~@(mapcat (fn [e] [e `((get (gt/event-handlers ~node-type-name) ~e) ~'self ~'event)]) (keys (gt/event-handlers node-type)))
-         nil))]))
-
-
 (defn- subtract-keys
   [m1 m2]
   (set/difference (set (keys m1)) (set (keys m2))))
@@ -660,8 +649,7 @@
                          {:label label# :node-type ~node-type-name}))))
      ~@(gt/interfaces node-type)
      ~@(gt/protocols node-type)
-     ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type))
-     ~@(message-processor node-type-name node-type)))
+     ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type))))
 
 (defn define-node-record
   "Create a new class for the node type. This builds a defrecord with
