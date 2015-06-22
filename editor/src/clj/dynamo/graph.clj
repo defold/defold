@@ -102,10 +102,6 @@
       (dosync
        (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
        (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result)))
-      (doseq [l (:old-event-loops tx-result)]
-        (is/stop-event-loop! @*the-system* l))
-      (doseq [l (:new-event-loops tx-result)]
-        (is/start-event-loop! @*the-system* l))
       (doseq [d (vals (:nodes-deleted tx-result))]
         (is/dispose! @*the-system* d)))
     tx-result))
