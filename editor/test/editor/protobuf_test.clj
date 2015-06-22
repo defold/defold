@@ -1,6 +1,6 @@
-(ns dynamo.file.protobuf-test
+(ns editor.protobuf-test
   (:require [clojure.test :refer :all]
-            [dynamo.file.protobuf :as protobuf])
+            [editor.protobuf :as protobuf])
   (:import [TestScript TestDdf TestDdf$Msg TestDdf$SubMsg TestDdf$Transform]
            [javax.vecmath Point3d Vector3d]))
 
@@ -35,5 +35,3 @@
     (is (= 2 (.getIntValue msg)))
     (is (= "three" (.getStringValue msg)))
     (is (= m new-m))))
-
-(types)

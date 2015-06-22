@@ -1,4 +1,4 @@
-(ns dynamo.file.protobuf
+(ns editor.protobuf
   (:require [camel-snake-kebab :refer :all]
             [clojure.java.io :as io]
             [clojure.string :as s]
