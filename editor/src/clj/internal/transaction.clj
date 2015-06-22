@@ -191,10 +191,7 @@
                                            (-> new-node gt/node-type gt/output-labels))
           ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
 
-          [basis-after _]  (gt/replace-node basis node-id new-node)
-
-          start-loop       (and      (gt/message-target? new-node)  (not (gt/message-target? old-node)))
-          end-loop         (and (not (gt/message-target? new-node))      (gt/message-target? old-node))]
+          [basis-after _]  (gt/replace-node basis node-id new-node)]
       (assoc (activate-all-outputs ctx node-id new-node)
              :basis           basis-after))
     ctx))
