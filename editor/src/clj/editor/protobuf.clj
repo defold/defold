@@ -170,7 +170,9 @@ placed into the protocol buffer."
  (let [java-type (.getJavaType desc)]
    (cond
      (= java-type (Descriptors$FieldDescriptor$JavaType/INT)) Integer/TYPE
+     (= java-type (Descriptors$FieldDescriptor$JavaType/LONG)) Long/TYPE
      (= java-type (Descriptors$FieldDescriptor$JavaType/FLOAT)) Float/TYPE
+     (= java-type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) Double/TYPE
      (= java-type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) Boolean/TYPE
      (= java-type (Descriptors$FieldDescriptor$JavaType/STRING)) String
      :else (type val))))
@@ -224,7 +226,9 @@ placed into the protocol buffer."
   (let [type (.getJavaType desc)]
     (cond
       (= type (Descriptors$FieldDescriptor$JavaType/INT)) (int val)
+      (= type (Descriptors$FieldDescriptor$JavaType/LONG)) (long val)
       (= type (Descriptors$FieldDescriptor$JavaType/FLOAT)) (float val)
+      (= type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) (double val)
       (= type (Descriptors$FieldDescriptor$JavaType/STRING)) (str val)
       (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (boolean val)
       (= type (Descriptors$FieldDescriptor$JavaType/ENUM)) (kw->enum desc val)
