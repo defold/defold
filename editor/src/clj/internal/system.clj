@@ -224,22 +224,6 @@
          :subscribe-to   subch}
         (attach-graph initial-graph))))
 
-(defn start-event-loop!
-  [sys id]
-  (let [in (subscribe sys id)]
-    (a/go-loop []
-      (when-let [msg (a/<! in)]
-        (when (not= ::stop-event-loop (:type msg))
-          (when-let [n ()]
-            (log/logging-exceptions
-             (str "Node " id "event loop")
-             (gt/process-one-event n msg))
-            (recur)))))))
-
-(defn stop-event-loop!
-  [sys {:keys [_id]}]
-  (publish sys (address-to _id {:type ::stop-event-loop})))
-
 (defn dispose!
   [sys node]
   (a/>!! (disposal-queue sys) node))
