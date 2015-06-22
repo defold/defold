@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
             [dynamo.buffers :refer :all]
-            [dynamo.camera :refer :all]
             [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.graph :as g]

@@ -11,13 +11,14 @@
             [internal.transaction :as it]
             [plumbing.core :as pc]
             [plumbing.fnk.pfnk :as pf]
-            [potemkin.namespaces :refer [import-vars]]))
+            [potemkin.namespaces :refer [import-vars]])
+  (:import [internal.graph.types Arc]))
 
 (import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
 (import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
 
-(import-vars [internal.graph type-compatible?])
+(import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
@@ -521,6 +522,108 @@
    (invalidate! (now) outputs))
   ([basis outputs]
    (c/cache-invalidate (cache) (dependencies basis outputs))))
+
+(defn node-instance?
+  "Returns true if the node is a member of a given type, including
+   supertypes."
+  [type node]
+  (let [node-type  (node-type node)
+        supertypes (supertypes node-type)
+        all-types  (into #{node-type} supertypes)]
+    (all-types type)))
+
+
+;; ---------------------------------------------------------------------------
+;; Support for serialization, copy & paste, and drag & drop
+;; ---------------------------------------------------------------------------
+(defrecord Endpoint [node-id label])
+
+(defn- all-sources [basis node-id]
+  (gt/arcs-by-tail basis node-id))
+
+(defn- in-same-graph? [gid nid]
+  (= gid (node-id->graph-id nid)))
+
+(defn- predecessors [basis ^Arc arc]
+  (let [sid (.source arc)
+        gid (node-id->graph-id sid)
+        all-arcs (mapcat #(all-sources basis (.target ^Arc %)) (gt/arcs-by-tail basis sid))]
+    (filterv #(in-same-graph? gid (.source ^Arc %)) all-arcs)))
+
+(defn input-traverse [basis pred root-ids]
+  (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
+
+(defn serialize-node [node]
+  (let [all-node-properties    (select-keys node (keys (gt/properties node)))
+        properties-without-fns (filterm (comp not fn? val) all-node-properties)]
+    {:serial-id (gt/node-id node)
+     :node-type (gt/node-type node)
+     :properties properties-without-fns}))
+
+(defn- default-write-handler [node label]
+  (Endpoint. (gt/node-id node) label))
+
+(defn- default-read-handler [id-dictionary endpoint]
+  [(get id-dictionary (:node-id endpoint)) (:label endpoint)])
+
+(defn- lookup-handler [handlers node not-found]
+  (let [all-types (conj (supertypes (node-type node)) (node-type node))]
+    (or (some #(get handlers %) all-types) not-found)))
+
+(defn serialize-arc [basis write-handlers arc]
+  (let [[pid plabel]  (gt/head arc)
+        [cid clabel]  (gt/tail arc)
+        pnode         (ig/node-by-id-at basis pid)
+        cnode         (ig/node-by-id-at basis cid)
+        write-handler (lookup-handler write-handlers pnode default-write-handler)]
+   [(write-handler pnode plabel) (default-write-handler cnode clabel)]))
+
+(defn guard [f g]
+  (fn [& args]
+    (when (apply f args)
+      (apply g args))))
+
+(defn guard-arc [f g]
+  (guard
+   (fn [basis ^Arc arc]
+     (f (ig/node-by-id-at basis (.source arc))))
+   g))
+
+(defn copy
+  ([root-ids opts]
+   (copy (now) root-ids opts))
+  ([basis root-ids {:keys [continue? write-handlers] :or {continue? (constantly true)} :as opts}]
+   (let [fragment-arcs     (input-traverse basis (guard-arc continue? predecessors) root-ids)
+         fragment-node-ids (into #{} (concat (map #(.target %) fragment-arcs) (map #(.source %) fragment-arcs)))
+         fragment-nodes    (filter continue? (map #(ig/node-by-id-at basis %) fragment-node-ids))
+         root-nodes        (map #(ig/node-by-id-at basis %) root-ids)]
+     {:roots root-ids
+      :nodes (mapv serialize-node (into #{} (concat root-nodes fragment-nodes)))
+      :arcs  (mapv #(serialize-arc basis write-handlers %) fragment-arcs)})))
+
+(defn- deserialize-node
+  [g {:keys [node-type properties] :as node-spec}]
+  (apply make-node g node-type (mapcat identity properties)))
+
+(defn- deserialize-arc
+  [id-dictionary read-handlers [source target]]
+  (let [read-handler            (get read-handlers (class source) (partial default-read-handler id-dictionary))
+        [real-src-id src-label] (read-handler source)
+        [real-tgt-id tgt-label] (default-read-handler id-dictionary target)]
+    (assert real-src-id (str "Don't know how to resolve " (pr-str source) " to a node. You might need to put a :read-handler on the call to dynamo.graph/paste"))
+    (connect real-src-id src-label real-tgt-id tgt-label)))
+
+(defn paste
+  ([g fragment opts]
+   (paste (now) g fragment opts))
+  ([basis g fragment {:keys [read-handlers] :as opts}]
+   (let [node-txs      (vec (mapcat #(deserialize-node g %) (:nodes fragment)))
+         nodes         (map :node node-txs)
+         id-dictionary (zipmap (map :serial-id (:nodes fragment)) (map #(gt/node-id (:node %)) node-txs))
+         connect-txs   (mapcat #(deserialize-arc id-dictionary read-handlers %) (:arcs fragment))]
+     {:root-node-ids (map #(get id-dictionary %) (:roots fragment))
+      :nodes         nodes
+      :tx-data       (into node-txs connect-txs)})))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade

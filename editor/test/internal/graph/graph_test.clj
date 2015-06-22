@@ -31,20 +31,23 @@
     (is (nil? (ig/node g id)))
     (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 
+(defn targets [g n l] (map gt/tail (filter #(= (.sourceLabel %) l) (get-in g [:sarcs n]))))
+(defn sources [g n l] (map gt/head (filter #(= (.targetLabel %) l) (get-in g [:tarcs n]))))
+
 (defn- source-arcs-without-targets
   [g]
   (for [source                (ig/node-ids g)
         source-label          (gt/outputs (ig/node g source))
-        [target target-label] (ig/targets g source source-label)
-        :when                 (not (some #(= % [source source-label]) (ig/sources g target target-label)))]
+        [target target-label] (targets g source source-label)
+        :when                 (not (some #(= % [source source-label]) (sources g target target-label)))]
     [source source-label]))
 
 (defn- target-arcs-without-sources
   [g]
   (for [target                (ig/node-ids g)
         target-label          (gt/inputs (ig/node g target))
-        [source source-label] (ig/sources g target target-label)
-        :when                 (not (some #(= % [target target-label]) (ig/targets g source source-label)))]
+        [source source-label] (sources g target target-label)
+        :when                 (not (some #(= % [target target-label]) (targets g source source-label)))]
     [target target-label]))
 
 (defn- arcs-are-reflexive?

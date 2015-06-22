@@ -56,8 +56,10 @@
 
 (defprotocol IBasis
   (node-by-property [this label value])
-  (sources          [this node-id label])
-  (targets          [this node-id label])
+  (arcs-by-head     [this node-id])
+  (arcs-by-tail     [this node-id])
+  (sources          [this node-id] [this node-id label])
+  (targets          [this node-id] [this node-id label])
   (add-node         [this value]                 "returns [basis real-value]")
   (delete-node      [this node-id]               "returns [basis node]")
   (replace-node     [this node-id value]         "returns [basis node]")

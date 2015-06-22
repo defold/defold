@@ -214,7 +214,7 @@
   (let [setters (ui/user-data parent ::setters)]
     (doseq [node nodes]
       (doseq [[key p] (g/properties node)]
-        (let [setter (get setters [key (g/node-id node)])]
+        (when-let [setter (get setters [key (g/node-id node)])]
           (setter (get node key)))))))
 
 (defn- update-grid [parent self workspace nodes]
