@@ -1,13 +1,13 @@
 (ns internal.texture.engine
   (:require [dynamo.image :refer [image-pixels image-convert-type image-color-components]]
-            [dynamo.buffers :refer [little-endian new-byte-buffer]]
             [dynamo.types :refer [map->EngineFormatTexture]]
+            [editor.buffers :refer [little-endian new-byte-buffer]]
             [internal.texture.math :refer [closest-power-of-two]])
-  (:import [java.awt.image BufferedImage ColorModel]
-           [java.nio ByteBuffer]
+  (:import [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]
            [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
-           [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]
-           [com.sun.jna Pointer]))
+           [com.sun.jna Pointer]
+           [java.awt.image BufferedImage ColorModel]
+           [java.nio ByteBuffer]))
 
 (set! *unchecked-math* true)
 
