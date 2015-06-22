@@ -1,10 +1,10 @@
 (ns editor.scene-tools
-  (:require [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.vertex :as vtx]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.camera :as c]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex :as vtx]
             [editor.math :as math]
             [internal.render.pass :as pass])
   (:import [com.defold.editor Start UIUtil]

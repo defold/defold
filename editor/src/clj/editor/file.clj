@@ -1,4 +1,4 @@
-(ns dynamo.file
+(ns editor.file
   "Contains functions for navigating paths, loading, and saving files.
 
 *NativePath*: represents a path, typically to a resource, as represented in
@@ -50,7 +50,7 @@ so it has the corresponding `make-reader`, `make-writer`, `make-input-stream` an
   (let [[path ext] (split-ext (io/file name))]
     (ProjectPath. game-project path ext)))
 
-(defmethod print-method dynamo.file.ProjectPath
+(defmethod print-method editor.file.ProjectPath
   [^ProjectPath v ^java.io.Writer w]
   (.write w (str "P<" (t/local-name v) ">")))
 

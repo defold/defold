@@ -180,9 +180,9 @@
 
 (s/defrecord TextureSet
   [animations       :- {Str TextureSetAnimation}
-   vertices         :- Any #_dynamo.gl.vertex/PersistentVertexBuffer
-   outline-vertices :- Any #_dynamo.gl.vertex/PersistentVertexBuffer
-   tex-coords       :- Any #_dynamo.gl.vertex/PersistentVertexBuffer])
+   vertices         :- Any #_editor.gl.vertex/PersistentVertexBuffer
+   outline-vertices :- Any #_editor.gl.vertex/PersistentVertexBuffer
+   tex-coords       :- Any #_editor.gl.vertex/PersistentVertexBuffer])
 
 (defprotocol Pass
   (selection?       [this])
