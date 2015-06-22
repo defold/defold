@@ -1,7 +1,7 @@
 (ns editor.switcher
   (:require [clojure.edn :as edn]
-            [clojure.pprint :refer [pprint]]
             [clojure.java.io :as io]
+            [clojure.pprint :refer [pprint]]
             [dynamo.buffers :refer :all]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
@@ -12,7 +12,6 @@
             [dynamo.ui :refer :all]
             [editor.camera :as c]
             [editor.project :as project]
-            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]

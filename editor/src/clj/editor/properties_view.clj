@@ -1,13 +1,15 @@
 (ns editor.properties-view
   (:require [camel-snake-kebab :as camel]
+            [dynamo.file.protobuf :as protobuf]
             [dynamo.graph :as g]
             [dynamo.types :as t]
-            [dynamo.file.protobuf :as protobuf]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace]
             [editor.core :as core]
-            [editor.dialogs :as dialogs])
+            [editor.dialogs :as dialogs]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
+           [com.dynamo.proto DdfExtensions]
+           [com.google.protobuf ProtocolMessageEnum]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.animation AnimationTimer]
            [javafx.application Platform]
@@ -28,9 +30,7 @@
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [com.google.protobuf ProtocolMessageEnum]
-           [com.dynamo.proto DdfExtensions]))
+           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
 
 ; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj

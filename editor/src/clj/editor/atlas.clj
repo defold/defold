@@ -14,7 +14,6 @@
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [editor.project :as project]
-            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]

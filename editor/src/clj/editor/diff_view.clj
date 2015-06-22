@@ -1,17 +1,16 @@
 (ns editor.diff-view
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor.ui :as ui]
-            [service.log :as log])
-  (:import [javafx.scene Parent Scene Group]
-           [javafx.stage Stage]
-           [javafx.scene.paint Paint]
-           [javafx.scene.input KeyCode KeyEvent]
+            [editor.ui :as ui])
+  (:import [javafx.fxml FXMLLoader]
+           [javafx.scene Parent Scene Group]
            [javafx.scene.control Control ScrollBar]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout Pane]
+           [javafx.scene.paint Paint]
            [javafx.scene.shape Line Rectangle]
            [javafx.scene.text Font Text]
-           [javafx.fxml FXMLLoader]
+           [javafx.stage Stage]
            [org.eclipse.jgit.diff Edit Edit$Type HistogramDiff RawTextComparator RawText]))
 
 (set! *warn-on-reflection* true)

@@ -1,9 +1,9 @@
 (ns editor.jfx
   (:require [clojure.java.io :as io])
-  (:import  [java.io File]
-            [java.util ArrayList]
-            [javafx.stage FileChooser FileChooser$ExtensionFilter]
-            [javafx.scene.image Image ImageView]))
+  (:import [javafx.scene.image Image ImageView]
+           [javafx.stage FileChooser FileChooser$ExtensionFilter]
+           [java.io File]
+           [java.util ArrayList]))
 
 ; ImageView cache
 (defonce cached-image-views (atom {}))

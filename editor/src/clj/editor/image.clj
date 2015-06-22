@@ -1,10 +1,10 @@
 (ns editor.image
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [editor.workspace :as workspace]
-            [editor.project :as project])
-  (:import  [java.awt.image BufferedImage]
-            [javax.imageio ImageIO]))
+            [editor.project :as project]
+            [editor.workspace :as workspace])
+  (:import [java.awt.image BufferedImage]
+           [javax.imageio ImageIO]))
 
 (g/defnode ImageNode
   (inherits project/ResourceNode)

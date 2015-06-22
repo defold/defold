@@ -8,18 +8,18 @@ There's there different functions in this namespace
 (unified-status) Status based on actual content on disk and does not take index into account. Primary purpose is for the changes view. Rename detection is supported.
 
 "
-  (:require [clojure.java.io :as io]
-            [clojure.set :as set]
-            [editor.prefs :as prefs]
-            [editor.ui :as ui])
-  (:import [javafx.scene.control ProgressBar]
-           [org.eclipse.jgit.api Git]
-           [org.eclipse.jgit.diff DiffEntry RenameDetector]
-           [org.eclipse.jgit.revwalk RevCommit RevWalk]
-           [org.eclipse.jgit.treewalk TreeWalk FileTreeIterator]
-           [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
-           [org.eclipse.jgit.treewalk.filter PathFilter]
-           [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]))
+(:require [clojure.java.io :as io]
+          [clojure.set :as set]
+          [editor.prefs :as prefs]
+          [editor.ui :as ui])
+(:import [javafx.scene.control ProgressBar]
+         [org.eclipse.jgit.api Git]
+         [org.eclipse.jgit.diff DiffEntry RenameDetector]
+         [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
+         [org.eclipse.jgit.revwalk RevCommit RevWalk]
+         [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
+         [org.eclipse.jgit.treewalk TreeWalk FileTreeIterator]
+         [org.eclipse.jgit.treewalk.filter PathFilter]))
 
 ; TODO: Renamed, modified but not staged is broken (missing blob)
 
