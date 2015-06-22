@@ -7,8 +7,8 @@
 (def test-namespaces '[editor.buffers-test
                        dynamo.defnode-test
                        editor.geom-test
-                       dynamo.gl.translate-test
-                       dynamo.gl.vertex-test
+                       editor.gl.translate-test
+                       editor.gl.vertex-test
                        dynamo.image-test
                        dynamo.property-test
                        dynamo.transaction-test

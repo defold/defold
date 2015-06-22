@@ -1,6 +1,6 @@
-(ns dynamo.gl.translate-test
+(ns editor.gl.translate-test
   (:use clojure.test
-        dynamo.gl.shader))
+        editor.gl.shader))
 
 
 (deftest simplest-test
