@@ -128,3 +128,7 @@ Outputs:
 
 (defprotocol MultiNode
   (sub-nodes [self] "Return all contained nodes"))
+
+(defprotocol ICreate
+  "A node may implement this protocol if it needs to react after it is created."
+  (post-create [this basis message] "Process post-creation message. The message is any data structure. By convention, it is usually a map."))

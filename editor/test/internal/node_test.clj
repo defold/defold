@@ -50,20 +50,6 @@
   (input bar (t/maybe t/Int))
   (property baz (t/maybe t/Str) (enabled (g/fnk [bar] (pos? bar)))))
 
-(g/defnode NodeWithEvents
-  (property message-processed t/Bool (default false))
-
-  (on :mousedown
-      (g/transact
-       (g/set-property self :message-processed true))
-    :ok))
-
-(deftest event-delivery
-  (with-clean-system
-    (let [[evented] (tx-nodes (g/make-node world NodeWithEvents))]
-      (is (= :ok (g/process-one-event evented {:type :mousedown})))
-      (is (:message-processed (g/refresh evented))))))
-
 (defprotocol AProtocol
   (complainer [this]))
 

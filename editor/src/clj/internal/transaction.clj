@@ -137,14 +137,13 @@
   (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [basis triggers-to-fire nodes-affected world-ref new-event-loops nodes-added] :as ctx}
+  [{:keys [basis triggers-to-fire nodes-affected world-ref nodes-added] :as ctx}
    {:keys [node]}]
   (let [[basis-after full-node] (gt/add-node basis node)
         node-id                 (gt/node-id full-node)]
     (assoc ctx
            :basis            basis-after
            :nodes-added      (conj nodes-added node-id)
-           :new-event-loops  (if (gt/message-target? full-node) (conj new-event-loops node-id) new-event-loops)
            :triggers-to-fire (update triggers-to-fire node-id assoc :added [])
            :nodes-affected   (merge-with set/union nodes-affected {node-id (-> full-node gt/node-type gt/output-labels)}))))
 
@@ -175,7 +174,7 @@
       ctx)))
 
 (defmethod perform :become
-  [{:keys [basis nodes-affected new-event-loops old-event-loops] :as ctx}
+  [{:keys [basis nodes-affected] :as ctx}
    {:keys [node-id to-node]}]
   (if-let [old-node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [old-node         (ig/node-by-id-at basis node-id)
@@ -192,18 +191,13 @@
                                            (-> new-node gt/node-type gt/output-labels))
           ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
 
-          [basis-after _]  (gt/replace-node basis node-id new-node)
-
-          start-loop       (and      (gt/message-target? new-node)  (not (gt/message-target? old-node)))
-          end-loop         (and (not (gt/message-target? new-node))      (gt/message-target? old-node))]
+          [basis-after _]  (gt/replace-node basis node-id new-node)]
       (assoc (activate-all-outputs ctx node-id new-node)
-             :basis           basis-after
-             :new-event-loops (if start-loop (conj new-event-loops node-id)  new-event-loops)
-             :old-event-loops (if end-loop   (conj old-event-loops old-node) old-event-loops)))
+             :basis           basis-after))
     ctx))
 
 (defmethod perform :delete-node
-  [{:keys [basis nodes-deleted old-event-loops nodes-added triggers-to-fire] :as ctx}
+  [{:keys [basis nodes-deleted nodes-added triggers-to-fire] :as ctx}
    {:keys [node-id]}]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [all-labels         (set/union (-> node gt/node-type gt/input-labels) (-> node gt/node-type gt/output-labels))
@@ -213,7 +207,6 @@
           ctx                (update-in ctx [:nodes-affected node-id] set/union all-labels)]
       (assoc ctx
              :basis            basis
-             :old-event-loops  (if (gt/message-target? node) (conj old-event-loops node) old-event-loops)
              :nodes-deleted    (assoc nodes-deleted node-id node)
              :nodes-added      (removev #(= node-id %) nodes-added)
              :triggers-to-fire (update triggers-to-fire node-id assoc :deleted [])))
@@ -379,7 +372,7 @@
     label
     (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))))
 
-(def tx-report-keys [:basis :new-event-loops :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
+(def tx-report-keys [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
@@ -392,8 +385,6 @@
   [basis actions]
   {:basis               basis
    :original-basis      basis
-   :new-event-loops     #{}
-   :old-event-loops     #{}
    :nodes-added         []
    :nodes-modified      #{}
    :nodes-deleted       {}
