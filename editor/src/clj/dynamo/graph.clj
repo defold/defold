@@ -484,14 +484,6 @@
   ([basis gid k]
    (get-in basis [:graphs gid k])))
 
-(defn dispatch-message
-  "This is an advanced usage. If you have a reference to a node,
-  you can directly send it a message.
-
-  This function should mainly be used to create 'plumbing'."
-  [basis node type & {:as body}]
-  (gt/process-one-event (ig/node-by-id-at basis (gt/node-id node)) (assoc body :type type)))
-
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
 ;; ---------------------------------------------------------------------------
