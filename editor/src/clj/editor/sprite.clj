@@ -1,6 +1,5 @@
 (ns editor.sprite
   (:require [dynamo.buffers :refer :all]
-            [dynamo.camera :refer :all]
             [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
@@ -146,7 +145,7 @@
       (let [outline-vertex-binding (vtx/use-with (gen-outline-vertex-buffer renderables count) outline-shader)]
         (gl/with-enabled gl [outline-shader outline-vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8))))
-      
+
       (= pass pass/transparent)
       (let [vertex-binding (vtx/use-with (gen-vertex-buffer renderables count) shader)
             user-data (:user-data (first renderables))
@@ -160,7 +159,7 @@
           (shader/set-uniform shader gl "texture" 0)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
-      
+
       (= pass pass/selection)
       (let [vertex-binding (vtx/use-with (gen-vertex-buffer renderables count) shader)]
         (gl/with-enabled gl [shader vertex-binding]
