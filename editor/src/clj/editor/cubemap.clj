@@ -7,7 +7,6 @@
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
             [dynamo.types :as t]
-            [dynamo.ui :refer :all]
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]

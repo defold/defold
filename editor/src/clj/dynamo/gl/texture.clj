@@ -1,7 +1,7 @@
 (ns dynamo.gl.texture
   "Functions for creating and using textures"
   (:require [dynamo.image :as img :refer [placeholder-image]]
-            [dynamo.gl.protocols :refer :all]
+            [dynamo.gl.protocols :refer [GlBind GlEnable]]
             [dynamo.gl :as gl]
             [dynamo.types :refer [IDisposable dispose]])
   (:import [java.awt.image BufferedImage]

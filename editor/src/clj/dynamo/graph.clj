@@ -1,7 +1,7 @@
 (ns dynamo.graph
   (:require [clojure.tools.macro :as ctm]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]
+            [dynamo.util :refer [safe-inc map-vals filterm]]
             [internal.cache :as c]
             [internal.disposal :as dispose]
             [internal.graph :as ig]

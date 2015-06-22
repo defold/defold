@@ -1,7 +1,7 @@
 (ns dynamo.property
   (:require [dynamo.types :as t]
             [dynamo.ui :as ui]
-            [dynamo.util :refer :all]
+            [dynamo.util :refer [map-keys]]
             [internal.property :as ip]
             [schema.core :as s]))
 

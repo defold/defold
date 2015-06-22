@@ -2,7 +2,7 @@
   "Internal functions that implement the transactional behavior."
   (:require [clojure.set :as set]
             [clojure.string :as str]
-            [dynamo.util :refer :all]
+            [dynamo.util :refer [removev map-vals]]
             [internal.graph :as ig]
             [internal.graph.types :as gt]))
 

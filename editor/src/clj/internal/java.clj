@@ -1,5 +1,5 @@
 (ns internal.java
-  (:require [camel-snake-kebab :refer :all])
+  (:require [camel-snake-kebab :refer [->kebab-case]])
   (:import [java.lang.reflect Modifier]))
 
 (defn invoke-no-arg-class-method
