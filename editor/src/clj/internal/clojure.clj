@@ -1,10 +1,10 @@
 (ns internal.clojure
   (:require [clojure.java.io :as io]
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
-            [dynamo.file :as file]
             [dynamo.graph :as g]
             [dynamo.types :as t]
-            [editor.core :as core])
+            [editor.core :as core]
+            [editor.file :as file])
   (:import [clojure.lang LineNumberingPushbackReader]
            [java.io File]))
 

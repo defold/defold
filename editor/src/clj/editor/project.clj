@@ -1,16 +1,16 @@
 (ns editor.project
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
-  (:require [clojure.set :as set]
-            [clojure.java.io :as io]
-            [dynamo.file :as file]
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [dynamo.graph :as g]
             [dynamo.property :as dp]
             [dynamo.types :as t]
             [editor.core :as core]
-            [editor.workspace :as workspace]
+            [editor.file :as file]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [internal.clojure :as clojure]
             [internal.ui.dialogs :as dialogs]
             [service.log :as log])

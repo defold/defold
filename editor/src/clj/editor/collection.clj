@@ -1,11 +1,11 @@
 (ns editor.collection
   (:require [clojure.java.io :as io]
             [dynamo.file.protobuf :as protobuf]
-            [dynamo.geom :as geom]
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
+            [editor.geom :as geom]
             [editor.handler :as handler]
             [editor.math :as math]
             [editor.project :as project]

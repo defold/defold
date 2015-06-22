@@ -1,11 +1,11 @@
 (ns editor.sprite
   (:require [dynamo.file.protobuf :as protobuf]
-            [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
             [dynamo.types :as t]
+            [editor.geom :as geom]
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
