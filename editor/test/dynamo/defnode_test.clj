@@ -369,40 +369,6 @@
                  (eval '(dynamo.graph/defnode FooNode
                           (output my-output dynamo.types/Any (fn [x] "foo"))))))))
 
-(g/defnode OneEventNode
-  (on :an-event
-    :ok))
-
-(g/defnode EventlessNode)
-
-(g/defnode MixinEventNode
-  (on :mixin-event
-    :mixin-ok))
-
-(g/defnode InheritedEventNode
-  (inherits OneEventNode)
-  (inherits MixinEventNode)
-
-  (on :another-event
-    :another-ok))
-
-(deftest nodes-can-handle-events
-  (with-clean-system
-    (testing "nodes with event handlers implement MessageTarget"
-      (let [[node] (tx-nodes (g/make-node world OneEventNode))]
-        (is (:an-event (g/event-handlers OneEventNode)))
-        (is (satisfies? g/MessageTarget node))
-        (is (= :ok (g/dispatch-message (g/now) node :an-event)))))
-    (testing "nodes without event handlers do not implement MessageTarget"
-      (let [[node] (tx-nodes (g/make-node world EventlessNode))]
-        (is (not (satisfies? g/MessageTarget node)))))
-    (testing "nodes can inherit handlers from their supertypes"
-      (let [[node] (tx-nodes (g/make-node world InheritedEventNode))]
-        (is ((every-pred :an-event :mixin-event :another-event) (g/event-handlers InheritedEventNode)))
-        (is (= :ok         (g/dispatch-message (g/now) node :an-event)))
-        (is (= :mixin-ok   (g/dispatch-message (g/now) node :mixin-event)))
-        (is (= :another-ok (g/dispatch-message (g/now) node :another-event)))))))
-
 (defn- not-neg? [x] (not (neg? x)))
 
 (dp/defproperty TypedProperty t/Int)
