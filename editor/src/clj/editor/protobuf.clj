@@ -12,50 +12,28 @@
 
 (set! *warn-on-reflection* true)
 
-(defmacro set-if-present
-  "Use this macro to set an optional field on a protocol buffer message.
-props must be a maplike data structure, and k is a key into it. k will also
-be turned into a setter method name on the protocol buffer class.
-
-If provided, xform is a function of one argument. It will be called with the
-value of the property. The return value from xform will be the actual value
-placed into the protocol buffer."
-  ([inst k props]
-    `(set-if-present ~inst ~k ~props identity))
-  ([inst k props xform]
-    (let [setter (symbol (->camelCase (str "set-" (name k))))]
-      `(when-let [value# (get ~props ~k)]
-         (. ~inst ~setter (~xform value#))))))
-
 (defn- new-builder ^GeneratedMessage$Builder
   [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
-(defn read-text
-  [^java.lang.Class class input & {:as opts}]
-  (let [input   (if (instance? Reader input) input (io/reader input))
-        builder (new-builder class)]
-    (TextFormat/merge ^Reader input builder)
-    (.build builder)))
-
-(defn pb->str
+(defn- pb->str
   [^Message pb]
   (TextFormat/printToString pb))
 
-(defn pb->bytes
+(defn- pb->bytes
   [^Message pb]
   (let [out (ByteArrayOutputStream. (* 4 1024))]
     (.writeTo pb out)
     (.close out)
     (.toByteArray out)))
 
-(defn val->pb-enum
+(defn- val->pb-enum
   [^Class enum-class val]
   (assert (contains? (supers enum-class) com.google.protobuf.ProtocolMessageEnum))
   (assert (keyword? val))
   (j/invoke-class-method enum-class "valueOf" (name val)))
 
-(defn pb-enum->val
+(defn- pb-enum->val
   [^Descriptors$EnumValueDescriptor val]
   (keyword (s/lower-case (s/replace (.getName val) "_" "-"))))
 
@@ -148,34 +126,36 @@ placed into the protocol buffer."
        (.setM30 (.getElement v 3 0)) (.setM31 (.getElement v 3 1)) (.setM32 (.getElement v 3 2)) (.setM33 (.getElement v 3 3)))
      (.build))))
 
-(defn pb->map
+(defn- pb->map
   [^Message pb]
   (let [fld->map (fn [m [^Descriptors$FieldDescriptor descriptor value]]
                    (let [prop      (keyword (s/replace (.getName descriptor) "_" "-"))
                          repeated? (.isRepeated descriptor)]
                      (cond
                        (= (.getType descriptor) Descriptors$FieldDescriptor$Type/MESSAGE)
-                       (assoc m prop (if repeated? (map pb->map value) (pb->map value)))
+                       (assoc m prop (if repeated? (vec (map pb->map value)) (pb->map value)))
 
                        (= (.getType descriptor) Descriptors$FieldDescriptor$Type/ENUM)
-                       (assoc m prop (if repeated? (map pb-enum->val value) (pb-enum->val value)))
+                       (assoc m prop (if repeated? (vec (map pb-enum->val value)) (pb-enum->val value)))
 
                        :else
-                       (assoc m prop (if repeated? (seq value) value)))))
+                       (assoc m prop (if repeated? (vec value) value)))))
         all-fields     (.getFields (.getDescriptorForType pb))]
     (->> (reduce fld->map {} (zipmap all-fields (map #(.getField pb %) all-fields)))
       (msg->clj pb))))
 
 (defn- desc->cls [^Descriptors$FieldDescriptor desc val]
- (let [java-type (.getJavaType desc)]
-   (cond
-     (= java-type (Descriptors$FieldDescriptor$JavaType/INT)) Integer/TYPE
-     (= java-type (Descriptors$FieldDescriptor$JavaType/LONG)) Long/TYPE
-     (= java-type (Descriptors$FieldDescriptor$JavaType/FLOAT)) Float/TYPE
-     (= java-type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) Double/TYPE
-     (= java-type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) Boolean/TYPE
-     (= java-type (Descriptors$FieldDescriptor$JavaType/STRING)) String
-     :else (type val))))
+ (if (.isRepeated desc)
+   Iterable
+   (let [java-type (.getJavaType desc)]
+    (cond
+      (= java-type (Descriptors$FieldDescriptor$JavaType/INT)) Integer/TYPE
+      (= java-type (Descriptors$FieldDescriptor$JavaType/LONG)) Long/TYPE
+      (= java-type (Descriptors$FieldDescriptor$JavaType/FLOAT)) Float/TYPE
+      (= java-type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) Double/TYPE
+      (= java-type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) Boolean/TYPE
+      (= java-type (Descriptors$FieldDescriptor$JavaType/STRING)) String
+      :else (type val)))))
 
 (defprotocol GenericDescriptor
   (proto ^Message [this])
@@ -211,7 +191,7 @@ placed into the protocol buffer."
 
 (defn- kw->enum [^Descriptors$FieldDescriptor desc val]
   (let [enum-desc (.getEnumType desc)
-        ; Can't use ->SNAKE_CASE here because of inconsistencies with word-splitting and numerals
+        ; TODO - Can't use ->SNAKE_CASE here because of inconsistencies with word-splitting and numerals
         enum-name (s/replace (s/upper-case (subs (str val) 1)) "-" "_")
         enum-cls (desc->proto-cls enum-desc)]
     (java.lang.Enum/valueOf enum-cls enum-name)))
@@ -245,7 +225,21 @@ placed into the protocol buffer."
               :m20 :m21 :m22 :m23
               :m30 :m31 :m32 :m33]})
 
-(defn map->pb
+(defn- set-field [m ^Descriptors$FieldDescriptor desc ^GeneratedMessage$Builder builder]
+  (when-let [clj-val (get m (keyword (s/replace (.getName desc) "_" "-")))]
+    (let [repeated? (.isRepeated desc)
+          name (.getName desc)
+          method-prefix (if repeated? "addAll" "set")
+          set-name (str method-prefix (->CamelCase name))
+          type (.getJavaType desc)
+          value (if repeated? (map #(clj->java desc %) clj-val) (clj->java desc clj-val))
+          cls (desc->cls desc value)]
+      (when (not (nil? value))
+        (do
+          (-> (.getClass builder) (.getDeclaredMethod set-name (into-array Class [cls]))
+            (.invoke builder (into-array Object [value]))))))))
+
+(defn- map->pb
   [desc-or-cls m]
   (let [^Descriptors$Descriptor desc (if (class? desc-or-cls)
                                        (j/invoke-no-arg-class-method desc-or-cls "getDescriptor")
@@ -253,18 +247,24 @@ placed into the protocol buffer."
         m (if (.startsWith (full-name desc) "dmMath")
             (zipmap (get math-type-keys (desc-name desc)) m)
             m)
-        set-fn (fn [m ^Descriptors$FieldDescriptor desc ^GeneratedMessage$Builder builder]
-                 (when-let [clj-val (get m (keyword (s/replace (.getName desc) "_" "-")))]
-                   (let [name (.getName desc)
-                         set-name (str "set" (->CamelCase name))
-                         type (.getJavaType desc)
-                         value (clj->java desc clj-val)
-                         cls (desc->cls desc value)]
-                     (when (not (nil? value))
-                       (do
-                         (-> (.getClass builder) (.getDeclaredMethod set-name (into-array Class [cls]))
-                           (.invoke builder (into-array Object [value]))))))))
         builder (desc->builder desc)
         all-fields (.getFields desc)]
-    (doall (map #(set-fn m % builder) all-fields))
+    (doall (map #(set-field m % builder) all-fields))
     (.build builder)))
+
+(defn map->str [desc-or-cls m]
+  (->
+    (map->pb desc-or-cls m)
+    (pb->str)))
+
+(defn map->bytes [desc-or-cls m]
+  (->
+    (map->pb desc-or-cls m)
+    (pb->bytes)))
+
+(defn read-text
+  [^java.lang.Class class input]
+  (let [input   (if (instance? Reader input) input (io/reader input))
+        builder (new-builder class)]
+    (TextFormat/merge ^Reader input builder)
+    (pb->map (.build builder))))
