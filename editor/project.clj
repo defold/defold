@@ -7,7 +7,7 @@
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.8.10"]]
 
-  :dependencies     [[org.clojure/clojure                         "1.7.0-RC1"]
+  :dependencies     [[org.clojure/clojure                         "1.7.0-RC2"]
                      [org.clojure/core.cache                      "0.6.3"]
                      [org.clojure/core.async                      "0.1.346.0-17112a-alpha"]
                      [org.clojure/core.match                      "0.2.1"]
@@ -26,7 +26,7 @@
                      [javafx-wrapper                              "0.1.0"]
                      [commons-io/commons-io                       "2.3"]
                      [org.clojure/tools.nrepl                     "0.2.7" :exclusions [org.clojure/clojure]]
-                     [cider/cider-nrepl                           "0.9.0-SNAPSHOT" :exclusions [org.clojure/tools.nrepl]]
+                     [cider/cider-nrepl                           "0.9.0" :exclusions [org.clojure/tools.nrepl]]
                      [org.clojure/data.json                       "0.2.6"]
 
                      [com.nanohttpd/nanohttpd                     "2.1.1"]
