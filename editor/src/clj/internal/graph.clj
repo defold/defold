@@ -77,14 +77,6 @@
   [g n r]
   (assoc-in g [:nodes n] r))
 
-(defn sources
-  [g node label]
-  (map gt/head (filter #(= label (.targetLabel ^ArcBase %)) (get-in g [:tarcs node]))))
-
-(defn targets
-  [g node label]
-  (map gt/tail (filter #(= label (.sourceLabel ^ArcBase %)) (get-in g [:sarcs node]))))
-
 (defn connect-source
   [g source source-label target target-label]
   (let [from (node g source)]
@@ -215,20 +207,20 @@
   [basis [node-id output-label]]
   (get-in basis [:graphs (gt/node-id->graph-id node-id) :successors [node-id output-label]] #{}))
 
-(defn- pre-traverse
+(defn pre-traverse
   "Traverses a graph depth-first preorder from start, successors being
   a function that returns direct successors for the node. Returns a
   lazy seq of nodes."
-  [basis start & {:keys [seen] :or {seen #{}}}]
+  [basis start succ & {:keys [seen] :or {seen #{}}}]
   (loop [stack  start
          seen   seen
          result (transient [])]
-    (if-let [node-label-pair (peek stack)]
-      (if (contains? seen node-label-pair)
+    (if-let [nxt (peek stack)]
+      (if (contains? seen nxt)
         (recur (pop stack) seen result)
-        (let [seen (conj seen node-label-pair)
-              nbrs (remove seen (successors basis node-label-pair))]
-          (recur (into (pop stack) nbrs) seen (conj! result node-label-pair))))
+        (let [seen (conj seen nxt)
+              nbrs (remove seen (succ basis nxt))]
+          (recur (into (pop stack) nbrs) seen (conj! result nxt))))
       (persistent! result))))
 
 (defrecord MultigraphBasis [graphs]
@@ -237,15 +229,43 @@
     [_ label value]
     (filter #(= value (get % label)) (mapcat vals graphs)))
 
+  (arcs-by-tail
+    [this node-id]
+    (get-in (node-id->graph graphs node-id) [:tarcs node-id]))
+
+  (arcs-by-head
+    [this node-id]
+    (get-in (node-id->graph graphs node-id) [:sarcs node-id]))
+
+  (sources
+    [this node-id]
+    (map gt/head
+         (filter (fn [^ArcBase arc]
+                   (node-by-id-at this (.source arc)))
+                 (gt/arcs-by-tail this node-id))))
+
   (sources
     [this node-id label]
-    (filter #(node-by-id-at this (first %))
-            (sources (node-id->graph graphs node-id) node-id label)))
+    (map gt/head
+         (filter (fn [^ArcBase arc]
+                   (and (= label (.targetLabel arc))
+                        (node-by-id-at this (.source arc))))
+                 (gt/arcs-by-tail this node-id))))
+
+  (targets
+    [this node-id]
+    (map gt/tail
+         (filter (fn [^ArcBase arc]
+                   (node-by-id-at this (.target arc)))
+                 (gt/arcs-by-head this node-id))))
 
   (targets
     [this node-id label]
-    (filter #(node-by-id-at this (first %))
-            (targets (node-id->graph graphs node-id) node-id label)))
+    (map gt/tail
+         (filter (fn [^ArcBase arc]
+                   (and (= label (.sourceLabel arc))
+                        (node-by-id-at this (.target arc))))
+                 (gt/arcs-by-head this node-id))))
 
   (add-node
     [this node]
@@ -314,7 +334,7 @@
 
   (dependencies
     [this to-be-marked]
-    (pre-traverse this (stackify to-be-marked))))
+    (pre-traverse this (stackify to-be-marked) successors)))
 
 (defn multigraph-basis
   [graphs]
