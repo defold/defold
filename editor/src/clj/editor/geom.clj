@@ -1,4 +1,4 @@
-(ns dynamo.geom
+(ns editor.geom
   (:require [dynamo.types :as t :refer [min-p max-p]]
             [schema.core :as s])
   (:import [com.defold.util Geometry]
