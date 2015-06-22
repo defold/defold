@@ -1,6 +1,5 @@
 (ns editor.handler
-  (:require [clojure.tools.macro :as ctm]
-            [plumbing.core :refer [fnk]]))
+  (:require [plumbing.core :refer [fnk]]))
 
 (defonce ^:dynamic *handlers* (atom {}))
 

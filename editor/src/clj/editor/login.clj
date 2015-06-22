@@ -1,15 +1,15 @@
 (ns editor.login
   (:require [clojure.java.io :as io]
             [editor.client :as client]
-            [editor.ui :as ui]
             [editor.prefs :as prefs]
+            [editor.ui :as ui]
             [service.log :as log])
-  (:import [javafx.fxml FXMLLoader]
-           [javafx.stage Stage Modality]
+  (:import [com.dynamo.cr.protocol.proto Protocol$TokenExchangeInfo Protocol$TokenExchangeInfo$Type Protocol$UserInfo]
+           [fi.iki.elonen NanoHTTPD NanoHTTPD$Response NanoHTTPD$IHTTPSession]
+           [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
            [javafx.scene.web WebView]
-           [com.dynamo.cr.protocol.proto Protocol$TokenExchangeInfo Protocol$TokenExchangeInfo$Type Protocol$UserInfo]
-           [fi.iki.elonen NanoHTTPD NanoHTTPD$Response NanoHTTPD$IHTTPSession]))
+           [javafx.stage Stage Modality]))
 
 (set! *warn-on-reflection* true)
 

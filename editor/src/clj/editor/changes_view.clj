@@ -1,12 +1,12 @@
 (ns editor.changes-view
   (:require [clojure.java.io :as io]
-            [editor.core :as core]
-            [editor.git :as git]
-            [editor.handler :as handler]
-            [editor.diff-view :as diff-view]
-            [editor.ui :as ui]
             [dynamo.graph :as g]
             [dynamo.types :as t]
+            [editor.core :as core]
+            [editor.diff-view :as diff-view]
+            [editor.git :as git]
+            [editor.handler :as handler]
+            [editor.ui :as ui]
             [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode]

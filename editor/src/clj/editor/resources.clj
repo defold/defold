@@ -1,6 +1,6 @@
 (ns editor.resources
   (:require [clojure.java.io :as io])
-  (:import  [java.io File FilterOutputStream]))
+  (:import [java.io File FilterOutputStream]))
 
 #_(defn tree-item-seq [item]
    (tree-seq

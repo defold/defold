@@ -1,6 +1,6 @@
 (ns editor.prefs
-  (:require [service.log :as log]
-            [clojure.edn :as edn])
+  (:require [clojure.edn :as edn]
+            [service.log :as log])
   (:import [java.util.prefs Preferences]))
 
 (defprotocol PreferenceStore

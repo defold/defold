@@ -2,14 +2,13 @@
   (:require [clojure.java.io :as io]
             [editor.client :as client]
             [editor.dialogs :as dialogs]
-            [editor.login :as login]
-            [editor.ui :as ui]
             [editor.git :as git]
+            [editor.login :as login]
             [editor.prefs :as prefs]
-            [service.log :as log])
-  (:import [javafx.scene Parent Scene]
-           [org.eclipse.jgit.api Git]
-           [com.dynamo.cr.protocol.proto Protocol$ProjectInfoList Protocol$ProjectInfo]))
+            [editor.ui :as ui])
+  (:import [com.dynamo.cr.protocol.proto Protocol$ProjectInfoList Protocol$ProjectInfo]
+           [javafx.scene Parent Scene]
+           [org.eclipse.jgit.api Git]))
 
 (set! *warn-on-reflection* true)
 
