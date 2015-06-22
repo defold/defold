@@ -1,4 +1,4 @@
-(ns dynamo.gl.shader
+(ns editor.gl.shader
 "# Building Shaders
 
 To construct a shader object from .vp and .fp files on disk, use `load-shaders`.
@@ -84,8 +84,8 @@ Here is an example that uses a uniform variable to be set by the application.
 There are some examples in the testcases in dynamo.shader.translate-test."
   (:require [clojure.string :as string]
             [clojure.walk :as walk]
-            [dynamo.gl :as gl]
-            [dynamo.gl.protocols :refer [GlBind GlEnable]]
+            [editor.gl :as gl]
+            [editor.gl.protocols :refer [GlBind GlEnable]]
             [dynamo.types :as t]
             [editor.buffers :refer [bbuf->string]]
             [editor.geom :as g])

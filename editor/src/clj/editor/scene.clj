@@ -1,6 +1,5 @@
 (ns editor.scene
   (:require [clojure.set :as set]
-            [dynamo.gl :as gl]
             [dynamo.graph :as g]
             [dynamo.types :as t :refer [IDisposable dispose]]
             [dynamo.util :as util]
@@ -8,6 +7,7 @@
             [editor.camera :as c]
             [editor.core :as core]
             [editor.geom :as geom]
+            [editor.gl :as gl]
             [editor.grid :as grid]
             [editor.input :as i]
             [editor.math :as math]
