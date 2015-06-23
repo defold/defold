@@ -1,7 +1,7 @@
 (ns internal.connection-rules
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer :all]))
+            [support.test-support :refer :all]))
 
 (g/defnode InputNode
   (input string-scalar String))

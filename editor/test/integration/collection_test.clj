@@ -1,7 +1,7 @@
 (ns integration.collection-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system]]
             [editor.collection :as collection]
             [editor.handler :as handler]
             [editor.project :as project]
