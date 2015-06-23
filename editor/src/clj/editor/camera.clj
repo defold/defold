@@ -1,6 +1,6 @@
 (ns editor.camera
   (:require [dynamo.graph :as g]
-            [dynamo.ui :as ui]
+            [editor.ui :as ui]
             [editor.geom :as geom]
             [editor.math :as math]
             [editor.types :as types])

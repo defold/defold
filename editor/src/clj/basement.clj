@@ -1,5 +1,5 @@
 (ns basement
-  (:require [dynamo.ui :as ui]))
+  (:require [editor.ui :as ui]))
 
 (comment
 
