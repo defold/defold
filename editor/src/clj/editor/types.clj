@@ -12,12 +12,6 @@
 (g/defproperty NonNegativeInt g/Int
   (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
 
-(g/defproperty Resource g/Str (tag ::resource))
-(g/defproperty ImageResource Resource (tag ::image))
-
-(g/defproperty ResourceList [g/Str] (tag ::resource) (default []))
-(g/defproperty ImageResourceList ResourceList (tag ::image))
-
 ; ----------------------------------------
 ; Protocols here help avoid circular dependencies
 ; ----------------------------------------
