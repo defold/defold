@@ -3,7 +3,6 @@
             [dynamo.file.protobuf :as protobuf]
             [dynamo.graph :as g]
             [dynamo.property :as dp]
-            [dynamo.texture :as tex]
             [dynamo.types :as t :refer [map->Animation AnimationPlayback ->Animation]]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -11,6 +10,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.project :as project]
+            [editor.texture :as tex]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
