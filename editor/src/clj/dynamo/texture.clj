@@ -1,9 +1,9 @@
 (ns dynamo.texture
   "Schema, behavior, and type information related to textures."
   (:require [clojure.string :as str]
-            [dynamo.image :refer :all]
+            [dynamo.image :refer [flood blank-image extrude-borders image-bounds composite]]
             [dynamo.types :as t]
-            [dynamo.types :refer :all]
+            [dynamo.types :refer [map->Animation map->Image rect]]
             [internal.texture.engine :refer [texture-engine-format-generate]]
             [internal.texture.pack-max-rects :refer [max-rects-packing]]
             [schema.core :as s])

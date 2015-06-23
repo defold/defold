@@ -1,12 +1,12 @@
 (ns editor.client
   (:require [dynamo.file.protobuf :as protobuf]
             [editor.prefs :as prefs])
-  (:import [java.net URI]
-           [javax.ws.rs.core MediaType]
+  (:import [com.defold.editor.client DefoldAuthFilter]
+           [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
            [com.sun.jersey.api.client Client ClientResponse WebResource]
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
-           [com.defold.editor.client DefoldAuthFilter]
-           [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]))
+           [java.net URI]
+           [javax.ws.rs.core MediaType]))
 
 (defn- make-client-config []
   (let [cc (DefaultClientConfig.)]

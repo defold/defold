@@ -3,11 +3,13 @@
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.protobuf :as protobuf]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace]
             [editor.core :as core]
-            [editor.dialogs :as dialogs])
+            [editor.dialogs :as dialogs]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
+           [com.dynamo.proto DdfExtensions]
+           [com.google.protobuf ProtocolMessageEnum]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.animation AnimationTimer]
            [javafx.application Platform]
@@ -178,7 +180,7 @@
     []))
 
 (defn- create-properties-node [workspace grid node]
-  (let [properties (g/properties node)
+  (let [properties (-> node g/node-type g/properties)
         properties-value (g/node-value node :properties)]
     (mapcat (fn [[key p]]
               (let [visible (get-in properties-value [key :visible])
@@ -206,7 +208,7 @@
 (defn- refresh-grid [parent workspace nodes]
   (let [setters (ui/user-data parent ::setters)]
     (doseq [node nodes]
-      (doseq [[key p] (g/properties node)]
+      (doseq [[key p] (-> node g/node-type g/properties)]
         (when-let [setter (get setters [key (g/node-id node)])]
           (setter (get node key)))))))
 

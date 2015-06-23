@@ -1,9 +1,6 @@
 (ns user
-  (:require [camel-snake-kebab :refer :all]
-            [clojure.pprint :refer [pprint]]
-            [clojure.repl :refer :all]
+  (:require [clojure.pprint :refer [pprint]]
             [dynamo.graph :as g]
-            [dynamo.image :refer :all]
             [dynamo.types :as t]
             [internal.graph.types :as gt]
             [internal.java :as java]))
@@ -74,7 +71,7 @@
 
 (defn all-outputs
   ([node-id]
-   (map #(outputs-from node-id %) (-> (node node-id) g/outputs)))
+   (map #(outputs-from node-id %) (-> (node node-id) g/node-type g/output-labels)))
   ([gid nid]
    (all-outputs (gt/make-node-id gid nid))))
 

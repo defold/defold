@@ -1,17 +1,17 @@
 (ns editor.app-view
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [dynamo.types :as t]
-            [clojure.java.io :as io]
-            [editor.jfx :as jfx]
-            [editor.project :as project]
-            [editor.handler :as handler]
-            [editor.login :as login]
             [editor.dialogs :as dialogs]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.login :as login]
+            [editor.project :as project]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor Start]
+  (:import [com.defold.editor EditorApplication]
+           [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
-           [com.defold.editor EditorApplication]
            [java.awt Desktop]
            [javafx.animation AnimationTimer]
            [javafx.application Platform]
@@ -60,7 +60,7 @@
 (defn- replace-connection [source-node source-label target-node target-label]
   (concat
     (disconnect-sources target-node target-label)
-    (if (and source-node (contains? (g/outputs source-node) source-label))
+    (if (and source-node (contains? (-> source-node g/node-type g/output-labels) source-label))
       (g/connect source-node source-label target-node target-label)
       [])))
 

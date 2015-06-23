@@ -37,7 +37,7 @@
 (defn- source-arcs-without-targets
   [g]
   (for [source                (ig/node-ids g)
-        source-label          (gt/outputs (ig/node g source))
+        source-label          (-> (ig/node g source) gt/node-type gt/output-labels)
         [target target-label] (targets g source source-label)
         :when                 (not (some #(= % [source source-label]) (sources g target target-label)))]
     [source source-label]))
@@ -45,7 +45,7 @@
 (defn- target-arcs-without-sources
   [g]
   (for [target                (ig/node-ids g)
-        target-label          (gt/inputs (ig/node g target))
+        target-label          (-> (ig/node g target) gt/node-type gt/input-labels)
         [source source-label] (sources g target target-label)
         :when                 (not (some #(= % [target target-label]) (targets g source source-label)))]
     [target target-label]))

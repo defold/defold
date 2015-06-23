@@ -87,7 +87,7 @@
   [g source source-label target target-label]
   (let [to (node g target)]
     (assert (not (nil? to)) (str "Attempt to connect " (pr-str source source-label target target-label)))
-    (assert (some #{target-label} (gt/inputs to))    (str "No label " target-label " exists on node " to))
+    (assert (some #{target-label} (-> to gt/node-type gt/input-labels)) (str "No label " target-label " exists on node " to))
     (update-in g [:tarcs target] conjv (arc source target source-label target-label))))
 
 (defn source-connected?
@@ -196,9 +196,10 @@
   (let [target-inputs (gt/targets basis node-id output-label)]
     (apply set/union
            (mapv (fn [[node-id input-label]]
-                  (let [set-of-output-labels (get
-                                              (gt/input-dependencies
-                                               (node-by-id-at basis node-id)) input-label)
+                  (let [set-of-output-labels (-> (node-by-id-at basis node-id)
+                                                 gt/node-type
+                                                 gt/input-dependencies
+                                                 (get input-label))
                         node-label-pairs (mapv #(vector node-id %) set-of-output-labels)]
                     node-label-pairs))
                 target-inputs))))
