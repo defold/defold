@@ -89,35 +89,47 @@
              (let [workspace     (test-util/setup-workspace! world project-path)
                    project       (test-util/setup-project! workspace)]
                (doseq [path ["/merge/merge_embed.collection"
-                             #_"/merge/merge_refs.collection"]
+                             "/merge/merge_refs.collection"]
                        :let [resource-node (test-util/resource-node project path)
                              build-results (project/build project resource-node)
                              content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)])
                                                              build-results))
                              content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
                                                              build-results))]]
-                 #_(prn (map #(workspace/proj-path (:resource %)) build-results))
-                 #_(prn (map #(nth (:key %) 2) [(nth build-results 1)]))
-                 #_(prn (map #(keys (nth (:key %) 2)) [(nth build-results 1)]))
-                 (let [go-builds (map #(nth build-results %) [1 3])
-                       instance-data (map #(get (nth (:key %) 2) :instance-data) go-builds)
-                       values (map (fn [ls] (map :resource ls)) instance-data)]
-                   #_(prn (map #(nth (:key %) 2) go-builds))
-                   (prn values)
-                   (prn (= (first values) (second values)))
-                   #_(prn (reduce = (map #(get-in (nth (:key %) 2) [:instance-data :instance-msg]) go-builds))))
-                 #_(is (= 3 (count build-results)))
-                 #_(let [content (get content-by-source path)
-                        desc (GameObject$CollectionDesc/parseFrom content)
-                        target-paths (set (map #(workspace/proj-path (:resource %)) build-results))]
-                    (doseq [inst (.getInstancesList desc)
-                            :let [prototype (.getPrototype inst)]]
-                      (is (contains? target-paths prototype))
-                      (let [content (get content-by-target prototype)
-                            desc (GameObject$PrototypeDesc/parseFrom content)]
-                        (prn desc)))))))))
+                 (is (= 3 (count build-results)))
+                 (let [content (get content-by-source path)
+                      desc (GameObject$CollectionDesc/parseFrom content)
+                      target-paths (set (map #(workspace/proj-path (:resource %)) build-results))]
+                  (doseq [inst (.getInstancesList desc)
+                          :let [prototype (.getPrototype inst)]]
+                    (is (contains? target-paths prototype))
+                    (let [content (get content-by-target prototype)
+                          desc (GameObject$PrototypeDesc/parseFrom content)]
+                      (doseq [comp (.getComponentsList desc)
+                              :let [component (.getComponent comp)]]
+                        (is (contains? target-paths component)))))))))))
 
-(merge-gos)
+(defn- first-source [node label]
+  (ffirst (g/sources-of node label)))
+
+(deftest break-merged-targets
+  (testing "Verify equivalent game objects are not merged after being changed in memory"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)]
+               (let [path "/merge/merge_embed.collection"
+                     resource-node (test-util/resource-node project path)
+                     build-results (project/build project resource-node)
+                     content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)])
+                                                     build-results))
+                     content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
+                                                     build-results))]
+                 (is (= 3 (count build-results)))
+                 (let [go-node (first-source (first-source resource-node :child-scenes) :source)
+                       comp-node (first-source go-node :child-scenes)]
+                   (g/transact (g/delete-node comp-node))
+                   (let [build-results (project/build project resource-node)]
+                     (is (= 4 (count build-results))))))))))
 
 (deftest build-cached
   (testing "Verify the build cache works as expected"

@@ -2,7 +2,7 @@
   (:require [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
             [dynamo.types :as t]
-            [dynamo.file.protobuf :as protobuf]
+            [editor.protobuf :as protobuf]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.core :as core]
@@ -29,8 +29,7 @@
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [com.google.protobuf ProtocolMessageEnum]
-           [com.dynamo.proto DdfExtensions]))
+           [com.google.protobuf ProtocolMessageEnum]))
 
 
 ; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj
@@ -100,28 +99,22 @@
    (.setOnAction color-picker handler)
    [color-picker setter]))
 
-(defn- proto-display-name [value]
-  (-> value (.getValueDescriptor) (.getOptions) (.getExtension DdfExtensions/displayName)))
-
 (def ^:private ^:dynamic *programmatic-setting* nil)
 
 (defmethod create-property-control! ProtocolMessageEnum [t workspace on-new-value]
   (let [cb (ChoiceBox.)
         setter #(binding [*programmatic-setting* true]
-                   (.setValue cb %))]
-    (try
-      (let [values (.getMethod t "values" (into-array Class []))
-            enum-values (.invoke values nil (object-array 0))]
-        (doto (.getItems cb) (.addAll (object-array (map #(protobuf/pb-enum->val (.getValueDescriptor %)) enum-values))))
+                   (.setValue cb %))
+        values (protobuf/enum-values t)]
+    (doto (.getItems cb) (.addAll (object-array (map first values))))
         (.setConverter cb (proxy [StringConverter] []
                             (toString [value]
-                              (proto-display-name (protobuf/val->pb-enum t value)))
+                              (or (:display-name (get values value)) value))
                             (fromString [s]
-                              (when-let [enum-val (first (filter #(= s (proto-display-name %)) enum-values))]
-                                (protobuf/pb-enum->val enum-val)))))
+                              (first (filter #(= s (:display-name (second %))) values)))))
         (-> cb (.valueProperty) (.addListener (reify ChangeListener (changed [this observable old-val new-val]
                                                                       (when-not *programmatic-setting*
-                                                                        (on-new-value new-val))))))))
+                                                                        (on-new-value new-val))))))
     [cb setter]))
 
 (defmethod create-property-control! :default [_ workspace on-new-value]

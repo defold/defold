@@ -4,6 +4,7 @@
             [editor.protobuf :as protobuf])
   (:import [com.defold.editor.test TestDdf TestDdf$Msg TestDdf$SubMsg TestDdf$Transform TestDdf$DefaultValue
             TestDdf$OptionalNoDefaultValue TestDdf$EmptyMsg TestDdf$Uint64Msg TestDdf$RepeatedUints
+            TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum
             TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [javax.vecmath Point3d Vector3d]))
 
@@ -81,3 +82,14 @@
   (let [m {:uint-values (into [] (range 10))}
         new-m (round-trip TestDdf$RepeatedUints m)]
     (is (= m new-m))))
+
+(deftest nested-messages
+  (let [m {:msg {:enum :enum-val0}}
+        new-m (round-trip TestDdf$NestedMessages m)]
+    (is (= m new-m))))
+
+(deftest enum-values
+  (let [expected {:enum-val0 {:display-name "Enum Val0"}
+                  :enum-val1 {:display-name "Enum Val1"}}
+        values (protobuf/enum-values TestDdf$NestedMessages$NestedEnum$Enum)]
+    (is (= values expected))))

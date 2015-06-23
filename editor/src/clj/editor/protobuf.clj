@@ -3,10 +3,10 @@
             [clojure.java.io :as io]
             [clojure.string :as s]
             [internal.java :as j])
-  (:import [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$Descriptor
+  (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
-           [com.dynamo.proto DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
+           [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.io Reader ByteArrayOutputStream]
            [org.apache.commons.io FilenameUtils]))
 
@@ -29,7 +29,7 @@
 
 (defn- val->pb-enum
   [^Class enum-class val]
-  (assert (contains? (supers enum-class) com.google.protobuf.ProtocolMessageEnum))
+  (assert (contains? (supers enum-class) ProtocolMessageEnum))
   (assert (keyword? val))
   (j/invoke-class-method enum-class "valueOf" (name val)))
 
@@ -161,7 +161,8 @@
   (proto ^Message [this])
   (desc-name ^java.lang.String [this])
   (full-name ^java.lang.String [this])
-  (file ^Descriptors$FileDescriptor [this]))
+  (file ^Descriptors$FileDescriptor [this])
+  (containing-type ^Descriptors$Descriptor [this]))
 
 (extend-protocol GenericDescriptor
   Descriptors$Descriptor
@@ -169,25 +170,30 @@
   (desc-name [this] (.getName this))
   (full-name [this] (.getFullName this))
   (file [this] (.getFile this))
+  (containing-type [this] (.getContainingType this))
   Descriptors$EnumDescriptor
   (proto [this] (.toProto this))
   (desc-name [this] (.getName this))
   (full-name [this] (.getFullName this))
-  (file [this] (.getFile this)))
+  (file [this] (.getFile this))
+  (containing-type [this] (.getContainingType this)))
 
 (defn- desc->proto-cls ^java.lang.Class [desc]
-  (let [file (file desc)
-        options (.getOptions file)
-        package (if (.hasJavaPackage options)
-                  (.getJavaPackage options)
-                  (let [full (full-name desc)
-                        name (desc-name desc)]
-                    (subs full 0 (- (count full) (count name) 1))))
-        outer-cls (if (.hasJavaOuterClassname options)
-                    (.getJavaOuterClassname options)
-                    (->CamelCase (FilenameUtils/getBaseName (.getName file))))
-        inner-cls (desc-name desc)]
-    (Class/forName (str package "." outer-cls "$" inner-cls))))
+  (let [cls-name (if-let [containing (containing-type desc)]
+                   (str (.getName (desc->proto-cls containing)) "$" (desc-name desc))
+                   (let [file (file desc)
+                         options (.getOptions file)
+                         package (if (.hasJavaPackage options)
+                                   (.getJavaPackage options)
+                                   (let [full (full-name desc)
+                                         name (desc-name desc)]
+                                     (subs full 0 (- (count full) (count name) 1))))
+                         outer-cls (if (.hasJavaOuterClassname options)
+                                     (.getJavaOuterClassname options)
+                                     (->CamelCase (FilenameUtils/getBaseName (.getName file))))
+                         inner-cls (desc-name desc)]
+                     (str package "." outer-cls "$" inner-cls)))]
+    (Class/forName cls-name)))
 
 (defn- kw->enum [^Descriptors$FieldDescriptor desc val]
   (let [enum-desc (.getEnumType desc)
@@ -268,3 +274,9 @@
         builder (new-builder class)]
     (TextFormat/merge ^Reader input builder)
     (pb->map (.build builder))))
+
+(defn enum-values [^java.lang.Class cls]
+  (let [values-method (.getMethod cls "values" (into-array Class []))
+        value-descs (map #(.getValueDescriptor ^ProtocolMessageEnum %) (.invoke values-method nil (object-array 0)))]
+    (zipmap (map #(pb-enum->val ^Descriptors$EnumValueDescriptor %) value-descs)
+            (map #(do {:display-name (-> ^Descriptors$EnumValueDescriptor % (.getOptions) (.getExtension DdfExtensions/displayName))}) value-descs))))
