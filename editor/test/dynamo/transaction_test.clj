@@ -1,7 +1,7 @@
 (ns dynamo.transaction-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer :all]
+            [support.test-support :refer :all]
             [dynamo.util :refer :all]
             [internal.transaction :as it]
             [plumbing.core :refer [defnk fnk]]))

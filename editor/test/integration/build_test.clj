@@ -1,7 +1,7 @@
 (ns integration.build-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
             [editor.project :as project]
             [editor.workspace :as workspace]

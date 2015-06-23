@@ -1,7 +1,7 @@
 (ns integration.scene-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system]]
             [dynamo.util :as util]
             [editor.collection :as collection]
             [editor.geom :as geom]

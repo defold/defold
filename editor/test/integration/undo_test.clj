@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system]]
             [editor.project :as project]
             [editor.switcher :as switcher]
             [integration.test-util :as test-util]))
