@@ -1,4 +1,4 @@
-(ns dynamo.messages
+(ns editor.messages
   (:import [java.util ResourceBundle])
   (:require [clojure.java.io :as io]))
 
@@ -17,4 +17,4 @@
   [path]
   (ResourceBundle/getBundle path))
 
-(load-bundle-in-namespace 'dynamo.messages (resource-bundle "messages"))
+(load-bundle-in-namespace 'editor.messages (resource-bundle "messages"))

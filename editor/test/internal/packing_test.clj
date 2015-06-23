@@ -3,10 +3,10 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
-            [editor.image :refer :all]
-            [dynamo.texture :refer :all]
             [dynamo.types :as t :refer [rect]]
             [editor.geom :refer :all]
+            [editor.image :refer :all]
+            [editor.texture :refer :all]
             [internal.texture.pack-max-rects :as itp :refer [max-rects-packing]]
             [schema.test :refer [validate-schemas]])
   (:import [dynamo.types Rect]))
