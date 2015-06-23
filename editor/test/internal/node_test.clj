@@ -3,8 +3,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer [with-clean-system tx-nodes]]
-            [dynamo.property :as dp]
-            [dynamo.types :as t]
+            [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]))
 
@@ -16,7 +15,7 @@
 (defn get-tally [node fn-symbol]
   (get-in @*calls* [(:_id node) fn-symbol] 0))
 
-(dp/defproperty StringWithDefault t/Str
+(g/defproperty StringWithDefault g/Str
   (default "o rly?"))
 
 (defn string-value [] "uff-da")
@@ -37,21 +36,21 @@
     'string-value :overridden-indirect-by-symbol))
 
 (g/defnode SimpleTestNode
-  (property foo (t/maybe t/Str) (default "FOO!")))
+  (property foo (g/maybe g/Str) (default "FOO!")))
 
 (g/defnode VisibilityTestNode
-  (input bar (t/maybe t/Str))
-  (property baz (t/maybe t/Str) (visible (g/fnk [bar] (not (nil? bar))))))
+  (input bar (g/maybe g/Str))
+  (property baz (g/maybe g/Str) (visible (g/fnk [bar] (not (nil? bar))))))
 
 (g/defnode SimpleIntTestNode
-  (property foo (t/maybe t/Int) (default 0)))
+  (property foo (g/maybe g/Int) (default 0)))
 
 (g/defnode EnablementTestNode
-  (input bar (t/maybe t/Int))
-  (property baz (t/maybe t/Str) (enabled (g/fnk [bar] (pos? bar)))))
+  (input bar (g/maybe g/Int))
+  (property baz (g/maybe g/Str) (enabled (g/fnk [bar] (pos? bar)))))
 
 (g/defnode NodeWithEvents
-  (property message-processed t/Bool (default false))
+  (property message-processed g/Bool (default false))
 
   (on :mousedown
       (g/transact
@@ -91,12 +90,12 @@
   (input an-input String)
   (input unused-input String)
 
-  (property a-property t/Str)
+  (property a-property g/Str)
 
-  (output depends-on-self t/Any depends-on-self)
-  (output depends-on-input t/Any depends-on-input)
-  (output depends-on-property t/Any depends-on-property)
-  (output depends-on-several t/Any depends-on-several))
+  (output depends-on-self g/Any depends-on-self)
+  (output depends-on-input g/Any depends-on-input)
+  (output depends-on-property g/Any depends-on-property)
+  (output depends-on-several g/Any depends-on-several))
 
 (deftest dependency-mapping
   (testing "node reports its own dependencies"
@@ -129,7 +128,7 @@
       (is (= "FOO!" foo-before))
       (is (= "quux" foo-after))
       (is (= "bar"  foo-override))
-      (is (every? t/property-type? (map :type (vals (g/node-value n1 :properties)))))))
+      (is (every? gt/property-type? (map :type (vals (g/node-value n1 :properties)))))))
   (with-clean-system
     (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
                                   (g/make-node world SinkNode))]
@@ -190,13 +189,13 @@
       (is (= false (get-in (g/node-value enode :properties) [:baz :enabled]))))))
 
 (g/defnode ProductionFunctionInputsNode
-  (input in       t/Keyword)
-  (input in-multi t/Keyword :array)
-  (property prop t/Keyword)
-  (output defnk-this       t/Any       (g/fnk production-fnk-this [this] this))
-  (output defnk-prop       t/Keyword   (g/fnk production-fnk-prop [prop] prop))
-  (output defnk-in         t/Keyword   (g/fnk production-fnk-in [in] in))
-  (output defnk-in-multi   [t/Keyword] (g/fnk production-fnk-in-multi [in-multi] in-multi)))
+  (input in       g/Keyword)
+  (input in-multi g/Keyword :array)
+  (property prop g/Keyword)
+  (output defnk-this       g/Any       (g/fnk production-fnk-this [this] this))
+  (output defnk-prop       g/Keyword   (g/fnk production-fnk-prop [prop] prop))
+  (output defnk-in         g/Keyword   (g/fnk production-fnk-in [in] in))
+  (output defnk-in-multi   [g/Keyword] (g/fnk production-fnk-in-multi [in-multi] in-multi)))
 
 (deftest production-function-inputs
   (with-clean-system
@@ -234,22 +233,22 @@
             _ (g/transact  (g/connect node0 :prop node1 :in))]
         (is (= :node0 (g/node-value node1 :defnk-in))))))
   (testing "the output has the same type as the property"
-    (is (= t/Keyword
+    (is (= g/Keyword
           (-> ProductionFunctionInputsNode g/transform-types' :prop)
           (-> ProductionFunctionInputsNode g/properties' :prop :value-type)))))
 
 
 (g/defnode AKeywordNode
-  (property prop t/Keyword))
+  (property prop g/Keyword))
 
 (g/defnode AStringNode
   (property prop String))
 
 (g/defnode BOutputNode
-  (input keyword-input t/Keyword)
-  (output keyword-output t/Keyword (g/fnk [keyword-input] keyword-input))
-  (input array-keyword-input t/Keyword :array)
-  (output array-keyword-output [t/Keyword] (g/fnk [array-keyword-input] array-keyword-input)))
+  (input keyword-input g/Keyword)
+  (output keyword-output g/Keyword (g/fnk [keyword-input] keyword-input))
+  (input array-keyword-input g/Keyword :array)
+  (output array-keyword-output [g/Keyword] (g/fnk [array-keyword-input] array-keyword-input)))
 
 (deftest node-validate-input-production-functions
   (testing "inputs to production functions are validated to be the same type as expected to the fnk"
@@ -263,10 +262,10 @@
 
 
 (g/defnode DependencyNode
-  (input in t/Any)
-  (input in-multi t/Any :array)
-  (output out-from-self     t/Any (g/fnk [out-from-self] out-from-self))
-  (output out-from-in       t/Any (g/fnk [in]            in)))
+  (input in g/Any)
+  (input in-multi g/Any :array)
+  (output out-from-self     g/Any (g/fnk [out-from-self] out-from-self))
+  (output out-from-in       g/Any (g/fnk [in]            in)))
 
 (deftest dependency-loops
   (testing "output dependent on itself"
@@ -292,27 +291,27 @@
         (is (thrown? AssertionError (g/node-value node1 :out-from-in)))))))
 
 (g/defnode BasicNode
-  (input basic-input t/Int)
-  (property string-property t/Str)
-  (property property-to-override t/Str)
-  (property multi-valued-property [t/Keyword] (default [:basic]))
-  (output basic-output t/Keyword :cached (g/fnk [] "hello")))
+  (input basic-input g/Int)
+  (property string-property g/Str)
+  (property property-to-override g/Str)
+  (property multi-valued-property [g/Keyword] (default [:basic]))
+  (output basic-output g/Keyword :cached (g/fnk [] "hello")))
 
-(dp/defproperty predefined-property-type t/Str
+(g/defproperty predefined-property-type g/Str
   (default "a-default"))
 
 (g/defnode MultipleInheritance
-  (property property-from-multiple t/Str (default "multiple")))
+  (property property-from-multiple g/Str (default "multiple")))
 
 (g/defnode InheritsBasicNode
   (inherits BasicNode)
   (inherits MultipleInheritance)
-  (input another-input t/Int :array)
-  (property property-to-override t/Str (default "override"))
+  (input another-input g/Int :array)
+  (property property-to-override g/Str (default "override"))
   (property property-from-type predefined-property-type)
-  (property multi-valued-property [t/Str] (default ["extra" "things"]))
-  (output another-output t/Keyword (g/fnk [this & _] :keyword))
-  (output another-cached-output t/Keyword :cached (g/fnk [this & _] :keyword)))
+  (property multi-valued-property [g/Str] (default ["extra" "things"]))
+  (output another-output g/Keyword (g/fnk [this & _] :keyword))
+  (output another-cached-output g/Keyword :cached (g/fnk [this & _] :keyword)))
 
 (deftest inheritance-merges-node-types
   (testing "properties"
@@ -320,10 +319,10 @@
       (is (:string-property (g/properties (g/construct BasicNode))))
       (is (:string-property (g/properties (g/construct InheritsBasicNode))))
       (is (:property-to-override (g/properties (g/construct InheritsBasicNode))))
-      (is (= nil         (-> (g/construct BasicNode)         g/properties :property-to-override   t/property-default-value)))
-      (is (= "override"  (-> (g/construct InheritsBasicNode) g/properties :property-to-override   t/property-default-value)))
-      (is (= "a-default" (-> (g/construct InheritsBasicNode) g/properties :property-from-type     t/property-default-value)))
-      (is (= "multiple"  (-> (g/construct InheritsBasicNode) g/properties :property-from-multiple t/property-default-value)))))
+      (is (= nil         (-> (g/construct BasicNode)         g/properties :property-to-override   gt/property-default-value)))
+      (is (= "override"  (-> (g/construct InheritsBasicNode) g/properties :property-to-override   gt/property-default-value)))
+      (is (= "a-default" (-> (g/construct InheritsBasicNode) g/properties :property-from-type     gt/property-default-value)))
+      (is (= "multiple"  (-> (g/construct InheritsBasicNode) g/properties :property-from-multiple gt/property-default-value)))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/outputs)
@@ -333,8 +332,8 @@
 
   (testing "transform-types"
     (with-clean-system
-      (is (= [t/Keyword] (-> BasicNode g/transform-types' :multi-valued-property)))
-      (is (= [t/Str]     (-> InheritsBasicNode g/transform-types' :multi-valued-property)))))
+      (is (= [g/Keyword] (-> BasicNode g/transform-types' :multi-valued-property)))
+      (is (= [g/Str]     (-> InheritsBasicNode g/transform-types' :multi-valued-property)))))
 
   (testing "inputs"
     (is (every? (-> (g/construct BasicNode) g/inputs)           #{:basic-input}))
@@ -347,7 +346,7 @@
     (is (not (:another-output (g/cached-outputs (g/construct InheritsBasicNode)))))))
 
 (g/defnode PropertyValidationNode
-  (property even-number t/Int
+  (property even-number g/Int
     (default 0)
     (validate must-be-even :message "only even numbers are allowed" even?)))
 
@@ -360,9 +359,9 @@
 (g/defnk pass-through [i] i)
 
 (g/defnode Dummy
-  (property foo t/Str (default "FOO!"))
-  (input i t/Any)
-  (output o t/Any pass-through))
+  (property foo g/Str (default "FOO!"))
+  (input i g/Any)
+  (output o g/Any pass-through))
 
 (deftest error-on-bad-source-label
   (testing "AssertionError on bad source label"

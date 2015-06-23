@@ -2,9 +2,9 @@
   (:require [clojure.test :refer :all]
             [editor.camera :as camera]
             [editor.math :as math]
-            [dynamo.types :as t]
+            [editor.types :as t]
             [editor.geom :as geom])
-  (:import [dynamo.types Camera Region AABB]
+  (:import [editor.types Camera Region AABB]
            [javax.vecmath Point3d]
            [javax.vecmath SingularMatrixException]))
 

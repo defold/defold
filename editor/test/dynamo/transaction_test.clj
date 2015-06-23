@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.transaction :as it]
             [plumbing.core :refer [defnk fnk]]))
@@ -11,12 +10,12 @@
 
 (g/defnode Resource
   (input a String)
-  (output b t/Keyword (fnk [] :ok))
+  (output b g/Keyword (fnk [] :ok))
   (output c String upcase-a)
   (property d String (default 1)))
 
 (g/defnode Downstream
-  (input consumer t/Keyword))
+  (input consumer g/Keyword))
 
 (deftest low-level-transactions
   (testing "one node"
@@ -81,22 +80,22 @@
    []))
 
 (g/defnode StringSource
-  (property label t/Str (default "a-string")))
+  (property label g/Str (default "a-string")))
 
 (g/defnode Relay
-  (input label t/Str)
-  (output label t/Str (fnk [label] label)))
+  (input label g/Str)
+  (output label g/Str (fnk [label] label)))
 
 (g/defnode TriggerExecutionCounter
-  (input downstream t/Any)
-  (property any-property t/Bool)
-  (property dynamic-property t/Any)
+  (input downstream g/Any)
+  (property any-property g/Bool)
+  (property dynamic-property g/Any)
 
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity))
 
 (g/defnode PropertySync
-  (property source t/Int (default 0))
-  (property sink   t/Int (default -1))
+  (property source g/Int (default 0))
+  (property sink   g/Int (default -1))
 
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity)
 
@@ -106,8 +105,8 @@
                (it/set-property self :sink (:source self))))))
 
 (g/defnode NameCollision
-  (input    excalibur t/Str)
-  (property excalibur t/Str)
+  (input    excalibur g/Str)
+  (property excalibur g/Str)
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity))
 
 (deftest trigger-activation
@@ -207,7 +206,7 @@
         (is (= {:added 1} after-transmog))))))
 
 (g/defnode NamedThing
-  (property name t/Str))
+  (property name g/Str))
 
 (g/defnode Person
   (property date-of-birth java.util.Date)
@@ -220,13 +219,13 @@
   (output age java.util.Date (fnk [date-of-birth] date-of-birth)))
 
 (g/defnode Receiver
-  (input generic-input t/Any)
-  (property touched t/Bool (default false))
-  (output passthrough t/Any (fnk [generic-input] generic-input)))
+  (input generic-input g/Any)
+  (property touched g/Bool (default false))
+  (output passthrough g/Any (fnk [generic-input] generic-input)))
 
 (g/defnode FocalNode
-  (input aggregator t/Any :array)
-  (output aggregated [t/Any] (fnk [aggregator] aggregator)))
+  (input aggregator g/Any :array)
+  (output aggregated [g/Any] (fnk [aggregator] aggregator)))
 
 (defn- build-network
   [world]
@@ -283,7 +282,7 @@
       (is (= true (deref (:latch receiver) 500 :timeout))))))
 
 (g/defnode DisposableNode
-  t/IDisposable
+  g/IDisposable
   (dispose [this] true))
 
 (deftest nodes-are-disposed-after-deletion
@@ -314,7 +313,7 @@
         (is (= #{:properties :a-property :ordinary :self-dependent :self} (into #{} (map second outputs-modified))))))))
 
 (g/defnode CachedValueNode
-  (output cached-output t/Str :cached (fnk [] "an-output-value")))
+  (output cached-output g/Str :cached (fnk [] "an-output-value")))
 
 (defn cache-peek
   [system node-id output]
@@ -332,14 +331,14 @@
         (is (nil? (cache-peek system node-id :cached-output)))))))
 
 (defrecord DisposableValue [disposed?]
-  t/IDisposable
+  g/IDisposable
   (dispose [this]
     (deliver disposed? true)))
 
 (g/defnode DisposableCachedValueNode
-  (property a-property t/Str)
+  (property a-property g/Str)
 
-  (output cached-output t/IDisposable :cached (fnk [a-property] (->DisposableValue (promise)))))
+  (output cached-output g/IDisposable :cached (fnk [a-property] (->DisposableValue (promise)))))
 
 (deftest cached-values-are-disposed-when-invalidated
   (with-clean-system
@@ -349,11 +348,11 @@
       (is (= [value1] (take-waiting-to-dispose system))))))
 
 (g/defnode OriginalNode
-  (output original-output t/Str :cached (fnk [] "original-output-value")))
+  (output original-output g/Str :cached (fnk [] "original-output-value")))
 
 (g/defnode ReplacementNode
-  (output original-output t/Str (fnk [] "original-value-replaced"))
-  (output additional-output t/Str :cached (fnk [] "new-output-added")))
+  (output original-output g/Str (fnk [] "original-value-replaced"))
+  (output additional-output g/Str :cached (fnk [] "new-output-added")))
 
 (deftest become-interacts-with-caching
   (testing "newly uncacheable values are disposed"
@@ -378,20 +377,20 @@
         (is (= cached-value (cache-peek system (:_id node) :additional-output)))))))
 
 (g/defnode NumberSource
-  (property x          t/Num         (default 0))
-  (output   sum        t/Num         (fnk [x] x))
-  (output   cached-sum t/Num :cached (fnk [x] x)))
+  (property x          g/Num         (default 0))
+  (output   sum        g/Num         (fnk [x] x))
+  (output   cached-sum g/Num :cached (fnk [x] x)))
 
 (g/defnode InputAndPropertyAdder
-  (input    x          t/Num)
-  (property y          t/Num (default 0))
-  (output   sum        t/Num         (fnk [x y] (+ x y)))
-  (output   cached-sum t/Num :cached (fnk [x y] (+ x y))))
+  (input    x          g/Num)
+  (property y          g/Num (default 0))
+  (output   sum        g/Num         (fnk [x y] (+ x y)))
+  (output   cached-sum g/Num :cached (fnk [x y] (+ x y))))
 
 (g/defnode InputAdder
-  (input xs t/Num :array)
-  (output sum        t/Num         (fnk [xs] (reduce + 0 xs)))
-  (output cached-sum t/Num :cached (fnk [xs] (reduce + 0 xs))))
+  (input xs g/Num :array)
+  (output sum        g/Num         (fnk [xs] (reduce + 0 xs)))
+  (output cached-sum g/Num :cached (fnk [xs] (reduce + 0 xs))))
 
 (defn build-adder-tree
   "Builds a binary tree of connected adder nodes; returns a 2-tuple of root node and leaf nodes."
@@ -495,7 +494,7 @@
       (g/delete-node node-to-delete))))
 
 (g/defnode Container
-  (input nodes t/Any :array)
+  (input nodes g/Any :array)
 
   (trigger garbage-collection :deleted #'dispose-nodes))
 

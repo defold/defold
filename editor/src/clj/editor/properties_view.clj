@@ -2,7 +2,6 @@
   (:require [camel-snake-kebab :as camel]
             [dynamo.file.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
@@ -61,7 +60,7 @@
     (catch Throwable _
       nil)))
 
-(defmethod create-property-control! t/Int [_ workspace on-new-value]
+(defmethod create-property-control! g/Int [_ workspace on-new-value]
   (let [text (TextField.)
         setter #(ui/text! text (str %))]
     (.setOnAction text (ui/event-handler event (on-new-value (to-int (.getText text)))))
@@ -73,7 +72,7 @@
     (catch Throwable _
       nil)))
 
-(defmethod create-property-control! t/Vec3 [_ workspace on-new-value]
+(defmethod create-property-control! types/Vec3 [_ workspace on-new-value]
   (let [x (TextField.)
         y (TextField.)
         z (TextField.)
@@ -91,7 +90,7 @@
       (.add (.getChildren box) t))
     [box setter]))
 
-(defmethod create-property-control! t/Color [_ workspace on-new-value]
+(defmethod create-property-control! types/Color [_ workspace on-new-value]
  (let [color-picker (ColorPicker.)
        handler (ui/event-handler event
                                  (let [^Color c (.getValue color-picker)]
@@ -130,7 +129,7 @@
     (.setDisable text true)
     [text setter]))
 
-(defmethod create-property-control! (t/protocol workspace/Resource) [_ workspace on-new-value]
+(defmethod create-property-control! (g/protocol workspace/Resource) [_ workspace on-new-value]
   (let [box (HBox.)
         button (Button. "...")
         text (TextField.)
@@ -156,7 +155,7 @@
           on-new-value (fn [new-val]
                          (let [old-val (key (g/refresh node))]
                            (when-not (= new-val old-val)
-                             (if (t/property-valid-value? property new-val)
+                             (if (g/property-valid-value? property new-val)
                                (do
                                  ;; TODO Consider using the :validator-fn feature of atom to apply validation
                                  (@setter-atom new-val)
@@ -164,7 +163,7 @@
                                  (g/transact (g/set-property node key new-val)))
                                (@setter-atom old-val)))))
           ; TODO - hax until property system has more flexibility for meta edit data
-          t (or (first (filter class? (t/property-tags property))) (t/property-value-type property))
+          t (or (first (filter class? (g/property-tags property))) (g/property-value-type property))
           [control setter] (create-property-control! t workspace on-new-value)]
       (reset! setter-atom setter)
       (setter (get node key))
@@ -234,10 +233,10 @@
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property repainter AnimationTimer)
-  (property workspace t/Any)
-  (property prev-grid-pane (t/maybe GridPane))
+  (property workspace g/Any)
+  (property prev-grid-pane (g/maybe GridPane))
 
-  (input selection t/Any)
+  (input selection g/Any)
 
   (output grid-pane GridPane :cached (g/fnk [parent-view self workspace selection] (update-grid parent-view self workspace selection)))
 

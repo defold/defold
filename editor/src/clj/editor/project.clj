@@ -2,29 +2,22 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
-            [clojure.set :as set]
             [dynamo.graph :as g]
-            [dynamo.property :as dp]
-            [dynamo.types :as t]
             [editor.core :as core]
-            [editor.file :as file]
             [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [internal.clojure :as clojure]
-            [internal.ui.dialogs :as dialogs]
-            [service.log :as log])
+            [editor.workspace :as workspace])
   (:import [java.io File]
            [java.nio.file FileSystem FileSystems PathMatcher]))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
 
-  (property resource (t/protocol workspace/Resource) (visible (g/fnk [] false)))
-  (property project t/Any (visible (g/fnk [] false)))
+  (property resource (g/protocol workspace/Resource) (visible (g/fnk [] false)))
+  (property project g/Any (visible (g/fnk [] false)))
 
-  (output save-data t/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets t/Any (g/fnk [] [])))
+  (output save-data g/Any (g/fnk [resource] {:resource resource}))
+  (output build-targets g/Any (g/fnk [] [])))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -177,20 +170,20 @@ ordinary paths."
 (g/defnode Project
   (inherits core/Scope)
 
-  (property workspace t/Any)
-  (property build-cache t/Any)
-  (property fs-build-cache t/Any)
+  (property workspace g/Any)
+  (property build-cache g/Any)
+  (property fs-build-cache g/Any)
 
-  (input selected-node-ids t/Any :array)
-  (input selected-nodes t/Any :array)
-  (input resources t/Any)
-  (input resource-types t/Any)
-  (input save-data t/Any :array)
+  (input selected-node-ids g/Any :array)
+  (input selected-nodes g/Any :array)
+  (input resources g/Any)
+  (input resource-types g/Any)
+  (input save-data g/Any :array)
 
-  (output selected-node-ids t/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
-  (output selected-nodes t/Any :cached (g/fnk [selected-nodes] selected-nodes))
-  (output nodes-by-resource t/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))
-  (output save-data t/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
+  (output selected-node-ids g/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
+  (output selected-nodes g/Any :cached (g/fnk [selected-nodes] selected-nodes))
+  (output nodes-by-resource g/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))
+  (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
 
   workspace/SelectionProvider
   (selection [this] (g/node-value this :selected-node-ids)))

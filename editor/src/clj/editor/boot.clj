@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [clojure.stacktrace :as stack]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.atlas :as atlas]
@@ -61,7 +60,7 @@
         (ui/text! btn "Curve Editor WIP!")
         (.add (.getChildren ^VBox (:parent event)) btn)))
 
-  t/IDisposable
+  g/IDisposable
   (dispose [this]))
 
 (def ^:dynamic *workspace-graph*)

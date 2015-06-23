@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [dynamo.file.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
@@ -11,6 +10,7 @@
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
+            [editor.types :as types]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc GameObject$InstanceDesc$Builder
@@ -18,7 +18,7 @@
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
@@ -77,9 +77,9 @@
 (g/defnode ScalableSceneNode
   (inherits scene/SceneNode)
 
-  (property scale t/Vec3 (default [1 1 1]))
+  (property scale types/Vec3 (default [1 1 1]))
 
-  (output scale Vector3d :cached (g/fnk [^t/Vec3 scale] (Vector3d. (double-array scale))))
+  (output scale Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
   (output transform Matrix4d :cached produce-transform)
 
   scene-tools/Scalable
@@ -96,35 +96,35 @@
 (g/defnode GameObjectInstanceNode
   (inherits ScalableSceneNode)
 
-  (property id t/Str)
-  (property path (t/maybe t/Str))
-  (property embedded (t/maybe t/Bool) (visible (g/fnk [] false)))
+  (property id g/Str)
+  (property path (g/maybe g/Str))
+  (property embedded (g/maybe g/Bool) (visible (g/fnk [] false)))
 
-  (input source t/Any)
-  (input properties t/Any)
-  (input outline t/Any)
-  (input child-outlines t/Any :array)
-  (input save-data t/Any)
-  (input build-targets t/Any)
-  (input scene t/Any)
-  (input child-scenes t/Any :array)
-  (input child-ids t/Str :array)
+  (input source g/Any)
+  (input properties g/Any)
+  (input outline g/Any)
+  (input child-outlines g/Any :array)
+  (input save-data g/Any)
+  (input build-targets g/Any)
+  (input scene g/Any)
+  (input child-scenes g/Any :array)
+  (input child-ids g/Str :array)
 
-  (output outline t/Any :cached (g/fnk [node-id id path embedded outline child-outlines]
+  (output outline g/Any :cached (g/fnk [node-id id path embedded outline child-outlines]
                                        (let [suffix (if embedded "" (format " (%s)" path))]
                                          (merge-with concat
                                                      (merge outline {:node-id node-id :label (str id suffix) :icon game-object/game-object-icon :sort-by-fn outline-sort-by-fn})
                                                     {:children child-outlines}))))
-  (output ddf-message t/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
+  (output ddf-message g/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded
                                              (gen-embed-ddf id child-ids position rotation scale save-data)
                                              (gen-ref-ddf id child-ids position rotation scale save-data))))
-  (output build-targets t/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
+  (output build-targets g/Any (g/fnk [build-targets ddf-message transform] (let [target (first build-targets)]
                                                                              [(assoc target :instance-data {:resource (:resource target)
                                                                                                             :instance-msg ddf-message
                                                                                                             :transform transform})])))
 
-  (output scene t/Any :cached (g/fnk [node-id transform scene child-scenes embedded]
+  (output scene g/Any :cached (g/fnk [node-id transform scene child-scenes embedded]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (:aabb scene) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
                                        (merge-with concat
@@ -201,22 +201,22 @@
 (g/defnode CollectionNode
   (inherits project/ResourceNode)
 
-  (property name t/Str)
+  (property name g/Str)
 
-  (input child-outlines t/Any :array)
-  (input ref-inst-ddf t/Any :array)
-  (input embed-inst-ddf t/Any :array)
-  (input ref-coll-ddf t/Any :array)
-  (input child-scenes t/Any :array)
-  (input ids t/Str :array)
-  (input sub-build-targets t/Any :array)
-  (input dep-build-targets t/Any :array)
+  (input child-outlines g/Any :array)
+  (input ref-inst-ddf g/Any :array)
+  (input embed-inst-ddf g/Any :array)
+  (input ref-coll-ddf g/Any :array)
+  (input child-scenes g/Any :array)
+  (input ids g/Str :array)
+  (input sub-build-targets g/Any :array)
+  (input dep-build-targets g/Any :array)
 
-  (output proto-msg t/Any :cached produce-proto-msg)
-  (output save-data t/Any :cached produce-save-data)
-  (output build-targets t/Any :cached produce-build-targets)
-  (output outline t/Any :cached (g/fnk [node-id child-outlines] {:node-id node-id :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
-  (output scene t/Any :cached (g/fnk [node-id child-scenes]
+  (output proto-msg g/Any :cached produce-proto-msg)
+  (output save-data g/Any :cached produce-save-data)
+  (output build-targets g/Any :cached produce-build-targets)
+  (output outline g/Any :cached (g/fnk [node-id child-outlines] {:node-id node-id :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
+  (output scene g/Any :cached (g/fnk [node-id child-scenes]
                                      {:node-id node-id
                                       :children child-scenes
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))})))
@@ -245,18 +245,18 @@
 (g/defnode CollectionInstanceNode
   (inherits ScalableSceneNode)
 
-  (property id t/Str)
-  (property path t/Str)
+  (property id g/Str)
+  (property path g/Str)
 
-  (input source t/Any)
-  (input outline t/Any)
-  (input save-data t/Any)
-  (input scene t/Any)
-  (input build-targets t/Any)
+  (input source g/Any)
+  (input outline g/Any)
+  (input save-data g/Any)
+  (input scene g/Any)
+  (input build-targets g/Any)
 
-  (output outline t/Any :cached (g/fnk [node-id id path outline] (let [suffix (format " (%s)" path)]
+  (output outline g/Any :cached (g/fnk [node-id id path outline] (let [suffix (format " (%s)" path)]
                                                                    (merge outline {:node-id node-id :label (str id suffix) :icon collection-icon}))))
-  (output ddf-message t/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (output ddf-message g/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
                                            (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
                                                  ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
                                             (.build (doto (GameObject$CollectionInstanceDesc/newBuilder)
@@ -266,13 +266,13 @@
                                                       (.setRotation protobuf-rotation)
                                                       ; TODO - fix non-uniform hax
                                                       (.setScale (.x scale)))))))
-  (output scene t/Any :cached (g/fnk [node-id transform scene]
+  (output scene g/Any :cached (g/fnk [node-id transform scene]
                                      (assoc scene
                                            :node-id node-id
                                            :transform transform
                                            :aabb (geom/aabb-transform (:aabb scene) transform)
                                            :renderable {:passes [pass/selection]})))
-  (output build-targets t/Any produce-coll-inst-build-targets))
+  (output build-targets g/Any produce-coll-inst-build-targets))
 
 (defn- gen-instance-id [coll-node base]
   (let [ids (g/node-value coll-node :ids)]
@@ -448,13 +448,13 @@
                                      :let [; TODO - fix non-uniform hax
                                            scale (:scale game-object)
                                            source-node (project/resolve-resource-node self (:prototype game-object))]]
-                                 (make-go self source-node (:id game-object) (t/Point3d->Vec3 (:position game-object))
+                                 (make-go self source-node (:id game-object) (types/Point3d->Vec3 (:position game-object))
                                           (math/quat->euler (:rotation game-object)) [scale scale scale]))
                                (for [embedded (:embedded-instances collection)
                                      :let [; TODO - fix non-uniform hax
                                            scale (:scale embedded)]]
                                  (make-embedded-go self project "go" (:data embedded) (:id embedded)
-                                                   (t/Point3d->Vec3 (:position embedded))
+                                                   (types/Point3d->Vec3 (:position embedded))
                                                    (math/quat->euler (:rotation embedded))
                                                    [scale scale scale]))))
             new-instance-data (filter #(and (= :create-node (:type %)) (= GameObjectInstanceNode (g/node-type (:node %)))) tx-go-creation)
@@ -477,7 +477,7 @@
             :let [; TODO - fix non-uniform hax
                   scale (:scale coll-instance)
                   source-node (project/resolve-resource-node self (:collection coll-instance))]]
-        (add-collection-instance self source-node (:id coll-instance) (t/Point3d->Vec3 (:position coll-instance))
+        (add-collection-instance self source-node (:id coll-instance) (types/Point3d->Vec3 (:position coll-instance))
                                  (math/quat->euler (:rotation coll-instance)) [scale scale scale])))))
 
 (defn register-resource-types [workspace]

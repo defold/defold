@@ -1,16 +1,16 @@
 (ns internal.texture.math
-  (:require [dynamo.types :as t]
+  (:require [dynamo.graph :as g]
             [schema.core :as s]))
 
-(s/defn doubling :- t/Num
+(s/defn doubling :- g/Num
   "Return a lazy infinite sequence of doublings of i"
-  ([i :- t/Num]
+  ([i :- g/Num]
     (iterate #(bit-shift-left % 1) i)))
 
-(s/defn closest-power-of-two :- t/Num
+(s/defn closest-power-of-two :- g/Num
   "Return the next higher or preceeding lower power-of-two,
    whichever is nearer the input"
-  [x :- t/Num]
+  [x :- g/Num]
   (assert (> x 0) "Does not work for negative numbers")
   (let [[lesser greater] (split-with #(> x %) (doubling 1))
         prev             (last lesser)

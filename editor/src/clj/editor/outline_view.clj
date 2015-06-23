@@ -1,6 +1,5 @@
 (ns editor.outline-view
   (:require [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
@@ -110,13 +109,13 @@
 
 (g/defnode OutlineView
   (property tree-view TreeView)
-  (property root-cache t/Any)
+  (property root-cache g/Any)
   (property selection-listener ListChangeListener)
 
-  (input active-outline t/Any)
-  (input active-resource (t/protocol workspace/Resource))
-  (input open-resources t/Any)
-  (input selection t/Any)
+  (input active-outline g/Any)
+  (input active-resource (g/protocol workspace/Resource))
+  (input open-resources g/Any)
+  (input selection g/Any)
 
   (output tree-view TreeView :cached update-tree-view))
 

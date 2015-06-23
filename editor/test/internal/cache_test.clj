@@ -1,8 +1,8 @@
 (ns internal.cache-test
   (:require [clojure.test :refer :all]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.types :as t]
             [internal.cache :refer :all]
+            [internal.graph.types :as gt]
             [internal.system :as is]))
 
 (defn- mock-system [cache-size ch]
@@ -34,7 +34,7 @@
       (is (empty? (as-map @cache))))))
 
 (defrecord DisposableThing [v]
-  t/IDisposable
+  gt/IDisposable
   (dispose [this] v))
 
 (defn- thing [v] (DisposableThing. v))
@@ -47,7 +47,7 @@
       (yield)
       (let [disposed (take-waiting-to-dispose system)]
         (is (= 1 (count disposed)))
-        (is (= [1] (map t/dispose disposed))))))
+        (is (= [1] (map gt/dispose disposed))))))
 
   (testing "multiple values disposed when decached"
     (with-clean-system {:cache-size 3}
@@ -56,7 +56,7 @@
       (yield)
       (let [disposed (take-waiting-to-dispose system)]
         (is (= 2 (count disposed)))
-        (is (= [2 3] (map t/dispose disposed))))))
+        (is (= [2 3] (map gt/dispose disposed))))))
 
   (testing "values that are pushed out also get disposed"
     (with-clean-system {:cache-size 1}
@@ -66,4 +66,4 @@
       (yield)
       (let [disposed (take-waiting-to-dispose system)]
         (is (= 2 (count disposed)))
-        (is (= [1 2] (map t/dispose disposed)))))))
+        (is (= [1 2] (map gt/dispose disposed)))))))

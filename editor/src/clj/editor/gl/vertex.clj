@@ -25,7 +25,7 @@ the `do-gl` macro from `editor.gl`."
             [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind GlEnable]]
             [editor.gl.shader :as shader]
-            [dynamo.types :refer [IDisposable dispose]]
+            [dynamo.graph :as g]
             [editor.buffers :as b])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
            [com.google.protobuf ByteString]
@@ -447,8 +447,8 @@ the `do-gl` macro from `editor.gl`."
     (when-let [{:keys [buffer-name attrib-locs]} (get @context-local-data gl)]
       (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
 
-  IDisposable
-  (dispose [this]
+  g/IDisposable
+  (g/dispose [this]
     (println :VertexBufferShaderLink.dispose)))
 
 (defn use-with

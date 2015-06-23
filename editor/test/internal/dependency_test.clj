@@ -3,7 +3,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :as ts]
-            [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.system :as is]))
 
@@ -14,14 +13,14 @@
   (set (g/dependencies (is/basis system) (map-first id (partition 2 pairs)))))
 
 (g/defnode SingleOutput
-  (output out-from-inline t/Str (g/fnk [] "out-from-inline")))
+  (output out-from-inline g/Str (g/fnk [] "out-from-inline")))
 
 (g/defnode InputNoOutput
-  (input unused-input t/Str))
+  (input unused-input g/Str))
 
 (g/defnode InputUsedByOutput
-  (input string-input t/Str)
-  (output out-from-input t/Str (g/fnk [string-input] string-input)))
+  (input string-input g/Str)
+  (output out-from-input g/Str (g/fnk [string-input] string-input)))
 
 (deftest single-connection
   (testing "results include inputs"
@@ -117,20 +116,20 @@
                  [(id z) :out-from-input]}))))))
 
 (g/defnode MultipleOutputs
-  (output output-1 t/Str (g/fnk [] "1"))
-  (output output-2 t/Str (g/fnk [] "2"))
-  (output output-3 t/Str (g/fnk [] "3"))
-  (output output-4 t/Str (g/fnk [] "4"))
-  (output output-5 t/Str (g/fnk [] "5")))
+  (output output-1 g/Str (g/fnk [] "1"))
+  (output output-2 g/Str (g/fnk [] "2"))
+  (output output-3 g/Str (g/fnk [] "3"))
+  (output output-4 g/Str (g/fnk [] "4"))
+  (output output-5 g/Str (g/fnk [] "5")))
 
 (g/defnode MultipleInputsIntoOneOutput
-  (input input-1 t/Str)
-  (input input-2 t/Str)
-  (input input-3 t/Str)
-  (input input-4 t/Str)
-  (input input-5 t/Str)
+  (input input-1 g/Str)
+  (input input-2 g/Str)
+  (input input-3 g/Str)
+  (input input-4 g/Str)
+  (input input-5 g/Str)
 
-  (output input-counter t/Int (g/fnk [input-1 input-2 input-3 input-4 input-5]
+  (output input-counter g/Int (g/fnk [input-1 input-2 input-3 input-4 input-5]
                                    (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
 
 (deftest one-step-multipath
@@ -171,18 +170,18 @@
                  [(id x) :input-counter]}))))))
 
 (g/defnode SelfDependent
-  (input string-input t/Str)
+  (input string-input g/Str)
 
-  (output uppercased t/Str (g/fnk [string-input] (str/upper-case string-input)))
-  (output counted    t/Int (g/fnk [uppercased] (count uppercased))))
+  (output uppercased g/Str (g/fnk [string-input] (str/upper-case string-input)))
+  (output counted    g/Int (g/fnk [uppercased] (count uppercased))))
 
 (g/defnode BadlyWrittenSelfDependent
-  (input string-value t/Str)
-  (output string-value t/Str (g/fnk [string-value] (str/upper-case string-value))))
+  (input string-value g/Str)
+  (output string-value g/Str (g/fnk [string-value] (str/upper-case string-value))))
 
 (g/defnode PropertyShadowingInput
-  (input string-value t/Str)
-  (property string-value t/Str (default "Hey there!")))
+  (input string-value g/Str)
+  (property string-value g/Str (default "Hey there!")))
 
 (deftest with-self-dependencies
   (testing "dependencies propagate through fnks"
@@ -209,14 +208,14 @@
                  [(id x) :string-value]}))))))
 
 (g/defnode SingleOutput
-  (output out-from-inline t/Str (g/fnk [] "out-from-inline")))
+  (output out-from-inline g/Str (g/fnk [] "out-from-inline")))
 
 (g/defnode InputNoOutput
-  (input unused-input t/Str))
+  (input unused-input g/Str))
 
 (g/defnode InputUsedByOutput
-  (input string-input t/Str)
-  (output out-from-input t/Str (g/fnk [string-input] string-input)))
+  (input string-input g/Str)
+  (output out-from-input g/Str (g/fnk [string-input] string-input)))
 
 (deftest diamond-pattern
   (testing "multipath reaching the same node"
@@ -239,11 +238,11 @@
                  [(id d) :out-from-input]}))))))
 
 (g/defnode TwoIndependentOutputs
-  (input input-1 t/Str)
-  (output output-1 t/Str (g/fnk [input-1] input-1))
+  (input input-1 g/Str)
+  (output output-1 g/Str (g/fnk [input-1] input-1))
 
-  (input input-2 t/Str)
-  (output output-2 t/Str (g/fnk [input-2] input-2)))
+  (input input-2 g/Str)
+  (output output-2 g/Str (g/fnk [input-2] input-2)))
 
 (deftest independence-of-outputs
   (testing "output is only marked when its specific inputs are  affected"

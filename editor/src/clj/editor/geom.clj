@@ -1,8 +1,8 @@
 (ns editor.geom
-  (:require [dynamo.types :as t :refer [min-p max-p]]
-            [schema.core :as s])
+  (:require [dynamo.graph :as g]
+            [editor.types :as types])
   (:import [com.defold.util Geometry]
-           [dynamo.types Rect AABB]
+           [editor.types Rect AABB]
            [javax.vecmath Point3d Point4d Vector4d Vector3d Quat4d Matrix4d]))
 
 (defn clamper [low high] (fn [x] (min (max x low) high)))
@@ -16,13 +16,13 @@
 ; -------------------------------------
 ; 2D geometry
 ; -------------------------------------
-(s/defn area :- double
+(g/s-defn area :- double
   [r :- Rect]
   (if r
     (* (double (.width r)) (double (.height r)))
     0))
 
-(s/defn intersect :- (t/maybe Rect)
+(g/s-defn intersect :- (g/maybe Rect)
   ([r :- Rect] r)
   ([r1 :- Rect r2 :- Rect]
     (when (and r1 r2)
@@ -33,12 +33,12 @@
             w (- r l)
             h (- b t)]
         (if (and (< 0 w) (< 0 h))
-          (t/rect l t w h)
+          (types/rect l t w h)
           nil))))
   ([r1 :- Rect r2 :- Rect & rs :- [Rect]]
     (reduce intersect (intersect r1 r2) rs)))
 
-(s/defn split-rect-| :- [Rect]
+(g/s-defn split-rect-| :- [Rect]
   "Splits the rectangle such that the side slices extend to the top and bottom"
   [^Rect container :- Rect ^Rect content :- Rect]
   (let [new-rects     (transient [])
@@ -47,14 +47,14 @@
       (do
         ;; left slice
         (if (< (.x container) (.x overlap))
-          (conj! new-rects (t/rect (.x container)
+          (conj! new-rects (types/rect (.x container)
                                  (.y container)
                                  (- (.x overlap) (.x container))
                                  (.height container))))
 
         ;; right slice
         (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
-          (conj! new-rects (t/rect ""
+          (conj! new-rects (types/rect ""
                                 (+ (.x overlap) (.width overlap))
                                 (.y container)
                                 (- (+ (.x container) (.width container))
@@ -62,7 +62,7 @@
                                 (.height container))))
         ;; bottom slice
         (if (< (.y container) (.y overlap))
-          (conj! new-rects (t/rect ""
+          (conj! new-rects (types/rect ""
                                  (.x overlap)
                                  (.y container)
                                  (.width overlap)
@@ -70,7 +70,7 @@
 
         ;; top slice
         (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
-          (conj! new-rects (t/rect ""
+          (conj! new-rects (types/rect ""
                                  (.x overlap)
                                  (+ (.y overlap) (.height overlap))
                                  (.width overlap)
@@ -79,7 +79,7 @@
       (conj! new-rects container))
     (persistent! new-rects)))
 
-(s/defn split-rect-= :- [Rect]
+(g/s-defn split-rect-= :- [Rect]
   "Splits the rectangle such that the top and bottom slices extend to the sides"
   [^Rect container :- Rect ^Rect content :- Rect]
   (let [new-rects     (transient [])
@@ -88,7 +88,7 @@
       (do
          ;; bottom slice
          (if (< (.y container) (.y overlap))
-           (conj! new-rects (t/rect ""
+           (conj! new-rects (types/rect ""
                                   (.x container)
                                   (.y container)
                                   (.width container)
@@ -96,7 +96,7 @@
 
          ;; top slice
          (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
-           (conj! new-rects (t/rect ""
+           (conj! new-rects (types/rect ""
                                   (.x container)
                                   (+ (.y overlap) (.height overlap))
                                   (.width container)
@@ -105,7 +105,7 @@
 
          ;; left slice
          (if (< (.x container) (.x overlap))
-           (conj! new-rects (t/rect ""
+           (conj! new-rects (types/rect ""
                                   (.x container)
                                   (.y overlap)
                                   (- (.x overlap) (.x container))
@@ -113,7 +113,7 @@
 
          ;; right slice
          (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
-           (conj! new-rects (t/rect ""
+           (conj! new-rects (types/rect ""
                                  (+ (.x overlap) (.width overlap))
                                  (.y overlap)
                                  (- (+ (.x container) (.width container))
@@ -126,7 +126,7 @@
   [rs]
   (reduce max 0 (map area rs)))
 
-(s/defn split-rect :- [Rect]
+(g/s-defn split-rect :- [Rect]
   "Splits the rectangle with an attempt to minimize fragmentation"
   [^Rect container :- Rect ^Rect content :- Rect]
   (let [horizontal (split-rect-= container content)
@@ -154,7 +154,7 @@
 ; Transformations
 ; -------------------------------------
 
-(s/defn world-space [node :- {:world-transform Matrix4d t/Any t/Any} point :- Point3d]
+(g/s-defn world-space [node :- {:world-transform Matrix4d g/Any g/Any} point :- Point3d]
   (let [p             (Point3d. point)
         tfm ^Matrix4d (:world-transform node)]
     (.transform tfm p)
@@ -205,7 +205,7 @@
       (.get v vals)
       vals)))
 
-(s/defn ident :- Matrix4d
+(g/s-defn ident :- Matrix4d
   []
   (doto (Matrix4d.)
     (.setIdentity)))
@@ -213,29 +213,29 @@
 ; -------------------------------------
 ; 3D geometry
 ; -------------------------------------
-(s/defn null-aabb :- AABB
+(g/s-defn null-aabb :- AABB
   []
-  (t/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
+  (types/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
              (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
 
-(s/defn aabb-incorporate :- AABB
+(g/s-defn aabb-incorporate :- AABB
   ([^AABB aabb :- AABB
     ^Point3d p :- Point3d]
     (aabb-incorporate aabb (.x p) (.y p) (.z p)))
   ([^AABB aabb :- AABB
-    ^double x :- t/Num
-    ^double y :- t/Num
-    ^double z :- t/Num]
-    (let [minx (Math/min (-> aabb min-p .x) x)
-          miny (Math/min (-> aabb min-p .y) y)
-          minz (Math/min (-> aabb min-p .z) z)
-          maxx (Math/max (-> aabb max-p .x) x)
-          maxy (Math/max (-> aabb max-p .y) y)
-          maxz (Math/max (-> aabb max-p .z) z)]
-      (t/->AABB (Point3d. minx miny minz)
-                 (Point3d. maxx maxy maxz)))))
+    ^double x :- g/Num
+    ^double y :- g/Num
+    ^double z :- g/Num]
+    (let [minx (Math/min (-> aabb types/min-p .x) x)
+          miny (Math/min (-> aabb types/min-p .y) y)
+          minz (Math/min (-> aabb types/min-p .z) z)
+          maxx (Math/max (-> aabb types/max-p .x) x)
+          maxy (Math/max (-> aabb types/max-p .y) y)
+          maxz (Math/max (-> aabb types/max-p .z) z)]
+      (types/->AABB (Point3d. minx miny minz)
+                    (Point3d. maxx maxy maxz)))))
 
-(s/defn aabb-union :- AABB
+(g/s-defn aabb-union :- AABB
   ([aabb1 :- AABB] aabb1)
   ([aabb1 :- AABB aabb2 :- AABB]
     (let [null (null-aabb)]
@@ -243,31 +243,31 @@
         (= aabb1 null) aabb2
         (= aabb2 null) aabb1
         true (-> aabb1
-                (aabb-incorporate (min-p aabb2))
-                (aabb-incorporate (max-p aabb2))))))
+                (aabb-incorporate (types/min-p aabb2))
+                (aabb-incorporate (types/max-p aabb2))))))
   ([aabb1 :- AABB aabb2 :- AABB & aabbs :- [AABB]]
     (aabb-union (aabb-union aabb1 aabb2) aabbs)))
 
-(s/defn aabb-contains?
+(g/s-defn aabb-contains?
   [^AABB aabb :- AABB ^Point3d p :- Point3d]
   (and
-    (>= (-> aabb max-p .x) (.x p) (-> aabb min-p .x))
-    (>= (-> aabb max-p .y) (.y p) (-> aabb min-p .y))
-    (>= (-> aabb max-p .z) (.z p) (-> aabb min-p .z))))
+    (>= (-> aabb types/max-p .x) (.x p) (-> aabb types/min-p .x))
+    (>= (-> aabb types/max-p .y) (.y p) (-> aabb types/min-p .y))
+    (>= (-> aabb types/max-p .z) (.z p) (-> aabb types/min-p .z))))
 
-(s/defn aabb-extent :- Point3d
+(g/s-defn aabb-extent :- Point3d
   [aabb :- AABB]
-  (let [v (Point3d. (max-p aabb))]
-    (.sub v (min-p aabb))
+  (let [v (Point3d. (types/max-p aabb))]
+    (.sub v (types/min-p aabb))
     v))
 
-(s/defn aabb-center :- Point3d
+(g/s-defn aabb-center :- Point3d
   [^AABB aabb :- AABB]
-  (Point3d. (/ (+ (-> aabb min-p .x) (-> aabb max-p .x)) 2.0)
-            (/ (+ (-> aabb min-p .y) (-> aabb max-p .y)) 2.0)
-            (/ (+ (-> aabb min-p .z) (-> aabb max-p .z)) 2.0)))
+  (Point3d. (/ (+ (-> aabb types/min-p .x) (-> aabb types/max-p .x)) 2.0)
+            (/ (+ (-> aabb types/min-p .y) (-> aabb types/max-p .y)) 2.0)
+            (/ (+ (-> aabb types/min-p .z) (-> aabb types/max-p .z)) 2.0)))
 
-(s/defn rect->aabb :- AABB
+(g/s-defn rect->aabb :- AABB
   [^Rect bounds :- Rect]
   (assert bounds "rect->aabb require boundaries")
   (let [x1 (.x bounds)
@@ -286,7 +286,7 @@
 (defn aabb-transform [^AABB aabb ^Matrix4d transform]
   (if (= aabb (null-aabb))
     aabb
-    (let [extents [(t/min-p aabb) (t/max-p aabb)]
+    (let [extents [(types/min-p aabb) (types/max-p aabb)]
           points (for [x (map #(let [^Point3d p %] (.x p)) extents)
                        y (map #(let [^Point3d p %] (.y p)) extents)
                        z (map #(let [^Point3d p %] (.z p)) extents)
@@ -300,7 +300,7 @@
 ; -------------------------------------
 
 
-(s/defn unit-sphere-pos-nrm [lats longs]
+(g/s-defn unit-sphere-pos-nrm [lats longs]
   (for [lat-i (range lats)
        long-i (range longs)]
    (let [lat-angle   (fn [rate] (* Math/PI rate))

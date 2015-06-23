@@ -1,30 +1,9 @@
 (ns integration.benchmark-test
-  (:require [clojure.pprint :refer [pprint]]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer [with-clean-system]]
-            [dynamo.types :as t]
-            [dynamo.util :as util]
-            [editor.atlas :as atlas]
-            [editor.collection :as collection]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.geom :as geom]
-            [editor.image :as image]
-            [editor.platformer :as platformer]
-            [editor.project :as project]
             [editor.scene :as scene]
-            [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
-            [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [internal.render.pass :as pass])
-  (:import [dynamo.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+            [integration.test-util :as test-util]))
 
 (def jit-retry-count 20)
 

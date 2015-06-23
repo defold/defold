@@ -1,9 +1,10 @@
 (ns internal.texture.pack-max-rects
-  (:require [dynamo.types :as t :refer [rect width height]]
+  (:require [dynamo.graph :as g]
+            [editor.types :as types :refer [rect width height]]
             [editor.geom :refer [area split-rect]]
             [internal.texture.math :refer [binary-search-start binary-search-current binary-search-next]]
             [schema.core :as s])
-  (:import [dynamo.types Rect Image TexturePacking]))
+  (:import [editor.types Rect Image TexturePacking]))
 
 ; ---------------------------------------------------------------------------
 ; Configuration parameters
@@ -21,14 +22,14 @@
   (min (Math/abs ^int (- (width r1)  (width r2)))
        (Math/abs ^int (- (height r1) (height r2)))))
 
-(s/defn ^:private area-fit :- t/Int
+(s/defn ^:private area-fit :- g/Int
   [r1 :- Rect r2 :- Rect]
   (let [a1 (area r1)
         a2 (area r2)]
     (when (> a1 a2)
       (/ a2 a1))))
 
-(s/defn score-rect :- [(t/one t/Int "score") (t/one Rect "free-rect")]
+(s/defn score-rect :- [(g/one g/Int "score") (g/one Rect "free-rect")]
   [free-rect :- Rect rect :- Rect]
   (if (and  (>= (:width free-rect) (:width rect))
             (>= (:height free-rect) (:height rect)))
@@ -36,7 +37,7 @@
     [nil free-rect]))
 
 ; find the best free-rect into which to place rect
-(s/defn score-rects :- [[(t/one t/Int "score") (t/one Rect "free-rect")]]
+(s/defn score-rects :- [[(g/one g/Int "score") (g/one Rect "free-rect")]]
   [free-rects :- [Rect] {:keys [width height] :as rect} :- Rect]
   "Sort the free-rects according to how well rect fits into them.
    A 'good fit' means the least amount of leftover area."
@@ -51,7 +52,7 @@
 (def max-width 2048)
 
 (s/defn with-top-right-margin :- Rect
-  [margin :- t/Int r :- Rect]
+  [margin :- g/Int r :- Rect]
   (assoc r
          :width (+ margin (:width r))
          :height (+ margin (:height r))))
@@ -61,7 +62,7 @@
 (def trace (atom []))
 
 (s/defn pack-at-size :- TexturePacking
-  [margin :- t/Int sources :- [Rect] space-available :- Rect]
+  [margin :- g/Int sources :- [Rect] space-available :- Rect]
   (loop [free-rects   [space-available]
          remaining    (reverse (sort-by area sources))
          placed       []]
@@ -77,7 +78,7 @@
             (recur (reverse (sort-by area (concat remaining-free (split-rect best-fit (with-top-right-margin margin newly-placed)))))
                    (rest remaining)
                    (conj placed newly-placed)))))
-      (t/->TexturePacking space-available nil placed sources []))))
+      (types/->TexturePacking space-available nil placed sources []))))
 
 ; ---------------------------------------------------------------------------
 ; Binary search of sizes
@@ -132,8 +133,8 @@
 (s/defn max-rects-packing :- TexturePacking
   ([sources :- [Rect]]
     (max-rects-packing 0 sources))
-  ([margin :- t/Int sources :- [Rect]]
+  ([margin :- g/Int sources :- [Rect]]
     (case (count sources)
       0   :packing-failed
-      1   (t/->TexturePacking (first sources) nil sources sources [])
+      1   (types/->TexturePacking (first sources) nil sources sources [])
       (pack-sources margin sources))))
