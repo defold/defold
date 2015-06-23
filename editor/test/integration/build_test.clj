@@ -7,7 +7,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
-            GameObject$EmbeddedInstanceDesc]
+            GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -78,14 +78,43 @@
                        :let [resource-node (test-util/resource-node project path)
                              build-results (project/build project resource-node)
                              content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)])
+                                                             build-results))
+                             content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
                                                              build-results))]]
-                 (is (= 2 (count build-results)))
+                 (is (= 3 (count build-results)))
                  (let [content (get content-by-source path)
-                       desc (GameObject$CollectionDesc/parseFrom content)
-                       target-paths (set (map #(workspace/proj-path (:resource %)) build-results))]
-                   (doseq [inst (.getInstancesList desc)
-                           :let [prototype (workspace/proj-path (:resource (first build-results)))]]
-                     (is (contains? target-paths (.getPrototype inst))))))))))
+                      desc (GameObject$CollectionDesc/parseFrom content)
+                      target-paths (set (map #(workspace/proj-path (:resource %)) build-results))]
+                  (doseq [inst (.getInstancesList desc)
+                          :let [prototype (.getPrototype inst)]]
+                    (is (contains? target-paths prototype))
+                    (let [content (get content-by-target prototype)
+                          desc (GameObject$PrototypeDesc/parseFrom content)]
+                      (doseq [comp (.getComponentsList desc)
+                              :let [component (.getComponent comp)]]
+                        (is (contains? target-paths component)))))))))))
+
+(defn- first-source [node label]
+  (ffirst (g/sources-of node label)))
+
+(deftest break-merged-targets
+  (testing "Verify equivalent game objects are not merged after being changed in memory"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)]
+               (let [path "/merge/merge_embed.collection"
+                     resource-node (test-util/resource-node project path)
+                     build-results (project/build project resource-node)
+                     content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)])
+                                                     build-results))
+                     content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
+                                                     build-results))]
+                 (is (= 3 (count build-results)))
+                 (let [go-node (first-source (first-source resource-node :child-scenes) :source)
+                       comp-node (first-source go-node :child-scenes)]
+                   (g/transact (g/delete-node comp-node))
+                   (let [build-results (project/build project resource-node)]
+                     (is (= 4 (count build-results))))))))))
 
 (deftest build-cached
   (testing "Verify the build cache works as expected"

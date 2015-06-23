@@ -1,5 +1,5 @@
 (ns editor.sprite
-  (:require [dynamo.file.protobuf :as protobuf]
+  (:require [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -10,7 +10,7 @@
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.sprite.proto Sprite Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
+           [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -150,9 +150,9 @@
             blend-mode (:blend-mode user-data)]
         (gl/with-enabled gl [gpu-texture shader vertex-binding]
           (case blend-mode
-            :BLEND_MODE_ALPHA (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-            (:BLEND_MODE_ADD :BLEND_MODE_ADD_ALPHA) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-            :BLEND_MODE_MULT (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+            :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+            (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+            :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
           (shader/set-uniform shader gl "texture" 0)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
@@ -164,15 +164,13 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [self image default-animation material blend-mode]
-  {:resource (:resource self)
-   :content (protobuf/pb->str
-              (.build
-                (doto (Sprite$SpriteDesc/newBuilder)
-                  (.setTileSet (workspace/proj-path image))
-                  (.setDefaultAnimation default-animation)
-                  (.setMaterial (workspace/proj-path material))
-                  (.setBlendMode (protobuf/val->pb-enum Sprite$SpriteDesc$BlendMode blend-mode)))))})
+(g/defnk produce-save-data [resource image default-animation material blend-mode]
+  {:resource resource
+   :content (protobuf/map->str Sprite$SpriteDesc
+              {:tile-set (workspace/proj-path image)
+               :default-animation default-animation
+               :material (workspace/proj-path material)
+               :blend-mode blend-mode})})
 
 (defn anim-uvs [textureset anim]
   (let [frame (first (:frames anim))]
@@ -197,9 +195,21 @@
                                   :passes [pass/transparent pass/selection pass/outline]}))
      scene)))
 
+(defn- build-sprite [self basis resource dep-resources user-data]
+  {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc (:proto-msg user-data))})
+
+(g/defnk produce-build-targets [node-id resource image default-animation material blend-mode]
+  [{:node-id node-id
+    :resource (workspace/make-build-resource resource)
+    :build-fn build-sprite
+    :user-data {:proto-msg {:tile-set (workspace/proj-path image)
+                            :default-animation default-animation
+                            :material (workspace/proj-path material)
+                            :blend-mode blend-mode}}}])
+
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
-    (let [outputs (g/outputs atlas-node)]
+    (let [outputs (-> atlas-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:textureset :gpu-texture])
         [(g/connect atlas-node :textureset self :textureset)
         (g/connect atlas-node :gpu-texture self :gpu-texture)]
@@ -245,10 +255,11 @@
                                          (geom/null-aabb))))
   (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Sprite" :icon sprite-icon}))
   (output save-data g/Any :cached produce-save-data)
-  (output scene g/Any :cached produce-scene))
+  (output scene g/Any :cached produce-scene)
+  (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-sprite [project self input]
-  (let [sprite (protobuf/pb->map (protobuf/read-text Sprite$SpriteDesc input))
+  (let [sprite (protobuf/read-text Sprite$SpriteDesc input)
         resource (:resource self)
         image (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]

@@ -55,10 +55,13 @@
 ; Editors
 (g/defnode CurveEditor
   (inherits core/Scope)
-  (on :create
-      (let [btn (Button.)]
-        (ui/text! btn "Curve Editor WIP!")
-        (.add (.getChildren ^VBox (:parent event)) btn)))
+
+  core/ICreate
+  (post-create
+   [this basis event]
+   (let [btn (Button.)]
+     (ui/text! btn "Curve Editor WIP!")
+     (.add (.getChildren ^VBox (:parent event)) btn)))
 
   g/IDisposable
   (dispose [this]))
@@ -105,7 +108,7 @@
 
 (defn- create-view [game-project ^VBox root place node-type]
   (let [node (g/make-node! (g/node->graph-id game-project) node-type)]
-    (g/dispatch-message (g/now) node :create :parent (.lookup root place))))
+    (core/post-create node (g/now) {:parent (.lookup root place)})))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
