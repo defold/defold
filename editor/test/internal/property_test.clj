@@ -1,4 +1,4 @@
-(ns dynamo.property-test
+(ns internal.property-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.types :as types]
@@ -13,8 +13,8 @@
     (is (satisfies? gt/PropertyType (var-get property-defn)))
     (is (= g/Any (-> property-defn var-get :value-type)))
     (is (gt/property-visible? SomeProperty {})))
-  (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"\(schema.core/protocol dynamo.property-test/MyProtocol\)"
-                        (eval '(dynamo.graph/defproperty BadProp dynamo.property-test/MyProtocol)))))
+  (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"\(schema.core/protocol internal.property-test/MyProtocol\)"
+                        (eval '(dynamo.graph/defproperty BadProp internal.property-test/MyProtocol)))))
 
 (g/defproperty PropWithDefaultValue g/Num
   (default 42))
