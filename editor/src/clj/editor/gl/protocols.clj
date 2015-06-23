@@ -1,4 +1,4 @@
-(ns dynamo.gl.protocols)
+(ns editor.gl.protocols)
 
 (defprotocol GlBind
   (bind [this gl] "Bind this object to the GPU context.")

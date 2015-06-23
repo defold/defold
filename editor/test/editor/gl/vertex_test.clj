@@ -1,8 +1,8 @@
-(ns dynamo.gl.vertex-test
+(ns editor.gl.vertex-test
   (:require [clojure.test :refer :all]
-            [dynamo.buffers :as b]
-            [dynamo.gl.vertex :refer :all]
-            [dynamo.graph.test-support :refer [array=]])
+            [support.test-support :refer [array=]]
+            [editor.buffers :as b]
+            [editor.gl.vertex :refer :all])
   (:import [com.google.protobuf ByteString]))
 
 (defn- contents-of
@@ -62,7 +62,7 @@
 (defn- laid-out-as [def into-seq expected-vec]
   (let [ctor  (symbol (str "->" (:name def)))
         dims  (reduce + (map second (:attributes def)))
-        buf   ((ns-resolve 'dynamo.gl.vertex-test ctor) (/ (count into-seq) dims))]
+        buf   ((ns-resolve 'editor.gl.vertex-test ctor) (/ (count into-seq) dims))]
     (doseq [x (partition dims into-seq)]
       (conj! buf x))
 

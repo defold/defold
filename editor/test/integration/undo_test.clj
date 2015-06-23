@@ -2,25 +2,10 @@
   (:require [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [with-clean-system]]
-            [dynamo.types :as t]
-            [editor.atlas :as atlas]
-            [editor.collection :as collection]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.image :as image]
-            [editor.platformer :as platformer]
+            [support.test-support :refer [with-clean-system]]
             [editor.project :as project]
-            [editor.scene :as scene]
-            [editor.sprite :as sprite]
             [editor.switcher :as switcher]
-            [editor.workspace :as workspace]
-            [internal.system :as is]
-            [integration.test-util :as test-util])
-  (:import [dynamo.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]))
+            [integration.test-util :as test-util]))
 
 (deftest open-editor
   (testing "Opening editor does not alter undo history"
@@ -93,14 +78,14 @@
      (is (= 0 (count (outline-children go-node)))))))
 
 (g/defnode DummyComponent
-  (output outline t/Any (g/fnk [self] {:node-id (g/node-id self) :label "dummy" :icon nil :children []})))
+  (output outline g/Any (g/fnk [self] {:node-id (g/node-id self) :label "dummy" :icon nil :children []})))
 
 (g/defnode OutlineViewSimulator
-  (input outline t/Any)
+  (input outline g/Any)
 
-  (property counter t/Any)
+  (property counter g/Any)
 
-  (output outline t/Any :cached
+  (output outline g/Any :cached
           (g/fnk [self outline]
                  (swap! (:counter self) inc)
                  outline)))

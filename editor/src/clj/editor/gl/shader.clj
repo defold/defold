@@ -1,4 +1,4 @@
-(ns dynamo.gl.shader
+(ns editor.gl.shader
 "# Building Shaders
 
 To construct a shader object from .vp and .fp files on disk, use `load-shaders`.
@@ -82,16 +82,16 @@ Here is an example that uses a uniform variable to be set by the application.
     (setq gl_FragColor (vec4 uv.x uv.y 0.0 1.0))))
 
 There are some examples in the testcases in dynamo.shader.translate-test."
-  (:require [clojure.walk :as walk]
-            [clojure.string :as string]
-            [dynamo.buffers :refer [bbuf->string]]
-            [dynamo.gl :as gl]
-            [dynamo.geom :as g]
-            [dynamo.types :as t]
-            [dynamo.gl.protocols :refer [GlBind GlEnable]])
-  (:import [java.nio IntBuffer ByteBuffer]
-           [javax.media.opengl GL GL2 GLContext]
-           [javax.vecmath Matrix4d Vector4f Point3d]))
+(:require [clojure.string :as string]
+          [clojure.walk :as walk]
+          [editor.buffers :refer [bbuf->string]]
+          [editor.geom :as g]
+          [editor.gl :as gl]
+          [editor.gl.protocols :refer [GlBind GlEnable]]
+          [editor.types :as types])
+(:import [java.nio IntBuffer ByteBuffer]
+         [javax.media.opengl GL GL2 GLContext]
+         [javax.vecmath Matrix4d Vector4f Point3d]))
 
 ;; ======================================================================
 ;; shader translation comes from https://github.com/overtone/shadertone.
@@ -411,5 +411,5 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
 locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEnable."
   [sdef]
   (make-shader
-    (slurp (t/replace-extension sdef "vp"))
-    (slurp (t/replace-extension sdef "fp"))))
+    (slurp (types/replace-extension sdef "vp"))
+    (slurp (types/replace-extension sdef "fp"))))

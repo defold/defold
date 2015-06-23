@@ -1,10 +1,7 @@
 (ns integration.test-util
   (:require [dynamo.graph :as g]
-            [dynamo.types :as t]
-            [dynamo.geom :as geom]
             [editor.atlas :as atlas]
             [editor.collection :as collection]
-            [editor.core :as core]
             [editor.cubemap :as cubemap]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
@@ -63,7 +60,7 @@
     (not (nil? (some #{(g/node-id tgt-node)} sel)))))
 
 (g/defnode DummyAppView
-  (property active-tool t/Keyword))
+  (property active-tool g/Keyword))
 
 (defn setup-app-view! []
   (let [view-graph (g/make-graph! :history false :volatility 2)

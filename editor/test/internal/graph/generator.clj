@@ -6,7 +6,6 @@
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in])
@@ -26,21 +25,21 @@
 (defn- reset-node-id [] (reset! id-counter 0))
 
 (g/defnode FakeNode
-  (input t t/Any :array)
-  (input u t/Any :array)
-  (input v t/Any :array)
-  (input w t/Any :array)
-  (input x t/Any :array)
-  (input y t/Any :array)
-  (input z t/Any :array)
+  (input t g/Any :array)
+  (input u g/Any :array)
+  (input v g/Any :array)
+  (input w g/Any :array)
+  (input x g/Any :array)
+  (input y g/Any :array)
+  (input z g/Any :array)
 
-  (output t t/Any (g/fnk [t u v w x y z] (list t u v w x y z)))
-  (output u t/Any (g/fnk [u v w x y z]   (list u v w x y z)))
-  (output v t/Any (g/fnk [v w x y z]     (list v w x y z)))
-  (output w t/Any (g/fnk [w x y z]       (list w x y z)))
-  (output x t/Any (g/fnk [x y z]         (list x y z)))
-  (output y t/Any (g/fnk [y z]           (list y z)))
-  (output z t/Any (g/fnk [z]             (list z))))
+  (output t g/Any (g/fnk [t u v w x y z] (list t u v w x y z)))
+  (output u g/Any (g/fnk [u v w x y z]   (list u v w x y z)))
+  (output v g/Any (g/fnk [v w x y z]     (list v w x y z)))
+  (output w g/Any (g/fnk [w x y z]       (list w x y z)))
+  (output x g/Any (g/fnk [x y z]         (list x y z)))
+  (output y g/Any (g/fnk [y z]           (list y z)))
+  (output z g/Any (g/fnk [z]             (list z))))
 
 (defn node [ins outs] (g/construct FakeNode))
 
