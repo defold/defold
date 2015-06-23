@@ -1,4 +1,4 @@
-(ns dynamo.texture
+(ns editor.texture
   "Schema, behavior, and type information related to textures."
   (:require [clojure.string :as str]
             [editor.image :refer [flood blank-image extrude-borders image-bounds composite]]
