@@ -72,7 +72,6 @@
   :protobuf-includes ["../engine/gamesys/proto"
                       "../engine/ddf/src"
                       "../engine/script/src"
-                      "editor/test/proto"
                       ~(str (System/getenv "DYNAMO_HOME") "/ext/include")]
 
   :protobuf-exclude  ["../engine/ddf/src/test"]

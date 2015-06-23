@@ -1,5 +1,6 @@
 package TestScript;
 
+import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
 option java_package = "com.defold.editor.test";
@@ -67,4 +68,18 @@ message Uint64Msg
 message RepeatedUints
 {
     repeated uint32 uint_values = 1;
+}
+
+message NestedMessages
+{
+	message NestedEnum
+	{
+        enum Enum
+        {
+            ENUM_VAL0     = 0 [(displayName) = "Enum Val0"];
+            ENUM_VAL1     = 1 [(displayName) = "Enum Val1"];
+        }
+        required Enum enum = 1;
+	}
+	required NestedEnum msg = 1;
 }

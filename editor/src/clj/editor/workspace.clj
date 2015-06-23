@@ -22,7 +22,8 @@ ordinary paths."
   (proj-path [this])
   (url [this])
   (resource-name [this])
-  (workspace [this]))
+  (workspace [this])
+  (resource-hash [this]))
 
 (def wrap-stream)
 
@@ -46,6 +47,7 @@ ordinary paths."
   (url [this] (relative-path (File. ^String (:root workspace)) file))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
+  (resource-hash [this] (hash (proj-path this)))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream file opts))
@@ -67,6 +69,7 @@ ordinary paths."
   (url [this] nil)
   (resource-name [this] nil)
   (workspace [this] workspace)
+  (resource-hash [this] (hash data))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -92,6 +95,7 @@ ordinary paths."
   (url [this] nil)
   (resource-name [this] name)
   (workspace [this] workspace)
+  (resource-hash [this] (hash (proj-path this)))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (:data this) opts))
@@ -139,12 +143,13 @@ ordinary paths."
 (defn build-path [workspace]
   (str (:root workspace) build-dir))
 
-(defrecord BuildResource [resource prefix suffix]
+(defrecord BuildResource [resource prefix]
   Resource
   (resource-type [this] (resource-type resource))
   (source-type [this] (source-type resource))
   (read-only? [this] false)
-  (path [this] (let [ext (:build-ext (resource-type this) "unknown")]
+  (path [this] (let [ext (:build-ext (resource-type this) "unknown")
+                     suffix (format "%x" (resource-hash this))]
                  (if-let [path (path resource)]
                    (str (first (split-ext path)) "." ext)
                    (str prefix "_generated_" suffix "." ext))))
@@ -154,6 +159,7 @@ ordinary paths."
   (url [this] nil)
   (resource-name [this] (resource-name resource))
   (workspace [this] (workspace resource))
+  (resource-hash [this] (resource-hash resource))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (File. ^String (abs-path this)) opts))
@@ -165,7 +171,7 @@ ordinary paths."
   ([resource]
     (make-build-resource resource nil))
   ([resource prefix]
-    (BuildResource. resource prefix (gensym))))
+    (BuildResource. resource prefix)))
 
 (defn- create-resource-tree [workspace ^File file filter-fn]
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace % filter-fn) (filter filter-fn (.listFiles file))))]
