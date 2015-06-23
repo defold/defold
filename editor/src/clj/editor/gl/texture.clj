@@ -1,6 +1,6 @@
 (ns editor.gl.texture
   "Functions for creating and using textures"
-  (:require [dynamo.image :as img :refer [placeholder-image]]
+  (:require [editor.image :as img :refer [placeholder-image]]
             [editor.gl.protocols :refer [GlBind GlEnable]]
             [editor.gl :as gl]
             [dynamo.types :refer [IDisposable dispose]])

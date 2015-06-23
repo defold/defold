@@ -3,7 +3,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
-            [dynamo.image :refer :all]
+            [editor.image :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer [rect]]
             [editor.geom :refer :all]
