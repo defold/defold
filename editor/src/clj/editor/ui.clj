@@ -121,14 +121,16 @@
                               :selection-provider selection-provider}))
 
 (defn- contexts []
-  (->>
-    (loop [^Node node (.getFocusOwner ^Scene (.getScene ^Stage @*main-stage*))
-          ctxs []]
-     (if-not node
-       ctxs
-       (recur (.getParent node) (conj ctxs (user-data node ::context)))))
-    (remove nil?)
-    (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx)))))))
+  (let [main-scene (.getScene ^Stage @*main-stage*)
+        initial-node (or (.getFocusOwner main-scene) (.getRoot main-scene))]
+    (->>
+     (loop [^Node node initial-node
+            ctxs []]
+       (if-not node
+         ctxs
+         (recur (.getParent node) (conj ctxs (user-data node ::context)))))
+     (remove nil?)
+     (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
 
 (defn add-style! [^Node node ^String class]
   (.add (.getStyleClass node) class))
@@ -298,22 +300,27 @@
       (doseq [i (make-menu desc (:children item))]
         (.add (.getItems menu) i))
       menu)
-    (let [menu-item (MenuItem. (:label item))
-          command (:command item)]
-      (when command
-        (.setId menu-item (name command)))
-      (when (:acc item)
-        (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
-      (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
-      (.setDisable menu-item (not (handler/enabled? command (contexts))))
-      (.setOnAction menu-item (event-handler event (handler/run command (contexts)) ))
-      menu-item)))
+    (let [command (:command item)
+          ctxts (contexts)]
+      (when (handler/active? command ctxts)
+        (let [label (or (handler/label command ctxts) (:label item))
+              menu-item (MenuItem. label)]
+          (when command
+            (.setId menu-item (name command)))
+          (when (:acc item)
+            (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
+          (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
+          (.setDisable menu-item (not (handler/enabled? command ctxts)))
+          (.setOnAction menu-item (event-handler event (handler/run command ctxts)))
+          menu-item)))))
 
 (defn- ^MenuItem make-menu [desc menu]
   (->> menu
-    (mapv (fn [item] (if (= :separator (:label item))
-                       (SeparatorMenuItem.)
-                       (create-menu-item desc item))))))
+       (map (fn [item] (if (= :separator (:label item))
+                          (SeparatorMenuItem.)
+                          (create-menu-item desc item))))
+       (remove nil?)
+       (vec)))
 
 (defn- populate-context-menu [^ContextMenu context-menu desc menu]
   (let [items (make-menu desc menu)]

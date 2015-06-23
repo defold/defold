@@ -274,9 +274,11 @@
          (:embedded node))))
 
 (handler/defhandler :add-from-file :global
-  (enabled? [selection] (and (single-selection? selection)
-                             (or (selected-collection? selection)
-                                 (selected-embedded-instance? selection))))
+  (active? [selection] (and (single-selection? selection) (or (selected-collection? selection) (selected-embedded-instance? selection))))
+  (label [selection]
+           (cond
+             (selected-collection? selection) "Add Game Object File"
+             (selected-embedded-instance? selection) "Add Component from File"))
   (run [selection] (if (selected-embedded-instance? selection)
                      (game-object/add-component-handler (g/node-value (first selection) :source))
                      (let [coll-node (g/node-by-id (first selection))
@@ -325,9 +327,11 @@
                     (g/connect go-node     :self          self    :nodes)))))
 
 (handler/defhandler :add :global
-  (enabled? [selection] (and (single-selection? selection)
-                             (or (selected-collection? selection)
-                                 (selected-embedded-instance? selection))))
+  (active? [selection] (and (single-selection? selection) (or (selected-collection? selection) (selected-embedded-instance? selection))))
+  (label [selection]
+         (cond
+           (selected-collection? selection) "Add Game Object"
+           (selected-embedded-instance? selection) "Add Component"))
     (run [selection] (if (selected-embedded-instance? selection)
                        (game-object/add-embedded-component-handler (g/node-value (first selection) :source))
                        (let [coll-node (g/node-by-id (first selection))
@@ -373,8 +377,8 @@
                     []))))
 
 (handler/defhandler :add-secondary-from-file :global
-  (enabled? [selection] (and (single-selection? selection)
-                             (selected-collection? selection)))
+  (active? [selection] (and (single-selection? selection) (selected-collection? selection)))
+  (label [] "Add Collection from File")
   (run [selection] (let [coll-node (g/node-by-id (first selection))
                          project (project/get-project coll-node)
                          workspace (:workspace (:resource coll-node))
