@@ -177,8 +177,9 @@
             (project/select project [comp-node])))))))
 
 (handler/defhandler :add-from-file :global
-    (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-    (run [selection] (add-component-handler (g/node-by-id (first selection)))))
+  (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
+  (label [] "Add Component from File")
+  (run [selection] (add-component-handler (g/node-by-id (first selection)))))
 
 (defn- add-embedded-component [self project type data id position rotation]
   (let [resource (project/make-embedded-resource project type data)]
@@ -225,8 +226,9 @@
           (project/select project [comp-node]))))))
 
 (handler/defhandler :add :global
-    (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-    (run [selection] (add-embedded-component-handler (g/node-by-id (first selection)))))
+  (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
+  (label [] "Add Component")
+  (run [selection] (add-embedded-component-handler (g/node-by-id (first selection)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
