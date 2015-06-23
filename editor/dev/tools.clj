@@ -1,7 +1,6 @@
 (ns user
   (:require [clojure.pprint :refer [pprint]]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [internal.graph.types :as gt]
             [internal.java :as java]))
 

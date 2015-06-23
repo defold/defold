@@ -1,9 +1,7 @@
 (ns dynamo.defnode-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [tx-nodes with-clean-system]]
-            [dynamo.property :as dp]
-            [dynamo.types :as t]
+            [support.test-support :refer [tx-nodes with-clean-system]]
             [internal.node :as in])
   (:import clojure.lang.Compiler$CompilerException))
 
@@ -11,23 +9,23 @@
 
 (deftest nodetype
   (testing "is created from a data structure"
-    (is (satisfies? g/NodeType (in/make-node-type {:inputs {:an-input t/Str}}))))
+    (is (satisfies? g/NodeType (in/make-node-type {:inputs {:an-input g/Str}}))))
   (testing "supports direct inheritance"
-    (let [super-type (in/make-node-type {:inputs {:an-input t/Str}})
+    (let [super-type (in/make-node-type {:inputs {:an-input g/Str}})
           node-type  (in/make-node-type {:supertypes [super-type]})]
       (is (= [super-type] (g/supertypes node-type)))
-      (is (= {:an-input t/Str} (g/inputs node-type)))))
+      (is (= {:an-input g/Str} (g/inputs node-type)))))
   (testing "supports multiple inheritance"
-    (let [super-type (in/make-node-type {:inputs {:an-input t/Str}})
-          mixin-type (in/make-node-type {:inputs {:mixin-input t/Str}})
+    (let [super-type (in/make-node-type {:inputs {:an-input g/Str}})
+          mixin-type (in/make-node-type {:inputs {:mixin-input g/Str}})
           node-type  (in/make-node-type {:supertypes [super-type mixin-type]})]
       (is (= [super-type mixin-type] (g/supertypes node-type)))
-      (is (= {:an-input t/Str :mixin-input t/Str} (g/inputs node-type)))))
+      (is (= {:an-input g/Str :mixin-input g/Str} (g/inputs node-type)))))
   (testing "supports inheritance hierarchy"
-    (let [grandparent-type (in/make-node-type {:inputs {:grandparent-input t/Str}})
-          parent-type      (in/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input t/Str}})
+    (let [grandparent-type (in/make-node-type {:inputs {:grandparent-input g/Str}})
+          parent-type      (in/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input g/Str}})
           node-type        (in/make-node-type {:supertypes [parent-type]})]
-      (is (= {:parent-input t/Str :grandparent-input t/Str} (g/inputs node-type))))))
+      (is (= {:parent-input g/Str :grandparent-input g/Str} (g/inputs node-type))))))
 
 (g/defnode BasicNode)
 
@@ -56,13 +54,13 @@
   (is (thrown? Compiler$CompilerException (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
 
 (g/defnode OneInputNode
-  (input an-input t/Str))
+  (input an-input g/Str))
 
 (g/defnode InheritedInputNode
   (inherits OneInputNode))
 
 (g/defnode InjectableInputNode
-  (input for-injection t/Int :inject))
+  (input for-injection g/Int :inject))
 
 (g/defnode SubstitutingInputNode
   (input substitute-fn  String :substitute substitute-value-fn)
@@ -70,28 +68,28 @@
   (input inline-literal String :substitute "inline literal"))
 
 (g/defnode CardinalityInputNode
-  (input single-scalar-value        t/Str)
-  (input single-collection-value    [t/Str])
-  (input multiple-scalar-values     t/Str :array)
-  (input multiple-collection-values [t/Str] :array))
+  (input single-scalar-value        g/Str)
+  (input single-collection-value    [g/Str])
+  (input multiple-scalar-values     g/Str :array)
+  (input multiple-collection-values [g/Str] :array))
 
 (deftest nodes-can-have-inputs
   (testing "inputs must be defined with symbols"
     (is (thrown? Compiler$CompilerException
-                 (eval '(dynamo.graph/defnode BadInput (input :not-a-symbol t/Str))))))
+                 (eval '(dynamo.graph/defnode BadInput (input :not-a-symbol g/Str))))))
   (testing "inputs must be defined with a schema"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadInput (input a-input (fn [] "not a schema")))))))
   (testing "labeled input"
     (let [node (g/construct OneInputNode)]
       (is (:an-input (g/inputs OneInputNode)))
-      (is (= t/Str (g/input-type OneInputNode :an-input)))
-      (is (= t/Str (-> OneInputNode g/inputs (get :an-input))))))
+      (is (= g/Str (g/input-type OneInputNode :an-input)))
+      (is (= g/Str (-> OneInputNode g/inputs (get :an-input))))))
   (testing "inherited input"
     (let [node (g/construct InheritedInputNode)]
       (is (:an-input (g/inputs InheritedInputNode)))
-      (is (= t/Str (g/input-type InheritedInputNode :an-input)))
-      (is (= t/Str (-> InheritedInputNode g/inputs (get :an-input))))))
+      (is (= g/Str (g/input-type InheritedInputNode :an-input)))
+      (is (= g/Str (-> InheritedInputNode g/inputs (get :an-input))))))
   (testing "inputs can be flagged for injection"
     (let [node (g/construct InjectableInputNode)]
       (is (:for-injection (g/injectable-inputs InjectableInputNode)))))
@@ -128,7 +126,7 @@
 (defn- private-function [x] [x :ok])
 
 (g/defnode OneMethodNode
-  (input an-input t/Str)
+  (input an-input g/Str)
 
   OneMethodInterface
   (oneMethod [this ^Long x] (private-function x)))
@@ -199,18 +197,18 @@
       (is (= [:override-ok 5 10] (protocol-method node 5 10))))))
 
 (g/defnode SinglePropertyNode
-  (property a-property t/Str))
+  (property a-property g/Str))
 
 (g/defnode TwoPropertyNode
- (property a-property t/Str (default "default value"))
- (property another-property t/Int))
+ (property a-property g/Str (default "default value"))
+ (property another-property g/Int))
 
 (g/defnode InheritedPropertyNode
   (inherits TwoPropertyNode)
-  (property another-property t/Int (default -1)))
+  (property another-property g/Int (default -1)))
 
 (g/defnode VisibiltyFunctionPropertyNode
-  (property a-property t/Str (visible (g/fnk [foo] true))))
+  (property a-property g/Str (visible (g/fnk [foo] true))))
 
 (deftest nodes-can-include-properties
   (testing "a single property"
@@ -251,8 +249,8 @@
   (testing "do not allow a property to shadow an input of the same name"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode ReflexiveFeedbackPropertySingularToSingular
-                          (property port dynamo.types/Keyword (default :x))
-                          (input port dynamo.types/Keyword :inject))))))
+                          (property port dynamo.graph/Keyword (default :x))
+                          (input port dynamo.graph/Keyword :inject))))))
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
@@ -263,7 +261,7 @@
   (testing "properties are named by symbols"
     (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadProperty
-                          (property :not-a-symbol dynamo.types/Keyword))))))
+                          (property :not-a-symbol dynamo.graph/Keyword))))))
 
   (testing "property types have schemas"
     (is (thrown? AssertionError
@@ -273,53 +271,53 @@
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
 
-(dp/defproperty IntegerProperty t/Int (validate positive? (comp not neg?)))
+(g/defproperty IntegerProperty g/Int (validate positive? (comp not neg?)))
 
 (g/defnode MultipleOutputNode
-  (input integer-input t/Int)
-  (input string-input t/Str)
+  (input integer-input g/Int)
+  (input string-input g/Str)
 
-  (output string-output  t/Str         string-production-fnk)
-  (output integer-output t/Int         integer-production-fnk)
-  (output cached-output  t/Str :cached string-production-fnk)
-  (output inline-string  t/Str         (g/fnk [string-input] "inline-string")))
+  (output string-output         g/Str                                                 string-production-fnk)
+  (output integer-output        g/Int                                                 integer-production-fnk)
+  (output cached-output         g/Str           :cached                               string-production-fnk)
+  (output inline-string         g/Str                                                 (g/fnk [string-input] "inline-string")))
 
 (g/defnode AbstractOutputNode
-  (output abstract-output t/Str :abstract))
+  (output abstract-output g/Str :abstract))
 
 (g/defnode InheritedOutputNode
   (inherits MultipleOutputNode)
   (inherits AbstractOutputNode)
 
-  (output abstract-output t/Str string-production-fnk))
+  (output abstract-output g/Str string-production-fnk))
 
 (g/defnode TwoLayerDependencyNode
-  (property a-property t/Str)
+  (property a-property g/Str)
 
-  (output direct-calculation t/Str (g/fnk [a-property] a-property))
-  (output indirect-calculation t/Str (g/fnk [direct-calculation] direct-calculation)))
+  (output direct-calculation g/Str (g/fnk [a-property] a-property))
+  (output indirect-calculation g/Str (g/fnk [direct-calculation] direct-calculation)))
 
 (deftest nodes-can-have-outputs
   (testing "outputs must be defined with symbols"
     (is (thrown? Compiler$CompilerException
-                 (eval '(dynamo.graph/defnode BadOutput (output :not-a-symbol dynamo.types/Str :abstract))))))
+                 (eval '(dynamo.graph/defnode BadOutput (output :not-a-symbol dynamo.graph/Str :abstract))))))
   (testing "outputs must be defined with a schema"
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadOutput (output a-output (fn [] "not a schema") :abstract))))))
   (testing "outputs must have flags after the schema and before the production function"
     (is (thrown? AssertionError
-                 (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.types/Str (dynamo.graph/fnk []) :cached))))))
+                 (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.graph/Str (dynamo.graph/fnk []) :cached))))))
   (testing "outputs must either have a production function defined or be marked as abstract"
     (is (thrown? Compiler$CompilerException
-                 (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.types/Str))))))
+                 (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.graph/Str))))))
   (testing "basic output definition"
     (let [node (g/construct MultipleOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string]]
         (is (get (g/output-labels MultipleOutputNode) expected-output)))
-      (doseq [[label expected-schema] {:string-output t/Str
-                                       :integer-output t/Int
-                                       :cached-output t/Str
-                                       :inline-string t/Str}]
+      (doseq [[label expected-schema] {:string-output g/Str
+                                       :integer-output g/Int
+                                       :cached-output g/Str
+                                       :inline-string g/Str}]
         (is (= expected-schema (-> MultipleOutputNode g/transform-types (get label)))))
       (is (:cached-output (g/cached-outputs MultipleOutputNode)))))
 
@@ -327,11 +325,11 @@
     (let [node (g/construct InheritedOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :abstract-output]]
         (is (get (g/output-labels InheritedOutputNode) expected-output)))
-      (doseq [[label expected-schema] {:string-output t/Str
-                                       :integer-output t/Int
-                                       :cached-output t/Str
-                                       :inline-string t/Str
-                                       :abstract-output t/Str}]
+      (doseq [[label expected-schema] {:string-output g/Str
+                                       :integer-output g/Int
+                                       :cached-output g/Str
+                                       :inline-string g/Str
+                                       :abstract-output g/Str}]
         (is (= expected-schema (-> InheritedOutputNode g/transform-types (get label)))))
       (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
 
@@ -352,7 +350,7 @@
 
   (testing "outputs defined without the type cause a compile error"
     (is (not (nil? (eval '(dynamo.graph/defnode FooNode
-                            (output my-output dynamo.types/Any :abstract))))))
+                            (output my-output dynamo.graph/Any :abstract))))))
     (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode FooNode
                           (output my-output :abstract)))))
@@ -364,18 +362,18 @@
     (is (thrown? AssertionError
                  (eval '(let [foo-fn (fn [x] "foo")]
                           (dynamo.graph/defnode FooNode
-                            (output my-output dynamo.types/Any foo-fn))))))
+                            (output my-output dynamo.graph/Any foo-fn))))))
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode FooNode
-                          (output my-output dynamo.types/Any (fn [x] "foo"))))))))
+                          (output my-output dynamo.graph/Any (fn [x] "foo"))))))))
 
 (defn- not-neg? [x] (not (neg? x)))
 
-(dp/defproperty TypedProperty t/Int)
-(dp/defproperty DerivedProperty TypedProperty)
-(dp/defproperty DefaultProperty DerivedProperty
+(g/defproperty TypedProperty g/Int)
+(g/defproperty DerivedProperty TypedProperty)
+(g/defproperty DefaultProperty DerivedProperty
   (default 0))
-(dp/defproperty ValidatedProperty DefaultProperty
+(g/defproperty ValidatedProperty DefaultProperty
   (validate must-be-positive not-neg?))
 
 (g/defnode NodeWithPropertyVariations
@@ -384,7 +382,7 @@
   (property default-external DefaultProperty)
   (property validated-external ValidatedProperty)
 
-  (property typed-internal t/Int)
+  (property typed-internal g/Int)
   (property derived-internal TypedProperty)
   (property default-internal TypedProperty
     (default 0))

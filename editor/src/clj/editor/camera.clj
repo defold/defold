@@ -1,28 +1,27 @@
 (ns editor.camera
-  (:require [dynamo.geom :as geom]
-            [dynamo.graph :as g]
-            [dynamo.types :as t]
-            [dynamo.ui :as ui]
+  (:require [dynamo.graph :as g]
+            [editor.ui :as ui]
+            [editor.geom :as geom]
             [editor.math :as math]
-            [schema.core :as s])
-  (:import [dynamo.types Camera Region AABB]
+            [editor.types :as types])
+  (:import [editor.types Camera Region AABB]
            [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]))
 
 (set! *warn-on-reflection* true)
 
-(s/defn camera-view-matrix :- Matrix4d
+(g/s-defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
-  (let [pos (Vector3d. (t/position camera))
+  (let [pos (Vector3d. (types/position camera))
         m   (Matrix4d.)]
     (.setIdentity m)
-    (.set m (t/rotation camera))
+    (.set m (types/rotation camera))
     (.transpose m)
     (.transform m pos)
     (.negate pos)
     (.setColumn m 3 (.x pos) (.y pos) (.z pos) 1.0)
     m))
 
-(s/defn camera-perspective-projection-matrix :- Matrix4d
+(g/s-defn camera-perspective-projection-matrix :- Matrix4d
   [camera :- Camera]
   (let [near   (.z-near camera)
         far    (.z-far camera)
@@ -62,7 +61,7 @@
     (set! (. m m33) 0.0)
     m))
 
-(s/defn camera-orthographic-projection-matrix :- Matrix4d
+(g/s-defn camera-orthographic-projection-matrix :- Matrix4d
   [camera :- Camera]
   (let [near   (.z-near camera)
         far    (.z-far camera)
@@ -93,7 +92,7 @@
     (set! (. m m33) 1.0)
     m))
 
-(s/defn camera-projection-matrix :- Matrix4d
+(g/s-defn camera-projection-matrix :- Matrix4d
   [camera :- Camera]
   (case (:type camera)
     :perspective  (camera-perspective-projection-matrix camera)
@@ -101,35 +100,35 @@
 
 
 
-(s/defn make-camera :- Camera
+(g/s-defn make-camera :- Camera
   ([] (make-camera :perspective))
-  ([t :- (t/enum :perspective :orthographic)]
+  ([t :- (g/enum :perspective :orthographic)]
     (let [distance 10000.0
           position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
-      (t/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0)))))
+      (types/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0)))))
 
-(s/defn set-orthographic :- Camera
-  [camera :- Camera fov :- t/Num aspect :- t/Num z-near :- t/Num z-far :- t/Num]
+(g/s-defn set-orthographic :- Camera
+  [camera :- Camera fov :- g/Num aspect :- g/Num z-near :- g/Num z-far :- g/Num]
   (assoc camera
          :fov fov
          :aspect aspect
          :z-near z-near
          :z-far z-far))
 
-(s/defn camera-rotate :- Camera
+(g/s-defn camera-rotate :- Camera
   [camera :- Camera q :- Quat4d]
-  (assoc camera :rotation (doto (Quat4d. (t/rotation camera)) (.mul (doto (Quat4d. q) (.normalize))))))
+  (assoc camera :rotation (doto (Quat4d. (types/rotation camera)) (.mul (doto (Quat4d. q) (.normalize))))))
 
-(s/defn camera-move :- Camera
-  [camera :- Camera x :- t/Num y :- t/Num z :- t/Num]
-  (assoc camera :position (doto (Point3d. x y z) (.add (t/position camera)))))
+(g/s-defn camera-move :- Camera
+  [camera :- Camera x :- g/Num y :- g/Num z :- g/Num]
+  (assoc camera :position (doto (Point3d. x y z) (.add (types/position camera)))))
 
-(s/defn camera-set-position :- Camera
-  [camera :- Camera x :- t/Num y :- t/Num z :- t/Num]
+(g/s-defn camera-set-position :- Camera
+  [camera :- Camera x :- g/Num y :- g/Num z :- g/Num]
   (assoc camera :position (Point3d. x y z)))
 
-(s/defn camera-set-center :- Camera
+(g/s-defn camera-set-center :- Camera
   [camera :- Camera bounds :- AABB]
   (let [center (geom/aabb-center bounds)
         view-matrix (camera-view-matrix camera)]
@@ -138,7 +137,7 @@
     (.transform ^Matrix4d (geom/invert view-matrix) center)
     (camera-set-position camera (.x center) (.y center) (.z center))))
 
-(s/defn camera-project :- Point3d
+(g/s-defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
    that the given point projects onto. The input point should be in world space."
   [camera :- Camera viewport :- Region point :- Point3d]
@@ -173,8 +172,8 @@
                 (/ (.z ~v) (.w ~v))
                 1.0)))
 
-(s/defn camera-unproject :- Vector4d
-  [camera :- Camera viewport :- Region win-x :- t/Num win-y :- t/Num win-z :- t/Num]
+(g/s-defn camera-unproject :- Vector4d
+  [camera :- Camera viewport :- Region win-x :- g/Num win-y :- g/Num win-z :- g/Num]
   (let [win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
         in       (Vector4d. (scale-to-doubleunit win-x (.left viewport) (.right viewport))
                             (scale-to-doubleunit win-y (.top viewport)  (.bottom viewport))
@@ -189,7 +188,7 @@
     (.transform a in out)
     (normalize-vector out)))
 
-(s/defn viewproj-frustum-planes :- [Vector4d]
+(g/s-defn viewproj-frustum-planes :- [Vector4d]
   [camera :- Camera]
   (let [view-proj   (doto (camera-projection-matrix camera)
                       (.mul (camera-view-matrix camera)))
@@ -278,7 +277,7 @@
       (button-interpretation key :idle))))
 
 
-(s/defn camera-fov-from-aabb :- t/Num
+(g/s-defn camera-fov-from-aabb :- g/Num
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
@@ -298,7 +297,7 @@
               y-aspect    (/ fov-y-prim (:aspect camera))]
           (* 1.1 (Math/max y-aspect fov-x-prim)))))))
 
-(s/defn camera-orthographic-frame-aabb :- Camera
+(g/s-defn camera-orthographic-frame-aabb :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
   (-> camera
@@ -364,11 +363,11 @@
       action)))
 
 (g/defnode CameraController
-  (property name t/Keyword (default :camera))
+  (property name g/Keyword (default :camera))
   (property camera Camera)
-  (property reframe t/Bool)
-  (property ui-state t/Any (default (constantly (atom {:movement :idle}))))
-  (property movements-enabled t/Any (default #{:dolly :track :tumble}))
+  (property reframe g/Bool)
+  (property ui-state g/Any (default (constantly (atom {:movement :idle}))))
+  (property movements-enabled g/Any (default #{:dolly :track :tumble}))
 
   (input viewport Region)
   (input aabb AABB)

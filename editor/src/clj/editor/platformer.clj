@@ -2,20 +2,19 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
-            [dynamo.geom :as geom]
-            [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.texture :as texture]
-            [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.camera :as c]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex :as vtx]
             [editor.project :as project]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
@@ -120,11 +119,11 @@
       action)))
 
 (g/defnode PlatformerController
-  (property active-cp t/Any (visible (g/fnk [] false)))
-  (property inactive-cps t/Any (visible (g/fnk [] false)))
+  (property active-cp g/Any (visible (g/fnk [] false)))
+  (property inactive-cps g/Any (visible (g/fnk [] false)))
 
-  (input source t/Any)
-  (input camera t/Any)
+  (input source g/Any)
+  (input camera g/Any)
   (input viewport Region)
 
   (output input-handler Runnable (g/fnk [] handle-input)))
@@ -156,20 +155,20 @@
 (g/defnode PlatformerNode
   (inherits project/ResourceNode)
 
-  (property control-points  [t/Any] (visible (g/fnk [] false)))
-  (property base-texture t/Str)
+  (property control-points  [g/Any] (visible (g/fnk [] false)))
+  (property base-texture g/Str)
 
   (input base-texture-img BufferedImage)
 
-  (output base-texture-tex t/Any  :cached (g/fnk [base-texture-img] (texture/image-texture
+  (output base-texture-tex g/Any  :cached (g/fnk [base-texture-img] (texture/image-texture
                                                                      base-texture-img
                                                                      {:min-filter gl/linear-mipmap-linear
                                                                       :mag-filter gl/linear
                                                                       :wrap-s     gl/repeat
                                                                       :wrap-t     gl/repeat})))
   (output aabb          AABB  :cached (g/fnk [control-points] (reduce (fn [aabb cp] (geom/aabb-incorporate aabb (:x cp) (:y cp) 0)) (geom/null-aabb) control-points)))
-  (output save-data     t/Any :cached produce-save-data)
-  (output scene         t/Any :cached produce-scene))
+  (output save-data     g/Any :cached produce-save-data)
+  (output scene         g/Any :cached produce-scene))
 
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
