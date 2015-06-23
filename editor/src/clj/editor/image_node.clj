@@ -1,6 +1,6 @@
 (ns editor.image-node
   (:require [dynamo.graph :as g]
-            [dynamo.image :as i]
+            [editor.image :as i]
             [dynamo.types :as t]
             [editor.core :as core]))
 
