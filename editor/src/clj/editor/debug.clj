@@ -1,6 +1,6 @@
 (ns editor.debug
-  (:require [clojure.tools.nrepl.server :as nrepl]
-            [cider.nrepl :as cider]
+  (:require [cider.nrepl :as cider]
+            [clojure.tools.nrepl.server :as nrepl]
             [dynamo.util :refer [applym]]))
 
 (defonce ^:private repl-server (agent {:handler cider/cider-nrepl-handler}))

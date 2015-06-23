@@ -1,6 +1,6 @@
 (ns dynamo.image
   (:require [clojure.java.io :as io]
-            [dynamo.geom :refer :all]
+            [dynamo.geom :refer [clamper]]
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.core :as core]

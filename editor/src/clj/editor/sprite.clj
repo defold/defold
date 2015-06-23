@@ -1,13 +1,11 @@
 (ns editor.sprite
-  (:require [dynamo.buffers :refer :all]
-            [editor.protobuf :as protobuf]
+  (:require [editor.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.types :as t :refer :all]
-            [dynamo.ui :refer :all]
+            [dynamo.types :as t]
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
@@ -212,7 +210,7 @@
 
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
-    (let [outputs (g/outputs atlas-node)]
+    (let [outputs (-> atlas-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:textureset :gpu-texture])
         [(g/connect atlas-node :textureset self :textureset)
         (g/connect atlas-node :gpu-texture self :gpu-texture)]

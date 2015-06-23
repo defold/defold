@@ -1,7 +1,5 @@
 (ns editor.menu
-  (:require [dynamo.graph :as g]
-            [dynamo.types :as t]
-            [editor.jfx :as jfx]
+  (:require [editor.jfx :as jfx]
             [editor.ui :as ui])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]

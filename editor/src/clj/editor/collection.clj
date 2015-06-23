@@ -1,23 +1,21 @@
 (ns editor.collection
-  (:require [clojure.pprint :refer [pprint]]
-            [clojure.java.io :as io]
-            [dynamo.buffers :refer :all]
+  (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.graph :as g]
-            [dynamo.types :as t :refer :all]
-            [dynamo.ui :refer :all]
+            [dynamo.types :as t]
+            [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
+            [editor.handler :as handler]
+            [editor.math :as math]
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.workspace :as workspace]
-            [editor.math :as math]
-            [editor.handler :as handler]
-            [editor.dialogs :as dialogs]
             [internal.render.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
+           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -25,7 +23,6 @@
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
-           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [org.apache.commons.io FilenameUtils]))
 
 (def collection-icon "icons/bricks.png")

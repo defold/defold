@@ -1,17 +1,17 @@
 (ns editor.dialogs
   (:require [clojure.java.io :as io]
-            [editor.ui :as ui]
-            [service.log :as log]
             [dynamo.graph :as g]
-            [editor.workspace :as workspace])
-  (:import [javafx.fxml FXMLLoader]
-           [javafx.stage Stage Modality]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace]
+            [service.log :as log])
+  (:import [javafx.event ActionEvent EventHandler]
+           [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
-           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.control Button ProgressBar TextField]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.scene.web WebView]))
+           [javafx.scene.web WebView]
+           [javafx.stage Stage Modality]))
 
 (set! *warn-on-reflection* true)
 

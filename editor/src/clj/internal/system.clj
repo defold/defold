@@ -1,7 +1,7 @@
 (ns internal.system
   (:require [clojure.core.async :as a]
             [dynamo.util :as util]
-            [dynamo.util :refer :all]
+            [dynamo.util :refer [map-vals]]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
@@ -19,29 +19,6 @@
 (prefer-method print-method java.util.Map               clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IRecord        clojure.lang.IDeref)
-
-(defn- subscriber-id
-  [n]
-  (if (number? n)
-    n
-    (gt/node-id n)))
-
-(defn- address-to
-  [node body]
-  (assoc body ::node-id (subscriber-id node)))
-
-(defn- publish
-  [{publish-to :publish-to} msg]
-  (a/put! publish-to msg))
-
-(defn- publish-all
-  [sys msgs]
-  (doseq [s msgs]
-    (publish sys s)))
-
-(defn- subscribe
-  [{subscribe-to :subscribe-to} node]
-  (a/sub subscribe-to (subscriber-id node) (a/chan 100)))
 
 (defn- integer-counter
   []
@@ -213,32 +190,12 @@
   [configuration]
   (let [disposal-queue (make-disposal-queue configuration)
         initial-graph  (make-initial-graph configuration)
-        pubch          (a/chan 100)
-        subch          (a/pub pubch ::node-id (fn [_] (a/dropping-buffer 100)))
         cache          (make-cache configuration disposal-queue)]
     (-> {:disposal-queue disposal-queue
          :graphs         {}
          :id-generators  {}
-         :cache          cache
-         :publish-to     pubch
-         :subscribe-to   subch}
+         :cache          cache}
         (attach-graph initial-graph))))
-
-(defn start-event-loop!
-  [sys id]
-  (let [in (subscribe sys id)]
-    (a/go-loop []
-      (when-let [msg (a/<! in)]
-        (when (not= ::stop-event-loop (:type msg))
-          (when-let [n ()]
-            (log/logging-exceptions
-             (str "Node " id "event loop")
-             (gt/process-one-event n msg))
-            (recur)))))))
-
-(defn stop-event-loop!
-  [sys {:keys [_id]}]
-  (publish sys (address-to _id {:type ::stop-event-loop})))
 
 (defn dispose!
   [sys node]

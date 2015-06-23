@@ -1,20 +1,16 @@
 (ns editor.game-object
   (:require [clojure.java.io :as io]
-            [dynamo.buffers :refer :all]
             [editor.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.graph :as g]
-            [dynamo.types :as t :refer :all]
-            [dynamo.ui :refer :all]
+            [dynamo.types :as t]
+            [editor.core :as core]
+            [editor.dialogs :as dialogs]
+            [editor.handler :as handler]
             [editor.math :as math]
             [editor.project :as project]
             [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.core :as core]
-            [editor.ui :as ui]
-            [editor.handler :as handler]
-            [editor.dialogs :as dialogs]
-            [editor.outline-view :as outline-view])
+            [editor.workspace :as workspace])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
@@ -128,7 +124,7 @@
   (output scene t/Any :cached produce-scene))
 
 (defn- connect-if-output [out-node out-label in-node in-label]
-  (if ((g/outputs out-node) out-label)
+  (if ((-> out-node g/node-type g/output-labels) out-label)
     (g/connect out-node out-label in-node in-label)
     []))
 

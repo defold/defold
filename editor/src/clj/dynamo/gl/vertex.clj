@@ -24,7 +24,7 @@ the `do-gl` macro from `dynamo.gl`."
   (:require [clojure.string :as str]
             [dynamo.buffers :as b]
             [dynamo.types :refer [IDisposable dispose]]
-            [dynamo.gl.protocols :refer :all]
+            [dynamo.gl.protocols :refer [GlBind GlEnable]]
             [dynamo.gl.shader :as shader]
             [dynamo.gl :as gl])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
@@ -464,4 +464,3 @@ the `do-gl` macro from `dynamo.gl`."
   dynamo.gl.protocols/GlDisable."
   [^PersistentVertexBuffer vertex-buffer shader]
   (->VertexBufferShaderLink vertex-buffer shader (atom {})))
-
