@@ -1,12 +1,13 @@
 (ns internal.render.pass
-  (:require [dynamo.types :as t])
+  (:require [dynamo.graph :as g]
+            [editor.types :as types])
   (:import [javax.media.opengl GL GL2]
            [javax.media.opengl.glu GLU]))
 
 (defrecord RenderPass [nm selection model-transform]
-  t/Pass
-  (t/selection?       [this] selection)
-  (t/model-transform? [this] model-transform))
+  types/Pass
+  (types/selection?       [this] selection)
+  (types/model-transform? [this] model-transform))
 
 (defmacro make-pass [lbl sel model-xfm]
   `(def ~lbl (RenderPass. ~(str lbl) ~sel ~model-xfm)))
@@ -32,17 +33,17 @@
   icon           false false
   icon-selection true false)
 
-(def RenderData {(t/optional-key background)            t/Any
-                 (t/optional-key opaque)                t/Any
-                 (t/optional-key transparent)           t/Any
-                 (t/optional-key icon-outline)          t/Any
-                 (t/optional-key outline)               t/Any
-                 (t/optional-key manipulator)           t/Any
-                 (t/optional-key overlay)               t/Any
-                 (t/optional-key selection)             t/Any
-                 (t/optional-key manipulator-selection) t/Any
-                 (t/optional-key icon)                  t/Any
-                 (t/optional-key icon-selection)        t/Any})
+(def RenderData {(g/optional-key background)            g/Any
+                 (g/optional-key opaque)                g/Any
+                 (g/optional-key transparent)           g/Any
+                 (g/optional-key icon-outline)          g/Any
+                 (g/optional-key outline)               g/Any
+                 (g/optional-key manipulator)           g/Any
+                 (g/optional-key overlay)               g/Any
+                 (g/optional-key selection)             g/Any
+                 (g/optional-key manipulator-selection) g/Any
+                 (g/optional-key icon)                  g/Any
+                 (g/optional-key icon-selection)        g/Any})
 
 (defmulti prepare-gl (fn [pass gl glu] pass))
 

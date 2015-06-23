@@ -1,6 +1,5 @@
 (ns internal.property
   (:require [clojure.core.match :refer [match]]
-            [dynamo.types :as t]
             [dynamo.util :refer [apply-if-fn var-get-recursive]]
             [internal.graph.types :as gt]
             [schema.core :as s]))
@@ -9,7 +8,7 @@
 
 (defn- validation-problems
   [value-type validations value]
-  (if (t/check value-type value)
+  (if (s/check value-type value)
     (list "invalid value type")
     (keep identity
       (reduce
@@ -23,7 +22,7 @@
 
 (defrecord PropertyTypeImpl
   [value-type default validation visible tags enabled]
-  t/PropertyType
+  gt/PropertyType
   (property-value-type    [this]   value-type)
   (property-default-value [this]   (some-> default var-get-recursive apply-if-fn))
   (property-validate      [this v] (validation-problems value-type (map second validation) v))
@@ -71,7 +70,7 @@
 
 (defn property-type-descriptor [name-sym value-type body-forms]
   `(let [value-type#     ~value-type
-         base-props#     (if (t/property-type? value-type#)
+         base-props#     (if (gt/property-type? value-type#)
                            value-type#
                            {:value-type value-type# :tags []})
          override-props# ~(mapv compile-defproperty-form body-forms)
@@ -82,7 +81,7 @@
              (str "Property " '~name-sym " type " '~value-type " has a visibility function that should be an fnk, but isn't. " (:visible props#)))
      (assert (not (protocol?# value-type#))
              (str "Property " '~name-sym " type " '~value-type " looks like a protocol; try (schema.core/protocol " '~value-type ") instead."))
-     (assert (or (satisfies? t/PropertyType value-type#) (satisfies? s/Schema value-type#))
+     (assert (or (satisfies? gt/PropertyType value-type#) (satisfies? s/Schema value-type#))
              (str "Property " '~name-sym " is declared with type " '~value-type " but that doesn't seem like a real value type"))
      (map->PropertyTypeImpl props#)))
 
