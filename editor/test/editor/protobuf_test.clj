@@ -4,9 +4,10 @@
             [editor.protobuf :as protobuf])
   (:import [com.defold.editor.test TestDdf TestDdf$Msg TestDdf$SubMsg TestDdf$Transform TestDdf$DefaultValue
             TestDdf$OptionalNoDefaultValue TestDdf$EmptyMsg TestDdf$Uint64Msg TestDdf$RepeatedUints
-            TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum
+            TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$BooleanMsg TestDdf$BytesMsg
             TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
-           [javax.vecmath Point3d Vector3d]))
+           [javax.vecmath Point3d Vector3d]
+           [com.google.protobuf ByteString]))
 
 (defn- round-trip [^java.lang.Class cls m]
   (with-in-str (protobuf/map->str cls m)
@@ -93,3 +94,13 @@
                   :enum-val1 {:display-name "Enum Val1"}}
         values (protobuf/enum-values TestDdf$NestedMessages$NestedEnum$Enum)]
     (is (= values expected))))
+
+(deftest boolean-msg
+  (let [m {:value false}
+        new-m (round-trip TestDdf$BooleanMsg m)]
+    (is (= m new-m))))
+
+(deftest bytes-msg
+  (let [m {:value (ByteString/copyFromUtf8 "test-string")}
+        new-m (round-trip TestDdf$BytesMsg m)]
+    (is (= m new-m))))
