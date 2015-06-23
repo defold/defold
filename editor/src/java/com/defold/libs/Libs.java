@@ -74,11 +74,12 @@ public class Libs {
             break;
         }
 
-        File file = FileUtils.toFile(getFile(uri, libSubPath).toURL());
+        URL url = getFile(uri, libSubPath).toURL();
+        File file = FileUtils.toFile(url);
         if (file.exists()) {
             texcLibDir = file.getParentFile().getAbsolutePath();
         } else {
-            throw new IOException(String.format("Could not locate '%s'", libSubPath));
+            throw new IOException(String.format("Could not locate '%s' (%s)", libSubPath, url));
         }
     }
 
