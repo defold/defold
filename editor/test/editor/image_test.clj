@@ -1,10 +1,10 @@
-(ns dynamo.image-test
+(ns editor.image-test
   (:require [clojure.java.io :refer [as-url file]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
-            [dynamo.image :refer :all]
+            [editor.image :refer :all]
             [editor.geom :refer :all]
             [schema.test])
   (:import [java.awt.image BufferedImage]))

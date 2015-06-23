@@ -9,7 +9,7 @@
                        editor.geom-test
                        editor.gl.translate-test
                        editor.gl.vertex-test
-                       dynamo.image-test
+                       editor.image-test
                        dynamo.property-test
                        dynamo.transaction-test
                        dynamo.util-test

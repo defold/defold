@@ -1,5 +1,5 @@
 (ns internal.texture.engine
-  (:require [dynamo.image :refer [image-pixels image-convert-type image-color-components]]
+  (:require [editor.image :refer [image-pixels image-convert-type image-color-components]]
             [dynamo.types :refer [map->EngineFormatTexture]]
             [editor.buffers :refer [little-endian new-byte-buffer]]
             [internal.texture.math :refer [closest-power-of-two]])
