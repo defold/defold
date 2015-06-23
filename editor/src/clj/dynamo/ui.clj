@@ -1,9 +1,6 @@
 (ns dynamo.ui
   "This namespace has the functions and macros you use to interact with the GUI.
   - defcommand and defhandler let you define menu items and actions"
-  (:require [dynamo.types :as t]
-            [internal.java :refer [bean-mapper]]
-            [service.log :as log])
   (:import [javafx.animation AnimationTimer]
            [javafx.application Platform]
            [javafx.event EventHandler WeakEventHandler]))

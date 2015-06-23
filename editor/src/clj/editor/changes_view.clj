@@ -1,7 +1,6 @@
 (ns editor.changes-view
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.core :as core]
             [editor.diff-view :as diff-view]
             [editor.git :as git]
@@ -48,7 +47,7 @@
 
 (g/defnode ChangesView
   (inherits core/Scope)
-  (property git t/Any)
+  (property git g/Any)
   (on :create
       (let [^Parent parent (:parent event)
             refresh (.lookup parent "#changes-refresh")
@@ -61,7 +60,7 @@
         (ui/on-action! refresh (fn [_] (refresh! (:git event) list-view)))
         (refresh! (:git event) list-view)))
 
-  t/IDisposable
+  g/IDisposable
   (dispose [this]))
 
 (defn make-changes-view [view-graph workspace parent]

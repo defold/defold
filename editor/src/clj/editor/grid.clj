@@ -1,12 +1,11 @@
 (ns editor.grid
-  (:require [editor.gl :as gl]
-            [dynamo.graph :as g]
-            [dynamo.property :as dp]
-            [dynamo.types :as t :refer [min-p max-p]]
+  (:require [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.types :as types]
             [internal.render.pass :as pass])
-  (:import [dynamo.types AABB Camera]
+  (:import [editor.types AABB Camera]
            [javax.media.opengl GL GL2]
            [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
 
@@ -28,8 +27,8 @@
 (defn render-grid
   [gl fixed-axis size aabb]
   ;; draw across
-  (let [min-values (geom/as-array (min-p aabb))
-        max-values  (geom/as-array (max-p aabb))
+  (let [min-values (geom/as-array (types/min-p aabb))
+        max-values  (geom/as-array (types/max-p aabb))
         u-axis      (mod (inc fixed-axis) 3)
         u-min       (nth min-values u-axis)
         u-max       (nth max-values u-axis)
@@ -44,14 +43,14 @@
 (defn render-primary-axes
   [^GL2 gl ^AABB aabb]
   (gl/gl-color-3fv gl x-axis-color 0)
-  (gl/gl-vertex-3d gl (-> aabb min-p .x) 0.0 0.0)
-  (gl/gl-vertex-3d gl (-> aabb max-p .x) 0.0 0.0)
+  (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
+  (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0)
   (gl/gl-color-3fv gl y-axis-color 0)
-  (gl/gl-vertex-3d gl 0.0 (-> aabb min-p .y) 0.0)
-  (gl/gl-vertex-3d gl 0.0 (-> aabb max-p .y) 0.0)
+  (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
+  (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0)
   (gl/gl-color-3fv gl z-axis-color 0)
-  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb min-p .z))
-  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb max-p .z)))
+  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
+  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
 
 (defn render-grid-sizes
   [^GL2 gl ^doubles dir grids]
@@ -134,14 +133,14 @@
 
 (defn snap-out-to-grid
   [^AABB aabb grid-size]
-  (t/->AABB (Point3d. (grid-snap-down (-> aabb min-p .x) grid-size)
-                      (grid-snap-down (-> aabb min-p .y) grid-size)
-                      (grid-snap-down (-> aabb min-p .z) grid-size))
-            (Point3d. (grid-snap-up   (-> aabb max-p .x) grid-size)
-                      (grid-snap-up   (-> aabb max-p .y) grid-size)
-                      (grid-snap-up   (-> aabb max-p .z) grid-size))))
+  (types/->AABB (Point3d. (grid-snap-down (-> aabb types/min-p .x) grid-size)
+                      (grid-snap-down (-> aabb types/min-p .y) grid-size)
+                      (grid-snap-down (-> aabb types/min-p .z) grid-size))
+            (Point3d. (grid-snap-up   (-> aabb types/max-p .x) grid-size)
+                      (grid-snap-up   (-> aabb types/max-p .y) grid-size)
+                      (grid-snap-up   (-> aabb types/max-p .z) grid-size))))
 
-(g/defnk update-grids :- t/Any
+(g/defnk update-grids :- g/Any
   [camera]
   (let [frustum-planes   (c/viewproj-frustum-planes camera)
         far-z-plane      (nth frustum-planes 5)
@@ -160,9 +159,9 @@
 
 (g/defnode Grid
   (input camera Camera)
-  (property grid-color t/Color)
-  (property auto-grid  t/Bool)
-  (property fixed-grid-size dp/NonNegativeInt (default 0))
+  (property grid-color types/Color)
+  (property auto-grid  g/Bool)
+  (property fixed-grid-size types/NonNegativeInt (default 0))
 
-  (output grids      t/Any :cached update-grids)
+  (output grids      g/Any :cached update-grids)
   (output renderable pass/RenderData  grid-renderable))

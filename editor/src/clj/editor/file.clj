@@ -8,11 +8,9 @@ the native file system. Overrides `.toString()`. Implements [[PathManipulation]]
 so it has the corresponding `make-reader`, `make-writer`, `make-input-stream` and
 `make-output-stream` functions."
   (:refer-clojure :exclude [load])
-  (:require [clojure.string :as str]
-            [clojure.java.io :as io]
-            [dynamo.types :as t]
-            [internal.java :as j]
-            [service.log :as log])
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
+            [editor.types :as types])
   (:import [java.io File OutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -31,14 +29,14 @@ so it has the corresponding `make-reader`, `make-writer`, `make-input-stream` an
   (write-file [this ^bytes contents] "Given a path and contents, writes the contents to file. This will overwrite any existing contents."))
 
 (defrecord ProjectPath [project-ref ^String path ^String ext]
-  t/PathManipulation
+  types/PathManipulation
   (extension         [this]         ext)
   (replace-extension [this new-ext] (ProjectPath. project-ref path new-ext))
   (local-path        [this]         (if ext (str path "." ext) path))
   (local-name        [this]         (str (last (clojure.string/split path (java.util.regex.Pattern/compile java.io.File/separator))) "." ext))
 
   ProjectRelative
-  (project-file          [this]      (io/file (str (:content-root project-ref) "/" (t/local-path this))))
+  (project-file          [this]      (io/file (str (:content-root project-ref) "/" (types/local-path this))))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (project-file this) opts))
@@ -52,12 +50,12 @@ so it has the corresponding `make-reader`, `make-writer`, `make-input-stream` an
 
 (defmethod print-method editor.file.ProjectPath
   [^ProjectPath v ^java.io.Writer w]
-  (.write w (str "P<" (t/local-name v) ">")))
+  (.write w (str "P<" (types/local-name v) ">")))
 
 (defn- ensure-parents
   [path]
   (-> path
-    t/local-path
+    types/local-path
     java.io.File.
     (.getParentFile)
     (.mkdirs)))
@@ -67,7 +65,7 @@ so it has the corresponding `make-reader`, `make-writer`, `make-input-stream` an
   (last (str/split p (java.util.regex.Pattern/compile java.io.File/separator))))
 
 (defrecord NativePath [^String path ^String ext]
-  t/PathManipulation
+  types/PathManipulation
   (extension         [this]         ext)
   (replace-extension [this new-ext] (NativePath. path new-ext))
   (local-path        [this]         (str path "." ext))
@@ -76,7 +74,7 @@ so it has the corresponding `make-reader`, `make-writer`, `make-input-stream` an
   FileWriter
   (write-file        [path contents]
     (ensure-parents path)
-    (with-open [out ^OutputStream (io/output-stream (t/local-path path))]
+    (with-open [out ^OutputStream (io/output-stream (types/local-path path))]
       (.write out ^bytes contents)
       (.flush out)))
 
@@ -87,7 +85,7 @@ so it has the corresponding `make-reader`, `make-writer`, `make-input-stream` an
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   Object
-  (toString [this] (t/local-path this)))
+  (toString [this] (types/local-path this)))
 
 (defmethod print-method NativePath
   [^NativePath v ^java.io.Writer w]

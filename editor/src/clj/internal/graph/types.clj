@@ -1,5 +1,6 @@
 (ns internal.graph.types
-  (:require [schema.core :as s]))
+  (:require [potemkin.namespaces :refer [import-vars]]
+            [schema.core :as s]))
 
 (defn pfnk?
   "True if the function has a schema. (I.e., it is a valid production function"
@@ -77,6 +78,19 @@
 
 (defn protocol? [x] (and (map? x) (contains? x :on-interface)))
 
+(defprotocol PropertyType
+  (property-value-type    [this]   "Prismatic schema for property value type")
+  (property-default-value [this])
+  (property-validate      [this v] "Returns a possibly-empty seq of messages.")
+  (property-valid-value?  [this v] "If valid, returns nil. If invalid, returns seq of Marker")
+  (property-enabled?      [this v] "If true, this property may be edited")
+  (property-visible?      [this v] "If true, this property appears in the UI")
+  (property-tags          [this]))
+
+(defn property-type? [x] (satisfies? PropertyType x))
+
+(def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
+
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
@@ -110,3 +124,12 @@
 
 (defn error [& reason] (->ErrorValue reason))
 (defn error? [x] (instance? ErrorValue x))
+
+
+;; ---------------------------------------------------------------------------
+;; Destructors
+;; ---------------------------------------------------------------------------
+(defprotocol IDisposable
+  (dispose [this] "Clean up a value, including thread-jumping as needed"))
+
+(defn disposable? [x] (satisfies? IDisposable x))

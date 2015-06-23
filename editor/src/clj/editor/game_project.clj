@@ -2,14 +2,13 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.project :as project]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc  GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc$Builder]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader StringReader BufferedReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
@@ -28,13 +27,13 @@
 (g/defnode GameProjectNode
   (inherits project/ResourceNode)
 
-  (property content t/Str)
+  (property content g/Str)
 
-  (input dep-build-targets t/Any :array)
+  (input dep-build-targets g/Any :array)
 
-  (output outline t/Any :cached (g/fnk [node-id] {:node-id node-id :label "Game Project" :icon game-object-icon}))
-  (output save-data t/Any :cached produce-save-data)
-  (output build-targets t/Any :cached (g/fnk [node-id resource content dep-build-targets]
+  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Game Project" :icon game-object-icon}))
+  (output save-data g/Any :cached produce-save-data)
+  (output build-targets g/Any :cached (g/fnk [node-id resource content dep-build-targets]
                                              [{:node-id node-id
                                                :resource (workspace/make-build-resource resource)
                                                :build-fn build-game-project

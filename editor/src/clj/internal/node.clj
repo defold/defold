@@ -1,7 +1,6 @@
 (ns internal.node
   (:require [clojure.core.match :refer [match]]
             [clojure.set :as set]
-            [dynamo.types :as t]
             [dynamo.util :refer [collify map-vals apply-if-fn]]
             [internal.cache :as c]
             [internal.graph :as ig]
@@ -14,7 +13,7 @@
 
 (defn resource-property?
   [property-type]
-  (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
+  (some-> property-type gt/property-tags (->> (some #{:editor.types/resource}))))
 
 (defn warn [node-id node-type label input-schema error]
   (println "WARNING: node " node-id
@@ -64,7 +63,7 @@
   [self kwargs prop]
   (let [type              (-> self gt/properties prop)
         value             (get self prop)
-        problems          (t/property-validate type value)
+        problems          (gt/property-validate type value)
         enabled?          (property-enabled? type kwargs)
         visible?          (property-visible? type kwargs)]
     {:node-id             (gt/node-id self)
@@ -125,7 +124,7 @@
   (reduce
    (fn [inputs [property property-type]]
      (if-let [vfn (get property-type key)]
-       (into inputs (keys (dissoc (pf/input-schema vfn) t/Keyword)))
+       (into inputs (keys (dissoc (pf/input-schema vfn) s/Keyword)))
        inputs))
    #{}
    properties))
@@ -143,9 +142,9 @@
   [node-type-description]
   (let [properties      (:properties node-type-description)
         argument-names  (properties-output-arguments properties)
-        argument-schema (zipmap argument-names (repeat t/Any))]
-    (attach-output node-type-description :properties t/Any #{} #{}
-                   (s/schematize-fn (fn [args] (gather-properties args)) (s/=> t/Any argument-schema)))))
+        argument-schema (zipmap argument-names (repeat s/Any))]
+    (attach-output node-type-description :properties s/Any #{} #{}
+                   (s/schematize-fn (fn [args] (gather-properties args)) (s/=> s/Any argument-schema)))))
 
 (defn- invert-map
   [m]
@@ -157,7 +156,7 @@
 (defn inputs-for
   [production-fn]
   (if (gt/pfnk? production-fn)
-    (into #{} (keys (dissoc (pf/input-schema production-fn) t/Keyword :this :g)))
+    (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
     #{}))
 
 (defn dependency-seq
@@ -238,10 +237,10 @@
   [description label schema flags options & [args]]
   (assert (name-available description label) (str "Cannot create input " label ". The id is already in use."))
   (assert (not (gt/protocol? schema))
-          (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (t/protocol) instead" label (:name description)))
+          (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (dynamo.graph/protocol) instead" label (:name description)))
   (assert-schema "input" schema)
 
-  (let [property-schema (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)]
+  (let [property-schema (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)]
     (cond->
         (assoc-in description [:inputs label] property-schema)
 
@@ -427,7 +426,7 @@
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (map-vals t/property-default-value (gt/properties' node-type)))
+  (map-vals gt/property-default-value (gt/properties' node-type)))
 
 (defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
 (defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
@@ -440,7 +439,7 @@
 (defn- property-schema
   [node-type property]
   (let [schema (gt/property-type node-type property)]
-    (if (satisfies? t/PropertyType schema) (t/property-value-type schema) schema)))
+    (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)))
 
 (defn- dollar-name
   [node-type-name label]
@@ -478,7 +477,7 @@
   (persistent!
    (reduce-kv
     (fn [arguments desired-argument-name _]
-      (if (= t/Keyword desired-argument-name)
+      (if (= s/Keyword desired-argument-name)
         arguments
         (let [argument-type (deduce-argument-type record-name node-type desired-argument-name transform)]
           (assoc! arguments desired-argument-name (or argument-type s/Any)))))

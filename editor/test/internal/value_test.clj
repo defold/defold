@@ -1,9 +1,7 @@
 (ns internal.value-test
-  (:require [clojure.core.match :as match]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.types :as t]
             [internal.transaction :as it]
             [internal.node :as in]))
 
@@ -30,7 +28,7 @@
   (input last-name  String)
   (input operand    String)
 
-  (property scalar t/Str)
+  (property scalar g/Str)
 
   (output uncached-value  String
           (g/fnk [this scalar]
@@ -126,9 +124,9 @@
                              (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
 
 (g/defnode OverrideValueNode
-  (input overridden t/Str)
-  (output output t/Str (g/fnk [overridden] overridden))
-  (output foo    t/Str (g/fnk [an-input] an-input)))
+  (input overridden g/Str)
+  (output output g/Str (g/fnk [overridden] overridden))
+  (output foo    g/Str (g/fnk [an-input] an-input)))
 
 (defn build-override-project
   [world]
@@ -164,9 +162,9 @@
   (not (nil? (cache-peek cache node-id label))))
 
 (g/defnode OutputChaining
-  (property a-property t/Int (default 0))
+  (property a-property g/Int (default 0))
 
-  (output chained-output t/Int :cached
+  (output chained-output g/Int :cached
           (g/fnk [self a-property]
                  (inc a-property))))
 
@@ -180,30 +178,30 @@
       (is (not (cached? cache node-id :a-property))))))
 
 (g/defnode Source
-  (property constant t/Keyword))
+  (property constant g/Keyword))
 
 (g/defnode ValuePrecedence
-  (property overloaded-output-input-property t/Keyword (default :property))
-  (output   overloaded-output-input-property t/Keyword (g/fnk [] :output))
+  (property overloaded-output-input-property g/Keyword (default :property))
+  (output   overloaded-output-input-property g/Keyword (g/fnk [] :output))
 
-  (input    overloaded-input-property t/Keyword)
-  (output   overloaded-input-property t/Keyword (g/fnk [overloaded-input-property] overloaded-input-property))
+  (input    overloaded-input-property g/Keyword)
+  (output   overloaded-input-property g/Keyword (g/fnk [overloaded-input-property] overloaded-input-property))
 
-  (property the-property t/Keyword (default :property))
+  (property the-property g/Keyword (default :property))
 
-  (output   output-using-overloaded-output-input-property t/Keyword (g/fnk [overloaded-output-input-property] overloaded-output-input-property))
+  (output   output-using-overloaded-output-input-property g/Keyword (g/fnk [overloaded-output-input-property] overloaded-output-input-property))
 
-  (input    eponymous t/Keyword)
-  (output   eponymous t/Keyword (g/fnk [eponymous] eponymous))
+  (input    eponymous g/Keyword)
+  (output   eponymous g/Keyword (g/fnk [eponymous] eponymous))
 
 
-  (property position t/Keyword (default :position-property))
-  (output   position t/Str     (g/fnk [position] (name position)))
-  (output   transform t/Str    (g/fnk [position] position))
+  (property position g/Keyword (default :position-property))
+  (output   position g/Str     (g/fnk [position] (name position)))
+  (output   transform g/Str    (g/fnk [position] position))
 
-  (input    renderables           t/Keyword :array)
-  (output   renderables           t/Str     (g/fnk [renderables] (apply str (mapcat name renderables))))
-  (output   transform-renderables t/Str     (g/fnk [renderables] renderables)))
+  (input    renderables           g/Keyword :array)
+  (output   renderables           g/Str     (g/fnk [renderables] (apply str (mapcat name renderables))))
+  (output   transform-renderables g/Str     (g/fnk [renderables] renderables)))
 
 
 (deftest node-value-precedence
@@ -270,21 +268,21 @@
        (is (= "Solid Snake" (g/node-value view-node :derived-value)))))))
 
 (g/defnode SubstitutingInputsNode
-  (input unary-no-sub     t/Int)
-  (input multi-no-sub     t/Int :array)
-  (input unary-with-sub   t/Int :substitute 99)
-  (input multi-with-sub   t/Int :array :substitute 4848)
+  (input unary-no-sub     g/Int)
+  (input multi-no-sub     g/Int :array)
+  (input unary-with-sub   g/Int :substitute 99)
+  (input multi-with-sub   g/Int :array :substitute 4848)
 
-  (output unary-no-sub    t/Int  (g/fnk [unary-no-sub] unary-no-sub))
-  (output multi-no-sub    t/Int  (g/fnk [multi-no-sub] multi-no-sub))
-  (output unary-with-sub  t/Int  (g/fnk [unary-with-sub] unary-with-sub))
-  (output multi-with-sub  t/Int  (g/fnk [multi-with-sub] multi-with-sub)))
+  (output unary-no-sub    g/Int  (g/fnk [unary-no-sub] unary-no-sub))
+  (output multi-no-sub    g/Int  (g/fnk [multi-no-sub] multi-no-sub))
+  (output unary-with-sub  g/Int  (g/fnk [unary-with-sub] unary-with-sub))
+  (output multi-with-sub  g/Int  (g/fnk [multi-with-sub] multi-with-sub)))
 
 (g/defnode ConstantNode
-  (property value t/Any)
-  (output source t/Int (g/fnk [value] value))
-  (property array-value [t/Any])
-  (output array-source [t/Int] (g/fnk [value] value)))
+  (property value g/Any)
+  (output source g/Int (g/fnk [value] value))
+  (property array-value [g/Any])
+  (output array-source [g/Int] (g/fnk [value] value)))
 
 (defn arrange-error-value-call
   [world label connected? source-sends]
