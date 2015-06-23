@@ -1,7 +1,7 @@
 (ns dynamo.defnode-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [tx-nodes with-clean-system]]
+            [support.test-support :refer [tx-nodes with-clean-system]]
             [internal.node :as in])
   (:import clojure.lang.Compiler$CompilerException))
 

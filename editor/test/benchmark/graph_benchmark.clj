@@ -3,7 +3,7 @@
             [clojure.test :refer :all]
             [criterium.core :as cc]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer :all]
+            [support.test-support :refer :all]
             [editor.core :as core]
             [integration.test-util :as test-util]
             [internal.graph :as ig]

@@ -3,7 +3,7 @@
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :as ts])
+            [support.test-support :as ts])
   (:import [dynamo.graph Endpoint]))
 
 ;;  simple copy: two nodes, one arc

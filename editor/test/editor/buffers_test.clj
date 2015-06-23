@@ -1,6 +1,6 @@
 (ns editor.buffers-test
   (:require [clojure.test :refer :all]
-            [dynamo.graph.test-support :refer [array=]]
+            [support.test-support :refer [array=]]
             [editor.buffers :as b])
   (:import [java.nio ByteBuffer]
            [com.google.protobuf ByteString]))

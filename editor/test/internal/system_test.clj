@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :as ts]
+            [support.test-support :as ts]
             [dynamo.util :as u]
             [internal.graph.types :as gt]
             [internal.system :as is]))

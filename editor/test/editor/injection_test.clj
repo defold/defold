@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer :all]
+            [support.test-support :refer :all]
             [editor.core :as core]))
 
 (g/defnode Receiver

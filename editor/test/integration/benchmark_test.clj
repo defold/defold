@@ -1,7 +1,7 @@
 (ns integration.benchmark-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system]]
             [editor.scene :as scene]
             [integration.test-util :as test-util]))
 

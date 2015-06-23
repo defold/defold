@@ -1,6 +1,6 @@
 (ns editor.gl.vertex-test
   (:require [clojure.test :refer :all]
-            [dynamo.graph.test-support :refer [array=]]
+            [support.test-support :refer [array=]]
             [editor.buffers :as b]
             [editor.gl.vertex :refer :all])
   (:import [com.google.protobuf ByteString]))
