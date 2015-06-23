@@ -1,6 +1,6 @@
 (ns editor.sprite
   (:require [dynamo.buffers :refer :all]
-            [dynamo.file.protobuf :as protobuf]
+            [editor.protobuf :as protobuf]
             [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
@@ -13,7 +13,7 @@
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.sprite.proto Sprite Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
+           [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
            [com.jogamp.opengl.util.awt TextRenderer]
            [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -153,9 +153,9 @@
             blend-mode (:blend-mode user-data)]
         (gl/with-enabled gl [gpu-texture shader vertex-binding]
           (case blend-mode
-            :BLEND_MODE_ALPHA (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-            (:BLEND_MODE_ADD :BLEND_MODE_ADD_ALPHA) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-            :BLEND_MODE_MULT (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+            :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+            (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+            :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
           (shader/set-uniform shader gl "texture" 0)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
@@ -167,15 +167,13 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [self image default-animation material blend-mode]
-  {:resource (:resource self)
-   :content (protobuf/pb->str
-              (.build
-                (doto (Sprite$SpriteDesc/newBuilder)
-                  (.setTileSet (workspace/proj-path image))
-                  (.setDefaultAnimation default-animation)
-                  (.setMaterial (workspace/proj-path material))
-                  (.setBlendMode (protobuf/val->pb-enum Sprite$SpriteDesc$BlendMode blend-mode)))))})
+(g/defnk produce-save-data [resource image default-animation material blend-mode]
+  {:resource resource
+   :content (protobuf/map->str Sprite$SpriteDesc
+              {:tile-set (workspace/proj-path image)
+               :default-animation default-animation
+               :material (workspace/proj-path material)
+               :blend-mode blend-mode})})
 
 (defn anim-uvs [textureset anim]
   (let [frame (first (:frames anim))]
@@ -201,16 +199,16 @@
      scene)))
 
 (defn- build-sprite [self basis resource dep-resources user-data]
-  ; TODO - MASSIVE HACK (protobuf is passed as a string)
-  (with-in-str (:proto-msg user-data)
-    {:resource resource :content (protobuf/pb->bytes (protobuf/read-text Sprite$SpriteDesc *in*))}))
+  {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc (:proto-msg user-data))})
 
-(g/defnk produce-build-targets [node-id save-data]
+(g/defnk produce-build-targets [node-id resource image default-animation material blend-mode]
   [{:node-id node-id
-    :resource (workspace/make-build-resource (:resource save-data))
+    :resource (workspace/make-build-resource resource)
     :build-fn build-sprite
-    ; TODO - MASSIVE HACK (protobuf is passed as a string)
-    :user-data {:proto-msg (:content save-data)}}])
+    :user-data {:proto-msg {:tile-set (workspace/proj-path image)
+                            :default-animation default-animation
+                            :material (workspace/proj-path material)
+                            :blend-mode blend-mode}}}])
 
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
@@ -241,7 +239,7 @@
   (property image (t/protocol workspace/Resource))
   (property default-animation t/Str)
   (property material (t/protocol workspace/Resource))
-  (property blend-mode t/Any (default :BLEND_MODE_ALPHA) (tag Sprite$SpriteDesc$BlendMode))
+  (property blend-mode t/Any (default :blend-mode-alpha) (tag Sprite$SpriteDesc$BlendMode))
 
   (trigger reconnect :property-touched #'reconnect)
 
@@ -264,7 +262,7 @@
   (output build-targets t/Any :cached produce-build-targets))
 
 (defn load-sprite [project self input]
-  (let [sprite (protobuf/pb->map (protobuf/read-text Sprite$SpriteDesc input))
+  (let [sprite (protobuf/read-text Sprite$SpriteDesc input)
         resource (:resource self)
         image (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]

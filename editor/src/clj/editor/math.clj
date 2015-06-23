@@ -1,6 +1,7 @@
 (ns editor.math
   (:import [java.lang Math]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d
+            Tuple3d Tuple4d]))
 
 (def epsilon 0.000001)
 (def epsilon-sq (* epsilon epsilon))
@@ -139,3 +140,21 @@
         (.setColumn mat3 col axis))
       (.set out-rotation mat3)
       (.set out-scale scale))))
+
+(defprotocol VecmathConverter
+  (clj->vecmath [this v])
+  (vecmath->clj [this]))
+
+(extend-protocol VecmathConverter
+  Tuple3d
+  (clj->vecmath [this v] (.set this (nth v 0) (nth v 1) (nth v 2)))
+  (vecmath->clj [this] [(.getX this) (.getY this) (.getZ this)])
+  Tuple4d
+  (clj->vecmath [this v] (.set this (nth v 0) (nth v 1) (nth v 2) (nth v 3)))
+  (vecmath->clj [this] [(.getX this) (.getY this) (.getZ this) (.getW this)])
+  Matrix4d
+  (clj->vecmath [this v] (.set this (double-array v)))
+  (vecmath->clj [this] [(.m00 this) (.m01 this) (.m02 this) (.m03 this)
+                        (.m10 this) (.m11 this) (.m12 this) (.m13 this)
+                        (.m20 this) (.m21 this) (.m22 this) (.m23 this)
+                        (.m30 this) (.m31 this) (.m32 this) (.m33 this)]))
