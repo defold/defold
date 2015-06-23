@@ -48,17 +48,20 @@
 (g/defnode ChangesView
   (inherits core/Scope)
   (property git g/Any)
-  (on :create
-      (let [^Parent parent (:parent event)
-            refresh (.lookup parent "#changes-refresh")
-            list-view (.lookup parent "#changes")]
-        (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-        ; TODO: Should we really include both git and list-view in the context. Have to think about this
-        (ui/context! list-view :asset-browser {:git (:git event) :list-view list-view} list-view)
-        (ui/register-context-menu list-view ::changes-menu)
-        (ui/cell-factory! list-view status-render)
-        (ui/on-action! refresh (fn [_] (refresh! (:git event) list-view)))
-        (refresh! (:git event) list-view)))
+
+  core/ICreate
+  (post-create
+   [this basis event]
+   (let [{:keys [^Parent parent git]} event
+         refresh                      (.lookup parent "#changes-refresh")
+         list-view                    (.lookup parent "#changes")]
+     (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
+     ; TODO: Should we really include both git and list-view in the context. Have to think about this
+     (ui/context! list-view :asset-browser {:git git :list-view list-view} list-view)
+     (ui/register-context-menu list-view ::changes-menu)
+     (ui/cell-factory! list-view status-render)
+     (ui/on-action! refresh (fn [_] (refresh! git list-view)))
+     (refresh! git list-view)))
 
   g/IDisposable
   (dispose [this]))
@@ -69,7 +72,7 @@
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
-      (g/dispatch-message (g/now) view :create :parent parent :git (Git/open (io/file (:root workspace))))
+      (core/post-create view (g/now) {:parent parent :git (Git/open (io/file (:root workspace)))})
       (g/refresh view)
       (catch Exception e
         (log/error :exception e)))))

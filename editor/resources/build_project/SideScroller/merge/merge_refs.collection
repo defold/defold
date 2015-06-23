@@ -1,7 +1,7 @@
 name: "merge"
 instances {
   id: "id1"
-  prototype: "/merge/empty.go"
+  prototype: "/merge/sprite.go"
   position {
     x: 0.0
     y: 0.0
@@ -17,7 +17,7 @@ instances {
 }
 instances {
   id: "id2"
-  prototype: "/merge/empty.go"
+  prototype: "/merge/sprite.go"
   position {
     x: 0.0
     y: 0.0

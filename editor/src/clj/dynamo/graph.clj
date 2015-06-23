@@ -16,7 +16,7 @@
 
 (namespaces/import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
@@ -111,10 +111,6 @@
       (dosync
        (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
        (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result)))
-      (doseq [l (:old-event-loops tx-result)]
-        (is/stop-event-loop! @*the-system* l))
-      (doseq [l (:new-event-loops tx-result)]
-        (is/start-event-loop! @*the-system* l))
       (doseq [d (vals (:nodes-deleted tx-result))]
         (is/dispose! @*the-system* d)))
     tx-result))
@@ -279,22 +275,11 @@
   actions or automatic counters. So they will only cascade until the
   limit `internal.transaction/maximum-retrigger-count` is reached.
 
-  (on _message_type_ _form_)
-
-  The form will be evaluated inside a transactional body. This means
-  that it can use the special clauses to create nodes, change
-  connections, update properties, and so on.
-
-  A node definition allows any number of 'on' clauses.
-
-  A node may also implement protocols or interfaces, using a syntax
+    A node may also implement protocols or interfaces, using a syntax
   identical to `deftype` or `defrecord`. A node may implement any
   number of such protocols.
 
-  Every node always implements dynamo.graph/Node.
-
-  If there are any event handlers defined for the node type, then it
-  will also implement MessageTarget."
+  Every node always implements dynamo.graph/Node."
   [symb & body]
   (let [[symb forms] (ctm/name-with-attributes symb body)
         record-name  (in/classname-for symb)
@@ -496,14 +481,6 @@
   ([basis gid k]
    (get-in basis [:graphs gid k])))
 
-(defn dispatch-message
-  "This is an advanced usage. If you have a reference to a node,
-  you can directly send it a message.
-
-  This function should mainly be used to create 'plumbing'."
-  [basis node type & {:as body}]
-  (gt/process-one-event (ig/node-by-id-at basis (gt/node-id node)) (assoc body :type type)))
-
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
 ;; ---------------------------------------------------------------------------
@@ -566,7 +543,7 @@
   (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
 
 (defn serialize-node [node]
-  (let [all-node-properties    (select-keys node (keys (gt/properties node)))
+  (let [all-node-properties    (select-keys node (keys (-> node gt/node-type gt/properties)))
         properties-without-fns (filterm (comp not fn? val) all-node-properties)]
     {:serial-id (gt/node-id node)
      :node-type (gt/node-type node)

@@ -1,6 +1,6 @@
 (ns editor.game-object
   (:require [clojure.java.io :as io]
-            [dynamo.file.protobuf :as protobuf]
+            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
@@ -11,7 +11,7 @@
             [editor.scene :as scene]
             [editor.types :as types]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc  GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc$Builder]
+  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -25,27 +25,20 @@
 
 (def game-object-icon "icons/brick.png")
 
-(defn- gen-ref-ddf [id ^Vector3d position ^Vector3d rotation save-data]
-  (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
-        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)
-        component (and (:resource save-data) (workspace/proj-path (:resource save-data)))]
-    (.build (doto (GameObject$ComponentDesc/newBuilder)
-              (.setId id)
-              (.setPosition protobuf-position)
-              (.setRotation protobuf-rotation)
-              (.setComponent (or component ".unknown"))))))
+(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation save-data]
+  {:id id
+   :position (math/vecmath->clj position)
+   :rotation (math/vecmath->clj rotation)
+   :component (or (and (:resource save-data) (workspace/proj-path (:resource save-data)))
+                  ".unknown")})
 
-(defn- gen-embed-ddf [id ^Vector3d position ^Vector3d rotation save-data]
-  (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
-        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)
-        type (and (:resource save-data) (:ext (workspace/resource-type (:resource save-data))))
-        data (:content save-data)]
-    (.build (doto (GameObject$EmbeddedComponentDesc/newBuilder)
-              (.setId id)
-              (.setType (or type "unknown"))
-              (.setPosition protobuf-position)
-              (.setRotation protobuf-rotation)
-              (.setData (or data ""))))))
+(defn- gen-embed-ddf [id ^Vector3d position ^Quat4d rotation save-data]
+  {:id id
+   :type (or (and (:resource save-data) (:ext (workspace/resource-type (:resource save-data))))
+             "unknown")
+   :position (math/vecmath->clj position)
+   :rotation (math/vecmath->clj rotation)
+   :data (or (:content save-data) "")})
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -58,6 +51,7 @@
   (input outline g/Any)
   (input save-data g/Any)
   (input scene g/Any)
+  (input build-targets g/Any)
 
   (output outline g/Any :cached (g/fnk [node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
                                                                             (assoc outline :node-id node-id :label (str id suffix)))))
@@ -69,32 +63,44 @@
                                             :node-id node-id
                                             :transform transform
                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))
+  (output build-targets g/Any :cached (g/fnk [build-targets ddf-message transform]
+                                             (if-let [target (first build-targets)]
+                                               [(assoc target :instance-data {:resource (:resource target)
+                                                                              :instance-msg ddf-message
+                                                                              :transform transform})]
+                                               [])))
 
   core/MultiNode
   (sub-nodes [self] (if (:embedded self) [(g/node-value self :source)] [])))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
-  (let [^GameObject$PrototypeDesc$Builder builder (GameObject$PrototypeDesc/newBuilder)]
-    (doseq [^GameObject$ComponentDesc ddf ref-ddf]
-      (.addComponents builder ddf))
-    (doseq [^GameObject$EmbeddedComponentDesc ddf embed-ddf]
-      (.addEmbeddedComponents builder ddf))
-    (.build builder)))
+  {:components ref-ddf
+   :embedded-components embed-ddf})
 
 (g/defnk produce-save-data [resource proto-msg]
   {:resource resource
-   :content (protobuf/pb->str proto-msg)})
+   :content (protobuf/map->str GameObject$PrototypeDesc proto-msg)})
+
+(defn- externalize [inst-data resources]
+  (map (fn [data]
+         (let [{:keys [resource instance-msg transform]} data
+               resource (get resources resource)
+               instance-msg (dissoc instance-msg :type :data)]
+           (merge instance-msg
+                  {:component (workspace/proj-path resource)})))
+       inst-data))
 
 (defn- build-game-object [self basis resource dep-resources user-data]
-  ; TODO - MASSIVE HACK (protobuf is passed as seq of byte-array)
-  {:resource resource :content (byte-array (:proto-msg user-data))})
+  (let [instance-msgs (externalize (:instance-data user-data) dep-resources)
+        msg {:components instance-msgs}]
+    {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
 
-(g/defnk produce-build-targets [node-id resource proto-msg]
+(g/defnk produce-build-targets [node-id resource proto-msg dep-build-targets]
   [{:node-id node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-game-object
-    ; TODO - MASSIVE HACK (protobuf is passed as seq of byte-array)
-    :user-data {:proto-msg (seq (protobuf/pb->bytes proto-msg))}}])
+    :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
+    :deps (flatten dep-build-targets)}])
 
 (g/defnk produce-scene [node-id child-scenes]
   {:node-id node-id
@@ -109,6 +115,7 @@
   (input embed-ddf g/Any :array)
   (input child-scenes g/Any :array)
   (input child-ids g/Str :array)
+  (input dep-build-targets g/Any :array)
 
   (output outline g/Any :cached (g/fnk [node-id outline] {:node-id node-id :label "Game Object" :icon game-object-icon :children outline}))
   (output proto-msg g/Any :cached produce-proto-msg)
@@ -117,7 +124,7 @@
   (output scene g/Any :cached produce-scene))
 
 (defn- connect-if-output [out-node out-label in-node in-label]
-  (if ((g/outputs out-node) out-label)
+  (if ((-> out-node g/node-type g/output-labels) out-label)
     (g/connect out-node out-label in-node in-label)
     []))
 
@@ -136,6 +143,7 @@
                   (concat
                    (g/connect comp-node :outline self :outline)
                    (g/connect comp-node :self    self :nodes)
+                   (g/connect comp-node :build-targets    self :dep-build-targets)
                    (when source-node
                     (concat
                       (g/connect comp-node   :ddf-message self      :ref-ddf)
@@ -144,7 +152,8 @@
                       (g/connect source-node :self        comp-node :source)
                       (connect-if-output source-node :outline comp-node :outline)
                       (connect-if-output source-node :save-data comp-node :save-data)
-                      (connect-if-output source-node :scene comp-node :scene)))))))
+                      (connect-if-output source-node :scene comp-node :scene)
+                      (connect-if-output source-node :build-targets comp-node :build-targets)))))))
 
 (defn add-component-handler [self]
   (let [project (project/get-project self)
@@ -181,12 +190,14 @@
                     (g/connect source-node :outline     comp-node :outline)
                     (g/connect source-node :save-data   comp-node :save-data)
                     (g/connect source-node :scene       comp-node :scene)
+                    (g/connect source-node :build-targets       comp-node :build-targets)
                     (g/connect source-node :self        self      :nodes)
                     (g/connect comp-node   :outline     self      :outline)
                     (g/connect comp-node   :ddf-message self      :embed-ddf)
                     (g/connect comp-node   :id          self      :child-ids)
                     (g/connect comp-node   :scene       self      :child-scenes)
-                    (g/connect comp-node   :self        self      :nodes))
+                    (g/connect comp-node   :self        self      :nodes)
+                    (g/connect comp-node   :build-targets        self      :dep-build-targets))
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
                     (g/connect comp-node   :outline      self      :outline)
@@ -217,15 +228,18 @@
     (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
     (run [selection] (add-embedded-component-handler (g/node-by-id (first selection)))))
 
+(defn- v4->euler [v]
+  (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
+
 (defn load-game-object [project self input]
   (let [project-graph (g/node->graph-id self)
-        prototype (protobuf/pb->map (protobuf/read-text GameObject$PrototypeDesc input))]
+        prototype (protobuf/read-text GameObject$PrototypeDesc input)]
     (concat
       (for [component (:components prototype)
             :let [source-node (project/resolve-resource-node self (:component component))]]
-        (add-component self source-node (:id component) (types/Point3d->Vec3 (:position component)) (math/quat->euler (:rotation component))))
+        (add-component self source-node (:id component) (:position component) (v4->euler (:rotation component))))
       (for [embedded (:embedded-components prototype)]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (types/Point3d->Vec3 (:position embedded)) (math/quat->euler (:rotation embedded)))))))
+        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (v4->euler (:rotation embedded)))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

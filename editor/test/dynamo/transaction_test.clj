@@ -271,16 +271,6 @@
                                                    formal-greeter    #{:passthrough}
                                                    multi-node-target #{:aggregated}}))))
 
-(g/defnode EventReceiver
-  (on :custom-event
-    (deliver (:latch self) true)))
-
-(deftest event-loops-started-by-transaction
-  (with-clean-system
-    (let [[receiver] (tx-nodes (g/make-node world EventReceiver :latch (promise)))]
-      (g/dispatch-message (g/now) receiver :custom-event)
-      (is (= true (deref (:latch receiver) 500 :timeout))))))
-
 (g/defnode DisposableNode
   g/IDisposable
   (dispose [this] true))
