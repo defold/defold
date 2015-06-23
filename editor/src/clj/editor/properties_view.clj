@@ -5,6 +5,7 @@
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
+            [editor.types :as types]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
