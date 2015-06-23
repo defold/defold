@@ -59,7 +59,7 @@
 (defn- replace-connection [source-node source-label target-node target-label]
   (concat
     (disconnect-sources target-node target-label)
-    (if (and source-node (contains? (g/outputs source-node) source-label))
+    (if (and source-node (contains? (-> source-node g/node-type g/output-labels) source-label))
       (g/connect source-node source-label target-node target-label)
       [])))
 

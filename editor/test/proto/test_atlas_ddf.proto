@@ -5,7 +5,7 @@ import "ddf/ddf_math.proto";
 
 import "tile_ddf.proto";
 
-option java_package = "com.dynamo.cr.sceneed2";
+option java_package = "com.defold.editor.test";
 option java_outer_classname = "TestAtlasProto";
 
 message AtlasImage

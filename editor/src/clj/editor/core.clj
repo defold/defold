@@ -27,9 +27,9 @@
   (into #{}
      (filter compatible?
         (for [in-node   in-nodes
-              in-label  (g/injectable-inputs in-node)
+              in-label  (-> in-node g/node-type g/injectable-inputs)
               out-node  out-nodes
-              out-label (keys (g/transform-types out-node))]
+              out-label (keys (-> out-node g/node-type g/transform-types))]
             [out-node out-label in-node in-label]))))
 
 (defn inject-new-nodes
@@ -128,3 +128,7 @@ Outputs:
 
 (defprotocol MultiNode
   (sub-nodes [self] "Return all contained nodes"))
+
+(defprotocol ICreate
+  "A node may implement this protocol if it needs to react after it is created."
+  (post-create [this basis message] "Process post-creation message. The message is any data structure. By convention, it is usually a map."))

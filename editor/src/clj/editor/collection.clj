@@ -1,6 +1,6 @@
 (ns editor.collection
   (:require [clojure.java.io :as io]
-            [dynamo.file.protobuf :as protobuf]
+            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
@@ -13,8 +13,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc GameObject$InstanceDesc$Builder
-            GameObject$EmbeddedInstanceDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -30,32 +29,22 @@
 (def path-sep "/")
 
 (defn- gen-embed-ddf [id child-ids ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
-  (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
-        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
-(-> (doto (GameObject$EmbeddedInstanceDesc/newBuilder)
-         (.setId id)
-         (.addAllChildren child-ids)
-         (.setData (:content save-data))
-         (.setPosition protobuf-position)
-         (.setRotation protobuf-rotation)
-                                        ; TODO properties
-                                        ; TODO - fix non-uniform hax
-         (.setScale (.x scale)))
-       (.build))))
+  {:id id
+   :children child-ids
+   ; TODO properties
+   :data (:content save-data)
+   :position (math/vecmath->clj position)
+   :rotation (math/vecmath->clj rotation)
+   :scale3 (math/vecmath->clj scale)})
 
 (defn- gen-ref-ddf [id child-ids ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
-  (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
-        ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
-    (-> (doto (GameObject$InstanceDesc/newBuilder)
-         (.setId id)
-         (.addAllChildren child-ids)
-         (.setPrototype (workspace/proj-path (:resource save-data)))
-         (.setPosition protobuf-position)
-         (.setRotation protobuf-rotation)
-                                        ; TODO properties
-                                        ; TODO - fix non-uniform hax
-         (.setScale (.x scale)))
-       (.build))))
+  {:id id
+   :children child-ids
+   ; TODO properties
+   :prototype (workspace/proj-path (:resource save-data))
+   :position (math/vecmath->clj position)
+   :rotation (math/vecmath->clj rotation)
+   :scale3 (math/vecmath->clj scale)})
 
 (defn- assoc-deep [scene keyword new-value]
   (let [new-scene (assoc scene keyword new-value)]
@@ -135,57 +124,38 @@
                                                    {:children child-scenes})))))
 
 (g/defnk produce-proto-msg [name ref-inst-ddf embed-inst-ddf ref-coll-ddf]
-  (.build (doto (GameObject$CollectionDesc/newBuilder)
-            (.setName name)
-            (.addAllInstances ref-inst-ddf)
-            (.addAllEmbeddedInstances embed-inst-ddf)
-            (.addAllCollectionInstances ref-coll-ddf))))
+  {:name name
+   :instances ref-inst-ddf
+   :embedded-instances embed-inst-ddf
+   :collection-instances ref-coll-ddf})
 
 (g/defnk produce-save-data [resource proto-msg]
   {:resource resource
-   :content (protobuf/pb->str proto-msg)})
-
-(defn- ->instance-builder [msg resource] ^GameObject$InstanceDesc$Builder
-  (let [builder (-> (if (instance? GameObject$EmbeddedInstanceDesc msg)
-                      (-> (GameObject$InstanceDesc/newBuilder)
-                        (.setId (.getId msg))
-                        (.addAllChildren (.getChildrenList msg))
-                        (.setPosition (.getPosition msg))
-                        (.setRotation (.getRotation msg))
-                        (.addAllComponentProperties (.getComponentPropertiesList msg)))
-                      (GameObject$InstanceDesc/newBuilder msg))
-                  (.setPrototype (workspace/proj-path resource)))]
-    (if (.hasScale3 msg)
-      (.setScale3 builder (.getScale3 msg))
-      (let [s (.getScale msg)]
-        (.setScale3 builder (protobuf/vecmath->pb (Vector3d. s s s)))))))
+   :content (protobuf/map->str GameObject$CollectionDesc proto-msg)})
 
 (defn- externalize [inst-data resources]
   (map (fn [data]
          (let [{:keys [resource instance-msg transform]} data
+               instance-msg (dissoc instance-msg :data)
                resource (get resources resource)
-               builder (->instance-builder instance-msg resource)
                pos (Point3d.)
                rot (Quat4d.)
                scale (Vector3d.)
-               _ (math/split-mat4 transform pos rot scale)
-               child-ids (.getChildrenList builder)]
-           (.build (-> builder
-                     (.setId (str path-sep (.getId builder)))
-                     (.clearChildren)
-                     (.addAllChildren (map #(str path-sep %) child-ids))
-                     (.setPosition (protobuf/vecmath->pb pos))
-                     (.setRotation (protobuf/vecmath->pb rot))
-                     (.setScale3 (protobuf/vecmath->pb scale)))))) inst-data))
+               _ (math/split-mat4 transform pos rot scale)]
+           (merge instance-msg
+                  {:id (str path-sep (:id instance-msg))
+                   :prototype (workspace/proj-path resource)
+                   :children (map #(str path-sep %) (:children instance-msg))
+                   :position (math/vecmath->clj pos)
+                   :rotation (math/vecmath->clj rot)
+                   :scale3 (math/vecmath->clj scale)}))) inst-data))
 
 (defn build-collection [self basis resource dep-resources user-data]
   (let [{:keys [name instance-data]} user-data
         instance-msgs (externalize instance-data dep-resources)
-        msg (.build
-              (doto (GameObject$CollectionDesc/newBuilder)
-                (.setName name)
-                (.addAllInstances instance-msgs)))]
-    {:resource resource :content (protobuf/pb->bytes msg)}))
+        msg {:name name
+             :instances instance-msgs}]
+    {:resource resource :content (protobuf/map->bytes GameObject$CollectionDesc msg)}))
 
 (g/defnk produce-build-targets [node-id name resource proto-msg sub-build-targets dep-build-targets]
   (let [sub-build-targets (flatten sub-build-targets)
@@ -223,14 +193,9 @@
 
 (defn- flatten-instance-data [data base-id base-transform all-child-ids]
   (let [{:keys [resource instance-msg ^Matrix4d transform]} data
-        builder (->instance-builder instance-msg resource)
-        is-child? (contains? all-child-ids (.getId builder))
-        child-ids (.getChildrenList builder)
-        builder (doto builder
-                  (.setId (str base-id (.getId builder)))
-                  (.clearChildren)
-                  (.addAllChildren (map #(str base-id %) child-ids)))
-        instance-msg (.build builder)
+        is-child? (contains? all-child-ids (:id instance-msg))
+        instance-msg {:id (str base-id (:id instance-msg))
+                      :children (map #(str base-id %) (:children instance-msg))}
         transform (if is-child?
                     transform
                     (doto (Matrix4d. transform) (.mul base-transform transform)))]
@@ -239,7 +204,7 @@
 (g/defnk produce-coll-inst-build-targets [id transform build-targets]
   (let [base-id (str id path-sep)
         instance-data (get-in build-targets [0 :user-data :instance-data])
-        child-ids (reduce (fn [child-ids data] (into child-ids (.getChildrenList (:instance-msg data)))) #{} instance-data)]
+        child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
     (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids) instance-data))))
 
 (g/defnode CollectionInstanceNode
@@ -257,15 +222,11 @@
   (output outline g/Any :cached (g/fnk [node-id id path outline] (let [suffix (format " (%s)" path)]
                                                                    (merge outline {:node-id node-id :label (str id suffix) :icon collection-icon}))))
   (output ddf-message g/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
-                                           (let [^DdfMath$Point3 protobuf-position (protobuf/vecmath->pb (Point3d. position))
-                                                 ^DdfMath$Quat protobuf-rotation (protobuf/vecmath->pb rotation)]
-                                            (.build (doto (GameObject$CollectionInstanceDesc/newBuilder)
-                                                      (.setId id)
-                                                      (.setCollection path)
-                                                      (.setPosition protobuf-position)
-                                                      (.setRotation protobuf-rotation)
-                                                      ; TODO - fix non-uniform hax
-                                                      (.setScale (.x scale)))))))
+                                           {:id id
+                                            :collection path
+                                            :position (math/vecmath->clj position)
+                                            :rotation (math/vecmath->clj rotation)
+                                            :scale3 (math/vecmath->clj scale)}))
   (output scene g/Any :cached (g/fnk [node-id transform scene]
                                      (assoc scene
                                            :node-id node-id
@@ -437,8 +398,11 @@
                              (g/operation-label "Add Collection")
                              (project/select project [coll-inst-node]))))))))
 
+(defn- v4->euler [v]
+  (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
+
 (defn load-collection [project self input]
-  (let [collection (protobuf/pb->map (protobuf/read-text GameObject$CollectionDesc input))
+  (let [collection (protobuf/read-text GameObject$CollectionDesc input)
         project-graph (g/node->graph-id project)]
     (concat
       (g/set-property self :name (:name collection))
@@ -448,14 +412,14 @@
                                      :let [; TODO - fix non-uniform hax
                                            scale (:scale game-object)
                                            source-node (project/resolve-resource-node self (:prototype game-object))]]
-                                 (make-go self source-node (:id game-object) (types/Point3d->Vec3 (:position game-object))
-                                          (math/quat->euler (:rotation game-object)) [scale scale scale]))
+                                 (make-go self source-node (:id game-object) (:position game-object)
+                                          (v4->euler (:rotation game-object)) [scale scale scale]))
                                (for [embedded (:embedded-instances collection)
                                      :let [; TODO - fix non-uniform hax
                                            scale (:scale embedded)]]
                                  (make-embedded-go self project "go" (:data embedded) (:id embedded)
-                                                   (types/Point3d->Vec3 (:position embedded))
-                                                   (math/quat->euler (:rotation embedded))
+                                                   (:position embedded)
+                                                   (v4->euler (:rotation embedded))
                                                    [scale scale scale]))))
             new-instance-data (filter #(and (= :create-node (:type %)) (= GameObjectInstanceNode (g/node-type (:node %)))) tx-go-creation)
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
@@ -477,8 +441,8 @@
             :let [; TODO - fix non-uniform hax
                   scale (:scale coll-instance)
                   source-node (project/resolve-resource-node self (:collection coll-instance))]]
-        (add-collection-instance self source-node (:id coll-instance) (types/Point3d->Vec3 (:position coll-instance))
-                                 (math/quat->euler (:rotation coll-instance)) [scale scale scale])))))
+        (add-collection-instance self source-node (:id coll-instance) (:position coll-instance)
+                                 (v4->euler (:rotation coll-instance)) [scale scale scale])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
