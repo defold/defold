@@ -1,10 +1,12 @@
 (ns editor.boot
   (:require [clojure.java.io :as io]
+            [clojure.stacktrace :as stack]
             [dynamo.graph :as g]
             [dynamo.types :as t]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.atlas :as atlas]
+            [editor.changes-view :as changes-view]
             [editor.collection :as collection]
             [editor.core :as core]
             [editor.cubemap :as cubemap]
@@ -13,11 +15,9 @@
             [editor.graph-view :as graph-view]
             [editor.image :as image]
             [editor.import :as import]
-            [editor.prefs :as prefs]
-            [editor.jfx :as jfx]
-            [editor.changes-view :as changes-view]
             [editor.outline-view :as outline-view]
             [editor.platformer :as platformer]
+            [editor.prefs :as prefs]
             [editor.project :as project]
             [editor.properties-view :as properties-view]
             [editor.scene :as scene]
@@ -25,11 +25,10 @@
             [editor.switcher :as switcher]
             [editor.text :as text]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [clojure.stacktrace :as stack])
-  (:import [com.defold.editor Start]
+            [editor.workspace :as workspace])
+  (:import [com.defold.editor EditorApplication]
+           [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
-           [com.defold.editor EditorApplication]
            [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
@@ -57,10 +56,13 @@
 ; Editors
 (g/defnode CurveEditor
   (inherits core/Scope)
-  (on :create
-      (let [btn (Button.)]
-        (ui/text! btn "Curve Editor WIP!")
-        (.add (.getChildren ^VBox (:parent event)) btn)))
+
+  core/ICreate
+  (post-create
+   [this basis event]
+   (let [btn (Button.)]
+     (ui/text! btn "Curve Editor WIP!")
+     (.add (.getChildren ^VBox (:parent event)) btn)))
 
   t/IDisposable
   (dispose [this]))
@@ -107,7 +109,7 @@
 
 (defn- create-view [game-project ^VBox root place node-type]
   (let [node (g/make-node! (g/node->graph-id game-project) node-type)]
-    (g/dispatch-message (g/now) node :create :parent (.lookup root place))))
+    (core/post-create node (g/now) {:parent (.lookup root place)})))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]

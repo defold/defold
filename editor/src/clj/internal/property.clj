@@ -1,8 +1,9 @@
 (ns internal.property
   (:require [clojure.core.match :refer [match]]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]
-            [internal.graph.types :as gt]))
+            [dynamo.util :refer [apply-if-fn var-get-recursive]]
+            [internal.graph.types :as gt]
+            [schema.core :as s]))
 
 (def ^:private default-validation-fn (constantly true))
 
@@ -79,7 +80,10 @@
          protocol?#      (fn [~'p] (gt/protocol? ~'p))]
      (assert (or (nil? (:visible props#)) (gt/pfnk? (:visible props#)))
              (str "Property " '~name-sym " type " '~value-type " has a visibility function that should be an fnk, but isn't. " (:visible props#)))
-     (assert (not (protocol?# value-type#)) (str "Property " '~name-sym " type " '~value-type " looks like a protocol; try (schema.core/protocol " '~value-type ") instead."))
+     (assert (not (protocol?# value-type#))
+             (str "Property " '~name-sym " type " '~value-type " looks like a protocol; try (schema.core/protocol " '~value-type ") instead."))
+     (assert (or (satisfies? t/PropertyType value-type#) (satisfies? s/Schema value-type#))
+             (str "Property " '~name-sym " is declared with type " '~value-type " but that doesn't seem like a real value type"))
      (map->PropertyTypeImpl props#)))
 
 (defn def-property-type-descriptor [name-sym value-type & body-forms]

@@ -1,9 +1,9 @@
 (ns editor.asset-browser
   (:require [dynamo.graph :as g]
+            [editor.handler :as handler]
             [editor.jfx :as jfx]
-            [editor.workspace :as workspace]
             [editor.ui :as ui]
-            [editor.handler :as handler])
+            [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]

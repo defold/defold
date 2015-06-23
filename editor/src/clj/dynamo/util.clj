@@ -1,5 +1,5 @@
 (ns dynamo.util
-  (:require [camel-snake-kebab :refer :all]
+  (:require [camel-snake-kebab :refer [->Camel_Snake_Case_String]]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]

@@ -7,7 +7,6 @@ ordinary paths."
             [dynamo.graph :as g]
             [dynamo.property :as dp]
             [dynamo.types :as t]
-            [dynamo.util :refer :all]
             [editor.core :as core]
             [editor.workspace :as workspace]
             [editor.handler :as handler]
@@ -45,7 +44,7 @@ ordinary paths."
               project-graph
               [new-resource [node-type :resource resource :project-id (g/node-id project) :resource-type resource-type]]
               (g/connect new-resource :self project :nodes)
-              (if ((g/outputs' node-type) :save-data)
+              (if ((g/output-labels node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
                 []))
             []))))))

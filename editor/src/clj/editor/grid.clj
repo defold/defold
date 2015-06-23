@@ -1,10 +1,10 @@
 (ns editor.grid
-  (:require [editor.camera :as c]
-            [dynamo.geom :as geom]
+  (:require [dynamo.geom :as geom]
             [dynamo.gl :as gl]
             [dynamo.graph :as g]
             [dynamo.property :as dp]
             [dynamo.types :as t :refer [min-p max-p]]
+            [editor.camera :as c]
             [internal.render.pass :as pass])
   (:import [dynamo.types AABB Camera]
            [javax.media.opengl GL GL2]

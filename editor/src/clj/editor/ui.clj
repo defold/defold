@@ -1,20 +1,20 @@
 (ns editor.ui
   (:require [clojure.java.io :as io]
-            [editor.workspace :as workspace]
-            [editor.jfx :as jfx]
             [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [javafx.beans.value ChangeListener ObservableValue]
+  (:import [javafx.application Platform]
+           [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.event ActionEvent EventHandler]
+           [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.stage Stage Modality Window]
            [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar]
+           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-           [javafx.application Platform]
-           [javafx.fxml FXMLLoader]
-           [javafx.util Callback]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent]))
+           [javafx.stage Stage Modality Window]
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
