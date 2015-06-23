@@ -10,7 +10,6 @@
                        editor.gl.translate-test
                        editor.gl.vertex-test
                        editor.image-test
-                       dynamo.property-test
                        dynamo.transaction-test
                        dynamo.util-test
                        editor.handler-test
@@ -35,6 +34,7 @@
                        internal.node-test
                        internal.packing-test
                        internal.paper-tape-test
+                       internal.property-test
                        internal.system-test
                        internal.type-test
                        internal.value-test
