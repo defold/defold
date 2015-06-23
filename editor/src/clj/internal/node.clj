@@ -11,10 +11,6 @@
             [schema.core :as s])
   (:import [internal.graph.types IBasis]))
 
-(defn resource-property?
-  [property-type]
-  (some-> property-type gt/property-tags (->> (some #{:editor.types/resource}))))
-
 (defn warn [node-id node-type label input-schema error]
   (println "WARNING: node " node-id
            "- type:" (:name node-type)
@@ -292,10 +288,6 @@
   "Update the node type description with the given property."
   [description label property-type passthrough]
   (cond-> (update-in description [:properties] assoc label property-type)
-
-    (resource-property? property-type)
-    (assoc-in [:inputs label] property-type)
-
     true
     (assoc-in [:property-types label] property-type)
 
