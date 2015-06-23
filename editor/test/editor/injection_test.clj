@@ -3,13 +3,12 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.types :as t]
             [editor.core :as core]))
 
 (g/defnode Receiver
   (input surname String :inject)
-  (input samples t/Num :inject :array)
-  (input label t/Any :inject))
+  (input samples g/Num :inject :array)
+  (input label g/Any :inject))
 
 (g/defnk produce-string :- String
   []
@@ -25,12 +24,12 @@
 (g/defnode Sampler
   (output sample Integer produce-sample))
 
-(g/defnk produce-label :- t/Keyword
+(g/defnk produce-label :- g/Keyword
   []
   :a-keyword)
 
 (g/defnode Labeler
-  (output label t/Keyword produce-label))
+  (output label g/Keyword produce-label))
 
 (deftest compatible-inputs-and-outputs
   (let [recv    (g/construct Receiver)
@@ -42,17 +41,17 @@
     (is (= #{[labeler :label   recv :label]}   (core/injection-candidates [recv] [labeler])))))
 
 (g/defnode ValueConsumer
-  (input local-names t/Str :inject :array)
-  (output concatenation t/Str (g/fnk [local-names] (str/join local-names))))
+  (input local-names g/Str :inject :array)
+  (output concatenation g/Str (g/fnk [local-names] (str/join local-names))))
 
 (g/defnode InjectionScope
   (inherits core/Scope)
-  (input local-name t/Str :inject)
-  (output passthrough t/Str (g/fnk [local-name] local-name)))
+  (input local-name g/Str :inject)
+  (output passthrough g/Str (g/fnk [local-name] local-name)))
 
 (g/defnode ValueProducer
-  (property value t/Str)
-  (output local-name t/Str (g/fnk [value] value)))
+  (property value g/Str)
+  (output local-name g/Str (g/fnk [value] value)))
 
 (deftest dependency-injection
   (testing "attach node output to input on scope"
@@ -133,8 +132,8 @@
         (is (= "a known value" (g/node-value consumer :concatenation)))))))
 
 (g/defnode ReflexiveFeedback
-  (property port t/Keyword (default :no))
-  (input ports t/Keyword :array :inject))
+  (property port g/Keyword (default :no))
+  (input ports g/Keyword :array :inject))
 
 (deftest reflexive-injection
   (testing "don't connect a node's own output to its input"
@@ -144,10 +143,10 @@
 
 (g/defnode OutputProvider
   (inherits core/Scope)
-  (property context t/Int (default 0)))
+  (property context g/Int (default 0)))
 
 (g/defnode InputConsumer
-  (input context t/Int :inject))
+  (input context g/Int :inject))
 
 (defn- create-simulated-project [world]
   (first (tx-nodes (g/make-node world core/Scope :tag :project))))

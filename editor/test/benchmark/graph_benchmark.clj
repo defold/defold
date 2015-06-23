@@ -1,16 +1,12 @@
 (ns benchmark.graph-benchmark
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
-            [clojure.test.check.generators :as gen]
             [clojure.test :refer :all]
             [criterium.core :as cc]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer :all]
-            [dynamo.types :as t]
             [editor.core :as core]
             [integration.test-util :as test-util]
             [internal.graph :as ig]
-            [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
             [internal.system :as isys]))
 
@@ -46,26 +42,26 @@
 (g/defnode FWorkspace
   (inherits core/Scope)
 
-  (input children t/Any))
+  (input children g/Any))
 
 (g/defnode FResource
-  (property path t/Int)
+  (property path g/Int)
 
-  (output contents t/Int :cached (g/fnk [path] path)))
+  (output contents g/Int :cached (g/fnk [path] path)))
 
 (g/defnode FEditable
-  (input alpha t/Int)
-  (input beta  t/Int)
-  (input gamma t/Int)
+  (input alpha g/Int)
+  (input beta  g/Int)
+  (input gamma g/Int)
 
-  (output omega t/Int :cached (g/fnk [alpha beta gamma] (+ alpha beta gamma)))
-  (output epsilon t/Int :cached (g/fnk [omega] (inc omega))))
+  (output omega g/Int :cached (g/fnk [alpha beta gamma] (+ alpha beta gamma)))
+  (output epsilon g/Int :cached (g/fnk [omega] (inc omega))))
 
 (g/defnode FView
-  (input omega t/Int)
-  (input view t/Int)
+  (input omega g/Int)
+  (input view g/Int)
 
-  (output scene t/Int :cached (g/fnk [omega view] (+ omega view))))
+  (output scene g/Int :cached (g/fnk [omega view] (+ omega view))))
 
 (defn pile-of-nodes [where tp n] (tx-nodes (repeatedly (int n) #(g/make-node where tp))))
 (defn connection-targets [how-many from] (partition how-many (repeatedly #(rand-nth from))))
@@ -111,11 +107,11 @@
     [bottom-layer view-layer]))
 
 (g/defnode AThing
-  (property a-property t/Str (default "Hey"))
-  (output an-output t/Str (g/fnk [] "Boo.")))
+  (property a-property g/Str (default "Hey"))
+  (output an-output g/Str (g/fnk [] "Boo.")))
 
 (g/defnode Container
-  (input nodes t/Any))
+  (input nodes g/Any))
 
 (defn network-creation []
   (do-benchmark "Whole Graph Network Creation"

@@ -2,9 +2,9 @@
   (:require [clojure.java.io :as io]
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.core :as core]
-            [editor.file :as file])
+            [editor.file :as file]
+            [editor.types :as types])
   (:import [clojure.lang LineNumberingPushbackReader]
            [java.io File]))
 
@@ -16,7 +16,7 @@
        (.endsWith (.getName f) ".clj")))
 
 (defrecord UnloadableNamespace [ns-decl]
-  t/IDisposable
+  g/IDisposable
   (dispose [this]
     (when (list? ns-decl)
       (remove-ns (second ns-decl)))))
@@ -27,7 +27,7 @@
         ^File source-file (file/project-file path)]
     (try
       (binding [*warn-on-reflection* true]
-        (Compiler/load (io/reader path) (t/local-path path) (.getName source-file)))
+        (Compiler/load (io/reader path) (types/local-path path) (.getName source-file)))
       (g/set-property node :namespace (UnloadableNamespace. ns-decl))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (println compile-error)))))

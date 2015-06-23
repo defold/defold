@@ -3,14 +3,12 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :as ts]
-            [dynamo.types :as t]
             [dynamo.util :as u]
-            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.system :as is]))
 
 (g/defnode Root
-  (property touched t/Int))
+  (property touched g/Int))
 
 (defn graphs        []    (is/graphs        @g/*the-system*))
 (defn graph         [gid] (is/graph         @g/*the-system* gid))

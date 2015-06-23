@@ -1,6 +1,6 @@
 (ns internal.texture.engine
   (:require [editor.image :refer [image-pixels image-convert-type image-color-components]]
-            [dynamo.types :refer [map->EngineFormatTexture]]
+            [editor.types :refer [map->EngineFormatTexture]]
             [editor.buffers :refer [little-endian new-byte-buffer]]
             [internal.texture.math :refer [closest-power-of-two]])
   (:import [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]

@@ -1,24 +1,33 @@
 (ns dynamo.graph
   (:require [clojure.tools.macro :as ctm]
-            [dynamo.types :as t]
             [dynamo.util :refer [safe-inc map-vals filterm]]
             [internal.cache :as c]
             [internal.disposal :as dispose]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
+            [internal.property :as ip]
             [internal.system :as is]
             [internal.transaction :as it]
             [plumbing.core :as pc]
-            [plumbing.fnk.pfnk :as pf]
-            [potemkin.namespaces :refer [import-vars]])
+            [potemkin.namespaces :as namespaces]
+            [schema.core :as s])
   (:import [internal.graph.types Arc]))
 
-(import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
+(namespaces/import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type transforms transform-types properties inputs injectable-inputs input-types outputs cached-outputs input-dependencies substitute-for input-cardinality produce-value NodeType supertypes interfaces protocols method-impls triggers transforms' transform-types' properties' inputs' injectable-inputs' outputs' cached-outputs' event-handlers' input-dependencies' substitute-for' input-type output-type MessageTarget process-one-event error? error])
 
-(import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
+(namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
+
+(namespaces/import-vars [internal.graph.types IDisposable dispose disposable?])
+
+(namespaces/import-vars [internal.graph.types PropertyType property-value-type property-default-value property-validate property-valid-value? property-enabled? property-visible? property-tags property-type? Properties])
+
+(namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
+
+(namespaces/import-macro schema.core/defn s-defn)
+(namespaces/import-macro schema.core/defrecord s-defrecord)
 
 (let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement gid)))
@@ -34,7 +43,7 @@
 
 (def ^:dynamic *tps-debug* nil)
 
-(import-vars [internal.system system-cache disposal-queue])
+(namespaces/import-vars [internal.system system-cache disposal-queue])
 
 (defn now
   []
@@ -145,12 +154,15 @@
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
 (def node-intrinsics
-  [(list 'output 'self `t/Any `(pc/fnk [~'this] ~'this))
+  [(list 'output 'self `s/Any `(pc/fnk [~'this] ~'this))
    (list 'output 'node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
+(defmacro defproperty [name value-type & body-forms]
+  (apply ip/def-property-type-descriptor name value-type body-forms))
+
 (declare become)
 
 (defn construct
@@ -165,7 +177,7 @@
 
   Example:
   (defnode GravityModifier
-    (property acceleration t/Int (default 32))
+    (property acceleration Int (default 32))
 
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
@@ -197,7 +209,7 @@
 
   Define a property with schema and, possibly, default value and
   constraints.  Property type and options have the same syntax as for
-  `dynamo.property/defproperty`.
+  `dynamo.graph/defproperty`.
 
   (output _symbol_ _type_ (:cached)? _producer_)
 
@@ -214,13 +226,13 @@
 
     (defnode TextureCompiler
       (input    textureset TextureSet)
-      (property texture-filename t/Str (default \"\"))
-      (output   texturec t/Any compile-texturec)))
+      (property texture-filename Str (default \"\"))
+      (output   texturec Any compile-texturec)))
 
     (defnode TextureSetCompiler
       (input    textureset TextureSet)
-      (property textureset-filename t/Str (default \"\"))
-      (output   texturesetc t/Any compile-texturesetc)))
+      (property textureset-filename Str (default \"\"))
+      (output   texturesetc Any compile-texturesetc)))
 
     (defnode AtlasCompiler
       (inherit TextureCompiler)
@@ -279,7 +291,7 @@
   identical to `deftype` or `defrecord`. A node may implement any
   number of such protocols.
 
-  Every node always implements dynamo.types/Node.
+  Every node always implements dynamo.graph/Node.
 
   If there are any event handlers defined for the node type, then it
   will also implement MessageTarget."

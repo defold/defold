@@ -1,6 +1,5 @@
 (ns editor.background
   (:require [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [internal.render.pass :as p]

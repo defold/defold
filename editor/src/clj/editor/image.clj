@@ -1,13 +1,12 @@
 (ns editor.image
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.core :as core]
             [editor.geom :refer [clamper]]
             [editor.project :as project]
-            [editor.workspace :as workspace]
-            [schema.core :as s])
-  (:import [dynamo.types Rect Image]
+            [editor.types :as types]
+            [editor.workspace :as workspace])
+  (:import [editor.types Rect Image]
            [java.awt Color]
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
@@ -28,26 +27,26 @@
        (.dispose ~(first binding))
        ~rsym)))
 
-(s/defn make-color :- java.awt.Color
+(g/s-defn make-color :- java.awt.Color
   "creates a color using rgb values (optional a). Color values between 0 and 1.0"
-  ([ r :- Float g :- Float b :- Float]
+  ([r :- Float g :- Float b :- Float]
     (java.awt.Color. r g b))
-  ([ r :- Float g :- Float b :- Float a :- Float]
+  ([r :- Float g :- Float b :- Float a :- Float]
     (java.awt.Color. r g b a)))
 
-(s/defn make-image :- Image
-  [nm :- t/Any contents :- BufferedImage]
+(g/s-defn make-image :- Image
+  [nm :- g/Any contents :- BufferedImage]
   (Image. nm contents (.getWidth contents) (.getHeight contents)))
 
-(s/defn blank-image :- BufferedImage
+(g/s-defn blank-image :- BufferedImage
   ([space :- Rect]
     (blank-image (.width space) (.height space)))
-  ([width :- t/Int height :- t/Int]
+  ([width :- g/Int height :- g/Int]
     (blank-image width height BufferedImage/TYPE_4BYTE_ABGR))
-  ([width :- t/Int height :- t/Int t :- t/Int]
+  ([width :- g/Int height :- g/Int t :- g/Int]
     (BufferedImage. width height t)))
 
-(s/defn flood :- BufferedImage
+(g/s-defn flood :- BufferedImage
   "Floods the image with the specified color (r g b <a>). Color values between 0 and 1.0."
   [^BufferedImage img :- BufferedImage r :- Float g :- Float b :- Float]
   (let [gfx (.createGraphics img)
@@ -67,13 +66,13 @@
 (g/defnode ImageSource
   (inherits core/ResourceNode)
 
-  (output content Image :cached (g/fnk [filename] (load-image filename (t/local-path filename)))))
+  (output content Image :cached (g/fnk [filename] (load-image filename (types/local-path filename)))))
 
-(s/defn image-color-components :- long
+(g/s-defn image-color-components :- long
   [src :- BufferedImage]
   (.. src (getColorModel) (getNumComponents)))
 
-(s/defn image-infer-type :- long
+(g/s-defn image-infer-type :- long
   [src :- BufferedImage]
   (if (not= 0 (.getType src))
     (.getType src)
@@ -82,13 +81,13 @@
       3 BufferedImage/TYPE_3BYTE_BGR
       1 BufferedImage/TYPE_BYTE_GRAY)))
 
-(s/defn image-type :- t/Int
+(g/s-defn image-type :- g/Int
   [src :- BufferedImage]
   (let [t (.getType src)]
     (if (not= 0 t) t (image-infer-type src))))
 
-(s/defn image-convert-type :- BufferedImage
-  [original :- BufferedImage new-type :- t/Int]
+(g/s-defn image-convert-type :- BufferedImage
+  [original :- BufferedImage new-type :- g/Int]
   (if (= new-type (image-type original))
     original
     (let [new (blank-image (.getWidth original) (.getHeight original) new-type)]
@@ -96,11 +95,11 @@
         (.drawImage g2d original 0 0 nil))
       new)))
 
-(s/defn image-bounds :- Rect
+(g/s-defn image-bounds :- Rect
   [source :- Image]
-  (t/rect (.path source) 0 0 (.width source) (.height source)))
+  (types/rect (.path source) 0 0 (.width source) (.height source)))
 
-(s/defn image-pixels :- ints
+(g/s-defn image-pixels :- ints
   [src :- BufferedImage]
   (let [w      (.getWidth src)
         h      (.getHeight src)
@@ -108,23 +107,23 @@
     (.. src (getRaster) (getPixels 0 0 w h pixels))
     pixels))
 
-(s/defn image-from-pixels :- BufferedImage
-  [^long width :- t/Int ^long height :- t/Int t :- t/Int pixels :- ints]
+(g/s-defn image-from-pixels :- BufferedImage
+  [^long width :- g/Int ^long height :- g/Int t :- g/Int pixels :- ints]
   (doto (blank-image width height t)
     (.. (getRaster) (setPixels 0 0 width height pixels))))
 
 (defmacro pixel-index [x y step stride]
   `(* ~step (+ ~x (* ~y ~stride))))
 
-(s/defn extrude-borders :- Image
+(g/s-defn extrude-borders :- Image
   "Return a new pixel array, larger than the original by `extrusion`
 with the orig-pixels centered in it. The source pixels on the edges
 will bleed into the surrounding empty space. The pixels in the border
 region will be identical to the nearest pixel of the source image."
-  [extrusion :- t/Int src :- Image]
+  [extrusion :- g/Int src :- Image]
   (if-not (< 0 extrusion)
     src
-    (let [src-img        (t/contents src)
+    (let [src-img        (types/contents src)
           src-img        (image-convert-type src-img BufferedImage/TYPE_4BYTE_ABGR)
           orig-width     (.width src)
           orig-height    (.height src)
@@ -148,7 +147,7 @@ region will be identical to the nearest pixel of the source image."
 (defn- map-by [p coll]
   (zipmap (map p coll) coll))
 
-(s/defn composite :- BufferedImage
+(g/s-defn composite :- BufferedImage
   [onto :- BufferedImage placements :- [Rect] sources :- [Image]]
   (let [src-by-path (map-by :path sources)]
     (with-graphics [graphics (.getGraphics onto)]

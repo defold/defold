@@ -3,8 +3,7 @@
 ordinary paths."
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [dynamo.graph :as g]
-            [dynamo.types :as t])
+            [dynamo.graph :as g])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -227,14 +226,14 @@ ordinary paths."
     (FileResource. workspace (File. full-path) [])))
 
 (g/defnode Workspace
-  (property root t/Str)
-  (property opened-files t/Any (default (atom #{})))
-  (property view-types t/Any)
-  (property resource-types t/Any)
+  (property root g/Str)
+  (property opened-files g/Any (default (atom #{})))
+  (property view-types g/Any)
+  (property resource-types g/Any)
 
   (output resource-tree FileResource :cached produce-resource-tree)
-  (output resource-list t/Any :cached produce-resource-list)
-  (output resource-types t/Any :cached (g/fnk [resource-types] resource-types)))
+  (output resource-list g/Any :cached produce-resource-list)
+  (output resource-types g/Any :cached (g/fnk [resource-types] resource-types)))
 
 (defn make-workspace [graph project-path]
   (g/make-node! graph Workspace :root project-path :view-types {:default {:id :default}}))

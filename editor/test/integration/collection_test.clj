@@ -1,27 +1,13 @@
 (ns integration.collection-test
-  (:require [clojure.pprint :refer [pprint]]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.graph.test-support :refer [with-clean-system]]
-            [dynamo.types :as t]
-            [dynamo.util :as util]
-            [editor.atlas :as atlas]
             [editor.collection :as collection]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.geom :as geom]
             [editor.handler :as handler]
-            [editor.image :as image]
-            [editor.platformer :as platformer]
             [editor.project :as project]
-            [editor.scene :as scene]
-            [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
-            [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [internal.render.pass :as pass])
-  (:import [dynamo.types Region]
+            [editor.types :as types]
+            [integration.test-util :as test-util])
+  (:import [editor.types Region]
            [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
@@ -75,7 +61,7 @@
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
                    node      (test-util/resource-node project "/collection/empty_go.collection")
-                   zero-aabb (t/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
+                   zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
                    outline   (g/node-value node :outline)
                    scene     (g/node-value node :scene)]
                ; Verify outline labels
@@ -91,7 +77,7 @@
                    node      (test-util/resource-node project "/collection/unknown_components.collection")
                    outline   (g/node-value node :outline)
                    scene     (g/node-value node :scene)
-                   zero-aabb (t/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
+                   zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
                ; Verify outline labels
                (is (= (list "Collection" "my_instance (/game_object/unknown_components.go)" "unknown (/game_object/test.unknown)")
                       (map :label (tree-seq :children :children outline))))

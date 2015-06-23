@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [dynamo.file.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
@@ -10,12 +9,13 @@
             [editor.math :as math]
             [editor.project :as project]
             [editor.scene :as scene]
+            [editor.types :as types]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc  GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc$Builder]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
@@ -50,21 +50,21 @@
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
 
-  (property id t/Str)
-  (property embedded (t/maybe t/Bool) (visible (g/fnk [] false)))
-  (property path (t/maybe t/Str) (visible (g/fnk [] false)))
+  (property id g/Str)
+  (property embedded (g/maybe g/Bool) (visible (g/fnk [] false)))
+  (property path (g/maybe g/Str) (visible (g/fnk [] false)))
 
-  (input source t/Any)
-  (input outline t/Any)
-  (input save-data t/Any)
-  (input scene t/Any)
+  (input source g/Any)
+  (input outline g/Any)
+  (input save-data g/Any)
+  (input scene g/Any)
 
-  (output outline t/Any :cached (g/fnk [node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
+  (output outline g/Any :cached (g/fnk [node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
                                                                             (assoc outline :node-id node-id :label (str id suffix)))))
-  (output ddf-message t/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
+  (output ddf-message g/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
                                                                                        (gen-embed-ddf id position rotation save-data)
                                                                                        (gen-ref-ddf id position rotation save-data))))
-  (output scene t/Any :cached (g/fnk [node-id transform scene]
+  (output scene g/Any :cached (g/fnk [node-id transform scene]
                                      (assoc scene
                                             :node-id node-id
                                             :transform transform
@@ -104,17 +104,17 @@
 (g/defnode GameObjectNode
   (inherits project/ResourceNode)
 
-  (input outline t/Any :array)
-  (input ref-ddf t/Any :array)
-  (input embed-ddf t/Any :array)
-  (input child-scenes t/Any :array)
-  (input child-ids t/Str :array)
+  (input outline g/Any :array)
+  (input ref-ddf g/Any :array)
+  (input embed-ddf g/Any :array)
+  (input child-scenes g/Any :array)
+  (input child-ids g/Str :array)
 
-  (output outline t/Any :cached (g/fnk [node-id outline] {:node-id node-id :label "Game Object" :icon game-object-icon :children outline}))
-  (output proto-msg t/Any :cached produce-proto-msg)
-  (output save-data t/Any :cached produce-save-data)
-  (output build-targets t/Any :cached produce-build-targets)
-  (output scene t/Any :cached produce-scene))
+  (output outline g/Any :cached (g/fnk [node-id outline] {:node-id node-id :label "Game Object" :icon game-object-icon :children outline}))
+  (output proto-msg g/Any :cached produce-proto-msg)
+  (output save-data g/Any :cached produce-save-data)
+  (output build-targets g/Any :cached produce-build-targets)
+  (output scene g/Any :cached produce-scene))
 
 (defn- connect-if-output [out-node out-label in-node in-label]
   (if ((g/outputs out-node) out-label)
@@ -223,9 +223,9 @@
     (concat
       (for [component (:components prototype)
             :let [source-node (project/resolve-resource-node self (:component component))]]
-        (add-component self source-node (:id component) (t/Point3d->Vec3 (:position component)) (math/quat->euler (:rotation component))))
+        (add-component self source-node (:id component) (types/Point3d->Vec3 (:position component)) (math/quat->euler (:rotation component))))
       (for [embedded (:embedded-components prototype)]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (t/Point3d->Vec3 (:position embedded)) (math/quat->euler (:rotation embedded)))))))
+        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (types/Point3d->Vec3 (:position embedded)) (math/quat->euler (:rotation embedded)))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

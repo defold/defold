@@ -1,7 +1,6 @@
 (ns editor.scene
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
-            [dynamo.types :as t :refer [IDisposable dispose]]
             [dynamo.util :as util]
             [editor.background :as background]
             [editor.camera :as c]
@@ -13,13 +12,14 @@
             [editor.math :as math]
             [editor.project :as project]
             [editor.scene-tools :as scene-tools]
+            [editor.types :as types]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass]
             [service.log :as log])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Camera AABB Region Rect]
+           [editor.types Camera AABB Region Rect]
            [java.awt Font]
            [java.awt.image BufferedImage DataBufferByte]
            [javafx.animation AnimationTimer]
@@ -97,20 +97,20 @@
       (.glLoadIdentity gl)
       (when pick-rect
         (gl/glu-pick-matrix glu pick-rect viewport))
-      (if (t/model-transform? pass)
+      (if (types/model-transform? pass)
         (gl/gl-mult-matrix-4d gl (c/camera-projection-matrix camera))
         (gl/glu-ortho glu viewport))
       (.glMatrixMode gl GL2/GL_MODELVIEW)
       (.glLoadIdentity gl)
-      (when (t/model-transform? pass)
+      (when (types/model-transform? pass)
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
       (pass/prepare-gl pass gl glu)))
 
 (defrecord TextRendererRef [^TextRenderer text-renderer ^GLContext context]
   clojure.lang.IDeref
   (deref [this] text-renderer)
-  IDisposable
-  (dispose [this]
+  g/IDisposable
+  (g/dispose [this]
     (prn "disposing text-renderer")
     (when context (.makeCurrent context))
     (.dispose text-renderer)
@@ -291,7 +291,7 @@
        new-renderable (assoc (dissoc scene :renderable) :render-fn (:render-fn renderable) :world-transform world-transform :selected selected :user-data (:user-data renderable) :batch-key (:batch-key renderable))]
    (doseq [pass (:passes renderable)]
      (conj! (get out-renderables pass) new-renderable)
-     (when (and selected (t/selection? pass))
+     (when (and selected (types/selection? pass))
        (conj! out-selected-renderables new-renderable)))
    (doseq [child-scene (:children scene)]
      (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables))))
@@ -309,11 +309,11 @@
      :selected-renderables out-selected-renderables}))
 
 (g/defnode SceneRenderer
-  (property name t/Keyword (default :renderer))
+  (property name g/Keyword (default :renderer))
   (property gl-drawable GLAutoDrawable)
 
-  (input scene t/Any)
-  (input selection t/Any)
+  (input scene g/Any)
+  (input selection g/Any)
   (input viewport Region)
   (input camera Camera)
   (input aux-renderables pass/RenderData :array)
@@ -321,18 +321,18 @@
   (input picking-rect Rect)
   (input tool-picking-rect Rect)
 
-  (output render-data t/Any :cached (g/fnk [scene selection aux-renderables camera viewport] (produce-render-data scene selection aux-renderables camera viewport)))
+  (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera viewport] (produce-render-data scene selection aux-renderables camera viewport)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:all-renderables render-data)))
   (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
                                                       (.order (ByteOrder/nativeOrder))
                                                       (.asIntBuffer))))
-  (output drawable (t/maybe GLAutoDrawable) :cached produce-drawable)
+  (output drawable (g/maybe GLAutoDrawable) :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
   (output frame BufferedImage :cached produce-frame)
-  (output picking-selection t/Any :cached produce-selection)
-  (output tool-selection t/Any :cached produce-tool-selection)
-  (output selected-renderables t/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
-  (output selected-tool-renderables t/Any :cached produce-selected-tool-renderables))
+  (output picking-selection g/Any :cached produce-selection)
+  (output tool-selection g/Any :cached produce-tool-selection)
+  (output selected-renderables g/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
+  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action input-handler]
@@ -346,29 +346,29 @@
   (inherits core/Scope)
 
   (property image-view ImageView)
-  (property viewport Region (default (t/->Region 0 0 0 0)))
+  (property viewport Region (default (types/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
-  (property picking-rect (t/maybe Rect))
+  (property picking-rect (g/maybe Rect))
 
   (input frame BufferedImage)
-  (input scene t/Any)
+  (input scene g/Any)
   (input input-handlers Runnable :array)
-  (input selection t/Any)
-  (input selected-tool-renderables t/Any)
-  (input active-tool t/Keyword)
-  (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
+  (input selection g/Any)
+  (input selected-tool-renderables g/Any)
+  (input active-tool g/Keyword)
+  (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
 
-  (output scene t/Any (g/fnk [scene] scene))
+  (output scene g/Any (g/fnk [scene] scene))
   (output image WritableImage :cached (g/fnk [^BufferedImage frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb)))) ; TODO - base aabb on selection
-  (output selection t/Any (g/fnk [selection] selection))
+  (output selection g/Any (g/fnk [selection] selection))
   (output picking-rect Rect (g/fnk [picking-rect] picking-rect))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
                                      nil))
-  t/IDisposable
-  (dispose [self]
+  g/IDisposable
+  (g/dispose [self]
            (prn "Disposing SceneEditor")
            (when-let [^GLAutoDrawable drawable (:gl-drawable self)]
              (.destroy drawable))
@@ -449,7 +449,7 @@
                                                              w (- (.getMaxX bb) (.getMinX bb))
                                                              h (- (.getMaxY bb) (.getMinY bb))]
                                                          (flip-y (:image-view (g/node-by-id node-id)) h)
-                                                         (g/transact (g/set-property node-id :viewport (t/->Region 0 w 0 h))))))))]
+                                                         (g/transact (g/set-property node-id :viewport (types/->Region 0 w 0 h))))))))]
         (.setOnMousePressed parent event-handler)
         (.setOnMouseReleased parent event-handler)
         (.setOnMouseClicked parent event-handler)
@@ -481,23 +481,23 @@
 (g/defnode PreviewView
   (inherits core/Scope)
 
-  (property width t/Num)
-  (property height t/Num)
+  (property width g/Num)
+  (property height g/Num)
   (property picking-rect Rect)
 
-  (input selection t/Any)
-  (input selected-tool-renderables t/Any)
-  (input scene t/Any)
+  (input selection g/Any)
+  (input selected-tool-renderables g/Any)
+  (input scene g/Any)
   (input frame BufferedImage)
   (input input-handlers Runnable :array)
-  (input active-tool t/Keyword)
-  (output active-tool t/Keyword (g/fnk [active-tool] active-tool))
+  (input active-tool g/Keyword)
+  (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
 
-  (output scene t/Any (g/fnk [scene] scene))
+  (output scene g/Any (g/fnk [scene] scene))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
-  (output viewport Region (g/fnk [width height] (t/->Region 0 width 0 height)))
+  (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb))))
-  (output selection t/Any :cached (g/fnk [selection] selection))
+  (output selection g/Any :cached (g/fnk [selection] selection))
   (output picking-rect Rect :cached (g/fnk [picking-rect] picking-rect)))
 
 (defn make-preview-view [graph width height]
@@ -592,15 +592,15 @@
 
 (g/defnode SelectionController
   (property select-fn Runnable)
-  (property start (t/maybe t/Vec3))
-  (property current (t/maybe t/Vec3))
-  (property op-seq t/Any)
-  (property mode (t/maybe (t/enum :direct :toggle)))
-  (property prev-selection-set t/Any)
+  (property start (g/maybe types/Vec3))
+  (property current (g/maybe types/Vec3))
+  (property op-seq g/Any)
+  (property mode (g/maybe (g/enum :direct :toggle)))
+  (property prev-selection-set g/Any)
 
-  (input selection t/Any)
-  (input picking-selection t/Any)
-  (input scene t/Any)
+  (input selection g/Any)
+  (input picking-selection g/Any)
+  (input scene g/Any)
 
   (output picking-rect Rect :cached produce-picking-rect)
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
@@ -681,13 +681,13 @@
                                                              :make-preview-fn make-preview))
 
 (g/defnode SceneNode
-  (property position t/Vec3 (default [0 0 0]))
-  (property rotation t/Vec3 (default [0 0 0]))
+  (property position types/Vec3 (default [0 0 0]))
+  (property rotation types/Vec3 (default [0 0 0]))
 
-  (output position Vector3d :cached (g/fnk [^t/Vec3 position] (Vector3d. (double-array position))))
-  (output rotation Quat4d :cached (g/fnk [^t/Vec3 rotation] (math/euler->quat rotation)))
+  (output position Vector3d :cached (g/fnk [^types/Vec3 position] (Vector3d. (double-array position))))
+  (output rotation Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
-  (output scene t/Any :cached (g/fnk [^g/NodeID node-id ^Matrix4d transform] {:node-id node-id :transform transform}))
+  (output scene g/Any :cached (g/fnk [^g/NodeID node-id ^Matrix4d transform] {:node-id node-id :transform transform}))
   (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
 
   scene-tools/Movable
