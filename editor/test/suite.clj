@@ -1,7 +1,7 @@
 (ns suite
   (:require [clojure.java.io :as io]
             [clojure.test :as test]
-            [dynamo.messages :as m])
+            [editor.messages :as m])
   (:import [clojure.lang Compiler]))
 
 (def test-namespaces '[editor.buffers-test
