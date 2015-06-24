@@ -27,6 +27,7 @@ namespace dmSocket
         ifc.ifc_ifcu.ifcu_req = ifr;
         ifc.ifc_len = sizeof(buf);
         if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
+            close(s);
             return;
         }
 
@@ -73,6 +74,8 @@ namespace dmSocket
 
             *count = *count + 1;
         }
+
+        close(s);
         return;
     }
 }

@@ -139,7 +139,7 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    if (_glfwWin.display == EGL_NO_DISPLAY || _glfwWin.surface == EGL_NO_SURFACE)
+    if (_glfwWin.display == EGL_NO_DISPLAY || _glfwWin.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
     {
         return;
     }
@@ -157,8 +157,10 @@ void _glfwPlatformSwapBuffers( void )
                 return;
             } else if (error == EGL_BAD_SURFACE) {
                 // Recreate surface
-                LOGE("eglSwapBuffers failed due to EGL_BAD_SURFACE, trying to recreate surface!");
-                create_gl_surface(&_glfwWin);
+                LOGE("eglSwapBuffers failed due to EGL_BAD_SURFACE, destroy surface and wait for recreation.");
+                destroy_gl_surface(&_glfwWin);
+                _glfwWin.iconified = 1;
+                _glfwWin.hasSurface = 0;
                 return;
             } else {
                 // Other errors typically mean that the current surface is bad,
