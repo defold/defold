@@ -836,9 +836,15 @@ bail:
                 dmTime::Sleep(1000 * 100);
                 // Update time again after the sleep to avoid big leaps after iconified.
                 // In practice, it makes the delta time 1/freq even though we slept for long
+
                 time = dmTime::GetTime();
-                engine->m_PreviousFrameTime = time - fixed_dt * 1000000;
-                dt = fixed_dt;
+                uint64_t i_dt = fixed_dt * 1000000;
+                if (i_dt > time) {
+                    engine->m_PreviousFrameTime = 0;
+                } else {
+                    engine->m_PreviousFrameTime = time - i_dt;
+                }
+
                 engine->m_WasIconified = true;
                 return;
             }

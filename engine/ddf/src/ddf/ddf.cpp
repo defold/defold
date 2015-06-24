@@ -196,6 +196,7 @@ namespace dmDDF
         {
             if (fseek(f, 0, SEEK_END) != 0)
             {
+                fclose(f);
                 return RESULT_IO_ERROR;
             }
 
@@ -203,6 +204,7 @@ namespace dmDDF
 
             if (fseek(f, 0, SEEK_SET) != 0)
             {
+                fclose(f);
                 return RESULT_IO_ERROR;
             }
 
@@ -210,6 +212,7 @@ namespace dmDDF
             if ( fread(buffer, 1, size, f) != (size_t) size )
             {
                 free(buffer);
+                fclose(f);
                 return RESULT_IO_ERROR;
             }
 
