@@ -8,6 +8,7 @@
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -167,3 +168,17 @@
                      (g/delete-node node)))
                  (project/build-and-write project resource-node)
                  (is (< (count @(:fs-build-cache project)) cache-count)))))))
+
+(deftest build-atlas
+  (testing "Building atlas"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)
+                   path          "/background/background.atlas"
+                   resource-node (test-util/resource-node project path)
+                   build-results (project/build project resource-node)
+                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+               (let [content (get content-by-source path)
+                     desc (TextureSetProto$TextureSet/parseFrom content)]
+                 (is (contains? content-by-target (.getTexture desc))))))))
