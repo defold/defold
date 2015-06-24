@@ -27,11 +27,9 @@
     (.close out)
     (.toByteArray out)))
 
-(defn- val->pb-enum
+(defn val->pb-enum
   [^Class enum-class val]
-  (assert (contains? (supers enum-class) ProtocolMessageEnum))
-  (assert (keyword? val))
-  (j/invoke-class-method enum-class "valueOf" (name val)))
+  (Enum/valueOf enum-class (s/replace (s/upper-case (name val)) "-" "_")))
 
 (defn- pb-enum->val
   [^Descriptors$EnumValueDescriptor val]
@@ -198,7 +196,7 @@
 (defn- kw->enum [^Descriptors$FieldDescriptor desc val]
   (let [enum-desc (.getEnumType desc)
         ; TODO - Can't use ->SNAKE_CASE here because of inconsistencies with word-splitting and numerals
-        enum-name (s/replace (s/upper-case (subs (str val) 1)) "-" "_")
+        enum-name (s/replace (s/upper-case (name val)) "-" "_")
         enum-cls (desc->proto-cls enum-desc)]
     (java.lang.Enum/valueOf enum-cls enum-name)))
 

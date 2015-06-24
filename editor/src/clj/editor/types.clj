@@ -100,16 +100,16 @@
   ImageHolder
   (contents [this] contents))
 
-(def AnimationPlayback (g/enum :PLAYBACK_NONE :PLAYBACK_ONCE_FORWARD :PLAYBACK_ONCE_BACKWARD
-                               :PLAYBACK_ONCE_PINGPONG :PLAYBACK_LOOP_FORWARD :PLAYBACK_LOOP_BACKWARD
-                               :PLAYBACK_LOOP_PINGPONG))
+(def AnimationPlayback (g/enum :playback-none :playback-once-forward :playback-once-backward
+                               :playback-once-pingpong :playback-loop-forward :playback-loop-backward
+                               :playback-loop-pingpong))
 
 (g/s-defrecord Animation
   [id              :- g/Str
    images          :- [Image]
    fps             :- Int32
-   flip-horizontal :- g/Int
-   flip-vertical   :- g/Int
+   flip-horizontal :- g/Bool
+   flip-vertical   :- g/Bool
    playback        :- AnimationPlayback])
 
 (g/s-defrecord TexturePacking
