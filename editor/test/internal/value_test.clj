@@ -318,3 +318,17 @@
         (with-clean-system
           (is (thrown? Exception (arrange-error-value-call world :multi-no-sub true (g/error))))
           (is (= [4848] (arrange-error-value-call world :multi-with-sub true (g/error)))))))))
+
+
+(g/defnode StringInputIntOutputNode
+  (input string-input g/Str)
+  (output int-output g/Str (g/fnk [] 1))
+  (output combined g/Str (g/fnk [string-input] string-input)))
+
+(deftest input-schema-validation-warnings
+  (with-redefs [in/warn (constantly nil)]
+    (testing "schema validations on inputs"
+     (with-clean-system
+       (let [[node1] (tx-nodes (g/make-node world StringInputIntOutputNode))]
+         (g/transact (g/connect node1 :int-output node1 :string-input))
+         (is (thrown-with-msg? Exception #"Error Value Found in Node" (g/node-value node1 :combined))))))))
