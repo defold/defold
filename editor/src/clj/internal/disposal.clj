@@ -1,12 +1,12 @@
 (ns internal.disposal
   (:require [internal.async :as ia]
-            [dynamo.types :as t]
+            [internal.graph.types :as gt]
             [service.log :as log :refer [logging-exceptions]]))
 
 (defn- dispose-one [value]
   (logging-exceptions "disposal-loop"
-    (when (t/disposable? value)
-      (t/dispose value))))
+    (when (gt/disposable? value)
+      (gt/dispose value))))
 
 (defn dispose-pending
   [queue]

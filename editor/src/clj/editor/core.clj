@@ -2,7 +2,7 @@
   "Essential node types"
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
+            [editor.types :as types]
             [inflections.core :as inflect]))
 
 ;; ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ When a node is added to a Scope, the node's :self output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."
-  (input nodes t/Any :array)
+  (input nodes g/Any :array)
 
   (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted           #'dispose-nodes))
@@ -91,14 +91,14 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
 this node to indicate that 'Save' is a meaningful action.
 
 Inheritors are required to supply a production function for the :save output."
-  (output save t/Keyword :abstract))
+  (output save g/Keyword :abstract))
 
 
 (g/defnode ResourceNode
   "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename (t/protocol t/PathManipulation) (visible (g/fnk [] false)))
+  (property filename (g/protocol types/PathManipulation) (visible (g/fnk [] false)))
 
-  (output content t/Any :abstract))
+  (output content g/Any :abstract))
 
 
 #_(g/defnode AutowireResources
@@ -115,11 +115,11 @@ Inputs:
 
 Outputs:
 - tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (output outline-children [t/OutlineItem] (g/fnk [] []))
-  (output outline-label    t/Str :abstract)
-  (output outline-commands [t/OutlineCommand] (g/fnk [] []))
-  (output outline-tree     t/OutlineItem
-          (g/fnk [this outline-label outline-commands outline-children :- [t/OutlineItem]]
+  (output outline-children [types/OutlineItem] (g/fnk [] []))
+  (output outline-label    g/Str :abstract)
+  (output outline-commands [types/OutlineCommand] (g/fnk [] []))
+  (output outline-tree     types/OutlineItem
+          (g/fnk [this outline-label outline-commands outline-children :- [types/OutlineItem]]
                {:label outline-label
                 ;; :icon "my type of icon"
                 :node-ref (g/node-id this)

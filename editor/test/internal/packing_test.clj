@@ -1,15 +1,15 @@
 (ns internal.packing-test
-  (:require [dynamo.texture :refer :all]
-            [dynamo.geom :refer :all]
-            [dynamo.image :refer :all]
-            [dynamo.types :as t :refer [rect]]
-            [internal.texture.pack-max-rects :as itp :refer [max-rects-packing]]
+  (:require [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
+            [editor.types :as t :refer [rect]]
+            [editor.geom :refer :all]
+            [editor.image :refer :all]
+            [editor.texture :refer :all]
+            [internal.texture.pack-max-rects :as itp :refer [max-rects-packing]]
             [schema.test :refer [validate-schemas]])
-  (:import [dynamo.types Rect]))
+  (:import [editor.types Rect]))
 
 (def rects (gen/fmap (fn [[x y w h]] (rect x y w h))
              (gen/tuple gen/int gen/int gen/s-pos-int gen/s-pos-int)))
@@ -112,4 +112,3 @@
 (deftest known-size
  (let [packed (packed-size test-rectangles-for-packing)]
    (is (or (= [512 2048] packed) (= [2048 512] packed)))))
-

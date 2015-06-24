@@ -1,34 +1,19 @@
 (ns integration.build-test
   (:require [clojure.test :refer :all]
-            [clojure.pprint :refer [pprint]]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [with-clean-system]]
-            [dynamo.types :as t]
-            [dynamo.geom :as geom]
-            [dynamo.util :as util]
+            [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
-            [editor.atlas :as atlas]
-            [editor.collection :as collection]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.image :as image]
-            [editor.platformer :as platformer]
             [editor.project :as project]
-            [editor.scene :as scene]
-            [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
             [editor.workspace :as workspace]
-            [internal.render.pass :as pass]
             [integration.test-util :as test-util])
-  (:import [dynamo.types Region]
-           [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
+  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+           [editor.types Region]
+           [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
            [java.io File]
-           [javax.vecmath Point3d Matrix4d]
            [javax.imageio ImageIO]
-           [editor.workspace BuildResource]))
+           [javax.vecmath Point3d Matrix4d]))
 
 (def project-path "resources/build_project/SideScroller")
 

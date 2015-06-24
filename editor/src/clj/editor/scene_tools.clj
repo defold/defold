@@ -1,15 +1,14 @@
 (ns editor.scene-tools
-  (:require [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.vertex :as vtx]
-            [dynamo.graph :as g]
-            [dynamo.types :as t]
+  (:require [dynamo.graph :as g]
             [editor.camera :as c]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex :as vtx]
             [editor.math :as math]
             [internal.render.pass :as pass])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer Screenshot]
-           [dynamo.types Camera AABB Region Rect]
+           [editor.types Camera AABB Region Rect]
            [java.awt Font]
            [java.awt.image BufferedImage]
            [javafx.animation AnimationTimer]
@@ -455,18 +454,18 @@
     action))
 
 (g/defnode ToolController
-  (property start-action t/Any)
-  (property prev-action t/Any)
-  (property original-values t/Any)
+  (property start-action g/Any)
+  (property prev-action g/Any)
+  (property original-values g/Any)
 
-  (property hot-manip t/Any)
-  (property active-manip t/Any)
-  (property op-seq t/Any)
+  (property hot-manip g/Any)
+  (property active-manip g/Any)
+  (property op-seq g/Any)
 
-  (input active-tool t/Keyword)
-  (input camera t/Any)
-  (input viewport t/Any)
-  (input selected-renderables t/Any)
+  (input active-tool g/Keyword)
+  (input camera g/Any)
+  (input viewport g/Any)
+  (input selected-renderables g/Any)
 
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/fnk [] handle-input)))
