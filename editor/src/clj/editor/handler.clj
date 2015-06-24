@@ -6,7 +6,7 @@
 ; TODO: Validate arguments for all functions and log appropriate message
 
 (defmacro defhandler [command context & body]
-  (let [qname (keyword (str *ns*) (str (name command) (gensym)))
+  (let [qname (keyword (str *ns*) (name command))
         fns (->> body
               (mapcat (fn [[fname fargs & fbody]]
                         [(keyword fname) `(fnk ~fargs ~@fbody)]))
