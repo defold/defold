@@ -196,21 +196,23 @@
 (defn- build-sprite [self basis resource dep-resources user-data]
   {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc (:proto-msg user-data))})
 
-(g/defnk produce-build-targets [node-id resource image default-animation material blend-mode]
+(g/defnk produce-build-targets [node-id resource image default-animation material blend-mode dep-build-targets]
   [{:node-id node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-sprite
     :user-data {:proto-msg {:tile-set (workspace/proj-path image)
                             :default-animation default-animation
                             :material (workspace/proj-path material)
-                            :blend-mode blend-mode}}}])
+                            :blend-mode blend-mode}}
+    :deps dep-build-targets}])
 
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
     (let [outputs (-> atlas-node g/node-type g/output-labels)]
-      (if (every? #(contains? outputs %) [:anim-data :gpu-texture])
+      (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
         [(g/connect atlas-node :anim-data self :anim-data)
-         (g/connect atlas-node :gpu-texture self :gpu-texture)]
+         (g/connect atlas-node :gpu-texture self :gpu-texture)
+         (g/connect atlas-node :build-targets self :dep-build-targets)]
         []))
     []))
 
@@ -226,6 +228,7 @@
       (concat
         (disconnect-all self :anim-data)
         (disconnect-all self :gpu-texture)
+        (disconnect-all self :dep-build-targets)
         (connect-atlas project self image)))))
 
 (g/defnode SpriteNode
@@ -240,6 +243,7 @@
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
+  (input dep-build-targets g/Any)
 
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
