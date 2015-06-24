@@ -11,6 +11,7 @@
             [editor.texture :as tex]
             [editor.types :as types]
             [editor.workspace :as workspace]
+            [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [internal.render.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
@@ -118,6 +119,34 @@
                      :animations anim-ddf}]
               (protobuf/map->str AtlasProto$Atlas m))})
 
+; TODO - fix real profiles
+(def test-profile {:name "test-profile"
+                   :platforms [{:os :os-id-generic
+                                :formats [{:format :texture-format-rgba
+                                           :compression-level :fast}]
+                                :mipmaps false}]})
+
+(defn- build-texture [self basis resource dep-resources user-data]
+  {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
+
+(defn- build-texture-set [self basis resource dep-resources user-data]
+  (let [tex-set (assoc (:proto user-data) :texture (workspace/proj-path (second (first dep-resources))))]
+    {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
+
+(g/defnk produce-build-targets [node-id project-id resource texture-set-data save-data]
+  (let [workspace (project/workspace (g/node-by-id project-id))
+        texture-type (workspace/get-resource-type workspace "texture")
+        texture-resource (workspace/make-memory-resource workspace texture-type (:content save-data))
+        texture-target {:node-id node-id
+                        :resource (workspace/make-build-resource texture-resource)
+                        :build-fn build-texture
+                        :user-data {:image (:image texture-set-data)}}]
+    [{:node-id node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-texture-set
+      :user-data {:proto (:texture-set texture-set-data)}
+      :deps [texture-target]}]))
+
 (defn gen-renderable-vertex-buffer
   [width height]
   (let [x0 0
@@ -197,6 +226,7 @@
   (output anim-data        g/Any          :cached produce-anim-data)
   (output outline          g/Any          :cached (g/fnk [node-id outline] {:node-id node-id :label "Atlas" :children outline :icon atlas-icon}))
   (output save-data        g/Any          :cached produce-save-data)
+  (output build-targets    g/Any          :cached produce-build-targets)
   (output scene            g/Any          :cached produce-scene))
 
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
@@ -205,14 +235,14 @@
   [graph-id base-node parent images src-label tgt-label]
   (for [[image img-node] (map (fn [img] [img (project/resolve-resource-node base-node img)]) images)
        :when img-node]
-   (g/make-nodes
-     graph-id
-     [atlas-image [AtlasImage :path image]]
-     (g/connect img-node    :content     atlas-image :src-image)
-     (g/connect atlas-image :self        base-node   :nodes)
-     (g/connect atlas-image src-label    parent      tgt-label)
-     (g/connect atlas-image :outline     parent      :outline)
-     (g/connect atlas-image :ddf-message parent      :img-ddf))))
+    (g/make-nodes
+      graph-id
+      [atlas-image [AtlasImage :path image]]
+      (g/connect img-node    :content     atlas-image :src-image)
+      (g/connect atlas-image :self        base-node   :nodes)
+      (g/connect atlas-image src-label    parent      tgt-label)
+      (g/connect atlas-image :outline     parent      :outline)
+      (g/connect atlas-image :ddf-message parent      :img-ddf))))
 
 (defn load-atlas [project self input]
   (let [atlas         (protobuf/read-text AtlasProto$Atlas input)
@@ -237,6 +267,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "atlas"
+                                    :build-ext "texturesetc"
                                     :node-type AtlasNode
                                     :load-fn load-atlas
                                     :icon atlas-icon

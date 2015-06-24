@@ -209,7 +209,10 @@
 (defn- clj->java [^Descriptors$FieldDescriptor desc val]
   (let [type (.getJavaType desc)]
     (cond
-      (= type (Descriptors$FieldDescriptor$JavaType/INT)) (int val)
+      (= type (Descriptors$FieldDescriptor$JavaType/INT)) (let [val (if (instance? java.lang.Boolean val)
+                                                                      (if val 1 0)
+                                                                      val)]
+                                                            (int val))
       (= type (Descriptors$FieldDescriptor$JavaType/LONG)) (long val)
       (= type (Descriptors$FieldDescriptor$JavaType/FLOAT)) (float val)
       (= type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) (double val)
