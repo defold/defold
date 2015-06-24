@@ -11,6 +11,7 @@
             [editor.texture :as tex]
             [editor.types :as types]
             [editor.workspace :as workspace]
+            [editor.pipeline.texture-set-gen :as texture-set-gen]
             [internal.render.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -21,101 +22,20 @@
            [java.awt.image BufferedImage]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d]))
+           [javax.vecmath Point3d Matrix4d]
+           [java.nio ByteBuffer ByteOrder]))
 
 (def atlas-icon "icons/images.png")
 (def animation-icon "icons/film.png")
 (def image-icon "icons/image.png")
 
-
-(vtx/defvertex engine-format-texture
-  (vec3.float position)
-  (vec2.short texcoord0 true))
+(defn render-overlay
+  [^GL2 gl ^TextRenderer text-renderer width height]
+  (gl/overlay gl text-renderer (format "Size: %dx%d" width height) 12.0 -22.0 1.0 1.0))
 
 (vtx/defvertex texture-vtx
   (vec4 position)
   (vec2 texcoord0))
-
-(vtx/defvertex uv-only
-  (vec2 uv))
-
-(g/defnk produce-texture-packing :- TexturePacking
-  [images :- [Image] margin extrude-borders]
-  (tex/pack-textures margin extrude-borders images))
-
-(defn summarize-frame-data [key vbuf-factory-fn frame-data]
-  (let [counts (map #(count (get % key)) frame-data)
-        starts (reductions + 0 counts)
-        total  (last starts)
-        starts (butlast starts)
-        vbuf   (vbuf-factory-fn total)]
-    (doseq [frame frame-data
-            vtx (get frame key)]
-      (conj! vbuf vtx))
-    {:starts (map int starts) :counts (map int counts) :vbuf (persistent! vbuf)}))
-
-(defn animation-frame-data
-  [^TexturePacking texture-packing image]
-  (let [coords (filter #(= (:path image) (:path %)) (:coords texture-packing))
-        ^Rect coord (first coords)
-        packed-image ^BufferedImage (.packed-image texture-packing)
-        x-scale (/ 1.0 (.getWidth  packed-image))
-        y-scale (/ 1.0 (.getHeight packed-image))
-        u0 (* x-scale (+ (.x coord)))
-        v0 (* y-scale (+ (.y coord)))
-        u1 (* x-scale (+ (.x coord) (.width  coord)))
-        v1 (* y-scale (+ (.y coord) (.height coord)))
-        x0 (* -0.5 (.width  coord))
-        y0 (* -0.5 (.height coord))
-        x1 (*  0.5 (.width  coord))
-        y1 (*  0.5 (.height coord))
-        outline-vertices [[x0 y0 0 (geom/to-short-uv u0) (geom/to-short-uv v1)]
-                          [x1 y0 0 (geom/to-short-uv u1) (geom/to-short-uv v1)]
-                          [x1 y1 0 (geom/to-short-uv u1) (geom/to-short-uv v0)]
-                          [x0 y1 0 (geom/to-short-uv u0) (geom/to-short-uv v0)]]]
-    {:image            image ; TODO: is this necessary?
-     :outline-vertices outline-vertices
-     :vertices         (mapv outline-vertices [0 1 2 0 2 3])
-     :tex-coords       [[u0 v0] [u1 v1]]}))
-
-(defn build-textureset-animation
-  [animation]
-  (let [images (:images animation)
-        width  (int (:width  (first images)))
-        height (int (:height (first images)))]
-    (-> (select-keys animation [:id :fps :flip-horizontal :flip-vertical :playback])
-        (assoc :width width :height height)
-        types/map->TextureSetAnimation)))
-
-(g/defnk produce-textureset :- TextureSet
-  [texture-packing :- TexturePacking animations]
-  (let [animations             (remove #(empty? (:images %)) animations)
-       animations-images      (for [a animations i (:images a)] [a i])
-       images                 (mapcat :images animations)
-       frame-data             (map (partial animation-frame-data texture-packing) images)
-       vertex-summary         (summarize-frame-data :vertices         ->engine-format-texture frame-data)
-       outline-vertex-summary (summarize-frame-data :outline-vertices ->engine-format-texture frame-data)
-       tex-coord-summary      (summarize-frame-data :tex-coords       ->uv-only               frame-data)
-       frames                 (map types/->TextureSetAnimationFrame
-                                images
-                                (:starts vertex-summary)
-                                (:counts vertex-summary)
-                                (:starts outline-vertex-summary)
-                                (:counts outline-vertex-summary)
-                                (:starts tex-coord-summary)
-                                (:counts tex-coord-summary))
-       animation-frames       (partition-by first (map (fn [[a i] f] [a f]) animations-images frames))
-       textureset-animations  (map build-textureset-animation animations)
-       textureset-animations  (map (fn [a aframes] (assoc a :frames (mapv second aframes))) textureset-animations animation-frames)]
-   (types/map->TextureSet {:animations       (reduce (fn [m a] (assoc m (:id a) a)) {} textureset-animations)
-                       :vertices         (:vbuf vertex-summary)
-                       :outline-vertices (:vbuf outline-vertex-summary)
-                       :tex-coords       (:vbuf tex-coord-summary)})))
-
-(defn render-overlay
-  [^GL2 gl ^TextRenderer text-renderer ^TexturePacking texture-packing]
-  (let [image ^BufferedImage (.packed-image texture-packing)]
-    (gl/overlay gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
@@ -133,11 +53,11 @@
 
 (def atlas-shader (shader/make-shader pos-uv-vert pos-uv-frag))
 
-(defn render-texture-packing
-  [gl texture-packing vertex-binding gpu-texture]
+(defn render-texture-set
+  [gl vertex-binding gpu-texture]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
     (shader/set-uniform atlas-shader gl "texture" 0)
-    (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords texture-packing))))))
+    (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
 
 (defn- path->id [path]
   (-> path
@@ -198,43 +118,66 @@
               (protobuf/pb->str))})
 
 (defn gen-renderable-vertex-buffer
-  [{:keys [^Rect aabb coords]}]
-  (let [vbuf       (->texture-vtx (* 6 (count coords)))
-        x-scale    (/ 1.0 (.width aabb))
-        y-scale    (/ 1.0 (.height aabb))]
-    (doseq [^Rect coord coords]
-      (let [w  (.width coord)
-            h  (.height coord)
-            x0 (.x coord)
-            y0 (- (.height aabb) (.y coord)) ;; invert for screen
-            x1 (+ x0 w)
-            y1 (- (.height aabb) (+ (.y coord) h))
-            u0 (* x0 x-scale)
-            v0 (* y0 y-scale)
-            u1 (* x1 x-scale)
-            v1 (* y1 y-scale)]
-        (doto vbuf
-          (conj! [x0 y0 0 1 u0 (- 1 v0)])
-          (conj! [x0 y1 0 1 u0 (- 1 v1)])
-          (conj! [x1 y1 0 1 u1 (- 1 v1)])
+  [width height]
+  (let [x0 0
+        y0 0
+        x1 width
+        y1 height]
+    (persistent!
+      (doto (->texture-vtx 6)
+           (conj! [x0 y0 0 1 0 1])
+           (conj! [x0 y1 0 1 0 0])
+           (conj! [x1 y1 0 1 1 0])
 
-          (conj! [x1 y1 0 1 u1 (- 1 v1)])
-          (conj! [x1 y0 0 1 u1 (- 1 v0)])
-          (conj! [x0 y0 0 1 u0 (- 1 v0)]))))
-    (persistent! vbuf)))
+           (conj! [x1 y1 0 1 1 0])
+           (conj! [x1 y0 0 1 1 1])
+           (conj! [x0 y0 0 1 0 1])))))
 
 (g/defnk produce-scene
-  [self aabb texture-packing gpu-texture]
-  (let [vertex-buffer (gen-renderable-vertex-buffer texture-packing)
+  [self texture-set-data aabb gpu-texture]
+  (let [img (:image texture-set-data)
+        width (.getWidth img)
+        height (.getHeight img)
+        vertex-buffer (gen-renderable-vertex-buffer width height)
         vertex-binding (vtx/use-with vertex-buffer atlas-shader)]
     {:aabb aabb
      :renderable {:render-fn (fn [gl render-args renderables count]
                                (let [pass (:pass render-args)
                                      text-renderer (:text-renderer render-args)]
                                  (cond
-                                   (= pass pass/overlay)     (render-overlay gl text-renderer texture-packing)
-                                   (= pass pass/transparent) (render-texture-packing gl texture-packing vertex-binding gpu-texture))))
+                                   (= pass pass/overlay)     (render-overlay gl text-renderer width height)
+                                   (= pass pass/transparent) (render-texture-set gl vertex-binding gpu-texture))))
                   :passes [pass/overlay pass/transparent]}}))
+
+(g/defnk produce-texture-set-data [animations images margin extrude-borders]
+  ; TODO - add inner padding
+  (let [inner-padding 0]
+    (time (texture-set-gen/->texture-set-data animations images margin inner-padding extrude-borders))))
+
+(defn- ->uv-vertex [vert-index tex-coords]
+  (let [index (* vert-index 2)]
+    [(.get tex-coords index) (.get tex-coords (inc index))]))
+
+(defn- ->uv-quad [quad-index tex-coords]
+  (let [offset (* quad-index 4)]
+    (mapv #(->uv-vertex (+ offset %) tex-coords) (range 4))))
+
+(defn- ->anim-frame [frame-index tex-coords]
+  {:tex-coords (->uv-quad frame-index tex-coords)})
+
+(defn- ->anim-data [anim tex-coords]
+  {:width (:width anim)
+   :height (:height anim)
+   :frames (mapv #(->anim-frame % tex-coords) (range (:start anim) (:end anim)))})
+
+(g/defnk produce-anim-data [texture-set-data]
+  (let [tex-set (:texture-set texture-set-data)
+        tex-coords (-> (:tex-coords tex-set)
+                     (.asReadOnlyByteBuffer)
+                     (.order ByteOrder/LITTLE_ENDIAN)
+                     (.asFloatBuffer))
+        animations (:animations tex-set)]
+    (into {} (map #(do [(:id %) (->anim-data % tex-coords)]) animations))))
 
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
@@ -247,15 +190,14 @@
   (input img-ddf g/Any :array)
   (input anim-ddf g/Any :array)
 
-  (output images          [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
-  (output aabb            AABB           (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
-  (output gpu-texture     g/Any          :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
-  (output texture-packing TexturePacking :cached produce-texture-packing)
-  (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
-  (output textureset      TextureSet     :cached produce-textureset)
-  (output outline         g/Any          :cached (g/fnk [node-id outline] {:node-id node-id :label "Atlas" :children outline :icon atlas-icon}))
-  (output save-data       g/Any          :cached produce-save-data)
-  (output scene           g/Any          :cached produce-scene))
+  (output images           [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
+  (output aabb             AABB           (g/fnk [texture-set-data] (let [img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
+  (output gpu-texture      g/Any          :cached (g/fnk [texture-set-data] (texture/image-texture (:image texture-set-data))))
+  (output texture-set-data g/Any          :cached produce-texture-set-data)
+  (output anim-data        g/Any          :cached produce-anim-data)
+  (output outline          g/Any          :cached (g/fnk [node-id outline] {:node-id node-id :label "Atlas" :children outline :icon atlas-icon}))
+  (output save-data        g/Any          :cached produce-save-data)
+  (output scene            g/Any          :cached produce-scene))
 
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
 
