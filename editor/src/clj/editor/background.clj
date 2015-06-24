@@ -1,8 +1,7 @@
-(ns dynamo.background
-  (:require [dynamo.geom :as geom]
-            [dynamo.gl :as gl]
-            [dynamo.graph :as g]
-            [dynamo.types :as t]
+(ns editor.background
+  (:require [dynamo.graph :as g]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
             [internal.render.pass :as p]
             [plumbing.core :refer [fnk]])
   (:import [javax.media.opengl GL2]))

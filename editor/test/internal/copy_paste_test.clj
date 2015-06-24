@@ -3,23 +3,22 @@
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :as ts]
-            [dynamo.types :as t])
+            [support.test-support :as ts])
   (:import [dynamo.graph Endpoint]))
 
 ;;  simple copy: two nodes, one arc
 (g/defnode ConsumerNode
-  (property a-property t/Str (default "foo"))
-  (input consumes-value t/Str :array))
+  (property a-property g/Str (default "foo"))
+  (input consumes-value g/Str :array))
 
 (g/defnode ProducerNode
-  (output produces-value t/Str (g/fnk [] "A string")))
+  (output produces-value g/Str (g/fnk [] "A string")))
 
 (g/defnode ConsumeAndProduceNode
   (inherits ConsumerNode)
   (inherits ProducerNode)
 
-  (output produces-value t/Str (g/fnk [consumes-value] (str/join " " consumes-value))))
+  (output produces-value g/Str (g/fnk [consumes-value] (str/join " " consumes-value))))
 
 (defn simple-copy-fragment [world]
   (let [[node1 node2] (ts/tx-nodes (g/make-node world ConsumerNode)
@@ -150,7 +149,7 @@
         (is (= 2 (count fragment-nodes)))))))
 
 (g/defnode FunctionPropertyNode
-  (property a-function t/Any))
+  (property a-function g/Any))
 
 (deftest no-functions
   (ts/with-clean-system
@@ -162,9 +161,9 @@
 ;;  resource: two nodes, one arc, upstream is a resource
 (g/defnode StopperNode
   "Not serializable"
-  (property a-property t/Str)
-  (input  discards-value t/Str)
-  (output produces-value t/Str (g/fnk [a-property] a-property)))
+  (property a-property g/Str)
+  (input  discards-value g/Str)
+  (output produces-value g/Str (g/fnk [a-property] a-property)))
 
 (defn- stop-at-stoppers [node]
   (not (= "StopperNode" (:name (g/node-type node)))))

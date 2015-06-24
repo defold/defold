@@ -1,9 +1,9 @@
-(ns dynamo.gl.texture
+(ns editor.gl.texture
   "Functions for creating and using textures"
-  (:require [dynamo.image :as img :refer [placeholder-image]]
-            [dynamo.gl.protocols :refer [GlBind GlEnable]]
-            [dynamo.gl :as gl]
-            [dynamo.types :refer [IDisposable dispose]])
+  (:require [editor.image :as img :refer [placeholder-image]]
+            [editor.gl.protocols :refer [GlBind GlEnable]]
+            [editor.gl :as gl]
+            [dynamo.graph :as g])
   (:import [java.awt.image BufferedImage]
            [java.nio IntBuffer]
            [javax.media.opengl GL GL2 GL3 GLContext GLProfile]
@@ -105,8 +105,8 @@
       (.disable texture gl))
     (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0))
 
-  IDisposable
-  (dispose [this]
+  g/IDisposable
+  (g/dispose [this]
     (println "TextureLifecycle.dispose " img)
     (unload-texture this)))
 
@@ -172,8 +172,8 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
       (.disable texture gl))
     (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0))
 
-  IDisposable
-  (dispose [this]
+  g/IDisposable
+  (g/dispose [this]
     (println "CubemapTexture.dispose")
     (unload-texture this)))
 

@@ -1,7 +1,7 @@
-(ns dynamo.gl
+(ns editor.gl
   "Expose some GL functions and constants with Clojure-ish flavor"
   (:refer-clojure :exclude [repeat])
-  (:require [dynamo.gl.protocols :as p])
+  (:require [editor.gl.protocols :as p])
   (:import [java.awt Font]
            [java.util WeakHashMap]
            [java.nio IntBuffer]
