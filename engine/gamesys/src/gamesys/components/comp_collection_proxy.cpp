@@ -504,6 +504,7 @@ namespace dmGameSystem
      *     end
      * end
      * </pre>
+     */
 
     /*# reports that a collection proxy has loaded its referenced collection
      * <p>
