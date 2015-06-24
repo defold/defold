@@ -151,7 +151,7 @@
                   :passes [pass/overlay pass/transparent]}}))
 
 (g/defnk produce-texture-set-data [animations images margin inner-padding extrude-borders]
-  (time (texture-set-gen/->texture-set-data animations images margin inner-padding extrude-borders)))
+  (texture-set-gen/->texture-set-data animations images margin inner-padding extrude-borders))
 
 (defn- ->uv-vertex [vert-index ^FloatBuffer tex-coords]
   (let [index (* vert-index 2)]
