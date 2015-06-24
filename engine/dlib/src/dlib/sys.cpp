@@ -680,6 +680,7 @@ namespace dmSys
         if (asset) {
             uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
             if (asset_size > buffer_size) {
+                AAsset_close(asset);
                 return RESULT_INVAL;
             }
             int nread = AAsset_read(asset, buffer, asset_size);
