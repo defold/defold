@@ -296,10 +296,12 @@
 
 (defn- create-menu-item [desc item]
   (if (:children item)
-    (let [menu (Menu. (:label item))]
-      (doseq [i (make-menu desc (:children item))]
-        (.add (.getItems menu) i))
-      menu)
+    (let [child-menu (make-menu desc (:children item))]
+      (when (seq child-menu)
+        (let [menu (Menu. (:label item))]
+          (doseq [i child-menu]
+            (.add (.getItems menu) i))
+          menu)))
     (let [command (:command item)
           ctxts (contexts)]
       (when (handler/active? command ctxts)
