@@ -280,8 +280,7 @@
                          project (project/get-project coll-node)
                          workspace (:workspace (:resource coll-node))
                          ext "go"]
-                     (when-let [; TODO - filter game object files
-                                resource (first (dialogs/make-resource-dialog workspace {}))]
+                     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext ext :title "Select Game Object File"}))]
                        (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))
                              id (gen-instance-id coll-node base)
                              op-seq (gensym)
@@ -385,8 +384,7 @@
                          workspace (:workspace (:resource coll-node))
                          ext "collection"
                          resource-type (workspace/get-resource-type workspace ext)]
-                     (when-let [; TODO - filter collection files
-                                resource (first (dialogs/make-resource-dialog workspace {}))]
+                     (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext ext :title "Select Collection File"}))]
                        (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))
                              id (gen-instance-id coll-node base)
                              op-seq (gensym)
