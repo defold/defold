@@ -159,8 +159,7 @@
   (let [project (project/get-project self)
         workspace (:workspace (:resource self))
         component-exts (map :ext (workspace/get-resource-types workspace :component))]
-    (when-let [; TODO - filter component files
-               resource (first (dialogs/make-resource-dialog workspace {}))]
+    (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
       (let [id (gen-component-id self (:ext (workspace/resource-type resource)))
             op-seq (gensym)
             [comp-node] (g/tx-nodes-added
