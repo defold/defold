@@ -1,0 +1,15002 @@
+name: "default"
+instances {
+  id: "root0"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root1"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root2"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root3"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root4"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root5"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root6"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root7"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root8"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root9"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root10"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root11"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root12"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root13"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root14"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root15"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root16"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root17"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root18"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root19"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root20"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root21"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root22"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root23"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root24"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root25"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root26"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root27"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root28"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root29"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root30"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root31"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root32"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root33"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root34"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root35"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root36"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root37"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root38"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root39"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root40"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root41"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root42"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root43"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root44"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root45"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root46"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root47"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root48"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root49"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root50"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root51"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root52"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root53"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root54"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root55"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root56"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root57"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root58"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root59"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root60"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root61"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root62"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root63"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root64"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root65"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root66"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root67"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root68"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root69"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root70"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root71"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root72"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root73"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root74"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root75"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root76"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root77"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root78"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root79"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root80"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root81"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root82"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root83"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root84"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root85"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root86"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root87"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root88"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root89"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root90"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root91"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root92"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root93"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root94"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root95"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root96"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root97"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root98"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root99"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root100"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root101"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root102"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root103"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root104"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root105"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root106"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root107"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root108"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root109"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root110"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root111"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root112"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root113"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root114"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root115"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root116"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root117"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root118"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root119"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root120"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root121"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root122"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root123"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root124"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root125"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root126"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root127"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root128"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root129"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root130"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root131"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root132"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root133"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root134"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root135"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root136"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root137"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root138"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root139"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root140"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root141"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root142"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root143"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root144"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root145"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root146"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root147"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root148"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root149"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root150"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root151"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root152"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root153"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root154"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root155"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root156"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root157"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root158"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root159"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root160"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root161"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root162"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root163"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root164"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root165"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root166"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root167"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root168"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root169"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root170"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root171"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root172"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root173"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root174"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root175"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root176"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root177"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root178"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root179"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root180"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root181"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root182"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root183"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root184"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root185"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root186"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root187"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root188"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root189"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root190"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root191"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root192"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root193"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root194"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root195"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root196"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root197"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root198"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root199"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root200"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root201"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root202"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root203"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root204"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root205"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root206"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root207"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root208"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root209"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root210"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root211"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root212"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root213"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root214"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root215"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root216"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root217"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root218"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root219"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root220"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root221"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root222"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root223"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root224"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root225"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root226"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root227"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root228"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root229"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root230"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root231"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root232"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root233"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root234"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root235"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root236"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root237"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root238"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root239"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root240"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root241"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root242"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root243"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root244"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root245"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root246"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root247"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root248"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root249"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root250"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root251"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root252"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root253"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root254"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root255"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root256"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root257"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root258"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root259"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root260"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root261"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root262"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root263"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root264"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root265"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root266"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root267"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root268"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root269"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root270"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root271"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root272"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root273"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root274"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root275"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root276"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root277"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root278"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root279"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root280"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root281"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root282"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root283"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root284"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root285"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root286"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root287"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root288"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root289"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root290"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root291"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root292"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root293"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root294"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root295"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root296"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root297"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root298"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root299"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root300"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root301"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root302"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root303"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root304"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root305"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root306"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root307"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root308"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root309"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root310"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root311"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root312"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root313"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root314"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root315"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root316"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root317"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root318"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root319"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root320"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root321"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root322"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root323"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root324"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root325"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root326"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root327"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root328"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root329"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root330"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root331"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root332"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root333"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root334"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root335"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root336"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root337"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root338"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root339"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root340"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root341"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root342"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root343"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root344"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root345"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root346"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root347"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root348"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root349"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root350"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root351"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root352"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root353"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root354"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root355"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root356"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root357"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root358"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root359"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root360"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root361"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root362"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root363"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root364"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root365"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root366"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root367"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root368"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root369"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root370"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root371"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root372"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root373"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root374"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root375"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root376"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root377"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root378"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root379"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root380"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root381"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root382"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root383"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root384"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root385"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root386"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root387"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root388"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root389"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root390"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root391"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root392"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root393"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root394"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root395"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root396"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root397"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root398"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root399"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root400"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root401"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root402"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root403"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root404"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root405"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root406"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root407"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root408"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root409"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root410"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root411"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root412"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root413"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root414"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root415"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root416"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root417"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root418"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root419"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root420"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root421"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root422"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root423"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root424"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root425"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root426"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root427"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root428"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root429"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root430"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root431"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root432"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root433"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root434"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root435"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root436"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root437"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root438"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root439"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root440"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root441"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root442"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root443"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root444"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root445"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root446"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root447"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root448"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root449"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root450"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root451"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root452"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root453"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root454"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root455"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root456"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root457"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root458"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root459"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root460"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root461"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root462"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root463"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root464"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root465"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root466"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root467"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root468"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root469"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root470"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root471"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root472"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root473"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root474"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root475"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root476"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root477"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root478"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root479"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root480"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root481"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root482"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root483"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root484"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root485"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root486"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root487"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root488"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root489"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root490"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root491"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root492"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root493"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root494"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root495"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root496"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root497"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root498"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root499"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root500"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root501"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root502"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root503"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root504"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root505"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root506"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root507"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root508"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root509"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root510"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root511"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root512"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root513"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root514"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root515"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root516"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root517"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root518"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root519"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root520"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root521"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root522"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root523"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root524"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root525"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root526"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root527"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root528"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root529"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root530"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root531"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root532"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root533"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root534"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root535"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root536"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root537"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root538"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root539"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root540"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root541"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root542"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root543"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root544"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root545"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root546"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root547"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root548"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root549"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root550"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root551"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root552"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root553"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root554"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root555"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root556"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root557"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root558"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root559"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root560"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root561"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root562"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root563"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root564"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root565"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root566"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root567"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root568"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root569"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root570"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root571"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root572"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root573"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root574"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root575"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root576"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root577"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root578"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root579"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root580"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root581"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root582"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root583"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root584"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root585"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root586"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root587"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root588"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root589"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root590"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root591"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root592"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root593"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root594"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root595"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root596"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root597"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root598"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root599"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 1000
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root600"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root601"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root602"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root603"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root604"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root605"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root606"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root607"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root608"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root609"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root610"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root611"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root612"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root613"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root614"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root615"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root616"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root617"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root618"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root619"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root620"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root621"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root622"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root623"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root624"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root625"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root626"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root627"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root628"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root629"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root630"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root631"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root632"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root633"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root634"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root635"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root636"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root637"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root638"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root639"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root640"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root641"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root642"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root643"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root644"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root645"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root646"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root647"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root648"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root649"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root650"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root651"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root652"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root653"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root654"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root655"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root656"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root657"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root658"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root659"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root660"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root661"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root662"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root663"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root664"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root665"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root666"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root667"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root668"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root669"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root670"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root671"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root672"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root673"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root674"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root675"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root676"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root677"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root678"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root679"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root680"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root681"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root682"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root683"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root684"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root685"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root686"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root687"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root688"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root689"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root690"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root691"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root692"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root693"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root694"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root695"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root696"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root697"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root698"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root699"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 1200
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root700"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root701"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root702"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root703"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root704"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root705"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root706"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root707"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root708"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root709"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root710"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root711"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root712"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root713"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root714"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root715"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root716"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root717"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root718"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root719"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root720"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root721"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root722"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root723"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root724"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root725"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root726"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root727"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root728"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root729"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root730"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root731"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root732"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root733"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root734"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root735"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root736"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root737"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root738"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root739"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root740"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root741"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root742"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root743"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root744"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root745"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root746"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root747"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root748"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root749"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root750"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root751"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root752"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root753"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root754"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root755"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root756"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root757"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root758"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root759"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root760"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root761"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root762"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root763"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root764"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root765"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root766"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root767"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root768"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root769"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root770"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root771"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root772"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root773"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root774"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root775"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root776"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root777"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root778"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root779"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root780"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root781"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root782"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root783"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root784"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root785"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root786"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root787"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root788"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root789"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root790"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root791"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root792"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root793"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root794"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root795"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root796"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root797"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root798"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root799"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 1400
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root800"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root801"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root802"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root803"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root804"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root805"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root806"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root807"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root808"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root809"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root810"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root811"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root812"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root813"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root814"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root815"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root816"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root817"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root818"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root819"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root820"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root821"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root822"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root823"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root824"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root825"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root826"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root827"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root828"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root829"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root830"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root831"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root832"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root833"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root834"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root835"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root836"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root837"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root838"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root839"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root840"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root841"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root842"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root843"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root844"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root845"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root846"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root847"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root848"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root849"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root850"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root851"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root852"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root853"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root854"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root855"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root856"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root857"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root858"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root859"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root860"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root861"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root862"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root863"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root864"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root865"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root866"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root867"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root868"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root869"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root870"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root871"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root872"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root873"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root874"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root875"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root876"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root877"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root878"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root879"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root880"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root881"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root882"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root883"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root884"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root885"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root886"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root887"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root888"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root889"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root890"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root891"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root892"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root893"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root894"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root895"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root896"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root897"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root898"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root899"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 1600
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root900"
+  prototype: "/test.go"
+  position {
+    x: 0
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root901"
+  prototype: "/test.go"
+  position {
+    x: 200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root902"
+  prototype: "/test.go"
+  position {
+    x: 400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root903"
+  prototype: "/test.go"
+  position {
+    x: 600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root904"
+  prototype: "/test.go"
+  position {
+    x: 800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root905"
+  prototype: "/test.go"
+  position {
+    x: 1000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root906"
+  prototype: "/test.go"
+  position {
+    x: 1200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root907"
+  prototype: "/test.go"
+  position {
+    x: 1400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root908"
+  prototype: "/test.go"
+  position {
+    x: 1600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root909"
+  prototype: "/test.go"
+  position {
+    x: 1800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root910"
+  prototype: "/test.go"
+  position {
+    x: 2000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root911"
+  prototype: "/test.go"
+  position {
+    x: 2200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root912"
+  prototype: "/test.go"
+  position {
+    x: 2400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root913"
+  prototype: "/test.go"
+  position {
+    x: 2600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root914"
+  prototype: "/test.go"
+  position {
+    x: 2800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root915"
+  prototype: "/test.go"
+  position {
+    x: 3000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root916"
+  prototype: "/test.go"
+  position {
+    x: 3200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root917"
+  prototype: "/test.go"
+  position {
+    x: 3400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root918"
+  prototype: "/test.go"
+  position {
+    x: 3600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root919"
+  prototype: "/test.go"
+  position {
+    x: 3800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root920"
+  prototype: "/test.go"
+  position {
+    x: 4000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root921"
+  prototype: "/test.go"
+  position {
+    x: 4200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root922"
+  prototype: "/test.go"
+  position {
+    x: 4400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root923"
+  prototype: "/test.go"
+  position {
+    x: 4600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root924"
+  prototype: "/test.go"
+  position {
+    x: 4800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root925"
+  prototype: "/test.go"
+  position {
+    x: 5000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root926"
+  prototype: "/test.go"
+  position {
+    x: 5200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root927"
+  prototype: "/test.go"
+  position {
+    x: 5400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root928"
+  prototype: "/test.go"
+  position {
+    x: 5600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root929"
+  prototype: "/test.go"
+  position {
+    x: 5800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root930"
+  prototype: "/test.go"
+  position {
+    x: 6000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root931"
+  prototype: "/test.go"
+  position {
+    x: 6200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root932"
+  prototype: "/test.go"
+  position {
+    x: 6400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root933"
+  prototype: "/test.go"
+  position {
+    x: 6600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root934"
+  prototype: "/test.go"
+  position {
+    x: 6800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root935"
+  prototype: "/test.go"
+  position {
+    x: 7000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root936"
+  prototype: "/test.go"
+  position {
+    x: 7200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root937"
+  prototype: "/test.go"
+  position {
+    x: 7400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root938"
+  prototype: "/test.go"
+  position {
+    x: 7600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root939"
+  prototype: "/test.go"
+  position {
+    x: 7800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root940"
+  prototype: "/test.go"
+  position {
+    x: 8000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root941"
+  prototype: "/test.go"
+  position {
+    x: 8200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root942"
+  prototype: "/test.go"
+  position {
+    x: 8400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root943"
+  prototype: "/test.go"
+  position {
+    x: 8600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root944"
+  prototype: "/test.go"
+  position {
+    x: 8800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root945"
+  prototype: "/test.go"
+  position {
+    x: 9000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root946"
+  prototype: "/test.go"
+  position {
+    x: 9200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root947"
+  prototype: "/test.go"
+  position {
+    x: 9400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root948"
+  prototype: "/test.go"
+  position {
+    x: 9600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root949"
+  prototype: "/test.go"
+  position {
+    x: 9800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root950"
+  prototype: "/test.go"
+  position {
+    x: 10000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root951"
+  prototype: "/test.go"
+  position {
+    x: 10200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root952"
+  prototype: "/test.go"
+  position {
+    x: 10400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root953"
+  prototype: "/test.go"
+  position {
+    x: 10600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root954"
+  prototype: "/test.go"
+  position {
+    x: 10800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root955"
+  prototype: "/test.go"
+  position {
+    x: 11000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root956"
+  prototype: "/test.go"
+  position {
+    x: 11200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root957"
+  prototype: "/test.go"
+  position {
+    x: 11400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root958"
+  prototype: "/test.go"
+  position {
+    x: 11600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root959"
+  prototype: "/test.go"
+  position {
+    x: 11800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root960"
+  prototype: "/test.go"
+  position {
+    x: 12000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root961"
+  prototype: "/test.go"
+  position {
+    x: 12200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root962"
+  prototype: "/test.go"
+  position {
+    x: 12400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root963"
+  prototype: "/test.go"
+  position {
+    x: 12600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root964"
+  prototype: "/test.go"
+  position {
+    x: 12800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root965"
+  prototype: "/test.go"
+  position {
+    x: 13000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root966"
+  prototype: "/test.go"
+  position {
+    x: 13200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root967"
+  prototype: "/test.go"
+  position {
+    x: 13400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root968"
+  prototype: "/test.go"
+  position {
+    x: 13600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root969"
+  prototype: "/test.go"
+  position {
+    x: 13800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root970"
+  prototype: "/test.go"
+  position {
+    x: 14000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root971"
+  prototype: "/test.go"
+  position {
+    x: 14200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root972"
+  prototype: "/test.go"
+  position {
+    x: 14400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root973"
+  prototype: "/test.go"
+  position {
+    x: 14600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root974"
+  prototype: "/test.go"
+  position {
+    x: 14800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root975"
+  prototype: "/test.go"
+  position {
+    x: 15000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root976"
+  prototype: "/test.go"
+  position {
+    x: 15200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root977"
+  prototype: "/test.go"
+  position {
+    x: 15400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root978"
+  prototype: "/test.go"
+  position {
+    x: 15600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root979"
+  prototype: "/test.go"
+  position {
+    x: 15800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root980"
+  prototype: "/test.go"
+  position {
+    x: 16000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root981"
+  prototype: "/test.go"
+  position {
+    x: 16200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root982"
+  prototype: "/test.go"
+  position {
+    x: 16400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root983"
+  prototype: "/test.go"
+  position {
+    x: 16600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root984"
+  prototype: "/test.go"
+  position {
+    x: 16800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root985"
+  prototype: "/test.go"
+  position {
+    x: 17000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root986"
+  prototype: "/test.go"
+  position {
+    x: 17200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root987"
+  prototype: "/test.go"
+  position {
+    x: 17400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root988"
+  prototype: "/test.go"
+  position {
+    x: 17600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root989"
+  prototype: "/test.go"
+  position {
+    x: 17800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root990"
+  prototype: "/test.go"
+  position {
+    x: 18000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root991"
+  prototype: "/test.go"
+  position {
+    x: 18200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root992"
+  prototype: "/test.go"
+  position {
+    x: 18400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root993"
+  prototype: "/test.go"
+  position {
+    x: 18600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root994"
+  prototype: "/test.go"
+  position {
+    x: 18800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root995"
+  prototype: "/test.go"
+  position {
+    x: 19000
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root996"
+  prototype: "/test.go"
+  position {
+    x: 19200
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root997"
+  prototype: "/test.go"
+  position {
+    x: 19400
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root998"
+  prototype: "/test.go"
+  position {
+    x: 19600
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}instances {
+  id: "root999"
+  prototype: "/test.go"
+  position {
+    x: 19800
+    y: 1800
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}

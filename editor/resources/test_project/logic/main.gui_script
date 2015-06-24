@@ -1,0 +1,68 @@
+local function activate_menu_item(self, item)
+	if item < 1 then
+		item = #self.menu_items
+	elseif item > #self.menu_items then
+		item = 1
+	end
+	if item ~= self.selected_item then
+		if self.selected_item then
+			gui.set_font(self.menu_items[self.selected_item].node, "menu_item")
+		end
+		self.selected_item = item
+		gui.set_font(self.menu_items[self.selected_item].node, "active_menu_item")
+	end
+end
+
+function init(self)
+	local x = 300
+	local y = 50
+	local dy = 50
+	self.logo = gui.new_text_node(vmath.vector3(x, y, 0), "Arkanoid")
+    gui.set_font(self.logo, "logo")
+	self.menu_items = {}
+	local items = {{id = "new_game", label = "New Game"}, {id = "quit", label = "Quit"}}
+	y = y + dy
+	self.highscores = {}
+	local x_num = x
+	local x_name = x_num + 30
+	local x_score = x_name + 100
+	dy = 30
+	for i = 1,10 do
+		local highscore = {
+			number = gui.new_text_node(vmath.vector3(x_num, y, 0), "" .. i),
+			name = gui.new_text_node(vmath.vector3(x_name, y, 0), ""),
+			score = gui.new_text_node(vmath.vector3(x_score, y, 0), "0")
+		}
+		for k,v in pairs(highscore) do
+			gui.set_font(v, "highscore")
+		end
+		table.insert(self.highscores, highscore)
+		y = y + dy
+	end
+	for i,v in ipairs(items) do
+		local n = gui.new_text_node(vmath.vector3(x, y, 0), items[i].label)
+		gui.set_font(n, "menu_item")
+		table.insert(self.menu_items, {id = items[i].id, node = n})
+		y = y + dy
+	end
+	activate_menu_item(self, 1)
+end
+
+function on_message(self, message_id, message)
+	if message_id == hash("set_highscores") then
+		for i,v in ipairs(message.highscores) do
+			gui.set_text(self.highscores[i].name, v.name)
+			gui.set_text(self.highscores[i].score, v.score)
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	if action_id == hash("move_up") and action.repeated then
+		activate_menu_item(self, self.selected_item - 1)
+	elseif action_id == hash("move_down") and action.repeated then
+		activate_menu_item(self, self.selected_item + 1)
+	elseif action_id == hash("ok") and action.pressed then
+		msg.post("#script", self.menu_items[self.selected_item].id)
+	end
+end

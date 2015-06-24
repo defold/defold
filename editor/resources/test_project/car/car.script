@@ -1,0 +1,13 @@
+go.property("ext_color", vmath.vector4(0.75, 0.15, 0.15, 1.0))
+
+local function set(self)
+	go.set("#model", "tint", self.ext_color)
+end
+
+function init(self)
+	set(self)
+end
+
+function on_reload(self)
+	set(self)
+end

@@ -1,0 +1,32 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+import "tile_ddf.proto";
+
+option java_package = "com.defold.editor.test";
+option java_outer_classname = "TestAtlasProto";
+
+message AtlasImage
+{
+    required string image = 1 [(resource) = true];
+}
+
+message AtlasAnimation
+{
+    required string id              = 1;
+    repeated AtlasImage images      = 2;
+    optional Playback playback      = 3 [default = PLAYBACK_ONCE_FORWARD];
+    optional uint32 fps             = 4 [default = 30];
+    optional uint32 flip_horizontal = 5 [default = 0];
+    optional uint32 flip_vertical   = 6 [default = 0];
+}
+
+message Atlas
+{
+    repeated AtlasImage images          = 1;
+    repeated AtlasAnimation animations  = 2;
+    optional uint32 margin              = 3 [default = 0];
+    optional uint32 extrude_borders     = 4 [default = 0];
+}

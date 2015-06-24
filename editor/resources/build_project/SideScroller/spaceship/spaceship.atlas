@@ -1,0 +1,37 @@
+animations {
+  id: "spin"
+  images {
+    image: "/spaceship/spaceship_00.png"
+  }
+  images {
+    image: "/spaceship/spaceship_01.png"
+  }
+  images {
+    image: "/spaceship/spaceship_02.png"
+  }
+  images {
+    image: "/spaceship/spaceship_03.png"
+  }
+  images {
+    image: "/spaceship/spaceship_04.png"
+  }
+  images {
+    image: "/spaceship/spaceship_05.png"
+  }
+  images {
+    image: "/spaceship/spaceship_06.png"
+  }
+  images {
+    image: "/spaceship/spaceship_07.png"
+  }
+  images {
+    image: "/spaceship/spaceship_08.png"
+  }
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 0
+extrude_borders: 0
+inner_padding: 0
