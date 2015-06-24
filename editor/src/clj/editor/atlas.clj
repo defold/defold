@@ -1,16 +1,15 @@
 (ns editor.atlas
   (:require [clojure.string :as str]
             [dynamo.file.protobuf :as protobuf]
-            [dynamo.geom :as geom]
-            [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.texture :as texture]
-            [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.property :as dp]
-            [dynamo.texture :as tex]
-            [dynamo.types :as t :refer [map->Animation AnimationPlayback ->Animation]]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex :as vtx]
             [editor.project :as project]
+            [editor.texture :as tex]
+            [editor.types :as types]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
@@ -18,7 +17,7 @@
            [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
            [com.dynamo.tile.proto Tile$Playback]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
@@ -86,7 +85,7 @@
         height (int (:height (first images)))]
     (-> (select-keys animation [:id :fps :flip-horizontal :flip-vertical :playback])
         (assoc :width width :height height)
-        t/map->TextureSetAnimation)))
+        types/map->TextureSetAnimation)))
 
 (g/defnk produce-textureset :- TextureSet
   [texture-packing :- TexturePacking animations]
@@ -97,7 +96,7 @@
        vertex-summary         (summarize-frame-data :vertices         ->engine-format-texture frame-data)
        outline-vertex-summary (summarize-frame-data :outline-vertices ->engine-format-texture frame-data)
        tex-coord-summary      (summarize-frame-data :tex-coords       ->uv-only               frame-data)
-       frames                 (map t/->TextureSetAnimationFrame
+       frames                 (map types/->TextureSetAnimationFrame
                                 images
                                 (:starts vertex-summary)
                                 (:counts vertex-summary)
@@ -108,7 +107,7 @@
        animation-frames       (partition-by first (map (fn [[a i] f] [a f]) animations-images frames))
        textureset-animations  (map build-textureset-animation animations)
        textureset-animations  (map (fn [a aframes] (assoc a :frames (mapv second aframes))) textureset-animations animation-frames)]
-   (t/map->TextureSet {:animations       (reduce (fn [m a] (assoc m (:id a) a)) {} textureset-animations)
+   (types/map->TextureSet {:animations       (reduce (fn [m a] (assoc m (:id a) a)) {} textureset-animations)
                        :vertices         (:vbuf vertex-summary)
                        :outline-vertices (:vbuf outline-vertex-summary)
                        :tex-coords       (:vbuf tex-coord-summary)})))
@@ -148,7 +147,7 @@
       first))
 
 (defn image->animation [image]
-  (map->Animation {:id              (path->id (:path image))
+  (types/map->Animation {:id              (path->id (:path image))
                    :images          [image]
                    :fps             30
                    :flip-horizontal 0
@@ -156,12 +155,12 @@
                    :playback        :PLAYBACK_ONCE_FORWARD}))
 
 (g/defnode AtlasImage
-  (property path t/Str)
+  (property path g/Str)
   (input src-image BufferedImage)
   (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
-  (output outline t/Any (g/fnk [node-id path] {:node-id node-id :label (path->id path) :icon image-icon}))
-  (output ddf-message t/Any :cached (g/fnk [path] (.build (doto (AtlasProto$AtlasImage/newBuilder) (.setImage path))))))
+  (output outline g/Any (g/fnk [node-id path] {:node-id node-id :label (path->id path) :icon image-icon}))
+  (output ddf-message g/Any :cached (g/fnk [path] (.build (doto (AtlasProto$AtlasImage/newBuilder) (.setImage path))))))
 
 (g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]
   (.build (doto (AtlasProto$AtlasAnimation/newBuilder)
@@ -173,20 +172,20 @@
             (.addAllImages img-ddf))))
 
 (g/defnode AtlasAnimation
-  (property id t/Str)
-  (property fps             dp/NonNegativeInt (default 30))
-  (property flip-horizontal t/Int)
-  (property flip-vertical   t/Int)
-  (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
+  (property id g/Str)
+  (property fps             types/NonNegativeInt (default 30))
+  (property flip-horizontal g/Int)
+  (property flip-vertical   g/Int)
+  (property playback        types/AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
 
   (input frames Image :array)
-  (input outline t/Any :array)
-  (input img-ddf t/Any :array)
+  (input outline g/Any :array)
+  (input img-ddf g/Any :array)
 
   (output animation Animation (g/fnk [this id frames fps flip-horizontal flip-vertical playback]
-                                     (->Animation id frames fps flip-horizontal flip-vertical playback)))
-  (output outline t/Any (g/fnk [node-id id outline] {:node-id node-id :label id :children outline :icon animation-icon}))
-  (output ddf-message t/Any :cached produce-anim-ddf))
+                                     (types/->Animation id frames fps flip-horizontal flip-vertical playback)))
+  (output outline g/Any (g/fnk [node-id id outline] {:node-id node-id :label id :children outline :icon animation-icon}))
+  (output ddf-message g/Any :cached produce-anim-ddf))
 
 (g/defnk produce-save-data [resource margin extrude-borders img-ddf anim-ddf]
   {:resource resource
@@ -240,23 +239,23 @@
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
-  (property margin          dp/NonNegativeInt (default 0))
-  (property extrude-borders dp/NonNegativeInt (default 0))
+  (property margin          types/NonNegativeInt (default 0))
+  (property extrude-borders types/NonNegativeInt (default 0))
 
   (input animations Animation :array)
-  (input outline t/Any :array)
-  (input img-ddf t/Any :array)
-  (input anim-ddf t/Any :array)
+  (input outline g/Any :array)
+  (input img-ddf g/Any :array)
+  (input anim-ddf g/Any :array)
 
   (output images          [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
   (output aabb            AABB           (g/fnk [texture-packing] (geom/rect->aabb (:aabb texture-packing))))
-  (output gpu-texture     t/Any          :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
+  (output gpu-texture     g/Any          :cached (g/fnk [packed-image] (texture/image-texture packed-image)))
   (output texture-packing TexturePacking :cached produce-texture-packing)
   (output packed-image    BufferedImage  :cached (g/fnk [texture-packing] (:packed-image texture-packing)))
   (output textureset      TextureSet     :cached produce-textureset)
-  (output outline         t/Any          :cached (g/fnk [node-id outline] {:node-id node-id :label "Atlas" :children outline :icon atlas-icon}))
-  (output save-data       t/Any          :cached produce-save-data)
-  (output scene           t/Any          :cached produce-scene))
+  (output outline         g/Any          :cached (g/fnk [node-id outline] {:node-id node-id :label "Atlas" :children outline :icon atlas-icon}))
+  (output save-data       g/Any          :cached produce-save-data)
+  (output scene           g/Any          :cached produce-scene))
 
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
 

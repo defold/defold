@@ -2,19 +2,19 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
-            [dynamo.geom :as geom]
-            [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [editor.camera :as c]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex :as vtx]
             [editor.project :as project]
+            [editor.types :as types]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
@@ -245,10 +245,10 @@
     action))
 
 (g/defnode SwitcherController
- (property active-brush t/Str (default "red_candy"))
+ (property active-brush g/Str (default "red_candy"))
 
- (input source   t/Any)
- (input camera   t/Any)
+ (input source   g/Any)
+ (input camera   g/Any)
  (input viewport Region)
 
  (output input-handler Runnable     (g/fnk [source camera viewport] (fn [self action] (handle-input self action source camera viewport))))
@@ -270,21 +270,21 @@
 (g/defnode SwitcherNode
   (inherits project/ResourceNode)
 
-  (property blocks       t/Any (visible (g/fnk [] false)))
-  (property width        t/Int (default 1))
-  (property height       t/Int (default 1))
+  (property blocks       g/Any (visible (g/fnk [] false)))
+  (property width        g/Int (default 1))
+  (property height       g/Int (default 1))
 
-  (input textureset t/Any)
-  (input gpu-texture t/Any)
+  (input textureset g/Any)
+  (input gpu-texture g/Any)
 
-  (output level t/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
+  (output level g/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
   (output aabb AABB (g/fnk [width height]
                            (let [half-width (* 0.5 cell-size width)
                                  half-height (* 0.5 cell-size height)]
-                             (t/->AABB (Point3d. (- half-width) (- half-height) 0)
+                             (types/->AABB (Point3d. (- half-width) (- half-height) 0)
                                        (Point3d. half-width half-height 0)))))
-  (output save-data t/Any :cached produce-save-data)
-  (output scene     t/Any :cached produce-scene))
+  (output save-data g/Any :cached produce-save-data)
+  (output scene     g/Any :cached produce-scene))
 
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]

@@ -1,16 +1,15 @@
 (ns suite
   (:require [clojure.java.io :as io]
             [clojure.test :as test]
-            [dynamo.messages :as m])
+            [editor.messages :as m])
   (:import [clojure.lang Compiler]))
 
-(def test-namespaces '[dynamo.buffers-test
+(def test-namespaces '[editor.buffers-test
                        dynamo.defnode-test
-                       dynamo.geom-test
-                       dynamo.gl.translate-test
-                       dynamo.gl.vertex-test
-                       dynamo.image-test
-                       dynamo.property-test
+                       editor.geom-test
+                       editor.gl.translate-test
+                       editor.gl.vertex-test
+                       editor.image-test
                        dynamo.transaction-test
                        dynamo.util-test
                        editor.handler-test
@@ -35,6 +34,7 @@
                        internal.node-test
                        internal.packing-test
                        internal.paper-tape-test
+                       internal.property-test
                        internal.system-test
                        internal.type-test
                        internal.value-test

@@ -1,11 +1,10 @@
 (ns editor.sprite
   (:require [editor.protobuf :as protobuf]
-            [dynamo.geom :as geom]
-            [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex :as vtx]
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
@@ -13,7 +12,7 @@
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
@@ -234,19 +233,19 @@
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image (t/protocol workspace/Resource))
-  (property default-animation t/Str)
-  (property material (t/protocol workspace/Resource))
-  (property blend-mode t/Any (default :blend-mode-alpha) (tag Sprite$SpriteDesc$BlendMode))
+  (property image (g/protocol workspace/Resource))
+  (property default-animation g/Str)
+  (property material (g/protocol workspace/Resource))
+  (property blend-mode g/Any (default :BLEND_MODE_ALPHA) (tag Sprite$SpriteDesc$BlendMode))
 
   (trigger reconnect :property-touched #'reconnect)
 
-  (input textureset t/Any)
-  (input gpu-texture t/Any)
+  (input textureset g/Any)
+  (input gpu-texture g/Any)
 
-  (output textureset t/Any (g/fnk [textureset] textureset))
-  (output gpu-texture t/Any (g/fnk [gpu-texture] gpu-texture))
-  (output animation t/Any (g/fnk [textureset default-animation] (get (:animations textureset) default-animation))) ; TODO - use placeholder animation
+  (output textureset g/Any (g/fnk [textureset] textureset))
+  (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture))
+  (output animation g/Any (g/fnk [textureset default-animation] (get (:animations textureset) default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [hw (* 0.5 (:width animation))
                                                hh (* 0.5 (:height animation))]
@@ -254,10 +253,10 @@
                                              (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                              (geom/aabb-incorporate (Point3d. hw hh 0))))
                                          (geom/null-aabb))))
-  (output outline t/Any :cached (g/fnk [node-id] {:node-id node-id :label "Sprite" :icon sprite-icon}))
-  (output save-data t/Any :cached produce-save-data)
-  (output scene t/Any :cached produce-scene)
-  (output build-targets t/Any :cached produce-build-targets))
+  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Sprite" :icon sprite-icon}))
+  (output save-data g/Any :cached produce-save-data)
+  (output scene g/Any :cached produce-scene)
+  (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-sprite [project self input]
   (let [sprite (protobuf/read-text Sprite$SpriteDesc input)

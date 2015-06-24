@@ -1,11 +1,6 @@
 (ns internal.graph.graph-test
-  (:require [clojure.test.check :as tc]
-            [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :as prop]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
             [internal.graph :as ig]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
@@ -86,14 +81,14 @@
     [String]  String       false
     [String]  [String]     true
     Integer   Number       true
-    Integer   t/Num        true
+    Integer   g/Num        true
     [Integer] [Number]     true
     [Number]  [Integer]    false
-    T1        t/Any        true
-    T1        [t/Any]      false
-    [T1]      [t/Any]      true
-    [T1]      t/Any        true
-    String    t/Any        true
-    String    [t/Any]      false
-    [String]  t/Any        true
-    [String]  [t/Any]      true))
+    T1        g/Any        true
+    T1        [g/Any]      false
+    [T1]      [g/Any]      true
+    [T1]      g/Any        true
+    String    g/Any        true
+    String    [g/Any]      false
+    [String]  g/Any        true
+    [String]  [g/Any]      true))

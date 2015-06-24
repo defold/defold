@@ -1,20 +1,19 @@
 (ns editor.cubemap
   (:require [dynamo.file.protobuf :as protobuf]
-            [dynamo.geom :as geom]
-            [dynamo.gl :as gl]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.texture :as texture]
-            [dynamo.gl.vertex :as vtx]
             [dynamo.graph :as g]
-            [dynamo.types :as t]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex :as vtx]
             [editor.project :as project]
             [editor.scene :as scene]
+            [editor.types :as types]
             [editor.workspace :as workspace]
-            [internal.render.pass :as pass]
-            [schema.core :as s])
+            [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
@@ -62,7 +61,7 @@
   [^GL2 gl camera gpu-texture vertex-binding]
   (gl/with-enabled gl [gpu-texture cubemap-shader vertex-binding]
     (shader/set-uniform cubemap-shader gl "world" geom/Identity4d)
-    (shader/set-uniform cubemap-shader gl "cameraPosition" (t/position camera))
+    (shader/set-uniform cubemap-shader gl "cameraPosition" (types/position camera))
     (shader/set-uniform cubemap-shader gl "envMap" 0)
     (gl/gl-enable gl GL/GL_CULL_FACE)
     (gl/gl-cull-face gl GL/GL_BACK)
@@ -99,12 +98,12 @@
   (inherits project/ResourceNode)
   (inherits scene/SceneNode)
 
-  (property right  t/Str)
-  (property left   t/Str)
-  (property top    t/Str)
-  (property bottom t/Str)
-  (property front  t/Str)
-  (property back   t/Str)
+  (property right  g/Str)
+  (property left   g/Str)
+  (property top    g/Str)
+  (property bottom g/Str)
+  (property front  g/Str)
+  (property back   g/Str)
 
   (input right-img  BufferedImage)
   (input left-img   BufferedImage)
@@ -113,10 +112,10 @@
   (input front-img  BufferedImage)
   (input back-img   BufferedImage)
 
-  (output gpu-texture s/Any :cached produce-gpu-texture)
-  (output save-data   s/Any :cached produce-save-data)
+  (output gpu-texture g/Any :cached produce-gpu-texture)
+  (output save-data   g/Any :cached produce-save-data)
   (output aabb        AABB  :cached (g/fnk [] geom/unit-bounding-box))
-  (output scene       s/Any :cached produce-scene))
+  (output scene       g/Any :cached produce-scene))
 
 (defn load-cubemap [project self input]
   (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))]

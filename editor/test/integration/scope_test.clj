@@ -3,7 +3,7 @@
             [clojure.set]
             [dynamo.graph :as g]
             [internal.graph :as ig]
-            [dynamo.graph.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
             [editor.atlas :as atlas]
             [editor.project :as project]
@@ -148,5 +148,3 @@
 (deftest resource-nodes-disposes-nodes
   (doseq [[resource-type-name inline-resource] test-cases]
     (check-disposes-nodes resource-type-name inline-resource)))
-
-               

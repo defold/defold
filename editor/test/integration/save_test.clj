@@ -1,24 +1,9 @@
 (ns integration.save-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [dynamo.graph.test-support :refer [with-clean-system]]
-            [dynamo.types :as t]
-            [editor.atlas :as atlas]
-            [editor.collection :as collection]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
-            [editor.game-object :as game-object]
-            [editor.image :as image]
-            [editor.platformer :as platformer]
+            [support.test-support :refer [with-clean-system]]
             [editor.project :as project]
-            [editor.scene :as scene]
-            [editor.sprite :as sprite]
-            [editor.switcher :as switcher]
-            [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
-  (:import [dynamo.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]))
+            [integration.test-util :as test-util]))
 
 (deftest save-all
   (testing "Saving all resource nodes in the project"
