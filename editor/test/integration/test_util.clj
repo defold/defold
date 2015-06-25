@@ -11,6 +11,7 @@
             [editor.scene :as scene]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
+            [editor.font :as font]
             [editor.workspace :as workspace])
   (:import [java.io File]
            [javax.imageio ImageIO]))
@@ -29,6 +30,7 @@
         (g/transact
           (concat
             (collection/register-resource-types workspace)
+            (font/register-resource-types workspace)
             (game-object/register-resource-types workspace)
             (game-project/register-resource-types workspace)
             (cubemap/register-resource-types workspace)
