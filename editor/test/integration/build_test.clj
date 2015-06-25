@@ -9,6 +9,7 @@
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
+           [com.dynamo.render.proto Font$FontMap]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -182,3 +183,18 @@
                (let [content (get content-by-source path)
                      desc (TextureSetProto$TextureSet/parseFrom content)]
                  (is (contains? content-by-target (.getTexture desc))))))))
+
+(deftest build-font
+  (testing "Building font"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)
+                   path          "/fonts/score.font"
+                   resource-node (test-util/resource-node project path)
+                   build-results (project/build project resource-node)
+                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+               (let [content (get content-by-source path)
+                     desc (Font$FontMap/parseFrom content)]
+                 (is (= 1024 (.getImageWidth desc)))
+                 (is (= 128 (.getImageHeight desc))))))))
