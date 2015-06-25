@@ -256,7 +256,7 @@
             :let [images (map :image (:images anim))]]
         (g/make-nodes
           (g/node->graph-id self)
-          [atlas-anim [AtlasAnimation :flip-horizontal (boolean (:flip-horizontal anim)) :flip-vertical (boolean (:flip-vertical anim))
+          [atlas-anim [AtlasAnimation :flip-horizontal (not= 0 (:flip-horizontal anim)) :flip-vertical (not= 0 (:flip-vertical anim))
                        :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
           (g/connect atlas-anim :self        self :nodes)
           (g/connect atlas-anim :animation   self :animations)
