@@ -130,3 +130,4 @@ animations {
 }
 margin: 4
 extrude_borders: 2
+inner_padding: 0
