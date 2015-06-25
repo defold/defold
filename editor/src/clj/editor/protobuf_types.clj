@@ -14,7 +14,7 @@
            [com.dynamo.render.proto Render$RenderPrototypeDesc Material$MaterialDesc]
            [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
             GameSystem$CollectionProxyDesc GameSystem$LightDesc]
-           [com.dynamo.physics.proto Physics$CollisionObjectDesc]
+           [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
            [com.dynamo.input.proto Input$GamepadMaps]
            [com.dynamo.camera.proto Camera$CameraDesc]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
@@ -83,7 +83,10 @@
                :label "Model"
                :icon "icons/pictures.png"
                :pb-class Model$ModelDesc
-               :tags #{:component}}])
+               :tags #{:component}}
+              {:ext "convexshape"
+               :icon "icons/pictures.png"
+               :pb-class Physics$ConvexShape}])
 
 (g/defnk produce-save-data [resource def pb]
   {:resource resource
