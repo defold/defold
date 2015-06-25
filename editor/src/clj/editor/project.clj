@@ -14,7 +14,7 @@ ordinary paths."
   (inherits core/Scope)
 
   (property resource (g/protocol workspace/Resource) (visible (g/fnk [] false)))
-  (property project g/Any (visible (g/fnk [] false)))
+  (property project-id g/Any (visible (g/fnk [] false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/fnk [] [])))
@@ -290,3 +290,6 @@ ordinary paths."
   (:tx-data (g/paste fragment))])"
   [workspace project fragment]
   (g/paste (g/node-id->graph-id (g/node-id project)) fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}}))
+
+(defn workspace [project]
+  (:workspace project))

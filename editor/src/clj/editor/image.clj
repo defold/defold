@@ -16,10 +16,6 @@
 
   (output content BufferedImage :cached (g/fnk [resource] (ImageIO/read (io/input-stream resource)))))
 
-(defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace :ext ["jpg" "png"] :node-type ImageNode :view-types [:default]))
-
-
 (defmacro with-graphics
   [binding & body]
   (let [rsym (gensym)]
@@ -154,3 +150,8 @@ region will be identical to the nearest pixel of the source image."
       (doseq [^Rect rect placements]
         (.drawImage graphics (:contents (get src-by-path (.path rect))) (int (.x rect)) (int (.y rect)) nil)))
     onto))
+
+(defn register-resource-types [workspace]
+  (concat
+    (workspace/register-resource-type workspace :ext ["jpg" "png"] :node-type ImageNode :view-types [:default])
+    (workspace/register-resource-type workspace :ext "texture")))
