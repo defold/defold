@@ -1,4 +1,4 @@
-tile_set: ""
+tile_set: "/spaceship/spaceship.atlas"
 default_animation: ""
 material: "/builtins/materials/sprite.material"
 blend_mode: BLEND_MODE_ALPHA
