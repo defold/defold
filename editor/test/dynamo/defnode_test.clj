@@ -477,3 +477,22 @@
     (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode MissingAction
                           (trigger a-symbol :added)))))))
+
+(g/defproperty DynamicExternalProperty g/Num
+  (dynamic external-dynamic (g/fnk [an-input another-input] true)))
+
+(g/defnode PropertyDynamicsNode
+  (property external-property DynamicExternalProperty)
+  (property internal-property g/Num
+            (dynamic internal-dynamic (g/fnk [third-input] false)))
+  (property internal-multiple g/Num
+            (dynamic one-dynamic (g/fnk [fourth-input] false))
+            (dynamic two-dynamic (g/fnk [fourth-input fifth-input] "dynamics can return strings"))))
+
+(defn affects-properties
+  [node-type input]
+  (contains? (get (g/input-dependencies node-type) input) :properties))
+
+(deftest node-properties-depend-on-dynamic-inputs
+  (let [all-inputs [:an-input :another-input :third-input :fourth-input :fifth-input]]
+   (is (= true (every? #(affects-properties PropertyDynamicsNode %) all-inputs)))))
