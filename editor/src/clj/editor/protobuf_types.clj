@@ -12,7 +12,8 @@
             [internal.render.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc Material$MaterialDesc]
-           [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc]
+           [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
+            GameSystem$CollectionProxyDesc GameSystem$LightDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -44,6 +45,17 @@
                :icon "icons/pictures.png"
                :pb-class GameSystem$CollectionFactoryDesc
                :resource-fields [:prototype]
+               :tags #{:component}}
+              {:ext "collection_proxy"
+               :label "Collection Proxy"
+               :icon "icons/pictures.png"
+               :pb-class GameSystem$CollectionProxyDesc
+               :resource-fields [:collection]
+               :tags #{:component}}
+              {:ext "light"
+               :label "Light"
+               :icon "icons/pictures.png"
+               :pb-class GameSystem$LightDesc
                :tags #{:component}}])
 
 (g/defnk produce-save-data [resource def pb]
