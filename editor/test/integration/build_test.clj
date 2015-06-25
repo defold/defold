@@ -35,7 +35,7 @@
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
                    content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                   exp-paths [path "/main/main.collection" "/input/game.input_binding"]]
+                   exp-paths [path "/main/main.collection" "/input/game.input_binding" "/builtins/render/default.render"]]
                (doseq [path exp-paths]
                  (is (contains? content-by-source path)))
                (let [content (get content-by-source "/main/main.collection")
