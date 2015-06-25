@@ -11,6 +11,7 @@
             [editor.pipeline.font-gen :as font-gen]
             [internal.render.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
+           [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -21,7 +22,10 @@
 
 (def pb-types {:input-binding {:ext "input_binding"
                                :icon "icons/pictures.png"
-                               :pb-class Input$InputBinding}})
+                               :pb-class Input$InputBinding}
+               :render {:ext "render"
+                        :icon "icons/pictures.png"
+                        :pb-class Render$RenderPrototypeDesc}})
 
 (g/defnk produce-save-data [resource type pb]
   {:resource resource
@@ -63,4 +67,5 @@
 
 (defn register-resource-types [workspace]
   (concat
-    (register workspace :input-binding)))
+    (register workspace :input-binding)
+    (register workspace :render)))
