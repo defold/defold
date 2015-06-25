@@ -105,11 +105,13 @@
         scene (Scene. root)
         controls (ui/collect-controls root ["resources" "ok" "search"])
         return (atom nil)
-        items (filter #(= :file (workspace/source-type %)) (g/node-value workspace :resource-list))
+        exts (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
+        accepted-ext (if (seq exts) (set exts) (constantly true))
+        items (filter #(and (= :file (workspace/source-type %)) (accepted-ext (:ext (workspace/resource-type %)))) (g/node-value workspace :resource-list))
         close (fn [] (reset! return (ui/selection (:resources controls))) (.close stage))]
 
     (.initOwner stage (ui/main-stage))
-    (ui/title! stage "Select Resource")
+    (ui/title! stage (or (:title options) "Select Resource"))
     (ui/items! (:resources controls) items)
 
     (ui/cell-factory! (:resources controls) (fn [r] {:text (workspace/resource-name r)
