@@ -173,6 +173,40 @@
       (g/transact (g/set-property snode :foo -1))
       (is (= false (get-in (g/node-value enode :properties) [:baz :enabled]))))))
 
+(g/defnode PropertyDynamicsTestNode
+  (property one-dynamic (g/maybe g/Str)
+            (default "FOO!")
+            (dynamic emphatic? (g/fnk [one-dynamic] (.endsWith one-dynamic "!"))))
+
+  (property three-dynamics g/Str
+            (dynamic emphatic?  (g/fnk [three-dynamics] (.endsWith three-dynamics "!")))
+            (dynamic querulous? (g/fnk [three-dynamics] (.endsWith three-dynamics "?")))
+            (dynamic mistake?  (g/fnk [three-dynamics] (.startsWith three-dynamics "I've made a huge mistake")))))
+
+(deftest node-property-dynamics-evaluation
+  (with-clean-system
+    (let [[node] (tx-nodes (g/make-node world PropertyDynamicsTestNode :three-dynamics "You?"))]
+      (let [props (g/node-value node :properties)]
+        (is (= true  (get-in props [:one-dynamic :emphatic?])))
+        (is (= false (get-in props [:three-dynamics :emphatic?])))
+        (is (= true  (get-in props [:three-dynamics :querulous?])))
+        (is (= false (get-in props [:three-dynamics :mistake?]))))
+
+      (g/transact
+       (g/set-property node :one-dynamic "bar?"))
+
+      (let [props (g/node-value node :properties)]
+        (is (= false (get-in props [:one-dynamic :emphatic?]))))
+
+      (g/transact
+       (g/set-property node :three-dynamics "I've made a huge mistake!"))
+
+      (let [props (g/node-value node :properties)]
+        (is (= true  (get-in props [:three-dynamics :emphatic?])))
+        (is (= false (get-in props [:three-dynamics :querulous?])))
+        (is (= true  (get-in props [:three-dynamics :mistake?])))))))
+
+
 (g/defnode ProductionFunctionInputsNode
   (input in       g/Keyword)
   (input in-multi g/Keyword :array)
