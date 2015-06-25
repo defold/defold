@@ -74,14 +74,14 @@
         y1 (* 0.5 height)
         x0 (- x1)
         y0 (- y1)
-        [[u0 v0] [u1 v1]] anim-uvs]
+        [[u0 v0] [u1 v1] [u2 v2] [u3 v3]] anim-uvs]
     (-> vbuf
-      (conj! (gen-vertex wt pt x0 y0 u0 v1))
-      (conj! (gen-vertex wt pt x1 y0 u1 v1))
-      (conj! (gen-vertex wt pt x0 y1 u0 v0))
-      (conj! (gen-vertex wt pt x1 y0 u1 v1))
-      (conj! (gen-vertex wt pt x1 y1 u1 v0))
-      (conj! (gen-vertex wt pt x0 y1 u0 v0)))))
+      (conj! (gen-vertex wt pt x0 y0 u0 v0))
+      (conj! (gen-vertex wt pt x1 y0 u3 v3))
+      (conj! (gen-vertex wt pt x0 y1 u1 v1))
+      (conj! (gen-vertex wt pt x1 y0 u3 v3))
+      (conj! (gen-vertex wt pt x1 y1 u2 v2))
+      (conj! (gen-vertex wt pt x0 y1 u1 v1)))))
 
 (defn- gen-vertex-buffer
   [renderables count]
@@ -172,14 +172,12 @@
                :material (workspace/proj-path material)
                :blend-mode blend-mode})})
 
-(defn anim-uvs [textureset anim]
+(defn anim-uvs [anim]
   (let [frame (first (:frames anim))]
-    (if-let [{start :tex-coords-start count :tex-coords-count} frame]
-      (mapv #(get (:tex-coords textureset) %) (range start (+ start count)))
-      [[0 0] [0 0]])))
+    (:tex-coords frame)))
 
 (g/defnk produce-scene
-  [node-id aabb gpu-texture textureset animation blend-mode]
+  [node-id aabb gpu-texture animation blend-mode]
   (let [scene {:node-id node-id
                :aabb aabb}]
     (if animation
@@ -188,31 +186,33 @@
                                   :batch-key gpu-texture
                                   :select-batch-key node-id
                                   :user-data {:gpu-texture gpu-texture
-                                                     :anim-uvs (anim-uvs textureset animation)
-                                                     :anim-width (:width animation 0)
-                                                     :anim-height (:height animation 0)
-                                                     :blend-mode blend-mode}
+                                              :anim-uvs (anim-uvs animation)
+                                              :anim-width (:width animation 0)
+                                              :anim-height (:height animation 0)
+                                              :blend-mode blend-mode}
                                   :passes [pass/transparent pass/selection pass/outline]}))
      scene)))
 
 (defn- build-sprite [self basis resource dep-resources user-data]
   {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc (:proto-msg user-data))})
 
-(g/defnk produce-build-targets [node-id resource image default-animation material blend-mode]
+(g/defnk produce-build-targets [node-id resource image default-animation material blend-mode dep-build-targets]
   [{:node-id node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-sprite
     :user-data {:proto-msg {:tile-set (workspace/proj-path image)
                             :default-animation default-animation
                             :material (workspace/proj-path material)
-                            :blend-mode blend-mode}}}])
+                            :blend-mode blend-mode}}
+    :deps dep-build-targets}])
 
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
     (let [outputs (-> atlas-node g/node-type g/output-labels)]
-      (if (every? #(contains? outputs %) [:textureset :gpu-texture])
-        [(g/connect atlas-node :textureset self :textureset)
-        (g/connect atlas-node :gpu-texture self :gpu-texture)]
+      (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
+        [(g/connect atlas-node :anim-data self :anim-data)
+         (g/connect atlas-node :gpu-texture self :gpu-texture)
+         (g/connect atlas-node :build-targets self :dep-build-targets)]
         []))
     []))
 
@@ -226,8 +226,9 @@
     (let [image (:image self)
           project (project/get-project self)]
       (concat
-        (disconnect-all self :textureset)
+        (disconnect-all self :anim-data)
         (disconnect-all self :gpu-texture)
+        (disconnect-all self :dep-build-targets)
         (connect-atlas project self image)))))
 
 (g/defnode SpriteNode
@@ -240,12 +241,11 @@
 
   (trigger reconnect :property-touched #'reconnect)
 
-  (input textureset g/Any)
+  (input anim-data g/Any)
   (input gpu-texture g/Any)
+  (input dep-build-targets g/Any)
 
-  (output textureset g/Any (g/fnk [textureset] textureset))
-  (output gpu-texture g/Any (g/fnk [gpu-texture] gpu-texture))
-  (output animation g/Any (g/fnk [textureset default-animation] (get (:animations textureset) default-animation))) ; TODO - use placeholder animation
+  (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [hw (* 0.5 (:width animation))
                                                hh (* 0.5 (:height animation))]
