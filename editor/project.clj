@@ -25,7 +25,7 @@
                      [joda-time/joda-time                         "2.8.1"]
                      [commons-io/commons-io                       "2.4"]
                      [org.clojure/tools.nrepl                     "0.2.10" :exclusions [org.clojure/clojure]]
-                     [cider/cider-nrepl                           "0.9.0" :exclusions [org.clojure/tools.nrepl]]
+                     [cider/cider-nrepl                           "0.9.1" :exclusions [org.clojure/tools.nrepl]]
                      [org.clojure/data.json                       "0.2.6"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.1.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.1.0"]
@@ -95,6 +95,7 @@
                                     :repl-options   {:init-ns user}}
                       :dev         {:dependencies   [[org.clojure/test.check   "0.7.0"]
                                                      [org.mockito/mockito-core "1.10.19"]
+                                                     [refactor-nrepl           "1.0.5"]
                                                      [org.clojure/tools.nrepl  "0.2.10" :exclusions [org.clojure/clojure]]
                                                      [criterium "0.4.3"]
                                                      [ring "1.4.0-RC1"]]

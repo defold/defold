@@ -2,7 +2,7 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.pprint :as pp]
             [clojure.set :as set]
-            [dynamo.util :refer [collify map-vals apply-if-fn]]
+            [dynamo.util :as util]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
@@ -35,7 +35,7 @@
                             :basis    basis
                             :in-production []}
         result             (gt/produce-value node label evaluation-context)]
-    (when (some gt/error? (collify result))
+    (when (some gt/error? (util/collify result))
       (throw (Exception. (str "Error Value Found in Node.  Reason: " (pr-str result)))))
     (when cache
       (let [local             @(:local evaluation-context)
@@ -64,13 +64,14 @@
         value             (get self prop)
         problems          (gt/property-validate type value)
         enabled?          (property-enabled? type kwargs)
-        visible?          (property-visible? type kwargs)]
-    {:node-id             (gt/node-id self)
-     :value               value
-     :type                type
-     :validation-problems problems
-     :enabled             enabled?
-     :visible             visible?}))
+        visible?          (property-visible? type kwargs)
+        dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
+    (merge dynamics {:node-id             (gt/node-id self)
+                     :value               value
+                     :type                type
+                     :validation-problems problems
+                     :visible             visible?
+                     :enabled             enabled?})))
 
 (defn gather-properties
   "Production function that delivers the definition and value
@@ -118,6 +119,14 @@
 
 (declare attach-output)
 
+(defn- attribute-fn-arguments
+  [f]
+  (keys (dissoc (pf/input-schema f) s/Keyword)))
+
+(defn- property-dynamics-arguments
+  [[property-name property-definition]]
+  (mapcat attribute-fn-arguments (vals (gt/dynamic-attributes property-definition))))
+
 (defn- property-auxiliary-inputs
   [key properties]
   (reduce
@@ -134,6 +143,7 @@
 (defn- properties-output-arguments
   [properties]
   (cons :self (concat (set (keys properties))
+                      (mapcat property-dynamics-arguments properties)
                       (visibility-inputs properties)
                       (enablement-inputs properties))))
 
@@ -144,6 +154,19 @@
         argument-schema (zipmap argument-names (repeat s/Any))]
     (attach-output node-type-description :properties s/Any #{} #{}
                    (s/schematize-fn (fn [args] (gather-properties args)) (s/=> s/Any argument-schema)))))
+
+(defn keyset
+  [m]
+  (set (keys m)))
+
+(defn verify-inputs-for-dynamics
+  [node-type-description]
+  (doseq [property (:properties node-type-description)]
+    (let [args         (set (property-dynamics-arguments property))
+          missing-args (reduce set/difference args [(keyset (:inputs node-type-description)) (keyset (:properties node-type-description))])]
+      (assert (empty? missing-args) (str "Node " (:name node-type-description) " must have inputs or properties for the label(s) "
+                                         missing-args ", because they are needed by its property '" (name (first property)) "'."))))
+  node-type-description)
 
 (defn- invert-map
   [m]
@@ -206,17 +229,16 @@
       (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
       attach-properties-output
       attach-input-dependencies
+      verify-inputs-for-dynamics
       map->NodeTypeImpl))
 
 (def ^:private inputs-properties (juxt :inputs :properties))
-
-(defn schema? [x] (satisfies? s/Schema x))
 
 (defn- assert-form-kind [kind-label required-kind label form]
   (assert (required-kind form) (str "defnode " label " requires a " kind-label " not a " (class form) " of " form)))
 
 (def assert-symbol (partial assert-form-kind "symbol" symbol?))
-(def assert-schema (partial assert-form-kind "schema" schema?))
+(def assert-schema (partial assert-form-kind "schema" util/schema?))
 (defn assert-pfnk [label production-fn]
   (assert
    (gt/pfnk? production-fn)
@@ -386,7 +408,7 @@
 
          [(['property label tp & options] :seq)]
          (do (assert-symbol "property" label)
-             `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label)))
+             `(attach-property ~(keyword label) ~(ip/property-type-descriptor (str label) tp options) (pc/fnk [~label] ~label)))
 
          [(['on label & fn-body] :seq)]
          `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
@@ -421,7 +443,7 @@
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (map-vals gt/property-default-value (gt/properties node-type)))
+  (util/map-vals gt/property-default-value (gt/properties node-type)))
 
 (defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
 (defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
@@ -495,7 +517,7 @@
   (if (gt/substitute-for node-type input)
     `(let [inputs# ~(input-value-forms input)
            sub#     (gt/substitute-for ~node-type-name ~input)]
-       (map #(if (gt/error? %) (apply-if-fn sub#) %) inputs#))
+       (map #(if (gt/error? %) (util/apply-if-fn sub#) %) inputs#))
     (input-value-forms input)))
 
 (defn- lookup-singlevalued-input
@@ -506,7 +528,7 @@
            input#      (first inputs#)
            sub#        (gt/substitute-for ~node-type-name ~input)]
        (if (or no-input?# (gt/error? input#))
-         (apply-if-fn sub#)
+         (util/apply-if-fn sub#)
          input#))
     `(first ~(input-value-forms input))))
 
