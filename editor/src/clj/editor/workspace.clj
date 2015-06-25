@@ -190,7 +190,7 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (:view-types workspace) id))
 
-(defn register-resource-type [workspace & {:keys [ext build-ext node-type load-fn icon view-types view-opts tags template]}]
+(defn register-resource-type [workspace & {:keys [ext build-ext node-type load-fn icon view-types view-opts tags template label]}]
   (let [resource-type {:ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
@@ -199,7 +199,8 @@ ordinary paths."
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts
                        :tags tags
-                       :template template}
+                       :template template
+                       :label label}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext ext)]
                          (map (fn [ext] (assoc resource-type :ext ext)) ext))]
