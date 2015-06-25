@@ -152,6 +152,19 @@
     (attach-output node-type-description :properties s/Any #{} #{}
                    (s/schematize-fn (fn [args] (gather-properties args)) (s/=> s/Any argument-schema)))))
 
+(defn keyset
+  [m]
+  (set (keys m)))
+
+(defn verify-inputs-for-dynamics
+  [node-type-description]
+  (doseq [property (:properties node-type-description)]
+    (let [args         (set (property-dynamics-arguments property))
+          missing-args (reduce set/difference args [(keyset (:inputs node-type-description)) (keyset (:properties node-type-description))])]
+      (assert (empty? missing-args) (str "Node " (:name node-type-description) " must have inputs or properties for the label(s) "
+                                         missing-args ", because they are needed by its property '" (name (first property)) "'."))))
+  node-type-description)
+
 (defn- invert-map
   [m]
   (apply merge-with into
@@ -213,6 +226,7 @@
       (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
       attach-properties-output
       attach-input-dependencies
+      verify-inputs-for-dynamics
       map->NodeTypeImpl))
 
 (def ^:private inputs-properties (juxt :inputs :properties))
