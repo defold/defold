@@ -5,6 +5,7 @@
 #include <sys/ioctl.h>
 #include <string.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <net/if.h>
 
 namespace dmSocket
