@@ -472,6 +472,7 @@ namespace dmHttpCache
         if (f == 0)
         {
             dmLogError("Unable to open temporary file: '%s'", file_name);
+            fclose(f);
             free(file_name);
             cache->m_CacheCreatorsPool.Push(index);
             return RESULT_IO_ERROR;
@@ -690,6 +691,7 @@ namespace dmHttpCache
                 *file = f;
                 entry->m_ReadLockCount++;
                 *checksum = entry->m_Info.m_Checksum;
+                fclose(f);
                 return RESULT_OK;
             }
             else
