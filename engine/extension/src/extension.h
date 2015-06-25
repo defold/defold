@@ -58,6 +58,7 @@ namespace dmExtension
         Result (*AppInitialize)(AppParams* params);
         Result (*AppFinalize)(AppParams* params);
         Result (*Initialize)(Params* params);
+        Result (*Update)(Params* params);
         Result (*Finalize)(Params* params);
         const Desc* m_Next;
         bool        m_AppInitialzed;
@@ -131,12 +132,13 @@ namespace dmExtension
  * @param init init function. May not be 0
  * @param final final function. May not be 0
  */
-#define DM_DECLARE_EXTENSION(symbol, name, appinit, appfinal, init, final) \
+#define DM_DECLARE_EXTENSION(symbol, name, appinit, appfinal, init, update, final) \
         dmExtension::Desc DM_EXTENSION_PASTE2(symbol, __LINE__) = { \
                 name, \
                 appinit, \
                 appfinal, \
                 init, \
+                update, \
                 final, \
                 0, \
                 false, \

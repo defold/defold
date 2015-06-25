@@ -5,6 +5,8 @@
 #include <extension/extension.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/array.h>
+#include <dlib/mutex.h>
 #include <script/script.h>
 
 #include <pthread.h>
@@ -75,7 +77,10 @@ struct Facebook
     jmethodID m_ShowDialog;
     int m_Callback;
     int m_Self;
-    int m_Pipefd[2];
+    int m_RefCount;
+
+    dmMutex::Mutex m_Mutex;
+    dmArray<Command> m_CmdQueue;
 };
 
 Facebook g_Facebook;
@@ -124,6 +129,7 @@ static void RunStateCallback(Command* cmd)
         PushError(L, error);
 
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
+        (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -158,6 +164,7 @@ static void RunCallback(Command* cmd)
         PushError(L, error);
 
         int ret = dmScript::PCall(L, 2, LUA_MULTRET);
+        (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -201,6 +208,7 @@ static void RunDialogResultCallback(Command* cmd)
         PushError(L, error);
 
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
+        (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -208,50 +216,14 @@ static void RunDialogResultCallback(Command* cmd)
     }
 }
 
-static int LooperCallback(int fd, int events, void* data)
+void QueueCommand(Command* cmd)
 {
-    Facebook* fb = (Facebook*)data;
-    (void)fb;
-    Command cmd;
-    if (read(g_Facebook.m_Pipefd[0], &cmd, sizeof(Command)) == sizeof(Command))
+    dmMutex::ScopedLock lk(g_Facebook.m_Mutex);
+    if (g_Facebook.m_CmdQueue.Full())
     {
-        switch (cmd.m_Type)
-        {
-        case CMD_LOGIN:
-            RunStateCallback(&cmd);
-            break;
-        case CMD_REQUEST_READ:
-        case CMD_REQUEST_PUBLISH:
-            RunCallback(&cmd);
-            break;
-        case CMD_DIALOG_COMPLETE:
-            RunDialogResultCallback(&cmd);
-            break;
-        }
-        if (cmd.m_Url != 0x0)
-        {
-            free((void*)cmd.m_Url);
-            cmd.m_Url = 0x0;
-        }
-        if (cmd.m_Error != 0x0)
-        {
-            free((void*)cmd.m_Error);
-            cmd.m_Error = 0x0;
-        }
+        g_Facebook.m_CmdQueue.OffsetCapacity(8);
     }
-    else
-    {
-        dmLogFatal("read error in looper callback");
-    }
-    return 1;
-}
-
-void PostToCallback(Command* cmd)
-{
-    if (write(g_Facebook.m_Pipefd[1], cmd, sizeof(Command)) != sizeof(Command))
-    {
-        dmLogError("Failed to write command");
-    }
+    g_Facebook.m_CmdQueue.Push(*cmd);
 }
 
 const char* StrDup(JNIEnv* env, jstring s)
@@ -281,7 +253,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLogin
     cmd.m_State = (int)state;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
-    PostToCallback(&cmd);
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestRead
@@ -291,7 +263,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestRea
     cmd.m_Type = CMD_REQUEST_READ;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
-    PostToCallback(&cmd);
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPublish
@@ -301,7 +273,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPub
     cmd.m_Type = CMD_REQUEST_PUBLISH;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
-    PostToCallback(&cmd);
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComplete
@@ -312,7 +284,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComp
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Url = StrDup(env, url);
     cmd.m_Error = StrDup(env, error);
-    PostToCallback(&cmd);
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIterateMeEntry
@@ -609,17 +581,8 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
     if (g_Facebook.m_FB == NULL)
     {
-        int result = pipe(g_Facebook.m_Pipefd);
-        if (result != 0)
-        {
-            dmLogFatal("Could not open pipe for communication: %d", result);
-        }
-
-        result = ALooper_addFd(g_AndroidApp->looper, g_Facebook.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &g_Facebook);
-        if (result != 1)
-        {
-            dmLogFatal("Could not add file descriptor to looper: %d", result);
-        }
+        g_Facebook.m_Mutex = dmMutex::New();
+        g_Facebook.m_CmdQueue.SetCapacity(8);
 
         JNIEnv* env = Attach();
 
@@ -653,6 +616,8 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         Detach();
     }
 
+    g_Facebook.m_RefCount++;
+
     lua_State* L = params->m_L;
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, Facebook_methods);
@@ -679,27 +644,62 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
+dmExtension::Result UpdateFacebook(dmExtension::Params* params)
 {
-    if (g_Facebook.m_FB != NULL)
     {
-        JNIEnv* env = Attach();
-        env->DeleteGlobalRef(g_Facebook.m_FB);
-        Detach();
-        g_Facebook.m_FB = NULL;
-
-        int result = ALooper_removeFd(g_AndroidApp->looper, g_Facebook.m_Pipefd[0]);
-        if (result != 1)
+        dmMutex::ScopedLock lk(g_Facebook.m_Mutex);
+        for (uint32_t i=0;i!=g_Facebook.m_CmdQueue.Size();i++)
         {
-            dmLogFatal("Could not remove fd from looper: %d", result);
+            Command& cmd = g_Facebook.m_CmdQueue[i];
+            if (cmd.m_L != params->m_L)
+                continue;
+
+            switch (cmd.m_Type)
+            {
+                case CMD_LOGIN:
+                    RunStateCallback(&cmd);
+                    break;
+                case CMD_REQUEST_READ:
+                case CMD_REQUEST_PUBLISH:
+                    RunCallback(&cmd);
+                    break;
+                case CMD_DIALOG_COMPLETE:
+                    RunDialogResultCallback(&cmd);
+                    break;
+            }
+            if (cmd.m_Url != 0x0)
+            {
+                free((void*)cmd.m_Url);
+                cmd.m_Url = 0x0;
+            }
+            if (cmd.m_Error != 0x0)
+            {
+                free((void*)cmd.m_Error);
+                cmd.m_Error = 0x0;
+            }
+
+            g_Facebook.m_CmdQueue.EraseSwap(i--);
         }
-
-        close(g_Facebook.m_Pipefd[0]);
-        close(g_Facebook.m_Pipefd[1]);
-
-        g_Facebook = Facebook();
     }
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(FacebookExt, "Facebook", 0, 0, InitializeFacebook, FinalizeFacebook)
+dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
+{
+    if (g_Facebook.m_FB != NULL)
+    {
+        if (--g_Facebook.m_RefCount == 0)
+        {
+            JNIEnv* env = Attach();
+            env->DeleteGlobalRef(g_Facebook.m_FB);
+            Detach();
+            g_Facebook.m_FB = NULL;
+            dmMutex::Delete(g_Facebook.m_Mutex);
+            memset(&g_Facebook, 0x00, sizeof(Facebook));
+        }
+    }
+
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(FacebookExt, "Facebook", 0, 0, InitializeFacebook, UpdateFacebook, FinalizeFacebook)
