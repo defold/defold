@@ -20,18 +20,16 @@
   [^Message pb]
   (TextFormat/printToString pb))
 
-(defn- pb->bytes
+(defn pb->bytes
   [^Message pb]
   (let [out (ByteArrayOutputStream. (* 4 1024))]
     (.writeTo pb out)
     (.close out)
     (.toByteArray out)))
 
-(defn- val->pb-enum
+(defn val->pb-enum
   [^Class enum-class val]
-  (assert (contains? (supers enum-class) ProtocolMessageEnum))
-  (assert (keyword? val))
-  (j/invoke-class-method enum-class "valueOf" (name val)))
+  (Enum/valueOf enum-class (s/replace (s/upper-case (name val)) "-" "_")))
 
 (defn- pb-enum->val
   [^Descriptors$EnumValueDescriptor val]
@@ -126,7 +124,7 @@
        (.setM30 (.getElement v 3 0)) (.setM31 (.getElement v 3 1)) (.setM32 (.getElement v 3 2)) (.setM33 (.getElement v 3 3)))
      (.build))))
 
-(defn- pb->map
+(defn pb->map
   [^Message pb]
   (let [fld->map (fn [m [^Descriptors$FieldDescriptor descriptor value]]
                    (let [prop      (keyword (s/replace (.getName descriptor) "_" "-"))
@@ -198,7 +196,7 @@
 (defn- kw->enum [^Descriptors$FieldDescriptor desc val]
   (let [enum-desc (.getEnumType desc)
         ; TODO - Can't use ->SNAKE_CASE here because of inconsistencies with word-splitting and numerals
-        enum-name (s/replace (s/upper-case (subs (str val) 1)) "-" "_")
+        enum-name (s/replace (s/upper-case (name val)) "-" "_")
         enum-cls (desc->proto-cls enum-desc)]
     (java.lang.Enum/valueOf enum-cls enum-name)))
 
@@ -211,12 +209,16 @@
 (defn- clj->java [^Descriptors$FieldDescriptor desc val]
   (let [type (.getJavaType desc)]
     (cond
-      (= type (Descriptors$FieldDescriptor$JavaType/INT)) (int val)
+      (= type (Descriptors$FieldDescriptor$JavaType/INT)) (let [val (if (instance? java.lang.Boolean val)
+                                                                      (if val 1 0)
+                                                                      val)]
+                                                            (int val))
       (= type (Descriptors$FieldDescriptor$JavaType/LONG)) (long val)
       (= type (Descriptors$FieldDescriptor$JavaType/FLOAT)) (float val)
       (= type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) (double val)
       (= type (Descriptors$FieldDescriptor$JavaType/STRING)) (str val)
       (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (boolean val)
+      (= type (Descriptors$FieldDescriptor$JavaType/BYTE_STRING)) val
       (= type (Descriptors$FieldDescriptor$JavaType/ENUM)) (kw->enum desc val)
       (= type (Descriptors$FieldDescriptor$JavaType/MESSAGE)) (map->pb (.getMessageType desc) val)
       :else nil)))
@@ -232,20 +234,22 @@
               :m30 :m31 :m32 :m33]})
 
 (defn- set-field [m ^Descriptors$FieldDescriptor desc ^GeneratedMessage$Builder builder]
-  (when-let [clj-val (get m (keyword (s/replace (.getName desc) "_" "-")))]
-    (let [repeated? (.isRepeated desc)
-          name (.getName desc)
-          method-prefix (if repeated? "addAll" "set")
-          set-name (str method-prefix (->CamelCase name))
-          type (.getJavaType desc)
-          value (if repeated? (map #(clj->java desc %) clj-val) (clj->java desc clj-val))
-          cls (desc->cls desc value)]
-      (when (not (nil? value))
-        (do
-          (-> (.getClass builder) (.getDeclaredMethod set-name (into-array Class [cls]))
-            (.invoke builder (into-array Object [value]))))))))
+  (let [key (keyword (s/replace (.getName desc) "_" "-"))]
+    (when (contains? m key)
+      (let [clj-val (get m key)
+            repeated? (.isRepeated desc)
+            name (.getName desc)
+            method-prefix (if repeated? "addAll" "set")
+            set-name (str method-prefix (->CamelCase name))
+            type (.getJavaType desc)
+            value (if repeated? (map #(clj->java desc %) clj-val) (clj->java desc clj-val))
+            cls (desc->cls desc value)]
+        (when (not (nil? value))
+          (do
+            (-> (.getClass builder) (.getDeclaredMethod set-name (into-array Class [cls]))
+              (.invoke builder (into-array Object [value])))))))))
 
-(defn- map->pb
+(defn map->pb
   [desc-or-cls m]
   (let [^Descriptors$Descriptor desc (if (class? desc-or-cls)
                                        (j/invoke-no-arg-class-method desc-or-cls "getDescriptor")
