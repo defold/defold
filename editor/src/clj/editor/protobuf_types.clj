@@ -19,6 +19,7 @@
            [com.dynamo.camera.proto Camera$CameraDesc]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.gui.proto Gui$SceneDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -86,7 +87,13 @@
                :tags #{:component}}
               {:ext "convexshape"
                :icon "icons/pictures.png"
-               :pb-class Physics$ConvexShape}])
+               :pb-class Physics$ConvexShape}
+              {:ext "gui"
+               :label "Gui"
+               :icon "icons/pictures.png"
+               :pb-class Gui$SceneDesc
+               :resource-fields [:script :material [:fonts :font] [:textures :texture]]
+               :tags #{:component}}])
 
 (g/defnk produce-save-data [resource def pb]
   {:resource resource
@@ -95,13 +102,14 @@
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [def (:def user-data)
         pb (:pb user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+        pb (reduce (fn [pb [label resource]] (if (vector? label) (assoc-in pb label resource) (assoc pb label resource))) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
 (g/defnk produce-build-targets [node-id project-id resource pb def dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(workspace/proj-path (:resource res)) res]) dep-build-targets))
-        dep-resources (map (fn [label] [label (get deps-by-source (get pb label))]) (:resource-fields def))]
+        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] [(first field) i (second field)]) (range (count (get pb (first field))))) [field])) (:resource-fields def))
+        dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb label) (get pb label)))]) resource-fields)]
     [{:node-id node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-pb
@@ -124,6 +132,10 @@
   (output scene g/Any (g/fnk [] {}))
   (output outline g/Any :cached (g/fnk [node-id def] {:node-id node-id :label (:label def) :icon (:icon def)})))
 
+(defn- connect-build-targets [self path]
+  (let [resource-node (project/resolve-resource-node self path)]
+    (g/connect resource-node :build-targets self :dep-build-targets)))
+
 (defn load-pb [project self input def]
   (let [pb (protobuf/read-text (:pb-class def) input)
         resource (:resource self)]
@@ -131,8 +143,10 @@
       (g/set-property self :pb pb)
       (g/set-property self :def def)
       (for [res (:resource-fields def)]
-        (let [resource-node (project/resolve-resource-node self (get pb res))]
-          (g/connect resource-node :build-targets self :dep-build-targets))))))
+        (if (vector? res)
+          (for [v (get pb (first res))]
+            (connect-build-targets self (get v (second res))))
+          (connect-build-targets self (get pb res)))))))
 
 (defn- register [workspace def]
   (workspace/register-resource-type workspace
