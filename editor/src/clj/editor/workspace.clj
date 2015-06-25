@@ -179,10 +179,13 @@ ordinary paths."
   (let [tree (create-resource-tree self (File. root) (fn [^File f]
                                                        (let [name (.getName f)]
                                                          (not (or (= name "build") (= (subs name 0 1) "."))))))]
-    (update-in tree [:children] concat (make-zip-tree nil (io/resource "builtins.zip")))))
+    (update-in tree [:children] concat (make-zip-tree self (io/resource "builtins.zip")))))
 
 (g/defnk produce-resource-list [self resource-tree]
   (tree-seq #(= :folder (source-type %)) :children resource-tree))
+
+(g/defnk produce-resource-map [self resource-list]
+  (into {} (map #(do [(proj-path %) %]) resource-list)))
 
 (defn get-view-type [workspace id]
   (get (:view-types workspace) id))
@@ -226,10 +229,10 @@ ordinary paths."
   (FileResource. workspace (File. (str (:root workspace) path)) []))
 
 (defn resolve-resource [base-resource path]
-  (let [workspace (:workspace base-resource)
-        full-path (if (empty? path) path (str (:root workspace) path))]
     ; TODO handle relative paths
-    (FileResource. workspace (File. full-path) [])))
+  (let [proj-path path
+        workspace (:workspace base-resource)]
+    (get (g/node-value workspace :resource-map) proj-path)))
 
 (g/defnode Workspace
   (property root g/Str)
@@ -239,6 +242,7 @@ ordinary paths."
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
+  (output resource-map g/Any :cached produce-resource-map)
   (output resource-types g/Any :cached (g/fnk [resource-types] resource-types)))
 
 (defn make-workspace [graph project-path]
