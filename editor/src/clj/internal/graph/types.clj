@@ -44,7 +44,7 @@
 
 (defn node? [v] (satisfies? Node v))
 
-0(defprotocol IBasis
+(defprotocol IBasis
   (node-by-property [this label value])
   (arcs-by-head     [this node-id])
   (arcs-by-tail     [this node-id])
