@@ -115,6 +115,14 @@
 
 (declare attach-output)
 
+(defn- attribute-fn-arguments
+  [f]
+  (keys (dissoc (pf/input-schema f) s/Keyword)))
+
+(defn- property-dynamics-arguments
+  [[property-name property-definition]]
+  (mapcat attribute-fn-arguments (vals (gt/dynamic-attributes property-definition))))
+
 (defn- property-auxiliary-inputs
   [key properties]
   (reduce
@@ -131,6 +139,7 @@
 (defn- properties-output-arguments
   [properties]
   (cons :self (concat (set (keys properties))
+                      (mapcat property-dynamics-arguments properties)
                       (visibility-inputs properties)
                       (enablement-inputs properties))))
 
