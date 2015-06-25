@@ -340,7 +340,7 @@ namespace dmSSDP
 
         return socket;
 bail:
-        if (socket)
+        if (socket != dmSocket::INVALID_SOCKET_HANDLE)
             dmSocket::Delete(socket);
 
         return dmSocket::INVALID_SOCKET_HANDLE;

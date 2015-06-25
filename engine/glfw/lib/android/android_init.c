@@ -178,7 +178,7 @@ static void computeIconifiedState()
     //
     // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
     // Iconified unless opened, active and resumed (not paused)
-    _glfwWin.iconified = !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused);
+    _glfwWin.iconified = !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused && _glfwWin.hasSurface);
 }
 
 static void handleCommand(struct android_app* app, int32_t cmd) {
@@ -191,6 +191,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         if (_glfwWin.opened)
         {
             create_gl_surface(&_glfwWin);
+            _glfwWin.hasSurface = 1;
         }
         _glfwWin.opened = 1;
         computeIconifiedState();
@@ -206,6 +207,8 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             g_appLaunchInterrupted = 1;
         }
         destroy_gl_surface(&_glfwWin);
+        _glfwWin.hasSurface = 0;
+        computeIconifiedState();
         break;
     case APP_CMD_GAINED_FOCUS:
         _glfwWin.active = 1;
@@ -243,6 +246,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
         final_gl(&_glfwWin);
+        computeIconifiedState();
         break;
     }
 }
@@ -468,6 +472,7 @@ void _glfwPreMain(struct android_app* state)
     state->onInputEvent = handleInput;
 
     _glfwWin.opened = 0;
+    _glfwWin.hasSurface = 0;
     // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
     while (_glfwWin.opened == 0)
     {
