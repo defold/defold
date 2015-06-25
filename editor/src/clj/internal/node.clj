@@ -1,7 +1,7 @@
 (ns internal.node
   (:require [clojure.core.match :refer [match]]
             [clojure.set :as set]
-            [dynamo.util :refer [collify map-vals apply-if-fn]]
+            [dynamo.util :refer [collify map-vals apply-if-fn schema?]]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
@@ -206,8 +206,6 @@
       map->NodeTypeImpl))
 
 (def ^:private inputs-properties (juxt :inputs :properties))
-
-(defn schema? [x] (satisfies? s/Schema x))
 
 (defn- assert-form-kind [kind-label required-kind label form]
   (assert (required-kind form) (str "defnode " label " requires a " kind-label " not a " (class form) " of " form)))
