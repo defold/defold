@@ -209,6 +209,7 @@ namespace dmGameObject
                 }
             }
         }
+
         assert(top == lua_gettop(L));
         return result;
     }
