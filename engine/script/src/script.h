@@ -101,7 +101,13 @@ namespace dmScript
      * Register the script libraries into the supplied script context.
      * @param context script context
      */
-    void Initialize(HContext m_Context);
+    void Initialize(HContext context);
+
+    /**
+     * Updates the extensions initalized in this script context.
+     * @param context script contetx
+     */
+    void UpdateExtensions(HContext context);
 
     /**
      * Finalize script libraries
