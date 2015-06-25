@@ -29,9 +29,14 @@ dmExtension::Result InitializeTest(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
+dmExtension::Result UpdateTest(dmExtension::Params* params)
+{
+    return dmExtension::RESULT_OK;
+}
+
 dmExtension::Result FinalizeTest(dmExtension::Params* params)
 {
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(TestExt, "test", AppInitializeTest, AppFinalizeTest, InitializeTest, FinalizeTest)
+DM_DECLARE_EXTENSION(TestExt, "test", AppInitializeTest, AppFinalizeTest, InitializeTest, UpdateTest, FinalizeTest)

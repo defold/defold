@@ -883,6 +883,22 @@ bail:
                         return;
                     }
 
+
+                    /* Extension updates */
+                    if (engine->m_SharedScriptContext) {
+                        dmScript::UpdateExtensions(engine->m_SharedScriptContext);
+                    } else {
+                        if (engine->m_GOScriptContext) {
+                            dmScript::UpdateExtensions(engine->m_GOScriptContext);
+                        }
+                        if (engine->m_RenderScriptContext) {
+                            dmScript::UpdateExtensions(engine->m_RenderScriptContext);
+                        }
+                        if (engine->m_GuiScriptContext) {
+                            dmScript::UpdateExtensions(engine->m_GuiScriptContext);
+                        }
+                    }
+
                     dmSound::Update();
 
                     dmHID::KeyboardPacket keybdata;
