@@ -1,7 +1,7 @@
 package com.dynamo.cr.server.resources;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -86,7 +86,7 @@ public class LoginOAuthResource extends BaseResource {
                 // TODO: Hardcoded. Put in config
                 "1066143962919-so5e8h2fdgdnbj50d39a5jtisujbqous.apps.googleusercontent.com",
                 "DCHtUF9OFdWPPbRoWwKTRRmJ",
-                Collections.singleton("https://www.googleapis.com/auth/userinfo.email"))
+                Arrays.asList("email", "profile", "openid"))
                 .setDataStoreFactory(new MemoryDataStoreFactory())
                 .setAccessType("offline").build();
     }
@@ -216,6 +216,11 @@ public class LoginOAuthResource extends BaseResource {
 
         User user = ModelUtil.findUserByEmail(em, identity.email);
         if (user != null) {
+
+            // Update name (could have changed, or be missing)
+            user.setFirstName(identity.firstName);
+            user.setLastName(identity.lastName);
+            em.persist(user);
 
             tokenExchangeInfoBuilder.setType(Type.LOGIN);
             tokenExchangeInfoBuilder.setAuthToken(authenticator.getAuthToken(user));
