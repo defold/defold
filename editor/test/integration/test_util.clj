@@ -13,6 +13,7 @@
             [editor.switcher :as switcher]
             [editor.font :as font]
             [editor.protobuf-types :as protobuf-types]
+            [editor.script :as script]
             [editor.workspace :as workspace])
   (:import [java.io File]
            [javax.imageio ImageIO]))
@@ -40,7 +41,8 @@
             (platformer/register-resource-types workspace)
             (protobuf-types/register-resource-types workspace)
             (switcher/register-resource-types workspace)
-            (sprite/register-resource-types workspace))))
+            (sprite/register-resource-types workspace)
+            (script/register-resource-types workspace))))
       (g/refresh workspace))))
 
 (defn setup-project!
