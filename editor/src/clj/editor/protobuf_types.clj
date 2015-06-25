@@ -16,6 +16,7 @@
             GameSystem$CollectionProxyDesc GameSystem$LightDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.input.proto Input$GamepadMaps]
+           [com.dynamo.camera.proto Camera$CameraDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -67,7 +68,12 @@
                :tags #{:component}}
               {:ext "gamepads"
                :icon "icons/pictures.png"
-               :pb-class Input$GamepadMaps}])
+               :pb-class Input$GamepadMaps}
+              {:ext "camera"
+               :label "Camera"
+               :icon "icons/pictures.png"
+               :pb-class Camera$CameraDesc
+               :tags #{:component}}])
 
 (g/defnk produce-save-data [resource def pb]
   {:resource resource
