@@ -1,6 +1,7 @@
 (ns internal.property
-  (:require [clojure.core.match :refer [match]]
-            [dynamo.util :refer [apply-if-fn var-get-recursive]]
+  (:require [clojure.tools.macro :as ctm]
+            [clojure.core.match :refer [match]]
+            [dynamo.util :as util]
             [internal.graph.types :as gt]
             [schema.core :as s]))
 
@@ -14,22 +15,31 @@
       (reduce
         (fn [errs {:keys [fn formatter]}]
           (conj errs
-            (let [valid? (try (apply-if-fn (var-get-recursive fn) value) (catch Exception e false))]
+            (let [valid? (try (util/apply-if-fn (util/var-get-recursive fn) value) (catch Exception e false))]
               (when-not valid?
-                (apply-if-fn (var-get-recursive formatter) value)))))
+                (util/apply-if-fn (util/var-get-recursive formatter) value)))))
         []
         validations))))
 
 (defrecord PropertyTypeImpl
-  [value-type default validation visible tags enabled]
+  [name value-type default validation visible tags enabled dynamic]
   gt/PropertyType
   (property-value-type    [this]   value-type)
-  (property-default-value [this]   (some-> default var-get-recursive apply-if-fn))
+  (property-default-value [this]   (some-> default util/var-get-recursive util/apply-if-fn))
   (property-validate      [this v] (validation-problems value-type (map second validation) v))
   (property-valid-value?  [this v] (empty? (validation-problems value-type (map second validation) v)))
-  (property-enabled?      [this v] (or (nil? enabled) (apply-if-fn (var-get-recursive enabled) v)))
-  (property-visible?      [this v] (or (nil? visible) (apply-if-fn (var-get-recursive visible) v)))
-  (property-tags          [this]   tags))
+  (property-enabled?      [this v] (or (nil? enabled) (util/apply-if-fn (util/var-get-recursive enabled) v)))
+  (property-visible?      [this v] (or (nil? visible) (util/apply-if-fn (util/var-get-recursive visible) v)))
+  (property-tags          [this]   tags)
+
+  gt/Dynamics
+  (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic)))
+
+(defn- assert-form-kind [kind-label required-kind label form]
+  (assert (required-kind form) (str "property " label " requires a " kind-label " not a " (class form) " of " form)))
+
+(def assert-symbol (partial assert-form-kind "symbol" symbol?))
+(def assert-schema (partial assert-form-kind "schema" util/schema?))
 
 (defn- resolve-if-symbol [sym]
   (if (symbol? sym)
@@ -38,52 +48,88 @@
        (resolve '~sym))
     sym))
 
-(defn compile-defproperty-form [form]
+(defn attach-default
+  [description provider]
+  (assoc description :default provider))
+
+(defn attach-validation
+  [description label formatter validation]
+  (update description
+          :validation #(conj (or %1 []) %2) [label {:fn validation :formatter formatter}]))
+
+(defn attach-enablement
+  [description enablement]
+  (assoc description :enabled enablement))
+
+(defn attach-visibility
+  [description visibility]
+  (assoc description :visible visibility))
+
+(defn attach-dynamic
+  [description kind evaluation]
+  (assoc-in description [:dynamic kind] evaluation))
+
+(defn- property-form [form]
   (match [form]
-    [(['default default] :seq)]
-    {:default (resolve-if-symbol default)}
+         [(['default default] :seq)]
+         `(attach-default ~default)
 
-    [(['validate label :message formatter-fn validation-fn] :seq)]
-    {:validation {(keyword label) {:fn (resolve-if-symbol validation-fn)
-                                   :formatter (resolve-if-symbol formatter-fn)}}}
+         [(['validate label :message formatter-fn & remainder] :seq)]
+         (do
+           (assert-symbol "validate" label)
+           `(attach-validation ~(keyword label) ~formatter-fn ~@remainder))
 
-    [(['validate label validation-fn] :seq)]
-    {:validation [[(keyword label) {:fn (resolve-if-symbol validation-fn)
-                                   :formatter "invalid value"}]]}
+         [(['validate label & remainder] :seq)]
+         (do
+           (assert-symbol "validate" label)
+           `(attach-validation ~(keyword label) (fn [& _#] "invalid value") ~@remainder))
 
-    [(['enabled enablement-fn] :seq)]
-    {:enabled (resolve-if-symbol enablement-fn)}
+         [(['enabled & remainder] :seq)]
+         `(attach-enablement ~@remainder)
 
-    [(['visible visibility-fn] :seq)]
-    {:visible (resolve-if-symbol visibility-fn)}
+         [(['visible & remainder] :seq)]
+         `(attach-visibility ~@remainder)
 
-    [(['tag tag] :seq)]
-    {:tags [tag]}
+         [(['dynamic kind & remainder] :seq)]
+         (do
+           (assert-symbol "dynamic" kind)
+           `(attach-dynamic ~(keyword kind) ~@remainder))
 
-    :else
-    (assert false (str "invalid form within property type definition: " (pr-str form)))))
+         :else
+         (assert false (str "invalid form within property type definition: " (pr-str form)))))
+
+(defn attach-value-type
+  [description value-type]
+  (if (gt/property-type? value-type)
+    (merge description value-type)
+    (do
+      (assert-schema "defproperty" value-type)
+      (assoc description :value-type value-type))))
+
+(defn property-type-forms
+  [name-str value-type body-forms]
+  (concat [`-> {:name name-str}
+           `(attach-value-type ~value-type)]
+          (map property-form body-forms)))
 
 (defn merge-props [props new-props]
-  (-> (merge (dissoc props :validation) (dissoc new-props :validation))
-    (assoc :validation (concat (:validation props) (:validation new-props)))
-    (assoc :tags (into (vec (:tags new-props)) (:tags props)))))
+  (let [merged (merge-with merge  (:dynamic props)    (:dynamic new-props))
+        joined (merge-with concat (:validation props) (:validation new-props))
+        tagged {:tags (into (vec (:tags new-props)) (:tags props))}]
+    (merge props new-props merged joined tagged)))
 
-(defn property-type-descriptor [name-sym value-type body-forms]
-  `(let [value-type#     ~value-type
-         base-props#     (if (gt/property-type? value-type#)
-                           value-type#
-                           {:value-type value-type# :tags []})
-         override-props# ~(mapv compile-defproperty-form body-forms)
-         props#          (reduce merge-props base-props# override-props#)
-         ; protocol detection heuristic based on private function `clojure.core/protocol?`
-         protocol?#      (fn [~'p] (gt/protocol? ~'p))]
-     (assert (or (nil? (:visible props#)) (gt/pfnk? (:visible props#)))
-             (str "Property " '~name-sym " type " '~value-type " has a visibility function that should be an fnk, but isn't. " (:visible props#)))
-     (assert (not (protocol?# value-type#))
-             (str "Property " '~name-sym " type " '~value-type " looks like a protocol; try (schema.core/protocol " '~value-type ") instead."))
-     (assert (or (satisfies? gt/PropertyType value-type#) (satisfies? s/Schema value-type#))
-             (str "Property " '~name-sym " is declared with type " '~value-type " but that doesn't seem like a real value type"))
-     (map->PropertyTypeImpl props#)))
+(defn property-type-descriptor
+  [name-str value-type body-forms]
+  `(let [description# ~(property-type-forms name-str value-type body-forms)]
+     (assert (or (nil? (:visible description#)) (gt/pfnk? (:visible description#)))
+             (str "Property " ~name-str " type " '~value-type " has a visibility function that should be an fnk, but isn't. " (:visible description#)))
+     (assert (not (gt/protocol? ~value-type))
+             (str "Property " ~name-str " type " '~value-type " looks like a protocol; try (dynamo.graph/protocol " '~value-type ") instead."))
+     (assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))
+             (str "Property " ~name-str " is declared with type " '~value-type " but that doesn't seem like a real value type"))
+     (map->PropertyTypeImpl description#)))
 
-(defn def-property-type-descriptor [name-sym value-type & body-forms]
-  `(def ~name-sym ~(property-type-descriptor name-sym value-type body-forms)))
+(defn def-property-type-descriptor
+  [name-sym & body-forms]
+  (let [[name-sym [value-type & body-forms]] (ctm/name-with-attributes name-sym body-forms)]
+    `(def ~name-sym ~(property-type-descriptor (str name-sym) value-type body-forms))))
