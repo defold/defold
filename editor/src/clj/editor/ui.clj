@@ -294,37 +294,47 @@
   {:control control
    :menu-id menu-id})
 
-(defn- create-menu-item [desc item command-contexts]
-  (if (:children item)
-    (let [child-menu (make-menu desc (:children item) command-contexts)]
-      (when (seq child-menu)
-        (let [menu (Menu. (:label item))]
-          (doseq [i child-menu]
-            (.add (.getItems menu) i))
-          menu)))
-    (let [command (:command item)]
-      (when (handler/active? command command-contexts)
-        (let [label (or (handler/label command command-contexts) (:label item))
-              menu-item (MenuItem. label)]
-          (when command
-            (.setId menu-item (name command)))
-          (when (:acc item)
-            (.setAccelerator menu-item (KeyCombination/keyCombination (:acc item))))
-          (when (:icon item) (.setGraphic menu-item (jfx/get-image-view (:icon item))))
-          (.setDisable menu-item (not (handler/enabled? command command-contexts)))
-          (.setOnAction menu-item (event-handler event (handler/run command command-contexts)))
-          menu-item)))))
+(defn- build-child-menu [label icon child-menu]
+  (when (seq child-menu)
+    (let [menu (Menu. label)]
+      (when icon
+        (.setGraphic menu (jfx/get-image-view icon)))
+      (doseq [i child-menu]
+        (.add (.getItems menu) i))
+      menu)))
 
-(defn- ^MenuItem make-menu [desc menu command-contexts]
+(defn- create-menu-item [item command-contexts]
+  (let [icon (:icon item)]
+    (if-let [children (:children item)]
+      (build-child-menu (:label item) icon (make-menu children command-contexts))
+      (let [command (:command item)
+            user-data (:user-data item)]
+        (when (handler/active? command command-contexts user-data)
+          (let [label (or (handler/label command command-contexts user-data) (:label item))]
+            (if-let [options (handler/options command command-contexts user-data)]
+              (build-child-menu label icon (make-menu options command-contexts))
+              (let [menu-item (MenuItem. label)]
+                (when command
+                  (.setId menu-item (name command)))
+                (when-let [acc (:acc item)]
+                  (.setAccelerator menu-item (KeyCombination/keyCombination acc)))
+                (when icon
+                  (.setGraphic menu-item (jfx/get-image-view icon)))
+                (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
+                (.setOnAction menu-item (event-handler event (handler/run command command-contexts user-data)))
+                (.setUserData menu-item user-data)
+                menu-item))))))))
+
+(defn- make-menu [menu command-contexts]
   (->> menu
        (map (fn [item] (if (= :separator (:label item))
                           (SeparatorMenuItem.)
-                          (create-menu-item desc item command-contexts))))
+                          (create-menu-item item command-contexts))))
        (remove nil?)
        (vec)))
 
 (defn- populate-context-menu [^ContextMenu context-menu desc menu command-contexts]
-  (let [items (make-menu desc menu command-contexts)]
+  (let [items (make-menu menu command-contexts)]
     (.addAll (.getItems context-menu) (to-array items))))
 
 (defn register-context-menu [^Control control menu-id]
@@ -354,14 +364,14 @@
    (when-not (= menu (user-data control ::menu))
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
-     (.addAll (.getMenus control) (to-array (make-menu md menu command-contexts)))
+     (.addAll (.getMenus control) (to-array (make-menu menu command-contexts)))
      (user-data! control ::menu menu))))
 
 (defn- refresh-menu-state [^Menu menu command-contexts]
   (doseq [m (.getItems menu)]
     (if (instance? Menu m)
       (refresh-menu-state m command-contexts)
-      (.setDisable ^Menu m (not (handler/enabled? (keyword (.getId ^Menu m)) command-contexts))))))
+      (.setDisable ^MenuItem m (not (handler/enabled? (keyword (.getId ^MenuItem m)) command-contexts (.getUserData ^MenuItem m)))))))
 
 (defn- refresh-menubar-state [^MenuBar menubar command-contexts]
   (doseq [m (.getMenus menubar)]
@@ -380,24 +390,29 @@
    (when-not (= menu (user-data control ::menu))
      (.clear (.getChildren control))
      (user-data! control ::menu menu)
-     (doseq [menu-item menu]
-       (let [button (ToggleButton. (:label menu-item))
+     (doseq [menu-item menu
+             :let [command (:command menu-item)
+                   user-data (:user-data menu-item)]
+             :when (handler/active? command command-contexts user-data)]
+       (let [button (ToggleButton. (or (handler/label command command-contexts user-data) (:label menu-item)))
              icon (:icon menu-item)
              selection-provider (:selection-provider td)]
+         (user-data! button :menu-user-data user-data)
          (when icon
            (.setGraphic button (jfx/get-image-view icon)))
-         (when (:command menu-item)
-           (.setId button (name (:command menu-item)))
-           (.setOnAction button (event-handler event (handler/run (:command menu-item) command-contexts))))
+         (when command
+           (.setId button (name command))
+           (.setOnAction button (event-handler event (handler/run command command-contexts user-data))))
          (.add (.getChildren control) button))))))
 
 (defn- refresh-toolbar-state [^Pane toolbar command-contexts]
   (let [nodes (.getChildren toolbar)
         ids (map #(.getId ^Node %) nodes)]
-    (doseq [^Node n nodes]
-      (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-contexts)))
+    (doseq [^Node n nodes
+            :let [menu-user-data (user-data n :menu-user-data)]]
+      (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-contexts menu-user-data)))
       (when (instance? ToggleButton n)
-        (if (handler/state (keyword (.getId n)) command-contexts)
+        (if (handler/state (keyword (.getId n)) command-contexts menu-user-data)
          (.setSelected ^Toggle n true)
          (.setSelected ^Toggle n false))))))
 
