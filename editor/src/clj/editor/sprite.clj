@@ -201,7 +201,7 @@
 (g/defnk produce-build-targets [node-id resource image default-animation material blend-mode dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:tile-set image]])]
+        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:tile-set image] [:material material]])]
     [{:node-id node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-sprite
@@ -274,7 +274,10 @@
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
-      (connect-atlas project self image))))
+      (connect-atlas project self image)
+      (if-let [material-node (project/get-resource-node project material)]
+        (g/connect material-node :build-targets self :dep-build-targets)
+        []))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
