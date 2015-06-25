@@ -196,7 +196,7 @@
 (defn- build-sprite [self basis resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc (:proto-msg user-data))}))
+    {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc pb)}))
 
 (g/defnk produce-build-targets [node-id resource image default-animation material blend-mode dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
