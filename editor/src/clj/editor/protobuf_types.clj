@@ -12,6 +12,7 @@
             [internal.render.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc Material$MaterialDesc]
+           [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -31,7 +32,19 @@
                :icon "icons/pictures.png"
                :pb-class Material$MaterialDesc
                ; TODO shaders
-               :resource-fields []}])
+               :resource-fields []}
+              {:ext "factory"
+               :label "Factory"
+               :icon "icons/pictures.png"
+               :pb-class GameSystem$FactoryDesc
+               :resource-fields [:prototype]
+               :tags #{:component}}
+              {:ext "collection_factory"
+               :label "Collection Factory"
+               :icon "icons/pictures.png"
+               :pb-class GameSystem$CollectionFactoryDesc
+               :resource-fields [:prototype]
+               :tags #{:component}}])
 
 (g/defnk produce-save-data [resource def pb]
   {:resource resource
@@ -65,7 +78,9 @@
   (input dep-build-targets g/Any :array)
 
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output scene g/Any (g/fnk [] {}))
+  (output outline g/Any :cached (g/fnk [node-id def] {:node-id node-id :label (:label def) :icon (:icon def)})))
 
 (defn load-pb [project self input def]
   (let [pb (protobuf/read-text (:pb-class def) input)
@@ -82,7 +97,8 @@
                                    :ext (:ext def)
                                    :node-type ProtobufNode
                                    :load-fn (fn [project self input] (load-pb project self input def))
-                                   :icon (:icon def)))
+                                   :icon (:icon def)
+                                   :tags (:tags def)))
 
 (defn register-resource-types [workspace]
   (for [def pb-defs]
