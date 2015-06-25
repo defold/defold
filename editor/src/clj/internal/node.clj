@@ -1,7 +1,7 @@
 (ns internal.node
   (:require [clojure.core.match :refer [match]]
             [clojure.set :as set]
-            [dynamo.util :refer [collify map-vals apply-if-fn schema?]]
+            [dynamo.util :as util]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
@@ -32,7 +32,7 @@
                             :basis    basis
                             :in-production []}
         result             (gt/produce-value node label evaluation-context)]
-    (when (some gt/error? (collify result))
+    (when (some gt/error? (util/collify result))
       (throw (Exception. (str "Error Value Found in Node.  Reason: " (pr-str result)))))
     (when cache
       (let [local             @(:local evaluation-context)
@@ -61,13 +61,14 @@
         value             (get self prop)
         problems          (gt/property-validate type value)
         enabled?          (property-enabled? type kwargs)
-        visible?          (property-visible? type kwargs)]
-    {:node-id             (gt/node-id self)
-     :value               value
-     :type                type
-     :validation-problems problems
-     :enabled             enabled?
-     :visible             visible?}))
+        visible?          (property-visible? type kwargs)
+        dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
+    (merge dynamics {:node-id             (gt/node-id self)
+                     :value               value
+                     :type                type
+                     :validation-problems problems
+                     :visible             visible?
+                     :enabled             enabled?})))
 
 (defn gather-properties
   "Production function that delivers the definition and value
@@ -220,7 +221,7 @@
   (assert (required-kind form) (str "defnode " label " requires a " kind-label " not a " (class form) " of " form)))
 
 (def assert-symbol (partial assert-form-kind "symbol" symbol?))
-(def assert-schema (partial assert-form-kind "schema" schema?))
+(def assert-schema (partial assert-form-kind "schema" util/schema?))
 (defn assert-pfnk [label production-fn]
   (assert
    (gt/pfnk? production-fn)
@@ -425,7 +426,7 @@
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (map-vals gt/property-default-value (gt/properties node-type)))
+  (util/map-vals gt/property-default-value (gt/properties node-type)))
 
 (defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
 (defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
@@ -499,7 +500,7 @@
   (if (gt/substitute-for node-type input)
     `(let [inputs# ~(input-value-forms input)
            sub#     (gt/substitute-for ~node-type-name ~input)]
-       (map #(if (gt/error? %) (apply-if-fn sub#) %) inputs#))
+       (map #(if (gt/error? %) (util/apply-if-fn sub#) %) inputs#))
     (input-value-forms input)))
 
 (defn- lookup-singlevalued-input
@@ -510,7 +511,7 @@
            input#      (first inputs#)
            sub#        (gt/substitute-for ~node-type-name ~input)]
        (if (or no-input?# (gt/error? input#))
-         (apply-if-fn sub#)
+         (util/apply-if-fn sub#)
          input#))
     `(first ~(input-value-forms input))))
 
