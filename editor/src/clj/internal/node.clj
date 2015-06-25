@@ -1,5 +1,6 @@
 (ns internal.node
   (:require [clojure.core.match :refer [match]]
+            [clojure.pprint :as pp]
             [clojure.set :as set]
             [dynamo.util :as util]
             [internal.cache :as c]
@@ -12,11 +13,13 @@
   (:import [internal.graph.types IBasis]))
 
 (defn warn [node-id node-type label input-schema error]
-  (println "WARNING: node " node-id
-           "- type:" (:name node-type)
-           "input label for" label
-           "expected" input-schema
-           "and had the problem:" error ))
+  (println "WARNING-SCHEMA-VALIDATION:" (format "<NODE|%s|%s|%s>"  node-id  (:name node-type) label))
+  (doseq [[key val] (s/explain input-schema)]
+    (println (format "========EXPECTED-%s========" key))
+    (pp/pprint val)
+    (println (format "========VALIDATION ERROR %s========" key))
+    (when-let [key-error (get error key)]
+      (pp/pprint  key-error))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point

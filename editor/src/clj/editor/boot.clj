@@ -22,6 +22,8 @@
             [editor.scene :as scene]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
+            [editor.font :as font]
+            [editor.protobuf-types :as protobuf-types]
             [editor.text :as text]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
@@ -120,12 +122,14 @@
       (g/transact
         (concat
           (collection/register-resource-types workspace)
+          (font/register-resource-types workspace)
           (game-object/register-resource-types workspace)
           (game-project/register-resource-types workspace)
           (cubemap/register-resource-types workspace)
           (image/register-resource-types workspace)
           (atlas/register-resource-types workspace)
           (platformer/register-resource-types workspace)
+          (protobuf-types/register-resource-types workspace)
           (switcher/register-resource-types workspace)
           (sprite/register-resource-types workspace))))
     (g/refresh workspace)))

@@ -8,6 +8,8 @@
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
+           [com.dynamo.render.proto Font$FontMap]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -33,7 +35,9 @@
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
                    content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                   exp-paths [path]]
+                   exp-paths [path "/main/main.collection" "/input/game.input_binding"]]
+               (doseq [path exp-paths]
+                 (is (contains? content-by-source path)))
                (let [content (get content-by-source "/main/main.collection")
                      desc (GameObject$CollectionDesc/parseFrom content)
                      go-ext (:build-ext (workspace/get-resource-type workspace "go"))]
@@ -167,3 +171,32 @@
                      (g/delete-node node)))
                  (project/build-and-write project resource-node)
                  (is (< (count @(:fs-build-cache project)) cache-count)))))))
+
+(deftest build-atlas
+  (testing "Building atlas"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)
+                   path          "/background/background.atlas"
+                   resource-node (test-util/resource-node project path)
+                   build-results (project/build project resource-node)
+                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+               (let [content (get content-by-source path)
+                     desc (TextureSetProto$TextureSet/parseFrom content)]
+                 (is (contains? content-by-target (.getTexture desc))))))))
+
+(deftest build-font
+  (testing "Building font"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)
+                   path          "/fonts/score.font"
+                   resource-node (test-util/resource-node project path)
+                   build-results (project/build project resource-node)
+                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+               (let [content (get content-by-source path)
+                     desc (Font$FontMap/parseFrom content)]
+                 (is (= 1024 (.getImageWidth desc)))
+                 (is (= 128 (.getImageHeight desc))))))))
