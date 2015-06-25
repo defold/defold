@@ -159,8 +159,7 @@
   (let [project (project/get-project self)
         workspace (:workspace (:resource self))
         component-exts (map :ext (workspace/get-resource-types workspace :component))]
-    (when-let [; TODO - filter component files
-               resource (first (dialogs/make-resource-dialog workspace {}))]
+    (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext component-exts :title "Select Component File"}))]
       (let [id (gen-component-id self (:ext (workspace/resource-type resource)))
             op-seq (gensym)
             [comp-node] (g/tx-nodes-added
@@ -177,8 +176,9 @@
             (project/select project [comp-node])))))))
 
 (handler/defhandler :add-from-file :global
-    (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-    (run [selection] (add-component-handler (g/node-by-id (first selection)))))
+  (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
+  (label [] "Add Component File")
+  (run [selection] (add-component-handler (g/node-by-id (first selection)))))
 
 (defn- add-embedded-component [self project type data id position rotation]
   (let [resource (project/make-embedded-resource project type data)]
@@ -225,8 +225,9 @@
           (project/select project [comp-node]))))))
 
 (handler/defhandler :add :global
-    (enabled? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-    (run [selection] (add-embedded-component-handler (g/node-by-id (first selection)))))
+  (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
+  (label [] "Add Component")
+  (run [selection] (add-embedded-component-handler (g/node-by-id (first selection)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
