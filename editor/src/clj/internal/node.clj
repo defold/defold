@@ -381,7 +381,7 @@
 
          [(['property label tp & options] :seq)]
          (do (assert-symbol "property" label)
-             `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (pc/fnk [~label] ~label)))
+             `(attach-property ~(keyword label) ~(ip/property-type-descriptor (str label) tp options) (pc/fnk [~label] ~label)))
 
          [(['on label & fn-body] :seq)]
          `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
