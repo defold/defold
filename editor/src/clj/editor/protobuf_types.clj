@@ -17,6 +17,8 @@
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.dynamo.input.proto Input$GamepadMaps]
            [com.dynamo.camera.proto Camera$CameraDesc]
+           [com.dynamo.mesh.proto Mesh$MeshDesc]
+           [com.dynamo.model.proto Model$ModelDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -73,6 +75,14 @@
                :label "Camera"
                :icon "icons/pictures.png"
                :pb-class Camera$CameraDesc
+               :tags #{:component}}
+              {:ext "mesh"
+               :icon "icons/pictures.png"
+               :pb-class Mesh$MeshDesc}
+              {:ext "model"
+               :label "Model"
+               :icon "icons/pictures.png"
+               :pb-class Model$ModelDesc
                :tags #{:component}}])
 
 (g/defnk produce-save-data [resource def pb]
