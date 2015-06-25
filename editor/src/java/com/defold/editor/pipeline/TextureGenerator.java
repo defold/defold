@@ -18,13 +18,12 @@ import javax.imageio.ImageIO;
 
 import com.defold.libs.TexcLibrary;
 import com.defold.libs.TexcLibrary.ColorSpace;
-import com.defold.libs.TexcLibrary.PixelFormat;
 import com.defold.libs.TexcLibrary.CompressionLevel;
-import com.defold.editor.pipeline.TextureUtil;
+import com.defold.libs.TexcLibrary.PixelFormat;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
-import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.google.protobuf.ByteString;
