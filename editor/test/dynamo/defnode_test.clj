@@ -482,6 +482,12 @@
   (dynamic external-dynamic (g/fnk [an-input another-input] true)))
 
 (g/defnode PropertyDynamicsNode
+  (input an-input       g/Num)
+  (input another-input  g/Num)
+  (input third-input    g/Num)
+  (input fourth-input   g/Num)
+  (input fifth-input    g/Num)
+
   (property external-property DynamicExternalProperty)
   (property internal-property g/Num
             (dynamic internal-dynamic (g/fnk [third-input] false)))
@@ -496,3 +502,11 @@
 (deftest node-properties-depend-on-dynamic-inputs
   (let [all-inputs [:an-input :another-input :third-input :fourth-input :fifth-input]]
    (is (= true (every? #(affects-properties PropertyDynamicsNode %) all-inputs)))))
+
+(g/defproperty NeedsADifferentInput g/Num
+  (dynamic a-dynamic (g/fnk [input-node-doesnt-have] false)))
+
+(deftest compile-error-using-property-with-missing-argument-for-dynamic
+  (is (thrown? AssertionError
+               (eval '(dynamo.graph/defnode BadDynamicArgument
+                        (property foo dynamo.defnode-test/NeedsADifferentInput))))))
