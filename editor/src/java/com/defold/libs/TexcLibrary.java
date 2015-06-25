@@ -2,17 +2,21 @@ package com.defold.libs;
 
 import java.nio.Buffer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
 public class TexcLibrary {
+    private static Logger logger = LoggerFactory.getLogger(TexcLibrary.class);
+
     static {
         try {
-            String libDir = Libs.getTexcLibDir();
-            System.setProperty("jna.library.path", libDir);
+            Libs.extractNativeLibs();
             Native.register("texc_shared");
         } catch (Exception e) {
-            System.out.println("FATAL: " + e.getMessage());
+            logger.error("Failed to extract/register texc_shared", e);
         }
     }
 
