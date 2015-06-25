@@ -3,11 +3,11 @@
             [editor.types :refer [map->EngineFormatTexture]]
             [editor.buffers :refer [little-endian new-byte-buffer]]
             [internal.texture.math :refer [closest-power-of-two]])
-  (:import [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]
-           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
-           [com.sun.jna Pointer]
-           [java.awt.image BufferedImage ColorModel]
-           [java.nio ByteBuffer]))
+  (:import [java.awt.image BufferedImage ColorModel]
+           [java.nio ByteBuffer]
+           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat Graphics$TextureFormatAlternative$CompressionLevel]
+           [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]
+           [com.sun.jna Pointer]))
 
 (set! *unchecked-math* true)
 
@@ -64,8 +64,8 @@
 (defn- gen-mipmaps [texture]
   (TexcLibrary/TEXC_GenMipMaps texture))
 
-(defn- transcode [texture pixel-format color-model]
-  (TexcLibrary/TEXC_Transcode texture pixel-format color-model))
+(defn- transcode [texture pixel-format color-model compression-level]
+  (TexcLibrary/TEXC_Transcode texture pixel-format color-model compression-level))
 
 (defn double-down [[n m]] [(max (bit-shift-right n 1) 1)
                            (max (bit-shift-right m 1) 1)])
@@ -90,13 +90,14 @@
         height-pot                    (int (closest-power-of-two height))
         color-count                   (image-color-components img)
         [pixel-format texture-format] (get formats color-count default-formats)
-        texture                       (TexcLibrary/TEXC_Create width height R8G8B8A8 SRGB (image->byte-buffer img))]
+        texture                       (TexcLibrary/TEXC_Create width height R8G8B8A8 SRGB (image->byte-buffer img))
+        compression-level             Graphics$TextureFormatAlternative$CompressionLevel/FAST]
     (try
       (do-or-do-not!
-        (resize texture width height width-pot height-pot) "could not resize texture to POT"
-        (premultiply-alpha texture)                        "could not premultiply alpha"
-        (gen-mipmaps texture)                              "could not generate mip-maps"
-        (transcode texture pixel-format SRGB)              "could not transcode")
+        (resize texture width height width-pot height-pot)      "could not resize texture to POT"
+        (premultiply-alpha texture)                             "could not premultiply alpha"
+        (gen-mipmaps texture)                                   "could not generate mip-maps"
+        (transcode texture pixel-format SRGB compression-level) "could not transcode")
       (let [buffer-size  (* width-pot height-pot color-count 2)
             buffer       (little-endian (new-byte-buffer buffer-size))
             data-size    (TexcLibrary/TEXC_GetData texture buffer buffer-size)
