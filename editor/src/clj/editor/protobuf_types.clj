@@ -14,6 +14,7 @@
            [com.dynamo.render.proto Render$RenderPrototypeDesc Material$MaterialDesc]
            [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
             GameSystem$CollectionProxyDesc GameSystem$LightDesc]
+           [com.dynamo.physics.proto Physics$CollisionObjectDesc]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
@@ -40,13 +41,13 @@
                :pb-class GameSystem$FactoryDesc
                :resource-fields [:prototype]
                :tags #{:component}}
-              {:ext "collection_factory"
+              {:ext "collectionfactory"
                :label "Collection Factory"
                :icon "icons/pictures.png"
                :pb-class GameSystem$CollectionFactoryDesc
                :resource-fields [:prototype]
                :tags #{:component}}
-              {:ext "collection_proxy"
+              {:ext "collectionproxy"
                :label "Collection Proxy"
                :icon "icons/pictures.png"
                :pb-class GameSystem$CollectionProxyDesc
@@ -56,6 +57,12 @@
                :label "Light"
                :icon "icons/pictures.png"
                :pb-class GameSystem$LightDesc
+               :tags #{:component}}
+              {:ext "collisionobject"
+               :label "Collision Object"
+               :icon "icons/pictures.png"
+               :pb-class Physics$CollisionObjectDesc
+               :resources-fields [:collision_shape]
                :tags #{:component}}])
 
 (g/defnk produce-save-data [resource def pb]
