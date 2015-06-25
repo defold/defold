@@ -136,12 +136,10 @@
 
 ; Vertex generation
 
-(defn anim-uvs [textureset id]
-  (let [anim (get (:animations textureset) id)
+(defn anim-uvs [anim-data id]
+  (let [anim (get anim-data id)
         frame (first (:frames anim))]
-    (if-let [{start :tex-coords-start count :tex-coords-count} frame]
-      (mapv #(nth (:tex-coords textureset) %) (range start (+ start count)))
-      [[0 0] [0 0]])))
+    (:tex-coords frame)))
 
 (defn flip [v0 v1]
   [v1 v0])
@@ -149,42 +147,41 @@
 (defn gen-vertex [x y u v color]
   (doall (concat [x y 0 1 u v] color)))
 
-(defn gen-quad [textureset cell size-half flip-vert]
+(defn gen-quad [anim-data cell size-half flip-vert]
   (let [x (:x cell)
         y (:y cell)
         x0 (- x size-half)
         y0 (- y size-half)
         x1 (+ x size-half)
         y1 (+ y size-half)
-        [[u0 v0] [u1 v1]] (anim-uvs textureset (:image cell))
-        [v0 v1] (if flip-vert (flip v0 v1) [v0 v1])
+        [[u0 v0] [u1 v1] [u2 v2] [u3 v3]] (anim-uvs anim-data (:image cell))
         color (if (:color cell) (:color cell) [1 1 1 1])]
     [(gen-vertex x0 y0 u0 v0 color)
-     (gen-vertex x1 y0 u1 v0 color)
-     (gen-vertex x0 y1 u0 v1 color)
-     (gen-vertex x1 y0 u1 v0 color)
-     (gen-vertex x1 y1 u1 v1 color)
-     (gen-vertex x0 y1 u0 v1 color)]))
+     (gen-vertex x1 y0 u3 v3 color)
+     (gen-vertex x0 y1 u1 v1 color)
+     (gen-vertex x1 y0 u3 v3 color)
+     (gen-vertex x1 y1 u2 v2 color)
+     (gen-vertex x0 y1 u1 v1 color)]))
 
-(defn cells->quads [textureset cells size-half flip-vert]
-  (mapcat (fn [cell] (gen-quad textureset cell size-half flip-vert)) cells))
+(defn cells->quads [anim-data cells size-half flip-vert]
+  (mapcat (fn [cell] (gen-quad anim-data cell size-half flip-vert)) cells))
 
 (defn gen-palette-vertex-buffer
-  [textureset layout size-half active-brush]
+  [anim-data layout size-half active-brush]
   (let [cell-count (reduce (fn [v0 v1] (+ v0 (count (:cells v1)))) 0 layout)
         vbuf  (->texture-vtx (* 6 cell-count))]
     (doseq [group layout]
-      (doseq [vertex (cells->quads textureset (map (fn [cell] (if (= active-brush (:image cell)) cell (assoc cell :color [0.9 0.9 0.9 0.6]))) (:cells group)) palette-cell-size-half false)]
+      (doseq [vertex (cells->quads anim-data (map (fn [cell] (if (= active-brush (:image cell)) cell (assoc cell :color [0.9 0.9 0.9 0.6]))) (:cells group)) palette-cell-size-half false)]
         (conj! vbuf vertex)))
     (persistent! vbuf)))
 
 (def active-cell (atom {}))
 
 (defn gen-level-vertex-buffer
-  [textureset layout size-half]
+  [anim-data layout size-half]
   (let [cell-count (count layout)
         vbuf  (->texture-vtx (* 6 cell-count))]
-    (doseq [vertex (cells->quads textureset layout cell-size-half true)]
+    (doseq [vertex (cells->quads anim-data layout cell-size-half true)]
       (conj! vbuf vertex))
     (persistent! vbuf)))
 
@@ -259,9 +256,9 @@
    :content (with-out-str (pprint level))})
 
 (g/defnk produce-scene
-   [self aabb level gpu-texture textureset]
+   [self aabb level gpu-texture anim-data]
    (let [level-layout (layout-level level)
-         level-vertex-binding (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half) shader)]
+         level-vertex-binding (vtx/use-with (gen-level-vertex-buffer anim-data level-layout cell-size-half) shader)]
      {:id (g/node-id self)
       :aabb aabb
       :renderable {:render-fn (fn [gl render-args renderables count] (render-level gl level gpu-texture level-vertex-binding level-layout))
@@ -274,7 +271,7 @@
   (property width        g/Int (default 1))
   (property height       g/Int (default 1))
 
-  (input textureset g/Any)
+  (input anim-data g/Any)
   (input gpu-texture g/Any)
 
   (output level g/Any (g/fnk [blocks width height] {:width width :height height :blocks blocks}))
@@ -294,8 +291,11 @@
         (g/set-property self :width (:width level))
         (g/set-property self :height (:height level))
         (g/set-property self :blocks (:blocks level))
-        (g/connect atlas-node :gpu-texture self :gpu-texture)
-        (g/connect atlas-node :textureset  self :textureset)))))
+        (let [outputs (-> atlas-node g/node-type g/output-labels)]
+          (if (every? #(contains? outputs %) [:anim-data :gpu-texture])
+            [(g/connect atlas-node :anim-data self :anim-data)
+             (g/connect atlas-node :gpu-texture self :gpu-texture)]
+            []))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

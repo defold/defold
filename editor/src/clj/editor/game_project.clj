@@ -83,10 +83,12 @@
 (defn load-game-project [project self input]
   (let [content (slurp input)
         properties (parse-properties (BufferedReader. (StringReader. content)))
-        main-collection (root-node self properties "bootstrap" "main_collection")]
+        main-collection (root-node self properties "bootstrap" "main_collection")
+        input-binding (root-node self properties "input" "game_binding")]
     (concat
       (g/set-property self :content content)
-      (g/connect main-collection :build-targets self :dep-build-targets))))
+      (g/connect main-collection :build-targets self :dep-build-targets)
+      (g/connect input-binding :build-targets self :dep-build-targets))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

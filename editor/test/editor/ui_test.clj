@@ -57,11 +57,15 @@
       (enabled? [selection] true)
       (run [selection] 123))
 
+  (handler/defhandler :save :global
+    (enabled? [selection] true)
+    (run [selection] 124))
+
   (let [root (Pane.)
         scene (ui/run-now (Scene. root))
         selection-provider (TestSelectionProvider. [])
-        command-context {}]
-   (let [menus (#'ui/make-menu (#'ui/make-desc nil ::my-menu) (#'ui/realize-menu ::my-menu))]
+        command-context {:name :global :env {:selection []}}]
+   (let [menus (#'ui/make-menu (#'ui/make-desc nil ::my-menu) (#'ui/realize-menu ::my-menu) [command-context])]
      (is (= 1 (count menus)))
      (is (instance? Menu (first menus)))
      (is (= 2 (count (.getItems (first menus)))))
@@ -76,18 +80,18 @@
   (let [root (Pane.)
         scene (ui/run-now (Scene. root))
         selection-provider (TestSelectionProvider. [])
-        command-context {}]
+        command-context {:name :global :env {:selection []}}]
     (.setId root "toolbar")
     (ui/register-toolbar scene "#toolbar" ::my-menu)
-    (ui/run-now (ui/refresh scene))
-    (let [c1 (ui/run-now (ui/refresh scene) (.getChildren root))
-          c2 (ui/run-now (ui/refresh scene) (.getChildren root))]
+    (ui/run-now (ui/refresh scene [command-context]))
+    (let [c1 (ui/run-now (ui/refresh scene [command-context]) (.getChildren root))
+          c2 (ui/run-now (ui/refresh scene [command-context]) (.getChildren root))]
       (is (= 1 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))
 
     (ui/extend-menu ::extra ::open
                     [{:label "Save"}])
-    (ui/run-now (ui/refresh scene))
+    (ui/run-now (ui/refresh scene [command-context]))
     (is (= 2 (count (.getChildren root))))))
 
 (deftest menubar-test
@@ -95,25 +99,35 @@
                   [{:label "File"
                     :children
                     [{:label "Open"
-                      :id ::open}]}])
+                      :id ::open
+                      :command :open}]}])
+
+  (handler/defhandler :open :global
+    (enabled? [selection] true)
+    (run [selection] 123))
+
+  (handler/defhandler :save :global
+    (enabled? [selection] true)
+    (run [selection] 124))
 
   (let [root (Pane.)
         scene (ui/run-now (Scene. root))
         selection-provider (TestSelectionProvider. [])
-        command-context {}
+        command-context {:name :global :env {:selection []}}
         menubar (MenuBar.)]
     (ui/run-now (.add (.getChildren root) menubar))
     (.setId menubar "menubar")
     (ui/register-menubar scene "#menubar" ::my-menu)
-    (ui/run-now (ui/refresh scene))
-    (let [c1 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))
-          c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
+    (ui/run-now (ui/refresh scene [command-context]))
+    (let [c1 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))
+          c2 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))]
       (is (= 1 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))
     (ui/extend-menu ::extra ::open
-                    [{:label "Save"}])
-    (ui/run-now (ui/refresh scene))
-    (let [c1 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))
-          c2 (ui/run-now (ui/refresh scene) (.getItems (first (.getMenus menubar))))]
+                    [{:label "Save"
+                      :command :save}])
+    (ui/run-now (ui/refresh scene [command-context]))
+    (let [c1 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))
+          c2 (ui/run-now (ui/refresh scene [command-context]) (.getItems (first (.getMenus menubar))))]
       (is (= 2 (count c1) (count c2)))
       (is (= (.get c1 0) (.get c2 0))))))
