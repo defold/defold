@@ -237,7 +237,7 @@
   (property image (g/protocol workspace/Resource))
   (property default-animation g/Str)
   (property material (g/protocol workspace/Resource))
-  (property blend-mode g/Any (default :BLEND_MODE_ALPHA) (tag Sprite$SpriteDesc$BlendMode))
+  (property blend-mode g/Any (default :BLEND_MODE_ALPHA) #_(tag Sprite$SpriteDesc$BlendMode))
 
   (trigger reconnect :property-touched #'reconnect)
 
