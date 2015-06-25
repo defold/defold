@@ -3,7 +3,10 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [potemkin.namespaces :as namespaces]))
+            [potemkin.namespaces :as namespaces]
+            [schema.core :as s]))
+
+(defn schema? [x] (satisfies? s/Schema x))
 
 (defn var-get-recursive [var-or-value]
   (if (var? var-or-value)
