@@ -100,13 +100,6 @@
   `(Platform/runLater
     (fn [] ~@body)))
 
-(defn user-data! [^Node node key val]
-  (let [ud (or (.getUserData node) {})]
-    (.setUserData node (assoc ud key val))))
-
-(defn user-data [^Node node key]
-  (get (.getUserData node) key))
-
 (defmacro event-handler [event & body]
   `(reify EventHandler
      (handle [this ~event]
@@ -114,23 +107,6 @@
 
 (defn scene [^Node node]
   (.getScene node))
-
-(defn context! [^Node node name env selection-provider]
-  (user-data! node ::context {:name name
-                              :env env
-                              :selection-provider selection-provider}))
-
-(defn- contexts []
-  (let [main-scene (.getScene ^Stage @*main-stage*)
-        initial-node (or (.getFocusOwner main-scene) (.getRoot main-scene))]
-    (->>
-     (loop [^Node node initial-node
-            ctxs []]
-       (if-not node
-         ctxs
-         (recur (.getParent node) (conj ctxs (user-data node ::context)))))
-     (remove nil?)
-     (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
 
 (defn add-style! [^Node node ^String class]
   (.add (.getStyleClass node) class))
@@ -169,6 +145,20 @@
 (defprotocol Text
   (text [this])
   (text! [this val]))
+
+(defprotocol HasUserData
+  (user-data [this key])
+  (user-data! [this key val]))
+
+(extend-type Node
+  HasUserData
+  (user-data [this key] (get (.getUserData this) key))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
+
+(extend-type MenuItem
+  HasUserData
+  (user-data [this key] (get (.getUserData this) key))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
 
 (defprotocol HasAction
   (on-action! [this fn]))
@@ -267,6 +257,24 @@
                       (.getSelectedItems)
                       (vec))))
 
+
+(defn context! [^Node node name env selection-provider]
+  (user-data! node ::context {:name name
+                              :env env
+                              :selection-provider selection-provider}))
+
+(defn- contexts []
+  (let [main-scene (.getScene ^Stage @*main-stage*)
+        initial-node (or (.getFocusOwner main-scene) (.getRoot main-scene))]
+    (->>
+     (loop [^Node node initial-node
+            ctxs []]
+       (if-not node
+         ctxs
+         (recur (.getParent node) (conj ctxs (user-data node ::context)))))
+     (remove nil?)
+     (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
+
 (defn extend-menu [id location menu]
   (swap! *menus* assoc id {:location location
                            :menu menu}))
@@ -322,7 +330,7 @@
                   (.setGraphic menu-item (jfx/get-image-view icon)))
                 (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
                 (.setOnAction menu-item (event-handler event (handler/run command command-contexts user-data)))
-                (.setUserData menu-item user-data)
+                (user-data! menu-item ::menu-user-data user-data)
                 menu-item))))))))
 
 (defn- make-menu [menu command-contexts]
@@ -371,7 +379,7 @@
   (doseq [m (.getItems menu)]
     (if (instance? Menu m)
       (refresh-menu-state m command-contexts)
-      (.setDisable ^MenuItem m (not (handler/enabled? (keyword (.getId ^MenuItem m)) command-contexts (.getUserData ^MenuItem m)))))))
+      (.setDisable ^MenuItem m (not (handler/enabled? (keyword (.getId ^MenuItem m)) command-contexts (user-data m ::menu-user-data)))))))
 
 (defn- refresh-menubar-state [^MenuBar menubar command-contexts]
   (doseq [m (.getMenus menubar)]
@@ -397,7 +405,7 @@
        (let [button (ToggleButton. (or (handler/label command command-contexts user-data) (:label menu-item)))
              icon (:icon menu-item)
              selection-provider (:selection-provider td)]
-         (user-data! button :menu-user-data user-data)
+         (user-data! button ::menu-user-data user-data)
          (when icon
            (.setGraphic button (jfx/get-image-view icon)))
          (when command
@@ -409,10 +417,10 @@
   (let [nodes (.getChildren toolbar)
         ids (map #(.getId ^Node %) nodes)]
     (doseq [^Node n nodes
-            :let [menu-user-data (user-data n :menu-user-data)]]
-      (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-contexts menu-user-data)))
+            :let [user-data (user-data n ::menu-user-data)]]
+      (.setDisable n (not (handler/enabled? (keyword (.getId n)) command-contexts user-data)))
       (when (instance? ToggleButton n)
-        (if (handler/state (keyword (.getId n)) command-contexts menu-user-data)
+        (if (handler/state (keyword (.getId n)) command-contexts user-data)
          (.setSelected ^Toggle n true)
          (.setSelected ^Toggle n false))))))
 
