@@ -35,7 +35,12 @@
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
                    content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                   exp-paths [path "/main/main.collection" "/input/game.input_binding"]]
+                   exp-paths [path
+                              "/main/main.collection"
+                              "/main/main.script"
+                              "/input/game.input_binding"
+                              "/builtins/render/default.render"
+                              "/builtins/render/default.render_script"]]
                (doseq [path exp-paths]
                  (is (contains? content-by-source path)))
                (let [content (get content-by-source "/main/main.collection")
@@ -72,6 +77,9 @@
                    (doseq [inst instances]
                      (is (every? ids (.getChildrenList inst))))))))))
 
+(defn- count-exts [paths ext]
+  (count (filter #(.endsWith % ext) paths)))
+
 (deftest merge-gos
   (testing "Verify equivalent game objects are merged"
            (with-clean-system
@@ -85,7 +93,8 @@
                                                              build-results))
                              content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
                                                              build-results))]]
-                 (is (= 3 (count build-results)))
+                 (is (= 1 (count-exts (keys content-by-target) "goc")))
+                 (is (= 1 (count-exts (keys content-by-target) "spritec")))
                  (let [content (get content-by-source path)
                       desc (GameObject$CollectionDesc/parseFrom content)
                       target-paths (set (map #(workspace/proj-path (:resource %)) build-results))]
@@ -113,12 +122,16 @@
                                                      build-results))
                      content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
                                                      build-results))]
-                 (is (= 3 (count build-results)))
+                 (is (= 1 (count-exts (keys content-by-target) "goc")))
+                 (is (= 1 (count-exts (keys content-by-target) "spritec")))
                  (let [go-node (first-source (first-source resource-node :child-scenes) :source)
                        comp-node (first-source go-node :child-scenes)]
                    (g/transact (g/delete-node comp-node))
-                   (let [build-results (project/build project resource-node)]
-                     (is (= 4 (count build-results))))))))))
+                   (let [build-results (project/build project resource-node)
+                         content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
+                                                         build-results))]
+                     (is (= 1 (count-exts (keys content-by-target) "goc")))
+                     (is (= 1 (count-exts (keys content-by-target) "spritec"))))))))))
 
 (deftest build-cached
   (testing "Verify the build cache works as expected"

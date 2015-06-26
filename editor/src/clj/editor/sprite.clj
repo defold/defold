@@ -194,17 +194,23 @@
      scene)))
 
 (defn- build-sprite [self basis resource dep-resources user-data]
-  {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc (:proto-msg user-data))})
+  (let [pb (:proto-msg user-data)
+        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
+    {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc pb)}))
 
 (g/defnk produce-build-targets [node-id resource image default-animation material blend-mode dep-build-targets]
-  [{:node-id node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-sprite
-    :user-data {:proto-msg {:tile-set (workspace/proj-path image)
-                            :default-animation default-animation
-                            :material (workspace/proj-path material)
-                            :blend-mode blend-mode}}
-    :deps dep-build-targets}])
+  (let [dep-build-targets (flatten dep-build-targets)
+        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:tile-set image] [:material material]])]
+    [{:node-id node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-sprite
+      :user-data {:proto-msg {:tile-set (workspace/proj-path image)
+                              :default-animation default-animation
+                              :material (workspace/proj-path material)
+                              :blend-mode blend-mode}
+                  :dep-resources dep-resources}
+      :deps dep-build-targets}]))
 
 (defn- connect-atlas [project self image]
   (if-let [atlas-node (project/get-resource-node project image)]
@@ -243,7 +249,7 @@
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
-  (input dep-build-targets g/Any)
+  (input dep-build-targets g/Any :array)
 
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
@@ -268,7 +274,10 @@
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
-      (connect-atlas project self image))))
+      (connect-atlas project self image)
+      (if-let [material-node (project/get-resource-node project material)]
+        (g/connect material-node :build-targets self :dep-build-targets)
+        []))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
