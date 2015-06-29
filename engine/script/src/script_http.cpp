@@ -82,15 +82,20 @@ namespace dmScript
                 while (lua_next(L, -2)) {
                     const char* attr = lua_tostring(L, -2);
                     const char* val = lua_tostring(L, -1);
-                    uint32_t left = h.Capacity() - h.Size();
-                    uint32_t required = strlen(attr) + strlen(val) + 2;
-                    if (left < required) {
-                        h.OffsetCapacity(dmMath::Max(required, 1024U));
+                    if (attr && val) {
+                        uint32_t left = h.Capacity() - h.Size();
+                        uint32_t required = strlen(attr) + strlen(val) + 2;
+                        if (left < required) {
+                            h.OffsetCapacity(dmMath::Max(required, 1024U));
+                        }
+                        h.PushArray(attr, strlen(attr));
+                        h.Push(':');
+                        h.PushArray(val, strlen(val));
+                        h.Push('\n');
+                    } else {
+                        // luaL_error would be nice but that would evade call to 'h' destructor
+                        dmLogWarning("Ignoring non-string data passed as http request header data");
                     }
-                    h.PushArray(attr, strlen(attr));
-                    h.Push(':');
-                    h.PushArray(val, strlen(val));
-                    h.Push('\n');
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);
