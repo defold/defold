@@ -31,6 +31,10 @@ into an arglist."
   "like filter but applys the predicate to each key value pair of the map"
   (into {} (filter pred m)))
 
+(defn key-set
+  [m]
+  (set (keys m)))
+
 (defn map-keys
   [f m]
   (reduce-kv (fn [m k v] (assoc m (f k) v)) (empty m) m))

@@ -124,6 +124,8 @@
                              (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
 
 (g/defnode OverrideValueNode
+  (property int-prop g/Int)
+  (property name g/Str)
   (input overridden g/Str)
   (output output g/Str (g/fnk [overridden] overridden))
   (output foo    g/Str (g/fnk [an-input] an-input)))

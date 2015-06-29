@@ -149,7 +149,7 @@
   (input context g/Int :inject))
 
 (defn- create-simulated-project [world]
-  (first (tx-nodes (g/make-node world core/Scope :tag :project))))
+  (first (tx-nodes (g/make-node world core/Scope))))
 
 (deftest adding-nodes-in-nested-scopes
   (testing "one consumer in a nested scope"

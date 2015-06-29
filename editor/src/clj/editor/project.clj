@@ -14,6 +14,7 @@ ordinary paths."
   (inherits core/Scope)
 
   (property resource (g/protocol workspace/Resource) (visible (g/fnk [] false)))
+  (property resource-type g/Any)
   (property project-id g/Any (visible (g/fnk [] false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
