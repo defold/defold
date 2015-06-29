@@ -92,7 +92,7 @@
   (if (.isFile file) (.getParentFile file) file))
 
 (handler/defhandler :new-folder :asset-browser
-  (enabled? [selection] (and (= (count selection) 1)))
+  (enabled? [selection] (and (= (count selection) 1) (not= nil (workspace/abs-path (first selection)))))
   (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))
                          base-folder (to-folder f)]
                      (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
