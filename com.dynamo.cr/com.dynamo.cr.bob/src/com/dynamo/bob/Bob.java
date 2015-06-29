@@ -167,7 +167,7 @@ public class Bob {
         options.addOption("o", "output", true, "Output directory. Default is \"build/default\"");
         options.addOption("i", "input", true, "Source directory. Default is current directory");
         options.addOption("v", "verbose", false, "Verbose output");
-        options.addOption("h", "help", false, "This help directory");
+        options.addOption("h", "help", false, "This help message");
         options.addOption("a", "archive", false, "Build archive");
         options.addOption("e", "email", true, "User email");
         options.addOption("u", "auth", true, "User auth token");
@@ -183,8 +183,8 @@ public class Bob {
 
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
 
-        options.addOption("tp", "texture-profiles", true, "Use texture profiles.");
-        options.addOption("k", "keep-unused", false, "Keep unused resources in archived output.");
+        options.addOption("tp", "texture-profiles", true, "Use texture profiles");
+        options.addOption("k", "keep-unused", false, "Keep unused resources in archived output");
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
