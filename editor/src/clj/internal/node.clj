@@ -643,7 +643,7 @@
 
 (defn- state-vector
   [node-type]
-  (conj (mapv (comp symbol name) (keys (gt/properties node-type))) '_id ))
+  (mapv (comp symbol name) (keys (gt/properties node-type))))
 
 (defn- subtract-keys
   [m1 m2]
