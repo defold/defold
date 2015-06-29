@@ -132,8 +132,9 @@
   (output outline g/Any :cached (g/fnk [node-id def] {:node-id node-id :label (:label def) :icon (:icon def)})))
 
 (defn- connect-build-targets [self path]
-  (let [resource-node (project/resolve-resource-node self path)]
-    (g/connect resource-node :build-targets self :dep-build-targets)))
+  (if-let [resource-node (project/resolve-resource-node self path)]
+    (g/connect resource-node :build-targets self :dep-build-targets)
+    []))
 
 (defn load-pb [project self input def]
   (let [pb (protobuf/read-text (:pb-class def) input)
