@@ -240,7 +240,7 @@
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image (g/protocol workspace/Resource))
+  (property image (g/maybe (g/protocol workspace/Resource)))
   (property default-animation g/Str)
   (property material (g/protocol workspace/Resource))
   (property blend-mode g/Any (default :BLEND_MODE_ALPHA) #_(tag Sprite$SpriteDesc$BlendMode))
