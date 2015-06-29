@@ -38,8 +38,7 @@
               {:ext "material"
                :icon "icons/pictures.png"
                :pb-class Material$MaterialDesc
-               ; TODO shaders
-               :resource-fields []}
+               :resource-fields [:vertex-program :fragment-program]}
               {:ext "factory"
                :label "Factory"
                :icon "icons/pictures.png"

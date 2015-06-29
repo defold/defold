@@ -84,11 +84,14 @@ Here is an example that uses a uniform variable to be set by the application.
 There are some examples in the testcases in dynamo.shader.translate-test."
 (:require [clojure.string :as string]
           [clojure.walk :as walk]
+          [dynamo.graph :as g]
           [editor.buffers :refer [bbuf->string]]
-          [editor.geom :as g]
+          [editor.geom :as geom]
           [editor.gl :as gl]
           [editor.gl.protocols :refer [GlBind GlEnable]]
-          [editor.types :as types])
+          [editor.types :as types]
+          [editor.workspace :as workspace]
+          [editor.project :as project])
 (:import [java.nio IntBuffer ByteBuffer]
          [javax.media.opengl GL GL2 GLContext]
          [javax.vecmath Matrix4d Vector4f Point3d]))
@@ -283,7 +286,7 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defmethod set-uniform-at-index Matrix4d
   [^GL2 gl progn loc val]
-  (.glUniformMatrix4fv gl loc 1 false (float-array (g/as-array val)) 0))
+  (.glUniformMatrix4fv gl loc 1 false (float-array (geom/as-array val)) 0))
 
 (defmethod set-uniform-at-index Vector4f
   [^GL2 gl progn loc ^Vector4f val]
@@ -413,3 +416,58 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (make-shader
     (slurp (types/replace-extension sdef "vp"))
     (slurp (types/replace-extension sdef "fp"))))
+
+(def shader-defs [{:ext "vp"
+                   :icon "icons/pictures.png"
+                   :prefix (string/join "\n" ["#ifndef GL_ES"
+                                              "#define lowp"
+                                              "#define mediump"
+                                              "#define highp"
+                                              "#endif"
+                                              ""])}
+                  {:ext "fp"
+                   :icon "icons/pictures.png"
+                   :prefix (string/join "\n" ["#ifdef GL_ES"
+                                              "precision mediump float;"
+                                              "#endif"
+                                              "#ifndef GL_ES"
+                                              "#define lowp"
+                                              "#define mediump"
+                                              "#define highp"
+                                              "#endif"
+                                              ""])}])
+
+(defn- build-shader [self basis resource dep-resources user-data]
+  {:resource resource :content (.getBytes (str (get-in user-data [:def :prefix]) (:source user-data)))})
+
+(g/defnk produce-build-targets [node-id resource source def]
+  [{:node-id node-id
+    :resource (workspace/make-build-resource resource)
+    :build-fn build-shader
+    :user-data {:source source
+                :def def}}])
+
+(g/defnode ShaderNode
+  (inherits project/ResourceNode)
+
+  (property source g/Str)
+  (property def g/Any)
+
+  (output build-targets g/Any produce-build-targets))
+
+(defn- load-shader [project self input def]
+  (let [source (slurp input)]
+    (concat
+      (g/set-property self :source source)
+      (g/set-property self :def def))))
+
+(defn- register [workspace def]
+  (workspace/register-resource-type workspace
+                                   :ext (:ext def)
+                                   :node-type ShaderNode
+                                   :load-fn (fn [project self input] (load-shader project self input def))
+                                   :icon (:icon def)))
+
+(defn register-resource-types [workspace]
+  (for [def shader-defs]
+    (register workspace def)))
