@@ -296,62 +296,64 @@
   (let [exts (collect-menu-extensions)]
     (do-realize-menu (:menu (get @*menus* id)) exts)))
 
-(def ^:private make-menu nil)
-
 (defn- make-desc [control menu-id]
   {:control control
    :menu-id menu-id})
 
-(defn- build-child-menu [label icon child-menu]
-  (when (seq child-menu)
+(defn- make-submenu [label icon menu-items]
+  (when (seq menu-items)
     (let [menu (Menu. label)]
       (when icon
         (.setGraphic menu (jfx/get-image-view icon)))
-      (doseq [i child-menu]
-        (.add (.getItems menu) i))
+      (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(defn- create-menu-item [item command-contexts]
-  (let [icon (:icon item)]
+(defn- make-menu-command [label icon acc command command-contexts user-data]
+  (let [menu-item (MenuItem. label)]
+    (when command
+      (.setId menu-item (name command)))
+    (when acc
+      (.setAccelerator menu-item (KeyCombination/keyCombination acc)))
+    (when icon
+      (.setGraphic menu-item (jfx/get-image-view icon)))
+    (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
+    (.setOnAction menu-item (event-handler event (handler/run command command-contexts user-data)))
+    (user-data! menu-item ::menu-user-data user-data)
+    menu-item))
+
+(def ^:private make-menu-items nil)
+  
+(defn- make-menu-item [item command-contexts]
+  (let [icon (:icon item),
+        item-label (:label item)]
     (if-let [children (:children item)]
-      (build-child-menu (:label item) icon (make-menu children command-contexts))
-      (let [command (:command item)
-            user-data (:user-data item)]
-        (when (handler/active? command command-contexts user-data)
-          (let [label (or (handler/label command command-contexts user-data) (:label item))]
-            (if-let [options (handler/options command command-contexts user-data)]
-              (build-child-menu label icon (make-menu options command-contexts))
-              (let [menu-item (MenuItem. label)]
-                (when command
-                  (.setId menu-item (name command)))
-                (when-let [acc (:acc item)]
-                  (.setAccelerator menu-item (KeyCombination/keyCombination acc)))
-                (when icon
-                  (.setGraphic menu-item (jfx/get-image-view icon)))
-                (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
-                (.setOnAction menu-item (event-handler event (handler/run command command-contexts user-data)))
-                (user-data! menu-item ::menu-user-data user-data)
-                menu-item))))))))
+      (make-submenu item-label icon (make-menu-items children command-contexts))
+      (if (= item-label :separator)
+        (SeparatorMenuItem.)
+        (let [command (:command item)
+              user-data (:user-data item)]
+          (when (handler/active? command command-contexts user-data)
+            (let [label (or (handler/label command command-contexts user-data) item-label)]
+              (if-let [options (handler/options command command-contexts user-data)]
+                (make-submenu label icon (make-menu-items options command-contexts))
+                (make-menu-command label icon (:acc item) command command-contexts user-data)))))))))
 
-(defn- make-menu [menu command-contexts]
+(defn- make-menu-items [menu command-contexts]
   (->> menu
-       (map (fn [item] (if (= :separator (:label item))
-                          (SeparatorMenuItem.)
-                          (create-menu-item item command-contexts))))
-       (remove nil?)
-       (vec)))
+       (map (fn [item] (make-menu-item item command-contexts)))
+       (remove nil?)))
 
-(defn- populate-context-menu [^ContextMenu context-menu desc menu command-contexts]
-  (let [items (make-menu menu command-contexts)]
-    (.addAll (.getItems context-menu) (to-array items))))
+(defn- ^ContextMenu make-context-menu [menu-items]
+  (let [^ContextMenu context-menu (ContextMenu.)]
+    (.addAll (.getItems context-menu) (to-array menu-items))
+    context-menu))
 
 (defn register-context-menu [^Control control menu-id]
   (let [desc (make-desc control menu-id)]
     (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
       (event-handler event
                      (when-not (.isConsumed event)
-                       (let [^ContextMenu cm (ContextMenu.) ]
-                         (populate-context-menu cm desc (realize-menu menu-id) (contexts))
+                       (let [cm (make-context-menu (make-menu-items (realize-menu menu-id) (contexts)))]
                          ; Required for autohide to work when the event originates from the anchor/source control
                          ; See RT-15160 and Control.java
                          (.setImpl_showRelativeToWindow cm true)
@@ -372,7 +374,7 @@
    (when-not (= menu (user-data control ::menu))
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
-     (.addAll (.getMenus control) (to-array (make-menu menu command-contexts)))
+     (.addAll (.getMenus control) (to-array (make-menu-items menu command-contexts)))
      (user-data! control ::menu menu))))
 
 (defn- refresh-menu-state [^Menu menu command-contexts]
