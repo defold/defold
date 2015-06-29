@@ -1261,7 +1261,7 @@ namespace dmGui
      *
      * @name gui.get_flipbook
      * @param node node to get flipbook animation from (node)
-     * @param animation animation id (hash)
+     * @return animation animation id (hash)
      */
     static int LuaGetFlipbook(lua_State* L)
     {
