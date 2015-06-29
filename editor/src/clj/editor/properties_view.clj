@@ -20,7 +20,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -67,6 +67,12 @@
         setter #(ui/text! text (str %))]
     (.setOnAction text (ui/event-handler event (on-new-value (to-int (.getText text)))))
     [text setter]))
+
+(defmethod create-property-control! g/Bool [_ workspace on-new-value]
+  (let [check (CheckBox.)
+        setter #(.setSelected check (boolean %))]
+    (.setOnAction check (ui/event-handler event (on-new-value (.isSelected check))))
+    [check setter]))
 
 (defn- to-double [s]
   (try
