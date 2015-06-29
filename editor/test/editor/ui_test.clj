@@ -65,11 +65,11 @@
         scene (ui/run-now (Scene. root))
         selection-provider (TestSelectionProvider. [])
         command-context {:name :global :env {:selection []}}]
-   (let [menus (#'ui/make-menu (#'ui/realize-menu ::my-menu) [command-context])]
-     (is (= 1 (count menus)))
-     (is (instance? Menu (first menus)))
-     (is (= 2 (count (.getItems (first menus)))))
-     (is (instance? MenuItem (first (.getItems (first menus))))))))
+   (let [menu-items (#'ui/make-menu-items (#'ui/realize-menu ::my-menu) [command-context])]
+     (is (= 1 (count menu-items)))
+     (is (instance? Menu (first menu-items)))
+     (is (= 2 (count (.getItems (first menu-items)))))
+     (is (instance? MenuItem (first (.getItems (first menu-items))))))))
 
 
 (deftest options-menu-test
@@ -88,7 +88,7 @@
                                                :user-data 2}])))
 
   (let [command-context {:name :global :env {}}]
-    (let [menu-items (#'ui/make-menu (#'ui/realize-menu ::my-menu) [command-context])]
+    (let [menu-items (#'ui/make-menu-items (#'ui/realize-menu ::my-menu) [command-context])]
       (is (= 1 (count menu-items)))
       (is (= 1 (count (.getItems (first menu-items))))))))
 
