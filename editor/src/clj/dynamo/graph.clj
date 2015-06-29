@@ -653,8 +653,8 @@
 (defn undo
   [graph]
   (let [snapshot @*the-system*]
-   (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
-     (invalidate! ks))))
+    (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
+      (invalidate! ks))))
 
 (defn undo-stack
   [graph]
@@ -681,3 +681,9 @@
 (defn reset-undo!
   [graph]
   (is/clear-history (is/graph-history @*the-system* graph)))
+
+(defn cancel
+  [graph sequence-id]
+  (let [snapshot @*the-system*]
+    (when-let [ks (is/cancel (is/graph-history snapshot graph) snapshot sequence-id)]
+      (invalidate! ks))))
