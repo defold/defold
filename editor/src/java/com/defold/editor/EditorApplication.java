@@ -18,6 +18,11 @@ public class EditorApplication {
     public EditorApplication(Object startInstance, ClassLoader classLoader) {
         EditorApplication.startInstance = startInstance;
         runtime = ClojureRuntimeShim.newRuntime(classLoader, "editor");
+        new Thread() {
+            public void run() {
+                runtime.invoke("editor.debug/start-server", null);
+            }
+        }.start();
         runtime.require("editor.enable-reflection-warnings");
         runtime.require("editor.boot");
     }
@@ -29,11 +34,6 @@ public class EditorApplication {
     }
 
     public void run(String[] args) {
-        new Thread() {
-            public void run() {
-                runtime.invoke("editor.debug/start-server", null);
-            }
-        }.start();
         runtime.invoke("editor.boot/main", args);
     }
 }
