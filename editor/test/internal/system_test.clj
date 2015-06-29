@@ -8,6 +8,7 @@
             [internal.system :as is]))
 
 (g/defnode Root
+  (property where g/Str)
   (property touched g/Int))
 
 (defn graphs        []    (is/graphs        @g/*the-system*))
@@ -344,6 +345,7 @@
   [])
 
 (g/defnode CountOnDelete
+  (property counter Integer (default 0))
   (input upstream Integer)
   (output downstream Integer (g/fnk [upstream] (inc upstream)))
 
