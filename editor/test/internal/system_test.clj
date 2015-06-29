@@ -228,6 +228,69 @@
 
           (is (undo-redo-state? pgraph-id [nil] [3 2]))))))
 
+  (testing "Canceling the current sequence leaves nothing new in the history"
+    (ts/with-clean-system
+      (let [pgraph-id (g/make-graph! :history true)]
+
+        (is (undo-redo-state? pgraph-id [] []))
+
+        (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
+
+          (is (undo-redo-state? pgraph-id [nil] []))
+
+          (touch root 1 :a)
+          (touch root 2 :b)
+          (touch root 2.1 :b)
+          (touch root 2.2 :b)
+          (touch root 2.3 :b)
+          (touch root 2.4 :b)
+          (touch root 2.5 :b)
+          (touch root 2.6 :b)
+          (touch root 2.7 :b)
+          (touch root 2.8 :b)
+          (touch root 2.9 :b)
+
+          (g/cancel pgraph-id :b)
+
+          (is (undo-redo-state? pgraph-id [nil 1] []))
+
+          (touch root 3 :c)
+
+          (is (undo-redo-state? pgraph-id [nil 1 3] []))
+
+          (g/undo pgraph-id)
+
+          (is (undo-redo-state? pgraph-id [nil 1] [3]))
+
+          (g/undo pgraph-id)
+
+          (is (undo-redo-state? pgraph-id [nil] [3 1]))))))
+
+(testing "Canceling a sequence that is not the current sequence does nothing"
+    (ts/with-clean-system
+      (let [pgraph-id (g/make-graph! :history true)]
+
+        (is (undo-redo-state? pgraph-id [] []))
+
+        (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
+
+          (is (undo-redo-state? pgraph-id [nil] []))
+
+          (touch root 1 :a)
+          (touch root 2 :b)
+          (touch root 2.1 :b)
+          (touch root 2.2 :b)
+          (touch root 2.3 :b)
+          (touch root 2.4 :b)
+          (touch root 2.5 :b)
+          (touch root 2.6 :b)
+          (touch root 2.7 :b)
+          (touch root 2.8 :b)
+          (touch root 2.9 :b)
+
+          (g/cancel pgraph-id :a)
+
+          (is (undo-redo-state? pgraph-id [nil 1 2.9] []))))))
 
   (testing "Cross-graph transactions create an undo point in all affected graphs"
     (ts/with-clean-system
