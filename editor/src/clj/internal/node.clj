@@ -66,12 +66,13 @@
         enabled?          (property-enabled? type kwargs)
         visible?          (property-visible? type kwargs)
         dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
-    (merge dynamics {:node-id             (gt/node-id self)
-                     :value               value
-                     :type                type
-                     :validation-problems problems
-                     :visible             visible?
-                     :enabled             enabled?})))
+    (merge {:visible             visible?
+            :enabled             enabled?}
+           dynamics
+           {:node-id             (gt/node-id self)
+            :value               value
+            :type                type
+            :validation-problems problems})))
 
 (defn gather-properties
   "Production function that delivers the definition and value
