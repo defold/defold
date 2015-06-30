@@ -41,7 +41,7 @@
       (is (every? integer? serial-ids))
       (is (= (count serial-ids) (count (distinct serial-ids))))
       (is (= [ConsumerNode ProducerNode] (map :node-type fragment-nodes)))
-      (is (= {:a-property "foo"} (:properties (first fragment-nodes))))
+      (is (= "foo" (:a-property (:properties (first fragment-nodes)))))
       (is (= 1 (count (:arcs fragment))))
       (is (every? #(instance? Endpoint %) (map first (:arcs fragment))))
       (is (every? #(instance? Endpoint %) (map second (:arcs fragment))))

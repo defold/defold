@@ -10,6 +10,9 @@
 (defprotocol Truncate
   (truncate [this] "Drop all values after the current one"))
 
+(defprotocol Drop
+  (drop-current [this] "Drops the current value"))
+
 (deftype PaperTape [limit limiter on-drop left right]
   clojure.lang.IPersistentCollection
   (seq [this]     (concat left right))
@@ -42,7 +45,11 @@
 
   Truncate
   (truncate [this]
-    (PaperTape. limit limiter on-drop left [])))
+    (PaperTape. limit limiter on-drop left []))
+
+  Drop
+  (drop-current [this]
+    (PaperTape. limit limiter on-drop (pop left) right)))
 
 (defn- make-limiter
   [limit]
