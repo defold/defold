@@ -44,8 +44,8 @@
   (inherits scene/SceneNode)
 
   (property id g/Str)
-  (property embedded (g/maybe g/Bool) (visible (g/fnk [] false)))
-  (property path (g/maybe g/Str) (visible (g/fnk [] false)))
+  (property embedded g/Bool (visible (g/fnk [] false)))
+  (property path  g/Str (visible (g/fnk [] false)))
 
   (input source g/Any)
   (input outline g/Any)

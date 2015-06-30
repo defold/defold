@@ -326,7 +326,7 @@
   (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
                                                       (.order (ByteOrder/nativeOrder))
                                                       (.asIntBuffer))))
-  (output drawable (g/maybe GLAutoDrawable) :cached produce-drawable)
+  (output drawable  GLAutoDrawable :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
   (output frame BufferedImage :cached produce-frame)
   (output picking-selection g/Any :cached produce-selection)
@@ -348,7 +348,7 @@
   (property image-view ImageView)
   (property viewport Region (default (types/->Region 0 0 0 0)))
   (property repainter AnimationTimer)
-  (property picking-rect (g/maybe Rect))
+  (property picking-rect  Rect)
 
   (input frame BufferedImage)
   (input scene g/Any)
@@ -592,10 +592,10 @@
 
 (g/defnode SelectionController
   (property select-fn Runnable)
-  (property start (g/maybe types/Vec3))
-  (property current (g/maybe types/Vec3))
+  (property start types/Vec3)
+  (property current types/Vec3)
   (property op-seq g/Any)
-  (property mode (g/maybe (g/enum :direct :toggle)))
+  (property mode (g/enum :direct :toggle))
   (property prev-selection-set g/Any)
 
   (input selection g/Any)
