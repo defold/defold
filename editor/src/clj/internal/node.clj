@@ -469,10 +469,10 @@
   [record-name node-type argument output]
   (cond
     (property-overloads-output? node-type argument output)
-    (property-schema node-type argument)
+    (s/maybe (property-schema node-type argument))
 
     (unoverloaded-output? node-type argument output)
-    (gt/output-type node-type argument)
+    (s/maybe (gt/output-type node-type argument))
 
     (has-multivalued-input? node-type argument)
     (s/maybe [(gt/input-type node-type argument)])
@@ -481,13 +481,13 @@
     (s/maybe (gt/input-type node-type argument))
 
     (has-output? node-type argument)
-    (gt/output-type node-type argument)
+    (s/maybe (gt/output-type node-type argument))
 
     (= :this argument)
     record-name
 
     (has-property? node-type argument)
-    (property-schema node-type argument)))
+    (s/maybe (property-schema node-type argument))))
 
 (defn- collect-argument-schema
   "Return a schema with the production function's input names mapped to the node's corresponding input type."
