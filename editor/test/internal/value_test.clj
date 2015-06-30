@@ -334,3 +334,20 @@
        (let [[node1] (tx-nodes (g/make-node world StringInputIntOutputNode))]
          (g/transact (g/connect node1 :int-output node1 :string-input))
          (is (thrown-with-msg? Exception #"Error Value Found in Node" (g/node-value node1 :combined))))))))
+
+(g/defnode NilPropertyNode
+  (property could-be-nil g/Str)
+  (input bar g/Str)
+  (input bar-with-subsitute g/Str :substitute "I am now ok.")
+  (output baz g/Str (g/fnk [bar] bar))
+  (output baz-with-substitute g/Str (g/fnk [bar-with-subsitute] bar-with-subsitute)))
+
+(deftest node-properties-and-inputs-handle-nils-with-substitutes
+  (with-clean-system
+    (let [[node] (tx-nodes (g/make-node world NilPropertyNode))
+          properties (g/properties NilPropertyNode)
+          could-be-nil-property (first (filter (fn [[k v ]] (= k :could-be-nil)) properties))]
+      (g/connect! node :could-be-nil node :bar)
+      (is (= "I am now ok." (g/node-value node :baz-with-substitute)))
+      (is (nil? (g/node-value node :baz)))
+      (is (= g/Str (g/property-value-type (val could-be-nil-property)))))))
