@@ -40,7 +40,7 @@
 
 (g/defnode VisibilityTestNode
   (input bar g/Str)
-  (property baz g/Str (visible (g/fnk [bar] (not (false? bar))))))
+  (property baz g/Str (visible (g/fnk [bar] (not (nil? bar))))))
 
 (g/defnode SimpleIntTestNode
   (property foo g/Int (default 0)))
