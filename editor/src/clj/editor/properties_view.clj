@@ -53,7 +53,7 @@
 (defmethod create-property-control! String [_ workspace on-new-value]
   (let [text (TextField.)
         setter #(ui/text! text (str %))]
-    (.setOnAction text (ui/event-handler event (on-new-value (.getText text))))
+    (ui/on-action! text (fn [_] (on-new-value (.getText text))))
     [text setter]))
 
 (defn- to-int [s]
@@ -65,13 +65,13 @@
 (defmethod create-property-control! g/Int [_ workspace on-new-value]
   (let [text (TextField.)
         setter #(ui/text! text (str %))]
-    (.setOnAction text (ui/event-handler event (on-new-value (to-int (.getText text)))))
+    (ui/on-action! text (fn [_] (on-new-value (to-int (.getText text)))))
     [text setter]))
 
 (defmethod create-property-control! g/Bool [_ workspace on-new-value]
   (let [check (CheckBox.)
         setter #(.setSelected check (boolean %))]
-    (.setOnAction check (ui/event-handler event (on-new-value (.isSelected check))))
+    (ui/on-action! check (fn [_] (on-new-value (.isSelected check))))
     [check setter]))
 
 (defn- to-double [s]
@@ -87,12 +87,11 @@
         box (HBox.)
         setter (fn [vec]
                  (doseq-indexed [t [x y z] i]
-                   (ui/text! t (str (nth vec i)))))
-        handler (ui/event-handler event (on-new-value (mapv #(to-double (.getText ^TextField %)) [x y z])))]
+                   (ui/text! t (str (nth vec i)))))]
 
     (.setSpacing box 6)
     (doseq [t [x y z]]
-      (.setOnAction ^TextField t handler)
+      (ui/on-action! ^TextField t (fn [_] (on-new-value (mapv #(to-double (.getText ^TextField %)) [x y z]))))
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (.add (.getChildren box) t))
