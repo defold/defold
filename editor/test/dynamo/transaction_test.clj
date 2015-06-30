@@ -12,7 +12,8 @@
   (input a String)
   (output b g/Keyword (fnk [] :ok))
   (output c String upcase-a)
-  (property d String (default 1)))
+  (property d String (default ""))
+  (property marker Integer))
 
 (g/defnode Downstream
   (input consumer g/Keyword))
@@ -20,7 +21,7 @@
 (deftest low-level-transactions
   (testing "one node"
     (with-clean-system
-      (let [tx-result (g/transact (g/make-node world Resource :a "known value"))]
+      (let [tx-result (g/transact (g/make-node world Resource :d "known value"))]
         (is (= :ok (:status tx-result))))))
   (testing "two connected nodes"
     (with-clean-system
@@ -88,12 +89,14 @@
 
 (g/defnode TriggerExecutionCounter
   (input downstream g/Any)
+  (property tracking g/Any)
   (property any-property g/Bool)
   (property dynamic-property g/Any)
 
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity))
 
 (g/defnode PropertySync
+  (property tracking g/Any)
   (property source g/Int (default 0))
   (property sink   g/Int (default -1))
 
@@ -105,6 +108,7 @@
                (it/set-property self :sink (:source self))))))
 
 (g/defnode NameCollision
+  (property tracking g/Any)
   (input    excalibur g/Str)
   (property excalibur g/Str)
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity))
@@ -295,7 +299,7 @@
           real-id          (g/node-id real-node)
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
-      (is (= #{:properties :self :node-id :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (is (= #{:_id :properties :self :node-id :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-node :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
@@ -507,3 +511,16 @@
                              (concat
                               (g/delete-node inner)
                               (g/delete-node outer))))))))))
+
+(g/defnode MyNode
+  (property a-property g/Str))
+
+(deftest make-nodes-complains-about-missing-properties
+  (with-clean-system
+    (is (thrown? AssertionError
+                 (eval `(dynamo.graph/make-nodes ~world [new-node# [MyNode :no-such-property 1]]))))))
+
+(deftest construct-complains-about-missing-properties
+  (with-clean-system
+    (is (thrown? AssertionError
+                 (g/construct MyNode :_id 1 :no-such-property 1)))))

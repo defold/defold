@@ -38,8 +38,7 @@
               {:ext "material"
                :icon "icons/pictures.png"
                :pb-class Material$MaterialDesc
-               ; TODO shaders
-               :resource-fields []}
+               :resource-fields [:vertex-program :fragment-program]}
               {:ext "factory"
                :label "Factory"
                :icon "icons/pictures.png"
@@ -122,8 +121,8 @@
 (g/defnode ProtobufNode
   (inherits project/ResourceNode)
 
-  (property pb g/Any (visible (g/fnk [] false)))
-  (property def g/Any (visible (g/fnk [] false)))
+  (property pb g/Any (dynamic visible (g/fnk [] false)))
+  (property def g/Any (dynamic visible (g/fnk [] false)))
 
   (input dep-build-targets g/Any :array)
 
@@ -133,8 +132,9 @@
   (output outline g/Any :cached (g/fnk [node-id def] {:node-id node-id :label (:label def) :icon (:icon def)})))
 
 (defn- connect-build-targets [self path]
-  (let [resource-node (project/resolve-resource-node self path)]
-    (g/connect resource-node :build-targets self :dep-build-targets)))
+  (if-let [resource-node (project/resolve-resource-node self path)]
+    (g/connect resource-node :build-targets self :dep-build-targets)
+    []))
 
 (defn load-pb [project self input def]
   (let [pb (protobuf/read-text (:pb-class def) input)

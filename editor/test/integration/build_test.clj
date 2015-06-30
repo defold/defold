@@ -35,12 +35,16 @@
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
                    content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   target-exts (into #{} (map #(:build-ext (workspace/resource-type (:resource %))) build-results))
                    exp-paths [path
                               "/main/main.collection"
                               "/main/main.script"
                               "/input/game.input_binding"
                               "/builtins/render/default.render"
-                              "/builtins/render/default.render_script"]]
+                              "/builtins/render/default.render_script"]
+                   exp-exts ["vpc" "fpc"]]
+               (doseq [ext exp-exts]
+                 (is (contains? target-exts ext)))
                (doseq [path exp-paths]
                  (is (contains? content-by-source path)))
                (let [content (get content-by-source "/main/main.collection")
