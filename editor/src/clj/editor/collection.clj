@@ -86,8 +86,8 @@
   (inherits ScalableSceneNode)
 
   (property id g/Str)
-  (property path (g/maybe g/Str) (dynamic visible (g/fnk [embedded] (not embedded))))
-  (property embedded (g/maybe g/Bool) (dynamic visible (g/fnk [] false)))
+  (property path g/Str (dynamic visible (g/fnk [embedded] (not embedded))))
+  (property embedded g/Bool (dynamic visible (g/fnk [] false)))
 
   (input source g/Any)
   (input properties g/Any)
@@ -296,7 +296,7 @@
           (g/connect go-node :outline coll-node :child-outlines)
           (g/connect go-node :scene coll-node :child-scenes)
           (project/select project [go-node])))))))
-  
+
 
 (handler/defhandler :add-from-file :global
   (active? [selection] (and (single-selection? selection)
@@ -364,7 +364,7 @@
   (run [selection] (cond
                      (selected-collection? selection) (add-game-object selection)
                      (selected-embedded-instance? selection) (game-object/add-embedded-component-handler (g/node-value (first selection) :source)))))
-                            
+
 (defn- add-collection-instance [self source-node id position rotation scale]
   (let [path (if source-node (workspace/proj-path (:resource source-node)) "")]
     (g/make-nodes (g/node->graph-id self)
