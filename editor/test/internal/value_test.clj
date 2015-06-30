@@ -344,7 +344,10 @@
 
 (deftest node-properties-and-inputs-handle-nils-with-substitutes
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world NilPropertyNode))]
+    (let [[node] (tx-nodes (g/make-node world NilPropertyNode))
+          properties (g/properties NilPropertyNode)
+          could-be-nil-property (first (filter (fn [[k v ]] (= k :could-be-nil)) properties))]
       (g/connect! node :could-be-nil node :bar)
       (is (= "I am now ok." (g/node-value node :baz-with-substitute)))
-      (is (nil? (g/node-value node :baz))))))
+      (is (nil? (g/node-value node :baz)))
+      (is (= g/Str (g/property-value-type (val could-be-nil-property)))))))
