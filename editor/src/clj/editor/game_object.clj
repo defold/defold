@@ -44,8 +44,8 @@
   (inherits scene/SceneNode)
 
   (property id g/Str)
-  (property embedded (g/maybe g/Bool) (visible (g/fnk [] false)))
-  (property path (g/maybe g/Str) (visible (g/fnk [] false)))
+  (property embedded  g/Bool (dynamic visible (g/fnk [] false)))
+  (property path  g/Str (dynamic visible (g/fnk [] false)))
 
   (input source g/Any)
   (input outline g/Any)
@@ -203,31 +203,46 @@
                     (g/connect comp-node   :outline      self      :outline)
                     (g/connect comp-node   :self         self      :nodes)))))
 
-(defn add-embedded-component-handler [self]
-  (let [project (project/get-project self)
-        workspace (:workspace (:resource self))
-        ; TODO - add sub menu with all components
-        component-type (first (workspace/get-resource-types workspace :component))
-        template (workspace/template component-type)]
+(defn add-embedded-component-handler
+  ([self]
+   (let [workspace (:workspace (:resource self))
+         component-type (first (workspace/get-resource-types workspace :component))]
+     (add-embedded-component-handler self component-type)))
+  ([self component-type]
+   (let [project (project/get-project self)
+         template (workspace/template component-type)]
     (let [id (gen-component-id self (:ext component-type))
           op-seq (gensym)
           [comp-node source-node] (g/tx-nodes-added
-                                    (g/transact
-                                      (concat
-                                        (g/operation-sequence op-seq)
-                                        (g/operation-label "Add Component")
-                                        (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0]))))]
+                                   (g/transact
+                                    (concat
+                                     (g/operation-sequence op-seq)
+                                     (g/operation-label "Add Component")
+                                     (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0]))))]
       (g/transact
-        (concat
-          (g/operation-sequence op-seq)
-          (g/operation-label "Add Component")
-          ((:load-fn component-type) project source-node (io/reader (:resource source-node)))
-          (project/select project [comp-node]))))))
+       (concat
+        (g/operation-sequence op-seq)
+        (g/operation-label "Add Component")
+        ((:load-fn component-type) project source-node (io/reader (:resource source-node)))
+        (project/select project [comp-node])))))))
 
 (handler/defhandler :add :global
+  (label [user-data] (if-not user-data
+                       "Add Component"
+                       (let [rt (:resource-type user-data)]
+                         (or (:label rt) (:ext rt)))))
   (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-  (label [] "Add Component")
-  (run [selection] (add-embedded-component-handler (g/node-by-id (first selection)))))
+  (run [user-data] (add-embedded-component-handler (:self user-data) (:resource-type user-data)))
+  (options [selection user-data]
+           (when (not user-data)
+             (let [self (g/node-by-id (first selection))
+                   project (project/get-project self)
+                   workspace (:workspace (:resource self))
+                   resource-types (workspace/get-resource-types workspace :component)]
+               (mapv (fn [res-type] {:label (or (:label res-type) (:ext res-type))
+                                     :icon (:icon res-type)
+                                     :command :add
+                                     :user-data {:self self :resource-type res-type}}) resource-types)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))

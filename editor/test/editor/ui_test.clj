@@ -65,17 +65,48 @@
         scene (ui/run-now (Scene. root))
         selection-provider (TestSelectionProvider. [])
         command-context {:name :global :env {:selection []}}]
-   (let [menus (#'ui/make-menu (#'ui/make-desc nil ::my-menu) (#'ui/realize-menu ::my-menu) [command-context])]
-     (is (= 1 (count menus)))
-     (is (instance? Menu (first menus)))
-     (is (= 2 (count (.getItems (first menus)))))
-     (is (instance? MenuItem (first (.getItems (first menus))))))))
+   (let [menu-items (#'ui/make-menu-items (#'ui/realize-menu ::my-menu) [command-context])]
+     (is (= 1 (count menu-items)))
+     (is (instance? Menu (first menu-items)))
+     (is (= 2 (count (.getItems (first menu-items)))))
+     (is (instance? MenuItem (first (.getItems (first menu-items))))))))
+
+
+(deftest options-menu-test
+  (ui/extend-menu ::my-menu nil
+                  [{:label "Add"
+                    :command :add}])
+
+  (handler/defhandler :add :global
+    (run [user-data] user-data)
+    (active? [user-data] (or (not user-data) (= user-data 1)))
+    (options [user-data] (when-not user-data [{:label "first"
+                                               :command :add
+                                               :user-data 1}
+                                              {:label "second"
+                                               :command :add
+                                               :user-data 2}])))
+
+  (let [command-context {:name :global :env {}}]
+    (let [menu-items (#'ui/make-menu-items (#'ui/realize-menu ::my-menu) [command-context])]
+      (is (= 1 (count menu-items)))
+      (is (= 1 (count (.getItems (first menu-items))))))))
 
 (deftest toolbar-test
   (ui/extend-menu ::my-menu nil
                   [{:label "Open"
                     :command :open
                     :id ::open}])
+
+  (handler/defhandler :open :global
+    (enabled? [selection] true)
+    (run [selection] 123)
+    (state [] false))
+
+  (handler/defhandler :save :global
+    (enabled? [selection] true)
+    (run [selection] 124)
+    (state [] false))
 
   (let [root (Pane.)
         scene (ui/run-now (Scene. root))
@@ -90,7 +121,8 @@
       (is (= (.get c1 0) (.get c2 0))))
 
     (ui/extend-menu ::extra ::open
-                    [{:label "Save"}])
+                    [{:label "Save"
+                      :command :save}])
     (ui/run-now (ui/refresh scene [command-context]))
     (is (= 2 (count (.getChildren root))))))
 
