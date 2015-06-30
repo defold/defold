@@ -36,18 +36,18 @@
     'string-value :overridden-indirect-by-symbol))
 
 (g/defnode SimpleTestNode
-  (property foo (g/maybe g/Str) (default "FOO!")))
+  (property foo g/Str (default "FOO!")))
 
 (g/defnode VisibilityTestNode
-  (input bar (g/maybe g/Str))
-  (property baz (g/maybe g/Str) (visible (g/fnk [bar] (not (nil? bar))))))
+  (input bar g/Str)
+  (property baz g/Str (visible (g/fnk [bar] (not (nil? bar))))))
 
 (g/defnode SimpleIntTestNode
-  (property foo (g/maybe g/Int) (default 0)))
+  (property foo g/Int (default 0)))
 
 (g/defnode EnablementTestNode
-  (input bar (g/maybe g/Int))
-  (property baz (g/maybe g/Str) (enabled (g/fnk [bar] (pos? bar)))))
+  (input bar g/Int)
+  (property baz g/Str (enabled (g/fnk [bar] (pos? bar)))))
 
 (defprotocol AProtocol
   (complainer [this]))
@@ -174,7 +174,7 @@
       (is (= false (get-in (g/node-value enode :properties) [:baz :enabled]))))))
 
 (g/defnode PropertyDynamicsTestNode
-  (property one-dynamic (g/maybe g/Str)
+  (property one-dynamic  g/Str
             (default "FOO!")
             (dynamic emphatic? (g/fnk [one-dynamic] (.endsWith one-dynamic "!"))))
 
