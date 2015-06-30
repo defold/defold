@@ -25,6 +25,7 @@
             [editor.font :as font]
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
+            [editor.gl.shader :as shader]
             [editor.text :as text]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
@@ -133,7 +134,8 @@
           (protobuf-types/register-resource-types workspace)
           (script/register-resource-types workspace)
           (switcher/register-resource-types workspace)
-          (sprite/register-resource-types workspace))))
+          (sprite/register-resource-types workspace)
+          (shader/register-resource-types workspace))))
     (g/refresh workspace)))
 
 

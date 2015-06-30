@@ -66,12 +66,13 @@
         enabled?          (property-enabled? type kwargs)
         visible?          (property-visible? type kwargs)
         dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
-    (merge dynamics {:node-id             (gt/node-id self)
-                     :value               value
-                     :type                type
-                     :validation-problems problems
-                     :visible             visible?
-                     :enabled             enabled?})))
+    (merge {:visible             visible?
+            :enabled             enabled?}
+           dynamics
+           {:node-id             (gt/node-id self)
+            :value               value
+            :type                type
+            :validation-problems problems})))
 
 (defn gather-properties
   "Production function that delivers the definition and value
@@ -468,10 +469,10 @@
   [record-name node-type argument output]
   (cond
     (property-overloads-output? node-type argument output)
-    (property-schema node-type argument)
+    (s/maybe (property-schema node-type argument))
 
     (unoverloaded-output? node-type argument output)
-    (gt/output-type node-type argument)
+    (s/maybe (gt/output-type node-type argument))
 
     (has-multivalued-input? node-type argument)
     (s/maybe [(gt/input-type node-type argument)])
@@ -480,13 +481,13 @@
     (s/maybe (gt/input-type node-type argument))
 
     (has-output? node-type argument)
-    (gt/output-type node-type argument)
+    (s/maybe (gt/output-type node-type argument))
 
     (= :this argument)
     record-name
 
     (has-property? node-type argument)
-    (property-schema node-type argument)))
+    (s/maybe (property-schema node-type argument))))
 
 (defn- collect-argument-schema
   "Return a schema with the production function's input names mapped to the node's corresponding input type."
@@ -643,7 +644,7 @@
 
 (defn- state-vector
   [node-type]
-  (conj (mapv (comp symbol name) (keys (gt/properties node-type))) '_id ))
+  (mapv (comp symbol name) (keys (gt/properties node-type))))
 
 (defn- subtract-keys
   [m1 m2]

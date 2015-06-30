@@ -14,7 +14,8 @@
             [editor.font :as font]
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.gl.shader :as shader])
   (:import [java.io File]
            [javax.imageio ImageIO]))
 
@@ -42,7 +43,8 @@
             (protobuf-types/register-resource-types workspace)
             (switcher/register-resource-types workspace)
             (sprite/register-resource-types workspace)
-            (script/register-resource-types workspace))))
+            (script/register-resource-types workspace)
+            (shader/register-resource-types workspace))))
       (g/refresh workspace))))
 
 (defn setup-project!
