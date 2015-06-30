@@ -240,11 +240,10 @@
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image (g/maybe (g/protocol workspace/Resource)))
+  (property image (g/protocol workspace/Resource))
   (property default-animation g/Str
             (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
-                     
   (property material (g/protocol workspace/Resource))
   (property blend-mode g/Any (default :BLEND_MODE_ALPHA)
             (dynamic edit-type (g/fnk []
@@ -295,4 +294,5 @@
                                     :icon sprite-icon
                                     :view-types [:scene]
                                     :tags #{:component}
+                                    :label "Sprite"
                                     :template "templates/template.sprite"))

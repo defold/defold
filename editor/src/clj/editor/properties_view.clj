@@ -234,7 +234,7 @@
   (property parent-view Parent)
   (property repainter AnimationTimer)
   (property workspace g/Any)
-  (property prev-grid-pane (g/maybe GridPane))
+  (property prev-grid-pane GridPane)
 
   (input selection g/Any)
 
