@@ -52,9 +52,9 @@
 
 (defmethod create-property-control! String [_ workspace on-new-value]
   (let [text (TextField.)
-        setter #(ui/text! text (str %))]
+        refresher (fn [val _] (ui/text! text (str val)))]
     (ui/on-action! text (fn [_] (on-new-value (.getText text))))
-    [text setter]))
+    [text refresher]))
 
 (defn- to-int [s]
   (try
@@ -64,15 +64,15 @@
 
 (defmethod create-property-control! g/Int [_ workspace on-new-value]
   (let [text (TextField.)
-        setter #(ui/text! text (str %))]
+        refresher (fn [val _] (ui/text! text (str val)))]
     (ui/on-action! text (fn [_] (on-new-value (to-int (.getText text)))))
-    [text setter]))
+    [text refresher]))
 
 (defmethod create-property-control! g/Bool [_ workspace on-new-value]
   (let [check (CheckBox.)
-        setter #(.setSelected check (boolean %))]
+        refresher (fn [val _] (.setSelected check (boolean val)))]
     (ui/on-action! check (fn [_] (on-new-value (.isSelected check))))
-    [check setter]))
+    [check refresher]))
 
 (defn- to-double [s]
   (try
@@ -85,7 +85,7 @@
         y (TextField.)
         z (TextField.)
         box (HBox.)
-        setter (fn [vec]
+        refresher (fn [vec _]
                  (doseq-indexed [t [x y z] i]
                    (ui/text! t (str (nth vec i)))))]
 
@@ -95,52 +95,57 @@
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (.add (.getChildren box) t))
-    [box setter]))
+    [box refresher]))
 
 (defmethod create-property-control! types/Color [_ workspace on-new-value]
  (let [color-picker (ColorPicker.)
        handler (ui/event-handler event
                                  (let [^Color c (.getValue color-picker)]
                                    (on-new-value [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)])))
-       setter #(.setValue color-picker (Color. (nth % 0) (nth % 1) (nth % 2) (nth % 3)))]
+       refresher (fn [val _] (.setValue color-picker (Color. (nth val 0) (nth val 1) (nth val 2) (nth val 3))))]
    (.setOnAction color-picker handler)
-   [color-picker setter]))
+   [color-picker refresher]))
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
 
 (defmethod create-property-control! :choicebox [edit-type workspace on-new-value]
   (let [cb (ChoiceBox.)
-        setter #(binding [*programmatic-setting* true]
-                  (.setValue cb %))
-        options (:options edit-type)
-        inv-options (clojure.set/map-invert options)]
-    (.addAll (.getItems cb) (object-array (map first options)))
-    (.setConverter cb (proxy [StringConverter] []
-                        (toString [value]
-                          (get options value (str value)))
-                        (fromString [s]
-                          (inv-options s))))
+        last-refresher-options (atom nil)
+        refresher (fn [val edit-type]
+                    (binding [*programmatic-setting* true]
+                      (let [options (:options edit-type)]
+                        (when (or (nil? @last-refresher-options) (not= options @last-refresher-options))
+                          (let [inv-options (clojure.set/map-invert options)]
+                            (reset! last-refresher-options options)
+                            (.clear (.getItems cb))
+                            (.addAll (.getItems cb) (object-array (map first options)))
+                            (.setConverter cb (proxy [StringConverter] []
+                                                (toString [value]
+                                                  (get options value (str value)))
+                                                (fromString [s]
+                                                  (inv-options s))))))
+                        (.setValue cb val))))]
     (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
                                       (when-not *programmatic-setting*
                                         (on-new-value new-val))))
-    [cb setter]))
+    [cb refresher]))
 
 (defmethod create-property-control! :default [_ workspace on-new-value]
   (let [text (TextField.)
-        setter #(ui/text! text (str %))]
+        refresher (fn [val _] (ui/text! text (str val)))]
     (.setDisable text true)
-    [text setter]))
+    [text refresher]))
 
 (defmethod create-property-control! (g/protocol workspace/Resource) [_ workspace on-new-value]
   (let [box (HBox.)
         button (Button. "...")
         text (TextField.)
-        setter #(ui/text! text (when % (workspace/proj-path %)))]
+        refresher (fn [val _] (ui/text! text (when val (workspace/proj-path val))))]
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
                                      (on-new-value resource))))
     (ui/children! box [text button])
     (ui/on-action! text (fn [_] (on-new-value (workspace/file-resource workspace (ui/text text))) ))
-    [box setter]))
+    [box refresher]))
 
 (defn- niceify-label
   [k]
@@ -149,28 +154,35 @@
     camel/->Camel_Snake_Case_String
     (clojure.string/replace "_" " ")))
 
-(defn- create-properties-row [workspace ^GridPane grid node key property edit-type row]
+(defn- property-edit-type [node key]
+  (or (get-in (g/node-value node :properties) [key :edit-type])
+      {:type (g/property-value-type (key (g/properties (g/node-type node))))}))
+
+(defn- property-visible [node key]
+  (or (get-in (g/node-value node :properties) [key :visible]) true))
+
+(defn- create-properties-row [workspace ^GridPane grid node key property row]
   (let [label (Label. (niceify-label key))
         ; TODO: Possible to solve mutual references without an atom here?
-        setter-atom (atom nil)
+        refresher-atom (atom nil)
         on-new-value (fn [new-val]
                        (let [old-val (key (g/refresh node))]
                          (when-not (= new-val old-val)
                            (if (g/property-valid-value? property new-val)
                              (do
                                ;; TODO Consider using the :validator-fn feature of atom to apply validation
-                               (@setter-atom new-val)
+                               (@refresher-atom new-val (property-edit-type node key))
                                ;; TODO Apply a label to this transaction for undo menu
                                (g/transact (g/set-property node key new-val)))
-                             (@setter-atom old-val)))))
-        [control setter] (create-property-control! edit-type workspace on-new-value)]
-    (reset! setter-atom setter)
-    (setter (get node key))
+                             (@refresher-atom old-val)))))
+        [control refresher] (create-property-control! (property-edit-type node key) workspace on-new-value)]
+    (reset! refresher-atom refresher)
+    (refresher (get node key) (property-edit-type node key))
     (GridPane/setConstraints label 1 row)
     (GridPane/setConstraints control 2 row)
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)
-    [[key (g/node-id node)] setter]))
+    [[key (g/node-id node)] refresher]))
 
 (defn- flatten-nodes [nodes]
   ; TODO: This function is a bit special as we don't support multi-selection yet
@@ -182,16 +194,13 @@
                      (flatten-nodes (core/sub-nodes node))))
     []))
 
+
 (defn- create-properties-node [workspace grid node]
-  (let [properties (-> node g/node-type g/properties)
-        properties-value (g/node-value node :properties)]
+  (let [properties (-> node g/node-type g/properties)]
     (mapcat (fn [[key p]]
-              (let [visible (get-in properties-value [key :visible])
-                    edit-type (get-in properties-value [key :edit-type])
-                    ;;enabled (get-in properties-value [key :enabled])
-                    row (/ (.size (.getChildren grid)) 2)]
-                (when visible
-                  (create-properties-row workspace grid node key p (or edit-type {:type (g/property-value-type p)}) row))))
+              (let [row (/ (.size (.getChildren grid)) 2)]
+                (when (property-visible node key)
+                  (create-properties-row workspace grid node key p row))))
          properties)))
 
 (defn- create-properties [workspace grid nodes]
@@ -203,18 +212,18 @@
       (.setPadding grid (Insets. 10 10 10 10))
       (.setHgap grid 4)
       (.setVgap grid 6)
-      (let [setters (create-properties workspace grid nodes)]
-        ; NOTE: Note setters is a sequence of [[property-key node-id] setter..]
-        (ui/user-data! parent ::setters (apply hash-map setters)))
+      (let [refreshers (create-properties workspace grid nodes)]
+        ; NOTE: Note refreshers is a sequence of [[property-key node-id] refresher..]
+        (ui/user-data! parent ::refreshers (apply hash-map refreshers)))
       (ui/children! parent [grid])
       grid))
 
 (defn- refresh-grid [parent workspace nodes]
-  (let [setters (ui/user-data parent ::setters)]
+  (let [refreshers (ui/user-data parent ::refreshers)]
     (doseq [node nodes]
       (doseq [[key p] (-> node g/node-type g/properties)]
-        (when-let [setter (get setters [key (g/node-id node)])]
-          (setter (get node key)))))))
+        (when-let [refresher (get refreshers [key (g/node-id node)])]
+          (refresher (get node key) (property-edit-type node key)))))))
 
 (defn- update-grid [parent self workspace nodes]
   ; NOTE: We cache the ui based on the ::nodes-ids user-data
