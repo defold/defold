@@ -25,7 +25,7 @@
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
-(def collection-icon "icons/bricks.png")
+(def collection-icon "icons/16/Icons_09-Collection.png")
 (def path-sep "/")
 
 (defn- gen-embed-ddf [id child-ids ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]

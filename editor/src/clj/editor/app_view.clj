@@ -87,14 +87,13 @@
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate)))
 
 (ui/extend-menu ::toolbar nil
-                [{:label "Move"
-                  :icon "icons/transform_move.png"
+                [{:icon "icons/Icons_T_01_Select.png"
+                  :command :select-tool}
+                 {:icon "icons/Icons_T_02_Move.png"
                   :command :move-tool}
-                 {:label "Rotate"
-                  :icon "icons/transform_rotate.png"
+                 {:icon "icons/Icons_T_03_Rotate.png"
                   :command :rotate-tool}
-                 {:label "Scale"
-                  :icon "icons/transform_scale.png"
+                 {:icon "icons/Icons_T_04_Scale.png"
                   :command :scale-tool}])
 
 (handler/defhandler :quit :global

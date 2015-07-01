@@ -29,9 +29,9 @@
 
 (set! *warn-on-reflection* true)
 
-(def atlas-icon "icons/images.png")
-(def animation-icon "icons/film.png")
-(def image-icon "icons/image.png")
+(def atlas-icon "icons/16/Icons_13-Atlas.png")
+(def animation-icon "icons/16/Icons_24-AT-Animation.png")
+(def image-icon "icons/16/Icons_25-AT-Image.png")
 
 (defn render-overlay
   [^GL2 gl ^TextRenderer text-renderer width height]

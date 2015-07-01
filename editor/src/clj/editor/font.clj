@@ -21,7 +21,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
-(def font-icon "icons/pictures.png")
+(def font-icon "icons/16/Icons_28-AT-Font.png")
 
 ; Node defs
 

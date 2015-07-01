@@ -19,7 +19,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d]))
 
-(def cubemap-icon "icons/layer_raster_3d.png")
+(def cubemap-icon "icons/16/Icons_23-Cubemap.png")
 
 (vtx/defvertex normal-vtx
   (vec3 position)

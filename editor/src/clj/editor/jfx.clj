@@ -5,15 +5,26 @@
            [java.io File]
            [java.util ArrayList]))
 
-; ImageView cache
-(defonce cached-image-views (atom {}))
-(defn- load-image-view [name]
-  (if-let [url (io/resource (str name))]
-    (ImageView. (Image. (str url)))
-    (ImageView.)))
 
-(defn get-image-view [name]
-  (if-let [image-view (:name @cached-image-views)]
-    image-view
-    (let [image-view (load-image-view name)]
-      ((swap! cached-image-views assoc name image-view) name))))
+; Image cache
+(defonce cached-images (atom {}))
+(defn- load-image [name]
+  (if-let [url (io/resource (str name))]
+    (Image. (str url))
+    nil))
+
+(defn get-image [name]
+  (if-let [image (get @cached-images name)]
+    image
+    (let [image (load-image name)]
+      ((swap! cached-images assoc name image) name))))
+
+(defn get-image-view
+  ([name]
+    (ImageView. (get-image name)))
+  ([name size]
+    (let [iv (ImageView. (get-image name))]
+      (.setFitWidth iv size)
+      (.setFitHeight iv size)
+      iv)))
+
