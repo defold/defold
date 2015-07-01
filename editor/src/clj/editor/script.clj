@@ -38,7 +38,7 @@
                                                     {:source {:script (ByteString/copyFromUtf8 (:content user-data))
                                                               :filename (workspace/proj-path (:resource resource))}
                                                      ; TODO - fix this
-                                                     :modules [] 
+                                                     :modules []
                                                      :resources []
                                                      ; TODO - properties
                                                      })})
@@ -52,7 +52,7 @@
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
-  (property content g/Any (dynamic visible (g/fnk [] false)))
+  (property content g/Any (dynamic visible (g/always false)))
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))

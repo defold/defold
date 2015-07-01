@@ -394,7 +394,7 @@
   (property validated-internal DefaultProperty
             (validate always-valid (fn [value] true)))
   (property literally-disabled TypedProperty
-            (enabled (g/fnk [] false))))
+            (enabled (g/always false))))
 
 (g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))

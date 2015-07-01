@@ -267,7 +267,7 @@
 (g/defnode SwitcherNode
   (inherits project/ResourceNode)
 
-  (property blocks       g/Any (dynamic visible (g/fnk [] false)))
+  (property blocks       g/Any (dynamic visible (g/always false)))
   (property width        g/Int (default 1))
   (property height       g/Int (default 1))
 
