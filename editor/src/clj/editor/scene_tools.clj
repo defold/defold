@@ -407,7 +407,7 @@
 (defn handle-input [self action selection-data]
   (case (:type action)
     :mouse-pressed (if-let [manip (first (get selection-data (g/node-id self)))]
-                     (let [active-tool (:active-tool self)
+                     (let [active-tool (g/node-value self :active-tool)
                            tool (get transform-tools active-tool)
                            filter-fn (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (g/node-by-id (:node-id %))) (g/node-value self :selected-renderables))
@@ -434,7 +434,7 @@
                       action)
     :mouse-moved (if-let [start-action (:start-action self)]
                    (let [prev-action (:prev-action self)
-                         active-tool (:active-tool self)
+                         active-tool (g/node-value self :active-tool)
                          original-values (:original-values self)
                          manip (:active-manip self)
                          op-seq (:op-seq self)

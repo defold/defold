@@ -240,10 +240,17 @@
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
 
-  (property image (g/maybe (g/protocol workspace/Resource)))
-  (property default-animation g/Str)
+  (property image (g/protocol workspace/Resource))
+  (property default-animation g/Str
+            (dynamic edit-type (g/fnk [anim-data] {:type :choicebox
+                                                   :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material (g/protocol workspace/Resource))
-  (property blend-mode g/Any (default :BLEND_MODE_ALPHA) #_(tag Sprite$SpriteDesc$BlendMode))
+  (property blend-mode g/Any (default :BLEND_MODE_ALPHA)
+            (dynamic edit-type (g/fnk []
+                                      (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
+                                        {:type :choicebox
+                                         :options (zipmap (map first options)
+                                                          (map (comp :display-name second) options))}))))
 
   (trigger reconnect :property-touched #'reconnect)
 
@@ -287,4 +294,5 @@
                                     :icon sprite-icon
                                     :view-types [:scene]
                                     :tags #{:component}
+                                    :label "Sprite"
                                     :template "templates/template.sprite"))

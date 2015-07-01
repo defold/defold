@@ -242,7 +242,8 @@
 
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (= {:another-property #{:properties :another-property :self}
+      (is (= {:_id              #{:properties :_id :self}
+              :another-property #{:properties :another-property :self}
               :a-property       #{:properties :a-property :self}}
              (-> node g/node-type g/input-dependencies)))))
 
@@ -254,7 +255,8 @@
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
-      (is (= {:foo #{:properties}
+      (is (= {:_id        #{:properties :_id :self}
+              :foo        #{:properties}
               :a-property #{:properties :a-property :self}}
              (-> node g/node-type g/input-dependencies)))))
 
@@ -334,17 +336,20 @@
       (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
 
   (testing "output dependencies include transforms and their inputs"
-    (is (= {:project #{:integer-output}
+    (is (= {:_id #{:properties :_id :self}
+            :project #{:integer-output}
             :string-input #{:inline-string}
             :integer-input #{:string-output :cached-output}}
            (g/input-dependencies MultipleOutputNode)))
-    (is (= {:project #{:integer-output}
+    (is (= {:_id #{:properties :_id :self}
+            :project #{:integer-output}
             :string-input #{:inline-string}
             :integer-input #{:string-output :abstract-output :cached-output}}
            (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
-    (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property :self}
+    (is (= {:_id #{:properties :_id :self}
+            :a-property #{:direct-calculation :indirect-calculation :properties :a-property :self}
             :direct-calculation #{:indirect-calculation}}
            (g/input-dependencies TwoLayerDependencyNode))))
 

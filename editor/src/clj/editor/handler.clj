@@ -29,26 +29,31 @@
               (when (or (nil? f) (invoke-fnk f command-context))
                 [handler command-context]))))))
 
-(defn- get-active [command command-contexts]
-  (some (fn [command-context] (do-get-active command command-context)) command-contexts))
+(defn- get-active [command command-contexts user-data]
+  (some (fn [command-context] (do-get-active command (assoc-in command-context [:env :user-data] user-data))) command-contexts))
 
-(defn run [command command-contexts]
-  (let [[handler command-context] (get-active command command-contexts)]
+(defn run [command command-contexts user-data]
+  (let [[handler command-context] (get-active command command-contexts user-data)]
     (invoke-fnk (get-fnk handler :run) command-context)))
 
-(defn state [command command-contexts]
-  (when-let [[handler command-context] (get-active command command-contexts)]
+(defn state [command command-contexts user-data]
+  (when-let [[handler command-context] (get-active command command-contexts user-data)]
     (invoke-fnk (get-fnk handler :state) command-context)))
 
-(defn enabled? [command command-contexts]
-  (when-let [[handler command-context] (get-active command command-contexts)]
+(defn enabled? [command command-contexts user-data]
+  (when-let [[handler command-context] (get-active command command-contexts user-data)]
     (let [f (get-fnk handler :enabled?)]
       (boolean (or (nil? f) (invoke-fnk f command-context))))))
 
-(defn label [command command-contexts]
-  (when-let [[handler command-context] (get-active command command-contexts)]
+(defn label [command command-contexts user-data]
+  (when-let [[handler command-context] (get-active command command-contexts user-data)]
     (when-let [f (get-fnk handler :label)]
       (invoke-fnk f command-context))))
 
-(defn active? [command command-contexts]
-  (boolean (get-active command command-contexts)))
+(defn active? [command command-contexts user-data]
+  (boolean (get-active command command-contexts user-data)))
+
+(defn options [command command-contexts user-data]
+  (when-let [[handler command-context] (get-active command command-contexts user-data)]
+    (when-let [f (get-fnk handler :options)]
+      (invoke-fnk f command-context))))
