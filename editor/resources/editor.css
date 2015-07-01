@@ -120,9 +120,7 @@ Defold Orange       #fd6623             Guides etc
     -fx-background-radius: 5;
     -fx-border-radius: 5;
     -fx-border-color: -dark-black;
-    -fx-padding: 0.333333em 1.2em 0.416667em 1.2em; /* 4 8 5 8 */
     -fx-text-fill: -fx-text-base-color;
-
 }
 
 .button:hover,
@@ -168,6 +166,11 @@ Defold Orange       #fd6623             Guides etc
 #topbar {
     -fx-background-color: linear-gradient(to bottom, -dark-grey, -bright-black);
     -fx-padding: 1em;
+}
+
+/* TODO: Why do we have to do this explicitly? */
+.choice-box .label {
+     -fx-text-fill: -fx-text-background-color;
 }
 
 #toolbar {
