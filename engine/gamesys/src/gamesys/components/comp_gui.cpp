@@ -301,6 +301,7 @@ namespace dmGameSystem
         bool result = true;
 
         dmGui::SetMaterial(scene, scene_resource->m_Material);
+        dmGui::SetSceneAdjustReference(scene, (dmGui::AdjustReference)scene_desc->m_AdjustReference);
 
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
