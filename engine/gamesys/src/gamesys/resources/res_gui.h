@@ -27,8 +27,8 @@ namespace dmGameSystem
         dmGui::HContext                 m_GuiContext;
         dmRender::HMaterial             m_Material;
     };
-    
-    dmResource::Result ResPreloadSceneDesc(dmResource::HFactory factory, 
+
+    dmResource::Result ResPreloadSceneDesc(dmResource::HFactory factory,
                                           dmResource::HPreloadHintInfo hint_info,
                                           void* context,
                                           const void* buffer, uint32_t buffer_size,

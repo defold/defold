@@ -21,13 +21,13 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
-            
+
         uint32_t n_modules = lua_module->m_Modules.m_Count;
         for (uint32_t i = 0; i < n_modules; ++i)
         {
             dmResource::PreloadHint(hint_info, lua_module->m_Resources[i]);
         }
-        
+
         *preload_data = lua_module;
         return dmResource::RESULT_OK;
     }

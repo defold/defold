@@ -64,6 +64,12 @@ namespace dmGui
         PLAYBACK_COUNT = 7,
     };
 
+    enum AdjustReference
+    {
+        ADJUST_REFERENCE_LEGACY  = 0,
+        ADJUST_REFERENCE_PARENT = 1
+    };
+
     /**
      * Textureset animation
      */
@@ -139,6 +145,7 @@ namespace dmGui
         void*    m_UserData;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
+        AdjustReference m_AdjustReference;
 
         NewSceneParams()
         {
@@ -442,6 +449,8 @@ namespace dmGui
 
     void SetDefaultFont(HContext context, void* font);
 
+    void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference);
+
     HScene NewScene(HContext context, const NewSceneParams* params);
 
     void DeleteScene(HScene scene);
@@ -459,6 +468,8 @@ namespace dmGui
     uint32_t GetDisplayDpi(HScene scene);
 
     void* GetDisplayProfiles(HScene scene);
+
+    AdjustReference GetSceneAdjustReference(HScene scene);
 
     /**
      * Adds a texture and optional textureset with the specified name to the scene.
