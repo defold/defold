@@ -121,14 +121,14 @@
 (g/defnode ProtobufNode
   (inherits project/ResourceNode)
 
-  (property pb g/Any (dynamic visible (g/fnk [] false)))
-  (property def g/Any (dynamic visible (g/fnk [] false)))
+  (property pb g/Any (dynamic visible (g/always false)))
+  (property def g/Any (dynamic visible (g/always false)))
 
   (input dep-build-targets g/Any :array)
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/fnk [] {}))
+  (output scene g/Any (g/always {}))
   (output outline g/Any :cached (g/fnk [node-id def] {:node-id node-id :label (:label def) :icon (:icon def)})))
 
 (defn- connect-build-targets [self path]
