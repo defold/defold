@@ -12,6 +12,7 @@
                        editor.image-test
                        dynamo.transaction-test
                        dynamo.util-test
+                       dynamo.integration.garbage-collection
                        editor.handler-test
                        editor.injection-test
                        editor.math-test
