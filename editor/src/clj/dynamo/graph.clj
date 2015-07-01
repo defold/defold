@@ -1,6 +1,7 @@
 (ns dynamo.graph
-  (:require [clojure.tools.macro :as ctm]
-            [dynamo.util :refer [safe-inc map-vals filterm]]
+  (:require [clojure.set :as set]
+            [clojure.tools.macro :as ctm]
+            [dynamo.util :as util]
             [internal.cache :as c]
             [internal.disposal :as dispose]
             [internal.graph :as ig]
@@ -79,7 +80,7 @@
                           {:_gid gid :start-tx start-tx :sidereal-tx sidereal-tx}))
           (let [gref   (is/graph-ref sys gid)
                 before @gref
-                after  (update-in graph [:tx-id] safe-inc)
+                after  (update-in graph [:tx-id] util/safe-inc)
                 after  (if (not (meaningful-change? significantly-modified-graphs gid))
                          (assoc after :tx-sequence-label (:tx-sequence-label before))
                          after)]
@@ -105,7 +106,7 @@
   [txs]
   (when *tps-debug*
     (send-off tps-counter tick (System/nanoTime)))
-  (let [basis     (ig/multigraph-basis (map-vals deref (is/graphs @*the-system*)))
+  (let [basis     (ig/multigraph-basis (util/map-vals deref (is/graphs @*the-system*)))
         tx-result (it/transact* (it/new-transaction-context basis txs))]
     (when (= :ok (:status tx-result))
       (dosync
@@ -150,7 +151,8 @@
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
 (def node-intrinsics
-  [(list 'output 'self `s/Any `(pc/fnk [~'this] ~'this))
+  [(list 'property '_id `s/Int)
+   (list 'output 'self `s/Any `(pc/fnk [~'this] ~'this))
    (list 'output 'node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
 
 ;; ---------------------------------------------------------------------------
@@ -178,6 +180,8 @@
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
   (assert (::ctor node-type))
+  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (properties node-type)))]
+    (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
   ((::ctor node-type) args))
 
 (defmacro defnode
@@ -289,7 +293,7 @@
        (let [description#    ~(in/node-type-forms symb (concat node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? NodeType x#) x#))
-             all-graphs#     (map-vals deref (is/graphs @*the-system*))
+             all-graphs#     (util/map-vals deref (is/graphs @*the-system*))
              to-be-replaced# (when (and all-graphs# replacing#)
                                (filterv #(= replacing# (node-type %)) (mapcat ig/node-values (vals all-graphs#))))
              ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
@@ -543,8 +547,8 @@
   (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
 
 (defn serialize-node [node]
-  (let [all-node-properties    (select-keys node (keys (-> node gt/node-type gt/properties)))
-        properties-without-fns (filterm (comp not fn? val) all-node-properties)]
+  (let [all-node-properties    (dissoc (select-keys node (keys (-> node gt/node-type gt/properties))) :_id)
+        properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:serial-id (gt/node-id node)
      :node-type (gt/node-type node)
      :properties properties-without-fns}))
@@ -649,8 +653,8 @@
 (defn undo
   [graph]
   (let [snapshot @*the-system*]
-   (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
-     (invalidate! ks))))
+    (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
+      (invalidate! ks))))
 
 (defn undo-stack
   [graph]
@@ -677,3 +681,9 @@
 (defn reset-undo!
   [graph]
   (is/clear-history (is/graph-history @*the-system* graph)))
+
+(defn cancel
+  [graph sequence-id]
+  (let [snapshot @*the-system*]
+    (when-let [ks (is/cancel (is/graph-history snapshot graph) snapshot sequence-id)]
+      (invalidate! ks))))

@@ -36,6 +36,12 @@
     (is (= 5 (-> short-tape ivalue)))
     (is (= 5 (-> short-tape inext ivalue)))))
 
+(deftest dropping
+  (let [tape (into (paper-tape nil) (range 10))
+        drop-tape (drop-current (-> tape iprev iprev iprev iprev))]
+    (is (= 4 (-> drop-tape ivalue)))
+    (is (= 6 (-> drop-tape inext ivalue)))))
+
 (deftest truncate-on-write
   (let [tape (into (paper-tape nil) (range 10))
         tape (-> tape iprev iprev iprev iprev)]

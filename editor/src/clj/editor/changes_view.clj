@@ -47,6 +47,7 @@
 
 (g/defnode ChangesView
   (inherits core/Scope)
+  (property parent-view g/Any)
   (property git g/Any)
 
   core/ICreate

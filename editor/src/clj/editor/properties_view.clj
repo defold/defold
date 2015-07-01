@@ -48,12 +48,12 @@
 
 (def create-property-control! nil)
 
-(defmulti create-property-control! (fn [t _ _] t))
+(defmulti create-property-control! (fn [edit-type _ _] (:type edit-type)))
 
 (defmethod create-property-control! String [_ workspace on-new-value]
   (let [text (TextField.)
         setter #(ui/text! text (str %))]
-    (.setOnAction text (ui/event-handler event (on-new-value (.getText text))))
+    (ui/on-action! text (fn [_] (on-new-value (.getText text))))
     [text setter]))
 
 (defn- to-int [s]
@@ -65,13 +65,13 @@
 (defmethod create-property-control! g/Int [_ workspace on-new-value]
   (let [text (TextField.)
         setter #(ui/text! text (str %))]
-    (.setOnAction text (ui/event-handler event (on-new-value (to-int (.getText text)))))
+    (ui/on-action! text (fn [_] (on-new-value (to-int (.getText text)))))
     [text setter]))
 
 (defmethod create-property-control! g/Bool [_ workspace on-new-value]
   (let [check (CheckBox.)
         setter #(.setSelected check (boolean %))]
-    (.setOnAction check (ui/event-handler event (on-new-value (.isSelected check))))
+    (ui/on-action! check (fn [_] (on-new-value (.isSelected check))))
     [check setter]))
 
 (defn- to-double [s]
@@ -87,12 +87,11 @@
         box (HBox.)
         setter (fn [vec]
                  (doseq-indexed [t [x y z] i]
-                   (ui/text! t (str (nth vec i)))))
-        handler (ui/event-handler event (on-new-value (mapv #(to-double (.getText ^TextField %)) [x y z])))]
+                   (ui/text! t (str (nth vec i)))))]
 
     (.setSpacing box 6)
     (doseq [t [x y z]]
-      (.setOnAction ^TextField t handler)
+      (ui/on-action! ^TextField t (fn [_] (on-new-value (mapv #(to-double (.getText ^TextField %)) [x y z]))))
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (.add (.getChildren box) t))
@@ -109,20 +108,21 @@
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
 
-(defmethod create-property-control! ProtocolMessageEnum [t workspace on-new-value]
+(defmethod create-property-control! :choicebox [edit-type workspace on-new-value]
   (let [cb (ChoiceBox.)
         setter #(binding [*programmatic-setting* true]
-                   (.setValue cb %))
-        values (protobuf/enum-values t)]
-    (doto (.getItems cb) (.addAll (object-array (map first values))))
-        (.setConverter cb (proxy [StringConverter] []
-                            (toString [value]
-                              (or (:display-name (get values value)) value))
-                            (fromString [s]
-                              (first (filter #(= s (:display-name (second %))) values)))))
-        (-> cb (.valueProperty) (.addListener (reify ChangeListener (changed [this observable old-val new-val]
-                                                                      (when-not *programmatic-setting*
-                                                                        (on-new-value new-val))))))
+                  (.setValue cb %))
+        options (:options edit-type)
+        inv-options (clojure.set/map-invert options)]
+    (.addAll (.getItems cb) (object-array (map first options)))
+    (.setConverter cb (proxy [StringConverter] []
+                        (toString [value]
+                          (get options value (str value)))
+                        (fromString [s]
+                          (inv-options s))))
+    (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
+                                      (when-not *programmatic-setting*
+                                        (on-new-value new-val))))
     [cb setter]))
 
 (defmethod create-property-control! :default [_ workspace on-new-value]
@@ -149,31 +149,28 @@
     camel/->Camel_Snake_Case_String
     (clojure.string/replace "_" " ")))
 
-(defn- create-properties-row [workspace ^GridPane grid node key property row]
-  (when (not (false? (:visible property)))
-    (let [label (Label. (niceify-label key))
-          ; TODO: Possible to solve mutual references without an atom here?
-          setter-atom (atom nil)
-          on-new-value (fn [new-val]
-                         (let [old-val (key (g/refresh node))]
-                           (when-not (= new-val old-val)
-                             (if (g/property-valid-value? property new-val)
-                               (do
-                                 ;; TODO Consider using the :validator-fn feature of atom to apply validation
-                                 (@setter-atom new-val)
-                                 ;; TODO Apply a label to this transaction for undo menu
-                                 (g/transact (g/set-property node key new-val)))
-                               (@setter-atom old-val)))))
-          ; TODO - hax until property system has more flexibility for meta edit data
-          t (or (first (filter class? (g/property-tags property))) (g/property-value-type property))
-          [control setter] (create-property-control! t workspace on-new-value)]
-      (reset! setter-atom setter)
-      (setter (get node key))
-      (GridPane/setConstraints label 1 row)
-      (GridPane/setConstraints control 2 row)
-      (.add (.getChildren grid) label)
-      (.add (.getChildren grid) control)
-      [[key (g/node-id node)] setter])))
+(defn- create-properties-row [workspace ^GridPane grid node key property edit-type row]
+  (let [label (Label. (niceify-label key))
+        ; TODO: Possible to solve mutual references without an atom here?
+        setter-atom (atom nil)
+        on-new-value (fn [new-val]
+                       (let [old-val (key (g/refresh node))]
+                         (when-not (= new-val old-val)
+                           (if (g/property-valid-value? property new-val)
+                             (do
+                               ;; TODO Consider using the :validator-fn feature of atom to apply validation
+                               (@setter-atom new-val)
+                               ;; TODO Apply a label to this transaction for undo menu
+                               (g/transact (g/set-property node key new-val)))
+                             (@setter-atom old-val)))))
+        [control setter] (create-property-control! edit-type workspace on-new-value)]
+    (reset! setter-atom setter)
+    (setter (get node key))
+    (GridPane/setConstraints label 1 row)
+    (GridPane/setConstraints control 2 row)
+    (.add (.getChildren grid) label)
+    (.add (.getChildren grid) control)
+    [[key (g/node-id node)] setter]))
 
 (defn- flatten-nodes [nodes]
   ; TODO: This function is a bit special as we don't support multi-selection yet
@@ -190,10 +187,11 @@
         properties-value (g/node-value node :properties)]
     (mapcat (fn [[key p]]
               (let [visible (get-in properties-value [key :visible])
+                    edit-type (get-in properties-value [key :edit-type])
                     ;;enabled (get-in properties-value [key :enabled])
                     row (/ (.size (.getChildren grid)) 2)]
                 (when visible
-                  (create-properties-row workspace grid node key p row))))
+                  (create-properties-row workspace grid node key p (or edit-type {:type (g/property-value-type p)}) row))))
          properties)))
 
 (defn- create-properties [workspace grid nodes]
@@ -236,7 +234,7 @@
   (property parent-view Parent)
   (property repainter AnimationTimer)
   (property workspace g/Any)
-  (property prev-grid-pane (g/maybe GridPane))
+  (property prev-grid-pane GridPane)
 
   (input selection g/Any)
 

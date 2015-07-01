@@ -121,8 +121,8 @@
 (g/defnode ProtobufNode
   (inherits project/ResourceNode)
 
-  (property pb g/Any (visible (g/fnk [] false)))
-  (property def g/Any (visible (g/fnk [] false)))
+  (property pb g/Any (dynamic visible (g/fnk [] false)))
+  (property def g/Any (dynamic visible (g/fnk [] false)))
 
   (input dep-build-targets g/Any :array)
 
