@@ -52,7 +52,7 @@
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
 
-  (property content g/Any (visible (g/fnk [] false)))
+  (property content g/Any (dynamic visible (g/fnk [] false)))
 
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
