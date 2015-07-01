@@ -246,11 +246,11 @@
                                                    :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material (g/protocol workspace/Resource))
   (property blend-mode g/Any (default :BLEND_MODE_ALPHA)
-            (dynamic edit-type (g/fnk []
-                                      (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
-                                        {:type :choicebox
-                                         :options (zipmap (map first options)
-                                                          (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/always
+                                (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
+                                  {:type :choicebox
+                                   :options (zipmap (map first options)
+                                                    (map (comp :display-name second) options))}))))
 
   (trigger reconnect :property-touched #'reconnect)
 

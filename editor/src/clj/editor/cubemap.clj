@@ -114,7 +114,7 @@
 
   (output gpu-texture g/Any :cached produce-gpu-texture)
   (output save-data   g/Any :cached produce-save-data)
-  (output aabb        AABB  :cached (g/fnk [] geom/unit-bounding-box))
+  (output aabb        AABB  :cached (g/always geom/unit-bounding-box))
   (output scene       g/Any :cached produce-scene))
 
 (defn load-cubemap [project self input]
