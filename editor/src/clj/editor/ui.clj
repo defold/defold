@@ -385,7 +385,7 @@
              icon (:icon menu-item)
              selection-provider (:selection-provider td)]
          (when icon
-           (.setGraphic button (jfx/get-image-view icon)))
+           (.setGraphic button (jfx/get-image-view icon 22.5)))
          (when (:command menu-item)
            (.setId button (name (:command menu-item)))
            (.setOnAction button (event-handler event (handler/run (:command menu-item) command-contexts))))

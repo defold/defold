@@ -89,7 +89,7 @@
                :pb-class Physics$ConvexShape}
               {:ext "gui"
                :label "Gui"
-               :icon "icons/pictures.png"
+               :icon "icons/16/Icons_38-GUI.png"
                :pb-class Gui$SceneDesc
                :resource-fields [:script :material [:fonts :font] [:textures :texture]]
                :tags #{:component}}])

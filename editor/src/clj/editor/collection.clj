@@ -25,7 +25,7 @@
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
-(def collection-icon "icons/bricks.png")
+(def collection-icon "icons/16/Icons_09-Collection.png")
 (def path-sep "/")
 
 (defn- gen-embed-ddf [id child-ids ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
@@ -296,7 +296,7 @@
           (g/connect go-node :outline coll-node :child-outlines)
           (g/connect go-node :scene coll-node :child-scenes)
           (project/select project [go-node])))))))
-  
+
 
 (handler/defhandler :add-from-file :global
   (active? [selection] (and (single-selection? selection)
@@ -364,7 +364,7 @@
   (run [selection] (cond
                      (selected-collection? selection) (add-game-object selection)
                      (selected-embedded-instance? selection) (game-object/add-embedded-component-handler (g/node-value (first selection) :source)))))
-                            
+
 (defn- add-collection-instance [self source-node id position rotation scale]
   (let [path (if source-node (workspace/proj-path (:resource source-node)) "")]
     (g/make-nodes (g/node->graph-id self)
