@@ -198,8 +198,8 @@
                                                       <Label text="ID" />
                                                       <Label text="Layer" GridPane.rowIndex="1" />
                                                       <Label text="XYZ" GridPane.rowIndex="2" />
-                                                      <ComboBox prefHeight="37.0" prefWidth="385.0" GridPane.columnIndex="1" GridPane.rowIndex="1" />
                                                       <CheckBox mnemonicParsing="false" text="CheckBox" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+                                                      <ChoiceBox prefWidth="150.0" GridPane.columnIndex="1" GridPane.rowIndex="1" />
                                                    </children>
                                                    <padding>
                                                       <Insets bottom="6.0" left="6.0" right="6.0" top="6.0" />
