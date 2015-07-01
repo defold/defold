@@ -15,7 +15,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
-(def game-object-icon "icons/brick.png")
+(def game-project-icon "icons/16/Icons_04-Project-file.png")
 
 (g/defnk produce-save-data [resource content]
   {:resource resource
@@ -31,7 +31,7 @@
 
   (input dep-build-targets g/Any :array)
 
-  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Game Project" :icon game-object-icon}))
+  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Game Project" :icon game-project-icon}))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached (g/fnk [node-id resource content dep-build-targets]
                                              [{:node-id node-id
@@ -96,5 +96,5 @@
                                     :ext "project"
                                     :node-type GameProjectNode
                                     :load-fn load-game-project
-                                    :icon game-object-icon
+                                    :icon game-project-icon
                                     :view-types [:text]))
