@@ -418,7 +418,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
     (slurp (types/replace-extension sdef "fp"))))
 
 (def shader-defs [{:ext "vp"
-                   :icon "icons/pictures.png"
+                   :icon "icons/16/Icons_32-Vertex-shader.png"
                    :prefix (string/join "\n" ["#ifndef GL_ES"
                                               "#define lowp"
                                               "#define mediump"
@@ -426,7 +426,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                                               "#endif"
                                               ""])}
                   {:ext "fp"
-                   :icon "icons/pictures.png"
+                   :icon "icons/16/Icons_33-Fragment-shader.png"
                    :prefix (string/join "\n" ["#ifdef GL_ES"
                                               "precision mediump float;"
                                               "#endif"

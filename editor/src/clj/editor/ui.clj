@@ -322,7 +322,7 @@
     menu-item))
 
 (def ^:private make-menu-items nil)
-  
+
 (defn- make-menu-item [item command-contexts]
   (let [icon (:icon item),
         item-label (:label item)]
@@ -409,7 +409,7 @@
              selection-provider (:selection-provider td)]
          (user-data! button ::menu-user-data user-data)
          (when icon
-           (.setGraphic button (jfx/get-image-view icon)))
+           (.setGraphic button (jfx/get-image-view icon 22.5)))
          (when command
            (.setId button (name command))
            (.setOnAction button (event-handler event (handler/run command command-contexts user-data))))

@@ -19,7 +19,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
-(def sprite-icon "icons/pictures.png")
+(def sprite-icon "icons/16/Icons_14-Sprite.png")
 
 ; Render assets
 

@@ -134,8 +134,35 @@
                                   (= code KeyCode/ESCAPE) true
                                   (= code KeyCode/ENTER) (do (reset! return (ui/selection (:resources controls))) true)
                                   true false)
-                          (.close stage)))))
+                            (.close stage)))))
 
+    (.initModality stage Modality/WINDOW_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+
+    @return))
+
+(defn make-new-folder-dialog [base-dir]
+  (let [root ^Parent (FXMLLoader/load (io/resource "new-folder-dialog.fxml"))
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["name" "ok"])
+        return (atom nil)
+        close (fn [] (reset! return (ui/text (:name controls))) (.close stage))]
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage "New Folder")
+
+    (ui/on-action! (:ok controls) (fn [_] (close)))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+                     (ui/event-handler event
+                                       (let [code (.getCode ^KeyEvent event)]
+                                         (when (condp = code
+                                                 KeyCode/ENTER (do (reset! return (ui/text (:name controls))) true)
+                                                 KeyCode/ESCAPE true
+                                                 false)
+                                           (.close stage)))))
+    
     (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)
