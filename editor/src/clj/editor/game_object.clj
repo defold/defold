@@ -23,7 +23,7 @@
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 
-(def game-object-icon "icons/brick.png")
+(def game-object-icon "icons/16/Icons_06-Game-object.png")
 
 (defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation save-data]
   {:id id
