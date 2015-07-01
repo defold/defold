@@ -87,7 +87,7 @@
 
   (property id g/Str)
   (property path g/Str (dynamic visible (g/fnk [embedded] (not embedded))))
-  (property embedded g/Bool (dynamic visible (g/fnk [] false)))
+  (property embedded g/Bool (dynamic visible (g/always false)))
 
   (input source g/Any)
   (input properties g/Any)

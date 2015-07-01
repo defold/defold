@@ -375,4 +375,4 @@
   (output viewport Region (g/fnk [viewport] viewport))
   (output camera Camera produce-camera)
 
-  (output input-handler Runnable (g/fnk [] handle-input)))
+  (output input-handler Runnable (g/always handle-input)))

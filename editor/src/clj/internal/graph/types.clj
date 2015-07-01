@@ -7,6 +7,13 @@
   [f]
   (contains? (meta f) :schema))
 
+(defn always
+  "Takes a value and produces a constanly function that has a schema and
+   is a considered a valid pfnk"
+  [v]
+  (let [always-fn (constantly v)]
+   (vary-meta always-fn assoc :schema (s/=> (class v) {}))))
+
 (defprotocol Arc
   (head [this] "returns [source-node source-label]")
   (tail [this] "returns [target-node target-label]"))
