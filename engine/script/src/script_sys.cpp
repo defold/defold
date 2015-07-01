@@ -278,12 +278,14 @@ namespace dmScript
     }
 
     /*# get system information
-     * returns a table with the following members:
+     * <p>
+     * Returns a table with the following members:
      * device_model, system_name, system_version, language, territory, gmt_offset (minutes), device_ident, ad_ident and ad_tracking_enabled.
-     * model is currently only available on iOS and Android.
-     * language is in ISO-639 format (two characters) and territory in
-     * ISO-3166 format (two characters)
-     * device_ident is "identifierForVendor" on iOS, "android_id" on Android and empty string on all other platforms
+     * </p>
+     * <p><code>device_model</code> is currently only available on iOS and Android.</p>
+     * <p><code>language</code> is in ISO-639 format (two characters) and <code>territory</code> in ISO-3166 format (two characters).</p>
+     * <p><code>device_ident</code> is "identifierForVendor" and <code>ad_ident</code> is "advertisingIdentifier" on iOS</p>
+     * <p><code>device_ident</code> is "android_id" and <code>ad_ident</code> is advertising ID provided by Google Play on Android.</p>
      *
      * @name sys.get_sys_info
      * @return table with system information
