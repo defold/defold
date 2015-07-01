@@ -16,7 +16,7 @@
 <VBox prefHeight="774.0" prefWidth="1205.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
       <MenuBar id="menu-bar" />
-      <HBox alignment="CENTER_LEFT">
+      <HBox id="topbar" alignment="CENTER_LEFT" spacing="16.0">
          <children>
             <ImageView fitHeight="40.0" pickOnBounds="true" preserveRatio="true">
                <image>
@@ -26,33 +26,74 @@
                   <Insets left="6.0" right="6.0" />
                </HBox.margin>
             </ImageView>
-            <HBox id="toolbar" alignment="CENTER_LEFT" spacing="4.0" />
-            <Pane prefWidth="16.0" />
-            <BorderPane style="-fx-background-color: #ccc; -fx-background-radius: 4;">
+            <BorderPane id="toolbar-status" maxHeight="35.0" prefHeight="35.0" prefWidth="234.0">
                <bottom>
-                  <ProgressBar minHeight="6.0" prefHeight="6.0" prefWidth="200.0" progress="0.3" styleClass="small-progress-bar" BorderPane.alignment="CENTER" />
+                  <ProgressBar maxHeight="7.0" maxWidth="1.7976931348623157E308" minHeight="7.0" prefHeight="7.0" progress="0.25" BorderPane.alignment="CENTER" />
                </bottom>
                <center>
-                  <Label text="Ready" BorderPane.alignment="CENTER">
-                     <font>
-                        <Font size="10.0" />
-                     </font>
-                  </Label>
+                  <HBox BorderPane.alignment="CENTER">
+                     <children>
+                        <Label contentDisplay="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" text="Status: All Good" HBox.hgrow="ALWAYS">
+                           <HBox.margin>
+                              <Insets left="6.0" />
+                           </HBox.margin>
+                        </Label>
+                        <Separator orientation="VERTICAL" />
+                     </children>
+                  </HBox>
                </center>
+               <right>
+                  <ImageView fitWidth="20.0" pickOnBounds="true" preserveRatio="true" BorderPane.alignment="CENTER">
+                     <image>
+                        <Image url="@icons/slask/ex.png" />
+                     </image>
+                     <BorderPane.margin>
+                        <Insets right="5.0" />
+                     </BorderPane.margin>
+                  </ImageView>
+               </right>
+               <left>
+                  <Pane maxHeight="-Infinity" maxWidth="-Infinity" prefHeight="10.0" prefWidth="10.0" styleClass="status-green" BorderPane.alignment="CENTER">
+                     <BorderPane.margin>
+                        <Insets left="8.0" />
+                     </BorderPane.margin>
+                  </Pane>
+               </left>
             </BorderPane>
-            <VBox style="-fx-background-color: #ddd; -fx-background-radius: 5px; -fx-padding_: 8 0 0 0;" />
+            <HBox id="toolbar" alignment="CENTER_LEFT" maxHeight="35.0" prefHeight="35.0" spacing="1.0">
+               <children>
+                  <ToggleButton mnemonicParsing="false">
+                     <graphic>
+                        <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
+                           <image>
+                              <Image url="@icons/Icons_T_01_Select.png" />
+                           </image>
+                        </ImageView>
+                     </graphic>
+                  </ToggleButton>
+                  <ToggleButton mnemonicParsing="false">
+                     <graphic>
+                        <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
+                           <image>
+                              <Image url="@icons/Icons_T_02_Move.png" />
+                           </image>
+                        </ImageView>
+                     </graphic>
+                  </ToggleButton>
+               </children></HBox>
+            <Pane prefWidth="16.0" />
+            <BorderPane prefWidth="200.0" />
             <Pane HBox.hgrow="ALWAYS" />
-            <ComboBox focusTraversable="false" prefWidth="150.0" />
          </children>
          <VBox.margin>
-            <Insets bottom="6.0" left="6.0" right="6.0" top="6.0" />
+            <Insets />
          </VBox.margin>
       </HBox>
       <SplitPane dividerPositions="0.228595178719867, 0.7406483790523691" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
         <items>
           <AnchorPane prefHeight="100.0" prefWidth="160.0">
                <children>
-                  <TitledPane animated="false" collapsible="false" layoutX="24.0" layoutY="60.0" text="Outline" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                  <TitledPane animated="false" layoutX="24.0" layoutY="60.0" text="Outline" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                      <content>
                         <AnchorPane prefHeight="200.0" prefWidth="200.0">
                            <children>
@@ -138,6 +179,36 @@
                                              </children></AnchorPane>
                                       </content>
                                     </Tab>
+                                    <Tab text="CSS Test">
+                                      <content>
+                                        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <GridPane vgap="10.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                  <columnConstraints>
+                                                    <ColumnConstraints hgrow="NEVER" minWidth="10.0" prefWidth="80.0" />
+                                                    <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="80.0" />
+                                                  </columnConstraints>
+                                                  <rowConstraints>
+                                                    <RowConstraints minHeight="10.0" vgrow="NEVER" />
+                                                    <RowConstraints minHeight="10.0" vgrow="NEVER" />
+                                                    <RowConstraints minHeight="10.0" vgrow="NEVER" />
+                                                  </rowConstraints>
+                                                   <children>
+                                                      <TextField GridPane.columnIndex="1" />
+                                                      <Label text="ID" />
+                                                      <Label text="Layer" GridPane.rowIndex="1" />
+                                                      <Label text="XYZ" GridPane.rowIndex="2" />
+                                                      <CheckBox mnemonicParsing="false" text="CheckBox" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+                                                      <ChoiceBox prefWidth="150.0" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                                                   </children>
+                                                   <padding>
+                                                      <Insets bottom="6.0" left="6.0" right="6.0" top="6.0" />
+                                                   </padding>
+                                                </GridPane>
+                                             </children>
+                                          </AnchorPane>
+                                      </content>
+                                    </Tab>
                                 </tabs>
                               </TabPane>
                            </children>
@@ -152,7 +223,7 @@
                     <items>
                       <AnchorPane prefHeight="100.0" prefWidth="160.0">
                            <children>
-                              <TitledPane animated="false" collapsible="false" layoutX="14.0" layoutY="61.0" text="Properties" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                              <TitledPane animated="false" layoutX="14.0" layoutY="61.0" text="Properties" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                 <content>
                                     <ScrollPane hbarPolicy="NEVER" prefViewportHeight="325.0" prefViewportWidth="269.0">
                                        <content>

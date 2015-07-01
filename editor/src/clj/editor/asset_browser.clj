@@ -3,7 +3,8 @@
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.dialogs :as dialogs])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
@@ -59,6 +60,9 @@
                   :command :delete
                   :icon "icons/cross.png"
                   :acc "Shortcut+BACKSPACE"}
+                 {:label "New Folder"
+                  :command :new-folder
+                  :icon "icons/folder.png"}
                  {:label :separator}
                  {:id ::refresh
                   :label "Refresh"
@@ -81,6 +85,20 @@
   (enabled? [selection] (every? is-deletable-resource selection))
   (run [selection] (prn "Delete" selection "NOW!")))
 
+(defn- resolve-sub-folder [base-folder new-folder-name]
+  (.toFile (.resolve (.toPath base-folder) new-folder-name)))
+
+(defn- to-folder [file]
+  (if (.isFile file) (.getParentFile file) file))
+
+(handler/defhandler :new-folder :asset-browser
+  (enabled? [selection] (and (= (count selection) 1) (not= nil (workspace/abs-path (first selection)))))
+  (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))
+                         base-folder (to-folder f)]
+                     (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
+                       (.mkdir (resolve-sub-folder base-folder new-folder-name))))))
+                     
+
 (handler/defhandler :refresh :asset-browser
   (enabled? [] true)
   (run [] (prn "REFRESH NOW!") ))
@@ -88,7 +106,7 @@
 (handler/defhandler :show-in-desktop :asset-browser
   (enabled? [selection] (and (= 1 (count selection)) (not= nil (workspace/abs-path (first selection)))) )
   (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))
-                         dir (if (.isFile f) (.getParentFile f) f)]
+                         dir (to-folder f)]
                      (.open (Desktop/getDesktop) dir))))
 
 (defn- setup-asset-browser [workspace ^TreeView tree-view open-resource-fn]
