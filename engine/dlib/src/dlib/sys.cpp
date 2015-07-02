@@ -568,6 +568,59 @@ namespace dmSys
             dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
         }
 
+        jmethodID get_class_loader = env->GetMethodID(activity_class,"getClassLoader", "()Ljava/lang/ClassLoader;");
+        jobject cls = env->CallObjectMethod(g_AndroidApp->activity->clazz, get_class_loader);
+        jclass class_loader = env->FindClass("java/lang/ClassLoader");
+        jmethodID find_class = env->GetMethodID(class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+
+        jstring str_class_name = env->NewStringUTF("com.google.android.gms.ads.identifier.AdvertisingIdClient");
+        jclass ad_client_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
+        env->DeleteLocalRef(str_class_name);
+
+        if (env->ExceptionCheck())
+        {
+            ad_client_class = 0;
+            env->ExceptionClear();
+            dmLogWarning("Could not find AdvertisingIdClient, unable to read advertising id");
+        }
+
+        str_class_name = env->NewStringUTF("com.google.android.gms.ads.identifier.AdvertisingIdClient$Info");
+        jclass ad_info_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
+        env->DeleteLocalRef(str_class_name);
+
+        if (env->ExceptionCheck())
+        {
+            ad_info_class = 0;
+            env->ExceptionClear();
+            dmLogWarning("Could not find AdvertisingIdClient$Info, unable to read advertising id");
+        }
+
+        if (ad_client_class && ad_info_class)
+        {
+            jmethodID get_info = env->GetStaticMethodID(ad_client_class, "getAdvertisingIdInfo", "(Landroid/content/Context;)Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;");
+            if (env->ExceptionCheck())
+            {
+                get_info = 0;
+                env->ExceptionClear();
+            }
+            if (get_info)
+            {
+                jobject info_obj = env->CallStaticObjectMethod(ad_client_class, get_info, g_AndroidApp->activity->clazz);
+                jmethodID get_id = env->GetMethodID(ad_info_class, "getId", "()Ljava/lang/String;");
+                jstring val = (jstring) env->CallObjectMethod(info_obj, get_id);
+                if (val)
+                {
+                    const char *id = env->GetStringUTFChars(val, NULL);
+                    dmStrlCpy(info->m_AdIdentifier, id, sizeof(info->m_AdIdentifier));
+                    env->ReleaseStringUTFChars(val, id);
+                    env->DeleteLocalRef(val);
+                }
+                jmethodID get_limit = env->GetMethodID(ad_info_class, "isLimitAdTrackingEnabled", "()Z");
+                info->m_AdTrackingEnabled = !env->CallBooleanMethod(info_obj, get_limit);
+                env->DeleteLocalRef(info_obj);
+            }
+        }
+
         activity->vm->DetachCurrentThread();
     }
 #elif defined(_WIN32)
