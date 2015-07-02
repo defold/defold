@@ -1085,8 +1085,9 @@ TEST(OverflowTest, OverflowTest)
     dmResource::DeleteFactory(factory);
 }
 
-TEST(OverflowTest, OverflowTestRecursive)
+TEST(GetResourceTest, OverflowTestRecursive)
 {
+    // Needs to be GetResourceTest or cannot use ResourceContainer resource here which is needed for the test.
     const char* test_dir = "build/default/src/test";
     for (uint32_t max=0;max<5;max++)
     {
