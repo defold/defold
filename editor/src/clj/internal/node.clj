@@ -517,8 +517,12 @@
   [node-type-name node-type input]
   (if (gt/substitute-for node-type input)
     `(let [inputs# ~(input-value-forms input)
+           input-type# (gt/input-type ~node-type-name ~input)
            sub#     (gt/substitute-for ~node-type-name ~input)]
-       (map #(if (gt/error? %) (util/apply-if-fn sub#) %) inputs#))
+       (map #(if (or (gt/error? %) (s/check (s/maybe input-type#) %))
+               (util/apply-if-fn sub#)
+               %)
+            inputs#))
     (input-value-forms input)))
 
 (defn- lookup-singlevalued-input
