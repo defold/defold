@@ -1,8 +1,7 @@
 (ns dynamo.integration.garbage-collection
 "Garbage disposal of nodes on the dynamo graph level"
-  (:require [dynamo.integration.garbage-collection :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [clojure.test :refer :all]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (g/defnode EmptyNode)
