@@ -527,8 +527,9 @@
     `(let [inputs#     ~(input-value-forms input)
            no-input?#  (empty? inputs#)
            input#      (first inputs#)
-           sub#        (gt/substitute-for ~node-type-name ~input)]
-       (if (or no-input?# (gt/error? input#))
+           sub#        (gt/substitute-for ~node-type-name ~input)
+           input-type# (gt/input-type ~node-type-name ~input)]
+       (if (or no-input?# (gt/error? input#) (s/check (s/maybe input-type#) input#))
          (util/apply-if-fn sub#)
          input#))
     `(first ~(input-value-forms input))))
