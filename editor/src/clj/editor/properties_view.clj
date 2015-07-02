@@ -159,7 +159,7 @@
       {:type (g/property-value-type (key (g/properties (g/node-type node))))}))
 
 (defn- property-visible [node key]
-  (or (get-in (g/node-value node :properties) [key :visible]) true))
+  (or (get-in (g/node-value node :properties) [key :visible] true)))
 
 (defn- create-properties-row [workspace ^GridPane grid node key property row]
   (let [label (Label. (niceify-label key))
