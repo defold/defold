@@ -59,12 +59,62 @@
         (g/transact (mapv #(g/delete-node %) (take 50 nodes)))
         (is (= 50 (count (gnodes world))))))))
 
+
+(def dispose-counter (atom 0))
+(g/defnode DisposableNode
+  g/IDisposable
+  (dispose [this] (swap! dispose-counter inc)))
+
 (deftest test-disposing-nodes
-  (testing "adding one node, deleting it, and disposing")
-  (testing "disposing twice only cleans up once for a deleted node")
-  (testing "disposing if a node is not deleted does nothing")
-  (testing "disposing after deleting node and adding it back in only calls dispose once")
-  (testing "disposing after deleting node and undoing does not call dispose")
-  (testing "disposing after deleting node and undo and redo does call dispose")
-  (testing "disposing lots of nodes")
-)
+  (testing "adding one node, deleting it, and disposing"
+    (reset! dispose-counter 0)
+    (with-clean-system
+      (let [[node] (tx-nodes (g/make-node world DisposableNode))]
+        (g/transact (g/delete-node node))
+        (is (= 0 @dispose-counter))
+        (g/dispose-pending)
+        (is (= 1 @dispose-counter)))))
+
+  (testing "disposing twice only cleans up once for a deleted node"
+    (reset! dispose-counter 0)
+    (with-clean-system
+      (let [[node] (tx-nodes (g/make-node world DisposableNode))]
+        (g/transact (g/delete-node node))
+        (is (= 0 @dispose-counter))
+        (g/dispose-pending)
+        (g/dispose-pending)
+        (is (= 1 @dispose-counter)))))
+
+  (testing "disposing if a node is not deleted does nothing"
+    (reset! dispose-counter 0)
+    (with-clean-system
+      (let [[node] (tx-nodes (g/make-node world DisposableNode))]
+        (is (= 0 @dispose-counter))
+        (g/dispose-pending)
+        (is (= 0 @dispose-counter)))))
+
+  (testing "disposing lots of nodes"
+    (reset! dispose-counter 0)
+    (with-clean-system
+      (let [nodes (g/tx-nodes-added (g/transact
+                                     (repeatedly 100 #(g/make-node world DisposableNode))) )]
+        (g/transact (mapv #(g/delete-node %) (take 50 nodes)))
+        (g/dispose-pending)
+        (is (= 50 @dispose-counter)))))
+
+(comment
+  ;; Disposal with undo and redo are not working right now
+  ;; Please uncomment and flush out when it is fixed
+
+  (testing "disposing after deleting node and undoing does not call dispose"
+    (reset! dispose-counter 0)
+    (with-clean-system
+      (let [my-graph (g/make-graph! :history true)
+            [node] (tx-nodes (g/make-node my-graph DisposableNode))]
+        (is (= 0 @dispose-counter))
+        (g/transact (g/delete-node node))
+        (g/undo my-graph)
+        (g/dispose-pending)
+        (is (= 0 @dispose-counter)))))
+
+  (testing "disposing after deleting node and undo and redo does call dispose")))
