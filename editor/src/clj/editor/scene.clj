@@ -324,9 +324,9 @@
 
   (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera viewport] (produce-render-data scene selection aux-renderables camera viewport)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:all-renderables render-data)))
-  (output select-buffer IntBuffer :cached (g/fnk [] (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
-                                                      (.order (ByteOrder/nativeOrder))
-                                                      (.asIntBuffer))))
+  (output select-buffer IntBuffer :cached (g/always (-> (ByteBuffer/allocateDirect (* 4 pick-buffer-size))
+                                                        (.order (ByteOrder/nativeOrder))
+                                                        (.asIntBuffer))))
   (output drawable  GLAutoDrawable :cached produce-drawable)
   (output text-renderer TextRendererRef :cached (g/fnk [^GLAutoDrawable drawable] (->TextRendererRef (gl/text-renderer Font/SANS_SERIF Font/BOLD 12) (if drawable (.getContext drawable) nil))))
   (output frame BufferedImage :cached produce-frame)
@@ -607,7 +607,7 @@
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
                                                                                     :render-fn render-selection-box
                                                                                     :user-data {:start start :current current}}]}))
-  (output input-handler Runnable :cached (g/fnk [] handle-selection-input)))
+  (output input-handler Runnable :cached (g/always handle-selection-input)))
 
 (defn setup-view [view resource-node opts]
   (let [view-graph (g/node->graph-id view)
@@ -689,7 +689,7 @@
   (output rotation Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
   (output scene g/Any :cached (g/fnk [^g/NodeID node-id ^Matrix4d transform] {:node-id node-id :transform transform}))
-  (output aabb AABB :cached (g/fnk [] (geom/null-aabb)))
+  (output aabb AABB :cached (g/always (geom/null-aabb)))
 
   scene-tools/Movable
   (scene-tools/move [self delta] (let [p (doto (Vector3d. (double-array (:position self))) (.add delta))]

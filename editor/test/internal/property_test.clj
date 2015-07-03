@@ -9,7 +9,7 @@
 
 (defprotocol MyProtocol)
 
-(deftest property-type-definition
+(deftest test-property-type-definition
   (let [property-defn (g/defproperty SomeProperty g/Any)]
     (is (var? property-defn))
     (is (identical? (resolve `SomeProperty) property-defn))
@@ -49,7 +49,7 @@
 
 (g/defproperty PropWithoutDefaultValue g/Num)
 
-(deftest property-type-default-value
+(deftest test-property-type-default-value
   (is (= 42 (:default PropWithDefaultValue)))
   (is (= 42 (gt/property-default-value PropWithDefaultValue)))
   (is (nil? (gt/property-default-value PropWithDefaultValueNil)))
@@ -93,7 +93,7 @@
 (g/defproperty PropWithValidationVarForm g/Num
   (validate must-be-the-answer #'*validation-fn*))
 
-(deftest property-type-validation
+(deftest test-property-type-validation
   (is (true?  (gt/property-valid-value? PropWithoutValidation nil)))
   (is (true?  (gt/property-valid-value? PropWithoutValidation 0)))
   (is (true?  (gt/property-valid-value? PropWithoutValidation 1)))
@@ -149,7 +149,7 @@
 (g/defproperty PropWithValidationFormatterVarForm g/Num
   (validate must-be-even :message #'*formatter-fn* even?))
 
-(deftest property-type-validation-messages
+(deftest test-property-type-validation-messages
   (is (= []                                              (gt/property-validate PropWithoutValidationFormatter 4)))
   (is (= ["invalid value"]                               (gt/property-validate PropWithoutValidationFormatter 5)))
   (is (= ["invalid value"]                               (gt/property-validate PropWithoutValidationFormatter "not a number")))
@@ -189,7 +189,7 @@
   (default 23)
   (validate must-be-pos even?))
 
-(deftest property-type-inheritance
+(deftest test-property-type-inheritance
   (is (= g/Num (:value-type DerivedProp)))
   (is (= g/Num (:value-type DerivedPropOverrideDefaultInheritValidation)))
   (is (= g/Num (:value-type DerivedPropInheritDefaultOverrideValidation)))
@@ -219,49 +219,21 @@
 
 (g/defproperty PropWithoutEnablement g/Any)
 
-(g/defproperty PropWithEnablementFnInline g/Num
-  (enabled #(pos? %)))
+(g/defproperty PropWithEnablementAlwaysTrue g/Num
+  (enabled (g/always true)))
 
-(g/defproperty PropWithEnablementFnValue g/Num
-  (enabled (every-pred pos? even?)))
+(g/defproperty PropWithEnablementAlwaysFalse g/Num
+  (enabled (g/always false)))
 
-(g/defproperty PropWithEnablementLiteralTrue g/Num
-  (enabled true))
-
-(g/defproperty PropWithEnablementLiteralFalse g/Num
-  (enabled false))
-
-(defn ^:dynamic *enablement-fn* [v] (= 42 v))
-
-(g/defproperty PropWithEnablementVarAsSymbol g/Num
-  (enabled *enablement-fn*))
-
-(g/defproperty PropWithEnablementVarForm g/Num
-  (enabled #'*enablement-fn*))
-
-(deftest property-type-enablement
+(deftest test-enablement
   (is (true?  (gt/property-enabled? PropWithoutEnablement nil)))
   (is (true?  (gt/property-enabled? PropWithoutEnablement 0)))
   (is (true?  (gt/property-enabled? PropWithoutEnablement 1)))
-  (is (false? (gt/property-enabled? PropWithEnablementFnInline 0)))
-  (is (true?  (gt/property-enabled? PropWithEnablementFnInline 1)))
-  (is (false? (gt/property-enabled? PropWithEnablementFnValue 0)))
-  (is (false? (gt/property-enabled? PropWithEnablementFnValue 1)))
-  (is (true?  (gt/property-enabled? PropWithEnablementFnValue 2)))
-  (is (true?  (gt/property-enabled? PropWithEnablementLiteralTrue 0)))
-  (is (true?  (gt/property-enabled? PropWithEnablementLiteralTrue 1)))
-  (is (false? (gt/property-enabled? PropWithEnablementLiteralFalse 0)))
-  (is (false? (gt/property-enabled? PropWithEnablementLiteralFalse 1)))
-  (is (false? (gt/property-enabled? PropWithEnablementVarAsSymbol 23)))
-  (is (true?  (gt/property-enabled? PropWithEnablementVarAsSymbol 42)))
-  (is (false? (gt/property-enabled? PropWithEnablementVarForm 23)))
-  (is (true?  (gt/property-enabled? PropWithEnablementVarForm 42)))
-  (binding [*enablement-fn* #(= 23 %)]
-    (is (true?  (gt/property-enabled? PropWithEnablementVarAsSymbol 23)))
-    (is (false? (gt/property-enabled? PropWithEnablementVarAsSymbol 42)))
-    (is (true?  (gt/property-enabled? PropWithEnablementVarForm 23)))
-    (is (false? (gt/property-enabled? PropWithEnablementVarForm 42))))
-  (is (thrown-with-msg?
+  (is (true?  (gt/property-enabled? PropWithEnablementAlwaysTrue 0)))
+  (is (true?  (gt/property-enabled? PropWithEnablementAlwaysTrue 1)))
+  (is (false?  (gt/property-enabled? PropWithEnablementAlwaysFalse 1)))
+  (is (false?  (gt/property-enabled? PropWithEnablementAlwaysFalse 1)))
+(is (thrown-with-msg?
        clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
        (eval '(dynamo.graph/defproperty BadProp schema.core/Num (enabled non-existent-symbol))))))
 
@@ -278,7 +250,7 @@
 (g/defproperty PropWithVisibilityVarForm g/Num
   (visible #'enablement-fn))
 
-(deftest property-type-enablement
+(deftest test-property-type-enablement
   (is (true?  (gt/property-visible? PropWithoutVisibility {})))
   (is (false? (gt/property-visible? PropWithVisibilityFnInline {:an-input 0})))
   (is (true?  (gt/property-visible? PropWithVisibilityFnInline {:an-input 1})))
@@ -310,7 +282,7 @@
    (zipmap args (repeat g/Any))
    g/Keyword g/Any))
 
-(deftest property-dynamics
+(deftest test-property-dynamics
   (is (= (argument-schema :an-input) (dynamic-arguments PropertyWithDynamicAttribute :fooable)))
   (is (= (argument-schema :an-input :another-input) (dynamic-arguments PropertyWithDynamicVarAsSymbol :fooable)))
   (is (= (argument-schema :an-input :another-input) (dynamic-arguments PropertyWithDynamicVarForm :fooable))))
