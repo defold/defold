@@ -77,8 +77,8 @@ Defold Orange       #fd6623             Guides etc
     -fx-box-border: #484c52;
     -fx-accent: -selected-blue;
 
-    -fx-focus-color: red:
-    -fx-faint-focus-color: red;
+    -fx-focus-color_: red;
+    -fx-faint-focus-color_: red;
 
 
     /* cells */
@@ -103,11 +103,11 @@ Defold Orange       #fd6623             Guides etc
 
     -fx-accent_: red;
 
-    -fx-font_: 12px Avenir 100;
+    /*-fx-font: 14px 'Avenir Medium' bold;*/
 
-    -fx-font-family: Avenir;
+    -fx-font-family: "Avenir Heavy";
     -fx-font-size: 12px;
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
 }
 
 .button,
