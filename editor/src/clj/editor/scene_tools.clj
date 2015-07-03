@@ -1,6 +1,7 @@
 (ns editor.scene-tools
   (:require [dynamo.graph :as g]
             [editor.camera :as c]
+            [editor.colors :as colors]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
@@ -56,9 +57,6 @@
 (def shader (shader/make-shader vertex-shader fragment-shader))
 
 ; Rendering
-
-(def selected-color [1.0 1.0 0.0])
-(def hot-color [1.0 (/ 211.0 255) (/ 149.0 255)])
 
 (defn- scale-factor [camera viewport]
   (let [inv-view (doto (Matrix4d. (c/camera-view-matrix camera)) (.invert))
@@ -183,7 +181,7 @@
 
 (defn- gen-arrow [sub-divs]
   (concat
-    (vtx-add [90.0 0.0 0.0] (vtx-scale [20.0 5.0 5.0] (gen-cone sub-divs)))
+    (vtx-add [90.0 0.0 0.0] (vtx-scale [14.0 6.0 6.0] (gen-cone sub-divs)))
     (vtx-add [15.0 0.0 0.0] (vtx-scale [85.0 1.0 1.0] (gen-line)))))
 
 (defn- gen-vertex-buffer [vertices vtx-count]
@@ -218,19 +216,39 @@
     :scale-yz #{:scale-y :scale-z}
     :scale-uniform #{}))
 
+(def manip-colors
+  {:move-x colors/defold-red
+   :move-y colors/defold-green
+   :move-z colors/defold-blue
+   :move-xy colors/defold-blue
+   :move-xz colors/defold-green
+   :move-yz colors/defold-red
+   :move-screen colors/defold-blue
+   :rot-x colors/defold-red
+   :rot-y colors/defold-green
+   :rot-z colors/defold-blue
+   :rot-screen colors/defold-blue
+   :scale-x colors/defold-red
+   :scale-y colors/defold-green
+   :scale-z colors/defold-blue
+   :scale-xy colors/defold-blue
+   :scale-xz colors/defold-green
+   :scale-yz colors/defold-red
+   :scale-uniform colors/defold-blue})
+
 (defn- manip->color [manip active-manip hot-manip tool-active?]
   (let [hot (= manip hot-manip)
         active (or (= manip active-manip) (and tool-active? (contains? (manip->sub-manips active-manip) manip)))
         alpha (if (= manip :move-screen) 0.0 1.0)
-        screen-manip-color [(/ 100.0 255) (/ 220.0 255) 1.0]]
+        screen-manip-color colors/defold-turquoise]
     (cond
-      hot (conj hot-color alpha)
-      active (conj selected-color alpha)
+      hot (colors/alpha colors/defold-yellow alpha)
+      active (colors/alpha colors/defold-orange alpha)
       true (case manip
-             (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (conj (manip->normal manip) 0.2)
-             (:move-screen) (conj screen-manip-color 0.0)
-             (:rot-screen :scale-uniform) (conj screen-manip-color 1.0)
-             (conj (manip->normal manip) 1.0)))))
+             (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (colors/alpha (manip manip-colors) 0.2)
+             (:move-screen) (colors/alpha screen-manip-color 0.0)
+             (:rot-screen :scale-uniform) (colors/alpha screen-manip-color 1.0)
+             (manip manip-colors)))))
 
 (defn- manip->rotation [manip] ^AxisAngle4d
   (case manip
@@ -267,14 +285,14 @@
 (defn- manip->vertices [manip]
   (case manip
     (:move-x :move-y :move-z) (gen-arrow 10)
-    (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (vtx-add [65.0 65.0 0.0] (vtx-scale [8.0 8.0 1.0] (gen-square true true)))
+    (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (vtx-add [65.0 65.0 0.0] (vtx-scale [7.0 7.0 1.0] (gen-square true true)))
     :move-screen (concat
-                (vtx-scale [8.0 8.0 1.0] (gen-square true true))
+                (vtx-scale [7.0 7.0 1.0] (gen-square true true))
                 (gen-point))
     (:rot-x :rot-y :rot-z) (vtx-scale [axis-rotation-radius axis-rotation-radius 1.0] (gen-circle 64))
     :rot-screen (vtx-scale [screen-rotation-radius screen-rotation-radius 1.0] (gen-circle 64))
-    (:scale-x :scale-y :scale-z) (vtx-add [85 0 0] (vtx-scale [8 8 8] (gen-cube false true)))
-    :scale-uniform (vtx-scale [8 8 8] (gen-cube false true))))
+    (:scale-x :scale-y :scale-z) (vtx-add [85 0 0] (vtx-scale [7 7 7] (gen-cube false true)))
+    :scale-uniform (vtx-scale [7 7 7] (gen-cube false true))))
 
 (defn- gen-manip-renderable [id manip ^Matrix4d world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
   (let [vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)

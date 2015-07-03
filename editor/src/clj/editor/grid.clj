@@ -1,6 +1,7 @@
 (ns editor.grid
   (:require [dynamo.graph :as g]
             [editor.camera :as c]
+            [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.types :as types]
@@ -10,10 +11,10 @@
            [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
-(def grid-color [0.44705 0.44314 0.5098])
-(def x-axis-color (gl/color 200   0   0))
-(def y-axis-color (gl/color   0 200   0))
-(def z-axis-color (gl/color   0   0 200))
+(def grid-color [0.44705 0.44314 0.5098 1.0])
+(def x-axis-color colors/defold-red)
+(def y-axis-color colors/defold-green)
+(def z-axis-color colors/defold-blue)
 
 (defn render-grid-axis
   [^GL2 gl ^doubles vx uidx start stop size vidx min max]
@@ -42,13 +43,13 @@
 
 (defn render-primary-axes
   [^GL2 gl ^AABB aabb]
-  (gl/gl-color-3fv gl x-axis-color 0)
+  (gl/gl-color gl x-axis-color)
   (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
   (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0)
-  (gl/gl-color-3fv gl y-axis-color 0)
+  (gl/gl-color gl y-axis-color)
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
   (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0)
-  (gl/gl-color-3fv gl z-axis-color 0)
+  (gl/gl-color gl z-axis-color)
   (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
   (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
 
@@ -60,7 +61,7 @@
           :let       [ratio (nth (:ratios grids) grid-index)
                       alpha (Math/abs (* (aget dir axis) ratio))]]
      (do
-       (gl/gl-color-3dv+a gl grid-color alpha)
+       (gl/gl-color gl (colors/alpha grid-color alpha))
        (render-grid gl axis
                     (nth (:sizes grids) grid-index)
                     (nth (:aabbs grids) grid-index))))))

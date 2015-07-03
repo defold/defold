@@ -10,6 +10,15 @@
 
 
 /*
+Links:
+- http://fxexperience.com/2011/12/styling-fx-buttons-with-css/
+- http://www.guigarage.com/javafx-themes/
+- http://www.guigarage.com/javafx-themes/aquafx/
+- http://www.aerofx.org/
+
+*/
+
+/*
 Colors
 
 Defold Light Blue   #60a8ff             Highlight borders and always together with Defold Blue
@@ -74,7 +83,7 @@ Defold Orange       #fd6623             Guides etc
 
     /* cells */
     -fx-selection-bar: -selected-blue;
-    -fx-selection-bar-non-focused: -mid-grey;
+    -fx-selection-bar-non-focused: -dark-grey;
     -fx-cell-focus-inner-border: -selected-blue;
 
     /* splitter */
@@ -99,11 +108,6 @@ Defold Orange       #fd6623             Guides etc
     -fx-font-family: Avenir;
     -fx-font-size: 12px;
     -fx-font-weight: bold;
-}
-
-.text-input {
-    -fx-background-color: -dark-black;
-    -fx-border-width: 0;
 }
 
 .button,
@@ -397,6 +401,17 @@ Defold Orange       #fd6623             Guides etc
     -fx-padding: -1 -1 -1 0;
 }
 
+/* Selected rows */
+.list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
+.tree-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-cell:filled:selected,
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected,
+.tree-table-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell:filled:selected,
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell .table-cell:selected,
+.tree-table-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell .tree-table-cell:selected {
+    -fx-background: -fx-selection-bar;
+    -fx-text-fill: -defold-white;
+}
+
 /*
 .titled-pane > *.content {
     -fx-border-width: 0;
@@ -526,7 +541,15 @@ Defold Orange       #fd6623             Guides etc
 }
 
 .text-field {
-    -fx-border-color: #494a4e;
+    -fx-background-color: -dark-black;
+    -fx-border-width: 1;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+}
+
+.text-field:focused {
+    -fx-border-color: -mid-grey;
+    -fx-border-width: 1px;
 }
 
 .text-area {
