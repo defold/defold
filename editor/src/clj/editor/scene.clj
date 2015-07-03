@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [dynamo.util :as util]
             [editor.background :as background]
+            [editor.colors :as colors]
             [editor.camera :as c]
             [editor.core :as core]
             [editor.geom :as geom]
@@ -58,8 +59,8 @@
 
 (def INDEX_SHIFT 4)
 
-(def outline-color [(/ 43.0 255) (/ 25.0 255) (/ 116.0 255)])
-(def selected-outline-color [(/ 69.0 255) (/ 255.0 255) (/ 162.0 255)])
+(def outline-color colors/bright-grey)
+(def selected-outline-color colors/defold-turquoise)
 
 (defn select-color [pass selected object-color]
   (if (or (= pass pass/outline) (= pass pass/icon-outline))
