@@ -1,4 +1,4 @@
-(ns dynamo.particle-lib
+(ns editor.particle-lib
   (:import [com.defold.libs ParticleLibrary]
            [com.sun.jna Pointer]))
 
