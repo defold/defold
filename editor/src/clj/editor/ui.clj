@@ -17,6 +17,11 @@
            [javafx.stage Stage Modality Window]
            [javafx.util Callback]))
 
+;; These two lines initialize JavaFX and OpenGL when we're generating
+;; API docs
+(import com.sun.javafx.application.PlatformImpl)
+(PlatformImpl/startup (constantly nil))
+
 (set! *warn-on-reflection* true)
 
 (defonce ^:dynamic *menus* (atom {}))

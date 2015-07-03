@@ -13,12 +13,12 @@ ordinary paths."
 (g/defnode ResourceNode
   (inherits core/Scope)
 
-  (property resource (g/protocol workspace/Resource) (dynamic visible (g/fnk [] false)))
+  (property resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
   (property resource-type g/Any)
-  (property project-id g/Any (dynamic visible (g/fnk [] false)))
+  (property project-id g/Any (dynamic visible (g/always false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets g/Any (g/fnk [] [])))
+  (output build-targets g/Any (g/always [])))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
