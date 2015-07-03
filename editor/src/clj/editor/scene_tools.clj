@@ -486,4 +486,4 @@
   (input selected-renderables g/Any)
 
   (output renderables pass/RenderData :cached produce-renderables)
-  (output input-handler Runnable :cached (g/fnk [] handle-input)))
+  (output input-handler Runnable :cached (g/always handle-input)))

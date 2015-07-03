@@ -400,3 +400,14 @@
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world Dummy))]
         (is (thrown? AssertionError (g/set-property! node :no-such-property 4711)))))))
+
+(g/defnode AlwaysNode
+  (output always-99 g/Int (g/always 99))
+  (property foo g/Str (visible (g/always true))))
+
+(deftest always-fnk-test
+  (testing "Always works as a shortcut for fnk constant values"
+    (with-clean-system
+      (let [[node] (tx-nodes (g/make-node world AlwaysNode))]
+        (= 99 (g/node-value node :always-99))
+        (is (= true (get-in (g/node-value node :properties) [:foo :visible])))))))
