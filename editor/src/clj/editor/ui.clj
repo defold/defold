@@ -19,8 +19,8 @@
 
 ;; These two lines initialize JavaFX and OpenGL when we're generating
 ;; API docs
-(.toString (javax.media.opengl.GLProfile/getDefault))
-(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))
+(import com.sun.javafx.application.PlatformImpl)
+(PlatformImpl/startup (constantly nil))
 
 (set! *warn-on-reflection* true)
 
