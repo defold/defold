@@ -44,7 +44,7 @@
 
 (def ^:dynamic *tps-debug* nil)
 
-(namespaces/import-vars [internal.system system-cache disposal-queue])
+(namespaces/import-vars [internal.system system-cache cache-disposal-queue deleted-disposal-queue])
 
 (defn now
   []
@@ -627,7 +627,7 @@
 
 (defn dispose-pending
   []
-  (dispose/dispose-pending (is/disposal-queue @*the-system*)))
+  (dispose/dispose-pending *the-system*))
 
 (defn- make-graph
   [& {:as options}]
