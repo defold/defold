@@ -217,6 +217,10 @@
       (is (:a-property (-> node g/node-type g/property-labels)))
       (is (some #{:a-property} (keys node)))))
 
+  (testing "_id is an internal property"
+    (is (= [:_id] (keys (g/internal-properties SinglePropertyNode))))
+    (is (= [:a-property] (keys (g/properties SinglePropertyNode)))))
+
   (testing "two properties"
     (let [node (g/construct TwoPropertyNode)]
       (is (contains? (g/property-labels TwoPropertyNode) :a-property))
@@ -242,7 +246,7 @@
 
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (= {:_id              #{:properties :_id :self}
+      (is (= {:_id              #{:_id}
               :another-property #{:properties :another-property :self}
               :a-property       #{:properties :a-property :self}}
              (-> node g/node-type g/input-dependencies)))))
@@ -255,7 +259,7 @@
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
-      (is (= {:_id        #{:properties :_id :self}
+      (is (= {:_id        #{:_id}
               :foo        #{:properties}
               :a-property #{:properties :a-property :self}}
              (-> node g/node-type g/input-dependencies)))))
@@ -336,19 +340,19 @@
       (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
 
   (testing "output dependencies include transforms and their inputs"
-    (is (= {:_id #{:properties :_id :self}
+    (is (= {:_id #{:_id}
             :project #{:integer-output}
             :string-input #{:inline-string}
             :integer-input #{:string-output :cached-output}}
            (g/input-dependencies MultipleOutputNode)))
-    (is (= {:_id #{:properties :_id :self}
+    (is (= {:_id #{:_id}
             :project #{:integer-output}
             :string-input #{:inline-string}
             :integer-input #{:string-output :abstract-output :cached-output}}
            (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
-    (is (= {:_id #{:properties :_id :self}
+    (is (= {:_id #{:_id}
             :a-property #{:direct-calculation :indirect-calculation :properties :a-property :self}
             :direct-calculation #{:indirect-calculation}}
            (g/input-dependencies TwoLayerDependencyNode))))

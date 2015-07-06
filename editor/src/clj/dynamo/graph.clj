@@ -17,7 +17,7 @@
 
 (namespaces/import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties inputs injectable-inputs outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
@@ -180,7 +180,7 @@
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
   (assert (::ctor node-type))
-  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (properties node-type)))]
+  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (merge (internal-properties node-type) (properties node-type))))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
   ((::ctor node-type) args))
 
@@ -547,7 +547,7 @@
   (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
 
 (defn serialize-node [node]
-  (let [all-node-properties    (dissoc (select-keys node (keys (-> node gt/node-type gt/properties))) :_id)
+  (let [all-node-properties    (select-keys node (keys (-> node gt/node-type gt/properties)))
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:serial-id (gt/node-id node)
      :node-type (gt/node-type node)
