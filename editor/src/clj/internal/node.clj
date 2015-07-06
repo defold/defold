@@ -517,9 +517,8 @@
   [node-type-name node-type input]
   (if (gt/substitute-for node-type input)
     `(let [inputs# ~(input-value-forms input)
-           input-type# (gt/input-type ~node-type-name ~input)
            sub#     (gt/substitute-for ~node-type-name ~input)]
-       (map #(if (or (gt/error? %) (s/check (s/maybe input-type#) %))
+       (map #(if (gt/error? %)
                (util/apply-if-fn sub#)
                %)
             inputs#))
@@ -531,9 +530,8 @@
     `(let [inputs#     ~(input-value-forms input)
            no-input?#  (empty? inputs#)
            input#      (first inputs#)
-           sub#        (gt/substitute-for ~node-type-name ~input)
-           input-type# (gt/input-type ~node-type-name ~input)]
-       (if (or no-input?# (gt/error? input#) (s/check (s/maybe input-type#) input#))
+           sub#        (gt/substitute-for ~node-type-name ~input)]
+       (if (or no-input?# (gt/error? input#))
          (util/apply-if-fn sub#)
          input#))
     `(first ~(input-value-forms input))))
