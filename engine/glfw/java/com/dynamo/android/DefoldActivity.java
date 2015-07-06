@@ -10,6 +10,8 @@ import android.os.IBinder;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.util.Log;
+import com.google.android.gms.ads.identifier.AdvertisingIdClient;
+import com.google.android.gms.common.*;
 
 public class DefoldActivity extends NativeActivity {
 
@@ -41,6 +43,65 @@ public class DefoldActivity extends NativeActivity {
             }
         } catch (PackageManager.NameNotFoundException e) {
             throw new RuntimeException("Error getting activity info", e);
+        }
+
+        final DefoldActivity self = this;
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    AdvertisingIdClient.Info info = AdvertisingIdClient.getAdvertisingIdInfo(self);
+                    self.setAdInfo(info.getId(), info.isLimitAdTrackingEnabled());
+                } catch (java.io.IOException e) {
+                    self.setAdInfo("", false);
+                } catch (GooglePlayServicesNotAvailableException e) {
+                    self.setAdInfo("", false);
+                } catch (GooglePlayServicesRepairableException e) {
+                    self.setAdInfo("", false);
+                }
+            }
+        }).start();
+    }
+
+    private Object m_AdGuard = new Object();
+    private boolean m_GotAdInfo = false;
+    private String m_AdId;
+    private boolean m_LimitAdTracking;
+
+
+    public void setAdInfo(String adId, boolean limitAdTracking)
+    {
+        synchronized(m_AdGuard)
+        {
+            m_AdId = adId;
+            m_LimitAdTracking = limitAdTracking;
+            m_GotAdInfo = true;
+        }
+    }
+
+    /**
+     * Return null for does not exist yet, blank string if completed but unable to get id.
+     */
+    public String getAdId()
+    {
+        synchronized(m_AdGuard)
+        {
+            return m_AdId;
+        }
+    }
+
+    public boolean getLimitAdTracking()
+    {
+        synchronized(m_AdGuard)
+        {
+            return m_LimitAdTracking;
+        }
+    }
+
+    public boolean isStartupDone()
+    {
+        synchronized(m_AdGuard)
+        {
+            return m_GotAdInfo;
         }
     }
 

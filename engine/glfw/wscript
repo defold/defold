@@ -52,7 +52,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
 
     if 'android' in bld.env['PLATFORM']:
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME, '%s/ext/share/java/google-play-services.jar' % bld.env.DYNAMO_HOME];
         classpath = os.pathsep.join(classpath)
 
         bld.new_task_gen(features='javac seq',
