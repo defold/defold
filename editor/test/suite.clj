@@ -12,6 +12,8 @@
                        editor.image-test
                        dynamo.transaction-test
                        dynamo.util-test
+                       dynamo.integration.garbage-collection
+                       dynamo.integration.schema-validation
                        editor.handler-test
                        editor.injection-test
                        editor.math-test
