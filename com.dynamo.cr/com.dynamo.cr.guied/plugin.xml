@@ -802,7 +802,7 @@
             name="Gui"
             proto-message-class="com.dynamo.gui.proto.Gui$SceneDesc"
             resource-refactor-participant-class="com.dynamo.cr.guied.refactoring.GuiSceneRefactorParticipant"
-            template-data="script: &apos;&apos;"
+            template-data="script: &apos;&apos; adjust_reference: ADJUST_REFERENCE_PARENT"
             type-class="component">
          <references>
             <reference-type-class
