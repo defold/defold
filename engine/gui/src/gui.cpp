@@ -670,8 +670,7 @@ namespace dmGui
         float scale_x = 1.0f;
         float scale_y = 1.0f;
 
-        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || node == 0x0 || node->m_ParentIndex == INVALID_INDEX)
-        {
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || node == 0x0 || node->m_ParentIndex == INVALID_INDEX) {
             scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
             scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
         } else {
@@ -1879,8 +1878,7 @@ namespace dmGui
         Context* context = scene->m_Context;
         Vector4 parent_dims;
 
-        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX)
-        {
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
             parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
         } else {
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
@@ -1889,9 +1887,8 @@ namespace dmGui
 
         Vector4 offset = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
         Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
-        Vector4 ref_size = Vector4(1.0f, 1.0f, 0.0f, 1.0f);
-        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX)
-        {
+        Vector4 ref_size;
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
             ref_size = Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f);
 
             // need to calculate offset for root nodes, since (0,0) is in middle of scene
