@@ -101,10 +101,6 @@
         (g/dispose-pending)
         (is (= 50 @dispose-counter)))))
 
-(comment
-  ;; Disposal with undo and redo are not working right now
-  ;; Please uncomment and flush out when it is fixed
-
   (testing "disposing after deleting node and undoing does not call dispose"
     (reset! dispose-counter 0)
     (with-clean-system
@@ -116,4 +112,14 @@
         (g/dispose-pending)
         (is (= 0 @dispose-counter)))))
 
-  (testing "disposing after deleting node and undo and redo does call dispose")))
+  (testing "disposing after deleting node and undo and redo does call dispose"
+    (reset! dispose-counter 0)
+    (with-clean-system
+      (let [my-graph (g/make-graph! :history true)
+            [node] (tx-nodes (g/make-node my-graph DisposableNode))]
+        (is (= 0 @dispose-counter))
+        (g/transact (g/delete-node node))
+        (g/undo my-graph)
+        (g/redo my-graph)
+        (g/dispose-pending)
+        (is (= 1 @dispose-counter))))))
