@@ -12,6 +12,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/math.h>
 #include <dlib/vmath.h>
+#include <dlib/transform.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/trig_lookup.h>
@@ -40,7 +41,7 @@ namespace dmGui
     const uint32_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
     const uint32_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
-    inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color);
+    inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color);
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
@@ -219,6 +220,11 @@ namespace dmGui
         return scene->m_Context->m_DisplayProfiles;
     }
 
+    AdjustReference GetSceneAdjustReference(HScene scene)
+    {
+        return scene->m_AdjustReference;
+    }
+
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
         context->m_DisplayProfiles = display_profiles;
@@ -227,6 +233,11 @@ namespace dmGui
     void SetDefaultFont(HContext context, void* font)
     {
         context->m_DefaultFont = font;
+    }
+
+    void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference)
+    {
+        scene->m_AdjustReference = adjust_reference;
     }
 
     void SetDefaultNewSceneParams(NewSceneParams* params)
@@ -239,6 +250,7 @@ namespace dmGui
         params->m_MaxFonts = 4;
         // 8 is hard cap for the same reason as above
         params->m_MaxLayers = 8;
+        params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
     }
 
     static void ResetScene(HScene scene) {
@@ -281,6 +293,7 @@ namespace dmGui
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
         scene->m_Layouts.SetCapacity(1);
+        scene->m_AdjustReference = params->m_AdjustReference;
         scene->m_DefaultFont = 0;
         scene->m_UserData = params->m_UserData;
         scene->m_RenderHead = INVALID_INDEX;
@@ -652,10 +665,17 @@ namespace dmGui
         return ((uint32_t) node->m_Version) << 16 | node->m_Index;
     }
 
-    Vector4 CalculateReferenceScale(HScene scene)
+    Vector4 CalculateReferenceScale(HScene scene, InternalNode* node)
     {
-        float scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
-        float scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
+        float scale_x = 1.0f;
+        float scale_y = 1.0f;
+
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || node == 0x0 || node->m_ParentIndex == INVALID_INDEX) {
+            scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
+            scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
+        } else {
+            return scene->m_Nodes[node->m_ParentIndex].m_Node.m_LocalScale;
+        }
         return Vector4(scale_x, scale_y, 1, 1);
     }
 
@@ -1005,7 +1025,6 @@ namespace dmGui
         UpdateDynamicTextures(scene, params, context);
         DeferredDeleteDynamicTextures(scene, params, context);
 
-        Vector4 scale = CalculateReferenceScale(scene);
         c->m_RenderNodes.SetSize(0);
         c->m_RenderTransforms.SetSize(0);
         c->m_RenderColors.SetSize(0);
@@ -1042,7 +1061,7 @@ namespace dmGui
             const RenderEntry& entry = c->m_RenderNodes[i];
             uint16_t index = entry.m_Node & 0xffff;
             InternalNode* n = &scene->m_Nodes[index];
-            CalculateNodeTransformAndColorCached(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform, color);
+            CalculateNodeTransformAndColorCached(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform, color);
             c->m_RenderTransforms.Push(transform);
             c->m_RenderColors.Push(color);
             if (n->m_ClipperIndex != INVALID_INDEX) {
@@ -1835,69 +1854,101 @@ namespace dmGui
 
     static void AdjustPosScale(HScene scene, InternalNode* n, const Vector4& reference_scale, Vector4& position, Vector4& scale)
     {
-        if (n->m_ParentIndex == INVALID_INDEX)
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY && n->m_ParentIndex != INVALID_INDEX)
         {
-            Node& node = n->m_Node;
-            // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
-            Vector4 adjust_scale = reference_scale;
-            if (node.m_AdjustMode == dmGui::ADJUST_MODE_FIT)
-            {
-                float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
-                adjust_scale.setX(uniform);
-                adjust_scale.setY(uniform);
-            }
-            else if (node.m_AdjustMode == dmGui::ADJUST_MODE_ZOOM)
-            {
-                float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
-                adjust_scale.setX(uniform);
-                adjust_scale.setY(uniform);
-            }
-
-            Context* context = scene->m_Context;
-            Vector4 screen_dims((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
-            Vector4 adjusted_dims = mulPerElem(screen_dims, adjust_scale);
-            Vector4 offset = (Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f) - adjusted_dims) * 0.5f;
-            // Apply anchoring
-            Vector4 scaled_position = mulPerElem(position, adjust_scale);
-            if (node.m_XAnchor == XANCHOR_LEFT)
-            {
-                offset.setX(0.0f);
-                scaled_position.setX(position.getX() * reference_scale.getX());
-            }
-            else if (node.m_XAnchor == XANCHOR_RIGHT)
-            {
-                offset.setX(0.0f);
-                float distance = (scene->m_Width - position.getX()) * reference_scale.getX();
-                scaled_position.setX(context->m_PhysicalWidth - distance);
-            }
-            if (node.m_YAnchor == YANCHOR_TOP)
-            {
-                offset.setY(0.0f);
-                float distance = (scene->m_Height - position.getY()) * reference_scale.getY();
-                scaled_position.setY(context->m_PhysicalHeight - distance);
-            }
-            else if (node.m_YAnchor == YANCHOR_BOTTOM)
-            {
-                offset.setY(0.0f);
-                scaled_position.setY(position.getY() * reference_scale.getY());
-            }
-            position = scaled_position + offset;
-            scale = mulPerElem(adjust_scale, scale);
+            return;
         }
+
+        Node& node = n->m_Node;
+        // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
+        Vector4 adjust_scale = reference_scale;
+        if (node.m_AdjustMode == dmGui::ADJUST_MODE_FIT)
+        {
+            float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
+            adjust_scale.setX(uniform);
+            adjust_scale.setY(uniform);
+        }
+        else if (node.m_AdjustMode == dmGui::ADJUST_MODE_ZOOM)
+        {
+            float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
+            adjust_scale.setX(uniform);
+            adjust_scale.setY(uniform);
+        }
+
+        Context* context = scene->m_Context;
+        Vector4 parent_dims;
+
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
+            parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
+        } else {
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            parent_dims = Vector4(parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getX(), parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getY(), 0.0f, 1.0f);
+        }
+
+        Vector4 offset = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+        Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
+        Vector4 ref_size;
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
+            ref_size = Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f);
+
+            // need to calculate offset for root nodes, since (0,0) is in middle of scene
+            offset = (ref_size - adjusted_dims) * 0.5f;
+        } else {
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            ref_size = Vector4(parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getX() * reference_scale.getX(), parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getY() * reference_scale.getY(), 0.0f, 1.0f);
+        }
+
+        // Apply anchoring
+        Vector4 scaled_position = mulPerElem(position, adjust_scale);
+        if (node.m_XAnchor == XANCHOR_LEFT)
+        {
+            offset.setX(0.0f);
+            scaled_position.setX(position.getX() * reference_scale.getX());
+        }
+        else if (node.m_XAnchor == XANCHOR_RIGHT)
+        {
+            offset.setX(0.0f);
+            float distance = (parent_dims.getX() - position.getX()) * reference_scale.getX();
+            scaled_position.setX(ref_size.getX() - distance);
+        }
+        if (node.m_YAnchor == YANCHOR_TOP)
+        {
+            offset.setY(0.0f);
+            float distance = (parent_dims.getY() - position.getY()) * reference_scale.getY();
+            scaled_position.setY(ref_size.getY() - distance);
+        }
+        else if (node.m_YAnchor == YANCHOR_BOTTOM)
+        {
+            offset.setY(0.0f);
+            scaled_position.setY(position.getY() * reference_scale.getY());
+        }
+
+        position = scaled_position + offset;
+        scale = mulPerElem(adjust_scale, scale);
     }
 
-    static void UpdateLocalTransform(HScene scene, InternalNode* n, const Vector4& reference_scale)
+    static void UpdateLocalTransform(HScene scene, InternalNode* n)
     {
         Node& node = n->m_Node;
 
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
-        Vector4 scale = node.m_Properties[dmGui::PROPERTY_SCALE];
-        AdjustPosScale(scene, n, reference_scale, position, scale);
+        node.m_LocalScale = node.m_Properties[dmGui::PROPERTY_SCALE];
+        Vector4 reference_scale = CalculateReferenceScale(scene, n);
+        AdjustPosScale(scene, n, reference_scale, position, node.m_LocalScale);
         const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
         Quat r = dmVMath::EulerToQuat(rotation);
         r = normalize(r);
-        node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale(scale.getXYZ()));
+
+        node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale(node.m_LocalScale.getXYZ()) );
         node.m_LocalTransform.setTranslation(position.getXYZ());
+
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_PARENT && n->m_ParentIndex != INVALID_INDEX)
+        {
+            // undo parent scale (if node has parent)
+            Vector3 inv_ref_scale = Vector3(1.0f / reference_scale.getX(), 1.0f / reference_scale.getY(), 1.0f / reference_scale.getZ());
+            node.m_LocalTransform = Matrix4::scale( inv_ref_scale ) * node.m_LocalTransform;
+        }
+
         node.m_DirtyLocal = 0;
     }
 
@@ -2643,7 +2694,7 @@ namespace dmGui
                 (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;
         InternalNode* n = GetNode(scene, node);
-        CalculateNodeTransform(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
         transform = inverse(transform);
         Vector4 screen_pos(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
@@ -2832,7 +2883,7 @@ namespace dmGui
         }
     }
 
-    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform, float& out_alpha, SceneTraversalCache& traversal_cache)
+    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, Matrix4& out_transform, float& out_alpha, SceneTraversalCache& traversal_cache)
     {
         const Node& node = n->m_Node;
         uint16_t cache_index;
@@ -2853,7 +2904,7 @@ namespace dmGui
 
         if (node.m_DirtyLocal || scene->m_ResChanged)
         {
-            UpdateLocalTransform(scene, n, reference_scale);
+            UpdateLocalTransform(scene, n);
         }
         else if(cached)
         {
@@ -2868,7 +2919,7 @@ namespace dmGui
             Matrix4 parent_trans;
             float parent_alpha;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndAlphaCached(scene, parent, reference_scale, parent_trans, parent_alpha, traversal_cache);
+            CalculateParentNodeTransformAndAlphaCached(scene, parent, parent_trans, parent_alpha, traversal_cache);
             out_transform = parent_trans * out_transform;
             out_alpha = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
             if (node.m_InheritAlpha)
@@ -2885,12 +2936,12 @@ namespace dmGui
         cache_data.m_Alpha = out_alpha;
     }
 
-    inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color)
+    inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color)
     {
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || scene->m_ResChanged)
         {
-            UpdateLocalTransform(scene, n, reference_scale);
+            UpdateLocalTransform(scene, n);
         }
         out_transform = node.m_LocalTransform;
         CalculateNodeExtents(node, flags, out_transform);
@@ -2900,7 +2951,7 @@ namespace dmGui
             Matrix4 parent_trans;
             float parent_alpha;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndAlphaCached(scene, parent, reference_scale, parent_trans, parent_alpha, scene->m_Context->m_SceneTraversalCache);
+            CalculateParentNodeTransformAndAlphaCached(scene, parent, parent_trans, parent_alpha, scene->m_Context->m_SceneTraversalCache);
             out_transform = parent_trans * out_transform;
             if (node.m_InheritAlpha)
             {
@@ -2918,12 +2969,12 @@ namespace dmGui
         }
     }
 
-    inline void CalculateParentNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform)
+    inline void CalculateParentNodeTransform(HScene scene, InternalNode* n, Matrix4& out_transform)
     {
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || scene->m_ResChanged)
         {
-            UpdateLocalTransform(scene, n, reference_scale);
+            UpdateLocalTransform(scene, n);
         }
         out_transform = node.m_LocalTransform;
 
@@ -2931,17 +2982,17 @@ namespace dmGui
         {
             Matrix4 parent_trans;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransform(scene, parent, reference_scale, parent_trans);
+            CalculateParentNodeTransform(scene, parent, parent_trans);
             out_transform = parent_trans * out_transform;
         }
     }
 
-    void CalculateNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform)
+    void CalculateNodeTransform(HScene scene, InternalNode* n, const CalculateNodeTransformFlags flags, Matrix4& out_transform)
     {
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || scene->m_ResChanged)
         {
-            UpdateLocalTransform(scene, n, reference_scale);
+            UpdateLocalTransform(scene, n);
         }
         out_transform = node.m_LocalTransform;
         CalculateNodeExtents(node, flags, out_transform);
@@ -2950,7 +3001,7 @@ namespace dmGui
         {
             Matrix4 parent_trans;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransform(scene, parent, reference_scale, parent_trans);
+            CalculateParentNodeTransform(scene, parent, parent_trans);
             out_transform = parent_trans * out_transform;
         }
     }

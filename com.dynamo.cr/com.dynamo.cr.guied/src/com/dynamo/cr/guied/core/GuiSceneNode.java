@@ -24,6 +24,7 @@ import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.gui.proto.Gui.SceneDesc.AdjustReference;
 
 @SuppressWarnings("serial")
 public class GuiSceneNode extends ComponentTypeNode {
@@ -35,6 +36,9 @@ public class GuiSceneNode extends ComponentTypeNode {
 
     @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
     private String material;
+
+    @Property(editorType = EditorType.DROP_DOWN)
+    private AdjustReference adjustReference = AdjustReference.ADJUST_REFERENCE_PARENT;
 
     private RGB backgroundColor = new RGB(0, 0, 0);
 
@@ -82,6 +86,14 @@ public class GuiSceneNode extends ComponentTypeNode {
 
     public void setMaterial(String material) {
         this.material = material;
+    }
+
+    public AdjustReference getAdjustReference() {
+        return adjustReference;
+    }
+
+    public void setAdjustReference( AdjustReference adjustReference) {
+        this.adjustReference = adjustReference;
     }
 
     public RGB getBackgroundColor() {
