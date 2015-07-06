@@ -473,8 +473,10 @@ void _glfwPreMain(struct android_app* state)
 
     _glfwWin.opened = 0;
     _glfwWin.hasSurface = 0;
+
     // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
-    while (_glfwWin.opened == 0)
+    int java_startup_complete = 0;
+    while (_glfwWin.opened == 0 || !java_startup_complete)
     {
         int ident;
         int events;
@@ -486,6 +488,18 @@ void _glfwPreMain(struct android_app* state)
             if (source != NULL) {
                 source->process(state, source);
             }
+        }
+
+        if (!java_startup_complete)
+        {
+            // Defold activity has isStartupDone which reports if good or not to start engine.
+            JNIEnv* env = g_AndroidApp->activity->env;
+            JavaVM* vm = g_AndroidApp->activity->vm;
+            (*vm)->AttachCurrentThread(vm, &env, NULL);
+            jclass def_activity_class = (*env)->GetObjectClass(env, g_AndroidApp->activity->clazz);
+            jmethodID is_startup_complete = (*env)->GetMethodID(env, def_activity_class, "isStartupDone", "()Z");
+            java_startup_complete = (*env)->CallBooleanMethod(env, g_AndroidApp->activity->clazz, is_startup_complete);
+            (*vm)->DetachCurrentThread(vm);
         }
     }
 
