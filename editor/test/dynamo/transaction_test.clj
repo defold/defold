@@ -284,7 +284,7 @@
     (let [[disposable] (tx-nodes (g/make-node world DisposableNode))
           tx-result    (g/transact (g/delete-node disposable))]
       (yield)
-      (is (= disposable (first (take-waiting-to-dispose system)))))))
+      (is (= disposable (first (take-waiting-deleted-to-dispose system)))))))
 
 (g/defnode CachedOutputInvalidation
   (property a-property String (default "a-string"))
@@ -339,7 +339,7 @@
     (let [[node]   (tx-nodes (g/make-node world DisposableCachedValueNode :a-property "a-value"))
           value1 (g/node-value node :cached-output)
           tx-result (g/transact [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
-      (is (= [value1] (take-waiting-to-dispose system))))))
+      (is (= [value1] (take-waiting-cache-to-dispose system))))))
 
 (g/defnode OriginalNode
   (output original-output g/Str :cached (fnk [] "original-output-value")))
