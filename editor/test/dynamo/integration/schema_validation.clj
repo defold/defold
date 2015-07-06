@@ -103,7 +103,7 @@
         (is (= [] (g/node-value a-node :str-array-pass-through)))
         (is (= [] (g/node-value a-node :int-array-pass-through))))))
 
-  (testing "values that do not match input schemas produce errors that cascade through"
+  (testing "values that do not match input schemas produce errors with cascades"
     (with-clean-system
       (with-redefs [internal.node/warn (constantly nil)]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
@@ -117,7 +117,7 @@
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-str-array-pass-through)))
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-int-array-pass-through)))))))
 
-  (testing "values that do not match input schemas with substitutions produce substitue values"
+  (testing "values that do not match input schemas with substitutions produce errors not substitutes"
     (with-clean-system
       (with-redefs [internal.node/warn (constantly nil)]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
@@ -126,12 +126,12 @@
                         (g/connect b-node :bad-int-output b-node :sub-int-input)
                         (g/connect b-node :bad-str-output a-node :sub-str-array-input)
                         (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
-          (is (= "String substitute" (g/node-value b-node :sub-str-pass-through)))
-          (is (= 2675 (g/node-value b-node :sub-int-pass-through)))
-          (is (= ["String array substitute"] (g/node-value a-node :sub-str-array-pass-through)))
-          (is (= [1] (g/node-value a-node :sub-int-array-pass-through)))))))
+          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :sub-str-pass-through)))
+          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :sub-int-pass-through)))
+          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :sub-str-array-pass-through)))
+          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :sub-int-array-pass-through)))))))
 
-  (testing "values that do not match input schemas with substitutions produce substitue values that cascade through"
+  (testing "values that do not match input schemas with substitutions produce substitue values with cascades"
     (with-clean-system
       (with-redefs [internal.node/warn (constantly nil)]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
@@ -140,7 +140,7 @@
                         (g/connect b-node :bad-int-output b-node :sub-int-input)
                         (g/connect b-node :bad-str-output a-node :sub-str-array-input)
                         (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
-         (is (= "String substitute" (g/node-value b-node :cascade-sub-str-pass-through)))
-         (is (= 2675 (g/node-value b-node :cascade-sub-int-pass-through)))
-         (is (= ["String array substitute"] (g/node-value a-node :cascade-sub-str-array-pass-through)))
-         (is (= [1] (g/node-value a-node :cascade-sub-int-array-pass-through))))))))
+         (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-sub-str-pass-through)))
+         (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-sub-int-pass-through)))
+         (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-sub-str-array-pass-through)))
+         (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-sub-int-array-pass-through))))))))
