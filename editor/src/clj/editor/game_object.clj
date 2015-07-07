@@ -44,8 +44,8 @@
   (inherits scene/SceneNode)
 
   (property id g/Str)
-  (property embedded  g/Bool (dynamic visible (g/always false)))
-  (property path  g/Str (dynamic visible (g/always false)))
+  (property embedded  g/Bool (visible (g/always false)))
+  (property path  g/Str (visible (g/always false)))
 
   (input source g/Any)
   (input outline g/Any)
