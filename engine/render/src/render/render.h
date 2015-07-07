@@ -111,6 +111,7 @@ namespace dmRender
     {
         RenderObject();
         void Init();
+        void ClearConstants();
 
         static const uint32_t MAX_TEXTURE_COUNT = 32;
         static const uint32_t MAX_CONSTANT_COUNT = 4;
