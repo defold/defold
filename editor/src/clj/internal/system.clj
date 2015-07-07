@@ -118,7 +118,8 @@
 
 (defn last-graph     [s]     (-> s :last-graph))
 (defn system-cache   [s]     (-> s :cache))
-(defn disposal-queue [s]     (-> s :disposal-queue))
+(defn cache-disposal-queue [s] (-> s :cache-disposal-queue))
+(defn deleted-disposal-queue [s] (-> s :deleted-disposal-queue))
 (defn graphs         [s]     (-> s :graphs))
 (defn graph-ref      [s gid] (-> s :graphs (get gid)))
 (defn graph          [s gid] (some-> s (graph-ref gid) deref))
@@ -126,8 +127,16 @@
 (defn graph-history  [s gid] (-> s (graph gid) :history))
 (defn basis          [s]     (ig/multigraph-basis (map-vals deref (graphs s))))
 
-(defn- make-disposal-queue
-  [{queue :disposal-queue :or {queue (a/chan (a/dropping-buffer maximum-disposal-backlog))}}]
+
+(defn- make-new-queue []
+  (a/chan (a/dropping-buffer maximum-disposal-backlog)))
+
+(defn- make-cache-disposal-queue
+  [{queue :cache-disposal-queue :or {queue (make-new-queue)}}]
+  queue)
+
+(defn- make-deleted-disposal-queue
+  [{queue :deleted-disposal-queue :or {queue (make-new-queue)}}]
   queue)
 
 (defn- make-initial-graph
@@ -174,10 +183,12 @@
 
 (defn make-system
   [configuration]
-  (let [disposal-queue (make-disposal-queue configuration)
+  (let [cache-disposal-queue (make-cache-disposal-queue configuration)
+        deleted-disposal-queue (make-deleted-disposal-queue configuration)
         initial-graph  (make-initial-graph configuration)
-        cache          (make-cache configuration disposal-queue)]
-    (-> {:disposal-queue disposal-queue
+        cache          (make-cache configuration cache-disposal-queue)]
+    (-> {:cache-disposal-queue cache-disposal-queue
+         :deleted-disposal-queue deleted-disposal-queue
          :graphs         {}
          :id-generators  {}
          :cache          cache}
@@ -185,4 +196,4 @@
 
 (defn dispose!
   [sys node]
-  (a/>!! (disposal-queue sys) node))
+  (a/>!! (deleted-disposal-queue sys) node))
