@@ -58,9 +58,12 @@
     (efn kwargs)
     true))
 
+(defn- all-properties [node-type]
+  (merge (gt/properties node-type) (gt/internal-properties node-type)))
+
 (defn- gather-property
   [self kwargs prop]
-  (let [type              (-> self gt/node-type gt/properties prop)
+  (let [type              (-> self gt/node-type all-properties prop)
         value             (get self prop)
         problems          (gt/property-validate type value)
         enabled?          (property-enabled? type kwargs)
@@ -80,14 +83,14 @@
   [kwargs]
   (let [self           (:self kwargs)
         kwargs         (dissoc kwargs :self)
-        property-names (-> self gt/node-type gt/properties keys)]
+        property-names (-> self gt/node-type all-properties keys)]
     (zipmap property-names (map (partial gather-property self kwargs) property-names))))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities property-types property-passthroughs]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities property-types property-passthroughs]
 
   gt/NodeType
   (supertypes            [_] supertypes)
@@ -97,6 +100,7 @@
   (triggers              [_] triggers)
   (transforms            [_] transforms)
   (transform-types       [_] transform-types)
+  (internal-properties   [_] internal-properties)
   (properties            [_] properties)
   (inputs                [_] inputs)
   (injectable-inputs     [_] injectable-inputs)
@@ -215,6 +219,7 @@
   (-> description
       (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/inputs))
       (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
+      (update-in [:internal-properties]   combine-with merge      {} (from-supertypes description gt/internal-properties))
       (update-in [:properties]            combine-with merge      {} (from-supertypes description gt/properties))
       (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
       (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
@@ -313,18 +318,19 @@
 (defn attach-property
   "Update the node type description with the given property."
   [description label property-type passthrough]
-  (cond-> (update-in description [:properties] assoc label property-type)
-    true
-    (assoc-in [:property-types label] property-type)
+  (let [prop-key (if (= label :_id) :internal-properties :properties)]
+   (cond-> (update-in description [prop-key] assoc label property-type)
+     true
+     (assoc-in [:property-types label] property-type)
 
-    true
-    (update-in [:transforms] assoc-in [label] passthrough)
+     true
+     (update-in [:transforms] assoc-in [label] passthrough)
 
-    true
-    (update-in [:transform-types] assoc label (:value-type property-type))
+     true
+     (update-in [:transform-types] assoc label (:value-type property-type))
 
-    true
-    (update-in [:property-passthroughs] #(conj (or % #{}) label))))
+     true
+     (update-in [:property-passthroughs] #(conj (or % #{}) label)))))
 
 (defn attach-event-handler
   "Update the node type description with the given event handler."
@@ -644,7 +650,7 @@
 
 (defn- state-vector
   [node-type]
-  (mapv (comp symbol name) (keys (gt/properties node-type))))
+  (mapv (comp symbol name) (keys (all-properties node-type))))
 
 (defn- subtract-keys
   [m1 m2]
@@ -689,7 +695,7 @@
         (str "#" '~node-type-name "{" (:_id ~node)
              ~@(interpose-every 3 ", "
                                 (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))])
-                                        (keys (gt/properties node-type))))
+                                        (keys (all-properties node-type))))
              "}")))))
 
 (defn define-print-method

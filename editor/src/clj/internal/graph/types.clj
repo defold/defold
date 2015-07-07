@@ -26,6 +26,7 @@
   (triggers              [this])
   (transforms            [this])
   (transform-types       [this])
+  (internal-properties   [this])
   (properties            [this])
   (inputs                [this])
   (injectable-inputs     [this])
