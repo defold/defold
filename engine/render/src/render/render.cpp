@@ -55,6 +55,14 @@ namespace dmRender
         }
     }
 
+    void RenderObject::ClearConstants()
+    {
+        for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
+        {
+            m_Constants[i].m_Location = -1;
+        }
+    }
+
     RenderContextParams::RenderContextParams()
     : m_ScriptContext(0x0)
     , m_SystemFontMap(0)
