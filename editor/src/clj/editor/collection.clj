@@ -86,8 +86,8 @@
   (inherits ScalableSceneNode)
 
   (property id g/Str)
-  (property path g/Str (dynamic visible (g/fnk [embedded] (not embedded))))
-  (property embedded g/Bool (dynamic visible (g/always false)))
+  (property path g/Str (visible (g/fnk [embedded] (not embedded))))
+  (property embedded g/Bool (visible (g/always false)))
 
   (input source g/Any)
   (input properties g/Any)
