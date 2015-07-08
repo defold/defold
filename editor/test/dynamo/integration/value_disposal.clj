@@ -2,7 +2,7 @@
   (:require [dynamo.integration.value-disposal :refer :all]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes yield take-waiting-cache-to-dispose]]))
+            [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (def dispose-counter (atom 0))
 
