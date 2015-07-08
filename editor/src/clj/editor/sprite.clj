@@ -212,13 +212,13 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
-(defn- connect-atlas [project self image]
-  (if-let [atlas-node (project/get-resource-node project image)]
-    (let [outputs (-> atlas-node g/node-type g/output-labels)]
+(defn- connect-image [project self image]
+  (if-let [image-node (project/get-resource-node project image)]
+    (let [outputs (-> image-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect atlas-node :anim-data self :anim-data)
-         (g/connect atlas-node :gpu-texture self :gpu-texture)
-         (g/connect atlas-node :build-targets self :dep-build-targets)]
+        [(g/connect image-node :anim-data self :anim-data)
+         (g/connect image-node :gpu-texture self :gpu-texture)
+         (g/connect image-node :build-targets self :dep-build-targets)]
         []))
     []))
 
@@ -235,7 +235,7 @@
         (disconnect-all self :anim-data)
         (disconnect-all self :gpu-texture)
         (disconnect-all self :dep-build-targets)
-        (connect-atlas project self image)))))
+        (connect-image project self image)))))
 
 (g/defnode SpriteNode
   (inherits project/ResourceNode)
@@ -281,7 +281,7 @@
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
-      (connect-atlas project self image)
+      (connect-image project self image)
       (if-let [material-node (project/get-resource-node project material)]
         (g/connect material-node :build-targets self :dep-build-targets)
         []))))

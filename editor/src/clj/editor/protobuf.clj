@@ -7,6 +7,7 @@
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
+           [com.defold.editor.pipeline MurmurHash]
            [java.io Reader ByteArrayOutputStream]
            [org.apache.commons.io FilenameUtils]))
 
@@ -279,8 +280,16 @@
     (TextFormat/merge ^Reader input builder)
     (pb->map (.build builder))))
 
+(defn bytes->map [^java.lang.Class cls bytes]
+  (let [parse-method (.getMethod cls "parseFrom" (into-array Class [(.getClass (byte-array 0))]))
+        pb (.invoke parse-method nil (into-array Object [bytes]))]
+    (pb->map pb)))
+
 (defn enum-values [^java.lang.Class cls]
   (let [values-method (.getMethod cls "values" (into-array Class []))
         value-descs (map #(.getValueDescriptor ^ProtocolMessageEnum %) (.invoke values-method nil (object-array 0)))]
     (zipmap (map #(pb-enum->val ^Descriptors$EnumValueDescriptor %) value-descs)
             (map #(do {:display-name (-> ^Descriptors$EnumValueDescriptor % (.getOptions) (.getExtension DdfExtensions/displayName))}) value-descs))))
+
+(defn hash64 [v]
+  (MurmurHash/hash64 v))
