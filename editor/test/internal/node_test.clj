@@ -40,14 +40,14 @@
 
 (g/defnode VisibilityTestNode
   (input bar g/Str)
-  (property baz g/Str (visible (g/fnk [bar] (not (nil? bar))))))
+  (property baz g/Str (dynamic visible (g/fnk [bar] (not (nil? bar))))))
 
 (g/defnode SimpleIntTestNode
   (property foo g/Int (default 0)))
 
 (g/defnode EnablementTestNode
   (input bar g/Int)
-  (property baz g/Str (enabled (g/fnk [bar] (pos? bar)))))
+  (property baz g/Str (dynamic enabled (g/fnk [bar] (pos? bar)))))
 
 (defprotocol AProtocol
   (complainer [this]))
@@ -403,7 +403,7 @@
 
 (g/defnode AlwaysNode
   (output always-99 g/Int (g/always 99))
-  (property foo g/Str (visible (g/always true))))
+  (property foo g/Str (dynamic visible (g/always true))))
 
 (deftest always-fnk-test
   (testing "Always works as a shortcut for fnk constant values"
