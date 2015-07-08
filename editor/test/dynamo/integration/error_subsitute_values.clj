@@ -2,6 +2,7 @@
   (:require [dynamo.integration.error-subsitute-values :refer :all]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.node :as in]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
 
@@ -86,40 +87,41 @@
         (is (= [nil] (g/node-value atnode2 :passthrough)))))))
 
 (g/defnode ErrorOutputNode
-  (output my-output g/Str (g/fnk [] (throw (Exception. "Boom!")))))
+  (output my-output g/Str (g/always (g/error "I am an error!"))))
 
 (deftest test-producing-vals-with-errors
-  (testing "values with errors"
-    (with-clean-system
-      (let [[onode tnode] (tx-nodes (g/make-node world ErrorOutputNode)
-                                    (g/make-node world SimpleTestNode))]
-        (g/transact (g/connect onode :my-output tnode :my-input))
-        (is (thrown-with-msg? Exception #"Boom!" (g/node-value tnode :passthrough))))))
+  (with-redefs [in/warn (constantly nil)]
+    (testing "values with errors"
+     (with-clean-system
+       (let [[onode tnode] (tx-nodes (g/make-node world ErrorOutputNode)
+                                     (g/make-node world SimpleTestNode))]
+         (g/transact (g/connect onode :my-output tnode :my-input))
+         (is (thrown-with-msg? Exception #"Error Value Found in Node" (g/node-value tnode :passthrough))))))
 
-  (testing "array values with errors"
-    (with-clean-system
-      (let [[onode atnode] (tx-nodes (g/make-node world ErrorOutputNode)
-                                           (g/make-node world SimpleArrayTestNode))]
-        (g/transact (g/connect onode :my-output atnode :my-input))
-        (is (thrown-with-msg? Exception #"Boom!" (g/node-value atnode :passthrough))))))
+    (testing "array values with errors"
+      (with-clean-system
+        (let [[onode atnode] (tx-nodes (g/make-node world ErrorOutputNode)
+                                       (g/make-node world SimpleArrayTestNode))]
+          (g/transact (g/connect onode :my-output atnode :my-input))
+          (is (thrown-with-msg? Exception #"Error Value Found in Node" (g/node-value atnode :passthrough))))))
 
-  (testing "chained values with errors"
-    (with-clean-system
-      (let [[onode tnode1 tnode2] (tx-nodes (g/make-node world ErrorOutputNode)
-                                           (g/make-node world SimpleTestNode)
-                                           (g/make-node world SimpleTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough tnode2 :my-input))
-        (is (thrown-with-msg? Exception #"Boom!"  (g/node-value tnode2 :passthrough))))))
+    (testing "chained values with errors"
+      (with-clean-system
+        (let [[onode tnode1 tnode2] (tx-nodes (g/make-node world ErrorOutputNode)
+                                              (g/make-node world SimpleTestNode)
+                                              (g/make-node world SimpleTestNode))]
+          (g/transact (g/connect onode :my-output tnode1 :my-input))
+          (g/transact (g/connect tnode1 :passthrough tnode2 :my-input))
+          (is (thrown-with-msg? Exception #"Error Value Found in Node"  (g/node-value tnode2 :passthrough))))))
 
-  (testing "chained array values with errors"
-    (with-clean-system
-      (let [[onode tnode1 atnode2] (tx-nodes (g/make-node world ErrorOutputNode)
-                                           (g/make-node world SimpleTestNode)
-                                           (g/make-node world SimpleArrayTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
-        (is (thrown-with-msg? Exception #"Boom!" (g/node-value atnode2 :passthrough)))))))
+    (testing "chained array values with errors"
+      (with-clean-system
+        (let [[onode tnode1 atnode2] (tx-nodes (g/make-node world ErrorOutputNode)
+                                               (g/make-node world SimpleTestNode)
+                                               (g/make-node world SimpleArrayTestNode))]
+          (g/transact (g/connect onode :my-output tnode1 :my-input))
+          (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
+          (is (thrown-with-msg? Exception #"Error Value Found in Node" (g/node-value atnode2 :passthrough))))))))
 
 (g/defnode SubTestNode
   (input my-input g/Str :substitute "beans")
