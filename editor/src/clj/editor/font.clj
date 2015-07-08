@@ -30,16 +30,17 @@
    :content (protobuf/map->str Font$FontDesc pb)})
 
 (defn- build-font [self basis resource dep-resources user-data]
-  {:resource resource :content (font-gen/->bytes (:pb user-data) (:font-path user-data))})
+  {:resource resource :content (font-gen/->bytes (:pb user-data) (:font-resource user-data))})
 
 (g/defnk produce-build-targets [node-id project-id resource pb]
   (let [project (g/node-by-id project-id)
-        font-path (workspace/abs-path (workspace/resolve-resource resource (:font pb)))]
+        ; Should use a separate resource node to obtain the font file
+        font-resource (workspace/resolve-resource resource (:font pb))]
     [{:node-id node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-font
       :user-data {:pb pb
-                  :font-path font-path}}]))
+                  :font-resource font-resource}}]))
 
 (g/defnode FontNode
   (inherits project/ResourceNode)

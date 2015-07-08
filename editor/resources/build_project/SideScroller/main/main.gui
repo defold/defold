@@ -3,6 +3,10 @@ fonts {
   name: "score"
   font: "/fonts/score.font"
 }
+textures {
+  name: "bg"
+  texture: "/background/bg.png"
+}
 nodes {
   position {
     x: 91.0

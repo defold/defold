@@ -10,9 +10,11 @@
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.types :as types]
+            [editor.sound :as sound]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
+           [com.dynamo.sound.proto Sound$SoundDesc]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -20,7 +22,8 @@
            [java.io PushbackReader]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
+           [org.apache.commons.io FilenameUtils]))
 
 
 (def game-object-icon "icons/16/Icons_06-Game-object.png")
@@ -40,6 +43,27 @@
    :rotation (math/vecmath->clj rotation)
    :data (or (:content save-data) "")})
 
+(def sound-exts (into #{} (map :ext sound/sound-defs)))
+
+(defn- wrap-if-raw-sound [node-id project-id target]
+  (let [source-path (workspace/proj-path (:resource (:resource target)))
+        ext (FilenameUtils/getExtension source-path)]
+    (if (sound-exts ext)
+      (let [project (g/node-by-id project-id)
+            workspace (project/workspace project)
+            res-type (workspace/get-resource-type workspace "sound")
+            pb {:sound source-path}
+            target {:node-id node-id
+                    :resource (workspace/make-build-resource (workspace/make-memory-resource workspace res-type
+                                                                                             (protobuf/map->str Sound$SoundDesc pb)))
+                    :build-fn (fn [self basis resource dep-resources user-data]
+                                (let [pb (:pb user-data)
+                                      pb (assoc pb :sound (workspace/proj-path (second (first dep-resources))))]
+                                  {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
+                    :deps [target]}]
+        target)
+      target)))
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
 
@@ -48,6 +72,7 @@
   (property path  g/Str (visible (g/always false)))
 
   (input source g/Any)
+  (input project-id g/NodeID)
   (input outline g/Any)
   (input save-data g/Any)
   (input scene g/Any)
@@ -63,11 +88,12 @@
                                             :node-id node-id
                                             :transform transform
                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))
-  (output build-targets g/Any :cached (g/fnk [build-targets ddf-message transform]
+  (output build-targets g/Any :cached (g/fnk [node-id project-id build-targets ddf-message transform]
                                              (if-let [target (first build-targets)]
-                                               [(assoc target :instance-data {:resource (:resource target)
-                                                                              :instance-msg ddf-message
-                                                                              :transform transform})]
+                                               (let [target (wrap-if-raw-sound node-id project-id target)]
+                                                 [(assoc target :instance-data {:resource (:resource target)
+                                                                               :instance-msg ddf-message
+                                                                               :transform transform})])
                                                [])))
 
   core/MultiNode
@@ -153,7 +179,8 @@
                       (connect-if-output source-node :outline comp-node :outline)
                       (connect-if-output source-node :save-data comp-node :save-data)
                       (connect-if-output source-node :scene comp-node :scene)
-                      (connect-if-output source-node :build-targets comp-node :build-targets)))))))
+                      (connect-if-output source-node :build-targets comp-node :build-targets)
+                      (connect-if-output source-node :project-id comp-node :project-id)))))))
 
 (defn add-component-handler [self]
   (let [project (project/get-project self)
@@ -191,6 +218,7 @@
                     (g/connect source-node :save-data   comp-node :save-data)
                     (g/connect source-node :scene       comp-node :scene)
                     (g/connect source-node :build-targets       comp-node :build-targets)
+                    (g/connect source-node :project-id       comp-node :project-id)
                     (g/connect source-node :self        self      :nodes)
                     (g/connect comp-node   :outline     self      :outline)
                     (g/connect comp-node   :ddf-message self      :embed-ddf)

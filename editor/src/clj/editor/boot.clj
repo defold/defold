@@ -26,6 +26,11 @@
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
             [editor.gl.shader :as shader]
+            [editor.tile-source :as tile-source]
+            [editor.sound :as sound]
+            [editor.spine :as spine]
+            [editor.json :as json]
+            [editor.mesh :as mesh]
             [editor.text :as text]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
@@ -135,7 +140,12 @@
           (script/register-resource-types workspace)
           (switcher/register-resource-types workspace)
           (sprite/register-resource-types workspace)
-          (shader/register-resource-types workspace))))
+          (shader/register-resource-types workspace)
+          (tile-source/register-resource-types workspace)
+          (sound/register-resource-types workspace)
+          (spine/register-resource-types workspace)
+          (json/register-resource-types workspace)
+          (mesh/register-resource-types workspace))))
     (g/refresh workspace)))
 
 

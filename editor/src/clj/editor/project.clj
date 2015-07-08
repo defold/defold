@@ -15,7 +15,7 @@ ordinary paths."
 
   (property resource (g/protocol workspace/Resource) (visible (g/always false)))
   (property resource-type g/Any)
-  (property project-id g/Any (visible (g/always false)))
+  (property project-id g/NodeID (visible (g/always false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always [])))
@@ -115,7 +115,15 @@ ordinary paths."
   (let [build-resources (set (map :resource build-results))]
     (reset! cache (into {} (filter (fn [[resource key]] (contains? build-resources resource)) @cache)))))
 
+(defn clear-build-cache [project]
+  (reset! (:build-cache project) {}))
+
+(defn clear-fs-build-cache [project]
+  (reset! (:fs-build-cache project) {}))
+
 (defn build-and-write [project node]
+  (clear-build-cache project)
+  (clear-fs-build-cache project)
   (let [files-on-disk (file-seq (io/file (workspace/build-path (:workspace project))))
         build-results (build project node)
         fs-build-cache (:fs-build-cache project)]
@@ -161,12 +169,6 @@ ordinary paths."
                   :children [{:label "Build"
                               :acc "Shortcut+B"
                               :command :build}]}])
-
-(defn clear-build-cache [project]
-  (reset! (:build-cache project) {}))
-
-(defn clear-fs-build-cache [project]
-  (reset! (:fs-build-cache project) {}))
 
 (g/defnode Project
   (inherits core/Scope)
