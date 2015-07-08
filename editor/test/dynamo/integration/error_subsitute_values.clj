@@ -76,7 +76,7 @@
         (g/transact (g/connect tnode1 :passthrough tnode2 :my-input))
         (is (nil?  (g/node-value tnode2 :passthrough))))))
 
-  (testing "chained array values with no errors"
+  (testing "chained array values with nils"
     (with-clean-system
       (let [[onode tnode1 atnode2] (tx-nodes (g/make-node world NilOutputNode)
                                            (g/make-node world SimpleTestNode)
