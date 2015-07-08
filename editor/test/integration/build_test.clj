@@ -4,18 +4,25 @@
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
             [editor.project :as project]
+            [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
+           [com.dynamo.particle.proto Particle$ParticleFX]
+           [com.dynamo.sound.proto Sound$SoundDesc]
+           [com.dynamo.spine.proto Spine$SpineScene]
+           [com.dynamo.mesh.proto Mesh$MeshDesc]
+           [com.dynamo.model.proto Model$ModelDesc]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+           [javax.vecmath Point3d Matrix4d]
+           [org.apache.commons.io FilenameUtils]))
 
 (def project-path "resources/build_project/SideScroller")
 
@@ -26,32 +33,59 @@
     (let [node (test-util/resource-node project path)]
       (workspace/make-build-resource (:resource node) prefix))))
 
+(def pb-cases [{:label "ParticleFX"
+                :path "/main/blob.particlefx"
+                :pb-class Particle$ParticleFX
+                :test-fn (fn [pb]
+                           (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
+               {:label "Sound"
+                :path "/main/sound.sound"
+                :pb-class Sound$SoundDesc
+                :resource-fields [:sound]}])
+
+(defn- run-pb-case [case content-by-source content-by-target]
+  (testing (str "Testing " (:label case))
+           (let [content (get content-by-source (:path case))
+                 pb (protobuf/bytes->map (:pb-class case) content)
+                 test-fn (:test-fn case)
+                 res-fields [:sound]]
+            (when test-fn
+              (test-fn pb))
+            (doseq [field (:resource-fields case)]
+              (is (contains? content-by-target (get pb field)))
+              (is (> (count (get content-by-target (get pb field))) 0))))))
+
 (deftest build-game-project
-  (testing "Building a project"
-           (with-clean-system
-             (let [workspace     (test-util/setup-workspace! world project-path)
-                   project       (test-util/setup-project! workspace)
-                   path          "/game.project"
-                   resource-node (test-util/resource-node project path)
-                   build-results (project/build project resource-node)
-                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
-                   target-exts (into #{} (map #(:build-ext (workspace/resource-type (:resource %))) build-results))
-                   exp-paths [path
-                              "/main/main.collection"
-                              "/main/main.script"
-                              "/input/game.input_binding"
-                              "/builtins/render/default.render"
-                              "/builtins/render/default.render_script"]
-                   exp-exts ["vpc" "fpc"]]
-               (doseq [ext exp-exts]
-                 (is (contains? target-exts ext)))
-               (doseq [path exp-paths]
-                 (is (contains? content-by-source path)))
-               (let [content (get content-by-source "/main/main.collection")
-                     desc (GameObject$CollectionDesc/parseFrom content)
-                     go-ext (:build-ext (workspace/get-resource-type workspace "go"))]
-                 (doseq [inst (.getInstancesList desc)]
-                   (is (.endsWith (.getPrototype inst) go-ext))))))))
+  (with-clean-system
+    (let [workspace     (test-util/setup-workspace! world project-path)
+          project       (test-util/setup-project! workspace)
+          path          "/game.project"
+          resource-node (test-util/resource-node project path)
+          build-results (project/build project resource-node)
+          content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))
+          target-exts (into #{} (map #(:build-ext (workspace/resource-type (:resource %))) build-results))
+          exp-paths [path
+                     "/main/main.collection"
+                     "/main/main.script"
+                     "/input/game.input_binding"
+                     "/builtins/render/default.render"
+                     "/builtins/render/default.render_script"
+                     "/background/bg.png"
+                     "/builtins/graphics/particle_blob.tilesource"
+                     "/main/blob.tilemap"]
+          exp-exts ["vpc" "fpc" "texturec"]]
+      (doseq [case pb-cases]
+        (run-pb-case case content-by-source content-by-target))
+      (doseq [ext exp-exts]
+        (is (contains? target-exts ext)))
+      (doseq [path exp-paths]
+        (is (contains? content-by-source path)))
+      (let [content (get content-by-source "/main/main.collection")
+            desc (GameObject$CollectionDesc/parseFrom content)
+            go-ext (:build-ext (workspace/get-resource-type workspace "go"))]
+        (doseq [inst (.getInstancesList desc)]
+          (is (.endsWith (.getPrototype inst) go-ext)))))))
 
 (deftest build-coll-hierarchy
   (testing "Building collection hierarchies"
@@ -110,6 +144,26 @@
                       (doseq [comp (.getComponentsList desc)
                               :let [component (.getComponent comp)]]
                         (is (contains? target-paths component)))))))))))
+
+(deftest embed-raw-sound
+  (testing "Verify raw sound components (.wav or .ogg) are converted to embedded sounds (.sound)"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)
+                   path          "/main/raw_sound.go"
+                   resource-node (test-util/resource-node project path)
+                   build-results (project/build project resource-node)
+                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)])
+                                                   build-results))
+                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
+                                                   build-results))]
+               (let [content (get content-by-source path)
+                     desc (protobuf/bytes->map GameObject$PrototypeDesc content)
+                     sound-path (get-in desc [:components 0 :component])
+                     ext (FilenameUtils/getExtension sound-path)]
+                 (is (= ext "soundc"))
+                 (let [sound-desc (protobuf/bytes->map Sound$SoundDesc (content-by-target sound-path))]
+                   (is (contains? content-by-target (:sound sound-desc)))))))))
 
 (defn- first-source [node label]
   (ffirst (g/sources-of node label)))
@@ -208,12 +262,58 @@
            (with-clean-system
              (let [workspace     (test-util/setup-workspace! world project-path)
                    project       (test-util/setup-project! workspace)
-                   path          "/fonts/score.font"
+                   path          "/fonts/score.font"]
+               (let [resource-node (test-util/resource-node project path)
+                     build-results (project/build project resource-node)
+                     content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                     content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))
+                     content (get content-by-source path)
+                     desc (Font$FontMap/parseFrom content)]
+                 (is (= 1024 (.getImageWidth desc)))
+                 (is (= 128 (.getImageHeight desc))))))))
+
+(deftest build-spine-scene
+  (testing "Building spine scene"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)
+                   path          "/player/spineboy.spinescene"
                    resource-node (test-util/resource-node project path)
                    build-results (project/build project resource-node)
                    content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
                    content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
                (let [content (get content-by-source path)
-                     desc (Font$FontMap/parseFrom content)]
-                 (is (= 1024 (.getImageWidth desc)))
-                 (is (= 128 (.getImageHeight desc))))))))
+                     desc (Spine$SpineScene/parseFrom content)
+                     bones (-> desc (.getSkeleton) (.getBonesList))
+                     meshes (-> desc (.getMeshSet) (.getMeshEntriesList) (first) (.getMeshesList))]
+                 (is (contains? content-by-target (.getTextureSet desc))))))))
+
+(deftest build-mesh
+  (testing "Building mesh"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)
+                   path          "/model/book_of_defold.dae"
+                   resource-node (test-util/resource-node project path)
+                   build-results (project/build project resource-node)
+                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+               (let [content (get content-by-source path)
+                     desc (Mesh$MeshDesc/parseFrom content)]
+                 #_(prn desc)
+                 #_(is (contains? content-by-target (.getTextureSet desc))))))))
+
+(deftest build-model
+  (testing "Building model"
+           (with-clean-system
+             (let [workspace     (test-util/setup-workspace! world project-path)
+                   project       (test-util/setup-project! workspace)
+                   path          "/model/book_of_defold.model"
+                   resource-node (test-util/resource-node project path)
+                   build-results (project/build project resource-node)
+                   content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+                   content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+               (let [content (get content-by-source path)
+                     desc (Model$ModelDesc/parseFrom content)]
+                 #_(prn desc)
+                 #_(is (contains? content-by-target (.getTextureSet desc))))))))

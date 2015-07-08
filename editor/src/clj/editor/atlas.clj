@@ -83,7 +83,7 @@
   (input src-image BufferedImage)
   (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
-  (output outline g/Any (g/fnk [node-id path] {:node-id node-id :label (path->id path) :icon image-icon}))
+  (output outline g/Any (g/fnk [node-id path src-image] {:node-id node-id :label (path->id path) :icon image-icon}))
   (output ddf-message g/Any :cached (g/fnk [path] {:image path})))
 
 (g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]
@@ -193,10 +193,11 @@
 (defn- ->anim-frame [frame-index tex-coords]
   {:tex-coords (->uv-quad frame-index tex-coords)})
 
-(defn- ->anim-data [anim tex-coords]
+(defn- ->anim-data [anim tex-coords uv-transforms]
   {:width (:width anim)
    :height (:height anim)
-   :frames (mapv #(->anim-frame % tex-coords) (range (:start anim) (:end anim)))})
+   :frames (mapv #(->anim-frame % tex-coords) (range (:start anim) (:end anim)))
+   :uv-transforms (subvec uv-transforms (:start anim) (:end anim))})
 
 (g/defnk produce-anim-data [texture-set-data]
   (let [tex-set (:texture-set texture-set-data)
@@ -204,8 +205,9 @@
                      (.asReadOnlyByteBuffer)
                      (.order ByteOrder/LITTLE_ENDIAN)
                      (.asFloatBuffer))
+        uv-transforms (:uv-transforms texture-set-data)
         animations (:animations tex-set)]
-    (into {} (map #(do [(:id %) (->anim-data % tex-coords)]) animations))))
+    (into {} (map #(do [(:id %) (->anim-data % tex-coords uv-transforms)]) animations))))
 
 (g/defnode AtlasNode
   (inherits project/ResourceNode)

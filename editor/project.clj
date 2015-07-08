@@ -44,7 +44,8 @@
                      [net.java.dev.jna/jna-platform               "4.1.0"]
                      ;; Temporarily removed upnp (not used and not installed by default).
                      ;; Move source to editor?
-                     #_[dlib/upnp                                   "0.1"]]
+                     #_[dlib/upnp                                   "0.1"]
+                     [org.clojure/data.json "0.2.6"]]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]

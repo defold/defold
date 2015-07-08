@@ -85,7 +85,7 @@
         properties (parse-properties (BufferedReader. (StringReader. content)))
         roots (map (fn [[category field]] (root-node self properties category field))
                    [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
-                    ["bootstrap" "render"]])]
+                    ["bootstrap" "render"] ["display" "display_profiles"]])]
     (concat
       (g/set-property self :content content)
       (for [root roots]
