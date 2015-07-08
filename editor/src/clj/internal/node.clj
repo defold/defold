@@ -481,7 +481,7 @@
     (s/maybe (gt/output-type node-type argument))
 
     (has-multivalued-input? node-type argument)
-    (s/maybe [(gt/input-type node-type argument)])
+    [(s/maybe (gt/input-type node-type argument))]
 
     (has-singlevalued-input? node-type argument)
     (s/maybe (gt/input-type node-type argument))
@@ -522,7 +522,7 @@
 (defn- lookup-multivalued-input
   [node-type-name node-type input]
   (if (gt/substitute-for node-type input)
-    `(let [inputs# ~(input-value-forms input)
+    `(let [inputs#  ~(input-value-forms input)
            sub#     (gt/substitute-for ~node-type-name ~input)]
        (map #(if (gt/error? %) (util/apply-if-fn sub#) %) inputs#))
     (input-value-forms input)))
