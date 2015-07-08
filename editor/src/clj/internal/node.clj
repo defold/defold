@@ -522,8 +522,7 @@
 (defn- lookup-multivalued-input
   [node-type-name node-type input]
   (if (gt/substitute-for node-type input)
-    `(let [inputs#  (try ~(input-value-forms input) (catch Exception input-error#
-                                                         [(gt/error input-error#)]))
+    `(let [inputs#  ~(input-value-forms input)
            sub#     (gt/substitute-for ~node-type-name ~input)]
        (map #(if (gt/error? %) (util/apply-if-fn sub#) %) inputs#))
     (input-value-forms input)))
@@ -531,8 +530,7 @@
 (defn- lookup-singlevalued-input
   [node-type-name node-type input]
   (if (gt/substitute-for node-type input)
-    `(let [inputs#     (try ~(input-value-forms input) (catch Exception input-error#
-                                                         [(gt/error input-error#)]))
+    `(let [inputs#     ~(input-value-forms input)
            no-input?#  (empty? inputs#)
            input#      (first inputs#)
            sub#        (gt/substitute-for ~node-type-name ~input)]
