@@ -57,14 +57,6 @@
   (update description
           :validation #(conj (or %1 []) %2) [label {:fn validation :formatter formatter}]))
 
-(defn attach-enablement
-  [description enablement]
-  (assoc description :enabled enablement))
-
-(defn attach-visibility
-  [description visibility]
-  (assoc description :visible visibility))
-
 (defn attach-dynamic
   [description kind evaluation]
   (assoc-in description [:dynamic kind] evaluation))
@@ -83,12 +75,6 @@
          (do
            (assert-symbol "validate" label)
            `(attach-validation ~(keyword label) (fn [& _#] "invalid value") ~@remainder))
-
-         [(['enabled & remainder] :seq)]
-         `(attach-enablement ~@remainder)
-
-         [(['visible & remainder] :seq)]
-         `(attach-visibility ~@remainder)
 
          [(['dynamic kind & remainder] :seq)]
          (do
@@ -121,8 +107,8 @@
 (defn property-type-descriptor
   [name-str value-type body-forms]
   `(let [description# ~(property-type-forms name-str value-type body-forms)]
-     (assert (or (nil? (:visible description#)) (gt/pfnk? (:visible description#)))
-             (str "Property " ~name-str " type " '~value-type " has a visibility function that should be an fnk, but isn't. " (:visible description#)))
+     (assert (or (nil? (:dynamic description#)) (gt/pfnk? (-> (:dynamic description#) vals first)))
+             (str "Property " ~name-str " type " '~value-type " has a dynamic function that should be an fnk, but isn't. " (-> (:dynamic description#) vals first)))
      (assert (not (gt/protocol? ~value-type))
              (str "Property " ~name-str " type " '~value-type " looks like a protocol; try (dynamo.graph/protocol " '~value-type ") instead."))
      (assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))

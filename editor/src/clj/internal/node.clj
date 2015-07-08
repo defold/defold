@@ -46,18 +46,6 @@
         (c/cache-encache cache local-for-encache)))
     result))
 
-(defn- property-visible?
-  [property-type kwargs]
-  (if-let [vfn (:visible property-type)]
-    (vfn kwargs)
-    true))
-
-(defn- property-enabled?
-  [property-type kwargs]
-  (if-let [efn (:enabled property-type)]
-    (efn kwargs)
-    true))
-
 (defn- all-properties [node-type]
   (merge (gt/properties node-type) (gt/internal-properties node-type)))
 
@@ -66,12 +54,8 @@
   (let [type              (-> self gt/node-type all-properties prop)
         value             (get self prop)
         problems          (gt/property-validate type value)
-        enabled?          (property-enabled? type kwargs)
-        visible?          (property-visible? type kwargs)
         dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
-    (merge {:visible             visible?
-            :enabled             enabled?}
-           dynamics
+    (merge dynamics
            {:node-id             (gt/node-id self)
             :value               value
             :type                type

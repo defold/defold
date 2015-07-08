@@ -208,7 +208,8 @@
   (property another-property g/Int (default -1)))
 
 (g/defnode VisibiltyFunctionPropertyNode
-  (property a-property g/Str (visible (g/fnk [foo] true))))
+  (input foo g/Any)
+  (property a-property g/Str (dynamic visible (g/fnk [foo] true))))
 
 (deftest nodes-can-include-properties
   (testing "a single property"
@@ -398,7 +399,7 @@
   (property validated-internal DefaultProperty
             (validate always-valid (fn [value] true)))
   (property literally-disabled TypedProperty
-            (enabled (g/always false))))
+            (dynamic enabled (g/always false))))
 
 (g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))

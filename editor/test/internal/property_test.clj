@@ -220,10 +220,10 @@
 (g/defproperty PropWithoutEnablement g/Any)
 
 (g/defproperty PropWithEnablementAlwaysTrue g/Num
-  (enabled (g/always true)))
+  (dynamic enabled (g/always true)))
 
 (g/defproperty PropWithEnablementAlwaysFalse g/Num
-  (enabled (g/always false)))
+  (dynamic enabled (g/always false)))
 
 (deftest test-enablement
   (is (true?  (gt/property-enabled? PropWithoutEnablement nil)))
@@ -240,15 +240,15 @@
 (g/defproperty PropWithoutVisibility g/Any)
 
 (g/defproperty PropWithVisibilityFnInline g/Num
-  (visible (g/fnk [an-input] (pos? an-input))))
+  (dynamic visible (g/fnk [an-input] (pos? an-input))))
 
 (g/defnk enablement-fn [an-input another-input] (= an-input another-input))
 
 (g/defproperty PropWithVisibilityVarAsSymbol g/Num
-  (visible enablement-fn))
+  (dynamic visible enablement-fn))
 
 (g/defproperty PropWithVisibilityVarForm g/Num
-  (visible #'enablement-fn))
+  (dynamic visible #'enablement-fn))
 
 (deftest test-property-type-enablement
   (is (true?  (gt/property-visible? PropWithoutVisibility {})))
@@ -260,7 +260,7 @@
   (is (true?  (gt/property-visible? PropWithVisibilityVarForm {:an-input 42 :another-input 42})))
   (is (thrown-with-msg?
        clojure.lang.Compiler$CompilerException #"should be an fnk"
-       (eval '(dynamo.graph/defproperty BadProp schema.core/Num (visible pos?))))))
+       (eval '(dynamo.graph/defproperty BadProp schema.core/Num (dynamic visible pos?))))))
 
 (g/defproperty PropertyWithDynamicAttribute g/Any
   (dynamic fooable (g/fnk [an-input] (pos? an-input))))
