@@ -212,31 +212,31 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             GuiNode guiNode = loadNode(descBuilder);
             idToInstance.put(descBuilder.getId(), guiNode);
             remainingInstances.add(guiNode);
-            GuiNodeStateBuilder nodeStates = nodeStatesMap.getOrDefault(descBuilder.getId(), null);
-            if(nodeStates != null) {
-              guiNode.setStateBuilder(nodeStates);
-              GuiNodeStateBuilder.storeState(guiNode);
+            GuiNodeStateBuilder nodeStates = nodeStatesMap.getOrDefault(descBuilder.getId(), new GuiNodeStateBuilder());
 
-              if(descBuilder.getTemplateNodeChild()) {
-                  HashMap<String, NodeDesc.Builder> newDefaultStates = new HashMap<String, NodeDesc.Builder>();
-                  NodeDesc.Builder newDefaultBuilder = descBuilder.clone();
-                  newDefaultBuilder.clearOverriddenFields();
-                  newDefaultStates.put(GuiNodeStateBuilder.getDefaultStateId(), newDefaultBuilder);
-                  GuiNodeStateBuilder.setDefaultBuilders(guiNode.getStateBuilder(), newDefaultStates);
+            guiNode.setStateBuilder(nodeStates);
+            GuiNodeStateBuilder.storeState(guiNode);
+            if(descBuilder.getTemplateNodeChild()) {
+                HashMap<String, NodeDesc.Builder> newDefaultStates = new HashMap<String, NodeDesc.Builder>();
+                NodeDesc.Builder newDefaultBuilder = descBuilder.clone();
+                newDefaultBuilder.clearOverriddenFields();
+                newDefaultStates.put(GuiNodeStateBuilder.getDefaultStateId(), newDefaultBuilder);
+                GuiNodeStateBuilder.setDefaultBuilders(guiNode.getStateBuilder(), newDefaultStates);
 
-                  NodeDesc.Builder defaultBuilder = GuiNodeStateBuilder.getBuilders(guiNode.getStateBuilder()).get(GuiNodeStateBuilder.getDefaultStateId());
-                  if(descBuilder.getOverriddenFieldsCount() != 0) {
-                      List<Integer> ofList = descBuilder.getOverriddenFieldsList();
-                      for(FieldDescriptor field : newDefaultBuilder.getAllFields().keySet()) {
-                          if(ofList.contains(field.getNumber())) {
-                              continue;
-                          }
-                          defaultBuilder.clearField(field);
-                      }
-                  } else {
-                      defaultBuilder.clear();
-                  }
-              }
+                NodeDesc.Builder defaultBuilder = GuiNodeStateBuilder.getBuilders(guiNode.getStateBuilder()).get(GuiNodeStateBuilder.getDefaultStateId());
+                if(descBuilder.getOverriddenFieldsCount() != 0) {
+                    List<Integer> ofList = descBuilder.getOverriddenFieldsList();
+                    for(FieldDescriptor field : newDefaultBuilder.getAllFields().keySet()) {
+                        if(ofList.contains(field.getNumber())) {
+                            continue;
+                        }
+                        defaultBuilder.clearField(field);
+                    }
+                } else {
+                    defaultBuilder.clear();
+                }
+            } else {
+
             }
         }
         for (int i = 0; i < n; ++i) {

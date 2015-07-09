@@ -253,7 +253,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             b.setId(parentNode.getId() + "/" + b.getId());
 
             // apply overridden fields from super-node to node, if there are any
-            NodeDesc parentSceneNode = nodeMap.getOrDefault(b.getId(), null);
+            NodeDesc parentSceneNode = (nodeMap == null) ? null : nodeMap.getOrDefault(b.getId(), null);
             if((parentSceneNode == null) && (nodeMapDefault != null)) {
                 parentSceneNode = nodeMapDefault.getOrDefault(b.getId(), null);
             }
@@ -400,7 +400,10 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                         layoutNodes.put(n.getId(), n);
                     }
                     nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName());
-                    newScene.get(layout.getName()).addAll(nodes);
+                    ArrayList<NodeDesc> layoutNodeList = newScene.getOrDefault(layout.getName(), null);
+                    if(layoutNodeList != null) {
+                        layoutNodeList.addAll(nodes);
+                    }
                 }
 
                 // add template scene resources if not already existing in current scene
