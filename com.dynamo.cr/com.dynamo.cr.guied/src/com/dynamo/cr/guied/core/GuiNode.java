@@ -104,7 +104,8 @@ public class GuiNode extends Node implements Identifiable {
     private String layer = "";
 
     private transient int renderKey = 0;
-    protected GuiNodeStateBuilder nodeStates = new GuiNodeStateBuilder();
+    private transient TemplateNode parentTemplateNode = null;
+    private GuiNodeStateBuilder nodeStates = new GuiNodeStateBuilder();
 
     public GuiNode() {
         super();
@@ -169,7 +170,7 @@ public class GuiNode extends Node implements Identifiable {
         GuiNodeStateBuilder.setField(this, "Scale", LoaderUtil.toVector4(scale));
     }
 
-    public void resetComponentScale() {
+    public void resetScale() {
         super.setScale(LoaderUtil.toVector3((Vector4)GuiNodeStateBuilder.resetField(this, "Scale")));
     }
 
@@ -183,6 +184,10 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public boolean isIdEditable() {
+        return !isTemplateNodeChild();
     }
 
     public Vector3d getSize() {
@@ -400,6 +405,18 @@ public class GuiNode extends Node implements Identifiable {
             }
         }
         return null;
+    }
+
+    public TemplateNode getParentTemplateNode() {
+        return parentTemplateNode;
+    }
+
+    public void setParentTemplateNode(TemplateNode node) {
+        parentTemplateNode = node;
+    }
+
+    public boolean isTemplateNodeChild() {
+        return parentTemplateNode != null;
     }
 
     public int getRenderKey() {

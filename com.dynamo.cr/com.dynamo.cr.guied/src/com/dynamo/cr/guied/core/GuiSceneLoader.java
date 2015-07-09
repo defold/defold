@@ -2,6 +2,7 @@ package com.dynamo.cr.guied.core;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -17,6 +18,8 @@ import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
@@ -37,6 +40,7 @@ import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
 public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
+    private static Logger logger = LoggerFactory.getLogger(GuiSceneLoader.class);
 
     public static void builderToNode(GuiNode node, NodeDesc.Builder builder) {
         if (builder.getType() == Type.TYPE_BOX) {
@@ -62,6 +66,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             textNode.setShadowAlpha(builder.hasShadowAlpha() ? builder.getShadowAlpha() : builder.getShadow().getW());
             textNode.setLineBreak(builder.getLineBreak());
             node = textNode;
+        } else if (builder.getType() == Type.TYPE_TEMPLATE) {
+            TemplateNode templateNode = (TemplateNode) node;
+            templateNode.setTemplatePath(builder.getTemplate());
         }
         node.setId(builder.getId());
         node.setTranslation(LoaderUtil.toPoint3d(builder.getPosition()));
@@ -107,6 +114,10 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setShadow(LoaderUtil.toVector4(text.getShadow(), 1));
             builder.setShadowAlpha((float)text.getShadowAlpha());
             builder.setLineBreak(text.isLineBreak());
+        } else if (node instanceof TemplateNode) {
+            builder.setType(NodeDesc.Type.TYPE_TEMPLATE);
+            TemplateNode templateNode = (TemplateNode) node;
+            builder.setTemplate(templateNode.getTemplatePath());
         }
         builder.setId(node.getId());
         builder.setPosition(LoaderUtil.toVector4(node.getTranslation()));
@@ -142,6 +153,10 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             TextNode textNode = new TextNode();
             builderToNode(textNode, descBuilder);
             node = textNode;
+        } else if (descBuilder.getType() == Type.TYPE_TEMPLATE) {
+            TemplateNode templateNode = new TemplateNode();
+            builderToNode(templateNode, descBuilder);
+            node = templateNode;
         }
         return node;
     }
@@ -151,19 +166,22 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         InputStreamReader reader = new InputStreamReader(contents);
         com.dynamo.gui.proto.Gui.SceneDesc.Builder builder = SceneDesc.newBuilder();
         TextFormat.merge(reader, builder);
-        SceneDesc sceneDesc = builder.build();
+        return load(builder);
+    }
+
+    static public GuiSceneNode load(SceneDesc.Builder sceneBuilder) {
         GuiSceneNode node = new GuiSceneNode();
-        node.setScript(sceneDesc.getScript());
-        node.setMaterial(sceneDesc.getMaterial());
-        node.setAdjustReference(sceneDesc.getAdjustReference());
-        if (sceneDesc.hasBackgroundColor()) {
-            node.setBackgroundColor(LoaderUtil.toRGB(sceneDesc.getBackgroundColor()));
+        node.setScript(sceneBuilder.getScript());
+        node.setMaterial(sceneBuilder.getMaterial());
+        node.setAdjustReference(sceneBuilder.getAdjustReference());
+        if (sceneBuilder.hasBackgroundColor()) {
+            node.setBackgroundColor(LoaderUtil.toRGB(sceneBuilder.getBackgroundColor()));
         }
 
         Node layoutsNode = node.getLayoutsNode();
         layoutsNode.addChild(new LayoutNode(GuiNodeStateBuilder.getDefaultStateId()));
-        HashMap<String, GuiNodeStateBuilder> nodeStatesMap = new HashMap<String, GuiNodeStateBuilder>(sceneDesc.getNodesCount());
-        for (LayoutDesc l : sceneDesc.getLayoutsList()) {
+        HashMap<String, GuiNodeStateBuilder> nodeStatesMap = new HashMap<String, GuiNodeStateBuilder>(sceneBuilder.getNodesCount());
+        for (LayoutDesc l : sceneBuilder.getLayoutsList()) {
             LayoutNode layout = new LayoutNode();
             layout.setId(l.getName());
             layoutsNode.addChild(layout);
@@ -187,21 +205,42 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         }
 
         Map<String, GuiNode> idToInstance = new HashMap<String, GuiNode>();
-        int n = sceneDesc.getNodesCount();
+        int n = sceneBuilder.getNodesCount();
         List<GuiNode> remainingInstances = new ArrayList<GuiNode>(n);
         for (int i = 0; i < n; ++i) {
-            NodeDesc.Builder descBuilder = sceneDesc.getNodes(i).toBuilder();
+            NodeDesc.Builder descBuilder = sceneBuilder.getNodes(i).toBuilder();
             GuiNode guiNode = loadNode(descBuilder);
             idToInstance.put(descBuilder.getId(), guiNode);
             remainingInstances.add(guiNode);
             GuiNodeStateBuilder nodeStates = nodeStatesMap.getOrDefault(descBuilder.getId(), null);
             if(nodeStates != null) {
-                guiNode.setStateBuilder(nodeStates);
-                GuiNodeStateBuilder.storeState(guiNode);
+              guiNode.setStateBuilder(nodeStates);
+              GuiNodeStateBuilder.storeState(guiNode);
+
+              if(descBuilder.getTemplateNodeChild()) {
+                  HashMap<String, NodeDesc.Builder> newDefaultStates = new HashMap<String, NodeDesc.Builder>();
+                  NodeDesc.Builder newDefaultBuilder = descBuilder.clone();
+                  newDefaultBuilder.clearOverriddenFields();
+                  newDefaultStates.put(GuiNodeStateBuilder.getDefaultStateId(), newDefaultBuilder);
+                  GuiNodeStateBuilder.setDefaultBuilders(guiNode.getStateBuilder(), newDefaultStates);
+
+                  NodeDesc.Builder defaultBuilder = GuiNodeStateBuilder.getBuilders(guiNode.getStateBuilder()).get(GuiNodeStateBuilder.getDefaultStateId());
+                  if(descBuilder.getOverriddenFieldsCount() != 0) {
+                      List<Integer> ofList = descBuilder.getOverriddenFieldsList();
+                      for(FieldDescriptor field : newDefaultBuilder.getAllFields().keySet()) {
+                          if(ofList.contains(field.getNumber())) {
+                              continue;
+                          }
+                          defaultBuilder.clearField(field);
+                      }
+                  } else {
+                      defaultBuilder.clear();
+                  }
+              }
             }
         }
         for (int i = 0; i < n; ++i) {
-            NodeDesc nodeDesc = sceneDesc.getNodes(i);
+            NodeDesc nodeDesc = sceneBuilder.getNodes(i);
             GuiNode guiNode = idToInstance.get(nodeDesc.getId());
             if (!nodeDesc.getParent().isEmpty()) {
                 GuiNode parent = idToInstance.get(nodeDesc.getParent());
@@ -215,7 +254,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         }
 
         Node fontsNode = node.getFontsNode();
-        for (FontDesc f : sceneDesc.getFontsList()) {
+        for (FontDesc f : sceneBuilder.getFontsList()) {
             FontNode font = new FontNode();
             font.setId(f.getName());
             font.setFont(f.getFont());
@@ -223,7 +262,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         }
 
         Node texturesNode = node.getTexturesNode();
-        for (TextureDesc t : sceneDesc.getTexturesList()) {
+        for (TextureDesc t : sceneBuilder.getTexturesList()) {
             TextureNode texture = new TextureNode();
             texture.setId(t.getName());
             texture.setTexture(t.getTexture());
@@ -231,7 +270,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         }
 
         Node layersNode = node.getLayersNode();
-        for (LayerDesc l : sceneDesc.getLayersList()) {
+        for (LayerDesc l : sceneBuilder.getLayersList()) {
             LayerNode layer = new LayerNode();
             layer.setId(l.getName());
             layersNode.addChild(layer);
@@ -240,16 +279,23 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         // Projects are not available when running tests
         IProject project = EditorUtil.getProject();
         if (project != null) {
-            URI projectPropertiesLocation = EditorUtil.getContentRoot(project).getFile("game.project")
-                    .getRawLocationURI();
-            File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0,
-                    new NullProgressMonitor());
+            URI projectPropertiesLocation = EditorUtil.getContentRoot(project).getFile("game.project").getRawLocationURI();
+            File localProjectPropertiesFile = null;
+            try {
+                localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0, new NullProgressMonitor());
+            } catch (CoreException e) {
+                logger.error("Failed loading " + projectPropertiesLocation.getPath(), e);
+            }
             if (localProjectPropertiesFile.isFile()) {
                 // in cr.integrationstest the root isn't /content and the
                 // file doesn't exists. That's the reason we accept missing game.project
-                FileInputStream in = new FileInputStream(localProjectPropertiesFile);
-                node.loadProjectProperties(in);
-                IOUtils.closeQuietly(in);
+                try {
+                    FileInputStream in = new FileInputStream(localProjectPropertiesFile);
+                    node.loadProjectProperties(in);
+                    IOUtils.closeQuietly(in);
+                } catch (FileNotFoundException e) {
+                    logger.error("File not found: " + localProjectPropertiesFile.getPath(), e);
+                }
             }
 
         }
@@ -258,38 +304,75 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
     }
 
     private static void buildNodes(Builder b, GuiNode node, String parent, HashMap<String, LayoutDesc.Builder> layoutBuilderMap) {
+        Map<String, NodeDesc.Builder> nodeTopLevelStateMap = GuiNodeStateBuilder.getBuilders(node.getStateBuilder());
+        GuiNodeStateBuilder nodeStateBuilder = node.getStateBuilder();
+        Map<String, NodeDesc.Builder> nodeDefaultStateMap = GuiNodeStateBuilder.getDefaultBuilders(nodeStateBuilder) == null ? null : GuiNodeStateBuilder.getDefaultBuilders(nodeStateBuilder);
+        Map<String, NodeDesc.Builder> nodeStateMap = nodeDefaultStateMap == null ? nodeTopLevelStateMap : nodeDefaultStateMap;
 
-        Map<String, NodeDesc.Builder> nodeStateMap = GuiNodeStateBuilder.getBuilders(node.getStateBuilder());
         NodeDesc.Builder defaultBuilder = nodeStateMap.get(GuiNodeStateBuilder.getDefaultStateId());
         Map<FieldDescriptor, Object> defaultBuilderFields = nodeStateMap.get(GuiNodeStateBuilder.getDefaultStateId()).getAllFields();
         for(String layoutId : layoutBuilderMap.keySet()) {
             NodeDesc.Builder builder = nodeStateMap.getOrDefault(layoutId, null);
+            NodeDesc.Builder topLeveLBuilder = nodeTopLevelStateMap.getOrDefault(layoutId, null);
+
             if(builder == null) {
-                continue;
+                if(nodeDefaultStateMap == null || topLeveLBuilder == null) {
+                    continue;
+                }
+                builder = topLeveLBuilder;
             }
             builder = builder.clone();
+            builder.clearOverriddenFields();
+
             if(layoutId.equals(GuiNodeStateBuilder.getDefaultStateId())) {
                 if (parent != null) {
                     builder.setParent(parent);
                 }
+
+                if(nodeDefaultStateMap != null && topLeveLBuilder != null) {
+                    for(FieldDescriptor field : topLeveLBuilder.getAllFields().keySet()) {
+                        if(topLeveLBuilder.hasField(field)) {
+                            builder.setField(field, topLeveLBuilder.getField(field));
+                            builder.addOverriddenFields(field.getNumber());
+                        }
+                    }
+                }
+                builder.setId(node.getId());
+                builder.setTemplateNodeChild(node.isTemplateNodeChild());
                 b.addNodes(builder);
+
             } else {
                 builder.clearId();
+                builder.clearOverriddenFields();
+
                 Map<FieldDescriptor, Object> builderFields = builder.getAllFields();
                 if(builderFields.isEmpty()) {
                     continue;
                 }
-                for(FieldDescriptor field : defaultBuilderFields.keySet()) {
-                    if(builder.hasField(field)) {
-                        builder.addOverriddenFields(field.getNumber());
-                    } else {
-                        builder.setField(field, defaultBuilder.getField(field));
+                if(nodeDefaultStateMap == null) {
+                    for(FieldDescriptor field : defaultBuilderFields.keySet()) {
+                        if(builder.hasField(field)) {
+                            builder.addOverriddenFields(field.getNumber());
+                        } else {
+                            builder.setField(field, defaultBuilder.getField(field));
+                        }
+                    }
+                } else {
+                    for(FieldDescriptor field : defaultBuilderFields.keySet()) {
+                        if(topLeveLBuilder != null && topLeveLBuilder.hasField(field)) {
+                            builder.addOverriddenFields(field.getNumber());
+                            builder.setField(field, topLeveLBuilder.getField(field));
+                        } else if(!builder.hasField(field)) {
+                            builder.setField(field, defaultBuilder.getField(field));
+                        }
                     }
                 }
                 LayoutDesc.Builder layoutBuilder = layoutBuilderMap.get(layoutId);
                 if (parent != null) {
                     builder.setParent(parent);
                 }
+                builder.setId(node.getId());
+                builder.setTemplateNodeChild(node.isTemplateNodeChild());
                 layoutBuilder.addNodes(builder);
             }
         }

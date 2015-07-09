@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import com.dynamo.cr.guied.core.GuiNode;
 import com.dynamo.cr.guied.core.GuiSceneLoader;
 import com.dynamo.cr.guied.core.GuiSceneNode;
+import com.dynamo.cr.guied.core.TemplateNode;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.gui.proto.Gui.NodeDesc;
@@ -29,6 +30,7 @@ public class GuiNodeStateBuilder implements Serializable {
     private static PropertyNameFieldMap propertyNameFieldMap = new PropertyNameFieldMap();
 
     private transient HashMap<String, NodeDesc.Builder> stateMap = new HashMap<String, NodeDesc.Builder>();
+    private transient HashMap<String, NodeDesc.Builder> stateMapDefault = null;
 
     private static class PropertyNameFieldMap {
         HashMap<String, FieldDescriptor> map = new HashMap<String, FieldDescriptor>(64);
@@ -55,15 +57,17 @@ public class GuiNodeStateBuilder implements Serializable {
     /**
      * If differing from default state value, sets the states field to value, which then becomes overridden until reset is applied
      * @param node GuiNode
-     * @param accessor id of field (camelcase property name, typed as google protocol buffer naming convention)
+     * @param id accessor id of field (camelcase property name, typed as google protocol buffer naming convention)
      * @param value Value to test/set. Must be of same type as field value
      * @return False if the value is equal to the default state. True if unequal or has previously been set unequal
      */
     public static Boolean setField(GuiNode node, String id , Object value) {
         GuiNodeStateBuilder states = node.getStateBuilder();
         String stateId = getStateId(node);
-        if(defaultStateId.equals(stateId)) {
-            return false;
+        if(getDefaultBuilders(states) == null) {
+            if(defaultStateId.equals(stateId)) {
+                return false;
+            }
         }
         NodeDesc.Builder b = states.stateMap.getOrDefault(stateId, null);
         if(b == null) {
@@ -81,8 +85,8 @@ public class GuiNodeStateBuilder implements Serializable {
         if(field.getType() == FieldDescriptor.Type.ENUM) {
             value = ((com.google.protobuf.ProtocolMessageEnum) value).getValueDescriptor();
         }
-        NodeDesc.Builder defaultBuilder = states.stateMap.getOrDefault(defaultStateId, null);
-        if((defaultBuilder != null) && (!(defaultBuilder.getField(field).equals(value)))) {
+        NodeDesc.Builder defaultBuilder = getDefaultBuilderForField(states, stateId, field);
+        if((defaultBuilder != null) && (!defaultBuilder.getField(field).equals(value))) {
             b.setField(field, value);
             return true;
         }
@@ -92,8 +96,8 @@ public class GuiNodeStateBuilder implements Serializable {
     /**
      * Reset states field value to the default state value and resets the overridden state.
      * @param node GuiNode
-     * @param accessor id of field (camelcase property name, typed as google protocol buffer naming convention)
-     * @return Default value of field
+     * @param id accessor id of field (camelcase property name, typed as google protocol buffer naming convention)
+     * @return Default value of field, or null if field doesn't exist.
      */
     public static Object resetField(GuiNode node, String id) {
         FieldDescriptor field = propertyNameFieldMap.map.getOrDefault(id, null);
@@ -102,26 +106,29 @@ public class GuiNodeStateBuilder implements Serializable {
             return null;
         }
         GuiNodeStateBuilder states = node.getStateBuilder();
-        NodeDesc.Builder b = states.stateMap.getOrDefault(getStateId(node), null);
+        String stateId = getStateId(node);
+        NodeDesc.Builder b = states.stateMap.getOrDefault(stateId, null);
         if(b != null) {
             b.clearField(field);
         }
-        NodeDesc.Builder defaultBuilder = states.stateMap.get(defaultStateId);
+        NodeDesc.Builder defaultBuilder = getDefaultBuilderForField(states, stateId, field);
         return defaultBuilder.getField(field);
     }
 
     /**
      * Test if states field value is overridden
      * @param node GuiNode
-     * @param accessor id of field (camelcase property name, typed as google protocol buffer naming convention
+     * @param id accessor id of field (camelcase property name, typed as google protocol buffer naming convention
      * @param value Value to test. Must be of same type as field value
      * @return True if the state field is overridden
      */
     public static Boolean isFieldOverridden(GuiNode node, String id , Object value) {
         GuiNodeStateBuilder states = node.getStateBuilder();
         String stateId = getStateId(node);
-        if(defaultStateId.equals(stateId)) {
-            return false;
+        if(getDefaultBuilders(states) == null) {
+            if(defaultStateId.equals(stateId)) {
+                return false;
+            }
         }
         NodeDesc.Builder b = states.stateMap.getOrDefault(stateId, null);
         if(b == null) {
@@ -151,6 +158,10 @@ public class GuiNodeStateBuilder implements Serializable {
      * @return True if the node can be overridden in the current state
      */
     public static Boolean isOverridable(GuiNode node) {
+        GuiNodeStateBuilder states = node.getStateBuilder();
+        if(getDefaultBuilders(states) != null) {
+            return true;
+        }
         return !GuiNodeStateBuilder.getDefaultStateId().equals(GuiNodeStateBuilder.getStateId(node));
     }
 
@@ -180,6 +191,16 @@ public class GuiNodeStateBuilder implements Serializable {
         return stateId;
     }
 
+    private static NodeDesc.Builder getDefaultBuilderForField(GuiNodeStateBuilder states, String stateId, FieldDescriptor field) {
+        HashMap<String, NodeDesc.Builder> builders = states.stateMapDefault == null ? states.stateMap : states.stateMapDefault;
+        NodeDesc.Builder defaultBuilder;
+        defaultBuilder = builders.getOrDefault(stateId, null);
+        if((defaultBuilder != null) && (defaultBuilder.hasField(field))) {
+            return defaultBuilder;
+        }
+        return builders.getOrDefault(defaultStateId, null);
+   }
+
     public static void setStateId(String stateId) {
         GuiNodeStateBuilder.stateId = stateId;
     }
@@ -188,16 +209,27 @@ public class GuiNodeStateBuilder implements Serializable {
         return stateBuilder.stateMap;
     }
 
+    public static HashMap<String, NodeDesc.Builder> getDefaultBuilders(GuiNodeStateBuilder stateBuilder) {
+        return stateBuilder.stateMapDefault;
+    }
+
+    public static void setDefaultBuilders(GuiNodeStateBuilder stateBuilder, HashMap<String, NodeDesc.Builder> builders) {
+        stateBuilder.stateMapDefault = builders;
+    }
+
     public static void storeState(GuiNode node) {
         // store current node values to existing builder fields, updating changes
         GuiNodeStateBuilder states = node.getStateBuilder();
         String stateId = getStateId(node);
         NodeDesc.Builder currentBuilder = GuiSceneLoader.nodeToBuilder(node);
-        if(stateId.equals(defaultStateId)) {
+        if((stateId.equals(defaultStateId)) && (getDefaultBuilders(states) == null)) {
             states.stateMap.put(defaultStateId, currentBuilder);
         } else {
-            if(states.stateMap.getOrDefault(defaultStateId, null)==null) {
-                states.stateMap.put(defaultStateId, currentBuilder);
+            if(getDefaultBuilders(states)==null)
+            {
+                if(states.stateMap.getOrDefault(defaultStateId, null)==null) {
+                    states.stateMap.put(defaultStateId, currentBuilder);
+                }
             }
             NodeDesc.Builder b = states.stateMap.getOrDefault(stateId, NodeDesc.newBuilder());
             states.stateMap.put(stateId, b);
@@ -219,19 +251,49 @@ public class GuiNodeStateBuilder implements Serializable {
     public static void restoreState(GuiNode node) {
         // restore current node from current state using existing fields in states builder
         GuiNodeStateBuilder states = node.getStateBuilder();
+        HashMap<String, NodeDesc.Builder> defaultStateMap = states.stateMapDefault == null ? states.stateMap : states.stateMapDefault;
         String stateId = getStateId(node);
-        NodeDesc.Builder defaultBuilder = states.stateMap.getOrDefault(defaultStateId, GuiSceneLoader.nodeToBuilder(node));
-        states.stateMap.put(defaultStateId, defaultBuilder);
-        NodeDesc.Builder newBuilder = defaultBuilder.clone();
-        if(stateId.compareTo(defaultStateId)!=0) {
-            NodeDesc.Builder b = states.stateMap.getOrDefault(stateId, NodeDesc.newBuilder());
-            Map<FieldDescriptor, Object> fields = b.getAllFields();
-            for(FieldDescriptor field : fields.keySet()) {
-                newBuilder.setField(field, b.getField(field));
+        NodeDesc.Builder defaultBuilder = defaultStateMap.getOrDefault(defaultStateId, GuiSceneLoader.nodeToBuilder(node));
+        defaultStateMap.put(defaultStateId, defaultBuilder);
+
+        NodeDesc.Builder newBuilder = defaultBuilder.clone();;
+        if(getDefaultBuilders(states) == null) {
+            if(!defaultStateId.equals(stateId)) {
+                NodeDesc.Builder b = states.stateMap.getOrDefault(stateId, NodeDesc.newBuilder());
+                Map<FieldDescriptor, Object> fields = b.getAllFields();
+                for(FieldDescriptor field : fields.keySet()) {
+                    newBuilder.setField(field, b.getField(field));
+                }
+            }
+        } else {
+            Map<FieldDescriptor, Object> fields;
+            NodeDesc.Builder b;
+            b = defaultStateMap.getOrDefault(stateId, null);
+            if(b != null) {
+                fields = b.getAllFields();
+                for(FieldDescriptor field : fields.keySet()) {
+                    newBuilder.setField(field, b.getField(field));
+                }
+            }
+            b = states.stateMap.getOrDefault(stateId, null);
+            if(b != null) {
+                fields = b.getAllFields();
+                for(FieldDescriptor field : fields.keySet()) {
+                    newBuilder.setField(field, b.getField(field));
+                }
             }
         }
-        String id = node.getId(); // The node id is the only persistent state of the node
-        GuiSceneLoader.builderToNode(node, newBuilder);
+
+        // Preserve persistent sub-states of the node (TODO: Define by a property decorator or 'isoverridable' func..)
+        String id = node.getId();
+        if(node instanceof TemplateNode) {
+            TemplateNode templateNode = (TemplateNode) node;
+            String template = templateNode.getTemplatePath();
+            GuiSceneLoader.builderToNode(node, newBuilder);
+            templateNode.setTemplatePath(template);
+        } else {
+            GuiSceneLoader.builderToNode(node, newBuilder);
+        }
         node.setId(id);
     }
 
@@ -277,8 +339,10 @@ public class GuiNodeStateBuilder implements Serializable {
     public static boolean isStateSet(GuiNode node) {
         GuiNodeStateBuilder states = node.getStateBuilder();
         String stateId = getStateId(node);
-        if(defaultStateId.equals(stateId)) {
-            return false;
+        if(getDefaultBuilders(states) == null) {
+            if(defaultStateId.equals(stateId)) {
+                return false;
+            }
         }
         NodeDesc.Builder b = states.stateMap.getOrDefault(stateId, null);
         if(b != null) {

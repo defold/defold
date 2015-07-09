@@ -2,9 +2,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -22,11 +20,6 @@ import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
-import com.dynamo.gui.proto.Gui.NodeDesc;
-import com.dynamo.gui.proto.Gui.SceneDesc;
-import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
-import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
-import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.model.proto.Model.ModelDesc;
@@ -55,18 +48,6 @@ public class ProtoBuilders {
         String out = str;
         for (String srcExt : textureSrcExts) {
             out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
-        }
-        return out;
-    }
-
-    static String replaceGuiTextureName(String str) {
-        String out = str;
-        if(str.endsWith(".atlas")) {
-            out = BuilderUtil.replaceExt(out, ".atlas", ".texturesetc");
-        } else if(str.endsWith(".tilesource")) {
-            out = BuilderUtil.replaceExt(out, ".tilesource", ".texturesetc");
-        } else {
-            out = replaceTextureName(str);
         }
         return out;
     }
@@ -152,88 +133,6 @@ public class ProtoBuilders {
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilegrid", ".tilegridc"));
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".tilemap", ".tilegridc"));
-            return messageBuilder;
-        }
-    }
-
-    @ProtoParams(messageClass = SceneDesc.class)
-    @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
-    public static class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
-        @Override
-        protected SceneDesc.Builder transform(Task<Void> task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
-            messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".gui_script", ".gui_scriptc"));
-            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"));
-            Set<String> fontNames = new HashSet<String>();
-            Set<String> textureNames = new HashSet<String>();
-            Set<String> layerNames = new HashSet<String>();
-
-            List<FontDesc> newFontList = new ArrayList<FontDesc>();
-            for (FontDesc f : messageBuilder.getFontsList()) {
-                if (fontNames.contains(f.getName())) {
-                    throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_FONT,
-                            f.getName()));
-                }
-                fontNames.add(f.getName());
-                newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(BuilderUtil.replaceExt(f.getFont(), ".font", ".fontc")).build());
-            }
-            messageBuilder.clearFonts();
-            messageBuilder.addAllFonts(newFontList);
-
-            List<TextureDesc> newTextureList = new ArrayList<TextureDesc>();
-            for (TextureDesc f : messageBuilder.getTexturesList()) {
-                if (textureNames.contains(f.getName())) {
-                    throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_TEXTURE,
-                            f.getName()));
-                }
-                textureNames.add(f.getName());
-                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceGuiTextureName(f.getTexture())).build());
-            }
-            messageBuilder.clearTextures();
-            messageBuilder.addAllTextures(newTextureList);
-
-            for (LayerDesc f : messageBuilder.getLayersList()) {
-                if (layerNames.contains(f.getName())) {
-                    throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_LAYER,
-                            f.getName()));
-                }
-                layerNames.add(f.getName());
-            }
-
-            int nodeIndex = 0;
-            for (NodeDesc n : messageBuilder.getNodesList()) {
-                if(!n.hasAlpha()) {
-                    // We copy the color Vector4 W component from the old gui file format to the new separate alpha fields for color, outline and shadow.
-                    // They need to be separate fields as they can be separately overridden from their corresponding color property.
-                    // We distinct the new color/alpha separation by the fact that the alpha field (color alpha) is always present in the new format.
-                    NodeDesc.Builder newNode = n.toBuilder();
-                    newNode.setAlpha(newNode.getColor().getW());
-                    newNode.setShadowAlpha(newNode.getShadow().getW());
-                    newNode.setOutlineAlpha(newNode.getOutline().getW());
-                    messageBuilder.setNodes(nodeIndex, newNode.build());
-                }
-
-                if (n.hasTexture() && !n.getTexture().isEmpty()) {
-                    if (!textureNames.contains(n.getTexture().split("/")[0])) {
-                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture().split("/")[0]));
-                    }
-                }
-
-                if (n.hasFont() && !n.getFont().isEmpty()) {
-                    if (!fontNames.contains(n.getFont())) {
-                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
-                    }
-                }
-
-                if (n.hasLayer() && !n.getLayer().isEmpty()) {
-                    if (!layerNames.contains(n.getLayer())) {
-                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_LAYER,
-                                n.getLayer()));
-                    }
-                }
-
-                nodeIndex++;
-            }
-
             return messageBuilder;
         }
     }
