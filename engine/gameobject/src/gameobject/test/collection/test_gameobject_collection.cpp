@@ -28,7 +28,7 @@ protected:
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, 1024);
 
         dmResource::Result e;
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0);
@@ -248,7 +248,6 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     ASSERT_TRUE(true);
 }
 
-
 TEST_F(CollectionTest, PostCollection)
 {
     for (int i = 0; i < 10; ++i)
@@ -291,11 +290,32 @@ TEST_F(CollectionTest, CollectionFail)
 
         // Test both with normal loading and preloading
         if (i < 10)
-            r = dmResource::Get(m_Factory, "failing_sub.collectionc", (void**) &coll);
+            r = dmResource::Get(m_Factory, "/failing_sub.collectionc", (void**) &coll);
         else
-            r = PreloaderGet(m_Factory, "failing_sub.collectionc", (void**) &coll);
+            r = PreloaderGet(m_Factory, "/failing_sub.collectionc", (void**) &coll);
             
         ASSERT_NE(dmResource::RESULT_OK, r);
+        dmGameObject::PostUpdate(m_Register);
+    }
+    dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
+}
+
+TEST_F(CollectionTest, CollectionComponentFail)
+{
+    dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
+    for (int i = 0; i < 4; ++i)
+    {
+        // NOTE: Coll is local and not collection in CollectionTest
+        dmGameObject::HCollection coll;
+        dmResource::Result r;
+        // Test both with normal loading and preloading
+        if (i < 2)
+            r = dmResource::Get(m_Factory, "/failing_component.collectionc", (void**) &coll);
+        else
+            r = PreloaderGet(m_Factory, "/failing_component.collectionc", (void**) &coll);
+
+        ASSERT_NE(dmResource::RESULT_OK, r);
+        dmGameObject::PostUpdate(m_Register);
     }
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
 }
