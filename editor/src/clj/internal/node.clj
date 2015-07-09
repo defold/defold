@@ -116,25 +116,10 @@
   [[property-name property-definition]]
   (mapcat attribute-fn-arguments (vals (gt/dynamic-attributes property-definition))))
 
-(defn- property-auxiliary-inputs
-  [key properties]
-  (reduce
-   (fn [inputs [property property-type]]
-     (if-let [vfn (get property-type key)]
-       (into inputs (keys (dissoc (pf/input-schema vfn) s/Keyword)))
-       inputs))
-   #{}
-   properties))
-
-(def ^:private visibility-inputs (partial property-auxiliary-inputs :visible))
-(def ^:private enablement-inputs (partial property-auxiliary-inputs :enabled))
-
 (defn- properties-output-arguments
   [properties]
   (cons :self (concat (set (keys properties))
-                      (mapcat property-dynamics-arguments properties)
-                      (visibility-inputs properties)
-                      (enablement-inputs properties))))
+                      (mapcat property-dynamics-arguments properties))))
 
 (defn attach-properties-output
   [node-type-description]
