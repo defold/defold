@@ -1,0 +1,82 @@
+chunk            ::= block
+
+block            ::= {stat} [retstat]
+
+stat             ::= ';' |
+                     Comment |
+                     varlist '=' explist |
+                     functioncall |
+                     label |
+                     &'break' Keyword |
+                     &'goto' Keyword Name |
+                     doblock |
+                     &'while' Keyword exp doblock |
+                     &'repeat' Keyword block &'until' Keyword exp |
+                     &'if' Keyword exp &'then' Keyword block {&'elseif' Keyword exp &'then' Keyword block} [&'else' Keyword block] &'end' Keyword |
+                     &'for' Keyword Name '=' exp ',' exp [',' exp] doblock |
+                     &'for' Keyword namelist &'in' Keyword explist doblock |
+                     &'function' Keyword funcname funcbody |
+                     &'local' Keyword &'function' Name funcbody |
+                     &'local' Keyword namelist ['=' explist]
+
+doblock          ::= &'do' Keyword block &'end' Keyword
+
+retstat          ::= &'return' Keyword [explist] [';']
+
+label            ::= '::' Name '::'
+
+funcname         ::= Name {'.' Name} [':' Name]
+
+varlist          ::= var {',' var}
+
+var              ::= Name | prefixexp '[' exp ']' | prefixexp '.' Name
+
+namelist         ::= Name {',' Name}
+
+explist          ::= {exp ','} exp
+
+exp              ::= &'nil' Keyword | &'false' Keyword | &'true' Keyword | Numeral |
+                     LiteralString | '...' | functiondef | prefixexp | tableconstructor |
+                     exp binop exp | unop exp
+
+prefixexp        ::= var | functioncall | '(' exp ')'
+
+functioncall     ::= prefixexp args | prefixexp ':' Name args
+
+args             ::= '(' [explist] ')' | tableconstructor | LiteralString
+
+functiondef      ::= &'function' Keyword funcbody
+
+funcbody         ::= '(' [parlist] ')' block &'end' Keyword
+
+parlist          ::= namelist [',' '...'] | '...'
+
+tableconstructor ::= '{' [fieldlist] '}'
+
+fieldlist        ::= field {fieldsep field} [fieldsep]
+
+field            ::= '[' exp ']' '=' exp | Name '=' exp | exp
+
+fieldsep         ::= ',' | ';'
+
+binop            ::= '+' | '-' | '*' | '/' | '//' | '^' | '%' |
+                     '&' | '~' | '|' | '>>' | '<<' | '..' |
+                     '<' | '<=' | '>' | '>=' | '==' | '~=' |
+                     &'and' Keyword | &'or' Keyword
+
+unop             ::= '-' | &'not' Keyword | '#' | '~'
+
+Name             ::= !Keyword #"[A-Za-z_][A-Za-z0-9_\.]*"
+
+LiteralString    ::= #"\"[^\"]*\""
+
+Numeral          ::= #"(?<![\d.])\s0x[a-fA-F\d]+|\b\d+(\.\d+)?([eE]-?\d+)?|\.\d+([eE]-?\d+)?"
+
+Comment          ::= #"--[^\n]*"
+
+Keyword          ::= #"\band\b"      | #"\bbreak\b"  | #"\bdo\b"    | #"\belse\b"  |
+                     #"\belseif\b"   | #"\bend\b"    | #"\bfalse\b" | #"\bfor\b"   |
+                     #"\bfunction\b" | #"\bgoto\b"   | #"\bif\b"    | #"\bin\b"    |
+                     #"\blocal\b"    | #"\bnil\b"    | #"\bnot\b"   | #"\bor\b"    |
+                     #"\brepeat\b"   | #"\breturn\b" | #"\bthen\b"  | #"\btrue\b"  |
+                     #"\buntil\b"    | #"\bwhile\b"
