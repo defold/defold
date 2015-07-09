@@ -46,18 +46,6 @@
         (c/cache-encache cache local-for-encache)))
     result))
 
-(defn- property-visible?
-  [property-type kwargs]
-  (if-let [vfn (:visible property-type)]
-    (vfn kwargs)
-    true))
-
-(defn- property-enabled?
-  [property-type kwargs]
-  (if-let [efn (:enabled property-type)]
-    (efn kwargs)
-    true))
-
 (defn- all-properties [node-type]
   (merge (gt/properties node-type) (gt/internal-properties node-type)))
 
@@ -66,12 +54,8 @@
   (let [type              (-> self gt/node-type all-properties prop)
         value             (get self prop)
         problems          (gt/property-validate type value)
-        enabled?          (property-enabled? type kwargs)
-        visible?          (property-visible? type kwargs)
         dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
-    (merge {:visible             visible?
-            :enabled             enabled?}
-           dynamics
+    (merge dynamics
            {:node-id             (gt/node-id self)
             :value               value
             :type                type
@@ -132,25 +116,10 @@
   [[property-name property-definition]]
   (mapcat attribute-fn-arguments (vals (gt/dynamic-attributes property-definition))))
 
-(defn- property-auxiliary-inputs
-  [key properties]
-  (reduce
-   (fn [inputs [property property-type]]
-     (if-let [vfn (get property-type key)]
-       (into inputs (keys (dissoc (pf/input-schema vfn) s/Keyword)))
-       inputs))
-   #{}
-   properties))
-
-(def ^:private visibility-inputs (partial property-auxiliary-inputs :visible))
-(def ^:private enablement-inputs (partial property-auxiliary-inputs :enabled))
-
 (defn- properties-output-arguments
   [properties]
   (cons :self (concat (set (keys properties))
-                      (mapcat property-dynamics-arguments properties)
-                      (visibility-inputs properties)
-                      (enablement-inputs properties))))
+                      (mapcat property-dynamics-arguments properties))))
 
 (defn attach-properties-output
   [node-type-description]

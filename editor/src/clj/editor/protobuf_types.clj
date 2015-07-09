@@ -183,8 +183,8 @@
 (g/defnode ProtobufNode
   (inherits project/ResourceNode)
 
-  (property pb g/Any (visible (g/always false)))
-  (property def g/Any (visible (g/always false)))
+  (property pb g/Any (dynamic visible (g/always false)))
+  (property def g/Any (dynamic visible (g/always false)))
 
   (input dep-build-targets g/Any :array)
 
@@ -207,7 +207,7 @@
       (for [res (:resource-fields def)]
         (if (vector? res)
           (for [v (get pb (first res))]
-            (let [path (if (second res) (get v (second res)) v)] 
+            (let [path (if (second res) (get v (second res)) v)]
               (connect-build-targets self path)))
           (connect-build-targets self (get pb res)))))))
 

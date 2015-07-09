@@ -15,7 +15,6 @@
     (is (identical? (resolve `SomeProperty) property-defn))
     (is (satisfies? gt/PropertyType (var-get property-defn)))
     (is (= g/Any (-> property-defn var-get :value-type)))
-    (is (gt/property-visible? SomeProperty {}))
     (is (= "SomeProperty" (:name SomeProperty))))
   (is (thrown-with-msg? Compiler$CompilerException #"\(dynamo.graph/protocol internal.property-test/MyProtocol\)"
                         (eval '(dynamo.graph/defproperty BadProp internal.property-test/MyProtocol)))))
@@ -220,47 +219,31 @@
 (g/defproperty PropWithoutEnablement g/Any)
 
 (g/defproperty PropWithEnablementAlwaysTrue g/Num
-  (enabled (g/always true)))
+  (dynamic enabled (g/always true)))
 
 (g/defproperty PropWithEnablementAlwaysFalse g/Num
-  (enabled (g/always false)))
+  (dynamic enabled (g/always false)))
 
 (deftest test-enablement
-  (is (true?  (gt/property-enabled? PropWithoutEnablement nil)))
-  (is (true?  (gt/property-enabled? PropWithoutEnablement 0)))
-  (is (true?  (gt/property-enabled? PropWithoutEnablement 1)))
-  (is (true?  (gt/property-enabled? PropWithEnablementAlwaysTrue 0)))
-  (is (true?  (gt/property-enabled? PropWithEnablementAlwaysTrue 1)))
-  (is (false?  (gt/property-enabled? PropWithEnablementAlwaysFalse 1)))
-  (is (false?  (gt/property-enabled? PropWithEnablementAlwaysFalse 1)))
+  (is (true?  (gt/dynamic-value PropWithoutEnablement :enabled {})))
+  (is (true?  (gt/dynamic-value PropWithEnablementAlwaysTrue  :enabled {})))
+  (is (false?  (gt/dynamic-value PropWithEnablementAlwaysFalse :enabled {})))
 (is (thrown-with-msg?
-       clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
-       (eval '(dynamo.graph/defproperty BadProp schema.core/Num (enabled non-existent-symbol))))))
+       clojure.lang.Compiler$CompilerException #"property dynamic requires a symbol"
+       (eval '(dynamo.graph/defproperty BadProp schema.core/Num (dynamic (enabled non-existent-symbol)))))))
 
 (g/defproperty PropWithoutVisibility g/Any)
 
-(g/defproperty PropWithVisibilityFnInline g/Num
-  (visible (g/fnk [an-input] (pos? an-input))))
-
-(g/defnk enablement-fn [an-input another-input] (= an-input another-input))
-
-(g/defproperty PropWithVisibilityVarAsSymbol g/Num
-  (visible enablement-fn))
-
-(g/defproperty PropWithVisibilityVarForm g/Num
-  (visible #'enablement-fn))
+(g/defproperty PropWithVisibilityFn g/Num
+  (dynamic visible (g/fnk [an-input] (pos? an-input))))
 
 (deftest test-property-type-enablement
-  (is (true?  (gt/property-visible? PropWithoutVisibility {})))
-  (is (false? (gt/property-visible? PropWithVisibilityFnInline {:an-input 0})))
-  (is (true?  (gt/property-visible? PropWithVisibilityFnInline {:an-input 1})))
-  (is (false? (gt/property-visible? PropWithVisibilityVarAsSymbol {:an-input 42 :another-input 23})))
-  (is (true?  (gt/property-visible? PropWithVisibilityVarAsSymbol {:an-input 42 :another-input 42})))
-  (is (false? (gt/property-visible? PropWithVisibilityVarForm {:an-input 42 :another-input 23})))
-  (is (true?  (gt/property-visible? PropWithVisibilityVarForm {:an-input 42 :another-input 42})))
+  (is (true?  (gt/dynamic-value PropWithoutVisibility :visible {})))
+  (is (false? (gt/dynamic-value PropWithVisibilityFn :visible {:an-input 0})))
+  (is (true?  (gt/dynamic-value PropWithVisibilityFn :visible {:an-input 1})))
   (is (thrown-with-msg?
        clojure.lang.Compiler$CompilerException #"should be an fnk"
-       (eval '(dynamo.graph/defproperty BadProp schema.core/Num (visible pos?))))))
+       (eval '(dynamo.graph/defproperty BadProp schema.core/Num (dynamic visible pos?))))))
 
 (g/defproperty PropertyWithDynamicAttribute g/Any
   (dynamic fooable (g/fnk [an-input] (pos? an-input))))
