@@ -22,18 +22,18 @@
         validations))))
 
 (defrecord PropertyTypeImpl
-  [name value-type default validation visible tags enabled dynamic]
+  [name value-type default validation tags dynamic]
   gt/PropertyType
   (property-value-type    [this]   value-type)
   (property-default-value [this]   (some-> default util/var-get-recursive util/apply-if-fn))
   (property-validate      [this v] (validation-problems value-type (map second validation) v))
   (property-valid-value?  [this v] (empty? (validation-problems value-type (map second validation) v)))
-  (property-enabled?      [this v] (or (nil? enabled) (util/apply-if-fn (util/var-get-recursive enabled) v)))
-  (property-visible?      [this v] (or (nil? visible) (util/apply-if-fn (util/var-get-recursive visible) v)))
   (property-tags          [this]   tags)
 
   gt/Dynamics
-  (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic)))
+  (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic))
+  (dynamic-value          [this k v] (or (nil? (k dynamic))
+                                         (util/apply-if-fn (util/var-get-recursive (k dynamic)) v))))
 
 (defn- assert-form-kind [kind-label required-kind label form]
   (assert (required-kind form) (str "property " label " requires a " kind-label " not a " (class form) " of " form)))
@@ -57,14 +57,6 @@
   (update description
           :validation #(conj (or %1 []) %2) [label {:fn validation :formatter formatter}]))
 
-(defn attach-enablement
-  [description enablement]
-  (assoc description :enabled enablement))
-
-(defn attach-visibility
-  [description visibility]
-  (assoc description :visible visibility))
-
 (defn attach-dynamic
   [description kind evaluation]
   (assoc-in description [:dynamic kind] evaluation))
@@ -83,12 +75,6 @@
          (do
            (assert-symbol "validate" label)
            `(attach-validation ~(keyword label) (fn [& _#] "invalid value") ~@remainder))
-
-         [(['enabled & remainder] :seq)]
-         `(attach-enablement ~@remainder)
-
-         [(['visible & remainder] :seq)]
-         `(attach-visibility ~@remainder)
 
          [(['dynamic kind & remainder] :seq)]
          (do
@@ -121,8 +107,8 @@
 (defn property-type-descriptor
   [name-str value-type body-forms]
   `(let [description# ~(property-type-forms name-str value-type body-forms)]
-     (assert (or (nil? (:visible description#)) (gt/pfnk? (:visible description#)))
-             (str "Property " ~name-str " type " '~value-type " has a visibility function that should be an fnk, but isn't. " (:visible description#)))
+     (assert (or (nil? (:dynamic description#)) (gt/pfnk? (-> (:dynamic description#) vals first)))
+             (str "Property " ~name-str " type " '~value-type " has a dynamic function that should be an fnk, but isn't. " (-> (:dynamic description#) vals first)))
      (assert (not (gt/protocol? ~value-type))
              (str "Property " ~name-str " type " '~value-type " looks like a protocol; try (dynamo.graph/protocol " '~value-type ") instead."))
      (assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))
