@@ -13,9 +13,9 @@ ordinary paths."
 (g/defnode ResourceNode
   (inherits core/Scope)
 
-  (property resource (g/protocol workspace/Resource) (visible (g/always false)))
+  (property resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
   (property resource-type g/Any)
-  (property project-id g/NodeID (visible (g/always false)))
+  (property project-id g/NodeID (dynamic visible (g/always false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always [])))
