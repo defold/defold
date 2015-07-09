@@ -80,8 +80,6 @@
   (property-default-value      [this])
   (property-validate           [this v] "Returns a possibly-empty seq of messages.")
   (property-valid-value?       [this v] "If valid, returns nil. If invalid, returns seq of Marker")
-  (property-enabled?           [this v] "If true, this property may be edited")
-  (property-visible?           [this v] "If true, this property appears in the UI")
   (property-tags               [this]))
 
 (defn property-type? [x] (satisfies? PropertyType x))
@@ -89,7 +87,8 @@
 (def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
 
 (defprotocol Dynamics
-  (dynamic-attributes          [this] "Return a map from label to fnk"))
+  (dynamic-attributes          [this] "Return a map from label to fnk")
+  (dynamic-value               [this k v] "Returns the value of the dynamic property key - if a fnk, then the result of applying v"))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
