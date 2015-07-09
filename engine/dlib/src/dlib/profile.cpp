@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <string.h>
 #include "dlib.h"
-#include "profile.h"
+
 #include "hashtable.h"
 #include "hash.h"
 #include "spinlock.h"
@@ -133,7 +133,6 @@ namespace dmProfile
         dmHttpServer::Result r;
         uint16_t str_len = 0;
 
-        // NOTE: Not 64-bit friendly!
         SEND_LOG_RETURN(key, sizeof(key))
         str_len = strlen(*value);
         SEND_LOG_RETURN(&str_len, sizeof(str_len))
@@ -145,6 +144,9 @@ namespace dmProfile
         dmHttpServer::Result r;
 
         SEND_LOG_RETURN("STRS", 4)
+
+        const uint16_t ptr_size = sizeof(void*);
+        SEND_LOG_RETURN(&ptr_size, 2);
 
         uint32_t n_scopes = g_Scopes.Size();
         uint32_t n_counters = g_Counters.Size();
@@ -158,7 +160,6 @@ namespace dmProfile
         uint16_t str_len = 0;
         for (uint32_t i = 0; i < n_scopes; ++i) {
             Scope* scope = &g_Scopes[i];
-            // NOTE: Not 64-bit friendly!
             // Map of Scope* to Scope->m_Name
             SEND_LOG_RETURN(&scope, sizeof(scope))
             str_len = strlen(scope->m_Name);
@@ -168,7 +169,6 @@ namespace dmProfile
 
         for (uint32_t i = 0; i < n_counters; ++i) {
             Counter* counter = &g_Counters[i];
-            // NOTE: Not 64-bit friendly!
             // Map of Counter* to Counter->m_Name
             SEND_LOG_RETURN(&counter, sizeof(counter))
             str_len = strlen(counter->m_Name);
@@ -181,6 +181,10 @@ namespace dmProfile
     {
         dmHttpServer::Result r;
         SEND_LOG_RETURN("PROF", 4)
+
+        const uint16_t ptr_size = sizeof(void*);
+        SEND_LOG_RETURN(&ptr_size, 2);
+
         SendSamples(request);
         SendScopesData(request);
         SendCountersData(request);
