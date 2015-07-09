@@ -27,6 +27,8 @@
                   {:ext "gui_script"
                    :icon "icons/pictures.png"}
                   {:ext "lua"
+                   :icon "icons/pictures.png"}
+                  {:ext "java"
                    :icon "icons/pictures.png"}])
 
 (g/defnk produce-save-data [resource content]
