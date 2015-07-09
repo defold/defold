@@ -22,18 +22,18 @@
         validations))))
 
 (defrecord PropertyTypeImpl
-  [name value-type default validation visible tags enabled dynamic]
+  [name value-type default validation tags dynamic]
   gt/PropertyType
   (property-value-type    [this]   value-type)
   (property-default-value [this]   (some-> default util/var-get-recursive util/apply-if-fn))
   (property-validate      [this v] (validation-problems value-type (map second validation) v))
   (property-valid-value?  [this v] (empty? (validation-problems value-type (map second validation) v)))
-  (property-enabled?      [this v] (or (nil? enabled) (util/apply-if-fn (util/var-get-recursive enabled) v)))
-  (property-visible?      [this v] (or (nil? visible) (util/apply-if-fn (util/var-get-recursive visible) v)))
   (property-tags          [this]   tags)
 
   gt/Dynamics
-  (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic)))
+  (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic))
+  (dynamic-value          [this k v] (or (nil? (k dynamic))
+                                         (util/apply-if-fn (util/var-get-recursive (k dynamic)) v))))
 
 (defn- assert-form-kind [kind-label required-kind label form]
   (assert (required-kind form) (str "property " label " requires a " kind-label " not a " (class form) " of " form)))
