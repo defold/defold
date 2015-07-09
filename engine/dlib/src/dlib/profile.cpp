@@ -11,6 +11,8 @@
 #include "thread.h"
 #include "http_server.h"
 #include "dstrings.h"
+#include "array.h"
+#include "profile.h"
 
 extern unsigned char PROFILER_HTML[];
 extern uint32_t PROFILER_HTML_SIZE;
