@@ -42,56 +42,56 @@
             div.frameblock_green {
                 background: -webkit-gradient(linear, left top, left bottom, from(hsl(130, 60%, 50%)), to(hsl(130, 20%, 50%)));
 
-    		    float: left;
-    		    border-color: rgb(100,100,100);
-    		    border-style: solid;
-    		    border-width: 1px;
-    		    margin: -1px;
-    		    padding: 0;
-       		}
+                float: left;
+                border-color: rgb(100,100,100);
+                border-style: solid;
+                border-width: 1px;
+                margin: -1px;
+                padding: 0;
+            }
 
-    		div.frameblock_red {
+            div.frameblock_red {
                 background: -webkit-gradient(linear, left top, left bottom, from(hsl(0, 60%, 50%)), to(hsl(0, 20%, 50%)));
 
-    		    float: left;
-    		    border-color: rgb(100,100,100);
-    		    border-style: solid;
-    		    border-width: 1px;
-    		    margin: -1px;
-    		    padding: 0;
-    		}
+                float: left;
+                border-color: rgb(100,100,100);
+                border-style: solid;
+                border-width: 1px;
+                margin: -1px;
+                padding: 0;
+            }
 
-    		div.square {
+            div.square {
                 width: 16px;
                 height: 16px;
-    		    float: left;
-    		    margin-right: 4px;
-    		}
+                float: left;
+                margin-right: 4px;
+            }
 
-    		table.prof-table {
-    		  border: 1;
-    		  border-width: 1px;
-    		  border-color: #888;
-    		  border-style: solid;
-    		  border-spacing: 0px;
-    		  border-collapse:collapse;
-    		  color: #333;
-    		}
+            table.prof-table {
+              border: 1;
+              border-width: 1px;
+              border-color: #888;
+              border-style: solid;
+              border-spacing: 0px;
+              border-collapse:collapse;
+              color: #333;
+            }
 
-    		th.prof-table {
+            th.prof-table {
               text-align: left;
               border-width: 1px;
               border-color: #888;
               border-style: solid;
               padding: 4px;
-    		}
+            }
 
-    		td.prof-table {
+            td.prof-table {
               padding: 4px;
               border-width: 1px;
               border-color: #888;
               border-style: solid;
-    		}
+            }
 
             td.first {
               _width: 120px;
@@ -104,9 +104,9 @@
               text-align: left;
             }
 
-    		td.even {
+            td.even {
               background-color: #fff;
-    		}
+            }
 
             td.odd {
               background-color: rgb(233, 233, 233);
@@ -166,21 +166,28 @@
                 return (a1 << 8) + a2;
             }
 
-            function loadProfile(d, table){
+            readPtr = function(data, offset, size) {
+                // no support for pointer arithmetic here anyway, so just use the string.
+                return data.substring(offset, offset + size);
+            }
+
+            function loadProfile(d, table) {
+                var ptrSize = readUInt16(d, 0);
                 var samples = [];
-                var sample_count = readUInt32(d, 0);
-                var offset = 4;
+                var sample_count = readUInt32(d, 2);
+                var offset = 6;
                 var frameTime = 0;
                 for (var i = 0; i < sample_count; ++i) {
-                    var name_id = readUInt32(d, offset + 0);
-                    var scope = readUInt32(d, offset + 4);
-                    var start = readUInt32(d, offset + 8);
-                    var elapsed = readUInt32(d, offset + 12);
-                    var thread_id = readUInt16(d, offset + 16);
+                    var name_id = readPtr(d, offset, ptrSize);
+                    var scope = readPtr(d, offset + ptrSize, ptrSize);
+                    offset += 2 * ptrSize;
+                    var start = readUInt32(d, offset + 0);
+                    var elapsed = readUInt32(d, offset + 4);
+                    var thread_id = readUInt16(d, offset + 8);
                     var name = table[name_id];
 
                     var scope_name = table[scope];
-                    offset += 5 * 4;
+                    offset += 4 * 4;
 
                     frameTime = Math.max(frameTime, elapsed / ticksPerSecond);
 
@@ -197,10 +204,10 @@
                 var scope_count = readUInt32(d, offset);
                 offset += 4;
                 for (var i = 0; i < scope_count; ++i) {
-                    var name_id = readUInt32(d, offset + 0);
-                    var elapsed = readUInt32(d, offset + 4);
-                    var count = readUInt32(d, offset + 8);
-                    offset += 3 * 4;
+                    var name_id = readPtr(d, offset, ptrSize);
+                    var elapsed = readUInt32(d, offset + ptrSize);
+                    var count = readUInt32(d, offset + ptrSize + 4);
+                    offset += ptrSize + 2 * 4;
                     var name = table[name_id];
 
                     scopes_data[name] = {
@@ -213,16 +220,14 @@
                 var counter_count = readUInt32(d, offset);
                 offset += 4;
                 for (var i = 0; i < counter_count; ++i) {
-                    var name_id = readUInt32(d, offset + 0);
-                    var value = readUInt32(d, offset + 4);
-                    offset += 2 * 4;
+                    var name_id = readPtr(d, offset, ptrSize);
+                    var value = readUInt32(d, offset + ptrSize);
+                    offset += (4 + ptrSize);
                     var name = table[name_id];
-
                     counters_data[name] = {
                         value: value
                     };
                 }
-
 
                 return {
                     samples: samples,
@@ -233,17 +238,18 @@
             }
 
             function loadStrings(d, table){
-                var string_count = readUInt32(d, 4);
-                var offset = 8;
+                var ptrSize = readUInt16(d, 4);
+                var string_count = readUInt32(d, 6);
+                var offset = 10;
                 for (var i = 0; i < string_count; ++i) {
-                    var id = readUInt32(d, offset + 0);
-                    var len = readUInt16(d, offset + 4);
-                    var str = d.substring(offset + 6, offset + 6 + len);
+                    var id = readPtr(d, offset, ptrSize);
+                    offset += ptrSize;
+                    var len = readUInt16(d, offset);
+                    var str = d.substring(offset + 2, offset + 2 + len);
 
                     table[id] = str;
 
-                    offset += len;
-                    offset += 4 + 2;
+                    offset += (len + 2);
                 }
             }
 
