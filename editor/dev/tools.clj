@@ -87,3 +87,12 @@
                (str t)
                (.. fld getMessageType getName)))
      :resource? (.getExtension (.getOptions fld) com.dynamo.proto.DdfExtensions/resource)}))
+
+(defn main-scene [] (.getScene @editor.ui/*main-stage*))
+
+(defn refresh-css
+  []
+  (let [sheets (.getStylesheets (.getRoot (main-scene)))]
+    (editor.ui/run-now
+     (.clear sheets)
+     (.add sheets "file:/Users/mtnygard/src/defold/editor/resources/editor.css"))))
