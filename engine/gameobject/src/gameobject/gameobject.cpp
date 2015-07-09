@@ -485,6 +485,9 @@ namespace dmGameObject
     }
 
     void UndoNewInstance(HCollection collection, HInstance instance) {
+        if (instance->m_Prototype != &EMPTY_PROTOTYPE) {
+            dmResource::Release(collection->m_Factory, instance->m_Prototype);
+        }
         EraseSwapLevelIndex(collection, instance);
         uint16_t instance_index = instance->m_Index;
         operator delete ((void*)instance);
@@ -588,8 +591,7 @@ namespace dmGameObject
                 UndoNewInstance(collection, instance);
                 instance = 0;
             }
-        }
-        if (instance == 0 && proto != &EMPTY_PROTOTYPE) {
+        } else if (proto != &EMPTY_PROTOTYPE) {
             dmResource::Release(factory, proto);
         }
         return instance;
@@ -641,7 +643,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    static void ReleaseIdentifier(HCollection collection, HInstance instance)
+    void ReleaseIdentifier(HCollection collection, HInstance instance)
     {
         if (instance->m_Identifier != UNNAMED_IDENTIFIER) {
             collection->m_IDToInstance.Erase(instance->m_Identifier);
@@ -972,7 +974,6 @@ namespace dmGameObject
         {
             for (uint32_t i=0;i!=new_instances.Size();i++)
             {
-                dmResource::Release(collection->m_Factory, new_instances[i]->m_Prototype);
                 ReleaseIdentifier(collection, new_instances[i]);
                 UndoNewInstance(collection, new_instances[i]);
             }

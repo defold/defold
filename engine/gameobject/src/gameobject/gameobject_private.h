@@ -148,7 +148,7 @@ namespace dmGameObject
         //             A theory was that the bug has something todo with bitfields.
         //             This dummy float breaks up the bitfield in smaller continous parts (<64bits?)...
         //             Remove when mozilla has fixed this properly...
-        //			   The bug is tracked as http://llvm.org/bugs/show_bug.cgi?id=19800
+        //             The bug is tracked as http://llvm.org/bugs/show_bug.cgi?id=19800
         float m_llvm_pad;
 #endif
 
@@ -303,6 +303,7 @@ namespace dmGameObject
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
 
     HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name);
+    void ReleaseIdentifier(HCollection collection, HInstance instance);
     void UndoNewInstance(HCollection collection, HInstance instance);
     bool CreateComponents(HCollection collection, HInstance instance);
     void UpdateTransforms(HCollection collection);
