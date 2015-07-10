@@ -237,6 +237,11 @@ namespace dmGameSystem
                 dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
             break;
 
+            case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
+                dmLogError("Template nodes are not supported in run-time '%s', result: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::RESULT_INVAL_ERROR);
+                result = false;
+            break;
+
             default:
             break;
         }

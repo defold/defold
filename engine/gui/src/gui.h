@@ -277,6 +277,7 @@ namespace dmGui
         NODE_TYPE_BOX  = 0,
         NODE_TYPE_TEXT = 1,
         NODE_TYPE_PIE  = 2,
+        NODE_TYPE_TEMPLATE = 3,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
