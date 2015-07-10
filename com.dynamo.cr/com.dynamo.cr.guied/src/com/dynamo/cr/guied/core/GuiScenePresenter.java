@@ -1,12 +1,22 @@
 package com.dynamo.cr.guied.core;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.IFileEditorInput;
+import org.eclipse.ui.statushandlers.StatusManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.guied.Activator;
+import com.dynamo.cr.guied.core.TemplateNode;
 import com.dynamo.cr.guied.operations.AddFontsOperation;
 import com.dynamo.cr.guied.operations.AddGuiNodeOperation;
 import com.dynamo.cr.guied.operations.AddLayersOperation;
@@ -19,6 +29,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.SelectOperation;
 
 public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode> {
+    private static Logger logger = LoggerFactory.getLogger(GuiScenePresenter.class);
 
     private GuiSceneNode findSceneFromSelection(IStructuredSelection selection) {
         Object[] nodes = selection.toArray();
@@ -74,6 +85,31 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
         TextNode node = new TextNode();
         node.setId("text");
         context.executeOperation(new AddGuiNodeOperation(scene, node, context));
+    }
+
+    public void onAddTemplateNode(IPresenterContext context, IEditorPart editorPart) {
+        String parentScenePath = ((IFileEditorInput)editorPart.getEditorInput()).getFile().getFullPath().toString();
+
+        Node scene = findGuiNodeParentFromSelection(context.getSelection());
+        String file = context.selectFile("Add Gui Scene", new String[] {"gui"});
+        String filePath = scene.getModel().getContentRoot().getFullPath() + file;
+        if(filePath.equals(parentScenePath)) {
+            Status status = new Status(IStatus.CANCEL, Activator.PLUGIN_ID, "Unable to add template scene '" + file + "'. Recursive hierarchies not supported", null);
+            StatusManager.getManager().handle(status, StatusManager.SHOW);
+            return;
+        }
+
+        if (file != null) {
+            TemplateNode templateScene = new TemplateNode();
+            try {
+                templateScene.setTemplate(file);
+                templateScene.setId(new File(file).getName().replace(".gui", ""));
+            } catch (Exception e) {
+                logger.error("Error occurred while adding gui scene", e);
+                return;
+            }
+            context.executeOperation(new AddGuiNodeOperation(scene, templateScene, context));
+        }
     }
 
     public void onAddTextureNode(IPresenterContext context) {

@@ -14,6 +14,7 @@ message NodeDesc
         TYPE_BOX  = 0 [(displayName) = "Box"];
         TYPE_TEXT = 1 [(displayName) = "Text"];
         TYPE_PIE  = 2 [(displayName) = "Pie"];
+        TYPE_TEMPLATE  = 3 [(displayName) = "Template"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -112,6 +113,9 @@ message NodeDesc
     optional float shadow_alpha       = 32 [default = 1.0];
 
     repeated uint32 overridden_fields = 33;
+
+    optional string     template              = 34;
+    optional bool       template_node_child   = 35;
 }
 
 message SceneDesc
