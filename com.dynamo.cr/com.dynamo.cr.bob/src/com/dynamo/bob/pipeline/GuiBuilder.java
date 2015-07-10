@@ -394,12 +394,33 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 // merge template scene nodes with overrides of current scene
                 List<NodeDesc> nodes = mergeNodes(node, templateBuilder.getNodesList(), null, nodeMap, "");
                 newScene.get("").addAll(nodes);
+
+                List<String> templateLayouts = new ArrayList<String>(templateBuilder.getLayoutsCount());
                 for(LayoutDesc layout : templateBuilder.getLayoutsList()) {
-                    HashMap<String, NodeDesc> layoutNodes = new HashMap<String, NodeDesc>(layout.getNodesCount());
-                    for(NodeDesc n : layout.getNodesList()) {
-                        layoutNodes.put(n.getId(), n);
+                    templateLayouts.add(layout.getName());
+                }
+                for(LayoutDesc layout : sceneBuilder.getLayoutsList()) {
+                    if(templateLayouts.contains(layout.getName())) {
+                        LayoutDesc templateLayout = null;
+                        for(LayoutDesc tl : templateBuilder.getLayoutsList()) {
+                            if(tl.getName().equals(layout.getName())) {
+                                templateLayout = tl;
+                                break;
+                            }
+                        }
+                        HashMap<String, NodeDesc> layoutNodes = new HashMap<String, NodeDesc>(templateLayout.getNodesCount());
+                        for(NodeDesc n : templateLayout.getNodesList()) {
+                            layoutNodes.put(n.getId(), n);
+                        }
+                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayout.getName());
+                    } else {
+                        HashMap<String, NodeDesc> layoutNodes = new HashMap<String, NodeDesc>(layout.getNodesCount());
+                        for(NodeDesc n : layout.getNodesList()) {
+                            layoutNodes.put(n.getId(), n);
+                        }
+                        nodes = mergeNodes(node, templateBuilder.getNodesList(), null, nodeMap, layout.getName());
                     }
-                    nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName());
+
                     ArrayList<NodeDesc> layoutNodeList = newScene.getOrDefault(layout.getName(), null);
                     if(layoutNodeList != null) {
                         layoutNodeList.addAll(nodes);
