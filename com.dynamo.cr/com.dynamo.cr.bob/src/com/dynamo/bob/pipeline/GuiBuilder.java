@@ -154,7 +154,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         // resolve parent and do recursive transform
         b.setParent(parentNode.getParent());
         if(!parentNode.getParent().isEmpty()) {
-            parentNode = nodeMap.getOrDefault(parentNode.getParent(), defaultNodeMap.get(parentNode.getParent()));
+            parentNode = nodeMap.containsKey(parentNode.getParent()) ? nodeMap.get(parentNode.getParent()) : defaultNodeMap.get(parentNode.getParent());
             if(parentNode.getType() == Type.TYPE_TEMPLATE) {
                 transformTemplateChild(b, parentNode, defaultNodeMap, nodeMap);
             }
@@ -173,7 +173,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     continue;
                 }
                 if(!node.getParent().isEmpty()) {
-                    NodeDesc parent = layoutNodeMap.getOrDefault(node.getParent(), defaultLayoutNodeMap.get(node.getParent()));
+                    NodeDesc parent = layoutNodeMap.containsKey(node.getParent()) ? layoutNodeMap.get(node.getParent()) : defaultLayoutNodeMap.get(node.getParent());
                     if(parent.getType() == Type.TYPE_TEMPLATE) {
                         NodeDesc.Builder b = node.toBuilder();
                         transformTemplateChild(b, parent, defaultLayoutNodeMap, layoutNodeMap);
@@ -241,7 +241,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         ArrayList<NodeDesc> newNodes = new ArrayList<NodeDesc>(nodes.size());
         for(NodeDesc n : nodes) {
             // pick default node if no layout version exist
-            NodeDesc node = (layoutNodes == null) ? n : layoutNodes.getOrDefault(n.getId(), n);
+            NodeDesc node = (layoutNodes == null) ? n : (layoutNodes.containsKey(n.getId()) ? layoutNodes.get(n.getId()) : n);
             NodeDesc.Builder b = node.toBuilder();
 
             // insert parentNode as prefix to parent and node id
@@ -253,9 +253,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             b.setId(parentNode.getId() + "/" + b.getId());
 
             // apply overridden fields from super-node to node, if there are any
-            NodeDesc parentSceneNode = (nodeMap == null) ? null : nodeMap.getOrDefault(b.getId(), null);
+            NodeDesc parentSceneNode = (nodeMap == null) ? null : nodeMap.get(b.getId());
             if((parentSceneNode == null) && (nodeMapDefault != null)) {
-                parentSceneNode = nodeMapDefault.getOrDefault(b.getId(), null);
+                parentSceneNode = nodeMapDefault.get(b.getId());
             }
             if(parentSceneNode != null && parentSceneNode.getOverriddenFieldsCount() != 0) {
                 List<Integer> overriddenFields = parentSceneNode.getOverriddenFieldsList();
@@ -379,7 +379,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             newScene.get("").add(node);
             validateNodeResources(node, builder, input, fontNames, textureNames, layerNames);
             for(String layout : layouts) {
-                NodeDesc n = nodeMap.get(layout).getOrDefault(node.getId(), null);
+                NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
                     validateNodeResources(n, builder, input, fontNames, textureNames, layerNames);
                     newScene.get(layout).add(n);
@@ -421,7 +421,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                         nodes = mergeNodes(node, templateBuilder.getNodesList(), null, nodeMap, layout.getName());
                     }
 
-                    ArrayList<NodeDesc> layoutNodeList = newScene.getOrDefault(layout.getName(), null);
+                    ArrayList<NodeDesc> layoutNodeList = newScene.get(layout.getName());
                     if(layoutNodeList != null) {
                         layoutNodeList.addAll(nodes);
                     }
@@ -480,7 +480,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
 
         public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException, CompileExceptionError {
-            SceneDesc.Builder sceneBuilder = resourceCache.getOrDefault(resourcePath, null);
+            SceneDesc.Builder sceneBuilder = resourceCache.get(resourcePath);
             if(sceneBuilder == null) {
                 IResource templateSceneResource = this.project.getResource(resourcePath);
                 InputStreamReader reader = new InputStreamReader(new ByteArrayInputStream(templateSceneResource.getContent()), "ASCII");
