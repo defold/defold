@@ -52,9 +52,20 @@ public class BoxNode extends ClippingNode {
         return GuiNodeStateBuilder.isFieldOverridden(this, "Texture", this.texture);
     }
 
+    private TextureNode getTextureNode() {
+        TextureNode textureNode = ((TexturesNode) getScene().getTexturesNode()).getTextureNode(this.texture);
+        if(textureNode == null) {
+            TemplateNode parentTemplate = this.getParentTemplateNode();
+            if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
+                textureNode = ((TexturesNode) parentTemplate.getTemplateScene().getTexturesNode()).getTextureNode(this.texture);
+            }
+        }
+        return textureNode;
+    }
+
     private void updateTexture() {
         if (!this.texture.isEmpty() && getModel() != null) {
-            TextureNode textureNode = ((TexturesNode) getScene().getTexturesNode()).getTextureNode(this.texture);
+            TextureNode textureNode = this.getTextureNode();
             if(textureNode != null)
             {
                 if (this.guiTextureNode == null) {
@@ -86,7 +97,7 @@ public class BoxNode extends ClippingNode {
     public boolean handleReload(IFile file, boolean childWasReloaded) {
         boolean reloaded = false;
         if (this.texture != null && !this.texture.isEmpty()) {
-            TextureNode textureNode = ((TexturesNode) getScene().getTexturesNode()).getTextureNode(this.texture);
+            TextureNode textureNode = this.getTextureNode();
             if(textureNode != null) {
                 IFile imgFile = getModel().getFile(textureNode.getTexture());
                 if (file.equals(imgFile)) {
@@ -101,6 +112,9 @@ public class BoxNode extends ClippingNode {
     @Override
     public Image getIcon() {
         if(GuiNodeStateBuilder.isStateSet(this)) {
+            if(isTemplateNodeChild()) {
+                return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID);
+            }
             return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_OVERRIDDEN_IMAGE_ID);
         }
         return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_IMAGE_ID);
