@@ -19,8 +19,13 @@ public class Activator extends AbstractUIPlugin {
     // Image ids
     public static final String BOX_NODE_IMAGE_ID = "BOX_NODE_ICON"; //$NON-NLS-1$
     public static final String BOX_NODE_OVERRIDDEN_IMAGE_ID = "BOX_NODE_OVERRIDDEN_ICON"; //$NON-NLS-1$
+    public static final String BOX_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID = "BOX_NODE_OVERRIDDEN_TEMPLATE_ICON"; //$NON-NLS-1$
     public static final String TEXT_NODE_IMAGE_ID = "TEXT_NODE_ICON"; //$NON-NLS-1$
     public static final String TEXT_NODE_OVERRIDDEN_IMAGE_ID = "TEXT_NODE_OVERRIDDEN_ICON"; //$NON-NLS-1$
+    public static final String TEXT_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID = "TEXT_NODE_OVERRIDDEN_TEMPLATE_ICON"; //$NON-NLS-1$
+    public static final String TEMPLATE_NODE_IMAGE_ID = "TEMPLATE_NODE_ICON"; //$NON-NLS-1$
+    public static final String TEMPLATE_NODE_OVERRIDDEN_IMAGE_ID = "TEMPLATE_NODE_OVERRIDDEN_ICON"; //$NON-NLS-1$
+    public static final String TEMPLATE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID = "TEMPLATE_NODE_OVERRIDDEN_TEMPLATE_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_IMAGE_ID = "TEXTURE_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_ATLAS_IMAGE_ID = "TEXTURE_ATLAS_ICON"; //$NON-NLS-1$
     public static final String TEXTURE_TILESOURCE_IMAGE_ID = "TEXTURE_TILESOURCE_ICON"; //$NON-NLS-1$
@@ -69,8 +74,13 @@ public class Activator extends AbstractUIPlugin {
 	    super.initializeImageRegistry(reg);
         registerImage(reg, BOX_NODE_IMAGE_ID, "icons/picture.png");
         registerImage(reg, BOX_NODE_OVERRIDDEN_IMAGE_ID, "icons/picture_overridden.png");
+        registerImage(reg, BOX_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID, "icons/picture_overridden_template.png");
         registerImage(reg, TEXT_NODE_IMAGE_ID, "icons/text_large_cap.png");
         registerImage(reg, TEXT_NODE_OVERRIDDEN_IMAGE_ID, "icons/text_large_cap_overridden.png");
+        registerImage(reg, TEXT_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID, "icons/text_large_cap_overridden_template.png");
+        registerImage(reg, TEMPLATE_NODE_IMAGE_ID, "icons/template.png");
+        registerImage(reg, TEMPLATE_NODE_OVERRIDDEN_IMAGE_ID, "icons/template_overridden.png");
+        registerImage(reg, TEMPLATE_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID, "icons/template_overridden_template.png");
         registerImage(reg, TEXTURE_IMAGE_ID, "icons/picture.png");
         registerImage(reg, TEXTURE_ATLAS_IMAGE_ID, "icons/images.png");
         registerImage(reg, TEXTURE_TILESOURCE_IMAGE_ID, "icons/tile_set.png");
