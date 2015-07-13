@@ -121,9 +121,14 @@
 ;; ---------------------------------------------------------------------------
 (defrecord ErrorValue [reason])
 
-(defn error [& reason] (->ErrorValue reason))
-(defn error? [x] (instance? ErrorValue x))
+(defn error [reason] (->ErrorValue reason))
 
+(defn error?
+  [x]
+  (cond
+    (instance? ErrorValue x) x
+    (vector? x)              (some error? x)
+    :else                    nil))
 
 ;; ---------------------------------------------------------------------------
 ;; Destructors
