@@ -79,8 +79,9 @@
                          :playback        :playback-once-forward}))
 
 (g/defnode AtlasImage
-  (property path g/Str)
+  (input src-resource (g/protocol workspace/Resource))
   (input src-image BufferedImage)
+  (output path g/Str (g/fnk [src-resource] (workspace/proj-path src-resource)))
   (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
   (output outline g/Any (g/fnk [node-id path src-image] {:node-id node-id :label (path->id path) :icon image-icon}))
@@ -235,16 +236,19 @@
 
 (defn- attach-atlas-image-nodes
   [graph-id base-node parent images src-label tgt-label]
-  (for [[image img-node] (map (fn [img] [img (project/resolve-resource-node base-node img)]) images)
-       :when img-node]
+  (for [image images]
     (g/make-nodes
       graph-id
-      [atlas-image [AtlasImage :path image]]
-      (g/connect img-node    :content     atlas-image :src-image)
+      [atlas-image [AtlasImage]]
+      (project/connect-resource-node (project/get-project base-node) image atlas-image [[:content :src-image]
+                                                                                        [:resource :src-resource]])
       (g/connect atlas-image :self        base-node   :nodes)
       (g/connect atlas-image src-label    parent      tgt-label)
       (g/connect atlas-image :outline     parent      :outline)
       (g/connect atlas-image :ddf-message parent      :img-ddf))))
+
+(defn add-images [atlas-node img-resources]
+  (attach-atlas-image-nodes (g/node->graph-id atlas-node) atlas-node atlas-node img-resources :animation :animations))
 
 (defn load-atlas [project self input]
   (let [atlas         (protobuf/read-text AtlasProto$Atlas input)
