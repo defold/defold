@@ -463,4 +463,5 @@
                                     :load-fn load-collection
                                     :icon collection-icon
                                     :view-types [:scene]
-                                    :view-opts {:scene {:grid true}}))
+                                    :view-opts {:scene {:grid true}}
+                                    :template "templates/template.collection"))
