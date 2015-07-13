@@ -514,7 +514,7 @@
   ([outputs]
    (invalidate! (now) outputs))
   ([basis outputs]
-   (c/cache-invalidate (cache) (dependencies basis outputs))))
+    (c/cache-invalidate (cache) (dependencies basis outputs))))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including

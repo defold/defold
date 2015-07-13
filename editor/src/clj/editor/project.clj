@@ -6,9 +6,12 @@ ordinary paths."
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            ; TODO - HACK
+            [internal.graph.types :as gt])
   (:import [java.io File]
-           [java.nio.file FileSystem FileSystems PathMatcher]))
+           [java.nio.file FileSystem FileSystems PathMatcher]
+           [editor.workspace FileResource]))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -63,11 +66,16 @@ ordinary paths."
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
     (workspace/make-memory-resource (:workspace project) resource-type data)))
 
+(defn save-all [project]
+  (let [save-data (g/node-value project :save-data)]
+    (doseq [{:keys [resource content]} save-data
+            :when (not (workspace/read-only? resource))]
+      (spit resource content)))
+  (workspace/fs-sync (:workspace project) false))
+
 (handler/defhandler :save-all :global
     (enabled? [] true)
-    (run [project] (let [save-data (g/node-value project :save-data)]
-                     (doseq [{:keys [resource content]} save-data]
-                       (spit resource content)))))
+    (run [project] (save-all project)))
 
 (defn- target-key [target]
   [(:resource (:resource target))
@@ -160,6 +168,7 @@ ordinary paths."
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Save All"
+                  :id ::save-all
                   :acc "Shortcut+S"
                   :command :save-all}])
 
@@ -168,7 +177,67 @@ ordinary paths."
                   :id ::project
                   :children [{:label "Build"
                               :acc "Shortcut+B"
-                              :command :build}]}])
+                              :command :build}
+                             {:label "Save All"
+                              :acc "Shortcut+S"
+                              :command :save-all}]}])
+
+(defn get-resource-node [project path-or-resource]
+  (let [resource (if (string? path-or-resource)
+                   (workspace/find-resource (:workspace project) path-or-resource)
+                   path-or-resource)]
+    (let [nodes-by-resource (g/node-value project :nodes-by-resource)]
+      (get nodes-by-resource resource))))
+
+(defn- outputs [node]
+  (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) (g/node-id node))))
+
+(defn- loadable? [resource]
+  (not (nil? (:load-fn (workspace/resource-type resource)))))
+
+(defn- add-resources [project resources]
+  (let [resources (filter loadable? resources)
+        nodes (make-nodes project resources)]
+   (load-nodes (g/refresh project) nodes)))
+
+(defn- remove-resources [project resources]
+  (let [internal (filter loadable? resources)
+        external (filter (complement loadable?) resources)]
+    (g/transact
+      (for [resource internal
+            :let [node (get-resource-node project resource)]]
+        ; TODO - recreate a polluted node
+        (g/delete-node node)))
+    (doseq [resource external
+            :let [resource-node (get-resource-node project resource)
+                  nid (g/node-id resource-node)]]
+      (g/invalidate! (mapv #(do [nid (first %)]) (outputs resource-node))))))
+
+(defn- handle-resource-changes [project changes]
+  (let [all (reduce into [] (vals changes))
+        reset-undo? (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))]
+    (add-resources project (:added changes))
+    (remove-resources project (:removed changes))
+    (doseq [resource (:changed changes)
+            :let [resource-node (get-resource-node project resource)]
+            :when resource-node]
+      (let [current-outputs (outputs resource-node)]
+        (if (loadable? resource)
+          (let [current-outputs (outputs resource-node)
+                nodes (make-nodes project [resource])]
+            (load-nodes (g/refresh project) nodes)
+            (let [new-node (first nodes)
+                  new-outputs (set (outputs new-node))
+                  outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+              (g/transact
+                (concat
+                  (g/delete-node resource-node)
+                  (for [[src-label [tgt-node tgt-label]] outputs-to-make]
+                    (g/connect new-node src-label tgt-node tgt-label))))))
+          (let [nid (g/node-id resource-node)]
+            (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
+    (when reset-undo?
+      (g/reset-undo! (g/node->graph-id project)))))
 
 (g/defnode Project
   (inherits core/Scope)
@@ -189,7 +258,10 @@ ordinary paths."
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
 
   workspace/SelectionProvider
-  (selection [this] (g/node-value this :selected-node-ids)))
+  (selection [this] (g/node-value this :selected-node-ids))
+  workspace/ResourceListener
+  (handle-changes [this changes]
+                  (handle-resource-changes (g/refresh this) changes)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (workspace/resource-type (:resource resource-node))))
@@ -207,10 +279,6 @@ ordinary paths."
         resources        (filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-to-node r)]) resources)))
 
-(defn get-resource-node [project resource]
-  (let [nodes-by-resource (g/node-value project :nodes-by-resource)]
-    (get nodes-by-resource resource)))
-
 (handler/defhandler :build :global
     (enabled? [] true)
     (run [project] (let [workspace (:workspace project)
@@ -221,6 +289,25 @@ ordinary paths."
   (let [project (get-project base-resource-node)
         resource (workspace/resolve-resource (:resource base-resource-node) path)]
     (get-resource-node project resource)))
+
+(defn connect [src tgt connections]
+  (for [[src-label tgt-label] connections]
+    (g/connect src src-label tgt tgt-label)))
+
+(defn connect-resource-node [project resource consumer-node connections]
+  (let [node (get-resource-node project resource)]
+    (if node
+      (connect node consumer-node connections)
+      (let [resource-type (workspace/resource-type resource)
+            node-type (:node-type resource-type PlaceholderResourceNode)]
+        (g/make-nodes
+          (g/node->graph-id project)
+          [new-resource [node-type :resource resource :project-id (g/node-id project) :resource-type resource-type]]
+          (g/connect new-resource :self project :nodes)
+          (if ((g/output-labels node-type) :save-data)
+            (g/connect new-resource :save-data project :save-data)
+            [])
+          (connect new-resource consumer-node connections))))))
 
 (defn select
   [project nodes]
@@ -247,13 +334,16 @@ ordinary paths."
             (select project nodes)))))))
 
 (defn make-project [graph workspace]
-  (first
-   (g/tx-nodes-added
-     (g/transact
-       (g/make-nodes graph
-                     [project [Project :workspace workspace :build-cache (atom {}) :fs-build-cache (atom {})]]
-                     (g/connect workspace :resource-list project :resources)
-                     (g/connect workspace :resource-types project :resource-types))))))
+  (let [project
+        (first
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph
+                            [project [Project :workspace workspace :build-cache (atom {}) :fs-build-cache (atom {})]]
+                            (g/connect workspace :resource-list project :resources)
+                            (g/connect workspace :resource-types project :resource-types)))))]
+    (workspace/add-resource-listener! workspace project)
+    project))
 
 ;;; Support for copy&paste, drag&drop
 (def resource? (partial g/node-instance? ResourceNode))

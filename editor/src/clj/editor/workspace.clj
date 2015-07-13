@@ -3,7 +3,8 @@
 ordinary paths."
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [dynamo.graph :as g])
+            [dynamo.graph :as g]
+            [editor.fs-watch :as fs-watch])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -22,6 +23,9 @@ ordinary paths."
   (resource-name [this])
   (workspace [this])
   (resource-hash [this]))
+
+(defprotocol ResourceListener
+  (handle-changes [this changes]))
 
 (def wrap-stream)
 
@@ -162,7 +166,7 @@ ordinary paths."
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (File. ^String (abs-path this)) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (let [file (File. ^String (abs-path this))] (wrap-stream (workspace this) (io/make-output-stream file opts) file)))
+  (io/make-output-stream [this opts] (let [file (File. ^String (abs-path this))] (io/make-output-stream file opts)))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
 (defn make-build-resource
@@ -171,14 +175,16 @@ ordinary paths."
   ([resource prefix]
     (BuildResource. resource prefix)))
 
-(defn- create-resource-tree [workspace ^File file filter-fn]
-  (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace % filter-fn) (filter filter-fn (.listFiles file))))]
+(defn- resource-filter [^File f]
+  (let [name (.getName f)]
+    (not (or (= name "build") (= (subs name 0 1) ".")))))
+
+(defn- create-resource-tree [workspace ^File file]
+  (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace %) (filter resource-filter (.listFiles file))))]
     (FileResource. workspace file children)))
 
 (g/defnk produce-resource-tree [self ^String root]
-  (let [tree (create-resource-tree self (File. root) (fn [^File f]
-                                                       (let [name (.getName f)]
-                                                         (not (or (= name "build") (= (subs name 0 1) "."))))))]
+  (let [tree (create-resource-tree self (File. root))]
     (update-in tree [:children] concat (make-zip-tree self (io/resource "builtins.zip")))))
 
 (g/defnk produce-resource-list [self resource-tree]
@@ -229,15 +235,37 @@ ordinary paths."
 (defn file-resource [workspace path]
   (FileResource. workspace (File. (str (:root workspace) path)) []))
 
+(defn find-resource [workspace path]
+  (let [proj-path path]
+    (get (g/node-value workspace :resource-map) proj-path)))
+
 (defn resolve-resource [base-resource path]
     ; TODO handle relative paths
-  (let [proj-path path
-        workspace (:workspace base-resource)]
-    (get (g/node-value workspace :resource-map) proj-path)))
+  (find-resource (:workspace base-resource) path))
+
+(defn fs-sync
+  ([workspace]
+    (fs-sync workspace true))
+  ([workspace notify-listeners?]
+  (let [watcher-atom (:fs-watcher workspace)
+        watcher (swap! (:fs-watcher workspace) fs-watch/watch)
+        changes (into {} (map (fn [[type files]] [type (map #(FileResource. workspace % []) files)]) (:changes watcher)))]
+    (when (or (not (empty? (:added changes))) (not (empty? (:removed changes))))
+      ; TODO - bug in graph when invalidating internal dependencies, need to be explicit for every output
+      (let [ws-id (g/node-id workspace)]
+        (g/invalidate! (mapv #(do [ws-id %]) [:resource-tree :resource-list :resource-map]))))
+    (when notify-listeners?
+      (doseq [listener @(:resource-listeners workspace)]
+        (handle-changes listener changes))))))
+
+(defn add-resource-listener! [workspace listener]
+  (swap! (:resource-listeners workspace) conj listener))
 
 (g/defnode Workspace
   (property root g/Str)
   (property opened-files g/Any (default (atom #{})))
+  (property fs-watcher g/Any)
+  (property resource-listeners g/Any (default (atom [])))
   (property view-types g/Any)
   (property resource-types g/Any)
 
@@ -247,7 +275,9 @@ ordinary paths."
   (output resource-types g/Any :cached (g/fnk [resource-types] resource-types)))
 
 (defn make-workspace [graph project-path]
-  (g/make-node! graph Workspace :root project-path :view-types {:default {:id :default}}))
+  (g/make-node! graph Workspace :root project-path :view-types {:default {:id :default}}
+                :fs-watcher (atom (fs-watch/make-watcher project-path resource-filter))
+                :resource-listeners (atom [])))
 
 (defn- wrap-stream [workspace stream file]
   (swap! (:opened-files workspace)

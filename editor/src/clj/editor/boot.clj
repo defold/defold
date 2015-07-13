@@ -85,6 +85,9 @@
   (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
+    (ui/observe (.focusedProperty stage) (fn [property old-val new-val]
+                                           (when (true? new-val)
+                                             (workspace/fs-sync workspace))))
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
