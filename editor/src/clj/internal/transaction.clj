@@ -137,15 +137,17 @@
   (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [basis triggers-to-fire nodes-affected world-ref nodes-added] :as ctx}
+  [{:keys [basis triggers-to-fire nodes-affected world-ref nodes-added successors-changed] :as ctx}
    {:keys [node]}]
   (let [[basis-after full-node] (gt/add-node basis node)
-        node-id                 (gt/node-id full-node)]
+        node-id                 (gt/node-id full-node)
+        all-outputs             (-> full-node gt/node-type gt/output-labels)]
     (assoc ctx
-           :basis            basis-after
-           :nodes-added      (conj nodes-added node-id)
-           :triggers-to-fire (update triggers-to-fire node-id assoc :added [])
-           :nodes-affected   (merge-with set/union nodes-affected {node-id (-> full-node gt/node-type gt/output-labels)}))))
+           :basis              basis-after
+           :nodes-added        (conj nodes-added node-id)
+           :triggers-to-fire   (update triggers-to-fire node-id assoc :added [])
+           :successors-changed (into successors-changed (map (fn [label] [node-id label]) all-outputs))
+           :nodes-affected     (merge-with set/union nodes-affected {node-id all-outputs}))))
 
 (defn- disconnect-inputs
   [ctx target-node target-label]
