@@ -187,22 +187,22 @@
                     tgt-id (:name input-type) tgt-label
                     output-schema input-schema))))
 
-
 ;; ---------------------------------------------------------------------------
 ;; Dependency tracing
 ;; ---------------------------------------------------------------------------
 (defn index-successors
-  [basis [node-id output-label]]
-  (let [target-inputs (gt/targets basis node-id output-label)]
+  [basis node-id-output-pair]
+  (let [gather-node-dependencies-fn (fn [[id label]]
+                                      (some-> (node-by-id-at basis id)
+                                              gt/node-type
+                                              gt/input-dependencies
+                                              (get label)
+                                              (->> (mapv (partial vector id)))))
+        same-node-dep-pairs         (conj (gather-node-dependencies-fn node-id-output-pair) node-id-output-pair)
+        target-inputs               (mapcat (fn [[id label]] (gt/targets basis id label)) same-node-dep-pairs)]
     (apply set/union
-           (mapv (fn [[node-id input-label]]
-                  (let [set-of-output-labels (-> (node-by-id-at basis node-id)
-                                                 gt/node-type
-                                                 gt/input-dependencies
-                                                 (get input-label))
-                        node-label-pairs (mapv #(vector node-id %) set-of-output-labels)]
-                    node-label-pairs))
-                target-inputs))))
+           same-node-dep-pairs
+           (mapv gather-node-dependencies-fn target-inputs))))
 
 (defn- successors
   [basis [node-id output-label]]
