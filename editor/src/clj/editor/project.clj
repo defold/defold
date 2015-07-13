@@ -10,8 +10,7 @@ ordinary paths."
             ; TODO - HACK
             [internal.graph.types :as gt])
   (:import [java.io File]
-           [java.nio.file FileSystem FileSystems PathMatcher]
-           [editor.workspace FileResource]))
+           [java.nio.file FileSystem FileSystems PathMatcher]))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
