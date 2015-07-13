@@ -159,18 +159,6 @@ ordinary paths."
                 :fs-watcher (atom (fs-watch/make-watcher project-path resource-filter))
                 :resource-listeners (atom [])))
 
-(defn- wrap-stream [workspace stream file]
-  (swap! (:opened-files workspace)
-        (fn [rs]
-          (when (get rs file)
-            (throw (Exception. (format "File %s already opened" file))))
-          (conj rs file)))
-  (proxy [FilterOutputStream] [stream]
-   (close []
-     (let [^FilterOutputStream this this]
-       (swap! (:opened-files workspace) disj file)
-          (proxy-super close)))))
-
 (defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
   (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
      (g/update-property workspace :view-types assoc (:id view-type) view-type)))
