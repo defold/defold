@@ -86,9 +86,9 @@
   (transform-types       [_] transform-types)
   (internal-properties   [_] internal-properties)
   (properties            [_] properties)
-  (inputs                [_] inputs)
+  (declared-inputs       [_] inputs)
   (injectable-inputs     [_] injectable-inputs)
-  (outputs               [_] (set (keys transforms)))
+  (declared-outputs      [_] (set (keys transforms)))
   (cached-outputs        [_] cached-outputs)
   (event-handlers        [_] event-handlers)
   (input-dependencies    [_] input-dependencies)
@@ -142,7 +142,7 @@
                                          missing-args ", because they are needed by its property '" (name (first property)) "'."))))
   node-type-description)
 
-(defn- invert-map
+(defn invert-map
   [m]
   (apply merge-with into
          (for [[k vs] m
@@ -159,24 +159,38 @@
   ([desc inputs]
    (dependency-seq desc #{} inputs))
   ([desc seen inputs]
-   (mapcat
-    (fn [x]
-      (if (not (seen x))
-        (if-let [recursive (get-in desc [:transforms x])]
-          (dependency-seq desc (conj seen x) (inputs-for recursive))
-          #{x})
-        seen))
+   (reduce
+    (fn [dependencies argument]
+      (conj
+       (if (not (seen argument))
+         (if-let [recursive (get-in desc [:transforms argument])]
+           (into dependencies (dependency-seq desc (conj seen argument) (inputs-for recursive)))
+           dependencies)
+         dependencies)
+       argument))
+    #{}
     inputs)))
 
 (defn description->input-dependencies
   [{:keys [transforms properties] :as description}]
   (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))
-        transforms (assoc transforms :self (set (keys properties)))]
+        transforms (assoc transforms :self (keys properties))]
     (invert-map transforms)))
 
 (defn attach-input-dependencies
   [description]
   (assoc description :input-dependencies (description->input-dependencies description)))
+
+(defn input-dependencies-non-transitive
+  "Return a map from input to affected outputs, but without including
+  the transitive effects on other outputs within the same node
+  type. This is a specialized case and if it's not apparent what it
+  means, you should probably call input-dependencies instead."
+  [node-type]
+  (let [transforms (dissoc (gt/transforms node-type) :self)]
+    (invert-map
+     (zipmap (keys transforms)
+             (map #(inputs-for %) (vals transforms))))))
 
 (def ^:private map-merge (partial merge-with merge))
 
@@ -186,7 +200,7 @@
   not called directly."
   [description]
   (-> description
-      (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/inputs))
+      (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/declared-inputs))
       (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
       (update-in [:internal-properties]   combine-with merge      {} (from-supertypes description gt/internal-properties))
       (update-in [:properties]            combine-with merge      {} (from-supertypes description gt/properties))
@@ -284,10 +298,12 @@
       true
       (update-in [:property-passthroughs] disj label))))
 
+(def ^:private internal-keys #{:_id})
+
 (defn attach-property
   "Update the node type description with the given property."
   [description label property-type passthrough]
-  (let [prop-key (if (= label :_id) :internal-properties :properties)]
+  (let [prop-key (if (contains? internal-keys label) :internal-properties :properties)]
    (cond-> (update-in description [prop-key] assoc label property-type)
      true
      (assoc-in [:property-types label] property-type)
@@ -594,7 +610,7 @@
 
 (defn node-input-value-function-forms
   [record-name node-type-name node-type]
-  (for [[input input-schema] (gt/inputs node-type)]
+  (for [[input input-schema] (gt/declared-inputs node-type)]
     `(defn ~(dollar-name node-type-name input) [~'this ~'evaluation-context]
        ~(input-lookup-forms node-type-name node-type input))))
 
@@ -609,7 +625,7 @@
   [node-type-name node-type]
   (map (partial dollar-name node-type-name)
        (concat (keys (gt/transforms node-type))
-               (keys (gt/inputs node-type)))))
+               (keys (gt/declared-inputs node-type)))))
 
 (defn declare-node-value-function-names
   [node-type-name node-type]
@@ -636,7 +652,7 @@
          ~@(mapcat (fn [an-output] [an-output (list (dollar-name node-type-name an-output) 'this 'evaluation-context)])
                    (keys (gt/transforms node-type)))
          ~@(mapcat (fn [an-input]  [an-input  (list (dollar-name node-type-name an-input) 'this 'evaluation-context)])
-                   (subtract-keys (gt/inputs node-type) (gt/transforms node-type)))
+                   (subtract-keys (gt/declared-inputs node-type) (gt/transforms node-type)))
          (throw (ex-info (str "No such output, input, or property " label# " exists for node type " (:name ~node-type-name))
                          {:label label# :node-type ~node-type-name}))))
      ~@(gt/interfaces node-type)
