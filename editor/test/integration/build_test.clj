@@ -317,3 +317,13 @@
                      desc (Model$ModelDesc/parseFrom content)]
                  #_(prn desc)
                  #_(is (contains? content-by-target (.getTextureSet desc))))))))
+
+(deftest build-script
+  (with-clean-system
+    (let [workspace     (test-util/setup-workspace! world project-path)
+          project       (test-util/setup-project! workspace)
+          path          "/script/props.script"
+          resource-node (test-util/resource-node project path)]
+      (prn "properties" (g/node-value resource-node :component-properties)))))
+
+(build-script)
