@@ -315,7 +315,7 @@
       (g/make-nodes (g/node->graph-id self)
                     [go-node [GameObjectInstanceNode :id id :embedded true
                               :position position :rotation rotation :scale scale]
-                     source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project) :resource-type resource-type]]
+                     source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project)]]
                     (g/connect source-node :self          go-node :source)
                     (g/connect source-node :outline       go-node :outline)
                     (g/connect source-node :save-data     go-node :save-data)
