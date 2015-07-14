@@ -70,7 +70,7 @@
 (defn- property [properties category key]
   (get-in properties [category key] (get-in meta-properties [category (str key ".default")])))
 
-(defn- root-node [self properties category key]
+(defn- root-resource [base-resource properties category key]
   (let [path (property properties category key)
         ; TODO - hack for compiled files in game.project
         path (subs path 0 (dec (count path)))
@@ -78,18 +78,19 @@
         path (if (.startsWith path "/")
                path
                (str "/" path))]
-    (project/resolve-resource-node self path)))
+    (workspace/resolve-resource base-resource path)))
 
 (defn load-game-project [project self input]
   (let [content (slurp input)
         properties (parse-properties (BufferedReader. (StringReader. content)))
-        roots (map (fn [[category field]] (root-node self properties category field))
+        resource (:resource self)
+        roots (map (fn [[category field]] (root-resource resource properties category field))
                    [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
                     ["bootstrap" "render"] ["display" "display_profiles"]])]
     (concat
       (g/set-property self :content content)
       (for [root roots]
-        (g/connect root :build-targets self :dep-build-targets)))))
+        (project/connect-resource-node project root self [[:build-targets :dep-build-targets]])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

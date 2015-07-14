@@ -6,24 +6,10 @@
 
 (set! *warn-on-reflection* true)
 
-(deftype ArcBase [source target sourceLabel targetLabel]
+(defrecord ArcBase [source target sourceLabel targetLabel]
   gt/Arc
   (head [_] [source sourceLabel])
-  (tail [_] [target targetLabel])
-
-  Object
-  (toString [_]
-    (str "[[" source sourceLabel "] -> [" target targetLabel "]]"))
-  (equals [this that]
-    (and (satisfies? gt/Arc that)
-         (let [^ArcBase that that ]
-           (= source      (.source that))
-           (= target      (.target that))
-           (= sourceLabel (.sourceLabel that))
-           (= targetLabel (.targetLabel that)))))
-  (hashCode [this]
-    (+ (.hashCode source)      (mod (* 13 (.hashCode target)) 7)
-       (.hashCode sourceLabel) (mod (* 19 (.hashCode targetLabel)) 23))))
+  (tail [_] [target targetLabel]))
 
 (definline ^:private arc
   [source target source-label target-label]
