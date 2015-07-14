@@ -32,7 +32,7 @@
   [^Class enum-class val]
   (Enum/valueOf enum-class (s/replace (s/upper-case (name val)) "-" "_")))
 
-(defn- pb-enum->val
+(defn pb-enum->val
   [^Descriptors$EnumValueDescriptor val]
   (keyword (s/lower-case (s/replace (.getName val) "_" "-"))))
 
