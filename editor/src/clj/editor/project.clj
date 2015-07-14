@@ -6,6 +6,7 @@ ordinary paths."
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             ; TODO - HACK
             [internal.graph.types :as gt])
@@ -16,7 +17,6 @@ ordinary paths."
   (inherits core/Scope)
 
   (property resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
-  (property resource-type g/Any)
   (property project-id g/NodeID (dynamic visible (g/always false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
@@ -38,7 +38,7 @@ ordinary paths."
           (if (not= (workspace/source-type resource) :folder)
             (g/make-nodes
               project-graph
-              [new-resource [node-type :resource resource :project-id (g/node-id project) :resource-type resource-type]]
+              [new-resource [node-type :resource resource :project-id (g/node-id project)]]
               (g/connect new-resource :self project :nodes)
               (if ((g/output-labels node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
@@ -48,9 +48,10 @@ ordinary paths."
 (defn- load-nodes [project nodes]
   (let [new-nodes (g/tx-nodes-added (g/transact
                                      (for [node nodes
-                                           :let [load-fn (get-in node [:resource-type :load-fn])]
+                                           :let [resource (:resource node)
+                                                 load-fn (and resource (:load-fn (resource/resource-type resource)))]
                                            :when load-fn]
-                                       (load-fn project node (io/reader (:resource node))))))]
+                                       (load-fn project node (io/reader resource)))))]
     (when (not (empty? new-nodes))
       (recur project new-nodes))))
 
@@ -301,7 +302,7 @@ ordinary paths."
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
           (g/node->graph-id project)
-          [new-resource [node-type :resource resource :project-id (g/node-id project) :resource-type resource-type]]
+          [new-resource [node-type :resource resource :project-id (g/node-id project)]]
           (g/connect new-resource :self project :nodes)
           (if ((g/output-labels node-type) :save-data)
             (g/connect new-resource :save-data project :save-data)
