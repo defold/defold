@@ -515,13 +515,13 @@
 (defn load-spine-scene [project self input]
   (let [spine (protobuf/read-text Spine$SpineSceneDesc input)
         resource (:resource self)
-        spine-json (project/resolve-resource-node self (:spine-json spine))
+        spine-resource (workspace/resolve-resource resource (:spine-json spine))
         atlas (workspace/resolve-resource resource (:atlas spine))]
     (concat
-      (g/set-property self :spine-json (:resource spine-json))
+      (g/set-property self :spine-json spine-resource)
       (g/set-property self :atlas atlas)
       (g/set-property self :sample-rate (:sample-rate spine))
-      (g/connect spine-json :content self :spine-scene)
+      (project/connect-resource-node project spine-resource self [[:content :spine-scene]])
       (connect-atlas project self atlas))))
 
 (defn register-resource-types [workspace]
