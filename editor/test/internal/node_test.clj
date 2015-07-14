@@ -88,7 +88,7 @@
     (let [deps (g/input-dependencies DependencyTestNode)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
-           :a-property         #{:depends-on-property :depends-on-several :a-property :properties :self}
+           :a-property         #{:depends-on-property :depends-on-several :a-property :properties :_self}
            :project            #{:depends-on-several})
       (is (not (contains? deps :this)))
       (is (not (contains? deps :g)))
@@ -102,7 +102,7 @@
 (deftest node-intrinsics
   (with-clean-system
     (let [[node] (tx-nodes (g/make-node world EmptyNode))]
-      (is (identical? node (g/node-value node :self)))))
+      (is (identical? node (g/node-value node :_self)))))
   (with-clean-system
     (let [[n1]         (tx-nodes     (g/make-node world SimpleTestNode))
           foo-before   (g/node-value n1 :foo)
@@ -130,8 +130,8 @@
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
-  (expect-modified SimpleTestNode #{:properties :foo :self} (fn [node] (g/set-property    node :foo "two")))
-  (expect-modified SimpleTestNode #{:properties :foo :self} (fn [node] (g/update-property node :foo str/reverse)))
+  (expect-modified SimpleTestNode #{:properties :foo :_self} (fn [node] (g/set-property    node :foo "two")))
+  (expect-modified SimpleTestNode #{:properties :foo :_self} (fn [node] (g/update-property node :foo str/reverse)))
   (expect-modified SimpleTestNode #{}                       (fn [node] (g/set-property    node :foo "one")))
   (expect-modified SimpleTestNode #{}                       (fn [node] (g/update-property node :foo identity))))
 

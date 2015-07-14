@@ -85,10 +85,10 @@
               (protobuf/pb->str))})
 
 (g/defnk produce-scene
-  [self aabb gpu-texture vertex-binding]
+  [_self aabb gpu-texture vertex-binding]
   (let [vertex-binding (vtx/use-with unit-sphere cubemap-shader)]
-    {:node-id         (g/node-id self)
-     :aabb        aabb
+    {:node-id    (g/node-id _self)
+     :aabb       aabb
      :renderable {:render-fn (fn [gl render-args renderables count]
                                (let [camera (:camera render-args)]
                                  (render-cubemap gl camera gpu-texture vertex-binding)))

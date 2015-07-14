@@ -266,10 +266,10 @@
   (with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)]
       (are [update expected] (= (into #{} (pairwise :_id expected)) (affected-by (apply g/set-property update)))
-        [calculator :touched true]                {calculator        #{:properties :touched :self}}
-        [person :date-of-birth (java.util.Date.)] {person            #{:properties :age :date-of-birth :self}
+        [calculator :touched true]                {calculator        #{:properties :touched :_self}}
+        [person :date-of-birth (java.util.Date.)] {person            #{:properties :age :date-of-birth :_self}
                                                    calculator        #{:passthrough}}
-        [first-name-cell :name "Sam"]             {first-name-cell   #{:properties :name :self}
+        [first-name-cell :name "Sam"]             {first-name-cell   #{:properties :name :_self}
                                                    person            #{:full-name :friendly-name}
                                                    greeter           #{:passthrough}
                                                    formal-greeter    #{:passthrough}
@@ -299,12 +299,12 @@
           real-id          (g/node-id real-node)
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
-      (is (= #{:_id :properties :self :node-id :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (is (= #{:_id :properties :_self :node-id :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-node :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map first outputs-modified)))
-        (is (= #{:properties :a-property :ordinary :self-dependent :self} (into #{} (map second outputs-modified))))))))
+        (is (= #{:properties :a-property :ordinary :self-dependent :_self} (into #{} (map second outputs-modified))))))))
 
 (g/defnode CachedValueNode
   (output cached-output g/Str :cached (fnk [] "an-output-value")))
@@ -496,7 +496,7 @@
   (testing "delete scope first"
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
-        (g/transact (g/connect inner :self outer :nodes))
+        (g/transact (g/connect inner :_self outer :nodes))
         (is (= :ok (:status (g/transact
                              (concat
                               (g/delete-node outer)
@@ -505,7 +505,7 @@
   (testing "delete inner node first"
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
-        (g/transact (g/connect inner :self outer :nodes))
+        (g/transact (g/connect inner :_self outer :nodes))
 
         (is (= :ok (:status (g/transact
                              (concat

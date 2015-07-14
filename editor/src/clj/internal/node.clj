@@ -65,8 +65,8 @@
   "Production function that delivers the definition and value
   for all properties of this node."
   [kwargs]
-  (let [self           (:self kwargs)
-        kwargs         (dissoc kwargs :self)
+  (let [self           (:_self kwargs)
+        kwargs         (dissoc kwargs :_self)
         property-names (-> self gt/node-type all-properties keys)]
     (zipmap property-names (map (partial gather-property self kwargs) property-names))))
 
@@ -118,7 +118,7 @@
 
 (defn- properties-output-arguments
   [properties]
-  (cons :self (concat (set (keys properties))
+  (cons :_self (concat (set (keys properties))
                       (mapcat property-dynamics-arguments properties))))
 
 (defn attach-properties-output
@@ -174,7 +174,7 @@
 (defn description->input-dependencies
   [{:keys [transforms properties] :as description}]
   (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))
-        transforms (assoc transforms :self (keys properties))]
+        transforms (assoc transforms :_self (keys properties))]
     (invert-map transforms)))
 
 (defn attach-input-dependencies
@@ -187,7 +187,7 @@
   type. This is a specialized case and if it's not apparent what it
   means, you should probably call input-dependencies instead."
   [node-type]
-  (let [transforms (dissoc (gt/transforms node-type) :self)]
+  (let [transforms (dissoc (gt/transforms node-type) :_self)]
     (invert-map
      (zipmap (keys transforms)
              (map #(inputs-for %) (vals transforms))))))
@@ -601,7 +601,7 @@
              (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
                      (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
              (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
-               ~(if (= transform :self)
+               ~(if (= transform :_self)
                   refresh
                   (if (= transform :this)
                     (gt/node-id ~'this)
