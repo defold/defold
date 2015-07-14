@@ -8,7 +8,7 @@
             [editor.project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [editor.pipeline.font-gen :as font-gen]
+            [editor.pipeline.lua-scan :as lua-scan]
             [internal.render.pass :as pass])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -54,6 +54,10 @@
 
   (property content g/Any (dynamic visible (g/always false)))
 
+  (output modules g/Any :cached (g/fnk [content] (prn (lua-scan/src->modules content)) (lua-scan/src->modules content)))
+  (output script-properties g/Any :cached (g/fnk [content] (prn (lua-scan/src->properties content)) (lua-scan/src->properties content)))
+  (output component-properties g/Any :cached (g/fnk [script-properties]
+                                                    (into {} (map (fn [p] [(:name p) (select-keys p [:type :value])]) (filter #(= :ok (:status %)) script-properties)))))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 
