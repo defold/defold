@@ -243,24 +243,23 @@
           id
           (recur (inc postfix)))))))
 
-(defn- make-go [self source-node id position rotation scale]
-  (let [path (if source-node (workspace/proj-path (:resource source-node)) "")]
+(defn- make-go [self project source-resource id position rotation scale]
+  (let [path (workspace/proj-path source-resource)]
     (g/make-nodes (g/node->graph-id self)
                   [go-node [GameObjectInstanceNode :id id :path path
                             :position position :rotation rotation :scale scale]]
                   (concat
                     (g/connect go-node :self self :nodes)
-                    (if source-node
-                      (concat
-                        (g/connect go-node     :ddf-message   self    :ref-inst-ddf)
-                        (g/connect go-node     :build-targets self    :dep-build-targets)
-                        (g/connect go-node     :id            self    :ids)
-                        (g/connect source-node :self          go-node :source)
-                        (g/connect source-node :outline       go-node :outline)
-                        (g/connect source-node :save-data     go-node :save-data)
-                        (g/connect source-node :build-targets go-node :build-targets)
-                        (g/connect source-node :scene         go-node :scene))
-                      [])))))
+                    (g/connect go-node     :ddf-message   self    :ref-inst-ddf)
+                    (g/connect go-node     :build-targets self    :dep-build-targets)
+                    (g/connect go-node     :id            self    :ids)
+                    (project/connect-resource-node project
+                                                   source-resource go-node
+                                                   [[:self           :source]
+                                                    [:outline        :outline]
+                                                    [:save-data      :save-data]
+                                                    [:build-targets  :build-targets]
+                                                    [:scene          :scene]])))))
 
 (defn- single-selection? [selection]
   (= 1 (count selection)))
@@ -287,8 +286,8 @@
                         (concat
                          (g/operation-label "Add Game Object")
                          (g/operation-sequence op-seq)
-                         (make-go coll-node (project/get-resource-node project resource) id [0 0 0] [0 0 0] [1 1 1]))))]
-                                        ; Selection
+                         (make-go coll-node project resource id [0 0 0] [0 0 0] [1 1 1]))))]
+        ; Selection
         (g/transact
          (concat
           (g/operation-sequence op-seq)
@@ -365,25 +364,24 @@
                      (selected-collection? selection) (add-game-object selection)
                      (selected-embedded-instance? selection) (game-object/add-embedded-component-handler (g/node-value (first selection) :source)))))
 
-(defn- add-collection-instance [self source-node id position rotation scale]
-  (let [path (if source-node (workspace/proj-path (:resource source-node)) "")]
+(defn- add-collection-instance [self source-resource id position rotation scale]
+  (let [project (g/node-by-id (:project-id self)) path (workspace/proj-path source-resource)]
     (g/make-nodes (g/node->graph-id self)
                   [coll-node [CollectionInstanceNode :id id :path path
                               :position position :rotation rotation :scale scale]]
                   (g/connect coll-node :outline self :child-outlines)
                   (g/connect coll-node :self    self :nodes)
-                  (if source-node
-                    [(g/connect coll-node   :ddf-message   self :ref-coll-ddf)
-                     (g/connect coll-node   :id            self :ids)
-                     (g/connect coll-node   :scene         self :child-scenes)
-                     (g/connect coll-node   :build-targets self :sub-build-targets)
-                     (g/connect source-node :self          coll-node :source)
-                     (g/connect source-node :outline       coll-node :outline)
-                     (g/connect source-node :save-data     coll-node :save-data)
-                     (g/connect source-node :scene         coll-node :scene)
-                     (g/connect source-node :build-targets coll-node :build-targets)]
-                    []))))
-
+                  (g/connect coll-node   :ddf-message   self :ref-coll-ddf)
+                  (g/connect coll-node   :id            self :ids)
+                  (g/connect coll-node   :scene         self :child-scenes)
+                  (g/connect coll-node   :build-targets self :sub-build-targets)
+                  (project/connect-resource-node project
+                                                 source-resource coll-node
+                                                 [[:self          :source]
+                                                  [:outline       :outline]
+                                                  [:save-data     :save-data]
+                                                  [:scene         :scene]
+                                                  [:build-targets :build-targets]]))))
 
 (handler/defhandler :add-secondary-from-file :global
   (active? [selection] (and (single-selection? selection) (selected-collection? selection)))
@@ -402,7 +400,7 @@
                                                 (concat
                                                  (g/operation-label "Add Collection")
                                                  (g/operation-sequence op-seq)
-                                                 (add-collection-instance coll-node (project/get-resource-node project resource) id [0 0 0] [0 0 0] [1 1 1]))))]
+                                                 (add-collection-instance coll-node resource id [0 0 0] [0 0 0] [1 1 1]))))]
                                         ; Selection
                          (g/transact
                           (concat
@@ -423,8 +421,8 @@
                                (for [game-object (:instances collection)
                                      :let [; TODO - fix non-uniform hax
                                            scale (:scale game-object)
-                                           source-node (project/resolve-resource-node self (:prototype game-object))]]
-                                 (make-go self source-node (:id game-object) (:position game-object)
+                                           source-resource (workspace/resolve-resource (:resource self) (:prototype game-object))]]
+                                 (make-go self project source-resource (:id game-object) (:position game-object)
                                           (v4->euler (:rotation game-object)) [scale scale scale]))
                                (for [embedded (:embedded-instances collection)
                                      :let [; TODO - fix non-uniform hax
@@ -452,8 +450,8 @@
       (for [coll-instance (:collection-instances collection)
             :let [; TODO - fix non-uniform hax
                   scale (:scale coll-instance)
-                  source-node (project/resolve-resource-node self (:collection coll-instance))]]
-        (add-collection-instance self source-node (:id coll-instance) (:position coll-instance)
+                  source-resource (workspace/resolve-resource (:resource self) (:collection coll-instance))]]
+        (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
                                  (v4->euler (:rotation coll-instance)) [scale scale scale])))))
 
 (defn register-resource-types [workspace]

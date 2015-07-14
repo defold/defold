@@ -121,7 +121,11 @@ ordinary paths."
 
 (defn resolve-resource [base-resource path]
     ; TODO handle relative paths
-  (find-resource (:workspace base-resource) path))
+  (when (not (empty? path))
+    (let [workspace (:workspace base-resource)]
+      (or
+        (find-resource workspace path)
+        (file-resource workspace path)))))
 
 (defn fs-sync
   ([workspace]
