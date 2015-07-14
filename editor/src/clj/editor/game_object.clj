@@ -212,7 +212,7 @@
     (if-let [resource-type (and resource (workspace/resource-type resource))]
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
-                     source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project) :resource-type resource-type]]
+                     source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project)]]
                     (g/connect source-node :self        comp-node :source)
                     (g/connect source-node :outline     comp-node :outline)
                     (g/connect source-node :save-data   comp-node :save-data)
