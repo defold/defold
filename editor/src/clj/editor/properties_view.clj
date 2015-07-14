@@ -247,7 +247,7 @@
 
   (input selection g/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view self workspace selection] (update-grid parent-view self workspace selection)))
+  (output grid-pane GridPane :cached (g/fnk [parent-view _self workspace selection] (update-grid parent-view _self workspace selection)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))

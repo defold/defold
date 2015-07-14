@@ -20,10 +20,10 @@
               d2           [DummyNode :filename (f/native-path "/var/tmp/foo.png")]
               d3           [DummyNode :filename (f/native-path "foo.script")]
               d4           [DummyNode :is-a-file-node? false]]
-             (g/connect d1 :self project-node :nodes)
-             (g/connect d2 :self project-node :nodes)
-             (g/connect d3 :self project-node :nodes)
-             (g/connect d4 :self project-node :nodes))))]
+             (g/connect d1 :_self project-node :nodes)
+             (g/connect d2 :_self project-node :nodes)
+             (g/connect d3 :_self project-node :nodes)
+             (g/connect d4 :_self project-node :nodes))))]
       (is (= #{d1 d2}    (p/nodes-with-extensions project-node ["png"])))
       (is (= #{d3}       (p/nodes-with-extensions project-node ["script"])))
       (is (= #{d1 d2 d3} (p/nodes-with-extensions project-node ["png" "script"]))))))

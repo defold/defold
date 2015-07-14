@@ -165,7 +165,7 @@
            (conj! [x0 y0 0 1 0 1])))))
 
 (g/defnk produce-scene
-  [self texture-set-data aabb gpu-texture]
+  [_self texture-set-data aabb gpu-texture]
   (let [^BufferedImage img (:image texture-set-data)
         width (.getWidth img)
         height (.getHeight img)
@@ -242,7 +242,7 @@
       [atlas-image [AtlasImage]]
       (project/connect-resource-node (project/get-project base-node) image atlas-image [[:content :src-image]
                                                                                         [:resource :src-resource]])
-      (g/connect atlas-image :self        base-node   :nodes)
+      (g/connect atlas-image :_self        base-node   :nodes)
       (g/connect atlas-image src-label    parent      tgt-label)
       (g/connect atlas-image :outline     parent      :outline)
       (g/connect atlas-image :ddf-message parent      :img-ddf))))
@@ -264,7 +264,7 @@
           (g/node->graph-id self)
           [atlas-anim [AtlasAnimation :flip-horizontal (not= 0 (:flip-horizontal anim)) :flip-vertical (not= 0 (:flip-vertical anim))
                        :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
-          (g/connect atlas-anim :self        self :nodes)
+          (g/connect atlas-anim :_self        self :nodes)
           (g/connect atlas-anim :animation   self :animations)
           (g/connect atlas-anim :outline     self :outline)
           (g/connect atlas-anim :ddf-message self :anim-ddf)
