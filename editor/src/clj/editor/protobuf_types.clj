@@ -193,10 +193,9 @@
   (output scene g/Any (g/always {}))
   (output outline g/Any :cached (g/fnk [node-id def] {:node-id node-id :label (:label def) :icon (:icon def)})))
 
-(defn- connect-build-targets [self path]
-  (if-let [resource-node (project/resolve-resource-node self path)]
-    (g/connect resource-node :build-targets self :dep-build-targets)
-    []))
+(defn- connect-build-targets [self project path]
+  (let [resource (workspace/resolve-resource (:resource self) path)]
+    (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
 
 (defn load-pb [project self input def]
   (let [pb (protobuf/read-text (:pb-class def) input)
@@ -208,8 +207,8 @@
         (if (vector? res)
           (for [v (get pb (first res))]
             (let [path (if (second res) (get v (second res)) v)]
-              (connect-build-targets self path)))
-          (connect-build-targets self (get pb res)))))))
+              (connect-build-targets self project path)))
+          (connect-build-targets self project (get pb res)))))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

@@ -14,6 +14,7 @@
                        dynamo.util-test
                        dynamo.integration.error-substitute-values
                        dynamo.integration.garbage-collection
+                       dynamo.integration.graph-functions
                        dynamo.integration.node-become
                        dynamo.integration.schema-validation
                        dynamo.integration.value-disposal
