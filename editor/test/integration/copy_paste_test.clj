@@ -28,8 +28,8 @@
 
         (is (g/connected? (g/now) (g/node-id new-go-node) :scene (g/node-id new-collection-node) :child-scenes))
 
-        (is (g/connected? (g/now) (g/node-id sprite-node) :self (g/node-id go-node)     :source))
-        (is (g/connected? (g/now) (g/node-id sprite-node) :self (g/node-id new-go-node) :source))))))
+        (is (g/connected? (g/now) (g/node-id sprite-node) :_self (g/node-id go-node)     :source))
+        (is (g/connected? (g/now) (g/node-id sprite-node) :_self (g/node-id new-go-node) :source))))))
 
 (deftest undo-paste-removes-pasted-nodes
   (with-clean-system
@@ -61,8 +61,8 @@
         (is (not (nil? (g/node-by-id new-go-node-id))))
 
         (is (g/connected? (g/now) (g/node-id new-go-node) :scene (g/node-id new-collection-node) :child-scenes))
-        (is (g/connected? (g/now) (g/node-id sprite-node) :self  (g/node-id go-node)     :source))
-        (is (g/connected? (g/now) (g/node-id sprite-node) :self  (g/node-id new-go-node) :source))
+        (is (g/connected? (g/now) (g/node-id sprite-node) :_self  (g/node-id go-node)     :source))
+        (is (g/connected? (g/now) (g/node-id sprite-node) :_self  (g/node-id new-go-node) :source))
 
         (g/undo project-graph)
 

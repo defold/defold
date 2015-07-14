@@ -152,7 +152,7 @@
 ;; ---------------------------------------------------------------------------
 (def node-intrinsics
   [(list 'property '_id `s/Int)
-   (list 'output 'self `s/Any `(pc/fnk [~'this] ~'this))
+   (list 'output '_self `s/Any `(pc/fnk [~'this] ~'this))
    (list 'output 'node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
 
 ;; ---------------------------------------------------------------------------

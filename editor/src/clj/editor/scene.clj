@@ -121,7 +121,7 @@
   [^TextRendererRef v ^java.io.Writer w]
   (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
 
-(g/defnk produce-drawable [self ^Region viewport]
+(g/defnk produce-drawable [_self ^Region viewport]
   (when (vp-not-empty? viewport)
     (let [[w h]   (vp-dims viewport)
           profile (GLProfile/getDefault)
@@ -130,11 +130,11 @@
       (.setOnscreen caps false)
       (.setPBuffer caps true)
       (.setDoubleBuffered caps false)
-      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable self)
+      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable _self)
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (g/transact (g/set-property self :gl-drawable drawable))
+        (g/transact (g/set-property _self :gl-drawable drawable))
         drawable))))
 
 (defn- make-current [^Region viewport ^GLAutoDrawable drawable]
