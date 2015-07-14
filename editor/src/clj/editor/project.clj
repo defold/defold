@@ -20,7 +20,11 @@ ordinary paths."
   (property project-id g/NodeID (dynamic visible (g/always false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output build-targets g/Any (g/always [])))
+  (output build-targets g/Any (g/always []))
+  (output outline g/Any :cached (g/fnk [node-id resource] (let [rt (resource/resource-type resource)]
+                                                            {:node-id node-id
+                                                             :label (or (:label rt) (:ext rt))
+                                                             :icon (:icon rt)}))))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -285,19 +289,16 @@ ordinary paths."
                          game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))]
                      (build-and-write project game-project))))
 
-(defn resolve-resource-node [base-resource-node path]
-  (let [project (get-project base-resource-node)
-        resource (workspace/resolve-resource (:resource base-resource-node) path)]
-    (get-resource-node project resource)))
-
-(defn connect [src tgt connections]
-  (for [[src-label tgt-label] connections]
-    (g/connect src src-label tgt tgt-label)))
+(defn connect-if-output [src-type src tgt connections]
+  (let [outputs (g/output-labels src-type)]
+    (for [[src-label tgt-label] connections
+          :when (contains? outputs src-label)]
+      (g/connect src src-label tgt tgt-label))))
 
 (defn connect-resource-node [project resource consumer-node connections]
   (let [node (get-resource-node project resource)]
     (if node
-      (connect node consumer-node connections)
+      (connect-if-output (g/node-type node) node consumer-node connections)
       (let [resource-type (workspace/resource-type resource)
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
@@ -307,7 +308,7 @@ ordinary paths."
           (if ((g/output-labels node-type) :save-data)
             (g/connect new-resource :save-data project :save-data)
             [])
-          (connect new-resource consumer-node connections))))))
+          (connect-if-output node-type new-resource consumer-node connections))))))
 
 (defn select
   [project nodes]

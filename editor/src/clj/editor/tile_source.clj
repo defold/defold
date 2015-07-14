@@ -96,11 +96,11 @@
   (let [tile-source (protobuf/read-text Tile$TileSet input)]
     (concat
       (g/set-property self :pb tile-source)
-      (if-let [image-node (project/resolve-resource-node self (:image tile-source))]
-        (g/connect image-node :content self :image-content)
+      (if-let [image-resource (workspace/resolve-resource (:resource self) (:image tile-source))]
+        (project/connect-resource-node project image-resource self [[:content :image-content]])
         [])
-      (if-let [image-node (project/resolve-resource-node self (:collision tile-source))]
-        (g/connect image-node :content self :collision-content)
+      (if-let [image-resource (workspace/resolve-resource (:resource self) (:collision tile-source))]
+        (project/connect-resource-node project image-resource self [[:content :collision-content]])
         []))))
 
 (defn register-resource-types [workspace]

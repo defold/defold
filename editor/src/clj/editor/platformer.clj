@@ -174,11 +174,11 @@
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
     (let [level (edn/read reader)]
       (concat
-       (g/set-property self :control-points (:control-points level))
-       (g/set-property self :base-texture (:base-texture level))
-       (if-let [img-node (project/resolve-resource-node self (:base-texture level))]
-         (g/connect img-node :content self :base-texture-img)
-         [])))))
+        (g/set-property self :control-points (:control-points level))
+        (g/set-property self :base-texture (:base-texture level))
+        (if-let [img-resource (workspace/resolve-resource (:resource self) (:base-texture level))]
+          (project/connect-resource-node project img-resource self [[:content :base-texture-img]])
+          [])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

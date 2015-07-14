@@ -200,7 +200,7 @@
                      resource-node (test-util/resource-node project path)
                      first-build-results (project/build project resource-node)
                      second-build-results (project/build project resource-node)
-                     main-collection (project/resolve-resource-node resource-node "/main/main.collection")]
+                     main-collection (test-util/resource-node project "/main/main.collection")]
                  (is (every? #(> (count %) 0) [first-build-results second-build-results]))
                  (is (not-any? :cached first-build-results))
                  (is (every? :cached second-build-results))
