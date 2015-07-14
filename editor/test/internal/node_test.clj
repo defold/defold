@@ -354,8 +354,8 @@
       (is (= [g/Str]     (-> InheritsBasicNode g/transform-types :multi-valued-property)))))
 
   (testing "inputs"
-    (is (every? (-> (g/construct BasicNode) g/node-type g/inputs) #{:basic-input}))
-    (is (every? (-> (g/construct InheritsBasicNode) g/node-type g/inputs)   #{:basic-input :another-input})))
+    (is (every? (-> (g/construct BasicNode) g/node-type g/declared-inputs) #{:basic-input}))
+    (is (every? (-> (g/construct InheritsBasicNode) g/node-type g/declared-inputs) #{:basic-input :another-input})))
 
   (testing "cached"
     (is (:basic-output           (-> (g/construct BasicNode)         g/node-type g/cached-outputs)))
