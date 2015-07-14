@@ -314,12 +314,12 @@
     (testing "source sends errors"
       (testing "unary"
         (with-clean-system
-          (is (thrown? Exception (arrange-error-value-call world :unary-no-sub true (g/error))))
-          (is (= 99 (arrange-error-value-call world :unary-with-sub true (g/error))))))
+          (is (thrown? Exception (arrange-error-value-call world :unary-no-sub true (g/error {}))))
+          (is (= 99 (arrange-error-value-call world :unary-with-sub true (g/error {}))))))
       (testing "multi"
         (with-clean-system
-          (is (thrown? Exception (arrange-error-value-call world :multi-no-sub true (g/error))))
-          (is (= [4848] (arrange-error-value-call world :multi-with-sub true (g/error)))))))))
+          (is (thrown? Exception (arrange-error-value-call world :multi-no-sub true (g/error {}))))
+          (is (= [4848] (arrange-error-value-call world :multi-with-sub true (g/error {})))))))))
 
 
 (g/defnode StringInputIntOutputNode
