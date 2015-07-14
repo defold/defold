@@ -17,7 +17,7 @@
 
 (namespaces/import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties inputs injectable-inputs outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties declared-inputs injectable-inputs declared-outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
@@ -488,6 +488,26 @@
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
 ;; ---------------------------------------------------------------------------
+(defn- arcs->tuples
+  [arcs]
+  (util/project arcs [:source :sourceLabel :target :targetLabel]))
+
+(defn inputs
+  "Return the inputs to this node. Returns a collection like
+  [[node-id output] [node-id output]...].
+
+  If there are no inputs connected, returns an empty collection."
+  ([node-id]       (inputs (now) node-id))
+  ([basis node-id] (arcs->tuples (gt/arcs-by-tail basis node-id))))
+
+(defn outputs
+  "Return the outputs from this node. Returns a collection like
+  [[node-id input] [node-id input]...].
+
+  If there are no outputs connected, returns an empty collection."
+  ([node-id]       (outputs (now) node-id))
+  ([basis node-id] (arcs->tuples (gt/arcs-by-head basis node-id))))
+
 (defn node-feeding-into
   "Find the one-and-only node that sources this input on this node.
    Should you use this on an input label with multiple connections,

@@ -28,9 +28,9 @@
   (transform-types       [this])
   (internal-properties   [this])
   (properties            [this])
-  (inputs                [this])
+  (declared-inputs       [this])
   (injectable-inputs     [this])
-  (outputs               [this])
+  (declared-outputs      [this])
   (cached-outputs        [this])
   (event-handlers        [this])
   (input-dependencies    [this])
@@ -41,8 +41,8 @@
   (property-type         [this output])
   (property-passthrough? [this output]))
 
-(defn input-labels    [node-type] (-> node-type inputs keys set))
-(defn output-labels   [node-type] (-> node-type outputs))
+(defn input-labels    [node-type] (-> node-type declared-inputs keys set))
+(defn output-labels   [node-type] (-> node-type declared-outputs))
 (defn property-labels [node-type] (-> node-type properties keys set))
 
 (defprotocol Node
