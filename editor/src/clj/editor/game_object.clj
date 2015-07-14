@@ -11,6 +11,7 @@
             [editor.scene :as scene]
             [editor.types :as types]
             [editor.sound :as sound]
+            [editor.resource :as resource]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -24,7 +25,6 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
-
 
 (def game-object-icon "icons/16/Icons_06-Game-object.png")
 
@@ -162,25 +162,25 @@
           id
           (recur (inc postfix)))))))
 
-(defn- add-component [self source-node id position rotation]
-  (let [path (if source-node (workspace/proj-path (:resource source-node)) "")]
+(defn- add-component [self project source-resource id position rotation]
+  (let [path (workspace/proj-path source-resource)]
     (g/make-nodes (g/node->graph-id self)
                   [comp-node [ComponentNode :id id :position position :rotation rotation :path path]]
                   (concat
-                   (g/connect comp-node :outline self :outline)
-                   (g/connect comp-node :self    self :nodes)
-                   (g/connect comp-node :build-targets    self :dep-build-targets)
-                   (when source-node
-                    (concat
-                      (g/connect comp-node   :ddf-message self      :ref-ddf)
-                      (g/connect comp-node   :id          self      :child-ids)
-                      (g/connect comp-node   :scene       self      :child-scenes)
-                      (g/connect source-node :self        comp-node :source)
-                      (connect-if-output source-node :outline comp-node :outline)
-                      (connect-if-output source-node :save-data comp-node :save-data)
-                      (connect-if-output source-node :scene comp-node :scene)
-                      (connect-if-output source-node :build-targets comp-node :build-targets)
-                      (connect-if-output source-node :project-id comp-node :project-id)))))))
+                    (g/connect comp-node :outline       self :outline)
+                    (g/connect comp-node :self          self :nodes)
+                    (g/connect comp-node :build-targets self :dep-build-targets)
+                    (g/connect comp-node :ddf-message   self :ref-ddf)
+                    (g/connect comp-node :id            self :child-ids)
+                    (g/connect comp-node :scene         self :child-scenes)
+                    (project/connect-resource-node project
+                                                   source-resource comp-node
+                                                   [[:self :source]
+                                                    [:outline :outline]
+                                                    [:save-data :save-data]
+                                                    [:scene :scene]
+                                                    [:build-targets :build-targets]
+                                                    [:project-id :project-id]])))))
 
 (defn add-component-handler [self]
   (let [project (project/get-project self)
@@ -194,7 +194,7 @@
                             (concat
                               (g/operation-label "Add Component")
                               (g/operation-sequence op-seq)
-                              (add-component self (project/get-resource-node project resource) id [0 0 0] [0 0 0]))))]
+                              (add-component self project resource id [0 0 0] [0 0 0]))))]
         ; Selection
         (g/transact
           (concat
@@ -280,8 +280,8 @@
         prototype (protobuf/read-text GameObject$PrototypeDesc input)]
     (concat
       (for [component (:components prototype)
-            :let [source-node (project/resolve-resource-node self (:component component))]]
-        (add-component self source-node (:id component) (:position component) (v4->euler (:rotation component))))
+            :let [source-resource (workspace/resolve-resource (:resource self) (:component component))]]
+        (add-component self project source-resource (:id component) (:position component) (v4->euler (:rotation component))))
       (for [embedded (:embedded-components prototype)]
         (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (v4->euler (:rotation embedded)))))))
 
