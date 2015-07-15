@@ -2,10 +2,11 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]
+            [dynamo.util :as util]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [internal.system :as is]))
+            [internal.system :as is]
+            [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (def ^:dynamic *calls*)
 
@@ -100,26 +101,30 @@
   (input a-node-id g/NodeID))
 
 (deftest node-intrinsics
-  (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world EmptyNode))]
-      (is (identical? node (g/node-value node :_self)))))
-  (with-clean-system
-    (let [[n1]         (tx-nodes     (g/make-node world SimpleTestNode))
-          foo-before   (g/node-value n1 :foo)
-          tx-result    (g/transact (g/set-property n1 :foo "quux"))
-          foo-after    (g/node-value n1 :foo)
-          [n2]         (tx-nodes     (g/make-node world SimpleTestNode :foo "bar"))
-          foo-override (g/node-value n2 :foo)]
-      (is (= "FOO!" foo-before))
-      (is (= "quux" foo-after))
-      (is (= "bar"  foo-override))
-      (is (every? gt/property-type? (map :type (vals (g/node-value n1 :_properties)))))))
+  (testing "the _self output delivers the whole node value"
+    (with-clean-system
+      (let [[node] (tx-nodes (g/make-node world EmptyNode))]
+        (is (identical? node (g/node-value node :_self))))))
+  (testing "the _properties output delivers properties (except the 'internal' properties)"
+      (with-clean-system
+        (let [[n1]         (tx-nodes     (g/make-node world SimpleTestNode))
+              foo-before   (g/node-value n1 :foo)
+              tx-result    (g/transact   (g/set-property n1 :foo "quux"))
+              foo-after    (g/node-value n1 :foo)
+              [n2]         (tx-nodes     (g/make-node world SimpleTestNode :foo "bar"))
+              foo-override (g/node-value n2 :foo)]
+          (is (= "FOO!" foo-before))
+          (is (= "quux" foo-after))
+          (is (= "bar"  foo-override))
+          (is (every? gt/property-type? (map :type (vals (g/node-value n1 :_properties)))))
+          (is (empty? (filter (fn [k] (= :_id k)) (keys (g/node-value n1 :_properties))))))))
   (with-clean-system
     (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
                                   (g/make-node world SinkNode))]
       (g/transact
        (g/connect source :_node-id sink :a-node-id))
       (is (= (g/node-id source) (g/node-value source :_node-id) (g/node-value sink :a-node-id))))))
+
 
 (defn- expect-modified
   [node-type properties f]
