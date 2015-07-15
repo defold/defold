@@ -57,6 +57,12 @@
   ([basis node-id]
    (ig/node-by-id-at basis node-id)))
 
+(defn node-type*
+  ([node-id]
+   (node-type* (now) node-id))
+  ([basis node-id]
+   (gt/node-type (ig/node-by-id-at basis node-id))))
+
 (defn cache [] (is/system-cache @*the-system*))
 
 (defn graph [gid] (is/graph @*the-system* gid))
