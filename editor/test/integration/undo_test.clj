@@ -78,7 +78,7 @@
      (is (= 0 (count (outline-children go-node)))))))
 
 (g/defnode DummyComponent
-  (output outline g/Any (g/fnk [self] {:node-id (g/node-id self) :label "dummy" :icon nil :children []})))
+  (output outline g/Any (g/fnk [_self] {:node-id (g/node-id _self) :label "dummy" :icon nil :children []})))
 
 (g/defnode OutlineViewSimulator
   (input outline g/Any)
@@ -86,8 +86,8 @@
   (property counter g/Any)
 
   (output outline g/Any :cached
-          (g/fnk [self outline]
-                 (swap! (:counter self) inc)
+          (g/fnk [_self outline]
+                 (swap! (:counter _self) inc)
                  outline)))
 
 (defn remove-handlers
