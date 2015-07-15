@@ -18,8 +18,7 @@
     (println (format "========EXPECTED-%s========" key))
     (pp/pprint val)
     (println (format "========VALIDATION ERROR %s========" key))
-    (when-let [key-error (get error key)]
-      (pp/pprint  key-error))))
+    (pp/pprint (get error key))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
