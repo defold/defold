@@ -360,16 +360,16 @@
         (is (= (set (g/dependencies (g/now) [[(id source-a1) :source-label]]))
                #{[(id sink-a2)   :loud]
                  [(id source-a1) :source-label]
-                 [(id source-a1) :self]
-                 [(id source-a1) :properties]}))
+                 [(id source-a1) :_self]
+                 [(id source-a1) :_properties]}))
 
         (is (= (set (g/dependencies (g/now) [[(id source-p1) :source-label]]))
                #{[(id sink-p1)   :loud]
                  [(id pipe-p1)   :soft]
                  [(id sink-a1)   :loud]
                  [(id source-p1) :source-label]
-                 [(id source-p1) :self]
-                 [(id source-p1) :properties]}))))))
+                 [(id source-p1) :_self]
+                 [(id source-p1) :_properties]}))))))
 
 (g/defnode ChainedLink
   (input source-label String)
@@ -450,8 +450,8 @@
                  #{[(id sink-p1)   :loud]
                    [(id pipe-p1)   :soft]
                    [(id source-p1) :source-label]
-                   [(id source-p1) :self]
-                   [(id source-p1) :properties]}))))))
+                   [(id source-p1) :_self]
+                   [(id source-p1) :_properties]}))))))
 
   (testing "Nodes in a deleted graph are deleted"
     (ts/with-clean-system
@@ -497,8 +497,8 @@
           (is (= (set (g/dependencies (g/now) [[(id source-a1) :source-label]]))
                  #{[(id sink-a2)   :loud]
                    [(id source-a1) :source-label]
-                   [(id source-a1) :self]
-                   [(id source-a1) :properties]})))))))
+                   [(id source-a1) :_self]
+                   [(id source-a1) :_properties]})))))))
 
 (deftest graph-values
   (testing "Values can be attached to graphs"

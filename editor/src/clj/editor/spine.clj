@@ -456,11 +456,11 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineScene pb)}))
 
-(g/defnk produce-scene-build-targets [node-id resource spine-scene atlas sample-rate anim-data dep-build-targets]
+(g/defnk produce-scene-build-targets [_node-id resource spine-scene atlas sample-rate anim-data dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:texture-set atlas]])]
-    [{:node-id node-id
+    [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-spine-scene
       :user-data {:spine-scene spine-scene
@@ -508,7 +508,7 @@
   (input dep-build-targets g/Any :array)
   (input spine-scene g/Any)
 
-  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Spine" :icon spine-scene-icon}))
+  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Spine" :icon spine-scene-icon}))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-scene-build-targets))
 

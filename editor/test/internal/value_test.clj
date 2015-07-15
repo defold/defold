@@ -176,7 +176,7 @@
           node-id      (g/node-id node)]
       (g/node-value node :chained-output)
       (is (cached? cache node-id :chained-output))
-      (is (not (cached? cache node-id :self)))
+      (is (not (cached? cache node-id :_self)))
       (is (not (cached? cache node-id :a-property))))))
 
 (g/defnode Source

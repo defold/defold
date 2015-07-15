@@ -96,7 +96,7 @@
                                     :repl-options   {:init-ns user}}
                       :dev         {:dependencies   [[org.clojure/test.check   "0.7.0"]
                                                      [org.mockito/mockito-core "1.10.19"]
-                                                     [refactor-nrepl           "1.0.5"]
+                                                     [refactor-nrepl           "1.1.0"]
                                                      [org.clojure/tools.nrepl  "0.2.10" :exclusions [org.clojure/clojure]]
                                                      [criterium "0.4.3"]
                                                      [ring "1.4.0-RC1"]]

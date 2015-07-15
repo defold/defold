@@ -24,7 +24,7 @@
              :c-output  [:c-output]
              :b-output  [:b-output :c-output]
              :a-output  [:a-output :b-output :c-output]
-             :foo       [:a-output :b-output :c-output :foo :self :properties]))))
+             :foo       [:a-output :b-output :c-output :foo :_self :_properties]))))
 
   (testing "dependencies from one output to another, across nodes"
     (with-clean-system

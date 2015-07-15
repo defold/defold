@@ -28,8 +28,8 @@
   (let [content (:content user-data)]
     {:resource resource :content (protobuf/map->bytes Mesh$MeshDesc content)}))
 
-(g/defnk produce-build-targets [node-id resource content]
-  [{:node-id node-id
+(g/defnk produce-build-targets [_node-id resource content]
+  [{:node-id _node-id
    :resource (workspace/make-build-resource resource)
    :build-fn build-mesh
    :user-data {:content content}}])
