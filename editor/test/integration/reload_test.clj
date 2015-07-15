@@ -1,7 +1,7 @@
 (ns integration.reload-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system undo-stack]]
             [editor.math :as math]
             [editor.project :as project]
             [editor.protobuf :as protobuf]
@@ -115,19 +115,19 @@
               (g/transact
                 (atlas/add-images atlas-node [(workspace/resolve-resource (:resource atlas-node) img-path)]))
               (is (has-undo? project))
-              (let [undo-count (count (g/undo-stack (g/node->graph-id project)))
+              (let [undo-count (count (undo-stack (g/node->graph-id project)))
                     anim-data (g/node-value atlas-node :anim-data)
                     anim (get anim-data anim-id)]
                 (is (and (= 64 (:width anim)) (= 64 (:height anim))))
                 (testing "Modify image, anim data updated"
                          (add-img workspace img-path 128 128)
-                         (is (= undo-count (count (g/undo-stack (g/node->graph-id project)))))
+                         (is (= undo-count (count (undo-stack (g/node->graph-id project)))))
                          (let [anim-data (g/node-value atlas-node :anim-data)
                                anim (get anim-data anim-id)]
                            (is (and (= 128 (:width anim)) (= 128 (:height anim))))))
                 (testing "Delete it, errors produced"
                          (delete-file workspace img-path)
-                         (is (= undo-count (count (g/undo-stack (g/node->graph-id project)))))
+                         (is (= undo-count (count (undo-stack (g/node->graph-id project)))))
                          ; TODO - fix node pollution
                          (is (thrown? java.io.FileNotFoundException (g/node-value atlas-node :anim-data)))))))))
 

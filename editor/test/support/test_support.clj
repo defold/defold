@@ -1,6 +1,8 @@
 (ns support.test-support
   (:require [dynamo.graph :as g]
             [internal.async :as ia]
+            [internal.system :as is]
+            [internal.system :as is]
             [internal.system :as is]))
 
 (defmacro with-clean-system
@@ -42,3 +44,11 @@
   "Give up the thread just long enough for a context switch"
   []
   (Thread/sleep 1))
+
+(defn undo-stack
+  [graph]
+  (is/undo-stack (is/graph-history @g/*the-system* graph)))
+
+(defn redo-stack
+  [graph]
+  (is/redo-stack (is/graph-history @g/*the-system* graph)))
