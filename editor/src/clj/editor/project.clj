@@ -21,8 +21,8 @@ ordinary paths."
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
-  (output outline g/Any :cached (g/fnk [node-id resource] (let [rt (resource/resource-type resource)]
-                                                            {:node-id node-id
+  (output outline g/Any :cached (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
+                                                            {:node-id _node-id
                                                              :label (or (:label rt) (:ext rt))
                                                              :icon (:icon rt)}))))
 
@@ -43,7 +43,7 @@ ordinary paths."
             (g/make-nodes
               project-graph
               [new-resource [node-type :resource resource :project-id (g/node-id project)]]
-              (g/connect new-resource :self project :nodes)
+              (g/connect new-resource :_self project :nodes)
               (if ((g/output-labels node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
                 []))
@@ -304,7 +304,7 @@ ordinary paths."
         (g/make-nodes
           (g/node->graph-id project)
           [new-resource [node-type :resource resource :project-id (g/node-id project)]]
-          (g/connect new-resource :self project :nodes)
+          (g/connect new-resource :_self project :nodes)
           (if ((g/output-labels node-type) :save-data)
             (g/connect new-resource :save-data project :save-data)
             [])
@@ -319,8 +319,8 @@ ordinary paths."
         (g/disconnect node label project :selected-nodes))
       (for [node nodes]
         (concat
-          (g/connect node :node-id project :selected-node-ids)
-          (g/connect node :self project :selected-nodes)))))
+          (g/connect node :_node-id project :selected-node-ids)
+          (g/connect node :_self project :selected-nodes)))))
 
 (defn select!
   ([project nodes]

@@ -166,12 +166,12 @@
                            (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
-(g/defnk produce-build-targets [node-id project-id resource pb def dep-build-targets]
+(g/defnk produce-build-targets [_node-id project-id resource pb def dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(workspace/proj-path (:resource res)) res]) dep-build-targets))
         resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb (first field))))) [field])) (:resource-fields def))
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb label) (get pb label)))]) resource-fields)]
-    [{:node-id node-id
+    [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-pb
       :user-data {:pb pb
@@ -191,7 +191,7 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/always {}))
-  (output outline g/Any :cached (g/fnk [node-id def] {:node-id node-id :label (:label def) :icon (:icon def)})))
+  (output outline g/Any :cached (g/fnk [_node-id def] {:node-id _node-id :label (:label def) :icon (:icon def)})))
 
 (defn- connect-build-targets [self project path]
   (let [resource (workspace/resolve-resource (:resource self) path)]

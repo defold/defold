@@ -32,11 +32,11 @@
 (defn- build-font [self basis resource dep-resources user-data]
   {:resource resource :content (font-gen/->bytes (:pb user-data) (:font-resource user-data))})
 
-(g/defnk produce-build-targets [node-id project-id resource pb]
+(g/defnk produce-build-targets [_node-id project-id resource pb]
   (let [project (g/node-by-id project-id)
         ; Should use a separate resource node to obtain the font file
         font-resource (workspace/resolve-resource resource (:font pb))]
-    [{:node-id node-id
+    [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-font
       :user-data {:pb pb
@@ -46,7 +46,7 @@
   (inherits project/ResourceNode)
 
   (property pb g/Any)
-  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Font" :icon font-icon}))
+  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 

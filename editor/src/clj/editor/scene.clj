@@ -121,7 +121,7 @@
   [^TextRendererRef v ^java.io.Writer w]
   (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
 
-(g/defnk produce-drawable [self ^Region viewport]
+(g/defnk produce-drawable [_self ^Region viewport]
   (when (vp-not-empty? viewport)
     (let [[w h]   (vp-dims viewport)
           profile (GLProfile/getDefault)
@@ -130,11 +130,11 @@
       (.setOnscreen caps false)
       (.setPBuffer caps true)
       (.setDoubleBuffered caps false)
-      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable self)
+      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable _self)
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (g/transact (g/set-property self :gl-drawable drawable))
+        (g/transact (g/set-property _self :gl-drawable drawable))
         drawable))))
 
 (defn- make-current [^Region viewport ^GLAutoDrawable drawable]
@@ -688,7 +688,7 @@
   (output position Vector3d :cached (g/fnk [^types/Vec3 position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
-  (output scene g/Any :cached (g/fnk [^g/NodeID node-id ^Matrix4d transform] {:node-id node-id :transform transform}))
+  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/always (geom/null-aabb)))
 
   scene-tools/Movable

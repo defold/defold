@@ -17,7 +17,7 @@
   (property a-prop g/Str (dynamic visible (g/fnk [a-input] a-input))))
 
 (defn- property-visible [node key]
-  (get-in (g/node-value node :properties) [key :visible]))
+  (get-in (g/node-value node :_properties) [key :visible]))
 
 (deftest test-visibility
   (testing "visible functions reflect in the properties"
@@ -57,7 +57,7 @@
   (property a-prop g/Str (dynamic enabled (g/fnk [a-input] a-input))))
 
 (defn- property-enabled [node key]
-  (get-in (g/node-value node :properties) [key :enabled]))
+  (get-in (g/node-value node :_properties) [key :enabled]))
 
 (deftest test-enbablement
   (testing "enablement functions reflect in the properties"

@@ -76,7 +76,7 @@ This function should not be called directly."
 
 (g/defnode Scope
   "Scope provides a level of grouping for nodes. Scopes nest.
-When a node is added to a Scope, the node's :self output will be
+When a node is added to a Scope, the node's :_self output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."

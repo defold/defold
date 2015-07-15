@@ -45,7 +45,7 @@
 
 (def sound-exts (into #{} (map :ext sound/sound-defs)))
 
-(defn- wrap-if-raw-sound [node-id project-id target]
+(defn- wrap-if-raw-sound [_node-id project-id target]
   (let [source-path (workspace/proj-path (:resource (:resource target)))
         ext (FilenameUtils/getExtension source-path)]
     (if (sound-exts ext)
@@ -53,7 +53,7 @@
             workspace (project/workspace project)
             res-type (workspace/get-resource-type workspace "sound")
             pb {:sound source-path}
-            target {:node-id node-id
+            target {:node-id _node-id
                     :resource (workspace/make-build-resource (workspace/make-memory-resource workspace res-type
                                                                                              (protobuf/map->str Sound$SoundDesc pb)))
                     :build-fn (fn [self basis resource dep-resources user-data]
@@ -78,19 +78,19 @@
   (input scene g/Any)
   (input build-targets g/Any)
 
-  (output outline g/Any :cached (g/fnk [node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
-                                                                            (assoc outline :node-id node-id :label (str id suffix)))))
+  (output outline g/Any :cached (g/fnk [_node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
+                                                                            (assoc outline :node-id _node-id :label (str id suffix)))))
   (output ddf-message g/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
                                                                                        (gen-embed-ddf id position rotation save-data)
                                                                                        (gen-ref-ddf id position rotation save-data))))
-  (output scene g/Any :cached (g/fnk [node-id transform scene]
+  (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (assoc scene
-                                            :node-id node-id
+                                            :node-id _node-id
                                             :transform transform
                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))
-  (output build-targets g/Any :cached (g/fnk [node-id project-id build-targets ddf-message transform]
+  (output build-targets g/Any :cached (g/fnk [_node-id project-id build-targets ddf-message transform]
                                              (if-let [target (first build-targets)]
-                                               (let [target (wrap-if-raw-sound node-id project-id target)]
+                                               (let [target (wrap-if-raw-sound _node-id project-id target)]
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                :instance-msg ddf-message
                                                                                :transform transform})])
@@ -121,15 +121,15 @@
         msg {:components instance-msgs}]
     {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
 
-(g/defnk produce-build-targets [node-id resource proto-msg dep-build-targets]
-  [{:node-id node-id
+(g/defnk produce-build-targets [_node-id resource proto-msg dep-build-targets]
+  [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-game-object
     :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
     :deps (flatten dep-build-targets)}])
 
-(g/defnk produce-scene [node-id child-scenes]
-  {:node-id node-id
+(g/defnk produce-scene [_node-id child-scenes]
+  {:node-id _node-id
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
@@ -143,7 +143,7 @@
   (input child-ids g/Str :array)
   (input dep-build-targets g/Any :array)
 
-  (output outline g/Any :cached (g/fnk [node-id outline] {:node-id node-id :label "Game Object" :icon game-object-icon :children outline}))
+  (output outline g/Any :cached (g/fnk [_node-id outline] {:node-id _node-id :label "Game Object" :icon game-object-icon :children outline}))
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
@@ -168,14 +168,14 @@
                   [comp-node [ComponentNode :id id :position position :rotation rotation :path path]]
                   (concat
                     (g/connect comp-node :outline       self :outline)
-                    (g/connect comp-node :self          self :nodes)
+                    (g/connect comp-node :_self          self :nodes)
                     (g/connect comp-node :build-targets self :dep-build-targets)
                     (g/connect comp-node :ddf-message   self :ref-ddf)
                     (g/connect comp-node :id            self :child-ids)
                     (g/connect comp-node :scene         self :child-scenes)
                     (project/connect-resource-node project
                                                    source-resource comp-node
-                                                   [[:self :source]
+                                                   [[:_self :source]
                                                     [:outline :outline]
                                                     [:save-data :save-data]
                                                     [:scene :scene]
@@ -213,23 +213,23 @@
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
                      source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project)]]
-                    (g/connect source-node :self        comp-node :source)
+                    (g/connect source-node :_self        comp-node :source)
                     (g/connect source-node :outline     comp-node :outline)
                     (g/connect source-node :save-data   comp-node :save-data)
                     (g/connect source-node :scene       comp-node :scene)
                     (g/connect source-node :build-targets       comp-node :build-targets)
                     (g/connect source-node :project-id       comp-node :project-id)
-                    (g/connect source-node :self        self      :nodes)
+                    (g/connect source-node :_self        self      :nodes)
                     (g/connect comp-node   :outline     self      :outline)
                     (g/connect comp-node   :ddf-message self      :embed-ddf)
                     (g/connect comp-node   :id          self      :child-ids)
                     (g/connect comp-node   :scene       self      :child-scenes)
-                    (g/connect comp-node   :self        self      :nodes)
+                    (g/connect comp-node   :_self        self      :nodes)
                     (g/connect comp-node   :build-targets        self      :dep-build-targets))
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
                     (g/connect comp-node   :outline      self      :outline)
-                    (g/connect comp-node   :self         self      :nodes)))))
+                    (g/connect comp-node   :_self         self      :nodes)))))
 
 (defn add-embedded-component-handler
   ([self]
@@ -260,7 +260,7 @@
                        (let [rt (:resource-type user-data)]
                          (or (:label rt) (:ext rt)))))
   (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-  (run [user-data] (add-embedded-component-handler (:self user-data) (:resource-type user-data)))
+  (run [user-data] (add-embedded-component-handler (:_self user-data) (:resource-type user-data)))
   (options [selection user-data]
            (when (not user-data)
              (let [self (g/node-by-id (first selection))
@@ -270,7 +270,7 @@
                (mapv (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                                      :icon (:icon res-type)
                                      :command :add
-                                     :user-data {:self self :resource-type res-type}}) resource-types)))))
+                                     :user-data {:_self self :resource-type res-type}}) resource-types)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
