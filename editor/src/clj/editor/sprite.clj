@@ -177,14 +177,14 @@
     (:tex-coords frame)))
 
 (g/defnk produce-scene
-  [node-id aabb gpu-texture animation blend-mode]
-  (let [scene {:node-id node-id
+  [_node-id aabb gpu-texture animation blend-mode]
+  (let [scene {:node-id _node-id
                :aabb aabb}]
     (if animation
       (let []
         (assoc scene :renderable {:render-fn render-sprites
                                   :batch-key gpu-texture
-                                  :select-batch-key node-id
+                                  :select-batch-key _node-id
                                   :user-data {:gpu-texture gpu-texture
                                               :anim-uvs (anim-uvs animation)
                                               :anim-width (:width animation 0)
@@ -198,11 +198,11 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Sprite$SpriteDesc pb)}))
 
-(g/defnk produce-build-targets [node-id resource image default-animation material blend-mode dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource image default-animation material blend-mode dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:tile-set image] [:material material]])]
-    [{:node-id node-id
+    [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-sprite
       :user-data {:proto-msg {:tile-set (workspace/proj-path image)
@@ -266,7 +266,7 @@
                                              (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                              (geom/aabb-incorporate (Point3d. hw hh 0))))
                                          (geom/null-aabb))))
-  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Sprite" :icon sprite-icon}))
+  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Sprite" :icon sprite-icon}))
   (output save-data g/Any :cached produce-save-data)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))

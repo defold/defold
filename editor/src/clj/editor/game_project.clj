@@ -31,10 +31,10 @@
 
   (input dep-build-targets g/Any :array)
 
-  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Game Project" :icon game-project-icon}))
+  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached (g/fnk [node-id resource content dep-build-targets]
-                                             [{:node-id node-id
+  (output build-targets g/Any :cached (g/fnk [_node-id resource content dep-build-targets]
+                                             [{:node-id _node-id
                                                :resource (workspace/make-build-resource resource)
                                                :build-fn build-game-project
                                                :user-data {:content content}
