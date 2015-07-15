@@ -88,7 +88,7 @@
     (let [deps (g/input-dependencies DependencyTestNode)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
-           :a-property         #{:depends-on-property :depends-on-several :a-property :properties :_self}
+           :a-property         #{:depends-on-property :depends-on-several :a-property :_properties :_self}
            :project            #{:depends-on-several})
       (is (not (contains? deps :this)))
       (is (not (contains? deps :g)))
@@ -113,7 +113,7 @@
       (is (= "FOO!" foo-before))
       (is (= "quux" foo-after))
       (is (= "bar"  foo-override))
-      (is (every? gt/property-type? (map :type (vals (g/node-value n1 :properties)))))))
+      (is (every? gt/property-type? (map :type (vals (g/node-value n1 :_properties)))))))
   (with-clean-system
     (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
                                   (g/make-node world SinkNode))]
@@ -130,8 +130,8 @@
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
-  (expect-modified SimpleTestNode #{:properties :foo :_self} (fn [node] (g/set-property    node :foo "two")))
-  (expect-modified SimpleTestNode #{:properties :foo :_self} (fn [node] (g/update-property node :foo str/reverse)))
+  (expect-modified SimpleTestNode #{:_properties :foo :_self} (fn [node] (g/set-property    node :foo "two")))
+  (expect-modified SimpleTestNode #{:_properties :foo :_self} (fn [node] (g/update-property node :foo str/reverse)))
   (expect-modified SimpleTestNode #{}                       (fn [node] (g/set-property    node :foo "one")))
   (expect-modified SimpleTestNode #{}                       (fn [node] (g/update-property node :foo identity))))
 
@@ -143,16 +143,16 @@
       (let [tx-result     (g/transact (g/set-property snode :foo "hi"))
             vnode-results (filter #(= (first %) (g/node-id vnode)) (:outputs-modified tx-result))
             modified      (into #{} (map second vnode-results))]
-        (is (= #{:properties} modified))))))
+        (is (= #{:_properties} modified))))))
 
 (deftest visibility-properties
   (with-clean-system
     (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
                                   (g/make-node world VisibilityTestNode))]
       (g/transact (g/connect snode :foo vnode :bar))
-      (is (= true (get-in (g/node-value vnode :properties) [:baz :visible])))
+      (is (= true (get-in (g/node-value vnode :_properties) [:baz :visible])))
       (g/transact (g/set-property snode :foo nil))
-      (is (= false (get-in (g/node-value vnode :properties) [:baz :visible]))))))
+      (is (= false (get-in (g/node-value vnode :_properties) [:baz :visible]))))))
 
 (deftest invalidating-enablement-properties
   (with-clean-system
@@ -162,16 +162,16 @@
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
             enode-results (filter #(= (first %) (g/node-id enode)) (:outputs-modified tx-result))
             modified      (into #{} (map second enode-results))]
-        (is (= #{:properties} modified))))))
+        (is (= #{:_properties} modified))))))
 
 (deftest enablement-properties
   (with-clean-system
     (let [[snode enode] (tx-nodes (g/make-node world SimpleIntTestNode :foo 1)
                                   (g/make-node world EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
-      (is (= true (get-in (g/node-value enode :properties) [:baz :enabled])))
+      (is (= true (get-in (g/node-value enode :_properties) [:baz :enabled])))
       (g/transact (g/set-property snode :foo -1))
-      (is (= false (get-in (g/node-value enode :properties) [:baz :enabled]))))))
+      (is (= false (get-in (g/node-value enode :_properties) [:baz :enabled]))))))
 
 (g/defnode PropertyDynamicsTestNode
   (property one-dynamic  g/Str
@@ -186,7 +186,7 @@
 (deftest node-property-dynamics-evaluation
   (with-clean-system
     (let [[node] (tx-nodes (g/make-node world PropertyDynamicsTestNode :three-dynamics "You?"))]
-      (let [props (g/node-value node :properties)]
+      (let [props (g/node-value node :_properties)]
         (is (= true  (get-in props [:one-dynamic :emphatic?])))
         (is (= false (get-in props [:three-dynamics :emphatic?])))
         (is (= true  (get-in props [:three-dynamics :querulous?])))
@@ -195,13 +195,13 @@
       (g/transact
        (g/set-property node :one-dynamic "bar?"))
 
-      (let [props (g/node-value node :properties)]
+      (let [props (g/node-value node :_properties)]
         (is (= false (get-in props [:one-dynamic :emphatic?]))))
 
       (g/transact
        (g/set-property node :three-dynamics "I've made a huge mistake!"))
 
-      (let [props (g/node-value node :properties)]
+      (let [props (g/node-value node :_properties)]
         (is (= true  (get-in props [:three-dynamics :emphatic?])))
         (is (= false (get-in props [:three-dynamics :querulous?])))
         (is (= true  (get-in props [:three-dynamics :mistake?])))))))
@@ -371,7 +371,7 @@
 (deftest validation-errors-delivered-in-properties-output
   (with-clean-system
     (let [[node]     (tx-nodes (g/make-node world PropertyValidationNode :even-number 1))
-          properties (g/node-value node :properties)]
+          properties (g/node-value node :_properties)]
       (is (= ["only even numbers are allowed"] (some-> properties :even-number :validation-problems))))))
 
 (g/defnk pass-through [i] i)
@@ -410,4 +410,4 @@
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world AlwaysNode))]
         (= 99 (g/node-value node :always-99))
-        (is (= true (get-in (g/node-value node :properties) [:foo :visible])))))))
+        (is (= true (get-in (g/node-value node :_properties) [:foo :visible])))))))

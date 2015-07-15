@@ -248,9 +248,9 @@
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
       (is (= {:_id              #{:_id}
-              :another-property #{:properties :another-property :_self}
-              :a-property       #{:properties :a-property :_self}
-              :_self             #{:properties}}
+              :another-property #{:_properties :another-property :_self}
+              :a-property       #{:_properties :a-property :_self}
+              :_self             #{:_properties}}
              (-> node g/node-type g/input-dependencies)))))
 
   (testing "do not allow a property to shadow an input of the same name"
@@ -261,7 +261,7 @@
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
-      (is (= {:a-property #{:properties :a-property :_self}}
+      (is (= {:a-property #{:_properties :a-property :_self}}
              (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
@@ -344,20 +344,20 @@
             :project       #{:integer-output}
             :string-input  #{:inline-string}
             :integer-input #{:string-output :cached-output}
-            :_self          #{:properties}}
+            :_self          #{:_properties}}
            (g/input-dependencies MultipleOutputNode)))
     (is (= {:_id           #{:_id}
             :project       #{:integer-output}
             :string-input  #{:inline-string}
             :integer-input #{:string-output :abstract-output :cached-output}
-            :_self          #{:properties}}
+            :_self          #{:_properties}}
            (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
     (is (= {:_id                #{:_id}
-            :a-property         #{:direct-calculation :indirect-calculation :properties :a-property :_self}
+            :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property :_self}
             :direct-calculation #{:indirect-calculation}
-            :_self               #{:properties}}
+            :_self               #{:_properties}}
            (g/input-dependencies TwoLayerDependencyNode))))
 
   (testing "outputs defined without the type cause a compile error"
@@ -509,7 +509,7 @@
 
 (defn affects-properties
   [node-type input]
-  (contains? (get (g/input-dependencies node-type) input) :properties))
+  (contains? (get (g/input-dependencies node-type) input) :_properties))
 
 (deftest node-properties-depend-on-dynamic-inputs
   (let [all-inputs [:an-input :another-input :third-input :fourth-input :fifth-input]]
