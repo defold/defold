@@ -416,3 +416,10 @@
       (let [[node] (tx-nodes (g/make-node world AlwaysNode))]
         (= 99 (g/node-value node :always-99))
         (is (= true (get-in (g/node-value node :_properties) [:foo :visible])))))))
+
+(deftest test-node-type*
+  (testing "node type from node-id"
+    (with-clean-system
+      (let [[node] (tx-nodes (g/make-node world AlwaysNode))
+            nid (g/node-id node)]
+        (is (= AlwaysNode (g/node-type* nid)))))))
