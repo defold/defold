@@ -51,7 +51,7 @@
 
 (defn- gather-property
   [self kwargs prop]
-  (let [type              (-> self gt/node-type all-properties prop)
+  (let [type              (-> self gt/node-type gt/properties prop)
         value             (get self prop)
         problems          (gt/property-validate type value)
         dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
@@ -61,13 +61,15 @@
             :type                type
             :validation-problems problems})))
 
-(defn gather-properties
-  "Production function that delivers the definition and value
-  for all properties of this node."
+(defn- gather-properties
+  "Production function that delivers the definition and value for all
+  properties of this node. This is used to create the :_properties
+  output on a node. You should not call it directly. Instead,
+  call `(g/node-value _n_ :_properties)`"
   [kwargs]
   (let [self           (:_self kwargs)
         kwargs         (dissoc kwargs :_self)
-        property-names (-> self gt/node-type all-properties keys)]
+        property-names (-> self gt/node-type gt/properties keys)]
     (zipmap property-names (map (partial gather-property self kwargs) property-names))))
 
 ;; ---------------------------------------------------------------------------
