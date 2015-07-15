@@ -563,10 +563,10 @@
         all-arcs (mapcat #(all-sources basis (.target ^Arc %)) (gt/arcs-by-tail basis sid))]
     (filterv #(in-same-graph? gid (.source ^Arc %)) all-arcs)))
 
-(defn input-traverse [basis pred root-ids]
+(defn- input-traverse [basis pred root-ids]
   (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
 
-(defn serialize-node [node]
+(defn- serialize-node [node]
   (let [all-node-properties    (select-keys node (keys (-> node gt/node-type gt/properties)))
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:serial-id (gt/node-id node)
@@ -583,7 +583,7 @@
   (let [all-types (conj (supertypes (node-type node)) (node-type node))]
     (or (some #(get handlers %) all-types) not-found)))
 
-(defn serialize-arc [basis write-handlers arc]
+(defn- serialize-arc [basis write-handlers arc]
   (let [[pid plabel]  (gt/head arc)
         [cid clabel]  (gt/tail arc)
         pnode         (ig/node-by-id-at basis pid)
@@ -591,13 +591,8 @@
         write-handler (lookup-handler write-handlers pnode default-write-handler)]
    [(write-handler pnode plabel) (default-write-handler cnode clabel)]))
 
-(defn guard [f g]
-  (fn [& args]
-    (when (apply f args)
-      (apply g args))))
-
-(defn guard-arc [f g]
-  (guard
+(defn- guard-arc [f g]
+  (util/guard
    (fn [basis ^Arc arc]
      (f (ig/node-by-id-at basis (.source arc))))
    g))
@@ -676,13 +671,10 @@
     (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
       (invalidate! ks))))
 
-(defn undo-stack
-  [graph]
-  (is/undo-stack (is/graph-history @*the-system* graph)))
-
 (defn has-undo?
   [graph]
-  (not (empty? (undo-stack graph))))
+  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph))]
+    (not (empty? undo-stack))))
 
 (defn redo
   [graph]
@@ -690,13 +682,10 @@
     (when-let [ks (is/redo-history (is/graph-history snapshot graph) snapshot)]
       (invalidate! ks))))
 
-(defn redo-stack
-  [graph]
-  (is/redo-stack (is/graph-history @*the-system* graph)))
-
 (defn has-redo?
   [graph]
-  (not (empty? (redo-stack graph))))
+  (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph))]
+    (not (empty? redo-stack))))
 
 (defn reset-undo!
   [graph]
