@@ -22,6 +22,12 @@
   (let [href (graph-history gid)]
     (concat (is/undo-stack href) (is/redo-stack href))))
 
+(defn undo-redo-state?
+  [graph undos redos]
+  (let [href (graph-history graph)]
+    (and (= (map :label (is/undo-stack href)) undos)
+         (= (map :label (is/redo-stack href)) redos))))
+
 (deftest graph-registration
   (testing "a fresh system has a graph"
     (ts/with-clean-system
@@ -140,11 +146,6 @@
 
           (is (not (g/has-undo? pgraph-id)))
           (is (not (g/has-redo? pgraph-id))))))))
-
-(defn undo-redo-state?
-  [graph undos redos]
-  (and (= (map :label (g/undo-stack graph)) undos)
-       (= (map :label (g/redo-stack graph)) redos)))
 
 (defn touch
   [node label & [seq-id]]
