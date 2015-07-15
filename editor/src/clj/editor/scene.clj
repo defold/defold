@@ -688,7 +688,7 @@
   (output position Vector3d :cached (g/fnk [^types/Vec3 position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
-  (output scene g/Any :cached (g/fnk [^g/NodeID node-id ^Matrix4d transform] {:node-id node-id :transform transform}))
+  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/always (geom/null-aabb)))
 
   scene-tools/Movable

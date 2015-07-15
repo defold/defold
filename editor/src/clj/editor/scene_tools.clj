@@ -332,7 +332,7 @@
     (.get m v)
     v))
 
-(g/defnk produce-renderables [node-id active-tool camera viewport selected-renderables active-manip hot-manip start-action]
+(g/defnk produce-renderables [_node-id active-tool camera viewport selected-renderables active-manip hot-manip start-action]
   (if (not (contains? transform-tools active-tool))
     {}
     (let [tool (get transform-tools active-tool)
@@ -349,7 +349,7 @@
               vertices-fn #(manip->vertices %)
               manips (get-in transform-tools [active-tool :manips])
               inv-view (doto (c/camera-view-matrix camera) (.invert))
-              renderables (vec (map #(gen-manip-renderable node-id % world-transform (rotation-fn %) (vertices-fn %) (color-fn %) inv-view)
+              renderables (vec (map #(gen-manip-renderable _node-id % world-transform (rotation-fn %) (vertices-fn %) (color-fn %) inv-view)
                                    (filter filter-fn manips)))]
           (reduce #(assoc %1 %2 renderables) {} [pass/manipulator pass/manipulator-selection]))))))
 
