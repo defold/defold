@@ -99,10 +99,10 @@
   (input child-scenes g/Any :array)
   (input child-ids g/Str :array)
 
-  (output outline g/Any :cached (g/fnk [node-id id path embedded outline child-outlines]
+  (output outline g/Any :cached (g/fnk [_node-id id path embedded outline child-outlines]
                                        (let [suffix (if embedded "" (format " (%s)" path))]
                                          (merge-with concat
-                                                     (merge outline {:node-id node-id :label (str id suffix) :icon game-object/game-object-icon :sort-by-fn outline-sort-by-fn})
+                                                     (merge outline {:node-id _node-id :label (str id suffix) :icon game-object/game-object-icon :sort-by-fn outline-sort-by-fn})
                                                     {:children child-outlines}))))
   (output ddf-message g/Any :cached (g/fnk [id child-ids path embedded ^Vector3d position ^Quat4d rotation ^Vector3d scale save-data]
                                            (if embedded
@@ -113,11 +113,11 @@
                                                                                                             :instance-msg ddf-message
                                                                                                             :transform transform})])))
 
-  (output scene g/Any :cached (g/fnk [node-id transform scene child-scenes embedded]
+  (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes embedded]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (:aabb scene) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
                                        (merge-with concat
-                                                   (assoc (assoc-deep scene :node-id node-id)
+                                                   (assoc (assoc-deep scene :node-id _node-id)
                                                           :transform transform
                                                           :aabb aabb
                                                           :renderable {:passes [pass/selection]})
@@ -157,12 +157,12 @@
              :instances instance-msgs}]
     {:resource resource :content (protobuf/map->bytes GameObject$CollectionDesc msg)}))
 
-(g/defnk produce-build-targets [node-id name resource proto-msg sub-build-targets dep-build-targets]
+(g/defnk produce-build-targets [_node-id name resource proto-msg sub-build-targets dep-build-targets]
   (let [sub-build-targets (flatten sub-build-targets)
         dep-build-targets (flatten dep-build-targets)
         instance-data (map :instance-data dep-build-targets)
         instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
-    [{:node-id node-id
+    [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-collection
       :user-data {:name name :instance-data instance-data}
@@ -185,9 +185,9 @@
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output outline g/Any :cached (g/fnk [node-id child-outlines] {:node-id node-id :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
-  (output scene g/Any :cached (g/fnk [node-id child-scenes]
-                                     {:node-id node-id
+  (output outline g/Any :cached (g/fnk [_node-id child-outlines] {:node-id _node-id :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
+  (output scene g/Any :cached (g/fnk [_node-id child-scenes]
+                                     {:node-id _node-id
                                       :children child-scenes
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))})))
 
@@ -219,17 +219,17 @@
   (input scene g/Any)
   (input build-targets g/Any)
 
-  (output outline g/Any :cached (g/fnk [node-id id path outline] (let [suffix (format " (%s)" path)]
-                                                                   (merge outline {:node-id node-id :label (str id suffix) :icon collection-icon}))))
+  (output outline g/Any :cached (g/fnk [_node-id id path outline] (let [suffix (format " (%s)" path)]
+                                                                   (merge outline {:node-id _node-id :label (str id suffix) :icon collection-icon}))))
   (output ddf-message g/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
                                            {:id id
                                             :collection path
                                             :position (math/vecmath->clj position)
                                             :rotation (math/vecmath->clj rotation)
                                             :scale3 (math/vecmath->clj scale)}))
-  (output scene g/Any :cached (g/fnk [node-id transform scene]
+  (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (assoc scene
-                                           :node-id node-id
+                                           :node-id _node-id
                                            :transform transform
                                            :aabb (geom/aabb-transform (:aabb scene) transform)
                                            :renderable {:passes [pass/selection]})))

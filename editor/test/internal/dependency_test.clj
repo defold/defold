@@ -6,7 +6,7 @@
             [dynamo.util :refer :all]
             [internal.system :as is]))
 
-(defn- id [x] (or (:_id x) (:node-id x)))
+(defn- id [x] (:_id x))
 
 (defn- dependencies
   [system & pairs]

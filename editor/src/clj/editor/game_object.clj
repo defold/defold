@@ -45,7 +45,7 @@
 
 (def sound-exts (into #{} (map :ext sound/sound-defs)))
 
-(defn- wrap-if-raw-sound [node-id project-id target]
+(defn- wrap-if-raw-sound [_node-id project-id target]
   (let [source-path (workspace/proj-path (:resource (:resource target)))
         ext (FilenameUtils/getExtension source-path)]
     (if (sound-exts ext)
@@ -53,7 +53,7 @@
             workspace (project/workspace project)
             res-type (workspace/get-resource-type workspace "sound")
             pb {:sound source-path}
-            target {:node-id node-id
+            target {:node-id _node-id
                     :resource (workspace/make-build-resource (workspace/make-memory-resource workspace res-type
                                                                                              (protobuf/map->str Sound$SoundDesc pb)))
                     :build-fn (fn [self basis resource dep-resources user-data]
@@ -78,19 +78,19 @@
   (input scene g/Any)
   (input build-targets g/Any)
 
-  (output outline g/Any :cached (g/fnk [node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
-                                                                            (assoc outline :node-id node-id :label (str id suffix)))))
+  (output outline g/Any :cached (g/fnk [_node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
+                                                                            (assoc outline :node-id _node-id :label (str id suffix)))))
   (output ddf-message g/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
                                                                                        (gen-embed-ddf id position rotation save-data)
                                                                                        (gen-ref-ddf id position rotation save-data))))
-  (output scene g/Any :cached (g/fnk [node-id transform scene]
+  (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (assoc scene
-                                            :node-id node-id
+                                            :node-id _node-id
                                             :transform transform
                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))
-  (output build-targets g/Any :cached (g/fnk [node-id project-id build-targets ddf-message transform]
+  (output build-targets g/Any :cached (g/fnk [_node-id project-id build-targets ddf-message transform]
                                              (if-let [target (first build-targets)]
-                                               (let [target (wrap-if-raw-sound node-id project-id target)]
+                                               (let [target (wrap-if-raw-sound _node-id project-id target)]
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                :instance-msg ddf-message
                                                                                :transform transform})])
@@ -121,15 +121,15 @@
         msg {:components instance-msgs}]
     {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
 
-(g/defnk produce-build-targets [node-id resource proto-msg dep-build-targets]
-  [{:node-id node-id
+(g/defnk produce-build-targets [_node-id resource proto-msg dep-build-targets]
+  [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-game-object
     :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
     :deps (flatten dep-build-targets)}])
 
-(g/defnk produce-scene [node-id child-scenes]
-  {:node-id node-id
+(g/defnk produce-scene [_node-id child-scenes]
+  {:node-id _node-id
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
@@ -143,7 +143,7 @@
   (input child-ids g/Str :array)
   (input dep-build-targets g/Any :array)
 
-  (output outline g/Any :cached (g/fnk [node-id outline] {:node-id node-id :label "Game Object" :icon game-object-icon :children outline}))
+  (output outline g/Any :cached (g/fnk [_node-id outline] {:node-id _node-id :label "Game Object" :icon game-object-icon :children outline}))
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)

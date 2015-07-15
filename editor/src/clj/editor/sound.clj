@@ -19,8 +19,8 @@
         content (.toByteArray out)]
     {:resource resource :content content}))
 
-(g/defnk produce-build-targets [node-id resource]
-  [{:node-id node-id
+(g/defnk produce-build-targets [_node-id resource]
+  [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-sound}])
 

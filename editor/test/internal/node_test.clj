@@ -118,8 +118,8 @@
     (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
                                   (g/make-node world SinkNode))]
       (g/transact
-       (g/connect source :node-id sink :a-node-id))
-      (is (= (g/node-id source) (g/node-value source :node-id) (g/node-value sink :a-node-id))))))
+       (g/connect source :_node-id sink :a-node-id))
+      (is (= (g/node-id source) (g/node-value source :_node-id) (g/node-value sink :a-node-id))))))
 
 (defn- expect-modified
   [node-type properties f]
