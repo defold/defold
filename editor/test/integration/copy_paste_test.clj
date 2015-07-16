@@ -55,7 +55,7 @@
         (is (nil? (g/node-by-id new-collection-id)))
         (is (nil? (g/node-by-id new-go-node-id)))
 
-        (g/redo project-graph)
+        (g/redo! project-graph)
 
         (is (not (nil? (g/node-by-id new-collection-id))))
         (is (not (nil? (g/node-by-id new-go-node-id))))
