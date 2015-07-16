@@ -1,6 +1,5 @@
 (ns dynamo.integration.value-disposal
-  (:require [dynamo.integration.value-disposal :refer :all]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 

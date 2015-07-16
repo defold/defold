@@ -1,6 +1,5 @@
 (ns dynamo.integration.node-become
-  (:require [dynamo.integration.node-become :refer :all]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
