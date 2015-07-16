@@ -179,7 +179,7 @@
                (test-util/mouse-click! view 32 32)
                (is (test-util/selected? project go-node))
                ; Delete
-               (g/transact (g/delete-node go-node))
+               (g/transact (g/delete-node (g/node-id go-node)))
                (is (test-util/empty-selection? project))
                ; Undo
                (g/undo project-graph)
@@ -188,7 +188,7 @@
                (test-util/mouse-click! view 32 32)
                (is (test-util/selected? project go-node))
                ; Delete again
-               (g/transact (g/delete-node go-node))
+               (g/transact (g/delete-node (g/node-id go-node)))
                (is (test-util/empty-selection? project))
                ;Select again
                (test-util/mouse-click! view 32 32)

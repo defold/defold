@@ -398,13 +398,13 @@
         (g/transact
          (g/set-property source :source-label "after change"))
 
-        (g/delete-node! source)
+        (g/delete-node! (g/node-id source))
         (is (= nil (g/node-value sink :loud)))
 
         (g/undo project-graph)
         (is (= "AFTER CHANGE" (g/node-value sink :loud)))
 
-        (g/delete-node! source)
+        (g/delete-node! (g/node-id source))
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn bump-counter

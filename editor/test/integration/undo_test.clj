@@ -30,7 +30,7 @@
                    view                 (test-util/open-scene-view! project app-view atlas-node 128 128)
                    check-conn           #(not (empty? (g/node-value view :scene)))
                    connected-after-open (check-conn)]
-               (g/transact (g/delete-node atlas-node))
+               (g/transact (g/delete-node (g/node-id atlas-node)))
                (let [connected-after-delete (check-conn)]
                  (g/undo project-graph)
                  (let [connected-after-undo (check-conn)]
@@ -138,7 +138,7 @@
        ;; delete the component
        (g/transact
          [(g/operation-label "delete node")
-          (g/delete-node component)])
+          (g/delete-node (g/node-id component))])
 
        ;; force :outline to be cached
        (let [outline-without-component (remove-handlers (g/node-value outline :outline))]

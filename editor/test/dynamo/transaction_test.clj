@@ -55,7 +55,7 @@
       (let [[resource1 resource2] (tx-nodes (g/make-node world Resource)
                                             (g/make-node world Downstream))]
         (g/transact (it/connect resource1 :b resource2 :consumer))
-        (let [tx-result  (g/transact (it/delete-node resource2))
+        (let [tx-result  (g/transact (it/delete-node (g/node-id resource2)))
               after      (:basis tx-result)]
           (is (nil?      (g/node-by-id   after (:_id resource2))))
           (is (empty?    (g/targets      after (:_id resource1) :b)))
@@ -175,7 +175,7 @@
       (let [tracker         (atom {})
             [counter]       (tx-nodes (g/make-node world TriggerExecutionCounter :tracking tracker))
             before-removing @tracker
-            _               (g/transact (g/delete-node counter))
+            _               (g/transact (g/delete-node (g/node-id counter)))
             after-removing  @tracker]
         (is (= {:added 1} before-removing))
         (is (= {:added 1 :deleted 1} after-removing)))))
@@ -282,7 +282,7 @@
 (deftest nodes-are-disposed-after-deletion
   (with-clean-system
     (let [[disposable] (tx-nodes (g/make-node world DisposableNode))
-          tx-result    (g/transact (g/delete-node disposable))]
+          tx-result    (g/transact (g/delete-node (g/node-id disposable)))]
       (yield)
       (is (= disposable (first (take-waiting-deleted-to-dispose system)))))))
 
@@ -321,7 +321,7 @@
       (is (= "an-output-value" (g/node-value node :cached-output)))
       (let [cached-value (cache-peek system node-id :cached-output)]
         (is (= "an-output-value" cached-value))
-        (g/transact (g/delete-node node))
+        (g/transact (g/delete-node (g/node-id node)))
         (is (nil? (cache-peek system node-id :cached-output)))))))
 
 (defrecord DisposableValue [disposed?]
@@ -485,7 +485,7 @@
   [transaction graph self label kind]
   (when (g/is-deleted? transaction self)
     (for [node-to-delete (g/node-value self :nodes)]
-      (g/delete-node node-to-delete))))
+      (g/delete-node (g/node-id node-to-delete)))))
 
 (g/defnode Container
   (input nodes g/Any :array)
@@ -499,8 +499,8 @@
         (g/transact (g/connect inner :_self outer :nodes))
         (is (= :ok (:status (g/transact
                              (concat
-                              (g/delete-node outer)
-                              (g/delete-node inner)))))))))
+                              (g/delete-node (g/node-id outer))
+                              (g/delete-node (g/node-id inner))))))))))
 
   (testing "delete inner node first"
     (with-clean-system
@@ -509,8 +509,8 @@
 
         (is (= :ok (:status (g/transact
                              (concat
-                              (g/delete-node inner)
-                              (g/delete-node outer))))))))))
+                              (g/delete-node (g/node-id inner))
+                              (g/delete-node (g/node-id outer)))))))))))
 
 (g/defnode MyNode
   (property a-property g/Str))
