@@ -1,6 +1,5 @@
 (ns dynamo.integration.visibility-enablement
-  (:require [dynamo.integration.visibility-enablement :refer :all]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
