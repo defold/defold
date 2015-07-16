@@ -209,9 +209,9 @@ ordinary paths."
         external (filter (complement loadable?) resources)]
     (g/transact
       (for [resource internal
-            :let [node (get-resource-node project resource)]]
+            :let [node-id (g/node-id (get-resource-node project resource))]]
         ; TODO - recreate a polluted node
-        (g/delete-node node)))
+        (g/delete-node node-id)))
     (doseq [resource external
             :let [resource-node (get-resource-node project resource)
                   nid (g/node-id resource-node)]]
@@ -235,7 +235,7 @@ ordinary paths."
                   outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
               (g/transact
                 (concat
-                  (g/delete-node resource-node)
+                  (g/delete-node (g/node-id resource-node))
                   (for [[src-label [tgt-node tgt-label]] outputs-to-make]
                     (g/connect new-node src-label tgt-node tgt-label))))))
           (let [nid (g/node-id resource-node)]

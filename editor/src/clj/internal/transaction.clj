@@ -41,9 +41,9 @@
     :to-node  to-node}])
 
 (defn delete-node
-  [node]
+  [node-id]
   [{:type     :delete-node
-    :node-id  (nid node)}])
+    :node-id  node-id}])
 
 (defn update-property
   "*transaction step* - Expects a node, a property label, and a
