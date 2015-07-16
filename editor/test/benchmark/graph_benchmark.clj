@@ -130,7 +130,7 @@
     (load-test-project! world)
     (do-benchmark "Add One Node and Delete One Node"
                   (let [[new-node] (g/tx-nodes-added (g/transact (g/make-node world AThing)))]
-                    (g/transact (g/delete-node new-node))))))
+                    (g/transact (g/delete-node (g/node-id new-node)))))))
 
 (defn set-property-some-nodes []
   (with-clean-system

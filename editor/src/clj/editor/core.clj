@@ -68,7 +68,7 @@ This function should not be called directly."
   [transaction graph self label kind]
   (when (g/is-deleted? transaction self)
     (for [node-to-delete (g/node-value self :nodes)]
-      (g/delete-node node-to-delete))))
+      (g/delete-node (g/node-id node-to-delete)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bootstrapping the core node types

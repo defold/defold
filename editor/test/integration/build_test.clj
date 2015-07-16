@@ -184,7 +184,7 @@
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))
                  (let [go-node (first-source (first-source resource-node :child-scenes) :source)
                        comp-node (first-source go-node :child-scenes)]
-                   (g/transact (g/delete-node comp-node))
+                   (g/transact (g/delete-node (g/node-id comp-node)))
                    (let [build-results (project/build project resource-node)
                          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
                                                          build-results))]
@@ -224,7 +224,7 @@
                      cache-count (count @(:build-cache project))]
                  (g/transact
                    (for [[node label] (g/sources-of resource-node :dep-build-targets)]
-                     (g/delete-node node)))
+                     (g/delete-node (g/node-id node))))
                  (project/build project resource-node)
                  (is (< (count @(:build-cache project)) cache-count)))))))
 
@@ -239,7 +239,7 @@
                      cache-count (count @(:fs-build-cache project))]
                  (g/transact
                    (for [[node label] (g/sources-of resource-node :dep-build-targets)]
-                     (g/delete-node node)))
+                     (g/delete-node (g/node-id node))))
                  (project/build-and-write project resource-node)
                  (is (< (count @(:fs-build-cache project)) cache-count)))))))
 

@@ -381,12 +381,12 @@
 
 (defn delete-node
   "Remove a node from the world."
-  [n]
-  (it/delete-node n))
+  [node-id]
+  (it/delete-node node-id))
 
 (defn delete-node!
-  [n]
-  (transact (delete-node n)))
+  [node-id]
+  (transact (delete-node node-id)))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
