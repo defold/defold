@@ -96,8 +96,8 @@
     (let [close-handler (ui/event-handler event
                           (g/transact
                             (g/delete-node (g/node-id project)))
-                          (g/dispose-pending))
-          dispose-handler (ui/event-handler event (g/dispose-pending))]
+                          (g/dispose-pending!))
+          dispose-handler (ui/event-handler event (g/dispose-pending!))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
