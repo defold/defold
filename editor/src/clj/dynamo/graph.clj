@@ -664,7 +664,7 @@
     (transact (mapv it/delete-node (ig/node-ids graph)))
     (swap! *the-system* is/detach-graph graph-id)))
 
-(defn undo
+(defn undo!
   [graph]
   (let [snapshot @*the-system*]
     (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]

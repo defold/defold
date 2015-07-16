@@ -115,7 +115,7 @@
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (g/has-undo? pgraph-id))
           (is (g/has-redo? pgraph-id))))))
@@ -137,7 +137,7 @@
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (g/has-undo? pgraph-id))
           (is (g/has-redo? pgraph-id))
@@ -172,7 +172,7 @@
 
           (is (undo-redo-state? pgraph-id [nil 1 2 3] []))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (undo-redo-state? pgraph-id [nil 1 2] [3]))))))
 
@@ -192,7 +192,7 @@
 
           (is (undo-redo-state? pgraph-id [nil 1 2 3] []))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (undo-redo-state? pgraph-id [nil 1 2] [3]))))))
 
@@ -221,11 +221,11 @@
 
           (is (undo-redo-state? pgraph-id [nil 2 3] []))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (undo-redo-state? pgraph-id [nil 2] [3]))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (undo-redo-state? pgraph-id [nil] [3 2]))))))
 
@@ -259,11 +259,11 @@
 
           (is (undo-redo-state? pgraph-id [nil 1 3] []))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (undo-redo-state? pgraph-id [nil 1] [3]))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (undo-redo-state? pgraph-id [nil] [3 1]))))))
 
@@ -316,12 +316,12 @@
           (is (undo-redo-state? pgraph-id [nil 2 3] []))
           (is (undo-redo-state? agraph-id [nil 2] []))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (undo-redo-state? pgraph-id [nil 2] [3]))
           (is (undo-redo-state? agraph-id [nil 2] []))
 
-          (g/undo pgraph-id)
+          (g/undo! pgraph-id)
 
           (is (undo-redo-state? pgraph-id [nil] [3 2]))
           (is (undo-redo-state? agraph-id [nil 2] [])))))))
@@ -401,7 +401,7 @@
         (g/delete-node! (g/node-id source))
         (is (= nil (g/node-value sink :loud)))
 
-        (g/undo project-graph)
+        (g/undo! project-graph)
         (is (= "AFTER CHANGE" (g/node-value sink :loud)))
 
         (g/delete-node! (g/node-id source))
