@@ -35,9 +35,9 @@
     :node     node}])
 
 (defn become
-  [from-node to-node]
+  [node-id to-node]
   [{:type     :become
-    :node-id  (nid from-node)
+    :node-id  node-id
     :to-node  to-node}])
 
 (defn delete-node
