@@ -93,7 +93,7 @@ namespace dmGui
         Vector4     m_Properties[PROPERTY_COUNT];
         Vector4     m_ResetPointProperties[PROPERTY_COUNT];
         Matrix4     m_LocalTransform;
-        Vector4     m_LocalScale;
+        Vector4     m_LocalAdjustScale;
         uint32_t    m_ResetPointState;
 
         uint32_t m_PerimeterVertices;
