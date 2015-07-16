@@ -83,11 +83,11 @@
   (`from-resource from-label`) from a target node and label
   (`to-resource to-label`). It returns a value suitable for consumption
   by [[perform]]."
-  [from-node from-label to-node to-label]
+  [from-node-id from-label to-node-id to-label]
   [{:type         :disconnect
-    :source-id    (nid from-node)
+    :source-id    from-node-id
     :source-label from-label
-    :target-id    (nid to-node)
+    :target-id    to-node-id
     :target-label to-label}])
 
 (defn label

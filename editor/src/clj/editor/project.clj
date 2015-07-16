@@ -314,9 +314,9 @@ ordinary paths."
   [project nodes]
     (concat
       (for [[node label] (g/sources-of project :selected-node-ids)]
-        (g/disconnect node label project :selected-node-ids))
+        (g/disconnect (g/node-id node) label (g/node-id project) :selected-node-ids))
       (for [[node label] (g/sources-of project :selected-nodes)]
-        (g/disconnect node label project :selected-nodes))
+        (g/disconnect (g/node-id node) label (g/node-id project) :selected-nodes))
       (for [node nodes]
         (concat
           (g/connect (g/node-id node) :_node-id (g/node-id project) :selected-node-ids)
