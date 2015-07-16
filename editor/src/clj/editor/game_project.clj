@@ -90,7 +90,7 @@
     (concat
       (g/set-property self :content content)
       (for [root roots]
-        (project/connect-resource-node project root self [[:build-targets :dep-build-targets]])))))
+        (project/connect-resource-node project root (g/node-id self) [[:build-targets :dep-build-targets]])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

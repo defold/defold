@@ -391,12 +391,12 @@
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied."
-  [source-node source-label target-node target-label]
-  (it/connect source-node source-label target-node target-label))
+  [source-node-id source-label target-node-id target-label]
+  (it/connect source-node-id source-label target-node-id target-label))
 
 (defn connect!
-  [source-node source-label target-node target-label]
-  (transact (connect source-node source-label target-node target-label)))
+  [source-node-id source-label target-node-id target-label]
+  (transact (connect source-node-id source-label target-node-id target-label)))
 
 (defn disconnect
   "Remove a connection from an output of the source node to the input on the target node.

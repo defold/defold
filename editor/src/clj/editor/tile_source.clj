@@ -97,10 +97,10 @@
     (concat
       (g/set-property self :pb tile-source)
       (if-let [image-resource (workspace/resolve-resource (:resource self) (:image tile-source))]
-        (project/connect-resource-node project image-resource self [[:content :image-content]])
+        (project/connect-resource-node project image-resource (g/node-id self) [[:content :image-content]])
         [])
       (if-let [image-resource (workspace/resolve-resource (:resource self) (:collision tile-source))]
-        (project/connect-resource-node project image-resource self [[:content :collision-content]])
+        (project/connect-resource-node project image-resource (g/node-id self) [[:content :collision-content]])
         []))))
 
 (defn register-resource-types [workspace]

@@ -33,7 +33,7 @@
             anode-id (g/node-id anode)
             gnode-id (g/node-id gnode)]
         (g/transact
-         (g/connect anode :c-output gnode :encouragement))
+         (g/connect anode-id :c-output gnode-id :encouragement))
         (is (= #{[anode-id :c-output]
                  [anode-id :b-output]
                  [gnode-id :cake-output]}

@@ -353,10 +353,10 @@
                                                      (g/make-node agraph-id Sink))]
 
         (g/transact
-         [(g/connect source-p1 :source-label sink-p1 :target-label)
-          (g/connect source-p1 :source-label pipe-p1 :target-label)
-          (g/connect pipe-p1   :soft         sink-a1 :target-label)
-          (g/connect source-a1 :source-label sink-a2 :target-label)])
+         [(g/connect (g/node-id source-p1) :source-label (g/node-id sink-p1) :target-label)
+          (g/connect (g/node-id source-p1) :source-label (g/node-id pipe-p1) :target-label)
+          (g/connect (g/node-id pipe-p1)   :soft         (g/node-id sink-a1) :target-label)
+          (g/connect (g/node-id source-a1) :source-label (g/node-id sink-a2) :target-label)])
 
         (is (= (set (g/dependencies (g/now) [[(id source-a1) :source-label]]))
                #{[(id sink-a2)   :loud]
@@ -391,8 +391,8 @@
                                             (g/make-node view-graph Sink))]
         (g/transact
          (concat
-          (g/connect source :source-label link :source-label)
-          (g/connect link   :source-label sink :target-label)))
+          (g/connect (g/node-id source) :source-label (g/node-id link) :source-label)
+          (g/connect (g/node-id link)   :source-label (g/node-id sink) :target-label)))
 
         (is (= "FROM PROJECT GRAPH" (g/node-value sink :loud)))
         (g/transact
@@ -434,10 +434,10 @@
                                                        (g/make-node agraph-id Sink))]
 
           (g/transact
-           [(g/connect source-p1 :source-label sink-p1 :target-label)
-            (g/connect source-p1 :source-label pipe-p1 :target-label)
-            (g/connect pipe-p1   :soft         sink-a1 :target-label)
-            (g/connect source-a1 :source-label sink-a2 :target-label)])
+           [(g/connect (g/node-id source-p1) :source-label (g/node-id sink-p1) :target-label)
+            (g/connect (g/node-id source-p1) :source-label (g/node-id pipe-p1) :target-label)
+            (g/connect (g/node-id pipe-p1)   :soft         (g/node-id sink-a1) :target-label)
+            (g/connect (g/node-id source-a1) :source-label (g/node-id sink-a2) :target-label)])
 
           (is (undo-redo-state? pgraph-id [nil nil] []))
 
@@ -463,7 +463,7 @@
                        (g/make-node pgraph-id CountOnDelete :counter ctr)))]
           (g/transact
            (for [[n1 n2] (partition 2 1 nodes)]
-             (g/connect n1 :downstream n2 :upstream)))
+             (g/connect (g/node-id n1) :downstream (g/node-id n2) :upstream)))
           (g/delete-graph pgraph-id)
 
           (is (= 100 @ctr))))))
@@ -482,10 +482,10 @@
                                                        (g/make-node view-graph-id Sink))]
 
           (g/transact
-           [(g/connect source-p1 :source-label sink-p1 :target-label)
-            (g/connect source-p1 :source-label pipe-p1 :target-label)
-            (g/connect pipe-p1   :soft         sink-a1 :target-label)
-            (g/connect source-a1 :source-label sink-a2 :target-label)])
+           [(g/connect (g/node-id source-p1) :source-label (g/node-id sink-p1) :target-label)
+            (g/connect (g/node-id source-p1) :source-label (g/node-id pipe-p1) :target-label)
+            (g/connect (g/node-id pipe-p1)   :soft         (g/node-id sink-a1) :target-label)
+            (g/connect (g/node-id source-a1) :source-label (g/node-id sink-a2) :target-label)])
 
           (is (undo-redo-state? project-graph-id [nil nil] []))
 

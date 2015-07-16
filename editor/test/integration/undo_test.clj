@@ -110,7 +110,7 @@
                          (g/operation-sequence op-seq)
                          (g/make-nodes proj-graph
                                        [comp-node DummyComponent]
-                                       (g/connect comp-node :outline go-node :outline))))))]
+                                       (g/connect comp-node :outline (g/node-id go-node) :outline))))))]
     ; Selection
     (g/transact
       (concat
@@ -130,7 +130,7 @@
          outline    (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
          component  (add-component! project go-node)]
 
-     (g/transact (g/connect go-node :outline outline :outline))
+     (g/transact (g/connect (g/node-id go-node) :outline (g/node-id outline) :outline))
 
      (let [original-outline (remove-handlers (g/node-value outline :outline))]
        (g/reset-undo! proj-graph)
@@ -181,7 +181,7 @@
          view-graph (g/node->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
          outline    (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))]
-     (g/transact (g/connect go-node :outline outline :outline))
+     (g/transact (g/connect (g/node-id go-node) :outline (g/node-id outline) :outline))
      (is (= 1 (child-count outline)))
      (let [component (add-component! project go-node)]
        (is (= 2 (child-count outline)))

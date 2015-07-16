@@ -70,11 +70,11 @@
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
 (`to-resource to-label`). It returns a value suitable for consumption by [[perform]]."
-  [from-node from-label to-node to-label]
+  [from-node-id from-label to-node-id to-label]
   [{:type         :connect
-    :source-id    (nid from-node)
+    :source-id    from-node-id
     :source-label from-label
-    :target-id    (nid to-node)
+    :target-id    to-node-id
     :target-label to-label}])
 
 (defn disconnect

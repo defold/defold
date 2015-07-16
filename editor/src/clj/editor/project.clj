@@ -43,9 +43,9 @@ ordinary paths."
             (g/make-nodes
               project-graph
               [new-resource [node-type :resource resource :project-id (g/node-id project)]]
-              (g/connect new-resource :_self project :nodes)
+              (g/connect new-resource :_self (g/node-id project) :nodes)
               (if ((g/output-labels node-type) :save-data)
-                (g/connect new-resource :save-data project :save-data)
+                (g/connect new-resource :save-data (g/node-id project) :save-data)
                 []))
             []))))))
 
@@ -237,7 +237,7 @@ ordinary paths."
                 (concat
                   (g/delete-node (g/node-id resource-node))
                   (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-                    (g/connect new-node src-label tgt-node tgt-label))))))
+                    (g/connect (g/node-id new-node) src-label tgt-node tgt-label))))))
           (let [nid (g/node-id resource-node)]
             (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
     (when reset-undo?
@@ -289,7 +289,7 @@ ordinary paths."
                          game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))]
                      (build-and-write project game-project))))
 
-(defn connect-if-output [src-type src tgt connections]
+(defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
     (for [[src-label tgt-label] connections
           :when (contains? outputs src-label)]
@@ -298,15 +298,15 @@ ordinary paths."
 (defn connect-resource-node [project resource consumer-node connections]
   (let [node (get-resource-node project resource)]
     (if node
-      (connect-if-output (g/node-type node) node consumer-node connections)
+      (connect-if-output (g/node-type node) (g/node-id node) consumer-node connections)
       (let [resource-type (workspace/resource-type resource)
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
           (g/node->graph-id project)
           [new-resource [node-type :resource resource :project-id (g/node-id project)]]
-          (g/connect new-resource :_self project :nodes)
+          (g/connect new-resource :_self (g/node-id project) :nodes)
           (if ((g/output-labels node-type) :save-data)
-            (g/connect new-resource :save-data project :save-data)
+            (g/connect new-resource :save-data (g/node-id project) :save-data)
             [])
           (connect-if-output node-type new-resource consumer-node connections))))))
 
@@ -319,8 +319,8 @@ ordinary paths."
         (g/disconnect node label project :selected-nodes))
       (for [node nodes]
         (concat
-          (g/connect node :_node-id project :selected-node-ids)
-          (g/connect node :_self project :selected-nodes)))))
+          (g/connect (g/node-id node) :_node-id (g/node-id project) :selected-node-ids)
+          (g/connect (g/node-id node) :_self (g/node-id project) :selected-nodes)))))
 
 (defn select!
   ([project nodes]
@@ -341,8 +341,8 @@ ordinary paths."
             (g/transact
               (g/make-nodes graph
                             [project [Project :workspace workspace :build-cache (atom {}) :fs-build-cache (atom {})]]
-                            (g/connect workspace :resource-list project :resources)
-                            (g/connect workspace :resource-types project :resource-types)))))]
+                            (g/connect (g/node-id workspace) :resource-list project :resources)
+                            (g/connect (g/node-id workspace) :resource-types project :resource-types)))))]
     (workspace/add-resource-listener! workspace project)
     project))
 
