@@ -108,7 +108,7 @@
             [node] (tx-nodes (g/make-node my-graph DisposableNode))]
         (is (= 0 @dispose-counter))
         (g/transact (g/delete-node (g/node-id node)))
-        (g/undo my-graph)
+        (g/undo! my-graph)
         (g/dispose-pending!)
         (is (= 0 @dispose-counter)))))
 
@@ -119,7 +119,7 @@
             [node] (tx-nodes (g/make-node my-graph DisposableNode))]
         (is (= 0 @dispose-counter))
         (g/transact (g/delete-node (g/node-id node)))
-        (g/undo my-graph)
+        (g/undo! my-graph)
         (g/redo my-graph)
         (g/dispose-pending!)
         (is (= 1 @dispose-counter))))))

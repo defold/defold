@@ -149,14 +149,14 @@
                (is (= 0.0 (.x (pos go-node))))
                (test-util/mouse-drag! view 64 64 68 64)
                (is (not= 0.0 (.x (pos go-node))))
-               (g/undo project-graph)
+               (g/undo! project-graph)
                ; Rotate tool
                (test-util/set-active-tool! app-view :rotate)
                (is (= 0.0 (.x (rot go-node))))
                ;; begin drag at y = 80 to hit y axis (for x rotation)
                (test-util/mouse-drag! view 64 80 64 84)
                (is (not= 0.0 (.x (rot go-node))))
-               (g/undo project-graph)
+               (g/undo! project-graph)
                ; Scale tool
                (test-util/set-active-tool! app-view :scale)
                (is (= 1.0 (.x (scale go-node))))
@@ -182,7 +182,7 @@
                (g/transact (g/delete-node (g/node-id go-node)))
                (is (test-util/empty-selection? project))
                ; Undo
-               (g/undo project-graph)
+               (g/undo! project-graph)
                (is (test-util/selected? project go-node))
                ; Select again
                (test-util/mouse-click! view 32 32)

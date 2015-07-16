@@ -32,7 +32,7 @@
                    connected-after-open (check-conn)]
                (g/transact (g/delete-node (g/node-id atlas-node)))
                (let [connected-after-delete (check-conn)]
-                 (g/undo project-graph)
+                 (g/undo! project-graph)
                  (let [connected-after-undo (check-conn)]
                    (is connected-after-open)
                    (is (not connected-after-delete))
@@ -51,7 +51,7 @@
                    (g/set-property atlas-node :margin 1)))
                (g/transact (g/set-property atlas-node :margin 10))
                (g/transact (g/set-property atlas-node :margin 2))
-               (g/undo project-graph)
+               (g/undo! project-graph)
                (is (= 10 (:margin (g/refresh atlas-node))))))))
 
 (defn outline-children [node] (:children (g/node-value node :outline)))
@@ -69,7 +69,7 @@
      (is (= 0 (count (outline-children go-node))))
 
      ;; undo deletion
-     (g/undo proj-graph)
+     (g/undo! proj-graph)
      (is (= 1 (count (outline-children go-node))))
 
      ;; redo deletion
@@ -144,7 +144,7 @@
        (let [outline-without-component (remove-handlers (g/node-value outline :outline))]
 
          ;; undo the deletion (component is back)
-         (g/undo proj-graph)
+         (g/undo! proj-graph)
 
          ;; same :outline should be re-produced
          (let [outline-after-undo (remove-handlers (g/node-value outline :outline))]
@@ -157,7 +157,7 @@
          (is (= outline-without-component (remove-handlers (g/node-value outline :outline))))
 
          ;; undo the deletion again (component is back again)
-         (g/undo proj-graph)
+         (g/undo! proj-graph)
 
          ;; :outline should be re-produced
          (let [outline-after-second-undo (remove-handlers (g/node-value outline :outline))]
@@ -185,5 +185,5 @@
      (is (= 1 (child-count outline)))
      (let [component (add-component! project go-node)]
        (is (= 2 (child-count outline)))
-       (g/undo proj-graph)
+       (g/undo! proj-graph)
        (is (= 1 (child-count outline)))))))
