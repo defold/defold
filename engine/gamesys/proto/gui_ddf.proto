@@ -114,7 +114,7 @@ message NodeDesc
 
     repeated uint32 overridden_fields = 33;
 
-    optional string     template              = 34;
+    optional string     template              = 34 [(resource)=true];
     optional bool       template_node_child   = 35;
 }
 
