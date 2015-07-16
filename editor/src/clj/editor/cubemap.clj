@@ -123,7 +123,7 @@
           :let [img-resource (workspace/resolve-resource (:resource self) input)]]
       (concat
         (project/connect-resource-node project
-                                       img-resource self
+                                       img-resource (g/node-id self)
                                        [[:content (keyword (subs (str side "-img") 1))]])
         (g/set-property self side input)))))
 

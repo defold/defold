@@ -29,7 +29,7 @@
                                             (g/make-node world Downstream))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
-            after                 (:basis (g/transact (it/connect resource1 :b resource2 :consumer)))]
+            after                 (:basis (g/transact (it/connect (g/node-id resource1) :b (g/node-id resource2) :consumer)))]
         (is (= [id1 :b]        (first (g/sources after id2 :consumer))))
         (is (= [id2 :consumer] (first (g/targets after id1 :b)))))))
   (testing "disconnect two singly-connected nodes"
@@ -38,7 +38,7 @@
                                             (g/make-node world Downstream))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
-            tx-result             (g/transact (it/connect    resource1 :b resource2 :consumer))
+            tx-result             (g/transact (it/connect    (g/node-id resource1) :b (g/node-id resource2) :consumer))
             tx-result             (g/transact (it/disconnect resource1 :b resource2 :consumer))
             after                 (:basis tx-result)]
         (is (= :ok (:status tx-result)))
@@ -54,7 +54,7 @@
     (with-clean-system
       (let [[resource1 resource2] (tx-nodes (g/make-node world Resource)
                                             (g/make-node world Downstream))]
-        (g/transact (it/connect resource1 :b resource2 :consumer))
+        (g/transact (it/connect (g/node-id resource1) :b (g/node-id resource2) :consumer))
         (let [tx-result  (g/transact (it/delete-node (g/node-id resource2)))
               after      (:basis tx-result)]
           (is (nil?      (g/node-by-id   after (:_id resource2))))
@@ -147,7 +147,7 @@
             [node1 node2]      (tx-nodes
                                 (g/make-node world StringSource)
                                 (g/make-node world NameCollision :tracking tracker))
-            _                  (g/transact (g/connect node1 :label node2 :excalibur))
+            _                  (g/transact (g/connect (g/node-id node1) :label (g/node-id node2) :excalibur))
             after-connect      @tracker
             _                  (g/transact (g/set-property node1 :label "there can be only one"))
             after-set-upstream @tracker
@@ -187,10 +187,10 @@
             [s r1 r2 r3]    (tx-nodes (g/make-node world StringSource) (g/make-node world Relay) (g/make-node world Relay) (g/make-node world Relay))
             _               (g/transact
                              (concat
-                              (g/connect s :label r1 :label)
-                              (g/connect r1 :label r2 :label)
-                              (g/connect r2 :label r3 :label)
-                              (g/connect r3 :label counter :downstream)))
+                              (g/connect (g/node-id s) :label (g/node-id r1) :label)
+                              (g/connect (g/node-id r1) :label (g/node-id r2) :label)
+                              (g/connect (g/node-id r2) :label (g/node-id r3) :label)
+                              (g/connect (g/node-id r3) :label (g/node-id counter) :downstream)))
             before-updating @tracker
             _               (g/transact (g/set-property s :label "a different label"))
             after-updating  @tracker]
@@ -250,7 +250,7 @@
             [:person          :age           :calculator        :generic-input]
             [:person          :full-name     :multi-node-target :aggregator]
             [:formal-greeter  :passthrough   :multi-node-target :aggregator]]]
-       (g/connect (f nodes) f-l (t nodes) t-l)))
+       (g/connect (g/node-id (f nodes)) f-l (g/node-id (t nodes)) t-l)))
     nodes))
 
 (defmacro affected-by [& forms]
@@ -394,8 +394,8 @@
           [n2 l2] (build-adder-tree world output-name (dec tree-levels))
           [n] (tx-nodes (g/make-node world InputAdder))]
       (g/transact
-       [(g/connect n1 output-name n :xs)
-        (g/connect n2 output-name n :xs)])
+       [(g/connect (g/node-id n1) output-name (g/node-id n) :xs)
+        (g/connect (g/node-id n2) output-name (g/node-id n) :xs)])
       [n (vec (concat l1 l2))])
     (let [[n] (tx-nodes (g/make-node world NumberSource :x 0))]
       [n [n]])))
@@ -405,7 +405,7 @@
     (with-clean-system
       (let [[number-source] (tx-nodes (g/make-node world NumberSource :x 2))
             [adder-before]  (tx-nodes (g/make-node world InputAndPropertyAdder :y 3))
-            _               (g/transact (g/connect number-source :x adder-before :x))
+            _               (g/transact (g/connect (g/node-id number-source) :x (g/node-id adder-before) :x))
             _               (g/transact (g/update-property adder-before :y inc))
             adder-after     (g/refresh adder-before)]
         (is (= 6 (g/node-value adder-after  :sum)))
@@ -414,7 +414,7 @@
     (with-clean-system
       (let [[number-source] (tx-nodes (g/make-node world NumberSource :x 2))
             [adder-before]  (tx-nodes (g/make-node world InputAndPropertyAdder :y 3))
-            _               (g/transact (g/connect number-source :x adder-before :x))
+            _               (g/transact (g/connect (g/node-id number-source) :x (g/node-id adder-before) :x))
             _               (g/transact (g/set-property number-source :x 22))
             _               (g/transact (g/update-property adder-before :y inc))
             adder-after     (g/refresh adder-before)]
@@ -425,7 +425,7 @@
     (with-clean-system
       (let [[number-source] (tx-nodes (g/make-node world NumberSource :x 2))
             [adder-before]  (tx-nodes (g/make-node world InputAndPropertyAdder :y 3))
-            _               (g/transact (g/connect number-source :x adder-before :x))
+            _               (g/transact (g/connect (g/node-id number-source) :x (g/node-id adder-before) :x))
             _               (g/transact (g/update-property adder-before :y inc))
             adder-after     (g/refresh adder-before)]
         (is (= 6 (g/node-value adder-before :cached-sum)))
@@ -496,7 +496,7 @@
   (testing "delete scope first"
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
-        (g/transact (g/connect inner :_self outer :nodes))
+        (g/transact (g/connect (g/node-id inner) :_self (g/node-id outer) :nodes))
         (is (= :ok (:status (g/transact
                              (concat
                               (g/delete-node (g/node-id outer))
@@ -505,7 +505,7 @@
   (testing "delete inner node first"
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
-        (g/transact (g/connect inner :_self outer :nodes))
+        (g/transact (g/connect (g/node-id inner) :_self (g/node-id outer) :nodes))
 
         (is (= :ok (:status (g/transact
                              (concat

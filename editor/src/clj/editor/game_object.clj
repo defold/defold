@@ -151,7 +151,7 @@
 
 (defn- connect-if-output [out-node out-label in-node in-label]
   (if ((-> out-node g/node-type g/output-labels) out-label)
-    (g/connect out-node out-label in-node in-label)
+    (g/connect (g/node-id out-node) out-label (g/node-id in-node) in-label)
     []))
 
 (defn- gen-component-id [go-node base]
@@ -167,12 +167,12 @@
     (g/make-nodes (g/node->graph-id self)
                   [comp-node [ComponentNode :id id :position position :rotation rotation :path path]]
                   (concat
-                    (g/connect comp-node :outline       self :outline)
-                    (g/connect comp-node :_self          self :nodes)
-                    (g/connect comp-node :build-targets self :dep-build-targets)
-                    (g/connect comp-node :ddf-message   self :ref-ddf)
-                    (g/connect comp-node :id            self :child-ids)
-                    (g/connect comp-node :scene         self :child-scenes)
+                    (g/connect comp-node :outline       (g/node-id self) :outline)
+                    (g/connect comp-node :_self         (g/node-id self) :nodes)
+                    (g/connect comp-node :build-targets (g/node-id self) :dep-build-targets)
+                    (g/connect comp-node :ddf-message   (g/node-id self) :ref-ddf)
+                    (g/connect comp-node :id            (g/node-id self) :child-ids)
+                    (g/connect comp-node :scene         (g/node-id self) :child-scenes)
                     (project/connect-resource-node project
                                                    source-resource comp-node
                                                    [[:_self :source]
@@ -213,23 +213,23 @@
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
                      source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project)]]
-                    (g/connect source-node :_self        comp-node :source)
-                    (g/connect source-node :outline     comp-node :outline)
-                    (g/connect source-node :save-data   comp-node :save-data)
-                    (g/connect source-node :scene       comp-node :scene)
-                    (g/connect source-node :build-targets       comp-node :build-targets)
-                    (g/connect source-node :project-id       comp-node :project-id)
-                    (g/connect source-node :_self        self      :nodes)
-                    (g/connect comp-node   :outline     self      :outline)
-                    (g/connect comp-node   :ddf-message self      :embed-ddf)
-                    (g/connect comp-node   :id          self      :child-ids)
-                    (g/connect comp-node   :scene       self      :child-scenes)
-                    (g/connect comp-node   :_self        self      :nodes)
-                    (g/connect comp-node   :build-targets        self      :dep-build-targets))
+                    (g/connect source-node :_self         comp-node        :source)
+                    (g/connect source-node :outline       comp-node        :outline)
+                    (g/connect source-node :save-data     comp-node        :save-data)
+                    (g/connect source-node :scene         comp-node        :scene)
+                    (g/connect source-node :build-targets comp-node        :build-targets)
+                    (g/connect source-node :project-id    comp-node        :project-id)
+                    (g/connect source-node :_self         (g/node-id self) :nodes)
+                    (g/connect comp-node   :outline       (g/node-id self) :outline)
+                    (g/connect comp-node   :ddf-message   (g/node-id self) :embed-ddf)
+                    (g/connect comp-node   :id            (g/node-id self) :child-ids)
+                    (g/connect comp-node   :scene         (g/node-id self) :child-scenes)
+                    (g/connect comp-node   :_self         (g/node-id self) :nodes)
+                    (g/connect comp-node   :build-targets (g/node-id self) :dep-build-targets))
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
-                    (g/connect comp-node   :outline      self      :outline)
-                    (g/connect comp-node   :_self         self      :nodes)))))
+                    (g/connect comp-node   :outline      (g/node-id self)      :outline)
+                    (g/connect comp-node   :_self        (g/node-id self)      :nodes)))))
 
 (defn add-embedded-component-handler
   ([self]
