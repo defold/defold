@@ -675,7 +675,7 @@
   (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph))]
     (not (empty? undo-stack))))
 
-(defn redo
+(defn redo!
   [graph]
   (let [snapshot @*the-system*]
     (when-let [ks (is/redo-history (is/graph-history snapshot graph) snapshot)]

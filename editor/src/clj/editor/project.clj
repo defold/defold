@@ -168,7 +168,7 @@ ordinary paths."
 
 (handler/defhandler :redo :global
     (enabled? [project-graph] (g/has-redo? project-graph))
-    (run [project-graph] (g/redo project-graph)))
+    (run [project-graph] (g/redo! project-graph)))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Save All"

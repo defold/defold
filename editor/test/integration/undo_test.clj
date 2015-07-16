@@ -73,7 +73,7 @@
      (is (= 1 (count (outline-children go-node))))
 
      ;; redo deletion
-     (g/redo proj-graph)
+     (g/redo! proj-graph)
 
      (is (= 0 (count (outline-children go-node)))))))
 
@@ -151,7 +151,7 @@
            (is (= original-outline outline-after-undo)))
 
          ;; redo the deletion (component is gone)
-         (g/redo proj-graph)
+         (g/redo! proj-graph)
 
          ;; :outline should be re-produced again
          (is (= outline-without-component (remove-handlers (g/node-value outline :outline))))
@@ -164,7 +164,7 @@
            (is (= original-outline outline-after-second-undo)))
 
          ;; redo the deletion yet again (component is gone again)
-         (g/redo proj-graph)
+         (g/redo! proj-graph)
 
          ;; :outline should be re-produced yet again
          (is (= outline-without-component (remove-handlers (g/node-value outline :outline)))))))))

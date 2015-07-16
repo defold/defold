@@ -120,6 +120,6 @@
         (is (= 0 @dispose-counter))
         (g/transact (g/delete-node (g/node-id node)))
         (g/undo! my-graph)
-        (g/redo my-graph)
+        (g/redo! my-graph)
         (g/dispose-pending!)
         (is (= 1 @dispose-counter))))))
