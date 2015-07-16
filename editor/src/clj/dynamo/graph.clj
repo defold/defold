@@ -313,7 +313,7 @@
             (mapcat (fn [r#]
                       (let [new# (construct ~symb)]
                         (become r# new#)))
-                    to-be-replaced#)))
+                    (mapv node-id to-be-replaced#))))
          (var ~symb)))))
 
 ;; ---------------------------------------------------------------------------
@@ -419,8 +419,8 @@
   source-node and new-node will continue to exist. Any connections to
   labels that don't exist on new-node will be disconnected in the same
   transaction."
-  [source-node new-node]
-  (it/become source-node new-node))
+  [node-id new-node]
+  (it/become node-id new-node))
 
 (defn become!
   [source-node new-node]

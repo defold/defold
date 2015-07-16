@@ -66,7 +66,7 @@
       (let [[resource1] (tx-nodes (g/make-node world Resource :marker 99))
             id1         (:_id resource1)
             resource2   (g/construct Downstream)
-            tx-result   (g/transact (it/become resource1 resource2))
+            tx-result   (g/transact (it/become id1 resource2))
             after       (:basis tx-result)]
         (is (= :ok (:status tx-result)))
         (is (= Downstream (g/node-type (g/node-by-id after id1))))
@@ -202,7 +202,7 @@
       (let [tracker         (atom {})
             [counter]       (tx-nodes (g/make-node world TriggerExecutionCounter :tracking tracker))
             before-transmog @tracker
-            _               (g/transact (g/become counter (g/construct StringSource)))
+            _               (g/transact (g/become (g/node-id counter) (g/construct StringSource)))
             stringer        (g/refresh counter)
             after-transmog  @tracker]
         (is (identical? (:tracking counter) (:tracking stringer)))
@@ -356,7 +356,7 @@
             expected-value (g/node-value node :original-output)]
         (is (not (nil? expected-value)))
         (is (= expected-value (cache-peek system node-id :original-output)))
-        (let [tx-result (g/transact (g/become node (g/construct ReplacementNode)))]
+        (let [tx-result (g/transact (g/become (g/node-id node) (g/construct ReplacementNode)))]
           (yield)
           (is (nil? (cache-peek system node-id :original-output)))))))
 
@@ -364,7 +364,7 @@
     (with-clean-system
       (let [[node]       (tx-nodes (g/make-node world OriginalNode))
             node-id      (:_id node)
-            tx-result    (g/transact (g/become node (g/construct ReplacementNode)))
+            tx-result    (g/transact (g/become (g/node-id node) (g/construct ReplacementNode)))
             node         (g/refresh node)
             cached-value (g/node-value node :additional-output)]
         (yield)

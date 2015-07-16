@@ -102,7 +102,7 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (g/transact (it/become name1 (g/construct CacheTestNode)))
+                          (g/transact (it/become (g/node-id name1) (g/construct CacheTestNode)))
                           (is (= "Jane Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"
