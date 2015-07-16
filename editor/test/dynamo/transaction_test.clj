@@ -39,7 +39,7 @@
             id1                   (:_id resource1)
             id2                   (:_id resource2)
             tx-result             (g/transact (it/connect    (g/node-id resource1) :b (g/node-id resource2) :consumer))
-            tx-result             (g/transact (it/disconnect resource1 :b resource2 :consumer))
+            tx-result             (g/transact (it/disconnect id1 :b id2 :consumer))
             after                 (:basis tx-result)]
         (is (= :ok (:status tx-result)))
         (is (= [] (g/sources after id2 :consumer)))
@@ -153,7 +153,7 @@
             after-set-upstream @tracker
             _                  (g/transact (g/set-property node2 :excalibur "basis for a system of government"))
             after-set-property @tracker
-            _                  (g/transact (g/disconnect node1 :label node2 :excalibur))
+            _                  (g/transact (g/disconnect (g/node-id node1) :label (g/node-id node2) :excalibur))
             after-disconnect   @tracker]
         (is (= {:added 1 :input-connections [#{:excalibur}]} after-connect))
         (is (= {:added 1 :input-connections [#{:excalibur}]} after-set-upstream))

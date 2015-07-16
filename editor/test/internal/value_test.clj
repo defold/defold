@@ -256,8 +256,8 @@
        (is (= "Snake Solid" (g/node-value view-node :derived-value))))
 
       (g/transact
-       [(g/disconnect     aux-node :scalar view-node :last-name)
-        (g/disconnect content-node :scalar view-node :first-name)
+       [(g/disconnect     (g/node-id aux-node) :scalar (g/node-id view-node) :last-name)
+        (g/disconnect (g/node-id content-node) :scalar (g/node-id view-node) :first-name)
         (g/connect        (g/node-id aux-node) :scalar (g/node-id view-node) :first-name)
         (g/connect    (g/node-id content-node) :scalar (g/node-id view-node) :last-name)])
 

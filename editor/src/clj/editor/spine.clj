@@ -482,7 +482,7 @@
 (defn- disconnect-all [self label]
   (let [sources (g/sources-of self label)]
     (for [[src-node src-label] sources]
-      (g/disconnect src-node src-label self label))))
+      (g/disconnect (g/node-id src-node) src-label (g/node-id self) label))))
 
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:atlas} labels)
