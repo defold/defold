@@ -164,7 +164,7 @@ ordinary paths."
 
 (handler/defhandler :undo :global
     (enabled? [project-graph] (g/has-undo? project-graph))
-    (run [project-graph] (g/undo project-graph)))
+    (run [project-graph] (g/undo! project-graph)))
 
 (handler/defhandler :redo :global
     (enabled? [project-graph] (g/has-redo? project-graph))
