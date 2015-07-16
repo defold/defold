@@ -403,12 +403,12 @@
   Note that there might still be connections between the two nodes,
   from other outputs to other inputs.  Takes effect when a transaction
   is applied."
-  [source-node source-label target-node target-label]
-  (it/disconnect source-node source-label target-node target-label))
+  [source-node-id source-label target-node-id target-label]
+  (it/disconnect source-node-id source-label target-node-id target-label))
 
 (defn disconnect!
-  [source-node source-label target-node target-label]
-  (transact (disconnect source-node source-label target-node target-label)))
+  [source-node-id source-label target-node-id target-label]
+  (transact (disconnect source-node-id source-label target-node-id target-label)))
 
 (defn become
   "Turn one kind of node into another, in a transaction. All properties and their values
