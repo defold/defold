@@ -353,13 +353,6 @@
            ctors locals)
         ~@body-exprs))))
 
-(defmacro graph-with-nodes
-  [volatility binding-expr & body-exprs]
-  `(let [g# (g/make-graph! :volatility ~volatility)]
-     (g/transact
-      (make-nodes g# ~binding-expr ~@body-exprs))
-     g#))
-
 (defn operation-label
   "Set a human-readable label to describe the current transaction."
   [label]
@@ -646,7 +639,7 @@
   [config]
   (reset! *the-system* (is/make-system config)))
 
-(defn dispose-pending
+(defn dispose-pending!
   []
   (dispose/dispose-pending *the-system*))
 
