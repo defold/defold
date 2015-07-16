@@ -37,7 +37,7 @@ public class GuiSceneNode extends ComponentTypeNode {
     @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
     private String material;
 
-    @Property(editorType = EditorType.DROP_DOWN)
+    @Property(editorType = EditorType.DROP_DOWN, displayName = "Adjust Mode")
     private AdjustReference adjustReference = AdjustReference.ADJUST_REFERENCE_PARENT;
 
     private RGB backgroundColor = new RGB(0, 0, 0);
