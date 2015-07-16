@@ -122,7 +122,7 @@
     (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
                                   (g/make-node world SinkNode))]
       (g/transact
-       (g/connect source :_node-id sink :a-node-id))
+       (g/connect (g/node-id source) :_node-id (g/node-id sink) :a-node-id))
       (is (= (g/node-id source) (g/node-value source :_node-id) (g/node-value sink :a-node-id))))))
 
 
@@ -144,7 +144,7 @@
   (with-clean-system
     (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
                                   (g/make-node world VisibilityTestNode))]
-      (g/transact (g/connect snode :foo vnode :bar))
+      (g/transact (g/connect (g/node-id snode) :foo (g/node-id vnode) :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo "hi"))
             vnode-results (filter #(= (first %) (g/node-id vnode)) (:outputs-modified tx-result))
             modified      (into #{} (map second vnode-results))]
@@ -154,7 +154,7 @@
   (with-clean-system
     (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
                                   (g/make-node world VisibilityTestNode))]
-      (g/transact (g/connect snode :foo vnode :bar))
+      (g/transact (g/connect (g/node-id snode) :foo (g/node-id vnode) :bar))
       (is (= true (get-in (g/node-value vnode :_properties) [:baz :visible])))
       (g/transact (g/set-property snode :foo nil))
       (is (= false (get-in (g/node-value vnode :_properties) [:baz :visible]))))))
@@ -163,7 +163,7 @@
   (with-clean-system
     (let [[snode enode] (tx-nodes (g/make-node world SimpleIntTestNode)
                                   (g/make-node world EnablementTestNode))]
-      (g/transact(g/connect snode :foo enode :bar))
+      (g/transact(g/connect (g/node-id snode) :foo (g/node-id enode) :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
             enode-results (filter #(= (first %) (g/node-id enode)) (:outputs-modified tx-result))
             modified      (into #{} (map second enode-results))]
@@ -173,7 +173,7 @@
   (with-clean-system
     (let [[snode enode] (tx-nodes (g/make-node world SimpleIntTestNode :foo 1)
                                   (g/make-node world EnablementTestNode))]
-      (g/transact (g/connect snode :foo enode :bar))
+      (g/transact (g/connect (g/node-id snode) :foo (g/node-id enode) :bar))
       (is (= true (get-in (g/node-value enode :_properties) [:baz :enabled])))
       (g/transact (g/set-property snode :foo -1))
       (is (= false (get-in (g/node-value enode :_properties) [:baz :enabled]))))))
@@ -229,12 +229,12 @@
                                (g/make-node world ProductionFunctionInputsNode :prop :node2))
           _                   (g/transact
                                (concat
-                                (g/connect node0 :defnk-prop node1 :in)
-                                (g/connect node0 :defnk-prop node2 :in)
-                                (g/connect node1 :defnk-prop node2 :in)
-                                (g/connect node0 :defnk-prop node1 :in-multi)
-                                (g/connect node0 :defnk-prop node2 :in-multi)
-                                (g/connect node1 :defnk-prop node2 :in-multi)))
+                                (g/connect (g/node-id node0) :defnk-prop (g/node-id node1) :in)
+                                (g/connect (g/node-id node0) :defnk-prop (g/node-id node2) :in)
+                                (g/connect (g/node-id node1) :defnk-prop (g/node-id node2) :in)
+                                (g/connect (g/node-id node0) :defnk-prop (g/node-id node1) :in-multi)
+                                (g/connect (g/node-id node0) :defnk-prop (g/node-id node2) :in-multi)
+                                (g/connect (g/node-id node1) :defnk-prop (g/node-id node2) :in-multi)))
           graph               (is/basis system)]
       (testing "'special' defnk inputs"
         (is (identical? node0     (g/node-value node0 :defnk-this))))
@@ -254,7 +254,7 @@
       (let [[node0 node1] (tx-nodes
                             (g/make-node world ProductionFunctionInputsNode :prop :node0)
                             (g/make-node world ProductionFunctionInputsNode :prop :node1))
-            _ (g/transact  (g/connect node0 :prop node1 :in))]
+            _ (g/transact  (g/connect (g/node-id node0) :prop (g/node-id node1) :in))]
         (is (= :node0 (g/node-value node1 :defnk-in))))))
   (testing "the output has the same type as the property"
     (is (= g/Keyword
@@ -280,7 +280,7 @@
        (let [[source target] (tx-nodes
                               (g/make-node world AKeywordNode :prop "a-string")
                               (g/make-node world BOutputNode))
-             _ (g/transact  (g/connect source :prop target :keyword-input))]
+             _ (g/transact  (g/connect (g/node-id source) :prop (g/node-id target) :keyword-input))]
          (is (thrown? Exception (g/node-value target :keyword-output))))))))
 
 
@@ -299,18 +299,18 @@
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
         (g/transact
-         (g/connect node0 :out-from-self node1 :in))
+         (g/connect (g/node-id node0) :out-from-self (g/node-id node1) :in))
         (is (thrown? AssertionError (g/node-value node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
-        (g/transact (g/connect node :out-from-in node :in))
+        (g/transact (g/connect (g/node-id node) :out-from-in (g/node-id node) :in))
         (is (thrown? AssertionError (g/node-value node :out-from-in))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
-        (g/transact [(g/connect node0 :out-from-in node1 :in)
-                     (g/connect node1 :out-from-in node0 :in)])
+        (g/transact [(g/connect (g/node-id node0) :out-from-in (g/node-id node1) :in)
+                     (g/connect (g/node-id node1) :out-from-in (g/node-id node0) :in)])
         (is (thrown? AssertionError (g/node-value node1 :out-from-in)))))))
 
 (g/defnode BasicNode
@@ -391,14 +391,14 @@
     (with-clean-system
       (let [[node1 node2] (tx-nodes (g/make-node world Dummy)
                                     (g/make-node world Dummy))]
-        (is (thrown? AssertionError (g/connect! node1 :no-such-label node2 :i)))))))
+        (is (thrown? AssertionError (g/connect! (g/node-id node1) :no-such-label (g/node-id node2) :i)))))))
 
 (deftest error-on-bad-target-label
   (testing "AssertionError on bad target label"
     (with-clean-system
       (let [[node1 node2] (tx-nodes (g/make-node world Dummy)
                                     (g/make-node world Dummy))]
-        (is (thrown? AssertionError (g/connect! node1 :o node2 :no-such-label)))))))
+        (is (thrown? AssertionError (g/connect! (g/node-id node1) :o (g/node-id node2) :no-such-label)))))))
 
 (deftest error-on-bad-property
   (testing "AssertionError on setting bad property"

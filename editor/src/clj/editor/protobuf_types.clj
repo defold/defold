@@ -195,7 +195,7 @@
 
 (defn- connect-build-targets [self project path]
   (let [resource (workspace/resolve-resource (:resource self) path)]
-    (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
+    (project/connect-resource-node project resource (g/node-id self) [[:build-targets :dep-build-targets]])))
 
 (defn load-pb [project self input def]
   (let [pb (protobuf/read-text (:pb-class def) input)

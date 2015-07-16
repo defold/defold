@@ -473,9 +473,9 @@
   (if-let [atlas-node (project/get-resource-node project atlas)]
     (let [outputs (-> atlas-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect atlas-node :anim-data self :anim-data)
-         (g/connect atlas-node :gpu-texture self :gpu-texture)
-         (g/connect atlas-node :build-targets self :dep-build-targets)]
+        [(g/connect (g/node-id atlas-node) :anim-data (g/node-id self) :anim-data)
+         (g/connect (g/node-id atlas-node) :gpu-texture (g/node-id self) :gpu-texture)
+         (g/connect (g/node-id atlas-node) :build-targets (g/node-id self) :dep-build-targets)]
         []))
     []))
 
@@ -521,7 +521,7 @@
       (g/set-property self :spine-json spine-resource)
       (g/set-property self :atlas atlas)
       (g/set-property self :sample-rate (:sample-rate spine))
-      (project/connect-resource-node project spine-resource self [[:content :spine-scene]])
+      (project/connect-resource-node project spine-resource (g/node-id self) [[:content :spine-scene]])
       (connect-atlas project self atlas))))
 
 (defn register-resource-types [workspace]

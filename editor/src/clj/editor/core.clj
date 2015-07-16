@@ -55,8 +55,8 @@ This function should not be called directly."
                                                      (g/node-id out) out-label
                                                      (g/node-id in)  in-label)))
                                     candidates)]
-      (for [connection candidates]
-        (apply g/connect connection)))))
+      (for [[out out-label in in-label] candidates]
+        (g/connect (g/node-id out) out-label (g/node-id in) in-label)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Cascading delete

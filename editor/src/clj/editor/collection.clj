@@ -249,10 +249,10 @@
                   [go-node [GameObjectInstanceNode :id id :path path
                             :position position :rotation rotation :scale scale]]
                   (concat
-                    (g/connect go-node :_self self :nodes)
-                    (g/connect go-node     :ddf-message   self    :ref-inst-ddf)
-                    (g/connect go-node     :build-targets self    :dep-build-targets)
-                    (g/connect go-node     :id            self    :ids)
+                    (g/connect go-node :_self         (g/node-id self) :nodes)
+                    (g/connect go-node :ddf-message   (g/node-id self)    :ref-inst-ddf)
+                    (g/connect go-node :build-targets (g/node-id self)    :dep-build-targets)
+                    (g/connect go-node :id            (g/node-id self)    :ids)
                     (project/connect-resource-node project
                                                    source-resource go-node
                                                    [[:_self           :source]
@@ -292,8 +292,8 @@
          (concat
           (g/operation-sequence op-seq)
           (g/operation-label "Add Game Object")
-          (g/connect go-node :outline coll-node :child-outlines)
-          (g/connect go-node :scene coll-node :child-scenes)
+          (g/connect (g/node-id go-node) :outline (g/node-id coll-node) :child-outlines)
+          (g/connect (g/node-id go-node) :scene   (g/node-id coll-node) :child-scenes)
           (project/select project [go-node])))))))
 
 
@@ -315,19 +315,19 @@
                     [go-node [GameObjectInstanceNode :id id :embedded true
                               :position position :rotation rotation :scale scale]
                      source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project)]]
-                    (g/connect source-node :_self          go-node :source)
-                    (g/connect source-node :outline       go-node :outline)
-                    (g/connect source-node :save-data     go-node :save-data)
-                    (g/connect source-node :build-targets go-node :build-targets)
-                    (g/connect source-node :scene         go-node :scene)
-                    (g/connect source-node :_self          self    :nodes)
-                    (g/connect go-node     :ddf-message   self    :embed-inst-ddf)
-                    (g/connect go-node     :build-targets self    :dep-build-targets)
-                    (g/connect go-node     :id            self    :ids)
-                    (g/connect go-node     :_self          self    :nodes))
+                    (g/connect source-node :_self         go-node          :source)
+                    (g/connect source-node :outline       go-node          :outline)
+                    (g/connect source-node :save-data     go-node          :save-data)
+                    (g/connect source-node :build-targets go-node          :build-targets)
+                    (g/connect source-node :scene         go-node          :scene)
+                    (g/connect source-node :_self         (g/node-id self) :nodes)
+                    (g/connect go-node     :ddf-message   (g/node-id self) :embed-inst-ddf)
+                    (g/connect go-node     :build-targets (g/node-id self) :dep-build-targets)
+                    (g/connect go-node     :id            (g/node-id self) :ids)
+                    (g/connect go-node     :_self         (g/node-id self) :nodes))
       (g/make-nodes (g/node->graph-id self)
                     [go-node [GameObjectInstanceNode :id id :embedded true]]
-                    (g/connect go-node     :_self          self    :nodes)))))
+                    (g/connect go-node     :_self         (g/node-id self)    :nodes)))))
 
 (defn- add-game-object [selection]
   (let [coll-node (g/node-by-id (first selection))
@@ -348,8 +348,8 @@
        (concat
         (g/operation-sequence op-seq)
         (g/operation-label "Add Game Object")
-        (g/connect go-node :outline coll-node :child-outlines)
-        (g/connect go-node :scene coll-node :child-scenes)
+        (g/connect (g/node-id go-node) :outline (g/node-id coll-node) :child-outlines)
+        (g/connect (g/node-id go-node) :scene   (g/node-id coll-node) :child-scenes)
         ((:load-fn resource-type) project source-node (io/reader (:resource source-node)))
         (project/select project [go-node]))))))
 
@@ -369,12 +369,12 @@
     (g/make-nodes (g/node->graph-id self)
                   [coll-node [CollectionInstanceNode :id id :path path
                               :position position :rotation rotation :scale scale]]
-                  (g/connect coll-node :outline self :child-outlines)
-                  (g/connect coll-node :_self    self :nodes)
-                  (g/connect coll-node   :ddf-message   self :ref-coll-ddf)
-                  (g/connect coll-node   :id            self :ids)
-                  (g/connect coll-node   :scene         self :child-scenes)
-                  (g/connect coll-node   :build-targets self :sub-build-targets)
+                  (g/connect coll-node :outline       (g/node-id self) :child-outlines)
+                  (g/connect coll-node :_self         (g/node-id self) :nodes)
+                  (g/connect coll-node :ddf-message   (g/node-id self) :ref-coll-ddf)
+                  (g/connect coll-node :id            (g/node-id self) :ids)
+                  (g/connect coll-node :scene         (g/node-id self) :child-scenes)
+                  (g/connect coll-node :build-targets (g/node-id self) :sub-build-targets)
                   (project/connect-resource-node project
                                                  source-resource coll-node
                                                  [[:_self          :source]
@@ -440,13 +440,13 @@
           tx-go-creation
           (for [[child parent] child->parent
                 :let [child-id (id->nid child)
-                      parent-id (if parent (id->nid parent) self)]]
+                      parent-id (if parent (id->nid parent) (g/node-id self))]]
             (concat
-              (g/connect child-id :outline parent-id :child-outlines)
-              (g/connect child-id :scene parent-id :child-scenes)
-              (if parent
-                (g/connect child-id :id parent-id :child-ids)
-                [])))))
+             (g/connect child-id :outline parent-id :child-outlines)
+             (g/connect child-id :scene parent-id :child-scenes)
+             (if parent
+               (g/connect child-id :id parent-id :child-ids)
+               [])))))
       (for [coll-instance (:collection-instances collection)
             :let [; TODO - fix non-uniform hax
                   scale (:scale coll-instance)

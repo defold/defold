@@ -292,7 +292,7 @@
         (g/set-property self :height (:height level))
         (g/set-property self :blocks (:blocks level))
         (project/connect-resource-node project
-                                       atlas-resource self
+                                       atlas-resource (g/node-id self)
                                        [[:anim-data :anim-data]
                                         [:gpu-texture :gpu-texture]])))))
 

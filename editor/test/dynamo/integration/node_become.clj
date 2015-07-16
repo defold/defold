@@ -61,7 +61,7 @@
     (with-clean-system
       (let [[node io-node]   (tx-nodes (g/make-node world OriginalNode)
                                        (g/make-node world InputOutputNode))]
-        (g/transact (g/connect io-node :output-a node :input-a))
+        (g/transact (g/connect (g/node-id io-node) :output-a (g/node-id node) :input-a))
         (is (= "original: Cake is tasty" (g/node-value node :output-a)))
         (is (g/connected? (g/now) (g/node-id io-node) :output-a (g/node-id node) :input-a))
         (g/transact (g/become node (g/construct NewNode)))
@@ -74,7 +74,7 @@
       (let [[node io-node]   (tx-nodes (g/make-node world OriginalNode)
                                        (g/make-node world InputOutputNode))]
         (is (not (g/connected? (g/now) (g/node-id io-node) :output-b (g/node-id node) :input-b)))
-        (g/transact (g/connect io-node :output-b node :input-b))
+        (g/transact (g/connect (g/node-id io-node) :output-b (g/node-id node) :input-b))
         (is (= "original: Bread is tasty" (g/node-value node :output-b)))
         (is (g/connected? (g/now) (g/node-id io-node) :output-b (g/node-id node) :input-b))
         (g/transact (g/become node (g/construct NewNode)))
@@ -86,7 +86,7 @@
     (with-clean-system
       (let [[node io-node]   (tx-nodes (g/make-node world OriginalNode)
                                        (g/make-node world InputOutputNode))]
-        (g/transact (g/connect node :a-property io-node :input-a))
+        (g/transact (g/connect (g/node-id node) :a-property (g/node-id io-node) :input-a))
         (is (= "passthrough: original-node-property" (g/node-value io-node :passthrough-a)))
         (is (g/connected? (g/now) (g/node-id node) :a-property (g/node-id io-node) :input-a))
         (g/transact (g/become node (g/construct NewNode)))
@@ -98,7 +98,7 @@
     (with-clean-system
       (let [[node io-node]   (tx-nodes (g/make-node world OriginalNode)
                                        (g/make-node world InputOutputNode))]
-        (g/transact (g/connect node :z-property io-node :input-a))
+        (g/transact (g/connect (g/node-id node) :z-property (g/node-id io-node) :input-a))
         (is (= "passthrough: zeee" (g/node-value io-node :passthrough-a)))
         (is (g/connected? (g/now) (g/node-id node) :z-property (g/node-id io-node) :input-a))
         (g/transact (g/become node (g/construct NewNode)))
