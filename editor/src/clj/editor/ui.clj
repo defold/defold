@@ -182,7 +182,10 @@
   (text [this] (.getText this))
   ; TODO: This is hack to reduce the cpu usage due to bug DEFEDIT-131
   (text! [this val] (when-not (= val (.getText this))
-                     (.setText this val))))
+                      (.setText this val)
+                      (when (.isFocused this)
+                        (.end this)
+                        (.selectAll this)))))
 
 (extend-type TextInputControl
   HasAction

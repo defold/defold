@@ -68,10 +68,12 @@
   (inherits scene/SceneNode)
 
   (property id g/Str)
-  (property embedded  g/Bool (dynamic visible (g/always false)))
-  (property path  g/Str (dynamic visible (g/always false)))
+  (property embedded g/Bool (dynamic visible (g/always false)))
+  (property path g/Str (dynamic visible (g/always false)))
+  (property linked-properties g/Any
+            (dynamic link (g/fnk [source-properties] source-properties)))
 
-  (input source g/Any)
+  (input source-properties g/Any)
   (input project-id g/NodeID)
   (input outline g/Any)
   (input save-data g/Any)
@@ -94,10 +96,7 @@
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                :instance-msg ddf-message
                                                                                :transform transform})])
-                                               [])))
-
-  core/MultiNode
-  (sub-nodes [self] (if (:embedded self) [(g/node-value self :source)] [])))
+                                               []))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf
@@ -175,8 +174,7 @@
                     (g/connect comp-node :scene         self :child-scenes)
                     (project/connect-resource-node project
                                                    source-resource comp-node
-                                                   [[:self :source]
-                                                    [:outline :outline]
+                                                   [[:outline :outline]
                                                     [:save-data :save-data]
                                                     [:scene :scene]
                                                     [:build-targets :build-targets]
@@ -213,7 +211,7 @@
       (g/make-nodes (g/node->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
                      source-node [(:node-type resource-type) :resource resource :project-id (g/node-id project)]]
-                    (g/connect source-node :self        comp-node :source)
+                    (g/connect source-node :properties  comp-node :source-properties)
                     (g/connect source-node :outline     comp-node :outline)
                     (g/connect source-node :save-data   comp-node :save-data)
                     (g/connect source-node :scene       comp-node :scene)
