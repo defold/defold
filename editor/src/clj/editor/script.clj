@@ -45,8 +45,8 @@
                                                      ; TODO - properties
                                                      })})
 
-(g/defnk produce-build-targets [node-id resource content]
-  [{:node-id node-id
+(g/defnk produce-build-targets [_node-id resource content]
+  [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
     :user-data {:content content}}])

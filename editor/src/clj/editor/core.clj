@@ -55,8 +55,8 @@ This function should not be called directly."
                                                      (g/node-id out) out-label
                                                      (g/node-id in)  in-label)))
                                     candidates)]
-      (for [connection candidates]
-        (apply g/connect connection)))))
+      (for [[out out-label in in-label] candidates]
+        (g/connect (g/node-id out) out-label (g/node-id in) in-label)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Cascading delete
@@ -68,7 +68,7 @@ This function should not be called directly."
   [transaction graph self label kind]
   (when (g/is-deleted? transaction self)
     (for [node-to-delete (g/node-value self :nodes)]
-      (g/delete-node node-to-delete))))
+      (g/delete-node (g/node-id node-to-delete)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bootstrapping the core node types
@@ -76,7 +76,7 @@ This function should not be called directly."
 
 (g/defnode Scope
   "Scope provides a level of grouping for nodes. Scopes nest.
-When a node is added to a Scope, the node's :self output will be
+When a node is added to a Scope, the node's :_self output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."

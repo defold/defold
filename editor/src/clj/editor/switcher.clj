@@ -256,10 +256,10 @@
    :content (with-out-str (pprint level))})
 
 (g/defnk produce-scene
-   [self aabb level gpu-texture anim-data]
+   [_self aabb level gpu-texture anim-data]
    (let [level-layout (layout-level level)
          level-vertex-binding (vtx/use-with (gen-level-vertex-buffer anim-data level-layout cell-size-half) shader)]
-     {:id (g/node-id self)
+     {:id (g/node-id _self)
       :aabb aabb
       :renderable {:render-fn (fn [gl render-args renderables count] (render-level gl level gpu-texture level-vertex-binding level-layout))
                    :passes [pass/transparent]}}))
@@ -286,16 +286,15 @@
 (defn load-level [project self input]
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
     (let [level      (edn/read reader)
-          atlas-node (project/resolve-resource-node self switcher-atlas-file)]
+          atlas-resource (workspace/resolve-resource (:resource self) switcher-atlas-file)]
       (concat
         (g/set-property self :width (:width level))
         (g/set-property self :height (:height level))
         (g/set-property self :blocks (:blocks level))
-        (let [outputs (-> atlas-node g/node-type g/output-labels)]
-          (if (every? #(contains? outputs %) [:anim-data :gpu-texture])
-            [(g/connect atlas-node :anim-data self :anim-data)
-             (g/connect atlas-node :gpu-texture self :gpu-texture)]
-            []))))))
+        (project/connect-resource-node project
+                                       atlas-resource (g/node-id self)
+                                       [[:anim-data :anim-data]
+                                        [:gpu-texture :gpu-texture]])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

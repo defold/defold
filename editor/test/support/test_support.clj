@@ -1,6 +1,8 @@
 (ns support.test-support
   (:require [dynamo.graph :as g]
             [internal.async :as ia]
+            [internal.system :as is]
+            [internal.system :as is]
             [internal.system :as is]))
 
 (defmacro with-clean-system
@@ -9,7 +11,7 @@
         forms          (if (map? (first forms)) (next forms)  forms)]
     `(let [~'system      (is/make-system ~configuration)
            ~'cache       (:cache ~'system)
-           ~'disposal-ch (is/disposal-queue ~'system)
+           ~'disposal-ch (is/cache-disposal-queue ~'system)
            ~'world       (first (keys (is/graphs ~'system)))]
        (binding [g/*the-system* (atom ~'system)]
          ~@forms))))
@@ -17,9 +19,13 @@
 (defn tx-nodes [& txs]
   (g/tx-nodes-added (g/transact txs)))
 
-(defn take-waiting-to-dispose
+(defn take-waiting-cache-to-dispose
   [system]
-  (ia/take-all (is/disposal-queue system)))
+  (ia/take-all (is/cache-disposal-queue system)))
+
+(defn take-waiting-deleted-to-dispose
+  [system]
+  (ia/take-all (is/deleted-disposal-queue system)))
 
 (defn tempfile
   ^java.io.File [prefix suffix auto-delete?]
@@ -38,3 +44,11 @@
   "Give up the thread just long enough for a context switch"
   []
   (Thread/sleep 1))
+
+(defn undo-stack
+  [graph]
+  (is/undo-stack (is/graph-history @g/*the-system* graph)))
+
+(defn redo-stack
+  [graph]
+  (is/redo-stack (is/graph-history @g/*the-system* graph)))

@@ -12,6 +12,13 @@
                        editor.image-test
                        dynamo.transaction-test
                        dynamo.util-test
+                       dynamo.integration.error-substitute-values
+                       dynamo.integration.garbage-collection
+                       dynamo.integration.graph-functions
+                       dynamo.integration.node-become
+                       dynamo.integration.schema-validation
+                       dynamo.integration.value-disposal
+                       dynamo.integration.visibility-enablement
                        editor.handler-test
                        editor.injection-test
                        editor.math-test

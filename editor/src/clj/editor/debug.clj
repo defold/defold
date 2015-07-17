@@ -1,9 +1,10 @@
 (ns editor.debug
   (:require [cider.nrepl :as cider]
             [clojure.tools.nrepl.server :as nrepl]
+            [refactor-nrepl.middleware :as refactor]
             [dynamo.util :refer [applym]]))
 
-(defonce ^:private repl-server (agent {:handler cider/cider-nrepl-handler}))
+(defonce ^:private repl-server (agent nil))
 
 (defn- start-and-print
   [config]
@@ -13,7 +14,7 @@
 
 (defn start-server
   [port]
-  (let [repl-config (cond-> {:handler cider/cider-nrepl-handler}
+  (let [repl-config (cond-> {:handler (refactor/wrap-refactor cider/cider-nrepl-handler)}
                       port
                       (assoc :port port))]
       (send repl-server (constantly repl-config))

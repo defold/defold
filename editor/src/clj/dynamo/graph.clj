@@ -17,13 +17,13 @@
 
 (namespaces/import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties declared-inputs injectable-inputs declared-outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
 (namespaces/import-vars [internal.graph.types IDisposable dispose disposable?])
 
-(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-validate property-valid-value? property-enabled? property-visible? property-tags property-type? Properties])
+(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-validate property-valid-value? property-tags property-type? Properties])
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
 
@@ -44,7 +44,7 @@
 
 (def ^:dynamic *tps-debug* nil)
 
-(namespaces/import-vars [internal.system system-cache disposal-queue])
+(namespaces/import-vars [internal.system system-cache cache-disposal-queue deleted-disposal-queue])
 
 (defn now
   []
@@ -56,6 +56,12 @@
      (ig/node (is/graph @*the-system* gid) node-id)))
   ([basis node-id]
    (ig/node-by-id-at basis node-id)))
+
+(defn node-type*
+  ([node-id]
+   (node-type* (now) node-id))
+  ([basis node-id]
+   (gt/node-type (ig/node-by-id-at basis node-id))))
 
 (defn cache [] (is/system-cache @*the-system*))
 
@@ -152,8 +158,8 @@
 ;; ---------------------------------------------------------------------------
 (def node-intrinsics
   [(list 'property '_id `s/Int)
-   (list 'output 'self `s/Any `(pc/fnk [~'this] ~'this))
-   (list 'output 'node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
+   (list 'output '_self `s/Any `(pc/fnk [~'this] ~'this))
+   (list 'output '_node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -180,7 +186,7 @@
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
   (assert (::ctor node-type))
-  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (properties node-type)))]
+  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (merge (internal-properties node-type) (properties node-type))))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
   ((::ctor node-type) args))
 
@@ -307,7 +313,7 @@
             (mapcat (fn [r#]
                       (let [new# (construct ~symb)]
                         (become r# new#)))
-                    to-be-replaced#)))
+                    (mapv node-id to-be-replaced#))))
          (var ~symb)))))
 
 ;; ---------------------------------------------------------------------------
@@ -347,13 +353,6 @@
            ctors locals)
         ~@body-exprs))))
 
-(defmacro graph-with-nodes
-  [volatility binding-expr & body-exprs]
-  `(let [g# (g/make-graph! :volatility ~volatility)]
-     (g/transact
-      (make-nodes g# ~binding-expr ~@body-exprs))
-     g#))
-
 (defn operation-label
   "Set a human-readable label to describe the current transaction."
   [label]
@@ -375,34 +374,34 @@
 
 (defn delete-node
   "Remove a node from the world."
-  [n]
-  (it/delete-node n))
+  [node-id]
+  (it/delete-node node-id))
 
 (defn delete-node!
-  [n]
-  (transact (delete-node n)))
+  [node-id]
+  (transact (delete-node node-id)))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied."
-  [source-node source-label target-node target-label]
-  (it/connect source-node source-label target-node target-label))
+  [source-node-id source-label target-node-id target-label]
+  (it/connect source-node-id source-label target-node-id target-label))
 
 (defn connect!
-  [source-node source-label target-node target-label]
-  (transact (connect source-node source-label target-node target-label)))
+  [source-node-id source-label target-node-id target-label]
+  (transact (connect source-node-id source-label target-node-id target-label)))
 
 (defn disconnect
   "Remove a connection from an output of the source node to the input on the target node.
   Note that there might still be connections between the two nodes,
   from other outputs to other inputs.  Takes effect when a transaction
   is applied."
-  [source-node source-label target-node target-label]
-  (it/disconnect source-node source-label target-node target-label))
+  [source-node-id source-label target-node-id target-label]
+  (it/disconnect source-node-id source-label target-node-id target-label))
 
 (defn disconnect!
-  [source-node source-label target-node target-label]
-  (transact (disconnect source-node source-label target-node target-label)))
+  [source-node-id source-label target-node-id target-label]
+  (transact (disconnect source-node-id source-label target-node-id target-label)))
 
 (defn become
   "Turn one kind of node into another, in a transaction. All properties and their values
@@ -413,8 +412,8 @@
   source-node and new-node will continue to exist. Any connections to
   labels that don't exist on new-node will be disconnected in the same
   transaction."
-  [source-node new-node]
-  (it/become source-node new-node))
+  [node-id new-node]
+  (it/become node-id new-node))
 
 (defn become!
   [source-node new-node]
@@ -488,6 +487,26 @@
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
 ;; ---------------------------------------------------------------------------
+(defn- arcs->tuples
+  [arcs]
+  (util/project arcs [:source :sourceLabel :target :targetLabel]))
+
+(defn inputs
+  "Return the inputs to this node. Returns a collection like
+  [[node-id output] [node-id output]...].
+
+  If there are no inputs connected, returns an empty collection."
+  ([node-id]       (inputs (now) node-id))
+  ([basis node-id] (arcs->tuples (gt/arcs-by-tail basis node-id))))
+
+(defn outputs
+  "Return the outputs from this node. Returns a collection like
+  [[node-id input] [node-id input]...].
+
+  If there are no outputs connected, returns an empty collection."
+  ([node-id]       (outputs (now) node-id))
+  ([basis node-id] (arcs->tuples (gt/arcs-by-head basis node-id))))
+
 (defn node-feeding-into
   "Find the one-and-only node that sources this input on this node.
    Should you use this on an input label with multiple connections,
@@ -514,7 +533,7 @@
   ([outputs]
    (invalidate! (now) outputs))
   ([basis outputs]
-   (c/cache-invalidate (cache) (dependencies basis outputs))))
+    (c/cache-invalidate (cache) (dependencies basis outputs))))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
@@ -543,11 +562,11 @@
         all-arcs (mapcat #(all-sources basis (.target ^Arc %)) (gt/arcs-by-tail basis sid))]
     (filterv #(in-same-graph? gid (.source ^Arc %)) all-arcs)))
 
-(defn input-traverse [basis pred root-ids]
+(defn- input-traverse [basis pred root-ids]
   (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
 
-(defn serialize-node [node]
-  (let [all-node-properties    (dissoc (select-keys node (keys (-> node gt/node-type gt/properties))) :_id)
+(defn- serialize-node [node]
+  (let [all-node-properties    (select-keys node (keys (-> node gt/node-type gt/properties)))
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:serial-id (gt/node-id node)
      :node-type (gt/node-type node)
@@ -563,7 +582,7 @@
   (let [all-types (conj (supertypes (node-type node)) (node-type node))]
     (or (some #(get handlers %) all-types) not-found)))
 
-(defn serialize-arc [basis write-handlers arc]
+(defn- serialize-arc [basis write-handlers arc]
   (let [[pid plabel]  (gt/head arc)
         [cid clabel]  (gt/tail arc)
         pnode         (ig/node-by-id-at basis pid)
@@ -571,13 +590,8 @@
         write-handler (lookup-handler write-handlers pnode default-write-handler)]
    [(write-handler pnode plabel) (default-write-handler cnode clabel)]))
 
-(defn guard [f g]
-  (fn [& args]
-    (when (apply f args)
-      (apply g args))))
-
-(defn guard-arc [f g]
-  (guard
+(defn- guard-arc [f g]
+  (util/guard
    (fn [basis ^Arc arc]
      (f (ig/node-by-id-at basis (.source arc))))
    g))
@@ -625,9 +639,9 @@
   [config]
   (reset! *the-system* (is/make-system config)))
 
-(defn dispose-pending
+(defn dispose-pending!
   []
-  (dispose/dispose-pending (is/disposal-queue @*the-system*)))
+  (dispose/dispose-pending *the-system*))
 
 (defn- make-graph
   [& {:as options}]
@@ -650,33 +664,27 @@
     (transact (mapv it/delete-node (ig/node-ids graph)))
     (swap! *the-system* is/detach-graph graph-id)))
 
-(defn undo
+(defn undo!
   [graph]
   (let [snapshot @*the-system*]
     (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
       (invalidate! ks))))
 
-(defn undo-stack
-  [graph]
-  (is/undo-stack (is/graph-history @*the-system* graph)))
-
 (defn has-undo?
   [graph]
-  (not (empty? (undo-stack graph))))
+  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph))]
+    (not (empty? undo-stack))))
 
-(defn redo
+(defn redo!
   [graph]
   (let [snapshot @*the-system*]
     (when-let [ks (is/redo-history (is/graph-history snapshot graph) snapshot)]
       (invalidate! ks))))
 
-(defn redo-stack
-  [graph]
-  (is/redo-stack (is/graph-history @*the-system* graph)))
-
 (defn has-redo?
   [graph]
-  (not (empty? (redo-stack graph))))
+  (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph))]
+    (not (empty? redo-stack))))
 
 (defn reset-undo!
   [graph]
