@@ -1,11 +1,13 @@
 (ns editor.properties-view
-  (:require [camel-snake-kebab :as camel]
+  (:require [clojure.set :as set]
+            [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [editor.types :as types]
+            [editor.properties :as properties]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
@@ -18,7 +20,7 @@
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
-           [javafx.geometry Insets]
+           [javafx.geometry Insets Pos]
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
@@ -33,28 +35,17 @@
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [com.google.protobuf ProtocolMessageEnum]))
 
-
-; From https://github.com/mikera/clojure-utils/blob/master/src/main/clojure/mikera/cljutils/loops.clj
-(defmacro doseq-indexed
-  "loops over a set of values, binding index-sym to the 0-based index of each value"
-  ([[val-sym values index-sym] & code]
-  `(loop [vals# (seq ~values)
-          ~index-sym (long 0)]
-     (if vals#
-       (let [~val-sym (first vals#)]
-             ~@code
-             (recur (next vals#) (inc ~index-sym)))
-       nil))))
-
 (def create-property-control! nil)
 
-(defmulti create-property-control! (fn [edit-type _ _] (:type edit-type)))
+(defmulti create-property-control! (fn [edit-type _ _ _] (:type edit-type)))
 
-(defmethod create-property-control! String [_ workspace on-new-value]
+(defmethod create-property-control! String [_ _ _ set-values-fn]
   (let [text (TextField.)
-        refresher (fn [val _] (ui/text! text (str val)))]
-    (ui/on-action! text (fn [_] (on-new-value (.getText text))))
-    [text refresher]))
+        update-ui-fn (fn [values]
+                       (ui/text! text (properties/unify-values (map str values))))]
+    (ui/on-action! text (fn [_]
+                          (set-values-fn (repeat (.getText text)))))
+    [text update-ui-fn]))
 
 (defn- to-int [s]
   (try
@@ -62,90 +53,106 @@
     (catch Throwable _
       nil)))
 
-(defmethod create-property-control! g/Int [_ workspace on-new-value]
+(defmethod create-property-control! g/Int [_ _ get-values-fn set-values-fn]
   (let [text (TextField.)
-        refresher (fn [val _] (ui/text! text (str val)))]
-    (ui/on-action! text (fn [_] (on-new-value (to-int (.getText text)))))
-    [text refresher]))
+        update-ui-fn (fn [values] (ui/text! text (str (properties/unify-values (map int values)))))]
+    (ui/on-action! text (fn [_] (if-let [v (to-int (.getText text))]
+                                  (set-values-fn (repeat v))
+                                  (update-ui-fn (get-values-fn)))))
+    [text update-ui-fn]))
 
-(defmethod create-property-control! g/Bool [_ workspace on-new-value]
+(defmethod create-property-control! g/Bool [_ _ _ set-values-fn]
   (let [check (CheckBox.)
-        refresher (fn [val _] (.setSelected check (boolean val)))]
-    (ui/on-action! check (fn [_] (on-new-value (.isSelected check))))
-    [check refresher]))
+        update-ui-fn (fn [values] (let [v (properties/unify-values (map boolean values))]
+                                    (if (nil? v)
+                                      (.setIndeterminate check true)
+                                      (doto check
+                                        (.setIndeterminate false)
+                                        (.setSelected v)))))]
+    (ui/on-action! check (fn [_] (set-values-fn (repeat (.isSelected check)))))
+    [check update-ui-fn]))
 
 (defn- to-double [s]
-  (try
-    (Double/parseDouble s)
-    (catch Throwable _
-      nil)))
+ (try
+   (Double/parseDouble s)
+   (catch Throwable _
+     nil)))
 
-(defmethod create-property-control! types/Vec3 [_ workspace on-new-value]
+(defmethod create-property-control! types/Vec3 [_ _ get-values-fn set-values-fn]
   (let [x (TextField.)
         y (TextField.)
         z (TextField.)
-        box (HBox.)
-        refresher (fn [vec _]
-                 (doseq-indexed [t [x y z] i]
-                   (ui/text! t (str (nth vec i)))))]
-
+        box (doto (HBox.)
+              (.setAlignment (Pos/BASELINE_LEFT)))
+        update-ui-fn (fn [values]
+                       (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(double (nth % i)) values)))]) [x y z])]
+                         (ui/text! t v)))]
     (.setSpacing box 6)
-    (doseq [t [x y z]]
-      (ui/on-action! ^TextField t (fn [_] (on-new-value (mapv #(to-double (.getText ^TextField %)) [x y z]))))
+    (doseq [[t f] (map-indexed (fn [i t]
+                                 [t (fn [_] (let [v (to-double (.getText ^TextField t))
+                                                  current-vals (get-values-fn)]
+                                              (if v
+                                                (set-values-fn (mapv #(assoc (vec %) i v) current-vals))
+                                                (update-ui-fn current-vals))))])
+                               [x y z])]
+      (ui/on-action! ^TextField t f))
+    (doseq [[t label] (map vector [x y z] ["x" "y" "z"])]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
-      (.add (.getChildren box) t))
-    [box refresher]))
+      (doto (.getChildren box)
+        (.add (Label. label))
+        (.add t)))
+    [box update-ui-fn]))
 
-(defmethod create-property-control! types/Color [_ workspace on-new-value]
- (let [color-picker (ColorPicker.)
-       handler (ui/event-handler event
-                                 (let [^Color c (.getValue color-picker)]
-                                   (on-new-value [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)])))
-       refresher (fn [val _] (.setValue color-picker (Color. (nth val 0) (nth val 1) (nth val 2) (nth val 3))))]
-   (.setOnAction color-picker handler)
-   [color-picker refresher]))
+#_(defmethod create-property-control! types/Color [_ _ on-new-value]
+   (let [color-picker (ColorPicker.)
+         refresher (fn [val _] (.setValue color-picker (Color. (nth val 0) (nth val 1) (nth val 2) (nth val 3))))
+         handler (ui/event-handler event
+                                   (let [^Color c (.getValue color-picker)]
+                                     (on-new-value [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)] refresher)))]
+     (.setOnAction color-picker handler)
+     [color-picker refresher]))
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
 
-(defmethod create-property-control! :choicebox [edit-type workspace on-new-value]
-  (let [cb (ChoiceBox.)
-        last-refresher-options (atom nil)
-        refresher (fn [val edit-type]
-                    (binding [*programmatic-setting* true]
-                      (let [options (:options edit-type)]
-                        (when (or (nil? @last-refresher-options) (not= options @last-refresher-options))
-                          (let [inv-options (clojure.set/map-invert options)]
-                            (reset! last-refresher-options options)
-                            (.clear (.getItems cb))
-                            (.addAll (.getItems cb) (object-array (map first options)))
-                            (.setConverter cb (proxy [StringConverter] []
-                                                (toString [value]
-                                                  (get options value (str value)))
-                                                (fromString [s]
-                                                  (inv-options s))))))
-                        (.setValue cb val))))]
+(defmethod create-property-control! :choicebox [edit-type _ get-values-fn set-values-fn]
+  (let [options (:options edit-type)
+        inv-options (clojure.set/map-invert options)
+        cb (doto (ChoiceBox.)
+             (-> (.getItems) (.addAll (object-array (map first options))))
+             (.setConverter (proxy [StringConverter] []
+                              (toString [value]
+                                (get options value (str value)))
+                              (fromString [s]
+                                (inv-options s)))))
+        update-ui-fn (fn [values]
+                       (binding [*programmatic-setting* true]
+                         (.setValue cb (properties/unify-values values))))]
     (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
                                       (when-not *programmatic-setting*
-                                        (on-new-value new-val))))
-    [cb refresher]))
+                                        (set-values-fn (repeat new-val)))))
+    [cb update-ui-fn]))
 
-(defmethod create-property-control! :default [_ workspace on-new-value]
-  (let [text (TextField.)
-        refresher (fn [val _] (ui/text! text (str val)))]
-    (.setDisable text true)
-    [text refresher]))
-
-(defmethod create-property-control! (g/protocol workspace/Resource) [_ workspace on-new-value]
+(defmethod create-property-control! (g/protocol workspace/Resource) [_ workspace _ set-values-fn]
   (let [box (HBox.)
         button (Button. "...")
         text (TextField.)
-        refresher (fn [val _] (ui/text! text (when val (workspace/proj-path val))))]
+        update-ui-fn (fn [values] (let [val (properties/unify-values values)]
+                                    (ui/text! text (when val (workspace/proj-path val)))))]
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
-                                     (on-new-value resource))))
+                                     (set-values-fn (repeat resource)))))
+    (ui/on-action! text (fn [_] (let [path (ui/text text)
+                                      resource (or (workspace/find-resource workspace path)
+                                                   (workspace/file-resource workspace path))]
+                                  (set-values-fn (repeat resource)))))
     (ui/children! box [text button])
-    (ui/on-action! text (fn [_] (on-new-value (workspace/file-resource workspace (ui/text text))) ))
-    [box refresher]))
+    [box update-ui-fn]))
+
+(defmethod create-property-control! :default [_ _ _ _]
+  (let [text (TextField.)
+        update-ui-fn (fn [values] (ui/text! text (properties/unify-values (map str values))))]
+    (.setDisable text true)
+    [text update-ui-fn]))
 
 (defn- niceify-label
   [k]
@@ -154,90 +161,62 @@
     camel/->Camel_Snake_Case_String
     (clojure.string/replace "_" " ")))
 
-(defn- property-edit-type [node key]
-  (or (get-in (g/node-value node :properties) [key :edit-type])
-      {:type (g/property-value-type (key (g/properties (g/node-type node))))}))
-
-(defn- property-visible [node key]
-  (or (get-in (g/node-value node :properties) [key :visible] true)))
-
-(defn- create-properties-row [workspace ^GridPane grid node key property row]
+(defn- create-properties-row [workspace ^GridPane grid key property row]
   (let [label (Label. (niceify-label key))
-        ; TODO: Possible to solve mutual references without an atom here?
-        refresher-atom (atom nil)
-        on-new-value (fn [new-val]
-                       (let [old-val (key (g/refresh node))]
-                         (when-not (= new-val old-val)
-                           (if (g/property-valid-value? property new-val)
-                             (do
-                               ;; TODO Consider using the :validator-fn feature of atom to apply validation
-                               (@refresher-atom new-val (property-edit-type node key))
-                               ;; TODO Apply a label to this transaction for undo menu
-                               (g/transact (g/set-property node key new-val)))
-                             (@refresher-atom old-val)))))
-        [control refresher] (create-property-control! (property-edit-type node key) workspace on-new-value)]
-    (reset! refresher-atom refresher)
-    (refresher (get node key) (property-edit-type node key))
+        get-values-fn (fn []
+                        (let [properties (ui/user-data grid ::properties)]
+                          (get-in properties [key :values])))
+        set-values-fn (fn [values]
+                        (let [properties (ui/user-data grid ::properties)]
+                          (properties/set-value! (get properties key) values)))
+        [control update-ui-fn] (create-property-control! (:edit-type property) workspace get-values-fn set-values-fn)]
+    (update-ui-fn (:values property))
     (GridPane/setConstraints label 1 row)
     (GridPane/setConstraints control 2 row)
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)
-    [[key (g/node-id node)] refresher]))
+    [key update-ui-fn]))
 
-(defn- flatten-nodes [nodes]
-  ; TODO: This function is a bit special as we don't support multi-selection yet
-  ; We pick the first node and include potential sub-nodes. For multi-selection
-  ; we'll probably have to do something quite different from this
-  ; See also create-properties about the multi-selection comment
-  (if-let [node (first nodes)]
-    (concat [node] (when (satisfies? core/MultiNode node)
-                     (flatten-nodes (core/sub-nodes node))))
-    []))
-
-
-(defn- create-properties-node [workspace grid node]
-  (let [properties (-> node g/node-type g/properties)]
-    (mapcat (fn [[key p]]
-              (let [row (/ (.size (.getChildren grid)) 2)]
-                (when (property-visible node key)
-                  (create-properties-row workspace grid node key p row))))
-         properties)))
-
-(defn- create-properties [workspace grid nodes]
+(defn- create-properties [workspace grid properties]
   ; TODO - add multi-selection support for properties view
-  (doall (mapcat (fn [node] (create-properties-node workspace grid node)) nodes)))
+  (doall (map-indexed (fn [row [key property]] (create-properties-row workspace grid key property row)) properties)))
 
-(defn- make-grid [parent workspace nodes node-ids]
+(defn- make-grid [parent workspace properties]
   (let [grid (GridPane.)]
       (.setPadding grid (Insets. 10 10 10 10))
       (.setHgap grid 4)
       (.setVgap grid 6)
-      (let [refreshers (create-properties workspace grid nodes)]
-        ; NOTE: Note refreshers is a sequence of [[property-key node-id] refresher..]
-        (ui/user-data! parent ::refreshers (apply hash-map refreshers)))
+      (ui/user-data! grid ::properties properties)
+      (let [update-fns (create-properties workspace grid properties)]
+        ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
+        (ui/user-data! parent ::update-fns (into {} update-fns)))
       (ui/children! parent [grid])
       grid))
 
-(defn- refresh-grid [parent workspace nodes]
-  (let [refreshers (ui/user-data parent ::refreshers)]
-    (doseq [node nodes]
-      (doseq [[key p] (-> node g/node-type g/properties)]
-        (when-let [refresher (get refreshers [key (g/node-id node)])]
-          (refresher (get node key) (property-edit-type node key)))))))
+(defn- refresh-grid [parent ^GridPane grid workspace properties]
+  (ui/user-data! grid ::properties properties)
+  (let [update-fns (ui/user-data parent ::update-fns)]
+    (doseq [[key property] properties]
+      (when-let [update-ui-fn (get update-fns key)]
+        (update-ui-fn (:values property))))))
 
-(defn- update-grid [parent self workspace nodes]
-  ; NOTE: We cache the ui based on the ::nodes-ids user-data
-  (let [all-nodes (flatten-nodes nodes)
-        node-ids (map g/node-id all-nodes)
-        prev-ids (ui/user-data parent ::node-ids)]
-    (if (not= node-ids prev-ids)
-      (let [grid (make-grid parent workspace all-nodes node-ids)]
-        (ui/user-data! parent ::node-ids node-ids)
+(defn- properties->template [properties]
+  (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) properties))
+
+(defn- update-grid [parent self workspace properties]
+  ; NOTE: We cache the ui based on the ::template user-data
+  (let [all-properties (properties/coalesce properties)
+        template (properties->template all-properties)
+        prev-template (ui/user-data parent ::template)]
+    (if (not= template prev-template)
+      (let [grid (make-grid parent workspace all-properties)]
+        (ui/user-data! parent ::template template)
         (g/set-property! self :prev-grid-pane grid)
         grid)
       (do
-        (refresh-grid parent workspace all-nodes)
-        (:prev-grid-pane self)))))
+        (let [grid (:prev-grid-pane self)]
+          (refresh-grid parent grid workspace all-properties)
+          grid)))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
@@ -245,21 +224,24 @@
   (property workspace g/Any)
   (property prev-grid-pane GridPane)
 
-  (input selection g/Any)
+  (input selected-node-properties g/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view self workspace selection] (update-grid parent-view self workspace selection)))
+  (output grid-pane GridPane :cached (g/fnk [parent-view self workspace selected-node-properties] (update-grid parent-view self workspace selected-node-properties)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
                                      nil)))
 
-(defn make-properties-view [workspace view-graph parent]
+(defn make-properties-view [workspace project view-graph parent]
   (let [view      (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         self-ref  (g/node-id view)
         repainter (proxy [AnimationTimer] []
                     (handle [now]
                       (let [self (g/node-by-id self-ref)
                             grid (g/node-value self :grid-pane)])))]
-    (g/transact (g/set-property view :repainter repainter))
+    (g/transact
+      (concat
+        (g/set-property view :repainter repainter)
+        (g/connect project :selected-node-properties view :selected-node-properties)))
     (.start repainter)
     (g/refresh view)))

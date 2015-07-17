@@ -100,7 +100,12 @@
   (property fps             types/NonNegativeInt (default 30))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
-  (property playback        types/AnimationPlayback)
+  (property playback        types/AnimationPlayback
+            (dynamic edit-type (g/always
+                                 (let [options (protobuf/enum-values Tile$Playback)]
+                                   {:type :choicebox
+                                    :options (zipmap (map first options)
+                                                     (map (comp :display-name second) options))}))))
 
   (input frames Image :array)
   (input outline g/Any :array)

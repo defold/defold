@@ -162,8 +162,7 @@
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
-        properties   (ui/run-now (properties-view/make-properties-view workspace *view-graph* (.lookup root "#properties")))]
-    (g/transact (g/connect project :selected-nodes properties :selection))
+        properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties")))]
     (g/reset-undo! *project-graph*)))
 
 (defn- add-to-recent-projects [prefs project-file]
