@@ -23,25 +23,35 @@ extern struct android_app* g_AndroidApp;
 #define CMD_REQUEST_PUBLISH 3
 #define CMD_DIALOG_COMPLETE 4
 
-// Must match iOS for now
-enum State
-{
-    STATE_CREATED = 0,
-    STATE_CREATED_TOKEN_LOADED = 1,
-    STATE_CREATED_OPENING = 2,
-    STATE_OPEN = 1 | (1 << 9),
-    STATE_OPEN_TOKEN_EXTENDED = 2 | (1 << 9),
-    STATE_CLOSED_LOGIN_FAILED = 1 | (1 << 8),
-    STATE_CLOSED = 2 | (1 << 8)
+enum State {
+    STATE_FAILED               = 0,
+    STATE_OPEN                 = 1,
+    STATE_OPEN_TOKEN_EXTENDED  = 2,
+    STATE_CLOSED               = 3,
+    STATE_CLOSED_LOGIN_FAILED  = 4,
+    STATE_CREATED              = 5,
+    STATE_CREATED_TOKEN_LOADED = 6,
+    STATE_CREATED_OPENING      = 7,
 };
 
-// Must match iOS for now
-enum Audience
-{
-    AUDIENCE_NONE = 0,
-    AUDIENCE_ONLYME = 10,
-    AUDIENCE_FRIENDS = 20,
-    AUDIENCE_EVERYONE = 30
+enum GameRequestAction {
+    GAMEREQUEST_ACTIONTYPE_NONE   = -1,
+    GAMEREQUEST_ACTIONTYPE_SEND   = 0,
+    GAMEREQUEST_ACTIONTYPE_ASKFOR = 1,
+    GAMEREQUEST_ACTIONTYPE_TURN   = 2,
+};
+
+enum GameRequestFilters {
+    GAMEREQUEST_FILTER_NONE        = -1,
+    GAMEREQUEST_FILTER_APPUSERS    = 0,
+    GAMEREQUEST_FILTER_APPNONUSERS = 1,
+};
+
+enum Audience {
+    AUDIENCE_NONE     = -1,
+    AUDIENCE_ONLYME   = 0,
+    AUDIENCE_FRIENDS  = 1,
+    AUDIENCE_EVERYONE = 2,
 };
 
 struct Command
@@ -456,7 +466,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     JNIEnv* env = Attach();
 
     jstring str_permissions = env->NewStringUTF(permissions);
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestReadPermissions, (jlong)L, (jint)audience, str_permissions);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestPublishPermissions , (jlong)L, (jint)audience, str_permissions);
     env->DeleteLocalRef(str_permissions);
 
     Detach();
@@ -633,10 +643,21 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED);
     SETCONSTANT(STATE_CLOSED_LOGIN_FAILED);
     SETCONSTANT(STATE_CLOSED);
-    SETCONSTANT(AUDIENCE_NONE)
-    SETCONSTANT(AUDIENCE_ONLYME)
-    SETCONSTANT(AUDIENCE_FRIENDS)
-    SETCONSTANT(AUDIENCE_EVERYONE)
+
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN);
+
+    SETCONSTANT(GAMEREQUEST_FILTER_NONE);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS);
+
+    SETCONSTANT(AUDIENCE_NONE);
+    SETCONSTANT(AUDIENCE_ONLYME);
+    SETCONSTANT(AUDIENCE_FRIENDS);
+    SETCONSTANT(AUDIENCE_EVERYONE);
+
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
