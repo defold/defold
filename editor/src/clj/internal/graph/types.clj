@@ -26,10 +26,11 @@
   (triggers              [this])
   (transforms            [this])
   (transform-types       [this])
+  (internal-properties   [this])
   (properties            [this])
-  (inputs                [this])
+  (declared-inputs       [this])
   (injectable-inputs     [this])
-  (outputs               [this])
+  (declared-outputs      [this])
   (cached-outputs        [this])
   (event-handlers        [this])
   (input-dependencies    [this])
@@ -40,8 +41,8 @@
   (property-type         [this output])
   (property-passthrough? [this output]))
 
-(defn input-labels    [node-type] (-> node-type inputs keys set))
-(defn output-labels   [node-type] (-> node-type outputs))
+(defn input-labels    [node-type] (-> node-type declared-inputs keys set))
+(defn output-labels   [node-type] (-> node-type declared-outputs))
 (defn property-labels [node-type] (-> node-type properties keys set))
 
 (defprotocol Node
@@ -79,8 +80,6 @@
   (property-default-value      [this])
   (property-validate           [this v] "Returns a possibly-empty seq of messages.")
   (property-valid-value?       [this v] "If valid, returns nil. If invalid, returns seq of Marker")
-  (property-enabled?           [this v] "If true, this property may be edited")
-  (property-visible?           [this v] "If true, this property appears in the UI")
   (property-tags               [this]))
 
 (defn property-type? [x] (satisfies? PropertyType x))
@@ -88,7 +87,8 @@
 (def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
 
 (defprotocol Dynamics
-  (dynamic-attributes          [this] "Return a map from label to fnk"))
+  (dynamic-attributes          [this] "Return a map from label to fnk")
+  (dynamic-value               [this k v] "Returns the value of the dynamic property key - if a fnk, then the result of applying v"))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
@@ -121,9 +121,14 @@
 ;; ---------------------------------------------------------------------------
 (defrecord ErrorValue [reason])
 
-(defn error [& reason] (->ErrorValue reason))
-(defn error? [x] (instance? ErrorValue x))
+(defn error [reason] (->ErrorValue reason))
 
+(defn error?
+  [x]
+  (cond
+    (instance? ErrorValue x) x
+    (vector? x)              (some error? x)
+    :else                    nil))
 
 ;; ---------------------------------------------------------------------------
 ;; Destructors

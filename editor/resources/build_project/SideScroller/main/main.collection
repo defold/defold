@@ -111,6 +111,22 @@ instances {
   }
   scale: 1.0
 }
+instances {
+  id: "spaceship"
+  prototype: "/spaceship/spaceship_tile_source.go"
+  position {
+    x: 209.66061
+    y: 400.0
+    z: 0.5
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}
 scale_along_z: 0
 embedded_instances {
   id: "background"

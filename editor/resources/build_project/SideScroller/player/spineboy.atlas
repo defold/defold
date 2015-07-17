@@ -1,0 +1,279 @@
+animations {
+  id: "eye_surprised"
+  images {
+    image: "/player/images/eye_surprised.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_bracer"
+  images {
+    image: "/player/images/front_bracer.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_fist_closed"
+  images {
+    image: "/player/images/front_fist_closed.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_fist_open"
+  images {
+    image: "/player/images/front_fist_open.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_foot"
+  images {
+    image: "/player/images/front_foot.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_foot_bend1"
+  images {
+    image: "/player/images/front_foot_bend1.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_foot_bend2"
+  images {
+    image: "/player/images/front_foot_bend2.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_shin"
+  images {
+    image: "/player/images/front_shin.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_thigh"
+  images {
+    image: "/player/images/front_thigh.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "front_upper_arm"
+  images {
+    image: "/player/images/front_upper_arm.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "goggles"
+  images {
+    image: "/player/images/goggles.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "gun"
+  images {
+    image: "/player/images/gun.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "head"
+  images {
+    image: "/player/images/head.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "mouth_grind"
+  images {
+    image: "/player/images/mouth_grind.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "mouth_oooo"
+  images {
+    image: "/player/images/mouth_oooo.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "mouth_smile"
+  images {
+    image: "/player/images/mouth_smile.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "muzzle"
+  images {
+    image: "/player/images/muzzle.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "neck"
+  images {
+    image: "/player/images/neck.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "particle_blob"
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "rear_bracer"
+  images {
+    image: "/player/images/rear_bracer.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "rear_foot"
+  images {
+    image: "/player/images/rear_foot.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "rear_foot_bend1"
+  images {
+    image: "/player/images/rear_foot_bend1.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "rear_foot_bend2"
+  images {
+    image: "/player/images/rear_foot_bend2.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "rear_shin"
+  images {
+    image: "/player/images/rear_shin.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "rear_thigh"
+  images {
+    image: "/player/images/rear_thigh.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "rear_upper_arm"
+  images {
+    image: "/player/images/rear_upper_arm.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "torso"
+  images {
+    image: "/player/images/torso.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "eye_indifferent"
+  images {
+    image: "/player/images/eye_indifferent.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 0
+extrude_borders: 0

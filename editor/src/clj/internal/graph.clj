@@ -6,24 +6,10 @@
 
 (set! *warn-on-reflection* true)
 
-(deftype ArcBase [source target sourceLabel targetLabel]
+(defrecord ArcBase [source target sourceLabel targetLabel]
   gt/Arc
   (head [_] [source sourceLabel])
-  (tail [_] [target targetLabel])
-
-  Object
-  (toString [_]
-    (str "[[" source sourceLabel "] -> [" target targetLabel "]]"))
-  (equals [this that]
-    (and (satisfies? gt/Arc that)
-         (let [^ArcBase that that ]
-           (= source      (.source that))
-           (= target      (.target that))
-           (= sourceLabel (.sourceLabel that))
-           (= targetLabel (.targetLabel that)))))
-  (hashCode [this]
-    (+ (.hashCode source)      (mod (* 13 (.hashCode target)) 7)
-       (.hashCode sourceLabel) (mod (* 19 (.hashCode targetLabel)) 23))))
+  (tail [_] [target targetLabel]))
 
 (definline ^:private arc
   [source target source-label target-label]
@@ -187,22 +173,22 @@
                     tgt-id (:name input-type) tgt-label
                     output-schema input-schema))))
 
-
 ;; ---------------------------------------------------------------------------
 ;; Dependency tracing
 ;; ---------------------------------------------------------------------------
 (defn index-successors
-  [basis [node-id output-label]]
-  (let [target-inputs (gt/targets basis node-id output-label)]
+  [basis node-id-output-pair]
+  (let [gather-node-dependencies-fn (fn [[id label]]
+                                      (some-> (node-by-id-at basis id)
+                                              gt/node-type
+                                              gt/input-dependencies
+                                              (get label)
+                                              (->> (mapv (partial vector id)))))
+        same-node-dep-pairs         (conj (gather-node-dependencies-fn node-id-output-pair) node-id-output-pair)
+        target-inputs               (mapcat (fn [[id label]] (gt/targets basis id label)) same-node-dep-pairs)]
     (apply set/union
-           (mapv (fn [[node-id input-label]]
-                  (let [set-of-output-labels (-> (node-by-id-at basis node-id)
-                                                 gt/node-type
-                                                 gt/input-dependencies
-                                                 (get input-label))
-                        node-label-pairs (mapv #(vector node-id %) set-of-output-labels)]
-                    node-label-pairs))
-                target-inputs))))
+           same-node-dep-pairs
+           (mapv gather-node-dependencies-fn target-inputs))))
 
 (defn- successors
   [basis [node-id output-label]]

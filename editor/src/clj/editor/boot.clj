@@ -26,6 +26,11 @@
             [editor.protobuf-types :as protobuf-types]
             [editor.script :as script]
             [editor.gl.shader :as shader]
+            [editor.tile-source :as tile-source]
+            [editor.sound :as sound]
+            [editor.spine :as spine]
+            [editor.json :as json]
+            [editor.mesh :as mesh]
             [editor.text :as text]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
@@ -80,6 +85,9 @@
   (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
+    (ui/observe (.focusedProperty stage) (fn [property old-val new-val]
+                                           (when (true? new-val)
+                                             (workspace/fs-sync workspace))))
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -87,9 +95,9 @@
 
     (let [close-handler (ui/event-handler event
                           (g/transact
-                            (g/delete-node project))
-                          (g/dispose-pending))
-          dispose-handler (ui/event-handler event (g/dispose-pending))]
+                            (g/delete-node (g/node-id project)))
+                          (g/dispose-pending!))
+          dispose-handler (ui/event-handler event (g/dispose-pending!))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
@@ -101,9 +109,9 @@
           outline-view (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)]
       (g/transact
         (concat
-          (g/connect project :selected-node-ids outline-view :selection)
+          (g/connect (g/node-id project) :selected-node-ids (g/node-id outline-view) :selection)
           (for [label [:active-resource :active-outline :open-resources]]
-            (g/connect app-view label outline-view label))
+            (g/connect (g/node-id app-view) label (g/node-id outline-view) label))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
       (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource))))
     (graph-view/setup-graph-view root *project-graph*)
@@ -135,7 +143,12 @@
           (script/register-resource-types workspace)
           (switcher/register-resource-types workspace)
           (sprite/register-resource-types workspace)
-          (shader/register-resource-types workspace))))
+          (shader/register-resource-types workspace)
+          (tile-source/register-resource-types workspace)
+          (sound/register-resource-types workspace)
+          (spine/register-resource-types workspace)
+          (json/register-resource-types workspace)
+          (mesh/register-resource-types workspace))))
     (g/refresh workspace)))
 
 
@@ -150,7 +163,7 @@
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
         properties   (ui/run-now (properties-view/make-properties-view workspace *view-graph* (.lookup root "#properties")))]
-    (g/transact (g/connect project :selected-nodes properties :selection))
+    (g/transact (g/connect (g/node-id project) :selected-nodes (g/node-id properties) :selection))
     (g/reset-undo! *project-graph*)))
 
 (defn- add-to-recent-projects [prefs project-file]

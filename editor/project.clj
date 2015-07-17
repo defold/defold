@@ -47,7 +47,8 @@
                      [net.java.dev.jna/jna-platform               "4.1.0"]
                      ;; Temporarily removed upnp (not used and not installed by default).
                      ;; Move source to editor?
-                     #_[dlib/upnp                                   "0.1"]]
+                     #_[dlib/upnp                                   "0.1"]
+                     [org.clojure/data.json "0.2.6"]]
 
   :source-paths      ["src/clj"
                       "../com.dynamo.cr/com.dynamo.cr.sceneed2/src/clj"]
@@ -98,7 +99,7 @@
                                     :repl-options   {:init-ns user}}
                       :dev         {:dependencies   [[org.clojure/test.check   "0.7.0"]
                                                      [org.mockito/mockito-core "1.10.19"]
-                                                     [refactor-nrepl           "1.0.5"]
+                                                     [refactor-nrepl           "1.1.0"]
                                                      [org.clojure/tools.nrepl  "0.2.10" :exclusions [org.clojure/clojure]]
                                                      [criterium "0.4.3"]
                                                      [ring "1.4.0-RC1"]]
