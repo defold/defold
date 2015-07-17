@@ -682,8 +682,8 @@
                                                              :make-preview-fn make-preview))
 
 (g/defnode SceneNode
-  (property position types/Vec3 (default [0 0 0]))
-  (property rotation types/Vec3 (default [0 0 0]))
+  (property position types/Vec3 (default [0.0 0.0 0.0]))
+  (property rotation types/Vec3 (default [0.0 0.0 0.0]))
 
   (output position Vector3d :cached (g/fnk [^types/Vec3 position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
