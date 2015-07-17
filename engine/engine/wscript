@@ -107,7 +107,9 @@ namespace dmEngineVersion
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_INPUT'] = 'input'
 
-    conf.env['STATICLIB_FACEBOOK'] = 'FacebookSDK'
+    conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
+    conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
+    conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
     conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'

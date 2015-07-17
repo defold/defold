@@ -3,61 +3,21 @@
 #include <script/script.h>
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <FacebookSDK/FacebookSDK.h>
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
+#import <FBSDKLoginKit/FBSDKLoginKit.h>
+#import <FBSDKShareKit/FBSDKShareKit.h>
 #import <objc/runtime.h>
 
-// Facebook resources
-extern unsigned char CLOSE_PNG[];
-extern uint32_t CLOSE_PNG_SIZE;
-extern unsigned char CLOSEat2X_PNG[];
-extern uint32_t CLOSEat2X_PNG_SIZE;
-
-static void InitSession();
-
-@interface UIImage (Defold)
-    + (id)imageNamedX:(NSString *)name;
-@end
-
-static bool IsRetina() {
-    // See http://stackoverflow.com/a/4641481
-    if ([[UIScreen mainScreen] respondsToSelector:@selector(displayLinkWithTarget:selector:)] &&
-        ([UIScreen mainScreen].scale == 2.0)) {
-        return true;
-    }
-    return false;
-}
-
-/*
- * We don't bundle required images from Facebook SDK. Instead we monkey-patch imageNamed
- * and load images from memory. Note that close.png and close@2x.png are only required
- * for the embedded login-view. The embedded login-view is only used when no CFBundleURLSchemes
- * for the facebook application is specified (Info.plist) and is considered a fallback.
- * Some other images than close*.png might be required for other views though.
- */
-@implementation UIImage (Defold)
-    + (id)imageNamedX:(NSString *)name {
-        if ([name compare: @"FacebookSDKResources.bundle/FBDialog/images/close.png"] == NSOrderedSame) {
-            NSData* data = 0;
-            if (IsRetina()) {
-                data = [NSData dataWithBytes: (const void*) &CLOSEat2X_PNG[0] length: CLOSEat2X_PNG_SIZE];
-            } else {
-                data = [NSData dataWithBytes: (const void*) &CLOSE_PNG[0] length: CLOSE_PNG_SIZE];
-            }
-
-            return [UIImage imageWithData: data];
-        } else {
-            return [self imageNamedX: name];
-        }
-    }
-@end
-
-static void SwizzleImageNamed()
-{
-    Class klass = object_getClass([UIImage class]);
-    Method originalMethod = class_getInstanceMethod(klass, @selector(imageNamed:));
-    Method categoryMethod = class_getInstanceMethod(klass, @selector(imageNamedX:));
-    method_exchangeImplementations(originalMethod, categoryMethod);
-}
+enum FBStatusProxy {
+    STATE_FAILED               = 0,
+    STATE_OPEN                 = 1,
+    STATE_OPEN_TOKEN_EXTENDED  = 2,
+    STATE_CLOSED               = 3,
+    STATE_CLOSED_LOGIN_FAILED  = 4,
+    STATE_CREATED              = 5,
+    STATE_CREATED_TOKEN_LOADED = 6,
+    STATE_CREATED_OPENING      = 7,
+};
 
 #define LIB_NAME "facebook"
 
@@ -68,46 +28,152 @@ struct Facebook
         m_Callback = LUA_NOREF;
         m_Self = LUA_NOREF;
     }
-    FBSession* m_Session;
+
+    FBSDKLoginManager *m_Login;
     NSDictionary* m_Me;
     int m_Callback;
     int m_Self;
-    id<UIApplicationDelegate> m_Delegate;
+    lua_State* m_MainThread;
+    id<UIApplicationDelegate,
+       FBSDKSharingDelegate,
+       FBSDKAppInviteDialogDelegate,
+       FBSDKGameRequestDialogDelegate> m_Delegate;
 };
 
 Facebook g_Facebook;
 
+static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error);
+
 // AppDelegate used temporarily to hijack all AppDelegate messages
 // An improvment could be to create generic proxy
-@interface FacebookAppDelegate :  NSObject <UIApplicationDelegate>
-    - (BOOL) application:(UIApplication *)application
-                        openURL:(NSURL *)url
-                        sourceApplication:(NSString *)sourceApplication
-                        annotation:(id)annotation;
+@interface FacebookAppDelegate : NSObject <UIApplicationDelegate,
+    FBSDKSharingDelegate, FBSDKAppInviteDialogDelegate,
+    FBSDKGameRequestDialogDelegate>
+
+- (BOOL)application:(UIApplication *)application
+                   openURL:(NSURL *)url
+                   sourceApplication:(NSString *)sourceApplication
+                   annotation:(id)annotation;
+
+- (BOOL)application:(UIApplication *)application
+                   didFinishLaunchingWithOptions:(NSDictionary *)launchOptions;
 @end
 
 @implementation FacebookAppDelegate
-
-    - (BOOL) application:(UIApplication *)application
-                        openURL:(NSURL *)url
-                        sourceApplication:(NSString *)sourceApplication
-                        annotation:(id)annotation  {
-        InitSession();
-        return [FBAppCall handleOpenURL:url
-                sourceApplication:sourceApplication
-                withSession:g_Facebook.m_Session];
+    - (BOOL)application:(UIApplication *)application
+                       openURL:(NSURL *)url
+                       sourceApplication:(NSString *)sourceApplication
+                       annotation:(id)annotation {
+        return [[FBSDKApplicationDelegate sharedInstance] application:application
+                                                              openURL:url
+                                                    sourceApplication:sourceApplication
+                                                           annotation:annotation];
     }
 
     - (void)applicationDidBecomeActive:(UIApplication *)application {
-        [FBAppCall handleDidBecomeActiveWithSession:g_Facebook.m_Session];
+        [FBSDKAppEvents activateApp];
     }
 
-    -(BOOL) application:(UIApplication *)application handleOpenURL:(NSURL *)url {
-        InitSession();
-        return [FBAppCall handleOpenURL: url sourceApplication: @"Defold" withSession: g_Facebook.m_Session];
+    - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+        return [[FBSDKApplicationDelegate sharedInstance] application:application
+                                        didFinishLaunchingWithOptions:launchOptions];
     }
+
+    // Sharing related methods
+    - (void)sharer:(id<FBSDKSharing>)sharer didCompleteWithResults :(NSDictionary *)results {
+       RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
+    }
+
+     - (void)sharer:(id<FBSDKSharing>)sharer didFailWithError:(NSError *)error {
+       RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
+    }
+
+    - (void)sharerDidCancel:(id<FBSDKSharing>)sharer {
+       RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
+    }
+
+    // App invite related methods
+    - (void) appInviteDialog: (FBSDKAppInviteDialog *)appInviteDialog didCompleteWithResults:(NSDictionary *)results {
+        RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
+    }
+
+    - (void) appInviteDialog: (FBSDKAppInviteDialog *)appInviteDialog didFailWithError:(NSError *)error {
+        RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
+    }
+
+    // Game request related methods
+    - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didCompleteWithResults:(NSDictionary *)results {
+        RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
+    }
+
+    - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didFailWithError:(NSError *)error {
+        RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
+    }
+
+    - (void)gameRequestDialogDidCancel:(FBSDKGameRequestDialog *)gameRequestDialog {
+        RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
+    }
+
 
 @end
+
+////////////////////////////////////////////////////////////////////////////////
+// Helper functions for Lua API
+
+static id LuaToObjC(lua_State* L, int index);
+static NSArray* TableToNSArray(lua_State* L, int table_index)
+{
+    int top = lua_gettop(L);
+    NSMutableArray* arr = [[NSMutableArray alloc] init];
+    lua_pushnil(L);
+    while (lua_next(L, table_index) != 0) {
+        [arr addObject: LuaToObjC(L, lua_gettop(L))];
+        lua_pop(L, 1);
+    }
+
+    assert(top == lua_gettop(L));
+    return arr;
+}
+
+static id LuaToObjC(lua_State* L, int index)
+{
+    int top = lua_gettop(L);
+    id r = nil;
+
+    if (lua_type(L, index) == LUA_TSTRING) {
+        r = [NSString stringWithUTF8String: lua_tostring(L, index)];
+
+    } else if (lua_type(L, index) == LUA_TTABLE) {
+        r = TableToNSArray(L, index);
+
+    } else if (lua_type(L, index) == LUA_TNUMBER) {
+        r = [NSNumber numberWithDouble: lua_tonumber(L, index)];
+
+    } else if (lua_type(L, index) == LUA_TBOOLEAN) {
+        r = [NSNumber numberWithBool:lua_toboolean(L, index)];
+
+    }
+
+    assert(top == lua_gettop(L));
+    return r;
+}
+
+static id GetTableValue(lua_State* L, int table_index, NSArray* keys)
+{
+    id r = nil;
+    int top = lua_gettop(L);
+    for (NSString *key in keys) {
+        lua_getfield(L, table_index, [key UTF8String]);
+        if (!lua_isnil(L, -1))
+        {
+            r = LuaToObjC(L, lua_gettop(L));
+        }
+        lua_pop(L, 1);
+    }
+
+    assert(top == lua_gettop(L));
+    return r;
+}
 
 static void PushError(lua_State*L, NSError* error)
 {
@@ -133,7 +199,8 @@ static void VerifyCallback(lua_State* L)
     }
 }
 
-static void RunStateCallback(lua_State*L, FBSessionState status, NSError* error)
+//static void RunStateCallback(lua_State*L, FBSessionState status, NSError* error)
+static void RunStateCallback(lua_State*L, int status, NSError* error)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -206,7 +273,7 @@ static void RunCallback(lua_State*L, NSError* error)
     }
 }
 
-static void RunDialogResultCallback(lua_State*L, const char* url, NSError* error)
+static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -226,13 +293,20 @@ static void RunDialogResultCallback(lua_State*L, const char* url, NSError* error
         }
 
         lua_createtable(L, 0, 1);
-        lua_pushliteral(L, "url");
-        if (url) {
-            lua_pushstring(L, url);
+        if (result) {
+            for (id key in result) {
+                id obj = [result objectForKey: key];
+                if ([obj isKindOfClass:[NSString class]]) {
+                    lua_pushstring(L, [key UTF8String]);
+                    lua_pushstring(L, [obj UTF8String]);
+                    lua_rawset(L, -3);
+                }
+            }
         } else {
+            lua_pushliteral(L, "url");
             lua_pushnil(L);
+            lua_rawset(L, -3);
         }
-        lua_rawset(L, -3);
 
         PushError(L, error);
 
@@ -261,23 +335,36 @@ static void AppendArray(lua_State*L, NSMutableArray* array, int table)
     }
 }
 
-static void InitSession()
+static void UpdateUserData(lua_State* L)
 {
-    if (g_Facebook.m_Session == 0) {
-        // This is done lazily to not initialize the FB SDK until we actually need it
-        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
-        g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
-        [permissions release];
-    }
+    // Login successfull, now grab user info
+    // In SDK 4+ we explicitly have to set which fields we want,
+    // since earlier SDK versions returned these by default.
+    NSMutableDictionary *params = [NSMutableDictionary dictionary];
+    [params setObject:@"last_name,link,id,gender,email,locale,name,first_name,updated_time" forKey:@"fields"];
+    [[[FBSDKGraphRequest alloc] initWithGraphPath:@"me" parameters:params]
+    startWithCompletionHandler:^(FBSDKGraphRequestConnection *connection, id graphresult, NSError *error) {
+
+        [g_Facebook.m_Me release];
+        if (!error) {
+            g_Facebook.m_Me = [[NSDictionary alloc] initWithDictionary: graphresult];
+            RunStateCallback(L, STATE_OPEN, error);
+        } else {
+            g_Facebook.m_Me = nil;
+            dmLogWarning("Failed to fetch user-info: %s", [[error localizedDescription] UTF8String]);
+            RunStateCallback(L, STATE_FAILED, error);
+        }
+
+    }];
 }
 
 
+////////////////////////////////////////////////////////////////////////////////
+// Lua API
 int Facebook_Login(lua_State* L)
 {
     int top = lua_gettop(L);
     VerifyCallback(L);
-
-    InitSession();
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
@@ -287,67 +374,45 @@ int Facebook_Login(lua_State* L)
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
-    if (!g_Facebook.m_Session.isOpen) {
-        [g_Facebook.m_Session release];
+    if ([FBSDKAccessToken currentAccessToken]) {
 
-        // We support only public_profile in login as facebook requires that you can't mix read and publish permissions
-        // It's also better to check current permissions after successfull login and request additional if required.
+        UpdateUserData(L);
+
+    } else {
+
         NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
-        g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
-//        g_Facebook.m_Session = [[FBSession alloc] init];
+        [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
 
-        [permissions release];
+            if (error) {
+                RunStateCallback(main_thread, STATE_FAILED, error);
+            } else if (result.isCancelled) {
+                RunStateCallback(main_thread, STATE_CLOSED, error);
+            } else {
 
-        FBSession.activeSession = g_Facebook.m_Session;
+                if ([result.grantedPermissions containsObject:@"public_profile"] &&
+                    [result.grantedPermissions containsObject:@"email"] &&
+                    [result.grantedPermissions containsObject:@"user_friends"]) {
 
-        [g_Facebook.m_Session openWithCompletionHandler:^(FBSession *session,
-                                              FBSessionState status,
-                                              NSError *error) {
+                    UpdateUserData(L);
 
-            if (session == g_Facebook.m_Session) {
-                // Respond only to "current" session
-                // as we'll get invokations here from previous session
-                // when closeAndClearTokenInformation is invoked
-
-                // NOTE: Callback is executed on all state changes.
-                // We are only interested in FBSessionStateOpen and FBSessionStateClosedLoginFailed
-                if (status == FBSessionStateOpen) {
-                    [[FBRequest requestForMe] startWithCompletionHandler:
-                     ^(FBRequestConnection *connection, NSDictionary<FBGraphUser> *user, NSError *error) {
-                         if (!error) {
-                             [g_Facebook.m_Me release];
-                             g_Facebook.m_Me = [[NSDictionary alloc] initWithDictionary: user];
-                             RunStateCallback(main_thread, status, error);
-                         } else {
-                             [g_Facebook.m_Me release];
-                             g_Facebook.m_Me = 0;
-                             dmLogWarning("Failed to fetch user-info: %s", [[error localizedDescription] UTF8String]);
-                             RunStateCallback(main_thread, status, error);
-                         }
-                     }];
-                } else if (status == FBSessionStateClosedLoginFailed) {
-                    RunStateCallback(main_thread, status, error);
+                } else {
+                    // FIXME what status should be sent here?
+                    RunStateCallback(main_thread, STATE_FAILED, error);
                 }
             }
+
         }];
-    } else {
-        RunStateCallback(main_thread, FBSessionStateOpen, 0);
     }
+
     assert(top == lua_gettop(L));
     return 0;
 }
 
 int Facebook_Logout(lua_State* L)
 {
-    if (g_Facebook.m_Session) {
-        FBSession* s = g_Facebook.m_Session;
-        // Clear session in order to filter out callbacks in openWithCompletionHandler above
-        g_Facebook.m_Session = 0;
-        [s closeAndClearTokenInformation];
-        [s release];
-        [g_Facebook.m_Me release];
-        g_Facebook.m_Me = 0;
-    }
+    [g_Facebook.m_Login logOut];
+    [g_Facebook.m_Me release];
+    g_Facebook.m_Me = 0;
     return 0;
 }
 
@@ -355,8 +420,6 @@ int Facebook_RequestReadPermissions(lua_State* L)
 {
     int top = lua_gettop(L);
     VerifyCallback(L);
-
-    InitSession();
 
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
@@ -367,20 +430,13 @@ int Facebook_RequestReadPermissions(lua_State* L)
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
-    if (g_Facebook.m_Session.isOpen) {
-        NSMutableArray *permissions = [[NSMutableArray alloc] init];
-        AppendArray(L, permissions, 1);
+    NSMutableArray *permissions = [[NSMutableArray alloc] init];
+    AppendArray(L, permissions, 1);
 
-        [g_Facebook.m_Session requestNewReadPermissions: permissions completionHandler:^(FBSession *session,
-                                              NSError *error) {
-            RunCallback(main_thread, error);
-        }];
+    [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+        RunCallback(main_thread, error);
+    }];
 
-        [permissions release];
-
-    } else {
-        dmLogWarning("Session not open");
-    }
     assert(top == lua_gettop(L));
     return 0;
 }
@@ -390,10 +446,8 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
-    InitSession();
-
     luaL_checktype(L, 1, LUA_TTABLE);
-    FBSessionDefaultAudience audience = (FBSessionDefaultAudience) luaL_checkinteger(L, 2);
+    FBSDKDefaultAudience audience = (FBSDKDefaultAudience) luaL_checkinteger(L, 2);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -402,34 +456,22 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_State* main_thread = dmScript::GetMainThread(L);
 
-    if (g_Facebook.m_Session.isOpen) {
-        NSMutableArray *permissions = [[NSMutableArray alloc] init];
-        AppendArray(L, permissions, 1);
+    NSMutableArray *permissions = [[NSMutableArray alloc] init];
+    AppendArray(L, permissions, 1);
 
-        [g_Facebook.m_Session requestNewPublishPermissions: permissions defaultAudience: audience completionHandler:^(FBSession *session,
-                                              NSError *error) {
-            RunCallback(main_thread, error);
-        }];
+    [g_Facebook.m_Login setDefaultAudience: audience];
+    [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+        RunCallback(main_thread, error);
+    }];
 
-        [permissions release];
-
-    } else {
-        dmLogWarning("Session not open");
-    }
     assert(top == lua_gettop(L));
     return 0;
 }
 
 int Facebook_AccessToken(lua_State* L)
 {
-    InitSession();
-    if (g_Facebook.m_Session.isOpen) {
-        FBSession* s = g_Facebook.m_Session;
-        const char* token = [s.accessTokenData.accessToken UTF8String];
-        lua_pushstring(L, token);
-    } else {
-        lua_pushnil(L);
-    }
+    const char* token = [[[FBSDKAccessToken currentAccessToken] tokenString] UTF8String];
+    lua_pushstring(L, token);
     return 1;
 }
 
@@ -441,16 +483,13 @@ int Facebook_Permissions(lua_State* L)
     int top = lua_gettop(L);
 
     lua_newtable(L);
-    InitSession();
-    if (g_Facebook.m_Session) {
-        NSArray* permissions = g_Facebook.m_Session.permissions;
-        int i = 1;
-        for (id p in permissions) {
-            lua_pushnumber(L, i);
-            lua_pushstring(L, [p UTF8String]);
-            lua_rawset(L, -3);
-            ++i;
-        }
+    NSSet* permissions = [[FBSDKAccessToken currentAccessToken] permissions];
+    int i = 1;
+    for (NSString* p in permissions) {
+        lua_pushnumber(L, i);
+        lua_pushstring(L, [p UTF8String]);
+        lua_rawset(L, -3);
+        ++i;
     }
 
     assert(top + 1 == lua_gettop(L));
@@ -460,6 +499,7 @@ int Facebook_Permissions(lua_State* L)
 int Facebook_Me(lua_State* L)
 {
     int top = lua_gettop(L);
+
     if (g_Facebook.m_Me) {
         lua_newtable(L);
         for (id key in g_Facebook.m_Me) {
@@ -473,9 +513,12 @@ int Facebook_Me(lua_State* L)
     } else {
         lua_pushnil(L);
     }
+
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
+
+
 
 /*# show facebook web dialog
  *  Note that for certain dialogs, e.g. apprequests, both "title" and "message" are mandatory. If not
@@ -491,49 +534,58 @@ static int Facebook_ShowDialog(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
-    const char* dialog = luaL_checkstring(L, 1);
+    dmhash_t dialog = dmHashString64(luaL_checkstring(L, 1));
     luaL_checktype(L, 2, LUA_TTABLE);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
-    lua_State* main_thread = dmScript::GetMainThread(L);
+    g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
-    if (g_Facebook.m_Session) {
-        FBSession* s = g_Facebook.m_Session;
+    if (dialog == dmHashString64("feed") ||
+        dialog == dmHashString64("link")) {
 
-        // NOTE: +dictionary is for temporary dictionaries and is autoreleased
-        NSMutableDictionary *params = [NSMutableDictionary dictionary];
+        FBSDKShareLinkContent* content = [[FBSDKShareLinkContent alloc] init];
+        content.contentTitle       = GetTableValue(L, 2, @[@"contentTitle", @"title"]);
+        content.contentDescription = GetTableValue(L, 2, @[@"contentDescription", @"description"]);
+        content.imageURL           = GetTableValue(L, 2, @[@"imageURL"]);
+        content.contentURL         = [NSURL URLWithString:GetTableValue(L, 2, @[@"contentURL", @"link"])];
+        content.peopleIDs          = GetTableValue(L, 2, @[@"peopleIDs"]);
+        content.placeID            = GetTableValue(L, 2, @[@"placeID"]);
+        content.ref                = GetTableValue(L, 2, @[@"ref"]);
 
-        lua_pushnil(L);
-        while (lua_next(L, 2) != 0) {
-            const char* v = luaL_checkstring(L, -1);
-            const char* k = luaL_checkstring(L, -2);
-            [params setObject: [NSString stringWithUTF8String: v] forKey: [NSString stringWithUTF8String: k]];
-            lua_pop(L, 1);
-        }
+        [FBSDKShareDialog showFromViewController:nil withContent:content delegate:g_Facebook.m_Delegate];
 
-        // Workaround for a bug in the current SDK...
-        [params setObject:s.accessTokenData.accessToken ? : @"" forKey:@"access_token"];
-        [params setObject:s.appID ? : @"" forKey:@"app_id"];
+    } else if (dialog == dmHashString64("appinvite")) {
 
-        [FBWebDialogs
-             presentDialogModallyWithSession: s
-             dialog: [NSString stringWithUTF8String: dialog]
-             parameters: params
-             handler:^(FBWebDialogResult result, NSURL *resultURL, NSError *error) {
-                 RunDialogResultCallback(main_thread, [[resultURL absoluteString] UTF8String], error);
-             }
-        ];
+        FBSDKAppInviteContent* content = [[FBSDKAppInviteContent alloc] init];
+        content.appLinkURL               = [NSURL URLWithString:GetTableValue(L, 2, @[@"appLinkURL"])];
+        content.appInvitePreviewImageURL = [NSURL URLWithString:GetTableValue(L, 2, @[@"appInvitePreviewImageURL"])];
+
+        [FBSDKAppInviteDialog showWithContent:content delegate:g_Facebook.m_Delegate];
+
+    } else if (dialog == dmHashString64("gamerequest") ||
+               dialog == dmHashString64("apprequest")) {
+
+        FBSDKGameRequestContent* content = [[FBSDKGameRequestContent alloc] init];
+        content.title      = GetTableValue(L, 2, @[@"title"]);
+        content.message    = GetTableValue(L, 2, @[@"message"]);
+        content.actionType = [GetTableValue(L, 2, @[@"actionType"]) unsignedIntValue];
+        content.filters    = [GetTableValue(L, 2, @[@"filters"]) unsignedIntValue];
+        content.data       = GetTableValue(L, 2, @[@"data"]);
+        content.objectID   = GetTableValue(L, 2, @[@"objectID"]);
+        content.recipients = GetTableValue(L, 2, @[@"recipients"]);
+        content.recipientSuggestions = GetTableValue(L, 2, @[@"recipientSuggestions"]);
+
+        [FBSDKGameRequestDialog showWithContent:content delegate:g_Facebook.m_Delegate];
+
     } else {
-        const char* msg = "No facebook session active";
-        dmLogWarning("%s", msg);
-
         NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
-        [errorDetail setValue:@"Failed to do something wicked" forKey:NSLocalizedDescriptionKey];
+        [errorDetail setValue:@"Invalid dialog type" forKey:NSLocalizedDescriptionKey];
         NSError* error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
 
+        lua_State* main_thread = dmScript::GetMainThread(L);
         RunDialogResultCallback(main_thread, 0, error);
     }
 
@@ -559,31 +611,20 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
     g_Facebook.m_Delegate = [[FacebookAppDelegate alloc] init];
     dmExtension::RegisterUIApplicationDelegate(g_Facebook.m_Delegate);
 
-    SwizzleImageNamed();
-
     // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
     // Better solution?
     const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
-    [FBSettings setDefaultAppID: [NSString stringWithUTF8String: app_id]];
+    [FBSDKSettings setAppID: [NSString stringWithUTF8String: app_id]];
 
-    // NOTE: Removed when upgraded to SDK 3.22 (removed)
-    // This is probably related to whether we should send tracking data to Facebook or not
-    // See FBAppEvents activateApp for related functionality
-    //[FBSettings setShouldAutoPublishInstall: false];
-
-    // The session is created lazily, check InitSession
-    g_Facebook.m_Session = 0;
+    g_Facebook.m_Login = [[FBSDKLoginManager alloc] init];
 
     return dmExtension::RESULT_OK;
 }
 
 dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 {
-    if (g_Facebook.m_Session) {
-        dmExtension::UnregisterUIApplicationDelegate(g_Facebook.m_Delegate);
-        [g_Facebook.m_Session release];
-        g_Facebook.m_Session = 0;
-    }
+    dmExtension::UnregisterUIApplicationDelegate(g_Facebook.m_Delegate);
+    [g_Facebook.m_Login release];
     return dmExtension::RESULT_OK;
 }
 
@@ -597,17 +638,29 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         lua_pushnumber(L, (lua_Number) val); \
         lua_setfield(L, -2, #name);\
 
-    SETCONSTANT(STATE_CREATED, FBSessionStateCreated);
-    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, FBSessionStateCreatedTokenLoaded);
-    SETCONSTANT(STATE_CREATED_OPENING, FBSessionStateCreatedOpening);
-    SETCONSTANT(STATE_OPEN, FBSessionStateOpen);
-    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED, FBSessionStateOpenTokenExtended);
-    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED, FBSessionStateClosedLoginFailed);
-    SETCONSTANT(STATE_CLOSED, FBSessionStateClosed);
-    SETCONSTANT(AUDIENCE_NONE, FBSessionDefaultAudienceNone)
-    SETCONSTANT(AUDIENCE_ONLYME, FBSessionDefaultAudienceOnlyMe)
-    SETCONSTANT(AUDIENCE_FRIENDS, FBSessionDefaultAudienceFriends)
-    SETCONSTANT(AUDIENCE_EVERYONE, FBSessionDefaultAudienceEveryone)
+    SETCONSTANT(STATE_CREATED, STATE_CREATED);
+    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, STATE_CREATED_TOKEN_LOADED);
+    SETCONSTANT(STATE_CREATED_OPENING, STATE_CREATED_OPENING);
+    SETCONSTANT(STATE_OPEN, STATE_OPEN);
+    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED, STATE_OPEN_TOKEN_EXTENDED);
+    SETCONSTANT(STATE_CLOSED, STATE_CLOSED);
+    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED, STATE_CLOSED_LOGIN_FAILED);
+
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE, FBSDKGameRequestActionTypeNone);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND, FBSDKGameRequestActionTypeSend);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, FBSDKGameRequestActionTypeAskFor);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN, FBSDKGameRequestActionTypeTurn);
+
+    SETCONSTANT(GAMEREQUEST_FILTER_NONE, FBSDKGameRequestFilterNone);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS, FBSDKGameRequestFilterAppUsers);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, FBSDKGameRequestFilterAppNonUsers);
+
+    SETCONSTANT(AUDIENCE_NONE, -1) // ??
+    SETCONSTANT(AUDIENCE_ONLYME, FBSDKDefaultAudienceOnlyMe)
+    SETCONSTANT(AUDIENCE_FRIENDS, FBSDKDefaultAudienceFriends)
+    SETCONSTANT(AUDIENCE_EVERYONE, FBSDKDefaultAudienceEveryone)
+
+#undef SETCONSTANT
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

@@ -10,11 +10,13 @@ import android.app.Activity;
 import android.util.Log;
 import android.os.Bundle;
 
-import com.facebook.SessionDefaultAudience;
-import com.facebook.SessionState;
-import com.facebook.widget.WebDialog;
-import com.facebook.FacebookException;
-import com.facebook.Session;
+// import com.facebook.SessionDefaultAudience;
+// import com.facebook.SessionState;
+// import com.facebook.widget.WebDialog;
+// import com.facebook.FacebookException;
+// import com.facebook.Session;
+
+import com.facebook.login.DefaultAudience;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -43,6 +45,8 @@ class FacebookJNI {
         this.activity = activity;
     }
 
+    /*
+    TODO: Implement for SDK 4
     private int convertSessionState(SessionState state) {
         // Must match iOS for now
         switch (state) {
@@ -63,38 +67,43 @@ class FacebookJNI {
         default:
             return -1;
         }
+        return -1;
     }
+    */
 
-    private SessionDefaultAudience convertSessionDefaultAudience(int defaultAudience) {
+    private DefaultAudience convertSessionDefaultAudience(int defaultAudience) {
         // Must match iOS for now
         switch (defaultAudience) {
         case 0:
-            return SessionDefaultAudience.NONE;
+            return DefaultAudience.NONE;
         case 10:
-            return SessionDefaultAudience.ONLY_ME;
+            return DefaultAudience.ONLY_ME;
         case 20:
-            return SessionDefaultAudience.FRIENDS;
+            return DefaultAudience.FRIENDS;
         case 30:
-            return SessionDefaultAudience.EVERYONE;
+            return DefaultAudience.EVERYONE;
         default:
-            return SessionDefaultAudience.FRIENDS;
+            return DefaultAudience.FRIENDS;
         }
     }
 
     public void login(final long userData) {
         Log.d(TAG, "login");
-        this.activity.runOnUiThread(new Runnable() {
+        this.activity.runOnUiThread( new Runnable() {
+
             @Override
             public void run() {
-                Log.v(TAG, "java jni thread: " + Thread.currentThread().getId());
-              //onLogin(userData, true, null);
-                facebook.login(new Facebook.StateCallback() {
+                Log.d(TAG, "java jni thread: " + Thread.currentThread().getId());
+                facebook.login( new Facebook.StateCallback() {
+
                     @Override
-                    public void onDone(final SessionState state, final String error) {
-                        onLogin(userData, convertSessionState(state), error);
+                    public void onDone( final int state, final String error) {
+                        onLogin(userData, state, error);
                     }
+
                 });
             }
+
         });
     }
 
@@ -146,24 +155,25 @@ class FacebookJNI {
                         onRequestRead(userData, error);
                     }
                 };
-                facebook.requestPubPermissions(convertSessionDefaultAudience(defaultAudience), permissions.split(","),
-                        cb);
+                facebook.requestPubPermissions(convertSessionDefaultAudience(defaultAudience), permissions.split(","), cb);
             }
         });
     }
 
-    public void showDialog(final long userData, final String action, final String paramsJson) {
+    public void showDialog(final long userData, final String dialogType, final String paramsJson) {
+
         this.activity.runOnUiThread(new Runnable() {
+
             @Override
             public void run() {
-                Session session = Session.getActiveSession();
-                if (session == null || !session.isOpened()) {
-                    String err = "No active facebook session";
-                    Log.e(TAG, err);
-                    onDialogComplete(userData, null, err);
-                    return;
-                }
+                Facebook.DialogCallback cb = new Facebook.DialogCallback() {
+                    @Override
+                    public void onDone(final String result, final String error) {
+                        onDialogComplete(userData, result, error);
+                    }
+                };
 
+                // Parse dialog params from JSON and put into Bundle
                 Bundle params = new Bundle();
                 JSONObject o = null;
                 try {
@@ -181,52 +191,48 @@ class FacebookJNI {
                     return;
                 }
 
-                params.putString("app_id", session.getApplicationId());
-                params.putString("access_token", session.getAccessToken());
-                params.putString("redirect_uri", "fbconnect://success");
+                facebook.showDialog(dialogType, params, cb);
 
-                WebDialog.OnCompleteListener listener = new WebDialog.OnCompleteListener() {
-                    @Override
-                    public void onComplete(Bundle values, FacebookException error) {
-
-                        if (values != null) {
-                            StringBuilder sb = new StringBuilder(1024);
-                            sb.append("fbconnect://success?");
-
-                            Set<String> keys = values.keySet();
-                            int n = keys.size();
-                            int i = 0;
-                            for (String k : keys) {
-                                try {
-                                    String v = URLEncoder.encode(values.getString(k), "UTF-8");
-                                    sb.append(URLEncoder.encode(k, "UTF-8"));
-                                    sb.append("=");
-                                    sb.append(v);
-                                    if (i < n - 1) {
-                                        sb.append("&");
-                                    }
-                                    ++i;
-                                } catch (java.io.UnsupportedEncodingException e) {
-                                    Log.e(TAG, "Failed to create url", e);
-                                }
-                            }
-
-                            String err = null;
-                            if (error != null) {
-                                err = error.getMessage();
-                            }
-                            onDialogComplete(userData, sb.toString(), err);
-                        } else {
-                            // Happens when user closes the dialog, i.e. cancel
-                            onDialogComplete(userData, null, null);
-                        }
-                    }
-                };
-
-                WebDialog dialog = new WebDialog(activity, action, params, android.R.style.Theme_Translucent_NoTitleBar, listener);
-                dialog.show();
             }
         });
+
+
+        /*
+        TODO: Implement for SDK 4
+
+            if (values != null) {
+                StringBuilder sb = new StringBuilder(1024);
+                sb.append("fbconnect://success?");
+
+                Set<String> keys = values.keySet();
+                int n = keys.size();
+                int i = 0;
+                for (String k : keys) {
+                    try {
+                        String v = URLEncoder.encode(values.getString(k), "UTF-8");
+                        sb.append(URLEncoder.encode(k, "UTF-8"));
+                        sb.append("=");
+                        sb.append(v);
+                        if (i < n - 1) {
+                            sb.append("&");
+                        }
+                        ++i;
+                    } catch (java.io.UnsupportedEncodingException e) {
+                        Log.e(TAG, "Failed to create url", e);
+                    }
+                }
+
+                String err = null;
+                if (error != null) {
+                    err = error.getMessage();
+                }
+                onDialogComplete(userData, sb.toString(), err);
+            } else {
+                // Happens when user closes the dialog, i.e. cancel
+                onDialogComplete(userData, null, null);
+            }
+
+        */
     }
 
 }

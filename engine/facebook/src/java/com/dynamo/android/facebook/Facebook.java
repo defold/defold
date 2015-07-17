@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -18,34 +19,41 @@ import android.os.Messenger;
 import android.util.Log;
 
 import com.dynamo.android.DispatcherActivity;
-import com.facebook.Session;
-import com.facebook.SessionDefaultAudience;
-import com.facebook.SessionState;
+
+import com.facebook.FacebookSdk;
+import com.facebook.AccessToken;
+import com.facebook.login.LoginManager;
+import com.facebook.login.DefaultAudience;
 
 public class Facebook implements Handler.Callback {
     private static final String TAG = "defold.facebook";
 
-    public static final String INTENT_EXTRA_MESSENGER = "defold.fb.intent.extra.messenger";
-    public static final String INTENT_EXTRA_APP_ID = "defold.fb.intent.extra.app_id";
-    public static final String INTENT_EXTRA_PERMISSIONS = "defold.fb.intent.extra.permissions";
-    public static final String INTENT_EXTRA_AUDIENCE = "defold.fb.intent.extra.audience";
-    
-    public static final String MSG_KEY_ACTION = "defold.fb.msg.action";
-    public static final String MSG_KEY_SUCCESS = "defold.fb.msg.success";
-    public static final String MSG_KEY_ERROR = "defold.fb.msg.error";
-    public static final String MSG_KEY_STATE = "defold.fb.msg.state";
-    public static final String MSG_KEY_USER = "defold.fb.msg.user";
-    public static final String MSG_KEY_ACCESS_TOKEN = "defold.fb.msg.access_token";
+    public static final String INTENT_EXTRA_MESSENGER    = "defold.fb.intent.extra.messenger";
+    public static final String INTENT_EXTRA_APP_ID       = "defold.fb.intent.extra.app_id";
+    public static final String INTENT_EXTRA_PERMISSIONS  = "defold.fb.intent.extra.permissions";
+    public static final String INTENT_EXTRA_AUDIENCE     = "defold.fb.intent.extra.audience";
+    public static final String INTENT_EXTRA_DIALOGTYPE   = "defold.fb.intent.extra.dialogtype";
+    public static final String INTENT_EXTRA_DIALOGPARAMS = "defold.fb.intent.extra.dialogparams";
 
-    public static final String ACTION_LOGIN = "defold.fb.intent.action.LOGIN";
-    public static final String ACTION_REQ_READ_PERMS = "defold.fb.intent.action.REQ_READ_PERMS";
-    public static final String ACTION_REQ_PUB_PERMS = "defold.fb.intent.action.REQ_PUB_PERMS";
+    public static final String MSG_KEY_ACTION           = "defold.fb.msg.action";
+    public static final String MSG_KEY_SUCCESS          = "defold.fb.msg.success";
+    public static final String MSG_KEY_ERROR            = "defold.fb.msg.error";
+    public static final String MSG_KEY_STATE            = "defold.fb.msg.state";
+    public static final String MSG_KEY_USER             = "defold.fb.msg.user";
+    public static final String MSG_KEY_ACCESS_TOKEN     = "defold.fb.msg.access_token";
+    public static final String MSG_KEY_POST_ID          = "defold.fb.msg.post_id";
+
+    public static final String ACTION_LOGIN             = "defold.fb.intent.action.LOGIN";
+    public static final String ACTION_REQ_READ_PERMS    = "defold.fb.intent.action.REQ_READ_PERMS";
+    public static final String ACTION_REQ_PUB_PERMS     = "defold.fb.intent.action.REQ_PUB_PERMS";
+    public static final String ACTION_SHOW_DIALOG       = "defold.fb.intent.action.SHOW_DIALOG";
 
     private Handler handler;
     private Messenger messenger;
     private String appId;
     private Callback callback;
     private StateCallback stateCallback;
+    private DialogCallback dialogCallback;
     private Map<String, String> me;
     private String accessToken;
     private Activity activity;
@@ -55,7 +63,11 @@ public class Facebook implements Handler.Callback {
     }
 
     public interface StateCallback {
-        void onDone(SessionState state, String error);
+        void onDone(int state, String error);
+    }
+
+    public interface DialogCallback {
+        void onDone(String result, String error);
     }
 
     public Facebook(Activity activity, String appId) {
@@ -63,6 +75,10 @@ public class Facebook implements Handler.Callback {
         this.me = null;
         this.accessToken = null;
         this.activity = activity;
+
+        FacebookSdk.sdkInitialize( activity );
+        FacebookSdk.setApplicationId( appId );
+
     }
 
     private void startActivity(String action) {
@@ -70,10 +86,13 @@ public class Facebook implements Handler.Callback {
     }
 
     private void startActivity(String action, Bundle extras) {
+
         if (this.messenger == null) {
             this.handler = new Handler(this);
             this.messenger = new Messenger(this.handler);
         }
+
+
         Intent intent = new Intent(activity, DispatcherActivity.class);
         intent.putExtra(DispatcherActivity.EXTRA_CLASS_NAME, FacebookActivity.class.getCanonicalName());
         intent.putExtra(INTENT_EXTRA_MESSENGER, messenger);
@@ -91,14 +110,16 @@ public class Facebook implements Handler.Callback {
     }
 
     public void logout() {
-        Session session = Session.getActiveSession();
-        if (session != null) {
-            session.closeAndClearTokenInformation();
+        if (AccessToken.getCurrentAccessToken() != null) {
+            LoginManager.getInstance().logOut();
         }
     }
 
     public String getAccessToken() {
-        return this.accessToken;
+        if (AccessToken.getCurrentAccessToken() != null) {
+            return AccessToken.getCurrentAccessToken().getToken();
+        }
+        return null;
     }
 
     public Map<String, String> getMe() {
@@ -106,12 +127,11 @@ public class Facebook implements Handler.Callback {
     }
 
     public List<String> getPermissions() {
-        Session session = Session.getActiveSession();
-        if (session != null && session.isOpened()) {
-            return session.getPermissions();
-        } else {
-            return Collections.<String> emptyList();
+        if (AccessToken.getCurrentAccessToken() != null) {
+            return new ArrayList<String>(AccessToken.getCurrentAccessToken().getPermissions());
         }
+
+        return Collections.<String> emptyList();
     }
 
     public void requestReadPermissions(String[] permissions, Callback cb) {
@@ -121,13 +141,22 @@ public class Facebook implements Handler.Callback {
         startActivity(ACTION_REQ_READ_PERMS, extras);
     }
 
-    public void requestPubPermissions(SessionDefaultAudience defaultAudience, String[] permissions,
+    public void requestPubPermissions(DefaultAudience defaultAudience, String[] permissions,
             Callback cb) {
         this.callback = cb;
         Bundle extras = new Bundle();
         extras.putInt(INTENT_EXTRA_AUDIENCE, defaultAudience.ordinal());
         extras.putStringArray(INTENT_EXTRA_PERMISSIONS, permissions);
         startActivity(ACTION_REQ_PUB_PERMS, extras);
+    }
+
+    public void showDialog(String dialogType, Bundle params, DialogCallback cb) {
+
+        this.dialogCallback = cb;
+        Bundle extras = new Bundle();
+        extras.putString(INTENT_EXTRA_DIALOGTYPE, dialogType);
+        extras.putBundle(INTENT_EXTRA_DIALOGPARAMS, params);
+        startActivity(ACTION_SHOW_DIALOG, extras);
     }
 
     @Override
@@ -158,9 +187,15 @@ public class Facebook implements Handler.Callback {
                     Log.wtf(TAG, e);
                 }
             }
-            this.stateCallback.onDone(SessionState.values()[data.getInt(MSG_KEY_STATE)], error);
+
+            this.stateCallback.onDone(data.getInt(MSG_KEY_STATE), error);
+
         } else if (action.equals(ACTION_REQ_READ_PERMS) || action.equals(ACTION_REQ_PUB_PERMS)) {
             this.callback.onDone(error);
+
+        } else if (action.equals(ACTION_SHOW_DIALOG)) {
+            this.dialogCallback.onDone(data.getString(MSG_KEY_POST_ID, ""), error);
+
         }
         return handled;
     }
