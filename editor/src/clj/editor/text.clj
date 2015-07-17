@@ -3,10 +3,10 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [instaparse.core :as insta]
-            [clojure.walk :as walk])
+            [instaparse.core :as insta])
   (:import [javafx.scene Parent]
            [javafx.scene.control TextArea]
            [javafx.scene.layout Pane]
@@ -152,6 +152,10 @@
   {"java"   (partial regex-parse java-syntax)
    "script" (partial instaparse lua-p)})
 
+(defn node->syntax
+  [resource-node]
+  (-> resource-node :resource resource/resource-type :ext ext->syntax))
+
 (defn highlighting-for
   "Turns span data structures into the StyleSpans object needed by the
   CodeArea control"
@@ -187,7 +191,7 @@
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [text-area (CodeArea.)]
     (.setParagraphGraphicFactory text-area (LineNumberFactory/get text-area))
-    (when-let [syntax (ext->syntax (-> resource-node :resource-type :ext))]
+    (when-let [syntax (node->syntax resource-node)]
       (ui/observe (.textProperty text-area) (partial do-highlighting text-area syntax)))
     (.replaceText text-area 0 0 (slurp (:resource resource-node)))
     (.add (.getChildren ^Pane parent) text-area)
