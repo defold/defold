@@ -6,7 +6,7 @@
             [internal.system :as is]))
 
 (defn- mock-system [cache-size ch]
-  (is/make-system {:cache-size cache-size :disposal-queue ch}))
+  (is/make-system {:cache-size cache-size :cache-disposal-queue ch}))
 
 (defn- as-map [c] (select-keys c (keys c)))
 
@@ -45,7 +45,7 @@
       (cache-encache cache [[:a (thing 1)] [:b (thing 2)] [:c (thing 3)]])
       (cache-invalidate cache [:a])
       (yield)
-      (let [disposed (take-waiting-to-dispose system)]
+      (let [disposed (take-waiting-cache-to-dispose system)]
         (is (= 1 (count disposed)))
         (is (= [1] (map gt/dispose disposed))))))
 
@@ -54,7 +54,7 @@
       (cache-encache cache [[:a (thing 1)] [:b (thing 2)] [:c (thing 3)]])
       (cache-invalidate cache [:b :c])
       (yield)
-      (let [disposed (take-waiting-to-dispose system)]
+      (let [disposed (take-waiting-cache-to-dispose system)]
         (is (= 2 (count disposed)))
         (is (= [2 3] (map gt/dispose disposed))))))
 
@@ -64,6 +64,6 @@
       (yield)
       (cache-encache cache [[:b (thing 2)] [:c (thing 3)]])
       (yield)
-      (let [disposed (take-waiting-to-dispose system)]
+      (let [disposed (take-waiting-cache-to-dispose system)]
         (is (= 2 (count disposed)))
         (is (= [1 2] (map gt/dispose disposed)))))))

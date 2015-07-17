@@ -35,15 +35,15 @@
     :node     node}])
 
 (defn become
-  [from-node to-node]
+  [node-id to-node]
   [{:type     :become
-    :node-id  (nid from-node)
+    :node-id  node-id
     :to-node  to-node}])
 
 (defn delete-node
-  [node]
+  [node-id]
   [{:type     :delete-node
-    :node-id  (nid node)}])
+    :node-id  node-id}])
 
 (defn update-property
   "*transaction step* - Expects a node, a property label, and a
@@ -70,11 +70,11 @@
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
 (`to-resource to-label`). It returns a value suitable for consumption by [[perform]]."
-  [from-node from-label to-node to-label]
+  [from-node-id from-label to-node-id to-label]
   [{:type         :connect
-    :source-id    (nid from-node)
+    :source-id    from-node-id
     :source-label from-label
-    :target-id    (nid to-node)
+    :target-id    to-node-id
     :target-label to-label}])
 
 (defn disconnect
@@ -83,11 +83,11 @@
   (`from-resource from-label`) from a target node and label
   (`to-resource to-label`). It returns a value suitable for consumption
   by [[perform]]."
-  [from-node from-label to-node to-label]
+  [from-node-id from-label to-node-id to-label]
   [{:type         :disconnect
-    :source-id    (nid from-node)
+    :source-id    from-node-id
     :source-label from-label
-    :target-id    (nid to-node)
+    :target-id    to-node-id
     :target-label to-label}])
 
 (defn label
@@ -137,15 +137,17 @@
   (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [basis triggers-to-fire nodes-affected world-ref nodes-added] :as ctx}
+  [{:keys [basis triggers-to-fire nodes-affected world-ref nodes-added successors-changed] :as ctx}
    {:keys [node]}]
   (let [[basis-after full-node] (gt/add-node basis node)
-        node-id                 (gt/node-id full-node)]
+        node-id                 (gt/node-id full-node)
+        all-outputs             (-> full-node gt/node-type gt/output-labels)]
     (assoc ctx
-           :basis            basis-after
-           :nodes-added      (conj nodes-added node-id)
-           :triggers-to-fire (update triggers-to-fire node-id assoc :added [])
-           :nodes-affected   (merge-with set/union nodes-affected {node-id (-> full-node gt/node-type gt/output-labels)}))))
+           :basis              basis-after
+           :nodes-added        (conj nodes-added node-id)
+           :triggers-to-fire   (update triggers-to-fire node-id assoc :added [])
+           :successors-changed (into successors-changed (map (fn [label] [node-id label]) all-outputs))
+           :nodes-affected     (merge-with set/union nodes-affected {node-id all-outputs}))))
 
 (defn- disconnect-inputs
   [ctx target-node target-label]
@@ -191,7 +193,7 @@
                                            (-> new-node gt/node-type gt/output-labels))
           ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
 
-          [basis-after _]  (gt/replace-node basis node-id new-node)]
+          [basis-after _]  (gt/replace-node (:basis ctx) node-id new-node)]
       (assoc (activate-all-outputs ctx node-id new-node)
              :basis           basis-after))
     ctx))

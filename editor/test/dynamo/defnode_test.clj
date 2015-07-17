@@ -14,18 +14,18 @@
     (let [super-type (in/make-node-type {:inputs {:an-input g/Str}})
           node-type  (in/make-node-type {:supertypes [super-type]})]
       (is (= [super-type] (g/supertypes node-type)))
-      (is (= {:an-input g/Str} (g/inputs node-type)))))
+      (is (= {:an-input g/Str} (g/declared-inputs node-type)))))
   (testing "supports multiple inheritance"
     (let [super-type (in/make-node-type {:inputs {:an-input g/Str}})
           mixin-type (in/make-node-type {:inputs {:mixin-input g/Str}})
           node-type  (in/make-node-type {:supertypes [super-type mixin-type]})]
       (is (= [super-type mixin-type] (g/supertypes node-type)))
-      (is (= {:an-input g/Str :mixin-input g/Str} (g/inputs node-type)))))
+      (is (= {:an-input g/Str :mixin-input g/Str} (g/declared-inputs node-type)))))
   (testing "supports inheritance hierarchy"
     (let [grandparent-type (in/make-node-type {:inputs {:grandparent-input g/Str}})
           parent-type      (in/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input g/Str}})
           node-type        (in/make-node-type {:supertypes [parent-type]})]
-      (is (= {:parent-input g/Str :grandparent-input g/Str} (g/inputs node-type))))))
+      (is (= {:parent-input g/Str :grandparent-input g/Str} (g/declared-inputs node-type))))))
 
 (g/defnode BasicNode)
 
@@ -82,14 +82,14 @@
                  (eval '(dynamo.graph/defnode BadInput (input a-input (fn [] "not a schema")))))))
   (testing "labeled input"
     (let [node (g/construct OneInputNode)]
-      (is (:an-input (g/inputs OneInputNode)))
+      (is (:an-input (g/declared-inputs OneInputNode)))
       (is (= g/Str (g/input-type OneInputNode :an-input)))
-      (is (= g/Str (-> OneInputNode g/inputs (get :an-input))))))
+      (is (= g/Str (-> OneInputNode g/declared-inputs (get :an-input))))))
   (testing "inherited input"
     (let [node (g/construct InheritedInputNode)]
-      (is (:an-input (g/inputs InheritedInputNode)))
+      (is (:an-input (g/declared-inputs InheritedInputNode)))
       (is (= g/Str (g/input-type InheritedInputNode :an-input)))
-      (is (= g/Str (-> InheritedInputNode g/inputs (get :an-input))))))
+      (is (= g/Str (-> InheritedInputNode g/declared-inputs (get :an-input))))))
   (testing "inputs can be flagged for injection"
     (let [node (g/construct InjectableInputNode)]
       (is (:for-injection (g/injectable-inputs InjectableInputNode)))))
@@ -208,7 +208,8 @@
   (property another-property g/Int (default -1)))
 
 (g/defnode VisibiltyFunctionPropertyNode
-  (property a-property g/Str (visible (g/fnk [foo] true))))
+  (input foo g/Any)
+  (property a-property g/Str (dynamic visible (g/fnk [foo] true))))
 
 (deftest nodes-can-include-properties
   (testing "a single property"
@@ -216,6 +217,10 @@
       (is (:a-property (g/property-labels SinglePropertyNode)))
       (is (:a-property (-> node g/node-type g/property-labels)))
       (is (some #{:a-property} (keys node)))))
+
+  (testing "_id is an internal property"
+    (is (= [:_id] (keys (g/internal-properties SinglePropertyNode))))
+    (is (= [:a-property] (keys (g/properties SinglePropertyNode)))))
 
   (testing "two properties"
     (let [node (g/construct TwoPropertyNode)]
@@ -242,9 +247,10 @@
 
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (= {:_id              #{:properties :_id :self}
-              :another-property #{:properties :another-property :self}
-              :a-property       #{:properties :a-property :self}}
+      (is (= {:_id              #{:_id}
+              :another-property #{:_properties :another-property :_self}
+              :a-property       #{:_properties :a-property :_self}
+              :_self             #{:_properties}}
              (-> node g/node-type g/input-dependencies)))))
 
   (testing "do not allow a property to shadow an input of the same name"
@@ -255,10 +261,8 @@
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
-      (is (= {:_id        #{:properties :_id :self}
-              :foo        #{:properties}
-              :a-property #{:properties :a-property :self}}
-             (-> node g/node-type g/input-dependencies)))))
+      (is (= {:a-property #{:_properties :a-property :_self}}
+             (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
     (is (thrown? Compiler$CompilerException
@@ -336,21 +340,24 @@
       (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
 
   (testing "output dependencies include transforms and their inputs"
-    (is (= {:_id #{:properties :_id :self}
-            :project #{:integer-output}
-            :string-input #{:inline-string}
-            :integer-input #{:string-output :cached-output}}
+    (is (= {:_id           #{:_id}
+            :project       #{:integer-output}
+            :string-input  #{:inline-string}
+            :integer-input #{:string-output :cached-output}
+            :_self          #{:_properties}}
            (g/input-dependencies MultipleOutputNode)))
-    (is (= {:_id #{:properties :_id :self}
-            :project #{:integer-output}
-            :string-input #{:inline-string}
-            :integer-input #{:string-output :abstract-output :cached-output}}
+    (is (= {:_id           #{:_id}
+            :project       #{:integer-output}
+            :string-input  #{:inline-string}
+            :integer-input #{:string-output :abstract-output :cached-output}
+            :_self          #{:_properties}}
            (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
-    (is (= {:_id #{:properties :_id :self}
-            :a-property #{:direct-calculation :indirect-calculation :properties :a-property :self}
-            :direct-calculation #{:indirect-calculation}}
+    (is (= {:_id                #{:_id}
+            :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property :_self}
+            :direct-calculation #{:indirect-calculation}
+            :_self               #{:_properties}}
            (g/input-dependencies TwoLayerDependencyNode))))
 
   (testing "outputs defined without the type cause a compile error"
@@ -394,7 +401,7 @@
   (property validated-internal DefaultProperty
             (validate always-valid (fn [value] true)))
   (property literally-disabled TypedProperty
-            (enabled (g/always false))))
+            (dynamic enabled (g/always false))))
 
 (g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
@@ -502,7 +509,7 @@
 
 (defn affects-properties
   [node-type input]
-  (contains? (get (g/input-dependencies node-type) input) :properties))
+  (contains? (get (g/input-dependencies node-type) input) :_properties))
 
 (deftest node-properties-depend-on-dynamic-inputs
   (let [all-inputs [:an-input :another-input :third-input :fourth-input :fifth-input]]

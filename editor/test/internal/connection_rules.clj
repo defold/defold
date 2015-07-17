@@ -15,7 +15,7 @@
     (with-clean-system
       (let [[output input] (tx-nodes (g/make-node world OutputNode)
                                      (g/make-node world InputNode))]
-        (g/connect! output :string-scalar input :string-scalar)
+        (g/connect! (g/node-id output) :string-scalar (g/node-id input) :string-scalar)
         (is (g/connected? (g/now) (g/node-id output) :string-scalar (g/node-id input) :string-scalar)))))
 
   (testing "incompatible single value connections"
@@ -23,6 +23,6 @@
       (let [[output input] (tx-nodes (g/make-node world OutputNode)
                                      (g/make-node world InputNode))]
         (is (thrown? AssertionError
-                     (g/connect! output :int-scalar input :string-scalar)))
+                     (g/connect! (g/node-id output) :int-scalar (g/node-id input) :string-scalar)))
         (is (not (g/connected? (g/now) (g/node-id output) :string-scalar (g/node-id input) :string-scalar)))
         ))))

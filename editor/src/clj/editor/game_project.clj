@@ -31,10 +31,10 @@
 
   (input dep-build-targets g/Any :array)
 
-  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Game Project" :icon game-project-icon}))
+  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached (g/fnk [node-id resource content dep-build-targets]
-                                             [{:node-id node-id
+  (output build-targets g/Any :cached (g/fnk [_node-id resource content dep-build-targets]
+                                             [{:node-id _node-id
                                                :resource (workspace/make-build-resource resource)
                                                :build-fn build-game-project
                                                :user-data {:content content}
@@ -70,7 +70,7 @@
 (defn- property [properties category key]
   (get-in properties [category key] (get-in meta-properties [category (str key ".default")])))
 
-(defn- root-node [self properties category key]
+(defn- root-resource [base-resource properties category key]
   (let [path (property properties category key)
         ; TODO - hack for compiled files in game.project
         path (subs path 0 (dec (count path)))
@@ -78,18 +78,19 @@
         path (if (.startsWith path "/")
                path
                (str "/" path))]
-    (project/resolve-resource-node self path)))
+    (workspace/resolve-resource base-resource path)))
 
 (defn load-game-project [project self input]
   (let [content (slurp input)
         properties (parse-properties (BufferedReader. (StringReader. content)))
-        roots (map (fn [[category field]] (root-node self properties category field))
+        resource (:resource self)
+        roots (map (fn [[category field]] (root-resource resource properties category field))
                    [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
-                    ["bootstrap" "render"]])]
+                    ["bootstrap" "render"] ["display" "display_profiles"]])]
     (concat
       (g/set-property self :content content)
       (for [root roots]
-        (g/connect root :build-targets self :dep-build-targets)))))
+        (project/connect-resource-node project root (g/node-id self) [[:build-targets :dep-build-targets]])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

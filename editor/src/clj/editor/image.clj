@@ -5,16 +5,34 @@
             [editor.geom :refer [clamper]]
             [editor.project :as project]
             [editor.types :as types]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.pipeline.tex-gen :as tex-gen])
   (:import [editor.types Rect Image]
            [java.awt Color]
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
 
+; TODO - fix real profiles
+(def test-profile {:name "test-profile"
+                   :platforms [{:os :os-id-generic
+                                :formats [{:format :texture-format-rgba
+                                           :compression-level :fast}]
+                                :mipmaps false}]})
+
+(defn- build-texture [self basis resource dep-resources user-data]
+  {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
+
+(g/defnk produce-build-targets [_node-id resource content]
+  [{:node-id _node-id
+    :resource (workspace/make-build-resource resource)
+    :build-fn build-texture
+    :user-data {:image content}}])
+
 (g/defnode ImageNode
   (inherits project/ResourceNode)
 
-  (output content BufferedImage :cached (g/fnk [resource] (ImageIO/read (io/input-stream resource)))))
+  (output content BufferedImage :cached (g/fnk [resource] (ImageIO/read (io/input-stream resource))))
+  (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics
   [binding & body]
@@ -153,5 +171,9 @@ region will be identical to the nearest pixel of the source image."
 
 (defn register-resource-types [workspace]
   (concat
-    (workspace/register-resource-type workspace :ext ["jpg" "png"] :node-type ImageNode :view-types [:default])
+    (workspace/register-resource-type workspace
+                                      :ext ["jpg" "png"]
+                                      :build-ext "texturec"
+                                      :node-type ImageNode
+                                      :view-types [:default])
     (workspace/register-resource-type workspace :ext "texture")))

@@ -121,7 +121,7 @@
   [^TextRendererRef v ^java.io.Writer w]
   (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
 
-(g/defnk produce-drawable [self ^Region viewport]
+(g/defnk produce-drawable [_self ^Region viewport]
   (when (vp-not-empty? viewport)
     (let [[w h]   (vp-dims viewport)
           profile (GLProfile/getDefault)
@@ -130,11 +130,11 @@
       (.setOnscreen caps false)
       (.setPBuffer caps true)
       (.setDoubleBuffered caps false)
-      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable self)
+      (let [^GLOffscreenAutoDrawable drawable (:gl-drawable _self)
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (g/transact (g/set-property self :gl-drawable drawable))
+        (g/transact (g/set-property _self :gl-drawable drawable))
         drawable))))
 
 (defn- make-current [^Region viewport ^GLAutoDrawable drawable]
@@ -622,44 +622,44 @@
                    tool-controller scene-tools/ToolController]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
-                  (g/connect resource-node :scene view :scene)
-                  (g/connect resource-node :scene selection :scene)
+                  (g/connect (g/node-id resource-node) :scene (g/node-id view) :scene)
+                  (g/connect (g/node-id resource-node) :scene selection :scene)
                   (g/set-graph-value view-graph :renderer renderer)
                   (g/set-graph-value view-graph :camera   camera)
 
-                  (g/connect background      :renderable        renderer        :aux-renderables)
-                  (g/connect camera          :camera            renderer        :camera)
-                  (g/connect camera          :input-handler     view            :input-handlers)
-                  (g/connect view            :aabb              camera          :aabb)
-                  (g/connect view            :viewport          camera          :viewport)
-                  (g/connect view            :viewport          renderer        :viewport)
-                  (g/connect view            :scene             renderer        :scene)
+                  (g/connect background           :renderable                renderer         :aux-renderables)
+                  (g/connect camera               :camera                    renderer         :camera)
+                  (g/connect camera               :input-handler             (g/node-id view) :input-handlers)
+                  (g/connect (g/node-id view)     :aabb                      camera           :aabb)
+                  (g/connect (g/node-id view)     :viewport                  camera           :viewport)
+                  (g/connect (g/node-id view)     :viewport                  renderer         :viewport)
+                  (g/connect (g/node-id view)     :scene                     renderer         :scene)
 
-                  (g/connect project         :selected-node-ids view            :selection)
-                  (g/connect view            :selection         renderer        :selection)
-                  (g/connect renderer        :frame             view            :frame)
+                  (g/connect (g/node-id project)  :selected-node-ids         (g/node-id view) :selection)
+                  (g/connect (g/node-id view)     :selection                 renderer         :selection)
+                  (g/connect renderer             :frame                     (g/node-id view) :frame)
 
-                  (g/connect tool-controller :input-handler     view            :input-handlers)
+                  (g/connect tool-controller      :input-handler             (g/node-id view) :input-handlers)
 
-                  (g/connect selection       :renderable        renderer        :tool-renderables)
-                  (g/connect selection       :input-handler     view            :input-handlers)
-                  (g/connect selection       :picking-rect      renderer        :picking-rect)
-                  (g/connect renderer        :picking-selection selection       :picking-selection)
-                  (g/connect view            :selection         selection       :selection)
-                  (g/connect view            :picking-rect      renderer        :tool-picking-rect)
-                  (g/connect renderer        :selected-tool-renderables view    :selected-tool-renderables)
+                  (g/connect selection            :renderable                renderer         :tool-renderables)
+                  (g/connect selection            :input-handler             (g/node-id view) :input-handlers)
+                  (g/connect selection            :picking-rect              renderer         :picking-rect)
+                  (g/connect renderer             :picking-selection         selection        :picking-selection)
+                  (g/connect (g/node-id view)     :selection                 selection        :selection)
+                  (g/connect (g/node-id view)     :picking-rect              renderer         :tool-picking-rect)
+                  (g/connect renderer             :selected-tool-renderables (g/node-id view) :selected-tool-renderables)
 
-                  (g/connect grid   :renderable renderer :aux-renderables)
-                  (g/connect camera :camera     grid     :camera)
+                  (g/connect grid                 :renderable                renderer         :aux-renderables)
+                  (g/connect camera               :camera                    grid             :camera)
 
 
-                  (g/connect tool-controller :renderables renderer :tool-renderables)
+                  (g/connect tool-controller      :renderables               renderer         :tool-renderables)
 
-                  (g/connect app-view :active-tool view :active-tool)
-                  (g/connect view :active-tool tool-controller :active-tool)
-                  (g/connect view :viewport    tool-controller          :viewport)
-                  (g/connect camera :camera tool-controller :camera)
-                  (g/connect renderer :selected-renderables tool-controller :selected-renderables)
+                  (g/connect (g/node-id app-view) :active-tool               (g/node-id view) :active-tool)
+                  (g/connect (g/node-id view)     :active-tool               tool-controller  :active-tool)
+                  (g/connect (g/node-id view)     :viewport                  tool-controller  :viewport)
+                  (g/connect camera               :camera                    tool-controller  :camera)
+                  (g/connect renderer             :selected-renderables      tool-controller  :selected-renderables)
                   (when (not (:grid opts))
                     (g/delete-node grid)))))
 
@@ -688,7 +688,7 @@
   (output position Vector3d :cached (g/fnk [^types/Vec3 position] (Vector3d. (double-array position))))
   (output rotation Quat4d :cached (g/fnk [^types/Vec3 rotation] (math/euler->quat rotation)))
   (output transform Matrix4d :cached (g/fnk [^Vector3d position ^Quat4d rotation] (Matrix4d. rotation position 1.0)))
-  (output scene g/Any :cached (g/fnk [^g/NodeID node-id ^Matrix4d transform] {:node-id node-id :transform transform}))
+  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/always (geom/null-aabb)))
 
   scene-tools/Movable

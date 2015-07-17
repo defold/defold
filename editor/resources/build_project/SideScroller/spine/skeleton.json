@@ -1,0 +1,28 @@
+{
+"skeleton": { "hash": "nJFrOJiEzuDsFojYqQkrMOoKcHQ", "spine": "2.1.27", "width": 128, "height": 16 },
+"bones": [
+	{ "name": "root", "x": 107.41, "y": 84.72 }
+],
+"slots": [
+	{ "name": "graphics/horizontal", "bone": "root", "attachment": "graphics/horizontal" }
+],
+"skins": {
+	"default": {
+		"graphics/horizontal": {
+			"graphics/horizontal": { "x": 57.87, "width": 128, "height": 16 }
+		}
+	}
+},
+"animations": {
+	"animation": {
+		"bones": {
+			"root": {
+				"rotate": [
+					{ "time": 0, "angle": 0 },
+					{ "time": 1, "angle": 46.22 }
+				]
+			}
+		}
+	}
+}
+}

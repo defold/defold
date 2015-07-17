@@ -143,8 +143,8 @@
         (persistent! vbuf)))))
 
 (g/defnk produce-scene
-  [self aabb base-texture-tex control-points]
-  (let [scene {:node-id (g/node-id self) :aabb aabb}
+  [_self aabb base-texture-tex control-points]
+  (let [scene {:node-id (g/node-id _self) :aabb aabb}
         vertex-buffer (gen-vertex-buffer control-points)]
     (if vertex-buffer
       (assoc scene :renderable {:render-fn (fn [gl render-args renderables count]
@@ -174,11 +174,11 @@
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
     (let [level (edn/read reader)]
       (concat
-       (g/set-property self :control-points (:control-points level))
-       (g/set-property self :base-texture (:base-texture level))
-       (if-let [img-node (project/resolve-resource-node self (:base-texture level))]
-         (g/connect img-node :content self :base-texture-img)
-         [])))))
+        (g/set-property self :control-points (:control-points level))
+        (g/set-property self :base-texture (:base-texture level))
+        (if-let [img-resource (workspace/resolve-resource (:resource self) (:base-texture level))]
+          (project/connect-resource-node project img-resource (g/node-id self) [[:content :base-texture-img]])
+          [])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

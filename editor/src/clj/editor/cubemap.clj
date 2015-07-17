@@ -85,10 +85,10 @@
               (protobuf/pb->str))})
 
 (g/defnk produce-scene
-  [self aabb gpu-texture vertex-binding]
+  [_self aabb gpu-texture vertex-binding]
   (let [vertex-binding (vtx/use-with unit-sphere cubemap-shader)]
-    {:node-id         (g/node-id self)
-     :aabb        aabb
+    {:node-id    (g/node-id _self)
+     :aabb       aabb
      :renderable {:render-fn (fn [gl render-args renderables count]
                                (let [camera (:camera render-args)]
                                  (render-cubemap gl camera gpu-texture vertex-binding)))
@@ -119,10 +119,12 @@
 
 (defn load-cubemap [project self input]
   (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))]
-    (for [[side input] cubemap-message]
-      (if-let [img-node (project/resolve-resource-node self input)]
-        [(g/connect img-node :content self (keyword (subs (str side "-img") 1)))
-         (g/set-property self side input)]
+    (for [[side input] cubemap-message
+          :let [img-resource (workspace/resolve-resource (:resource self) input)]]
+      (concat
+        (project/connect-resource-node project
+                                       img-resource (g/node-id self)
+                                       [[:content (keyword (subs (str side "-img") 1))]])
         (g/set-property self side input)))))
 
 (defn register-resource-types [workspace]

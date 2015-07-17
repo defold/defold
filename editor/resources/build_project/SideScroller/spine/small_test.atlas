@@ -1,0 +1,23 @@
+animations {
+  id: "graphics/horizontal"
+  images {
+    image: "/spine/graphics/horizontal.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "graphics/vertical"
+  images {
+    image: "/spine/graphics/vertical.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 0
+extrude_borders: 0
+inner_padding: 0

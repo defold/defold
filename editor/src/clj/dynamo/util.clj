@@ -120,3 +120,14 @@ into an arglist."
   (if (coll? x)
     (vec x)
     [x]))
+
+(defn project
+  "Like clojure.set/project, but returns a vector of tuples instead of
+  a set of maps."
+  [xrel ks]
+  (with-meta (vec (map #(vals (select-keys % ks)) xrel)) (meta xrel)))
+
+(defn guard [f g]
+  (fn [& args]
+    (when (apply f args)
+      (apply g args))))

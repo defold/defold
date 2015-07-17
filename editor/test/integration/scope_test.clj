@@ -20,7 +20,7 @@
           project (project/make-project proj-graph-id workspace)]
       (project/load-project project)
       (is (not= 0 (node-count (g/graph proj-graph-id))))
-      (g/delete-node! project)
+      (g/delete-node! (g/node-id project))
       (let [final-node-ids (set (ig/node-ids (g/graph proj-graph-id)))
             orphans (map g/node-by-id final-node-ids)]
         (is (= 0 (count orphans)))))))
@@ -38,7 +38,7 @@
       (let [new-resource-node (project/get-resource-node project mem-resource)
             new-count (node-count (g/graph graph-id))]
         (is (> new-count old-count))
-        (g/delete-node! new-resource-node)
+        (g/delete-node! (g/node-id new-resource-node))
         (let [final-count (node-count (g/graph graph-id))
               final-node-ids (set (ig/node-ids (g/graph graph-id)))
               orphans (map g/node-by-id (clojure.set/difference final-node-ids old-node-ids))]
