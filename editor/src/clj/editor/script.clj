@@ -1,6 +1,7 @@
 (ns editor.script
   (:require [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -18,6 +19,14 @@
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
+
+(def script-type->prop-type {:property-type-number g/Num
+                             :property-type-hash String
+                             :property-type-url String
+                             :property-type-vector3 t/Vec3
+                             :property-type-vector4 nil #_t/Vec4
+                             :property-type-quat nil #_t/Vec4
+                             :property-type-bool g/Bool})
 
 (def script-defs [{:ext "script"
                    :icon "icons/pictures.png"
@@ -56,8 +65,13 @@
 
   (output modules g/Any :cached (g/fnk [content] (lua-scan/src->modules content)))
   (output script-properties g/Any :cached (g/fnk [content] (lua-scan/src->properties content)))
-  (output component-properties g/Any :cached (g/fnk [script-properties]
-                                                    (into {} (map (fn [p] [(:name p) (select-keys p [:type :value])]) (filter #(= :ok (:status %)) script-properties)))))
+  (output user-properties g/Any :cached (g/fnk [script-properties]
+                                               (into {} (map (fn [p]
+                                                               (let [key (:name p)
+                                                                     prop (select-keys p [:value])
+                                                                     prop (assoc prop :edit-type {:type (script-type->prop-type (:type p))})]
+                                                                 [key prop]))
+                                                             (filter #(= :ok (:status %)) script-properties)))))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 
