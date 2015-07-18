@@ -70,10 +70,12 @@
   (property id g/Str)
   (property embedded g/Bool (dynamic visible (g/always false)))
   (property path g/Str (dynamic visible (g/always false)))
-  (property linked-properties g/Any
-            (dynamic link (g/fnk [source-properties] source-properties)))
+  (property component-properties g/Any
+            (dynamic link (g/fnk [source-properties] source-properties))
+            (dynamic override (g/fnk [user-properties] user-properties)))
 
   (input source-properties g/Any)
+  (input user-properties g/Any)
   (input project-id g/NodeID)
   (input outline g/Any)
   (input save-data g/Any)
@@ -141,6 +143,7 @@
   (input child-scenes g/Any :array)
   (input child-ids g/Str :array)
   (input dep-build-targets g/Any :array)
+  (input component-properties g/Any :array)
 
   (output outline g/Any :cached (g/fnk [_node-id outline] {:node-id _node-id :label "Game Object" :icon game-object-icon :children outline}))
   (output proto-msg g/Any :cached produce-proto-msg)
@@ -166,15 +169,19 @@
     (g/make-nodes (g/node->graph-id self)
                   [comp-node [ComponentNode :id id :position position :rotation rotation :path path]]
                   (concat
-                    (g/connect comp-node :outline       (g/node-id self) :outline)
-                    (g/connect comp-node :_self         (g/node-id self) :nodes)
-                    (g/connect comp-node :build-targets (g/node-id self) :dep-build-targets)
-                    (g/connect comp-node :ddf-message   (g/node-id self) :ref-ddf)
-                    (g/connect comp-node :id            (g/node-id self) :child-ids)
-                    (g/connect comp-node :scene         (g/node-id self) :child-scenes)
+                    (for [[src tgt] [[:outline :outline]
+                                     [:component-properties :component-properties]
+                                     [:_self :nodes]
+                                     [:build-targets :dep-build-targets]
+                                     [:ddf-message :ref-ddf]
+                                     [:id :child-ids]
+                                     [:scene :child-scenes]]
+                          :let [self-id (g/node-id self)]]
+                      (g/connect comp-node src self-id tgt))
                     (project/connect-resource-node project
                                                    source-resource comp-node
                                                    [[:outline :outline]
+                                                    [:user-properties :user-properties]
                                                     [:save-data :save-data]
                                                     [:scene :scene]
                                                     [:build-targets :build-targets]

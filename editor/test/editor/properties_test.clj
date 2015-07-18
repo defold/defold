@@ -18,9 +18,15 @@
   (property my-prop g/Str))
 
 (g/defnode LinkedProps
-  (property multi-property g/Any
-            (dynamic link (g/fnk [linked-properties] linked-properties)))
-  (input linked-properties g/Any))
+  (property multi-properties g/Any
+            (default {})
+            (dynamic link (g/fnk [linked-properties] linked-properties))
+            (dynamic override (g/fnk [user-properties] user-properties)))
+  (input linked-properties g/Any)
+  (input user-properties g/Any))
+
+(g/defnode UserProps
+  (property user-properties g/Any))
 
 (g/defnode Vec3Prop
   (property my-prop t/Vec3))
@@ -75,10 +81,27 @@
                                                                                  linked-node [LinkedProps]]
                                                                           (g/connect str-node :_properties linked-node :linked-properties))))
                    properties (coalesce-nodes [link-node])
-                   _ (properties/set-value! (:my-prop properties) (repeat "2.0"))
+                   _ (properties/set-values! (:my-prop properties) (repeat "2.0"))
                    new-properties (coalesce-nodes [link-node])]
+               (is (not (properties/overridden? (:my-prop properties))))
                (is (every? #(= "1.0" %) (get-in properties [:my-prop :values])))
-               (is (every? #(= "2.0" %) (get-in new-properties [:my-prop :values])))))))
+               (is (every? #(= "2.0" %) (get-in new-properties [:my-prop :values])))))
+    (testing "Overridden properties"
+             (let [[user-node linked-node]
+                   (g/tx-nodes-added
+                     (g/transact
+                       (g/make-nodes world [user-node [UserProps :user-properties {:int {:edit-type {:type g/Int} :value 1}}]
+                                            linked-node [LinkedProps]]
+                                     (g/connect user-node :user-properties linked-node :user-properties))))
+                   property (fn [n] (-> [n] (coalesce-nodes) (first) (second)))]
+               (is (not (properties/overridden? (property linked-node))))
+               (is (every? #(= 1 %) (properties/values (property linked-node))))
+               (properties/set-values! (property linked-node) (repeat 2))
+               (is (every? #(= 2 %) (properties/values (property linked-node))))
+               (is (properties/overridden? (property linked-node)))
+               (properties/clear-override! (property linked-node))
+               (is (not (properties/overridden? (property linked-node))))
+               (is (every? #(= 1 %) (properties/values (property linked-node))))))))
 
 (deftest multi-editing
   (with-clean-system
@@ -88,7 +111,7 @@
                                                (g/make-node world NumProp :my-prop 1.0)
                                                (g/make-node world AnotherNumProp :my-prop 2.0))))
                    properties (coalesce-nodes nodes)
-                   _ (properties/set-value! (:my-prop properties) (repeat 3.0))
+                   _ (properties/set-values! (:my-prop properties) (repeat 3.0))
                    new-properties (coalesce-nodes nodes)]
                (is (every? #(not= 3.0 %) (get-in properties [:my-prop :values])))
                (is (every? #(= 3.0 %) (get-in new-properties [:my-prop :values])))))))
@@ -102,7 +125,7 @@
                                                (g/make-node world Vec3Prop :my-prop [2.0 3.0 4.0]))))
                    properties (coalesce-nodes nodes)
                    property (:my-prop properties)
-                   _ (properties/set-value! property (map #(assoc % 0 0.0) (:values property)))
+                   _ (properties/set-values! property (map #(assoc % 0 0.0) (:values property)))
                    new-properties (coalesce-nodes nodes)]
                (is (every? #(not= 0.0 (nth % 0)) (get-in properties [:my-prop :values])))
                (is (every? #(= 0.0 (nth % 0)) (get-in new-properties [:my-prop :values])))))))
