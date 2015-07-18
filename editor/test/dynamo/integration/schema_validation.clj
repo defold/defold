@@ -52,29 +52,29 @@
     (with-clean-system
       (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                       (g/make-node world ArrayNode))]
-        (is (not (nil? (g/transact (g/connect b-node :str-output b-node :str-input)))))
-        (is (not (nil? (g/transact (g/connect b-node :int-output b-node :int-input)))))
-        (is (not (nil? (g/transact (g/connect b-node :str-output a-node :str-array-input)))))
-        (is (not (nil? (g/transact (g/connect b-node :int-output a-node :int-array-input))))))))
+        (is (not (nil? (g/transact (g/connect (g/node-id b-node) :str-output (g/node-id b-node) :str-input)))))
+        (is (not (nil? (g/transact (g/connect (g/node-id b-node) :int-output (g/node-id b-node) :int-input)))))
+        (is (not (nil? (g/transact (g/connect (g/node-id b-node) :str-output (g/node-id a-node) :str-array-input)))))
+        (is (not (nil? (g/transact (g/connect (g/node-id b-node) :int-output (g/node-id a-node) :int-array-input))))))))
 
   (testing "mismatched schemas do not connect"
     (with-clean-system
       (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                       (g/make-node world ArrayNode))]
-        (is (thrown? AssertionError (g/transact (g/connect b-node :int-output b-node :str-input))))
-        (is (thrown? AssertionError (g/transact (g/connect b-node :str-output b-node :int-input))))
-        (is (thrown? AssertionError (g/transact (g/connect b-node :int-output a-node :str-array-input))))
-        (is (thrown? AssertionError (g/transact (g/connect b-node :str-output a-node :int-array-input))))))))
+        (is (thrown? AssertionError (g/transact (g/connect (g/node-id b-node) :int-output (g/node-id b-node) :str-input))))
+        (is (thrown? AssertionError (g/transact (g/connect (g/node-id b-node) :str-output (g/node-id b-node) :int-input))))
+        (is (thrown? AssertionError (g/transact (g/connect (g/node-id b-node) :int-output (g/node-id a-node) :str-array-input))))
+        (is (thrown? AssertionError (g/transact (g/connect (g/node-id b-node) :str-output (g/node-id a-node) :int-array-input))))))))
 
 (deftest test-schema-validations-on-value-production
   (testing "values that match input schemas produce values"
     (with-clean-system
       (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                       (g/make-node world ArrayNode))]
-        (g/transact [ (g/connect b-node :str-output b-node :str-input)
-                      (g/connect b-node :int-output b-node :int-input)
-                      (g/connect b-node :str-output a-node :str-array-input)
-                      (g/connect b-node :int-output a-node :int-array-input)])
+        (g/transact [ (g/connect (g/node-id b-node) :str-output (g/node-id b-node) :str-input)
+                      (g/connect (g/node-id b-node) :int-output (g/node-id b-node) :int-input)
+                      (g/connect (g/node-id b-node) :str-output (g/node-id a-node) :str-array-input)
+                      (g/connect (g/node-id b-node) :int-output (g/node-id a-node) :int-array-input)])
         (is (= "I am a string." (g/node-value b-node :str-pass-through)))
         (is (= 99 (g/node-value b-node :int-pass-through)))
         (is (= ["I am a string."] (g/node-value a-node :str-array-pass-through)))
@@ -85,10 +85,10 @@
       (with-redefs [internal.node/warn (constantly nil)]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                (g/make-node world ArrayNode))]
-          (g/transact [ (g/connect b-node :bad-str-output b-node :str-input)
-                        (g/connect b-node :bad-int-output b-node :int-input)
-                        (g/connect b-node :bad-str-output a-node :str-array-input)
-                        (g/connect b-node :bad-int-output a-node :int-array-input)])
+          (g/transact [ (g/connect (g/node-id b-node) :bad-str-output (g/node-id b-node) :str-input)
+                        (g/connect (g/node-id b-node) :bad-int-output (g/node-id b-node) :int-input)
+                        (g/connect (g/node-id b-node) :bad-str-output (g/node-id a-node) :str-array-input)
+                        (g/connect (g/node-id b-node) :bad-int-output (g/node-id a-node) :int-array-input)])
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :str-pass-through)))
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :int-pass-through)))
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :str-array-pass-through)))
@@ -108,10 +108,10 @@
       (with-redefs [internal.node/warn (constantly nil)]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                         (g/make-node world ArrayNode))]
-          (g/transact [ (g/connect b-node :bad-str-output b-node :str-input)
-                        (g/connect b-node :bad-int-output b-node :int-input)
-                        (g/connect b-node :bad-str-output a-node :str-array-input)
-                        (g/connect b-node :bad-int-output a-node :int-array-input)])
+          (g/transact [ (g/connect (g/node-id b-node) :bad-str-output (g/node-id b-node) :str-input)
+                        (g/connect (g/node-id b-node) :bad-int-output (g/node-id b-node) :int-input)
+                        (g/connect (g/node-id b-node) :bad-str-output (g/node-id a-node) :str-array-input)
+                        (g/connect (g/node-id b-node) :bad-int-output (g/node-id a-node) :int-array-input)])
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-str-pass-through)))
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-int-pass-through)))
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-str-array-pass-through)))
@@ -122,10 +122,10 @@
       (with-redefs [internal.node/warn (constantly nil)]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                         (g/make-node world ArrayNode))]
-          (g/transact [ (g/connect b-node :bad-str-output b-node :sub-str-input)
-                        (g/connect b-node :bad-int-output b-node :sub-int-input)
-                        (g/connect b-node :bad-str-output a-node :sub-str-array-input)
-                        (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
+          (g/transact [ (g/connect (g/node-id b-node) :bad-str-output (g/node-id b-node) :sub-str-input)
+                        (g/connect (g/node-id b-node) :bad-int-output (g/node-id b-node) :sub-int-input)
+                        (g/connect (g/node-id b-node) :bad-str-output (g/node-id a-node) :sub-str-array-input)
+                        (g/connect (g/node-id b-node) :bad-int-output (g/node-id a-node) :sub-int-array-input)])
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :sub-str-pass-through)))
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :sub-int-pass-through)))
           (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :sub-str-array-pass-through)))
@@ -136,10 +136,10 @@
       (with-redefs [internal.node/warn (constantly nil)]
         (let [[b-node a-node] (tx-nodes (g/make-node world BaseNode)
                                         (g/make-node world ArrayNode))]
-          (g/transact [ (g/connect b-node :bad-str-output b-node :sub-str-input)
-                        (g/connect b-node :bad-int-output b-node :sub-int-input)
-                        (g/connect b-node :bad-str-output a-node :sub-str-array-input)
-                        (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
+          (g/transact [ (g/connect (g/node-id b-node) :bad-str-output (g/node-id b-node) :sub-str-input)
+                        (g/connect (g/node-id b-node) :bad-int-output (g/node-id b-node) :sub-int-input)
+                        (g/connect (g/node-id b-node) :bad-str-output (g/node-id a-node) :sub-str-array-input)
+                        (g/connect (g/node-id b-node) :bad-int-output (g/node-id a-node) :sub-int-array-input)])
          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-sub-str-pass-through)))
          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-sub-int-pass-through)))
          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-sub-str-array-pass-through)))

@@ -54,13 +54,13 @@
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
-    (g/disconnect source-node source-label target-node target-label)))
+    (g/disconnect (g/node-id source-node) source-label (g/node-id target-node) target-label)))
 
 (defn- replace-connection [source-node source-label target-node target-label]
   (concat
     (disconnect-sources target-node target-label)
     (if (and source-node (contains? (-> source-node g/node-type g/output-labels) source-label))
-      (g/connect source-node source-label target-node target-label)
+      (g/connect (g/node-id source-node) source-label (g/node-id target-node) target-label)
       [])))
 
 (defn- on-selected-tab-changed [app-view resource-node]

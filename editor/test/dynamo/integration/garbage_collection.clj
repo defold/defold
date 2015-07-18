@@ -14,7 +14,7 @@
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world EmptyNode))]
         (is (= 1 (count (gnodes world))))
-        (g/transact (g/delete-node node))
+        (g/transact (g/delete-node (g/node-id node)))
         (is (= 0 (count (gnodes world)))))))
 
   (testing "adding twos node and deleting one"
@@ -23,7 +23,7 @@
                                       (g/make-node world EmptyNode))
               graph-nodes (-> (g/graph world) :nodes vals)]
           (is (= 2 (count (gnodes world) )))
-          (g/transact (g/delete-node node1))
+          (g/transact (g/delete-node (g/node-id node1)))
           (is (= 1 (count (gnodes world)))))))
 
   (testing "adding twos node and deleting one, then adding it back"
@@ -32,7 +32,7 @@
                                     (g/make-node world EmptyNode))
             graph-nodes (-> (g/graph world) :nodes vals)]
         (is (= 2 (count (gnodes world) )))
-        (g/transact (g/delete-node node1))
+        (g/transact (g/delete-node (g/node-id node1)))
         (is (= 1 (count (gnodes world))))
         (g/transact (g/make-node world EmptyNode))
         (is (= 2 (count (gnodes world)))))))
@@ -43,11 +43,11 @@
                                     (g/make-node world EmptyNode))
             graph-nodes (-> (g/graph world) :nodes vals)]
         (is (= 2 (count (gnodes world) )))
-        (g/transact (g/delete-node node1))
+        (g/transact (g/delete-node (g/node-id node1)))
         (is (= 1 (count (gnodes world))))
         (let [[node3] (tx-nodes (g/make-node world EmptyNode))]
           (is (= 2 (count (gnodes world))))
-          (g/transact (g/delete-node node3))
+          (g/transact (g/delete-node (g/node-id node3)))
           (is (= 1 (count (gnodes world))))))))
 
   (testing "adding 100 nodes, then deleting 50"
@@ -55,7 +55,7 @@
       (let [nodes (g/tx-nodes-added (g/transact
                                      (repeatedly 100 #(g/make-node world EmptyNode))) )]
         (is (= 100 (count (gnodes world))))
-        (g/transact (mapv #(g/delete-node %) (take 50 nodes)))
+        (g/transact (mapv #(g/delete-node (g/node-id %)) (take 50 nodes)))
         (is (= 50 (count (gnodes world))))))))
 
 
@@ -69,19 +69,19 @@
     (reset! dispose-counter 0)
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DisposableNode))]
-        (g/transact (g/delete-node node))
+        (g/transact (g/delete-node (g/node-id node)))
         (is (= 0 @dispose-counter))
-        (g/dispose-pending)
+        (g/dispose-pending!)
         (is (= 1 @dispose-counter)))))
 
   (testing "disposing twice only cleans up once for a deleted node"
     (reset! dispose-counter 0)
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DisposableNode))]
-        (g/transact (g/delete-node node))
+        (g/transact (g/delete-node (g/node-id node)))
         (is (= 0 @dispose-counter))
-        (g/dispose-pending)
-        (g/dispose-pending)
+        (g/dispose-pending!)
+        (g/dispose-pending!)
         (is (= 1 @dispose-counter)))))
 
   (testing "disposing if a node is not deleted does nothing"
@@ -89,7 +89,7 @@
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DisposableNode))]
         (is (= 0 @dispose-counter))
-        (g/dispose-pending)
+        (g/dispose-pending!)
         (is (= 0 @dispose-counter)))))
 
   (testing "disposing lots of nodes"
@@ -97,8 +97,8 @@
     (with-clean-system
       (let [nodes (g/tx-nodes-added (g/transact
                                      (repeatedly 100 #(g/make-node world DisposableNode))) )]
-        (g/transact (mapv #(g/delete-node %) (take 50 nodes)))
-        (g/dispose-pending)
+        (g/transact (mapv #(g/delete-node (g/node-id %)) (take 50 nodes)))
+        (g/dispose-pending!)
         (is (= 50 @dispose-counter)))))
 
   (testing "disposing after deleting node and undoing does not call dispose"
@@ -107,9 +107,9 @@
       (let [my-graph (g/make-graph! :history true)
             [node] (tx-nodes (g/make-node my-graph DisposableNode))]
         (is (= 0 @dispose-counter))
-        (g/transact (g/delete-node node))
-        (g/undo my-graph)
-        (g/dispose-pending)
+        (g/transact (g/delete-node (g/node-id node)))
+        (g/undo! my-graph)
+        (g/dispose-pending!)
         (is (= 0 @dispose-counter)))))
 
   (testing "disposing after deleting node and undo and redo does call dispose"
@@ -118,8 +118,8 @@
       (let [my-graph (g/make-graph! :history true)
             [node] (tx-nodes (g/make-node my-graph DisposableNode))]
         (is (= 0 @dispose-counter))
-        (g/transact (g/delete-node node))
-        (g/undo my-graph)
-        (g/redo my-graph)
-        (g/dispose-pending)
+        (g/transact (g/delete-node (g/node-id node)))
+        (g/undo! my-graph)
+        (g/redo! my-graph)
+        (g/dispose-pending!)
         (is (= 1 @dispose-counter))))))

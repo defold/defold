@@ -14,7 +14,7 @@
            [javax.vecmath Point3d Matrix4d]))
 
 (defn- dump-outline [outline]
-  {:self (type (:self outline)) :children (map dump-outline (:children outline))})
+  {:_self (type (:_self outline)) :children (map dump-outline (:children outline))})
 
 (deftest hierarchical-outline
   (testing "Hierarchical outline"
