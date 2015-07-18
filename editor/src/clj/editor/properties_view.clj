@@ -226,7 +226,7 @@
 
   (input selected-node-properties g/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view self workspace selected-node-properties] (update-grid parent-view self workspace selected-node-properties)))
+  (output grid-pane GridPane :cached (g/fnk [parent-view _self workspace selected-node-properties] (update-grid parent-view _self workspace selected-node-properties)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (:repainter self))
@@ -242,6 +242,6 @@
     (g/transact
       (concat
         (g/set-property view :repainter repainter)
-        (g/connect project :selected-node-properties view :selected-node-properties)))
+        (g/connect (g/node-id project) :selected-node-properties (g/node-id view) :selected-node-properties)))
     (.start repainter)
     (g/refresh view)))

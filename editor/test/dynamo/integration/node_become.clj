@@ -1,6 +1,5 @@
 (ns dynamo.integration.node-become
-  (:require [dynamo.integration.node-become :refer :all]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
@@ -30,7 +29,7 @@
   (testing "turns one node-type into another node-type"
     (with-clean-system
       (let [[node]   (tx-nodes (g/make-node world OriginalNode))
-            _        (g/transact (g/become node (g/construct NewNode)))
+            _        (g/transact (g/become (g/node-id node) (g/construct NewNode)))
             new-node (g/refresh node)]
         (is (= "OriginalNode" (:name (g/node-type node))))
         (is (= "NewNode" (:name (g/node-type new-node)))) )))
@@ -38,14 +37,14 @@
   (testing "node id is is the same"
     (with-clean-system
       (let [[node]   (tx-nodes (g/make-node world OriginalNode))
-            _        (g/transact (g/become node (g/construct NewNode)))
+            _        (g/transact (g/become (g/node-id node) (g/construct NewNode)))
             new-node (g/refresh node)]
         (is (= (g/node-id node) (g/node-id new-node))))))
 
   (testing "properties from the original node are carried over if they exist on the new node"
     (with-clean-system
       (let [[node]   (tx-nodes (g/make-node world OriginalNode))
-            _        (g/transact (g/become node (g/construct NewNode)))
+            _        (g/transact (g/become (g/node-id node) (g/construct NewNode)))
             new-node (g/refresh node)]
         (is (= "original-node-property" (g/node-value new-node :a-property))))))
 
@@ -53,7 +52,7 @@
     (with-clean-system
       (let [[node]   (tx-nodes (g/make-node world OriginalNode))]
         (is (= "zeee" (g/node-value node :z-property)))
-        (g/transact (g/become node (g/construct NewNode)))
+        (g/transact (g/become (g/node-id node) (g/construct NewNode)))
         (let [new-node (g/refresh node)]
           (is (thrown-with-msg? Exception #"No such output, input, or property" (g/node-value new-node :z-property)))))))
 
@@ -61,10 +60,10 @@
     (with-clean-system
       (let [[node io-node]   (tx-nodes (g/make-node world OriginalNode)
                                        (g/make-node world InputOutputNode))]
-        (g/transact (g/connect io-node :output-a node :input-a))
+        (g/transact (g/connect (g/node-id io-node) :output-a (g/node-id node) :input-a))
         (is (= "original: Cake is tasty" (g/node-value node :output-a)))
         (is (g/connected? (g/now) (g/node-id io-node) :output-a (g/node-id node) :input-a))
-        (g/transact (g/become node (g/construct NewNode)))
+        (g/transact (g/become (g/node-id node) (g/construct NewNode)))
         (let [new-node (g/refresh node)]
           (is (= "new: Cake is tasty" (g/node-value new-node :output-a)))
           (is (g/connected? (g/now) (g/node-id io-node) :output-a (g/node-id new-node) :input-a))))))
@@ -74,10 +73,10 @@
       (let [[node io-node]   (tx-nodes (g/make-node world OriginalNode)
                                        (g/make-node world InputOutputNode))]
         (is (not (g/connected? (g/now) (g/node-id io-node) :output-b (g/node-id node) :input-b)))
-        (g/transact (g/connect io-node :output-b node :input-b))
+        (g/transact (g/connect (g/node-id io-node) :output-b (g/node-id node) :input-b))
         (is (= "original: Bread is tasty" (g/node-value node :output-b)))
         (is (g/connected? (g/now) (g/node-id io-node) :output-b (g/node-id node) :input-b))
-        (g/transact (g/become node (g/construct NewNode)))
+        (g/transact (g/become (g/node-id node) (g/construct NewNode)))
         (let [new-node (g/refresh node)]
           (is (thrown-with-msg? Exception #"No such output, input, or property" (g/node-value new-node :output-b)))
           (is (not (g/connected? (g/now) (g/node-id io-node) :output-b (g/node-id new-node) :input-b)))))))
@@ -86,10 +85,10 @@
     (with-clean-system
       (let [[node io-node]   (tx-nodes (g/make-node world OriginalNode)
                                        (g/make-node world InputOutputNode))]
-        (g/transact (g/connect node :a-property io-node :input-a))
+        (g/transact (g/connect (g/node-id node) :a-property (g/node-id io-node) :input-a))
         (is (= "passthrough: original-node-property" (g/node-value io-node :passthrough-a)))
         (is (g/connected? (g/now) (g/node-id node) :a-property (g/node-id io-node) :input-a))
-        (g/transact (g/become node (g/construct NewNode)))
+        (g/transact (g/become (g/node-id node) (g/construct NewNode)))
         (let [new-node (g/refresh node)]
           (is (= "passthrough: original-node-property" (g/node-value io-node :passthrough-a)))
           (is (g/connected? (g/now) (g/node-id node) :a-property (g/node-id io-node) :input-a))))))
@@ -98,10 +97,10 @@
     (with-clean-system
       (let [[node io-node]   (tx-nodes (g/make-node world OriginalNode)
                                        (g/make-node world InputOutputNode))]
-        (g/transact (g/connect node :z-property io-node :input-a))
+        (g/transact (g/connect (g/node-id node) :z-property (g/node-id io-node) :input-a))
         (is (= "passthrough: zeee" (g/node-value io-node :passthrough-a)))
         (is (g/connected? (g/now) (g/node-id node) :z-property (g/node-id io-node) :input-a))
-        (g/transact (g/become node (g/construct NewNode)))
+        (g/transact (g/become (g/node-id node) (g/construct NewNode)))
         (let [new-node (g/refresh node)]
           (is (= "passthrough: " (g/node-value io-node :passthrough-a)))
           (is (not (g/connected? (g/now) (g/node-id node) :z-property (g/node-id io-node) :input-a))))))))

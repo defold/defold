@@ -102,7 +102,7 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (g/transact (it/become name1 (g/construct CacheTestNode)))
+                          (g/transact (it/become (g/node-id name1) (g/construct CacheTestNode)))
                           (is (= "Jane Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"
@@ -137,7 +137,7 @@
                (g/make-node world CacheTestNode :scalar "Jane"))
         [override jane]  nodes]
     (g/transact
-     (g/connect jane :uncached-value override :overridden))
+     (g/connect (g/node-id jane) :uncached-value (g/node-id override) :overridden))
     nodes))
 
 (deftest invalid-resource-values
@@ -176,7 +176,7 @@
           node-id      (g/node-id node)]
       (g/node-value node :chained-output)
       (is (cached? cache node-id :chained-output))
-      (is (not (cached? cache node-id :self)))
+      (is (not (cached? cache node-id :_self)))
       (is (not (cached? cache node-id :a-property))))))
 
 (g/defnode Source
@@ -212,8 +212,8 @@
                               (g/make-node world Source :constant :input))]
       (g/transact
        (concat
-        (g/connect s1 :constant node :overloaded-input-property)
-        (g/connect s1 :constant node :eponymous)))
+        (g/connect (g/node-id s1) :constant (g/node-id node) :overloaded-input-property)
+        (g/connect (g/node-id s1) :constant (g/node-id node) :eponymous)))
       (is (= :output             (g/node-value node :overloaded-output-input-property)))
       (is (= :input              (g/node-value node :overloaded-input-property)))
       (is (= :property           (g/node-value node :the-property)))
@@ -229,9 +229,9 @@
                                           (g/make-node world Source :constant :source-3))]
        (g/transact
         (concat
-         (g/connect s1 :constant combiner :renderables)
-         (g/connect s2 :constant combiner :renderables)
-         (g/connect s3 :constant combiner :renderables)))
+         (g/connect (g/node-id s1) :constant (g/node-id combiner) :renderables)
+         (g/connect (g/node-id s2) :constant (g/node-id combiner) :renderables)
+         (g/connect (g/node-id s3) :constant (g/node-id combiner) :renderables)))
        (is (= "source-1source-2source-3" (g/node-value combiner :transform-renderables)))))))
 
 (deftest invalidation-across-graphs
@@ -242,8 +242,8 @@
                                             (g/make-node project-graph CacheTestNode :scalar "Plissken"))
           [view-node]    (tx-nodes (g/make-node view-graph CacheTestNode))]
       (g/transact
-       [(g/connect content-node :scalar view-node :first-name)
-        (g/connect aux-node     :scalar view-node :last-name)])
+       [(g/connect (g/node-id content-node) :scalar (g/node-id view-node) :first-name)
+        (g/connect (g/node-id aux-node)     :scalar (g/node-id view-node) :last-name)])
 
       (expect-call-when
        view-node 'compute-derived-value
@@ -256,10 +256,10 @@
        (is (= "Snake Solid" (g/node-value view-node :derived-value))))
 
       (g/transact
-       [(g/disconnect     aux-node :scalar view-node :last-name)
-        (g/disconnect content-node :scalar view-node :first-name)
-        (g/connect        aux-node :scalar view-node :first-name)
-        (g/connect    content-node :scalar view-node :last-name)])
+       [(g/disconnect     (g/node-id aux-node) :scalar (g/node-id view-node) :last-name)
+        (g/disconnect (g/node-id content-node) :scalar (g/node-id view-node) :first-name)
+        (g/connect        (g/node-id aux-node) :scalar (g/node-id view-node) :first-name)
+        (g/connect    (g/node-id content-node) :scalar (g/node-id view-node) :last-name)])
 
       (expect-call-when
        view-node 'compute-derived-value
@@ -291,7 +291,7 @@
   (let [[receiver const] (tx-nodes (g/make-node world SubstitutingInputsNode)
                                    (g/make-node world ConstantNode :value source-sends))]
     (when connected?
-      (g/transact (g/connect const :source receiver label)))
+      (g/transact (g/connect (g/node-id const) :source (g/node-id receiver) label)))
     (g/node-value receiver label)))
 
 (deftest error-value-replacement
@@ -332,7 +332,7 @@
     (testing "schema validations on inputs"
      (with-clean-system
        (let [[node1] (tx-nodes (g/make-node world StringInputIntOutputNode))]
-         (g/transact (g/connect node1 :int-output node1 :string-input))
+         (g/transact (g/connect (g/node-id node1) :int-output (g/node-id node1) :string-input))
          (is (thrown-with-msg? Exception #"Error Value Found in Node" (g/node-value node1 :combined))))))))
 
 (g/defnode NilPropertyNode
@@ -347,7 +347,7 @@
     (let [[node] (tx-nodes (g/make-node world NilPropertyNode))
           properties (g/properties NilPropertyNode)
           could-be-nil-property (first (filter (fn [[k v ]] (= k :could-be-nil)) properties))]
-      (g/connect! node :could-be-nil node :bar)
+      (g/connect! (g/node-id node) :could-be-nil (g/node-id node) :bar)
       (is (= "I am now ok." (g/node-value node :baz-with-substitute)))
       (is (nil? (g/node-value node :baz)))
       (is (= g/Str (g/property-value-type (val could-be-nil-property)))))))

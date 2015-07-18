@@ -21,14 +21,14 @@
     (with-clean-system
       (let [[onode tnode] (tx-nodes (g/make-node world SimpleOutputNode)
                                            (g/make-node world SimpleTestNode))]
-        (g/transact (g/connect onode :my-output tnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode) :my-input))
         (is (= "scones" (g/node-value tnode :passthrough))))))
 
   (testing "array values with no errors"
     (with-clean-system
       (let [[onode atnode] (tx-nodes (g/make-node world SimpleOutputNode)
                                            (g/make-node world SimpleArrayTestNode))]
-        (g/transact (g/connect onode :my-output atnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id atnode) :my-input))
         (is (= ["scones"] (g/node-value atnode :passthrough))))))
 
   (testing "chained values with no errors"
@@ -36,8 +36,8 @@
       (let [[onode tnode1 tnode2] (tx-nodes (g/make-node world SimpleOutputNode)
                                            (g/make-node world SimpleTestNode)
                                            (g/make-node world SimpleTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough tnode2 :my-input))
+        (g/transact (g/connect (g/node-id onode)  :my-output   (g/node-id tnode1) :my-input))
+        (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id tnode2) :my-input))
         (is (= "scones" (g/node-value tnode2 :passthrough))))))
 
   (testing "chained array values with no errors"
@@ -45,8 +45,8 @@
       (let [[onode tnode1 atnode2] (tx-nodes (g/make-node world SimpleOutputNode)
                                            (g/make-node world SimpleTestNode)
                                            (g/make-node world SimpleArrayTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
+        (g/transact (g/connect (g/node-id onode)  :my-output   (g/node-id tnode1)  :my-input))
+        (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id atnode2) :my-input))
         (is (= ["scones"] (g/node-value atnode2 :passthrough)))))))
 
 (g/defnode NilOutputNode
@@ -57,14 +57,14 @@
     (with-clean-system
       (let [[onode tnode] (tx-nodes (g/make-node world NilOutputNode)
                                     (g/make-node world SimpleTestNode))]
-        (g/transact (g/connect onode :my-output tnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode) :my-input))
         (is (nil? (g/node-value tnode :passthrough))))))
 
   (testing "array values with nils"
     (with-clean-system
       (let [[onode atnode] (tx-nodes (g/make-node world NilOutputNode)
                                            (g/make-node world SimpleArrayTestNode))]
-        (g/transact (g/connect onode :my-output atnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id atnode) :my-input))
         (is (= [nil] (g/node-value atnode :passthrough))))))
 
   (testing "chained values with nils"
@@ -72,8 +72,8 @@
       (let [[onode tnode1 tnode2] (tx-nodes (g/make-node world NilOutputNode)
                                            (g/make-node world SimpleTestNode)
                                            (g/make-node world SimpleTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough tnode2 :my-input))
+        (g/transact (g/connect (g/node-id onode)  :my-output   (g/node-id tnode1) :my-input))
+        (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id tnode2) :my-input))
         (is (nil?  (g/node-value tnode2 :passthrough))))))
 
   (testing "chained array values with nils"
@@ -81,8 +81,8 @@
       (let [[onode tnode1 atnode2] (tx-nodes (g/make-node world NilOutputNode)
                                            (g/make-node world SimpleTestNode)
                                            (g/make-node world SimpleArrayTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
+        (g/transact (g/connect (g/node-id onode)  :my-output   (g/node-id tnode1) :my-input))
+        (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id atnode2) :my-input))
         (is (= [nil] (g/node-value atnode2 :passthrough)))))))
 
 (g/defnode ErrorOutputNode
@@ -100,7 +100,7 @@
     (with-clean-system
       (let [[onode tnode] (tx-nodes (g/make-node world ErrorOutputNode)
                                     (g/make-node world SimpleTestNode))]
-        (g/transact (g/connect onode :my-output tnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode) :my-input))
         (is (thrown-for-reason? tnode :passthrough "I am an error!")))))
 
   (with-redefs [in/warn (constantly nil)]
@@ -108,7 +108,7 @@
       (with-clean-system
         (let [[onode atnode] (tx-nodes (g/make-node world ErrorOutputNode)
                                        (g/make-node world SimpleArrayTestNode))]
-          (g/transact (g/connect onode :my-output atnode :my-input))
+          (g/transact (g/connect (g/node-id onode) :my-output (g/node-id atnode) :my-input))
           (is (thrown-for-reason? atnode :passthrough "I am an error!")))))
 
     (testing "chained values with errors"
@@ -116,8 +116,8 @@
         (let [[onode tnode1 tnode2] (tx-nodes (g/make-node world ErrorOutputNode)
                                               (g/make-node world SimpleTestNode)
                                               (g/make-node world SimpleTestNode))]
-          (g/transact (g/connect onode :my-output tnode1 :my-input))
-          (g/transact (g/connect tnode1 :passthrough tnode2 :my-input))
+          (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode1) :my-input))
+          (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id tnode2) :my-input))
           (is (thrown-for-reason? tnode2 :passthrough "I am an error!")))))
 
     (testing "chained array values with errors"
@@ -125,8 +125,8 @@
         (let [[onode tnode1 atnode2] (tx-nodes (g/make-node world ErrorOutputNode)
                                                (g/make-node world SimpleTestNode)
                                                (g/make-node world SimpleArrayTestNode))]
-          (g/transact (g/connect onode :my-output tnode1 :my-input))
-          (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
+          (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode1) :my-input))
+          (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id atnode2) :my-input))
           (is (thrown-for-reason? atnode2 :passthrough "I am an error!")))))))
 
 (g/defnode SubTestNode
@@ -142,14 +142,14 @@
     (with-clean-system
       (let [[onode tnode] (tx-nodes (g/make-node world NilOutputNode)
                                     (g/make-node world SubTestNode))]
-        (g/transact (g/connect onode :my-output tnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode) :my-input))
         (is (nil? (g/node-value tnode :passthrough))))))
 
   (testing "array values with nils do not trigger substitutes"
     (with-clean-system
       (let [[onode atnode] (tx-nodes (g/make-node world NilOutputNode)
                                            (g/make-node world SubArrayTestNode))]
-        (g/transact (g/connect onode :my-output atnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id atnode) :my-input))
         (is (= [nil] (g/node-value atnode :passthrough))))))
 
   (testing "chained values with nils do not trigger substitutes"
@@ -157,8 +157,8 @@
       (let [[onode tnode1 tnode2] (tx-nodes (g/make-node world NilOutputNode)
                                            (g/make-node world SubTestNode)
                                            (g/make-node world SubTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough tnode2 :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode1) :my-input))
+        (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id tnode2) :my-input))
         (is (nil? (g/node-value tnode2 :passthrough))))))
 
   (testing "chained array values with nils do not trigger substitutes"
@@ -166,8 +166,8 @@
       (let [[onode tnode1 atnode2] (tx-nodes (g/make-node world NilOutputNode)
                                            (g/make-node world SubTestNode)
                                            (g/make-node world SubArrayTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode1) :my-input))
+        (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id atnode2) :my-input))
         (is (= [nil] (g/node-value atnode2 :passthrough)))))))
 
 (deftest test-producing-errors-with-substitutes
@@ -175,14 +175,14 @@
     (with-clean-system
       (let [[onode tnode] (tx-nodes (g/make-node world ErrorOutputNode)
                                     (g/make-node world SubTestNode))]
-        (g/transact (g/connect onode :my-output tnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode) :my-input))
         (is (= "beans" (g/node-value tnode :passthrough))))))
 
   (testing "array values with errors do trigger substitutes"
     (with-clean-system
       (let [[onode atnode] (tx-nodes (g/make-node world ErrorOutputNode)
                                            (g/make-node world SubArrayTestNode))]
-        (g/transact (g/connect onode :my-output atnode :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id atnode) :my-input))
         (is (= ["beans"] (g/node-value atnode :passthrough))))))
 
   (testing "chained values with errors do trigger substitutes"
@@ -190,8 +190,8 @@
       (let [[onode tnode1 tnode2] (tx-nodes (g/make-node world ErrorOutputNode)
                                            (g/make-node world SubTestNode)
                                            (g/make-node world SubTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough tnode2 :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode1) :my-input))
+        (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id tnode2) :my-input))
         (is (= "beans" (g/node-value tnode2 :passthrough))))))
 
   (testing "chained array values with errors do trigger substitutes"
@@ -199,6 +199,6 @@
       (let [[onode tnode1 atnode2] (tx-nodes (g/make-node world ErrorOutputNode)
                                            (g/make-node world SubTestNode)
                                            (g/make-node world SubArrayTestNode))]
-        (g/transact (g/connect onode :my-output tnode1 :my-input))
-        (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
+        (g/transact (g/connect (g/node-id onode) :my-output (g/node-id tnode1) :my-input))
+        (g/transact (g/connect (g/node-id tnode1) :passthrough (g/node-id atnode2) :my-input))
         (is (= ["beans"] (g/node-value atnode2 :passthrough)))))))

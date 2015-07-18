@@ -30,9 +30,9 @@
                    view                 (test-util/open-scene-view! project app-view atlas-node 128 128)
                    check-conn           #(not (empty? (g/node-value view :scene)))
                    connected-after-open (check-conn)]
-               (g/transact (g/delete-node atlas-node))
+               (g/transact (g/delete-node (g/node-id atlas-node)))
                (let [connected-after-delete (check-conn)]
-                 (g/undo project-graph)
+                 (g/undo! project-graph)
                  (let [connected-after-undo (check-conn)]
                    (is connected-after-open)
                    (is (not connected-after-delete))
@@ -51,7 +51,7 @@
                    (g/set-property atlas-node :margin 1)))
                (g/transact (g/set-property atlas-node :margin 10))
                (g/transact (g/set-property atlas-node :margin 2))
-               (g/undo project-graph)
+               (g/undo! project-graph)
                (is (= 10 (:margin (g/refresh atlas-node))))))))
 
 (defn outline-children [node] (:children (g/node-value node :outline)))
@@ -69,16 +69,16 @@
      (is (= 0 (count (outline-children go-node))))
 
      ;; undo deletion
-     (g/undo proj-graph)
+     (g/undo! proj-graph)
      (is (= 1 (count (outline-children go-node))))
 
      ;; redo deletion
-     (g/redo proj-graph)
+     (g/redo! proj-graph)
 
      (is (= 0 (count (outline-children go-node)))))))
 
 (g/defnode DummyComponent
-  (output outline g/Any (g/fnk [self] {:node-id (g/node-id self) :label "dummy" :icon nil :children []})))
+  (output outline g/Any (g/fnk [_self] {:node-id (g/node-id _self) :label "dummy" :icon nil :children []})))
 
 (g/defnode OutlineViewSimulator
   (input outline g/Any)
@@ -86,8 +86,8 @@
   (property counter g/Any)
 
   (output outline g/Any :cached
-          (g/fnk [self outline]
-                 (swap! (:counter self) inc)
+          (g/fnk [_self outline]
+                 (swap! (:counter _self) inc)
                  outline)))
 
 (defn remove-handlers
@@ -110,7 +110,7 @@
                          (g/operation-sequence op-seq)
                          (g/make-nodes proj-graph
                                        [comp-node DummyComponent]
-                                       (g/connect comp-node :outline go-node :outline))))))]
+                                       (g/connect comp-node :outline (g/node-id go-node) :outline))))))]
     ; Selection
     (g/transact
       (concat
@@ -130,7 +130,7 @@
          outline    (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
          component  (add-component! project go-node)]
 
-     (g/transact (g/connect go-node :outline outline :outline))
+     (g/transact (g/connect (g/node-id go-node) :outline (g/node-id outline) :outline))
 
      (let [original-outline (remove-handlers (g/node-value outline :outline))]
        (g/reset-undo! proj-graph)
@@ -138,33 +138,33 @@
        ;; delete the component
        (g/transact
          [(g/operation-label "delete node")
-          (g/delete-node component)])
+          (g/delete-node (g/node-id component))])
 
        ;; force :outline to be cached
        (let [outline-without-component (remove-handlers (g/node-value outline :outline))]
 
          ;; undo the deletion (component is back)
-         (g/undo proj-graph)
+         (g/undo! proj-graph)
 
          ;; same :outline should be re-produced
          (let [outline-after-undo (remove-handlers (g/node-value outline :outline))]
            (is (= original-outline outline-after-undo)))
 
          ;; redo the deletion (component is gone)
-         (g/redo proj-graph)
+         (g/redo! proj-graph)
 
          ;; :outline should be re-produced again
          (is (= outline-without-component (remove-handlers (g/node-value outline :outline))))
 
          ;; undo the deletion again (component is back again)
-         (g/undo proj-graph)
+         (g/undo! proj-graph)
 
          ;; :outline should be re-produced
          (let [outline-after-second-undo (remove-handlers (g/node-value outline :outline))]
            (is (= original-outline outline-after-second-undo)))
 
          ;; redo the deletion yet again (component is gone again)
-         (g/redo proj-graph)
+         (g/redo! proj-graph)
 
          ;; :outline should be re-produced yet again
          (is (= outline-without-component (remove-handlers (g/node-value outline :outline)))))))))
@@ -181,9 +181,9 @@
          view-graph (g/node->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
          outline    (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))]
-     (g/transact (g/connect go-node :outline outline :outline))
+     (g/transact (g/connect (g/node-id go-node) :outline (g/node-id outline) :outline))
      (is (= 1 (child-count outline)))
      (let [component (add-component! project go-node)]
        (is (= 2 (child-count outline)))
-       (g/undo proj-graph)
+       (g/undo! proj-graph)
        (is (= 1 (child-count outline)))))))

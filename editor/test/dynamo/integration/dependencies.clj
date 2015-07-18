@@ -24,7 +24,7 @@
              :c-output  [:c-output]
              :b-output  [:b-output :c-output]
              :a-output  [:a-output :b-output :c-output]
-             :foo       [:a-output :b-output :c-output :foo :self :properties]))))
+             :foo       [:a-output :b-output :c-output :foo :_self :_properties]))))
 
   (testing "dependencies from one output to another, across nodes"
     (with-clean-system
@@ -33,7 +33,7 @@
             anode-id (g/node-id anode)
             gnode-id (g/node-id gnode)]
         (g/transact
-         (g/connect anode :c-output gnode :encouragement))
+         (g/connect anode-id :c-output gnode-id :encouragement))
         (is (= #{[anode-id :c-output]
                  [anode-id :b-output]
                  [gnode-id :cake-output]}

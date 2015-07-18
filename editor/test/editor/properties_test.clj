@@ -26,7 +26,7 @@
   (property my-prop t/Vec3))
 
 (defn coalesce-nodes [nodes]
-  (properties/coalesce (mapv #(g/node-value % :properties) nodes)))
+  (properties/coalesce (mapv #(g/node-value % :_properties) nodes)))
 
 (deftest coalesce-properties
   (with-clean-system
@@ -73,7 +73,7 @@
              (let [[str-node link-node] (g/tx-nodes-added (g/transact
                                                             (g/make-nodes world [str-node [StrProp :my-prop "1.0"]
                                                                                  linked-node [LinkedProps]]
-                                                                          (g/connect str-node :properties linked-node :linked-properties))))
+                                                                          (g/connect str-node :_properties linked-node :linked-properties))))
                    properties (coalesce-nodes [link-node])
                    _ (properties/set-value! (:my-prop properties) (repeat "2.0"))
                    new-properties (coalesce-nodes [link-node])]

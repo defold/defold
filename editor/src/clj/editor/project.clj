@@ -21,8 +21,8 @@ ordinary paths."
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
-  (output outline g/Any :cached (g/fnk [node-id resource] (let [rt (resource/resource-type resource)]
-                                                            {:node-id node-id
+  (output outline g/Any :cached (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
+                                                            {:node-id _node-id
                                                              :label (or (:label rt) (:ext rt))
                                                              :icon (:icon rt)}))))
 
@@ -43,9 +43,9 @@ ordinary paths."
             (g/make-nodes
               project-graph
               [new-resource [node-type :resource resource :project-id (g/node-id project)]]
-              (g/connect new-resource :self project :nodes)
+              (g/connect new-resource :_self (g/node-id project) :nodes)
               (if ((g/output-labels node-type) :save-data)
-                (g/connect new-resource :save-data project :save-data)
+                (g/connect new-resource :save-data (g/node-id project) :save-data)
                 []))
             []))))))
 
@@ -164,11 +164,11 @@ ordinary paths."
 
 (handler/defhandler :undo :global
     (enabled? [project-graph] (g/has-undo? project-graph))
-    (run [project-graph] (g/undo project-graph)))
+    (run [project-graph] (g/undo! project-graph)))
 
 (handler/defhandler :redo :global
     (enabled? [project-graph] (g/has-redo? project-graph))
-    (run [project-graph] (g/redo project-graph)))
+    (run [project-graph] (g/redo! project-graph)))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Save All"
@@ -209,9 +209,9 @@ ordinary paths."
         external (filter (complement loadable?) resources)]
     (g/transact
       (for [resource internal
-            :let [node (get-resource-node project resource)]]
+            :let [node-id (g/node-id (get-resource-node project resource))]]
         ; TODO - recreate a polluted node
-        (g/delete-node node)))
+        (g/delete-node node-id)))
     (doseq [resource external
             :let [resource-node (get-resource-node project resource)
                   nid (g/node-id resource-node)]]
@@ -235,9 +235,9 @@ ordinary paths."
                   outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
               (g/transact
                 (concat
-                  (g/delete-node resource-node)
+                  (g/delete-node (g/node-id resource-node))
                   (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-                    (g/connect new-node src-label tgt-node tgt-label))))))
+                    (g/connect (g/node-id new-node) src-label tgt-node tgt-label))))))
           (let [nid (g/node-id resource-node)]
             (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
     (when reset-undo?
@@ -291,7 +291,7 @@ ordinary paths."
                          game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))]
                      (build-and-write project game-project))))
 
-(defn connect-if-output [src-type src tgt connections]
+(defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
     (for [[src-label tgt-label] connections
           :when (contains? outputs src-label)]
@@ -300,32 +300,34 @@ ordinary paths."
 (defn connect-resource-node [project resource consumer-node connections]
   (let [node (get-resource-node project resource)]
     (if node
-      (connect-if-output (g/node-type node) node consumer-node connections)
+      (connect-if-output (g/node-type node) (g/node-id node) consumer-node connections)
       (let [resource-type (workspace/resource-type resource)
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
           (g/node->graph-id project)
           [new-resource [node-type :resource resource :project-id (g/node-id project)]]
-          (g/connect new-resource :self project :nodes)
+          (g/connect new-resource :_self (g/node-id project) :nodes)
           (if ((g/output-labels node-type) :save-data)
-            (g/connect new-resource :save-data project :save-data)
+            (g/connect new-resource :save-data (g/node-id project) :save-data)
             [])
           (connect-if-output node-type new-resource consumer-node connections))))))
 
 (defn select
   [project nodes]
-    (concat
-      (for [[node label] (g/sources-of project :selected-node-ids)]
-        (g/disconnect node label project :selected-node-ids))
-      (for [[node label] (g/sources-of project :selected-nodes)]
-        (g/disconnect node label project :selected-nodes))
-      (for [[node label] (g/sources-of project :selected-node-properties)]
-        (g/disconnect node label project :selected-node-properties))
-      (for [node nodes]
-        (concat
-          (g/connect node :node-id project :selected-node-ids)
-          (g/connect node :self project :selected-nodes)
-          (g/connect node :properties project :selected-node-properties)))))
+    (let [project-id (g/node-id project)]
+      (concat
+        (for [[node label] (g/sources-of project :selected-node-ids)]
+          (g/disconnect (g/node-id node) label project-id :selected-node-ids))
+        (for [[node label] (g/sources-of project :selected-nodes)]
+          (g/disconnect (g/node-id node) label project-id :selected-nodes))
+        (for [[node label] (g/sources-of project :selected-node-properties)]
+          (g/disconnect (g/node-id node) label project-id :selected-node-properties))
+        (for [node nodes
+              :let [node-id (g/node-id node)]]
+          (concat
+            (g/connect node-id :_node-id project-id :selected-node-ids)
+            (g/connect node-id :_self project-id :selected-nodes)
+            (g/connect node-id :_properties project-id :selected-node-properties))))))
 
 (defn select!
   ([project nodes]
@@ -346,8 +348,8 @@ ordinary paths."
             (g/transact
               (g/make-nodes graph
                             [project [Project :workspace workspace :build-cache (atom {}) :fs-build-cache (atom {})]]
-                            (g/connect workspace :resource-list project :resources)
-                            (g/connect workspace :resource-types project :resource-types)))))]
+                            (g/connect (g/node-id workspace) :resource-list project :resources)
+                            (g/connect (g/node-id workspace) :resource-types project :resource-types)))))]
     (workspace/add-resource-listener! workspace project)
     project))
 
