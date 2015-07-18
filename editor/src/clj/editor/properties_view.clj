@@ -35,42 +35,11 @@
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [com.google.protobuf ProtocolMessageEnum]))
 
-(def create-property-control! nil)
-
-(defmulti create-property-control! (fn [edit-type _ _ _] (:type edit-type)))
-
-(defmethod create-property-control! String [_ _ _ set-values-fn]
-  (let [text (TextField.)
-        update-ui-fn (fn [values]
-                       (ui/text! text (properties/unify-values (map str values))))]
-    (ui/on-action! text (fn [_]
-                          (set-values-fn (repeat (.getText text)))))
-    [text update-ui-fn]))
-
 (defn- to-int [s]
   (try
     (Integer/parseInt s)
     (catch Throwable _
       nil)))
-
-(defmethod create-property-control! g/Int [_ _ get-values-fn set-values-fn]
-  (let [text (TextField.)
-        update-ui-fn (fn [values] (ui/text! text (str (properties/unify-values (map int values)))))]
-    (ui/on-action! text (fn [_] (if-let [v (to-int (.getText text))]
-                                  (set-values-fn (repeat v))
-                                  (update-ui-fn (get-values-fn)))))
-    [text update-ui-fn]))
-
-(defmethod create-property-control! g/Bool [_ _ _ set-values-fn]
-  (let [check (CheckBox.)
-        update-ui-fn (fn [values] (let [v (properties/unify-values (map boolean values))]
-                                    (if (nil? v)
-                                      (.setIndeterminate check true)
-                                      (doto check
-                                        (.setIndeterminate false)
-                                        (.setSelected v)))))]
-    (ui/on-action! check (fn [_] (set-values-fn (repeat (.isSelected check)))))
-    [check update-ui-fn]))
 
 (defn- to-double [s]
  (try
@@ -78,21 +47,60 @@
    (catch Throwable _
      nil)))
 
-(defmethod create-property-control! types/Vec3 [_ _ get-values-fn set-values-fn]
+(def create-property-control! nil)
+
+(defmulti create-property-control! (fn [edit-type _ property-fn] (:type edit-type)))
+
+(defmethod create-property-control! String [_ _ property-fn]
+  (let [text (TextField.)
+        update-ui-fn (fn [values]
+                       (ui/text! text (str (properties/unify-values values))))]
+    (ui/on-action! text (fn [_]
+                          (properties/set-values! (property-fn) (repeat (.getText text)))))
+    [text update-ui-fn]))
+
+(defmethod create-property-control! g/Int [_ _ property-fn]
+  (let [text (TextField.)
+        update-ui-fn (fn [values] (ui/text! text (str (properties/unify-values values))))]
+    (ui/on-action! text (fn [_] (if-let [v (to-int (.getText text))]
+                                  (properties/set-values! (property-fn) (repeat v))
+                                  (update-ui-fn (properties/values (property-fn))))))
+    [text update-ui-fn]))
+
+(defmethod create-property-control! g/Num [_ _ property-fn]
+  (let [text (TextField.)
+        update-ui-fn (fn [values] (ui/text! text (str (properties/unify-values values))))]
+    (ui/on-action! text (fn [_] (if-let [v (to-double (.getText text))]
+                                  (properties/set-values! (property-fn) (repeat v))
+                                  (update-ui-fn (properties/values (property-fn))))))
+    [text update-ui-fn]))
+
+(defmethod create-property-control! g/Bool [_ _ property-fn]
+  (let [check (CheckBox.)
+        update-ui-fn (fn [values] (let [v (properties/unify-values values)]
+                                    (if (nil? v)
+                                      (.setIndeterminate check true)
+                                      (doto check
+                                        (.setIndeterminate false)
+                                        (.setSelected v)))))]
+    (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
+    [check update-ui-fn]))
+
+(defmethod create-property-control! types/Vec3 [_ _ property-fn]
   (let [x (TextField.)
         y (TextField.)
         z (TextField.)
         box (doto (HBox.)
               (.setAlignment (Pos/BASELINE_LEFT)))
         update-ui-fn (fn [values]
-                       (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(double (nth % i)) values)))]) [x y z])]
+                       (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(nth % i) values)))]) [x y z])]
                          (ui/text! t v)))]
     (.setSpacing box 6)
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_] (let [v (to-double (.getText ^TextField t))
-                                                  current-vals (get-values-fn)]
+                                                  current-vals (properties/values (property-fn))]
                                               (if v
-                                                (set-values-fn (mapv #(assoc (vec %) i v) current-vals))
+                                                (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
                                                 (update-ui-fn current-vals))))])
                                [x y z])]
       (ui/on-action! ^TextField t f))
@@ -115,7 +123,7 @@
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
 
-(defmethod create-property-control! :choicebox [edit-type _ get-values-fn set-values-fn]
+(defmethod create-property-control! :choicebox [edit-type _ property-fn]
   (let [options (:options edit-type)
         inv-options (clojure.set/map-invert options)
         cb (doto (ChoiceBox.)
@@ -130,52 +138,51 @@
                          (.setValue cb (properties/unify-values values))))]
     (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
                                       (when-not *programmatic-setting*
-                                        (set-values-fn (repeat new-val)))))
+                                        (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
 
-(defmethod create-property-control! (g/protocol workspace/Resource) [_ workspace _ set-values-fn]
+(defmethod create-property-control! (g/protocol workspace/Resource) [_ workspace property-fn]
   (let [box (HBox.)
         button (Button. "...")
         text (TextField.)
         update-ui-fn (fn [values] (let [val (properties/unify-values values)]
                                     (ui/text! text (when val (workspace/proj-path val)))))]
     (ui/on-action! button (fn [_]  (when-let [resource (first (dialogs/make-resource-dialog workspace {}))]
-                                     (set-values-fn (repeat resource)))))
+                                     (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! text (fn [_] (let [path (ui/text text)
                                       resource (or (workspace/find-resource workspace path)
                                                    (workspace/file-resource workspace path))]
-                                  (set-values-fn (repeat resource)))))
+                                  (properties/set-values! (property-fn) (repeat resource)))))
     (ui/children! box [text button])
     [box update-ui-fn]))
 
-(defmethod create-property-control! :default [_ _ _ _]
+(defmethod create-property-control! :default [_ _ _]
   (let [text (TextField.)
         update-ui-fn (fn [values] (ui/text! text (properties/unify-values (map str values))))]
     (.setDisable text true)
     [text update-ui-fn]))
 
-(defn- niceify-label
-  [k]
-  (-> k
-    name
-    camel/->Camel_Snake_Case_String
-    (clojure.string/replace "_" " ")))
-
 (defn- create-properties-row [workspace ^GridPane grid key property row]
-  (let [label (Label. (niceify-label key))
-        get-values-fn (fn []
-                        (let [properties (ui/user-data grid ::properties)]
-                          (get-in properties [key :values])))
-        set-values-fn (fn [values]
-                        (let [properties (ui/user-data grid ::properties)]
-                          (properties/set-value! (get properties key) values)))
-        [control update-ui-fn] (create-property-control! (:edit-type property) workspace get-values-fn set-values-fn)]
-    (update-ui-fn (:values property))
+  (let [label (Label. (properties/label property))
+        property-fn (fn []
+                      (let [properties (ui/user-data grid ::properties)]
+                          (get properties key)))
+        [control update-ui-fn] (create-property-control! (:edit-type property) workspace property-fn)
+        reset-btn (doto (Button. "x")
+                    (.setVisible (properties/overridden? property))
+                    (ui/on-action! (fn [_]
+                                     (properties/clear-override! (property-fn))
+                                     (.requestFocus control))))]
+    (update-ui-fn (properties/values property))
     (GridPane/setConstraints label 1 row)
     (GridPane/setConstraints control 2 row)
+    (GridPane/setConstraints reset-btn 3 row)
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)
-    [key update-ui-fn]))
+    (.add (.getChildren grid) reset-btn)
+    [key (fn [property]
+           (.setVisible reset-btn (properties/overridden? property))
+           (update-ui-fn (properties/values property)))]))
 
 (defn- create-properties [workspace grid properties]
   ; TODO - add multi-selection support for properties view
@@ -198,7 +205,7 @@
   (let [update-fns (ui/user-data parent ::update-fns)]
     (doseq [[key property] properties]
       (when-let [update-ui-fn (get update-fns key)]
-        (update-ui-fn (:values property))))))
+        (update-ui-fn property)))))
 
 (defn- properties->template [properties]
   (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) properties))
