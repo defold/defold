@@ -54,8 +54,8 @@
 
   (property content g/Any (dynamic visible (g/always false)))
 
-  (output modules g/Any :cached (g/fnk [content] (prn (lua-scan/src->modules content)) (lua-scan/src->modules content)))
-  (output script-properties g/Any :cached (g/fnk [content] (prn (lua-scan/src->properties content)) (lua-scan/src->properties content)))
+  (output modules g/Any :cached (g/fnk [content] (lua-scan/src->modules content)))
+  (output script-properties g/Any :cached (g/fnk [content] (lua-scan/src->properties content)))
   (output component-properties g/Any :cached (g/fnk [script-properties]
                                                     (into {} (map (fn [p] [(:name p) (select-keys p [:type :value])]) (filter #(= :ok (:status %)) script-properties)))))
   (output save-data g/Any :cached produce-save-data)
