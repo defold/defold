@@ -29,7 +29,7 @@
                                     (g/make-node world SinkNode))
             source-id     (g/node-id source)
             sink-id       (g/node-id sink)]
-        (g/transact (g/connect source :an-output sink :an-input))
+        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink) :an-input))
         (is (= [[source-id :an-output sink-id :an-input]] (g/inputs sink-id)))))))
 
 (defn- has-no-inputs
@@ -53,7 +53,7 @@
                                     (g/make-node world SinkNode))
             source-id     (g/node-id source)
             sink-id       (g/node-id sink)]
-        (g/transact (g/connect source :an-output sink :an-input))
+        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink) :an-input))
         (is (= [[source-id :an-output sink-id :an-input]] (g/outputs source-id)))))))
 
 (defn- has-no-outputs
@@ -80,8 +80,8 @@
             source-id            (g/node-id source)
             sink1-id             (g/node-id sink1)
             sink2-id             (g/node-id sink2)]
-        (g/transact (g/connect source :an-output sink1 :an-input))
-        (g/transact (g/connect sink1 :an-output sink2 :an-input))
+        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink1) :an-input))
+        (g/transact (g/connect (g/node-id sink1) :an-output (g/node-id sink2) :an-input))
         (is (= [[sink1-id :an-output sink2-id :an-input]] (g/inputs sink2-id)))))))
 
 
@@ -94,8 +94,8 @@
             source1-id             (g/node-id source1)
             source2-id             (g/node-id source2)
             sink-id                (g/node-id sink)]
-        (g/transact (g/connect source1 :an-output sink :an-array-input))
-        (g/transact (g/connect source2 :an-output sink :an-array-input))
+        (g/transact (g/connect (g/node-id source1) :an-output (g/node-id sink) :an-array-input))
+        (g/transact (g/connect (g/node-id source2) :an-output (g/node-id sink) :an-array-input))
         (is (= [[source1-id :an-output sink-id :an-array-input]
                 [source2-id :an-output sink-id :an-array-input]]
                (g/inputs sink-id)))))))
@@ -109,8 +109,8 @@
             source-id            (g/node-id source)
             sink1-id             (g/node-id sink1)
             sink2-id             (g/node-id sink2)]
-        (g/transact (g/connect source :an-output sink1 :an-input))
-        (g/transact (g/connect source :an-output sink2 :an-input))
+        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink1) :an-input))
+        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink2) :an-input))
         (is (= [[source-id :an-output sink1-id :an-input]
                 [source-id :an-output sink2-id :an-input]]
                (g/outputs source-id)))))))

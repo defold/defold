@@ -456,11 +456,11 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (workspace/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineScene pb)}))
 
-(g/defnk produce-scene-build-targets [node-id resource spine-scene atlas sample-rate anim-data dep-build-targets]
+(g/defnk produce-scene-build-targets [_node-id resource spine-scene atlas sample-rate anim-data dep-build-targets]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:texture-set atlas]])]
-    [{:node-id node-id
+    [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-spine-scene
       :user-data {:spine-scene spine-scene
@@ -473,16 +473,16 @@
   (if-let [atlas-node (project/get-resource-node project atlas)]
     (let [outputs (-> atlas-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect atlas-node :anim-data self :anim-data)
-         (g/connect atlas-node :gpu-texture self :gpu-texture)
-         (g/connect atlas-node :build-targets self :dep-build-targets)]
+        [(g/connect (g/node-id atlas-node) :anim-data (g/node-id self) :anim-data)
+         (g/connect (g/node-id atlas-node) :gpu-texture (g/node-id self) :gpu-texture)
+         (g/connect (g/node-id atlas-node) :build-targets (g/node-id self) :dep-build-targets)]
         []))
     []))
 
 (defn- disconnect-all [self label]
   (let [sources (g/sources-of self label)]
     (for [[src-node src-label] sources]
-      (g/disconnect src-node src-label self label))))
+      (g/disconnect (g/node-id src-node) src-label (g/node-id self) label))))
 
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:atlas} labels)
@@ -508,7 +508,7 @@
   (input dep-build-targets g/Any :array)
   (input spine-scene g/Any)
 
-  (output outline g/Any :cached (g/fnk [node-id] {:node-id node-id :label "Spine" :icon spine-scene-icon}))
+  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Spine" :icon spine-scene-icon}))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-scene-build-targets))
 
@@ -521,7 +521,7 @@
       (g/set-property self :spine-json spine-resource)
       (g/set-property self :atlas atlas)
       (g/set-property self :sample-rate (:sample-rate spine))
-      (project/connect-resource-node project spine-resource self [[:content :spine-scene]])
+      (project/connect-resource-node project spine-resource (g/node-id self) [[:content :spine-scene]])
       (connect-atlas project self atlas))))
 
 (defn register-resource-types [workspace]

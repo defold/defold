@@ -314,12 +314,12 @@
       camera)
     camera))
 
-(g/defnk produce-camera [self camera viewport reframe aabb]
+(g/defnk produce-camera [_self camera viewport reframe aabb]
   (let [w (- (:right viewport) (:left viewport))
        h (- (:bottom viewport) (:top viewport))]
    (if (and (> w 0) (> h 0))
      (let [camera (if reframe
-                    (reframe-camera-tx self camera viewport aabb)
+                    (reframe-camera-tx _self camera viewport aabb)
                     camera)
            aspect (/ (double w) h)]
        (set-orthographic camera (:fov camera) aspect -100000 100000))

@@ -22,8 +22,8 @@
 (defn- build-texture [self basis resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
 
-(g/defnk produce-build-targets [node-id resource content]
-  [{:node-id node-id
+(g/defnk produce-build-targets [_node-id resource content]
+  [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-texture
     :user-data {:image content}}])

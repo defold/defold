@@ -35,15 +35,15 @@
     :node     node}])
 
 (defn become
-  [from-node to-node]
+  [node-id to-node]
   [{:type     :become
-    :node-id  (nid from-node)
+    :node-id  node-id
     :to-node  to-node}])
 
 (defn delete-node
-  [node]
+  [node-id]
   [{:type     :delete-node
-    :node-id  (nid node)}])
+    :node-id  node-id}])
 
 (defn update-property
   "*transaction step* - Expects a node, a property label, and a
@@ -70,11 +70,11 @@
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
 (`to-resource to-label`). It returns a value suitable for consumption by [[perform]]."
-  [from-node from-label to-node to-label]
+  [from-node-id from-label to-node-id to-label]
   [{:type         :connect
-    :source-id    (nid from-node)
+    :source-id    from-node-id
     :source-label from-label
-    :target-id    (nid to-node)
+    :target-id    to-node-id
     :target-label to-label}])
 
 (defn disconnect
@@ -83,11 +83,11 @@
   (`from-resource from-label`) from a target node and label
   (`to-resource to-label`). It returns a value suitable for consumption
   by [[perform]]."
-  [from-node from-label to-node to-label]
+  [from-node-id from-label to-node-id to-label]
   [{:type         :disconnect
-    :source-id    (nid from-node)
+    :source-id    from-node-id
     :source-label from-label
-    :target-id    (nid to-node)
+    :target-id    to-node-id
     :target-label to-label}])
 
 (defn label
@@ -239,17 +239,17 @@
 
 (defmethod perform :connect
   [{:keys [basis triggers-to-fire graphs-modified successors-changed] :as ctx}
-   {:keys [source-id source-label target-id target-label]}]
+   {:keys [source-id source-label target-id target-label] :as tx-data}]
   (if-let [source (ig/node-by-id-at basis source-id)] ; nil if source node was deleted in this transaction
-    (if-let [target (ig/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
-      (-> ctx
-          (mark-activated target-id target-label)
-          (assoc
-           :basis              (gt/connect basis source-id source-label target-id target-label)
-           :triggers-to-fire   (update-in triggers-to-fire [target-id :input-connections] conj target-label)
-           :successors-changed (conj successors-changed [source-id source-label])))
-      ctx)
-    ctx))
+   (if-let [target (ig/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
+     (-> ctx
+         (mark-activated target-id target-label)
+         (assoc
+          :basis              (gt/connect basis source-id source-label target-id target-label)
+          :triggers-to-fire   (update-in triggers-to-fire [target-id :input-connections] conj target-label)
+          :successors-changed (conj successors-changed [source-id source-label])))
+     ctx)
+   ctx))
 
 (defmethod perform :disconnect
   [{:keys [basis triggers-to-fire graphs-modified successors-changed] :as ctx}

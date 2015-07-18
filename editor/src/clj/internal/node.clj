@@ -18,8 +18,7 @@
     (println (format "========EXPECTED-%s========" key))
     (pp/pprint val)
     (println (format "========VALIDATION ERROR %s========" key))
-    (when-let [key-error (get error key)]
-      (pp/pprint  key-error))))
+    (pp/pprint (get error key))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -51,7 +50,7 @@
 
 (defn- gather-property
   [self kwargs prop]
-  (let [type              (-> self gt/node-type all-properties prop)
+  (let [type              (-> self gt/node-type gt/properties prop)
         value             (get self prop)
         problems          (gt/property-validate type value)
         dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
@@ -61,13 +60,15 @@
             :type                type
             :validation-problems problems})))
 
-(defn gather-properties
-  "Production function that delivers the definition and value
-  for all properties of this node."
+(defn- gather-properties
+  "Production function that delivers the definition and value for all
+  properties of this node. This is used to create the :_properties
+  output on a node. You should not call it directly. Instead,
+  call `(g/node-value _n_ :_properties)`"
   [kwargs]
-  (let [self           (:self kwargs)
-        kwargs         (dissoc kwargs :self)
-        property-names (-> self gt/node-type all-properties keys)]
+  (let [self           (:_self kwargs)
+        kwargs         (dissoc kwargs :_self)
+        property-names (-> self gt/node-type gt/properties keys)]
     (zipmap property-names (map (partial gather-property self kwargs) property-names))))
 
 ;; ---------------------------------------------------------------------------
@@ -118,7 +119,7 @@
 
 (defn- properties-output-arguments
   [properties]
-  (cons :self (concat (set (keys properties))
+  (cons :_self (concat (set (keys properties))
                       (mapcat property-dynamics-arguments properties))))
 
 (defn attach-properties-output
@@ -126,7 +127,7 @@
   (let [properties      (:properties node-type-description)
         argument-names  (properties-output-arguments properties)
         argument-schema (zipmap argument-names (repeat s/Any))]
-    (attach-output node-type-description :properties s/Any #{} #{}
+    (attach-output node-type-description :_properties s/Any #{} #{}
                    (s/schematize-fn (fn [args] (gather-properties args)) (s/=> s/Any argument-schema)))))
 
 (defn keyset
@@ -174,7 +175,7 @@
 (defn description->input-dependencies
   [{:keys [transforms properties] :as description}]
   (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))
-        transforms (assoc transforms :self (keys properties))]
+        transforms (assoc transforms :_self (keys properties))]
     (invert-map transforms)))
 
 (defn attach-input-dependencies
@@ -187,7 +188,7 @@
   type. This is a specialized case and if it's not apparent what it
   means, you should probably call input-dependencies instead."
   [node-type]
-  (let [transforms (dissoc (gt/transforms node-type) :self)]
+  (let [transforms (dissoc (gt/transforms node-type) :_self)]
     (invert-map
      (zipmap (keys transforms)
              (map #(inputs-for %) (vals transforms))))))
@@ -580,7 +581,8 @@
 (defn node-output-value-function-forms
   [record-name node-type-name node-type]
   (for [[transform pfn]       (gt/transforms node-type)
-        :let [property-passthrough? (gt/property-passthrough? node-type transform)
+        :let [funcname              (with-meta (dollar-name node-type-name transform) {:no-doc true})
+              property-passthrough? (gt/property-passthrough? node-type transform)
               cached?               ((gt/cached-outputs node-type) transform)
               output-multi?         (seq? ((gt/transform-types node-type) transform))
               argument-schema       (collect-argument-schema transform (pf/input-schema pfn) record-name node-type)
@@ -594,14 +596,14 @@
                                            ~(global-cache 'evaluation-context transform)
                                            ~(produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))
                                       (produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))]]
-    `(defn ~(dollar-name node-type-name transform) [~'this ~'evaluation-context]
+    `(defn ~funcname [~'this ~'evaluation-context]
        ~(if property-passthrough?
           `(get ~'this ~transform)
           `(do
              (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
                      (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
              (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
-               ~(if (= transform :self)
+               ~(if (= transform :_self)
                   refresh
                   (if (= transform :this)
                     (gt/node-id ~'this)
@@ -611,8 +613,9 @@
 (defn node-input-value-function-forms
   [record-name node-type-name node-type]
   (for [[input input-schema] (gt/declared-inputs node-type)]
-    `(defn ~(dollar-name node-type-name input) [~'this ~'evaluation-context]
-       ~(input-lookup-forms node-type-name node-type input))))
+    (let [funcname (with-meta (dollar-name node-type-name input) {:no-doc true})]
+     `(defn ~funcname [~'this ~'evaluation-context]
+        ~(input-lookup-forms node-type-name node-type input)))))
 
 (defn define-node-value-functions
   [record-name node-type-name node-type]
@@ -643,21 +646,24 @@
 
 (defn- node-record-sexps
   [record-name node-type-name node-type]
-  `(defrecord ~record-name ~(state-vector node-type)
-     gt/Node
-     (node-id        [this#]    (:_id this#))
-     (node-type      [_]        ~node-type-name)
-     (produce-value  [~'this label# ~'evaluation-context]
-       (case label#
-         ~@(mapcat (fn [an-output] [an-output (list (dollar-name node-type-name an-output) 'this 'evaluation-context)])
-                   (keys (gt/transforms node-type)))
-         ~@(mapcat (fn [an-input]  [an-input  (list (dollar-name node-type-name an-input) 'this 'evaluation-context)])
-                   (subtract-keys (gt/declared-inputs node-type) (gt/transforms node-type)))
-         (throw (ex-info (str "No such output, input, or property " label# " exists for node type " (:name ~node-type-name))
-                         {:label label# :node-type ~node-type-name}))))
-     ~@(gt/interfaces node-type)
-     ~@(gt/protocols node-type)
-     ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type))))
+  `(do
+     (defrecord ~record-name ~(state-vector node-type)
+       gt/Node
+       (node-id        [this#]    (:_id this#))
+       (node-type      [_]        ~node-type-name)
+       (produce-value  [~'this label# ~'evaluation-context]
+         (case label#
+           ~@(mapcat (fn [an-output] [an-output (list (dollar-name node-type-name an-output) 'this 'evaluation-context)])
+                     (keys (gt/transforms node-type)))
+           ~@(mapcat (fn [an-input]  [an-input  (list (dollar-name node-type-name an-input) 'this 'evaluation-context)])
+                     (subtract-keys (gt/declared-inputs node-type) (gt/transforms node-type)))
+           (throw (ex-info (str "No such output, input, or property " label# " exists for node type " (:name ~node-type-name))
+                           {:label label# :node-type ~node-type-name}))))
+       ~@(gt/interfaces node-type)
+       ~@(gt/protocols node-type)
+       ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (gt/method-impls ~node-type-name) '~fname)) ~@argv))) (gt/method-impls node-type)))
+     (alter-meta! (var ~(symbol (str "map->" record-name))) assoc :no-doc true)
+     (alter-meta! (var ~(symbol (str "->" record-name))) assoc :no-doc true)))
 
 (defn define-node-record
   "Create a new class for the node type. This builds a defrecord with

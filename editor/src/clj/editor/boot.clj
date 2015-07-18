@@ -95,9 +95,9 @@
 
     (let [close-handler (ui/event-handler event
                           (g/transact
-                            (g/delete-node project))
-                          (g/dispose-pending))
-          dispose-handler (ui/event-handler event (g/dispose-pending))]
+                            (g/delete-node (g/node-id project)))
+                          (g/dispose-pending!))
+          dispose-handler (ui/event-handler event (g/dispose-pending!))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
@@ -109,9 +109,9 @@
           outline-view (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)]
       (g/transact
         (concat
-          (g/connect project :selected-node-ids outline-view :selection)
+          (g/connect (g/node-id project) :selected-node-ids (g/node-id outline-view) :selection)
           (for [label [:active-resource :active-outline :open-resources]]
-            (g/connect app-view label outline-view label))
+            (g/connect (g/node-id app-view) label (g/node-id outline-view) label))
           (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
       (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource))))
     (graph-view/setup-graph-view root *project-graph*)

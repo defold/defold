@@ -1,6 +1,5 @@
 (ns dynamo.integration.value-disposal
-  (:require [dynamo.integration.value-disposal :refer :all]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
@@ -22,7 +21,7 @@
         (is (= "foo" (:v (g/node-value node :my-output))))
         (g/transact (g/set-property node :a-property "bar"))
         (is (= "bar" (:v (g/node-value node :my-output))))
-        (g/dispose-pending)
+        (g/dispose-pending!)
         (is (= 0 @dispose-counter))))))
 
 (g/defnode SimpleCachedDisposableNode
@@ -35,7 +34,7 @@
     (with-clean-system {:cache-size 3}
       (let [[node] (tx-nodes (g/make-node world SimpleCachedDisposableNode))]
         (is (= "foo" (:v (g/node-value node :my-output))))
-        (g/dispose-pending)
+        (g/dispose-pending!)
         (is (= 0 @dispose-counter)))))
 
   (testing "disposable values that are cached and invalidated are disposed"
@@ -44,10 +43,10 @@
       (let [[node] (tx-nodes (g/make-node world SimpleCachedDisposableNode))]
         (is (= "foo" (:v (g/node-value node :my-output))))
         (g/transact (g/set-property node :a-property "bar"))
-        (g/dispose-pending)
+        (g/dispose-pending!)
         (is (= 1 @dispose-counter))
         (is (= "bar" (:v (g/node-value node :my-output))))
         (g/transact (g/set-property node :a-property "baz"))
-        (g/dispose-pending)
+        (g/dispose-pending!)
         (is (= 2 @dispose-counter))
         (is (= "baz" (:v (g/node-value node :my-output))))))))

@@ -126,3 +126,8 @@ into an arglist."
   a set of maps."
   [xrel ks]
   (with-meta (vec (map #(vals (select-keys % ks)) xrel)) (meta xrel)))
+
+(defn guard [f g]
+  (fn [& args]
+    (when (apply f args)
+      (apply g args))))
