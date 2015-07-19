@@ -13,6 +13,10 @@
   (with-in-str (protobuf/map->str cls m)
     (protobuf/read-text cls (io/reader *in*))))
 
+(defn- round-trip-data [^java.lang.Class cls s]
+  (with-in-str s
+    (protobuf/map->str cls (protobuf/read-text cls (io/reader *in*)))))
+
 (deftest simple
   (let [m {:uint-value 1}
         new-m (round-trip TestDdf$SubMsg m)]
@@ -43,13 +47,26 @@
     (is (= m new-m))))
 
 (deftest default-vals
-  (let [defaults {:uint-value 10
-                  :string-value "test"
-                  :quat-value [0.0 0.0 0.0 1.0]
-                  :enum-value :enum-val1
-                  :bool-value true}
-        new-m (round-trip TestDdf$DefaultValue {})]
-    (is (= defaults new-m))))
+  (testing "Defaults readable"
+           (let [defaults {:uint-value 10
+                           :string-value "test"
+                           :quat-value [0.0 0.0 0.0 1.0]
+                           :enum-value :enum-val1
+                           :bool-value true}
+                 new-m (round-trip TestDdf$DefaultValue {})]
+             (is (= defaults new-m))))
+  (testing "Defaults overwritable"
+           (let [m (round-trip TestDdf$DefaultValue {})
+                 ks (keys m)]
+             (doseq [k ks]
+               (is (not (protobuf/field-set? m k))))
+             (doseq [[k v] (map vector ks [11 "test2" [1.0 0.0 0.0 0.0] :enum-val0 false])]
+               (is (protobuf/field-set? (assoc m k v) k)))
+             (is (protobuf/field-set? (update m :quat-value assoc 0 1.0) :quat-value))))
+  (testing "Defaults not saved"
+           (let [data ""
+                 new-data (round-trip-data TestDdf$DefaultValue data)]
+             (is (= data new-data)))))
 
 (deftest optional-no-defaults
   (let [defaults {:uint-value 0
