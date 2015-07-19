@@ -28,12 +28,13 @@
 
 (def game-object-icon "icons/16/Icons_06-Game-object.png")
 
-(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation save-data]
+(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation properties save-data]
   {:id id
    :position (math/vecmath->clj position)
    :rotation (math/vecmath->clj rotation)
    :component (or (and (:resource save-data) (workspace/proj-path (:resource save-data)))
-                  ".unknown")})
+                  ".unknown")
+   :properties properties})
 
 (defn- gen-embed-ddf [id ^Vector3d position ^Quat4d rotation save-data]
   {:id id
@@ -70,7 +71,7 @@
   (property id g/Str)
   (property embedded g/Bool (dynamic visible (g/always false)))
   (property path g/Str (dynamic visible (g/always false)))
-  (property component-properties g/Any
+  (property properties g/Any
             (dynamic link (g/fnk [source-properties] source-properties))
             (dynamic override (g/fnk [user-properties] user-properties)))
 
@@ -84,9 +85,10 @@
 
   (output outline g/Any :cached (g/fnk [_node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
                                                                             (assoc outline :node-id _node-id :label (str id suffix)))))
-  (output ddf-message g/Any :cached (g/fnk [id embedded position rotation save-data] (if embedded
-                                                                                       (gen-embed-ddf id position rotation save-data)
-                                                                                       (gen-ref-ddf id position rotation save-data))))
+  (output ddf-message g/Any :cached (g/fnk [id embedded position rotation properties save-data]
+                                           (if embedded
+                                             (gen-embed-ddf id position rotation save-data)
+                                             (gen-ref-ddf id position rotation properties save-data))))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (assoc scene
                                             :node-id _node-id
@@ -164,13 +166,14 @@
           id
           (recur (inc postfix)))))))
 
-(defn- add-component [self project source-resource id position rotation]
+(defn- add-component [self project source-resource id position rotation properties]
   (let [path (workspace/proj-path source-resource)]
     (g/make-nodes (g/node->graph-id self)
-                  [comp-node [ComponentNode :id id :position position :rotation rotation :path path]]
+                  [comp-node [ComponentNode :id id :position position :rotation rotation :path path
+                              :properties properties]]
                   (concat
                     (for [[src tgt] [[:outline :outline]
-                                     [:component-properties :component-properties]
+                                     [:properties :component-properties]
                                      [:_self :nodes]
                                      [:build-targets :dep-build-targets]
                                      [:ddf-message :ref-ddf]
@@ -199,7 +202,7 @@
                             (concat
                               (g/operation-label "Add Component")
                               (g/operation-sequence op-seq)
-                              (add-component self project resource id [0 0 0] [0 0 0]))))]
+                              (add-component self project resource id [0 0 0] [0 0 0] {}))))]
         ; Selection
         (g/transact
           (concat
@@ -287,7 +290,7 @@
     (concat
       (for [component (:components prototype)
             :let [source-resource (workspace/resolve-resource (:resource self) (:component component))]]
-        (add-component self project source-resource (:id component) (:position component) (v4->euler (:rotation component))))
+        (add-component self project source-resource (:id component) (:position component) (v4->euler (:rotation component)) (:properties component)))
       (for [embedded (:embedded-components prototype)]
         (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (v4->euler (:rotation embedded)))))))
 
