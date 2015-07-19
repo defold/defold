@@ -324,6 +324,6 @@
           project       (test-util/setup-project! workspace)
           path          "/script/props.script"
           resource-node (test-util/resource-node project path)]
-      (prn "properties" (g/node-value resource-node :component-properties)))))
+      (prn "properties" (g/node-value resource-node :user-properties)))))
 
 (build-script)
