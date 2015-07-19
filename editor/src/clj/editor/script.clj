@@ -8,6 +8,7 @@
             [editor.gl.vertex :as vtx]
             [editor.project :as project]
             [editor.scene :as scene]
+            [editor.properties :as properties]
             [editor.workspace :as workspace]
             [editor.pipeline.lua-scan :as lua-scan]
             [internal.render.pass :as pass])
@@ -20,14 +21,6 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
-(def script-type->prop-type {:property-type-number g/Num
-                             :property-type-hash String
-                             :property-type-url String
-                             :property-type-vector3 t/Vec3
-                             :property-type-vector4 nil #_t/Vec4
-                             :property-type-quat nil #_t/Vec4
-                             :property-type-bool g/Bool})
-
 (def script-defs [{:ext "script"
                    :icon "icons/pictures.png"
                    :tags #{:component}}
@@ -37,6 +30,16 @@
                    :icon "icons/pictures.png"}
                   {:ext "lua"
                    :icon "icons/pictures.png"}])
+
+(g/defnk produce-user-properties [script-properties]
+  (into {}
+        (map (fn [p]
+               (let [key (:name p)
+                     prop (select-keys p [:value])
+                     prop (assoc prop
+                                 :edit-type {:type (properties/go-prop-type->clj-type (:type p))})]
+                 [key prop]))
+             (filter #(= :ok (:status %)) script-properties))))
 
 (g/defnk produce-save-data [resource content]
   {:resource resource
@@ -65,13 +68,7 @@
 
   (output modules g/Any :cached (g/fnk [content] (lua-scan/src->modules content)))
   (output script-properties g/Any :cached (g/fnk [content] (lua-scan/src->properties content)))
-  (output user-properties g/Any :cached (g/fnk [script-properties]
-                                               (into {} (map (fn [p]
-                                                               (let [key (:name p)
-                                                                     prop (select-keys p [:value])
-                                                                     prop (assoc prop :edit-type {:type (script-type->prop-type (:type p))})]
-                                                                 [key prop]))
-                                                             (filter #(= :ok (:status %)) script-properties)))))
+  (output user-properties g/Any :cached produce-user-properties)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 

@@ -1,7 +1,16 @@
 (ns editor.properties
   (:require [clojure.set :as set]
             [camel-snake-kebab :as camel]
-            [dynamo.graph :as g]))
+            [dynamo.graph :as g]
+            [editor.types :as t]))
+
+(def go-prop-type->clj-type {:property-type-number g/Num
+                             :property-type-hash String
+                             :property-type-url String
+                             :property-type-vector3 t/Vec3
+                             :property-type-vector4 nil #_t/Vec4
+                             :property-type-quat nil #_t/Vec4
+                             :property-type-bool g/Bool})
 
 (defn- property-edit-type [property]
   (or (get property :edit-type)
