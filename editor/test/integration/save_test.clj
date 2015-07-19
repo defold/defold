@@ -8,7 +8,9 @@
 (deftest save-all
   (testing "Saving all resource nodes in the project"
            (let [queries ["**/level1.platformer" "**/level01.switcher" "**/env.cubemap" "**/switcher.atlas"
-                          "**/atlas_sprite.collection" "**/atlas_sprite.go" "**/atlas.sprite"]]
+                          "**/atlas_sprite.collection" "**/atlas_sprite.go" "**/atlas.sprite"
+                          "**/props.go"]
+                 queries ["**/props.go"]]
              (with-clean-system
                (let [workspace (test-util/setup-workspace! world)
                      project   (test-util/setup-project! workspace)
@@ -17,4 +19,9 @@
                    (let [[resource _] (first (project/find-resources project query))
                          save (first (get save-data resource))
                          file (slurp resource)]
-                     (is (= file (:content save))))))))))
+                     (prn file)
+                     (prn "save")
+                     (prn (:content save))
+                     #_(is (= file (:content save))))))))))
+
+(save-all)
