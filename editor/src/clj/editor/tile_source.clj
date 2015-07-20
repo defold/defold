@@ -95,7 +95,7 @@
 (defn- load-tile-source [project self input]
   (let [tile-source (protobuf/read-text Tile$TileSet input)]
     (concat
-      (g/set-property self :pb tile-source)
+      (g/set-property (g/node-id self) :pb tile-source)
       (if-let [image-resource (workspace/resolve-resource (:resource self) (:image tile-source))]
         (project/connect-resource-node project image-resource (g/node-id self) [[:content :image-content]])
         [])

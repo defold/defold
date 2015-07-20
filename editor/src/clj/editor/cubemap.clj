@@ -125,7 +125,7 @@
         (project/connect-resource-node project
                                        img-resource (g/node-id self)
                                        [[:content (keyword (subs (str side "-img") 1))]])
-        (g/set-property self side input)))))
+        (g/set-property (g/node-id self) side input)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

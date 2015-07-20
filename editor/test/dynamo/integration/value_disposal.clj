@@ -17,10 +17,10 @@
   (testing "values that are not cached are not disposed"
     (reset! dispose-counter 0)
     (with-clean-system {:cache-size 3}
-      (let [[node] (tx-nodes (g/make-node world SimpleDisposableNode))]
-        (is (= "foo" (:v (g/node-value node :my-output))))
-        (g/transact (g/set-property node :a-property "bar"))
-        (is (= "bar" (:v (g/node-value node :my-output))))
+      (let [[node-id] (map g/node-id (tx-nodes (g/make-node world SimpleDisposableNode)))]
+        (is (= "foo" (:v (g/node-value node-id :my-output))))
+        (g/transact (g/set-property node-id :a-property "bar"))
+        (is (= "bar" (:v (g/node-value node-id :my-output))))
         (g/dispose-pending!)
         (is (= 0 @dispose-counter))))))
 
@@ -40,13 +40,13 @@
   (testing "disposable values that are cached and invalidated are disposed"
     (reset! dispose-counter 0)
     (with-clean-system {:cache-size 3}
-      (let [[node] (tx-nodes (g/make-node world SimpleCachedDisposableNode))]
-        (is (= "foo" (:v (g/node-value node :my-output))))
-        (g/transact (g/set-property node :a-property "bar"))
+      (let [[node-id] (map g/node-id (tx-nodes (g/make-node world SimpleCachedDisposableNode)))]
+        (is (= "foo" (:v (g/node-value node-id :my-output))))
+        (g/transact (g/set-property node-id :a-property "bar"))
         (g/dispose-pending!)
         (is (= 1 @dispose-counter))
-        (is (= "bar" (:v (g/node-value node :my-output))))
-        (g/transact (g/set-property node :a-property "baz"))
+        (is (= "bar" (:v (g/node-value node-id :my-output))))
+        (g/transact (g/set-property node-id :a-property "baz"))
         (g/dispose-pending!)
         (is (= 2 @dispose-counter))
-        (is (= "baz" (:v (g/node-value node :my-output))))))))
+        (is (= "baz" (:v (g/node-value node-id :my-output))))))))

@@ -94,7 +94,7 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (g/transact (it/update-property name1 :scalar (constantly "John") []))
+                          (g/transact (it/update-property (g/node-id name1) :scalar (constantly "John") []))
                           (is (= "John Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "transmogrifying a node invalidates its cached value"
@@ -116,10 +116,10 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane" (g/node-value combiner :nickname)))
         (expect-call-when combiner 'passthrough-first-name
-                          (g/transact (it/update-property name1 :scalar (constantly "Mark") []))
+                          (g/transact (it/update-property (g/node-id name1) :scalar (constantly "Mark") []))
                           (is (= "Mark" (g/node-value combiner :nickname))))
         (expect-no-call-when combiner 'passthrough-first-name
-                             (g/transact (it/update-property name2 :scalar (constantly "Brandenburg") []))
+                             (g/transact (it/update-property (g/node-id name2) :scalar (constantly "Brandenburg") []))
                              (is (= "Mark" (g/node-value combiner :nickname)))
                              (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
 
@@ -151,10 +151,10 @@
     (let [[node]            (tx-nodes (g/make-node world OverrideValueNode :name "a project" :int-prop 0))
           after-transaction (g/transact
                              (concat
-                              (g/update-property node :int-prop inc)
-                              (g/update-property node :int-prop inc)
-                              (g/update-property node :int-prop inc)
-                              (g/update-property node :int-prop inc)))]
+                              (g/update-property (g/node-id node) :int-prop inc)
+                              (g/update-property (g/node-id node) :int-prop inc)
+                              (g/update-property (g/node-id node) :int-prop inc)
+                              (g/update-property (g/node-id node) :int-prop inc)))]
       (is (= 4 (:int-prop (g/refresh node)))))))
 
 (defn- cache-peek [cache node-id label]
@@ -249,7 +249,7 @@
        view-node 'compute-derived-value
        (is (= "Snake Plissken" (g/node-value view-node :derived-value))))
 
-      (g/transact (g/set-property aux-node :scalar "Solid"))
+      (g/transact (g/set-property (g/node-id aux-node) :scalar "Solid"))
 
       (expect-call-when
        view-node 'compute-derived-value

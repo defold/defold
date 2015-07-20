@@ -49,16 +49,16 @@
   "*transaction step* - Expects a node, a property label, and a
   function f (with optional args) to be performed on the current value
   of the property."
-  [node pr f args]
+  [node-id pr f args]
   [{:type     :update-property
-    :node-id  (nid node)
+    :node-id  node-id
     :property pr
     :fn       f
     :args     args}])
 
 (defn set-property
-  [node pr v]
-  (update-property node pr (constantly v) []))
+  [node-id pr v]
+  (update-property node-id pr (constantly v) []))
 
 (defn update-graph
   [gid f args]
@@ -286,7 +286,14 @@
     (if-let [action (first actions)]
       (if (sequential? action)
         (recur (apply-tx ctx action) (next actions))
-        (recur (update-in (perform ctx action) [:completed] conj action) (next actions)))
+        (recur
+         (update-in
+          (try (perform ctx action)
+               (catch Exception e
+                 (when *tx-debug*
+                   (println (txerrstr ctx "Transaction failed on " action)))
+                 (throw e)))
+          [:completed] conj action) (next actions)))
       ctx)))
 
 (defn- last-seen-node
@@ -303,8 +310,8 @@
         :when node
         [l tr] (-> node gt/node-type gt/triggers (get kind) seq)]
     (if (empty? args)
-      [tr node l kind]
-      [tr node l kind (set args)])))
+      [tr node-id l kind]
+      [tr node-id l kind (set args)])))
 
 (defn- invoke-trigger
   [csub [tr & args]]

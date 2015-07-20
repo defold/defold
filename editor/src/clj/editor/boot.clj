@@ -112,7 +112,7 @@
           (g/connect (g/node-id project) :selected-node-ids (g/node-id outline-view) :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect (g/node-id app-view) label (g/node-id outline-view) label))
-          (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
+          (g/update-property (g/node-id app-view) :auto-pulls conj [outline-view :tree-view])))
       (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
@@ -240,7 +240,7 @@
                            (fn [report-fn]
                              (report-fn -1 "loading assets")
                              (when (nil? @the-root)
-                               (g/initialize {})
+                               (g/initialize! {})
                                (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
                                (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
                                (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))

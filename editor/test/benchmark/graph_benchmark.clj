@@ -142,7 +142,7 @@
           chosen-props    (mapv (fn [node]  (rand-nth (vec (disj (set (keys (gt/properties node))) :id)))) chosen-nodes)]
       (str "Set Property on " affected-num " Nodes")
       (do-benchmark (str "Set Property on " affected-num " Nodes")
-                    (mapv (fn [node property] (g/set-property node property nil)) chosen-nodes chosen-props)))))
+                    (mapv (fn [node property] (g/set-property node property nil)) chosen-node-ids chosen-props)))))
 
 (defn add-two-nodes-and-connect-them []
   (with-clean-system

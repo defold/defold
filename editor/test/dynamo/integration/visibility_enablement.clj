@@ -45,7 +45,7 @@
                                     (g/make-node world OutputNode))]
         (g/transact (g/connect (g/node-id onode) :can-change-prop (g/node-id vnode) :a-input))
         (is (false? (property-visible vnode :a-prop)))
-        (g/transact (g/set-property onode :can-change-prop true))
+        (g/transact (g/set-property (g/node-id onode) :can-change-prop true))
         (is (true? (property-visible vnode :a-prop)))))))
 
 
@@ -85,5 +85,5 @@
                                     (g/make-node world OutputNode))]
         (g/transact (g/connect (g/node-id onode) :can-change-prop (g/node-id enode) :a-input))
         (is (false? (property-enabled enode :a-prop)))
-        (g/transact (g/set-property onode :can-change-prop true))
+        (g/transact (g/set-property (g/node-id onode) :can-change-prop true))
         (is (true? (property-enabled enode :a-prop)))))))
