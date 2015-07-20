@@ -73,11 +73,13 @@
         (is (= 99  (:marker (g/node-by-id after id1))))))))
 
 (defn track-trigger-activity
-  ([transaction graph self label kind]
-   (swap! (:tracking self) update-in [kind] (fnil inc 0))
+  ([transaction basis self label kind]
+   (let [where-to-find (if (= :deleted kind) (:original-basis transaction) basis)]
+     (swap! (g/node-value where-to-find self :tracking) update-in [kind] (fnil inc 0)))
    [])
-  ([transaction graph self label kind afflicted]
-   (swap! (:tracking self) update-in [kind] (fnil conj []) afflicted)
+  ([transaction basis self label kind afflicted]
+   (let [where-to-find (if (= :deleted kind) (:original-basis transaction) basis)]
+     (swap! (g/node-value where-to-find self :tracking) update-in [kind] (fnil conj []) afflicted))
    []))
 
 (g/defnode StringSource
@@ -103,9 +105,9 @@
   (trigger tracker :added :deleted :property-touched :input-connections track-trigger-activity)
 
   (trigger copy-self :property-touched
-           (fn [txn graph self label kind afflicted]
+           (fn [txn basis self label kind afflicted]
              (when true
-               (it/set-property (g/node-id self) :sink (:source self))))))
+               (it/set-property self :sink (g/node-value basis self :source))))))
 
 (g/defnode NameCollision
   (property tracking g/Any)
@@ -139,7 +141,7 @@
             after-updating @tracker
             node           (g/refresh node)]
         (is (= {:added 1 :property-touched [#{:source} #{:sink}]} after-updating))
-        (is (= 42 (:sink node) (:source node))))))
+        (is (= 42 (g/node-value node :sink) (g/node-value node :source))))))
 
   (testing "property-touched NOT run when an input of the same name is connected or invalidated"
     (with-clean-system
@@ -482,9 +484,9 @@
 ;; This case is taken from editor.core/Scope.
 ;; Code is copied here to avoid inverted dependencies
 (defn dispose-nodes
-  [transaction graph self label kind]
+  [transaction basis self label kind]
   (when (g/is-deleted? transaction self)
-    (for [node-to-delete (g/node-value self :nodes)]
+    (for [node-to-delete (g/node-value basis self :nodes)]
       (g/delete-node (g/node-id node-to-delete)))))
 
 (g/defnode Container
