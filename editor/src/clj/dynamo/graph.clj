@@ -130,20 +130,20 @@
   (map (partial ig/node-by-id-at basis) nodes-added))
 
 (defn is-modified?
-  ([transaction node]
-    (boolean (contains? (:outputs-modified transaction) (gt/node-id node))))
-  ([transaction node output]
-    (boolean (get-in transaction [:outputs-modified (gt/node-id node) output]))))
+  ([transaction node-id]
+    (boolean (contains? (:outputs-modified transaction) node-id)))
+  ([transaction node-id output]
+    (boolean (get-in transaction [:outputs-modified node-id output]))))
 
-(defn is-added? [transaction node]
-  (contains? (:nodes-added transaction) (gt/node-id node)))
+(defn is-added? [transaction node-id]
+  (contains? (:nodes-added transaction) node-id))
 
 (defn is-deleted? [transaction node-id]
   (contains? (:nodes-deleted transaction) node-id))
 
 (defn outputs-modified
-  [transaction node]
-  (get-in transaction [:outputs-modified (gt/node-id node)]))
+  [transaction node-id]
+  (get-in transaction [:outputs-modified node-id]))
 
 (defn transaction-basis
   [transaction]
