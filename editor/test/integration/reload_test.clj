@@ -138,7 +138,7 @@
                (add-file workspace "/test.collection")
                (let [node (project/get-resource-node project "/test.collection")]
                  (g/transact
-                   (g/set-property node :name "new_name"))
+                   (g/set-property (g/node-id node) :name "new_name"))
                  (is (has-undo? project))
                  (project/save-all project)
                  (workspace/fs-sync workspace)

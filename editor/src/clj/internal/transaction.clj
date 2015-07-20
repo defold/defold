@@ -49,9 +49,9 @@
   "*transaction step* - Expects a node, a property label, and a
   function f (with optional args) to be performed on the current value
   of the property."
-  [node pr f args]
+  [node-id pr f args]
   [{:type     :update-property
-    :node-id  (nid node)
+    :node-id  node-id
     :property pr
     :fn       f
     :args     args}])

@@ -84,7 +84,7 @@
             tx-report    (g/transact [(g/make-node pgraph-id Root)
                                       (g/operation-label "Build root")])
             root         (first (g/tx-nodes-added tx-report))
-            tx-report    (g/transact [(g/set-property root :touched 1)
+            tx-report    (g/transact [(g/set-property (g/node-id root) :touched 1)
                                       (g/operation-label "Increment touch count")])
             undos-after  (is/undo-stack (graph-history pgraph-id))
             redos-after  (is/redo-stack (graph-history pgraph-id))
@@ -110,7 +110,7 @@
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
 
-          (g/transact (g/set-property root :touched 1))
+          (g/transact (g/set-property (g/node-id root) :touched 1))
 
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
@@ -132,7 +132,7 @@
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
 
-          (g/transact (g/set-property root :touched 1))
+          (g/transact (g/set-property (g/node-id root) :touched 1))
 
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
@@ -153,7 +153,7 @@
                      [(g/operation-label label)
                       (when seq-id
                         (g/operation-sequence seq-id))
-                      (g/set-property node :touched label)])))
+                      (g/set-property (g/node-id node) :touched label)])))
 
 (deftest undo-coalescing
   (testing "Transactions with no sequence-id each make an undo point"
@@ -306,8 +306,8 @@
 
           (touch node-p 1 :a)
 
-          (g/transact [(g/set-property node-p :touched 2)
-                        (g/set-property node-a :touched 2)
+          (g/transact [(g/set-property (g/node-id node-p) :touched 2)
+                        (g/set-property (g/node-id node-a) :touched 2)
                         (g/operation-label 2)
                         (g/operation-sequence :a)])
 
@@ -396,7 +396,7 @@
 
         (is (= "FROM PROJECT GRAPH" (g/node-value sink :loud)))
         (g/transact
-         (g/set-property source :source-label "after change"))
+         (g/set-property (g/node-id source) :source-label "after change"))
 
         (g/delete-node! (g/node-id source))
         (is (= nil (g/node-value sink :loud)))

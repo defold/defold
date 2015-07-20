@@ -48,9 +48,9 @@
                (g/transact
                  (concat
                    (g/operation-sequence (gensym))
-                   (g/set-property atlas-node :margin 1)))
-               (g/transact (g/set-property atlas-node :margin 10))
-               (g/transact (g/set-property atlas-node :margin 2))
+                   (g/set-property (g/node-id atlas-node) :margin 1)))
+               (g/transact (g/set-property (g/node-id atlas-node) :margin 10))
+               (g/transact (g/set-property (g/node-id atlas-node) :margin 2))
                (g/undo! project-graph)
                (is (= 10 (:margin (g/refresh atlas-node))))))))
 

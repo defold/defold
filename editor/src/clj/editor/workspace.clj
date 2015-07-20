@@ -91,7 +91,7 @@ ordinary paths."
                          [(assoc resource-type :ext ext)]
                          (map (fn [ext] (assoc resource-type :ext ext)) ext))]
     (for [resource-type resource-types]
-      (g/update-property workspace :resource-types assoc (:ext resource-type) resource-type))))
+      (g/update-property (g/node-id workspace) :resource-types assoc (:ext resource-type) resource-type))))
 
 (defn get-resource-type [workspace ext]
   (get (:resource-types workspace) ext))
@@ -165,4 +165,4 @@ ordinary paths."
 
 (defn register-view-type [workspace & {:keys [id make-view-fn make-preview-fn]}]
   (let [view-type {:id id :make-view-fn make-view-fn :make-preview-fn make-preview-fn}]
-     (g/update-property workspace :view-types assoc (:id view-type) view-type)))
+     (g/update-property (g/node-id workspace) :view-types assoc (:id view-type) view-type)))
