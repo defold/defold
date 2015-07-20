@@ -86,7 +86,7 @@
     app-view))
 
 (defn set-active-tool! [app-view tool]
-  (g/transact (g/set-property app-view :active-tool tool)))
+  (g/transact (g/set-property (g/node-id app-view) :active-tool tool)))
 
 (defn open-scene-view! [project app-view resource-node width height]
   (let [view-graph (g/make-graph! :history false :volatility 2)
@@ -98,7 +98,7 @@
     (fake-input! view type x y []))
   ([view type x y modifiers]
     (let [pos [x y 0.0]]
-      (g/transact (g/set-property view :picking-rect (scene/calc-picking-rect pos pos))))
+      (g/transact (g/set-property (g/node-id view) :picking-rect (scene/calc-picking-rect pos pos))))
     (let [handlers (g/sources-of view :input-handlers)
           user-data (g/node-value view :selected-tool-renderables)
           action (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)
