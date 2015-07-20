@@ -12,7 +12,8 @@
             [editor.types :as types]
             [editor.sound :as sound]
             [editor.resource :as resource]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.properties :as properties])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sound.proto Sound$SoundDesc]
@@ -28,13 +29,16 @@
 
 (def game-object-icon "icons/16/Icons_06-Game-object.png")
 
-(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation properties save-data]
-  {:id id
-   :position (math/vecmath->clj position)
-   :rotation (math/vecmath->clj rotation)
-   :component (or (and (:resource save-data) (workspace/proj-path (:resource save-data)))
-                  ".unknown")
-   :properties properties})
+(defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation properties user-properties save-data]
+  (let [props (map (fn [[k v]] {:id k :type (get-in v [:edit-type :go-prop-type])}) user-properties)
+        props (mapv (fn [p] (assoc p :value (properties/go-prop->str (get properties (:id p)) (:type p))))
+                    (filter #(contains? properties (:id %)) props))]
+    {:id id
+     :position (math/vecmath->clj position)
+     :rotation (math/vecmath->clj rotation)
+     :component (or (and (:resource save-data) (workspace/proj-path (:resource save-data)))
+                    ".unknown")
+     :properties props}))
 
 (defn- gen-embed-ddf [id ^Vector3d position ^Quat4d rotation save-data]
   {:id id
@@ -85,10 +89,10 @@
 
   (output outline g/Any :cached (g/fnk [_node-id embedded path id outline] (let [suffix (if embedded "" (format " (%s)" path))]
                                                                             (assoc outline :node-id _node-id :label (str id suffix)))))
-  (output ddf-message g/Any :cached (g/fnk [id embedded position rotation properties save-data]
+  (output ddf-message g/Any :cached (g/fnk [id embedded position rotation properties user-properties save-data]
                                            (if embedded
                                              (gen-embed-ddf id position rotation save-data)
-                                             (gen-ref-ddf id position rotation properties save-data))))
+                                             (gen-ref-ddf id position rotation properties user-properties save-data))))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (assoc scene
                                             :node-id _node-id
@@ -167,7 +171,8 @@
           (recur (inc postfix)))))))
 
 (defn- add-component [self project source-resource id position rotation properties]
-  (let [path (workspace/proj-path source-resource)]
+  (let [path (workspace/proj-path source-resource)
+        properties (into {} (map (fn [p] [(:id p) (properties/str->go-prop (:value p) (:type p))]) properties))]
     (g/make-nodes (g/node->graph-id self)
                   [comp-node [ComponentNode :id id :position position :rotation rotation :path path
                               :properties properties]]
