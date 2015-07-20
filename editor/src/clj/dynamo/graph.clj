@@ -537,10 +537,10 @@
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
    supertypes."
-  [type node]
-  (let [node-type  (node-type node)
-        supertypes (supertypes node-type)
-        all-types  (into #{node-type} supertypes)]
+  [type node-id]
+  (let [node-ty    (node-type* node-id)
+        supertypes (supertypes node-ty)
+        all-types  (into #{node-ty} supertypes)]
     (all-types type)))
 
 
@@ -552,8 +552,8 @@
 (defn- all-sources [basis node-id]
   (gt/arcs-by-tail basis node-id))
 
-(defn- in-same-graph? [gid nid]
-  (= gid (node-id->graph-id nid)))
+(defn- in-same-graph? [gid node-id]
+  (= gid (node-id->graph-id node-id)))
 
 (defn- predecessors [basis ^Arc arc]
   (let [sid (.source arc)
@@ -592,7 +592,7 @@
 (defn- guard-arc [f g]
   (util/guard
    (fn [basis ^Arc arc]
-     (f (ig/node-by-id-at basis (.source arc))))
+     (f (.source arc)))
    g))
 
 (defn copy
@@ -601,7 +601,7 @@
   ([basis root-ids {:keys [continue? write-handlers] :or {continue? (constantly true)} :as opts}]
    (let [fragment-arcs     (input-traverse basis (guard-arc continue? predecessors) root-ids)
          fragment-node-ids (into #{} (concat (map #(.target %) fragment-arcs) (map #(.source %) fragment-arcs)))
-         fragment-nodes    (filter continue? (map #(ig/node-by-id-at basis %) fragment-node-ids))
+         fragment-nodes    (map #(ig/node-by-id-at basis %) (filter continue? fragment-node-ids))
          root-nodes        (map #(ig/node-by-id-at basis %) root-ids)]
      {:roots root-ids
       :nodes (mapv serialize-node (into #{} (concat root-nodes fragment-nodes)))
