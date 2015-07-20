@@ -37,9 +37,10 @@
 This function should not be called directly."
   [transaction basis self label kind inputs-affected]
   (when (inputs-affected :nodes)
-    (let [nodes-before-txn         (cons self (if-let [original-self (g/refresh self)]
-                                                (g/node-value original-self :nodes)
-                                                []))
+    (let [nodes-before-txn         (cons (g/node-by-id basis self)
+                                         (if-let [original-self (g/node-by-id self)]
+                                           (g/node-value original-self :nodes)
+                                           []))
           nodes-after-txn          (g/node-value basis self :nodes)
           nodes-before-txn-ids     (into #{} (map g/node-id nodes-before-txn))
           new-nodes-in-scope       (remove #(nodes-before-txn-ids (g/node-id %)) nodes-after-txn)
@@ -99,13 +100,6 @@ Inheritors are required to supply a production function for the :save output."
   (property filename (g/protocol types/PathManipulation) (dynamic visible (g/always false)))
 
   (output content g/Any :abstract))
-
-
-#_(g/defnode AutowireResources
-  "Mixin. Nodes with this behavior automatically keep their graph connections
-up to date with their resource properties."
-  (trigger autowire-resources :property-touched #'dn/connect-resource))
-
 
 (g/defnode OutlineNode
   "Mixin. Any OutlineNode can be shown in an outline view.

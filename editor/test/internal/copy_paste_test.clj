@@ -166,7 +166,7 @@
   (output produces-value g/Str (g/fnk [a-property] a-property)))
 
 (defn- stop-at-stoppers [node]
-  (not (= "StopperNode" (:name (g/node-type node)))))
+  (not (= "StopperNode" (:name (g/node-type* node)))))
 
 (defrecord StopArc [id label])
 

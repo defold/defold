@@ -45,7 +45,7 @@
     (ts/with-clean-system
       (let [gid (g/make-graph!)
             g   (graph gid)
-            _   (g/delete-graph gid)]
+            _   (g/delete-graph! gid)]
         (is (= 1 (count (graphs)))))))
 
   (testing "a graph can be found by its id"
@@ -84,7 +84,7 @@
             tx-report    (g/transact [(g/make-node pgraph-id Root)
                                       (g/operation-label "Build root")])
             root         (first (g/tx-nodes-added tx-report))
-            tx-report    (g/transact [(g/set-property root :touched 1)
+            tx-report    (g/transact [(g/set-property (g/node-id root) :touched 1)
                                       (g/operation-label "Increment touch count")])
             undos-after  (is/undo-stack (graph-history pgraph-id))
             redos-after  (is/redo-stack (graph-history pgraph-id))
@@ -110,7 +110,7 @@
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
 
-          (g/transact (g/set-property root :touched 1))
+          (g/transact (g/set-property (g/node-id root) :touched 1))
 
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
@@ -132,7 +132,7 @@
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
 
-          (g/transact (g/set-property root :touched 1))
+          (g/transact (g/set-property (g/node-id root) :touched 1))
 
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
@@ -153,7 +153,7 @@
                      [(g/operation-label label)
                       (when seq-id
                         (g/operation-sequence seq-id))
-                      (g/set-property node :touched label)])))
+                      (g/set-property (g/node-id node) :touched label)])))
 
 (deftest undo-coalescing
   (testing "Transactions with no sequence-id each make an undo point"
@@ -251,7 +251,7 @@
           (touch root 2.8 :b)
           (touch root 2.9 :b)
 
-          (g/cancel pgraph-id :b)
+          (g/cancel! pgraph-id :b)
 
           (is (undo-redo-state? pgraph-id [nil 1] []))
 
@@ -289,7 +289,7 @@
           (touch root 2.8 :b)
           (touch root 2.9 :b)
 
-          (g/cancel pgraph-id :a)
+          (g/cancel! pgraph-id :a)
 
           (is (undo-redo-state? pgraph-id [nil 1 2.9] []))))))
 
@@ -306,8 +306,8 @@
 
           (touch node-p 1 :a)
 
-          (g/transact [(g/set-property node-p :touched 2)
-                        (g/set-property node-a :touched 2)
+          (g/transact [(g/set-property (g/node-id node-p) :touched 2)
+                        (g/set-property (g/node-id node-a) :touched 2)
                         (g/operation-label 2)
                         (g/operation-sequence :a)])
 
@@ -396,7 +396,7 @@
 
         (is (= "FROM PROJECT GRAPH" (g/node-value sink :loud)))
         (g/transact
-         (g/set-property source :source-label "after change"))
+         (g/set-property (g/node-id source) :source-label "after change"))
 
         (g/delete-node! (g/node-id source))
         (is (= nil (g/node-value sink :loud)))
@@ -408,8 +408,8 @@
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn bump-counter
-  [transaction graph self & _]
-  (swap! (:counter self) inc)
+  [transaction basis self & _]
+  (swap! (g/node-value (:original-basis transaction) self :counter) inc)
   [])
 
 (g/defnode CountOnDelete
@@ -441,7 +441,7 @@
 
           (is (undo-redo-state? pgraph-id [nil nil] []))
 
-          (g/delete-graph agraph-id)
+          (g/delete-graph! agraph-id)
 
           (is (= 2 (count (graphs))))
 
@@ -464,7 +464,7 @@
           (g/transact
            (for [[n1 n2] (partition 2 1 nodes)]
              (g/connect (g/node-id n1) :downstream (g/node-id n2) :upstream)))
-          (g/delete-graph pgraph-id)
+          (g/delete-graph! pgraph-id)
 
           (is (= 100 @ctr))))))
 
@@ -489,7 +489,7 @@
 
           (is (undo-redo-state? project-graph-id [nil nil] []))
 
-          (g/delete-graph project-graph-id)
+          (g/delete-graph! project-graph-id)
 
           (is (= 2 (count (graphs))))
 

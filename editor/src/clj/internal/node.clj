@@ -33,10 +33,10 @@
                             :hits     (atom [])
                             :basis    basis
                             :in-production []}
-        result             (gt/produce-value node label evaluation-context)]
+        result             (and node (gt/produce-value node label evaluation-context))]
     (when (gt/error? result)
       (throw (ex-info "Error Value Found in Node." {:error result})))
-    (when cache
+    (when (and node cache)
       (let [local             @(:local evaluation-context)
             local-for-encache (for [[node-id vmap] local
                                     [output val] vmap]

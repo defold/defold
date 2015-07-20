@@ -88,7 +88,7 @@
                    [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
                     ["bootstrap" "render"] ["display" "display_profiles"]])]
     (concat
-      (g/set-property self :content content)
+      (g/set-property (g/node-id self) :content content)
       (for [root roots]
         (project/connect-resource-node project root (g/node-id self) [[:build-targets :dep-build-targets]])))))
 

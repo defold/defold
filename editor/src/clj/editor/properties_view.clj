@@ -222,7 +222,7 @@
     (if (not= template prev-template)
       (let [grid (make-grid parent workspace all-properties)]
         (ui/user-data! parent ::template template)
-        (g/set-property! self :prev-grid-pane grid)
+        (g/set-property! (g/node-id self) :prev-grid-pane grid)
         grid)
       (do
         (let [grid (:prev-grid-pane self)]
@@ -240,7 +240,7 @@
   (output grid-pane GridPane :cached (g/fnk [parent-view _self workspace selected-node-properties] (update-grid parent-view _self workspace selected-node-properties)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (:repainter self))
+                                     (.stop ^AnimationTimer (g/node-value self :repainter))
                                      nil)))
 
 (defn make-properties-view [workspace project view-graph parent]
@@ -252,7 +252,7 @@
                             grid (g/node-value self :grid-pane)])))]
     (g/transact
       (concat
-        (g/set-property view :repainter repainter)
+        (g/set-property (g/node-id view) :repainter repainter)
         (g/connect (g/node-id project) :selected-node-properties (g/node-id view) :selected-node-properties)))
     (.start repainter)
     (g/refresh view)))
