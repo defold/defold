@@ -408,8 +408,8 @@
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn bump-counter
-  [transaction graph self & _]
-  (swap! (:counter self) inc)
+  [transaction basis self & _]
+  (swap! (g/node-value (:original-basis transaction) self :counter) inc)
   [])
 
 (g/defnode CountOnDelete

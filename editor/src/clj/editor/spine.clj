@@ -469,13 +469,13 @@
                   :anim-data anim-data}
       :deps dep-build-targets}]))
 
-(defn- connect-atlas [project self-id atlas]
+(defn- connect-atlas [project node-id atlas]
   (if-let [atlas-node (project/get-resource-node project atlas)]
     (let [outputs (-> atlas-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect (g/node-id atlas-node) :anim-data self-id :anim-data)
-         (g/connect (g/node-id atlas-node) :gpu-texture self-id :gpu-texture)
-         (g/connect (g/node-id atlas-node) :build-targets self-id :dep-build-targets)]
+        [(g/connect (g/node-id atlas-node) :anim-data     node-id :anim-data)
+         (g/connect (g/node-id atlas-node) :gpu-texture   node-id :gpu-texture)
+         (g/connect (g/node-id atlas-node) :build-targets node-id :dep-build-targets)]
         []))
     []))
 
@@ -486,14 +486,13 @@
 
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:atlas} labels)
-    (let [self-id (g/node-id self)
-          atlas (:atlas self)
+    (let [atlas (g/node-value self :atlas)
           project (project/get-project self)]
       (concat
-        (disconnect-all self-id :anim-data)
-        (disconnect-all self-id :gpu-texture)
-        (disconnect-all self-id :dep-build-targets)
-        (connect-atlas project self-id atlas)))))
+        (disconnect-all self :anim-data)
+        (disconnect-all self :gpu-texture)
+        (disconnect-all self :dep-build-targets)
+        (connect-atlas project self atlas)))))
 
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)

@@ -27,7 +27,7 @@
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
 
-(namespaces/import-macro schema.core/defn s-defn)
+(namespaces/import-macro schema.core/defn      s-defn)
 (namespaces/import-macro schema.core/defrecord s-defrecord)
 
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
@@ -138,8 +138,8 @@
 (defn is-added? [transaction node]
   (contains? (:nodes-added transaction) (gt/node-id node)))
 
-(defn is-deleted? [transaction node]
-  (contains? (:nodes-deleted transaction) (gt/node-id node)))
+(defn is-deleted? [transaction node-id]
+  (contains? (:nodes-deleted transaction) node-id))
 
 (defn outputs-modified
   [transaction node]
@@ -267,7 +267,7 @@
 
     1. The current transaction context.
     2. The new graph as it has been modified during the transaction
-    3. The node itself
+    3. The node ID
     4. The label, as a keyword
     5. The trigger type
 

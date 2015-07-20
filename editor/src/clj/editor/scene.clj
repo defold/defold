@@ -366,7 +366,7 @@
   (output picking-rect Rect (g/fnk [picking-rect] picking-rect))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (:repainter self))
+                                     (.stop ^AnimationTimer (g/node-value self :repainter))
                                      nil))
   g/IDisposable
   (g/dispose [self]

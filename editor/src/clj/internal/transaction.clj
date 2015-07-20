@@ -310,8 +310,8 @@
         :when node
         [l tr] (-> node gt/node-type gt/triggers (get kind) seq)]
     (if (empty? args)
-      [tr node l kind]
-      [tr node l kind (set args)])))
+      [tr node-id l kind]
+      [tr node-id l kind (set args)])))
 
 (defn- invoke-trigger
   [csub [tr & args]]
