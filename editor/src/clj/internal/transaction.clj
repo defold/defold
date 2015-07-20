@@ -57,8 +57,8 @@
     :args     args}])
 
 (defn set-property
-  [node pr v]
-  (update-property node pr (constantly v) []))
+  [node-id pr v]
+  (update-property node-id pr (constantly v) []))
 
 (defn update-graph
   [gid f args]

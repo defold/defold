@@ -97,24 +97,24 @@
     (case (:type action)
       :mouse-moved
       (if active-cp
-        (do (g/set-property self :control-points (conj inactive-cps world-pos))
+        (do (g/set-property (g/node-id self) :control-points (conj inactive-cps world-pos))
           nil)
         action)
       :mouse-pressed
       (let [click-count (get action :click-count 0)]
         (if (= click-count 2)
-          (g/set-property self :control-points
+          (g/set-property (g/node-id self) :control-points
                            (if cp-hit
                              (filter #(not= %1 cp-hit) control-points)
                              (conj control-points world-pos)))
           (do
-            (g/set-property self :active-cp world-pos)
-            (g/set-property self :inactive-cps (filter #(not= %1 cp-hit) control-points))))
+            (g/set-property (g/node-id self) :active-cp world-pos)
+            (g/set-property (g/node-id self) :inactive-cps (filter #(not= %1 cp-hit) control-points))))
         (when (nil? cp-hit) action))
       :mouse-released
       (do
-        (g/set-property self :active-cp nil)
-        (g/set-property self :inactive-cps nil)
+        (g/set-property (g/node-id self) :active-cp nil)
+        (g/set-property (g/node-id self) :inactive-cps nil)
         (when (nil? active-cp) action))
       action)))
 
@@ -174,8 +174,8 @@
   (with-open [reader (PushbackReader. (io/reader (:resource self)))]
     (let [level (edn/read reader)]
       (concat
-        (g/set-property self :control-points (:control-points level))
-        (g/set-property self :base-texture (:base-texture level))
+        (g/set-property (g/node-id self) :control-points (:control-points level))
+        (g/set-property (g/node-id self) :base-texture (:base-texture level))
         (if-let [img-resource (workspace/resolve-resource (:resource self) (:base-texture level))]
           (project/connect-resource-node project img-resource (g/node-id self) [[:content :base-texture-img]])
           [])))))

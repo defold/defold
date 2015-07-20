@@ -110,7 +110,7 @@
           :let [node (g/node-by-id node-id)]]
       (if (vector? key)
         (g/update-property node (first key) assoc-in (rest key) value)
-        (g/set-property node (:key property) value)))))
+        (g/set-property node-id (:key property) value)))))
 
 (defn label
   [property]
