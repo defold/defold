@@ -50,12 +50,12 @@ ordinary paths."
             []))))))
 
 (defn- load-nodes [project nodes]
-  (let [new-nodes (g/tx-nodes-added (g/transact
-                                     (for [node nodes
-                                           :let [resource (:resource node)
-                                                 load-fn (and resource (:load-fn (resource/resource-type resource)))]
-                                           :when load-fn]
-                                       (load-fn project node (io/reader resource)))))]
+  (let [all-nodes-tx (for [node nodes
+                           :let [resource (:resource node)
+                                 load-fn (and resource (:load-fn (resource/resource-type resource)))]
+                           :when load-fn]
+                       (load-fn project node (io/reader resource)))
+        new-nodes (g/tx-nodes-added (g/transact all-nodes-tx))]
     (when (not (empty? new-nodes))
       (recur project new-nodes))))
 
@@ -316,11 +316,11 @@ ordinary paths."
   [project nodes]
     (let [project-id (g/node-id project)]
       (concat
-        (for [[node label] (g/sources-of project :selected-node-ids)]
+        (for [[node label] (g/sources-of (g/node-id project) :selected-node-ids)]
           (g/disconnect (g/node-id node) label project-id :selected-node-ids))
-        (for [[node label] (g/sources-of project :selected-nodes)]
+        (for [[node label] (g/sources-of (g/node-id project) :selected-nodes)]
           (g/disconnect (g/node-id node) label project-id :selected-nodes))
-        (for [[node label] (g/sources-of project :selected-node-properties)]
+        (for [[node label] (g/sources-of (g/node-id project) :selected-node-properties)]
           (g/disconnect (g/node-id node) label project-id :selected-node-properties))
         (for [node nodes
               :let [node-id (g/node-id node)]]

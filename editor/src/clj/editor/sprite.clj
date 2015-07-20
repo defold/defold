@@ -223,7 +223,7 @@
     []))
 
 (defn- disconnect-all [self label]
-  (let [sources (g/sources-of self label)]
+  (let [sources (g/sources-of (g/node-id self) label)]
     (for [[src-node src-label] sources]
       (g/disconnect (g/node-id src-node) src-label (g/node-id self) label))))
 

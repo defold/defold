@@ -15,7 +15,7 @@
                   app-view       (test-util/setup-app-view!)
                   node           (test-util/resource-node project "/massive.collection")
                   view           (test-util/open-scene-view! project app-view node 128 128)
-                  go-node-output (first (g/sources-of node :child-scenes))
+                  go-node-output (first (g/sources-of (g/node-id node) :child-scenes))
                   renderer       (g/graph-value (g/node->graph-id view) :renderer)]
               (doseq [i (range jit-retry-count)]
                 #_(g/transact (g/set-property (first go-node-output) :position [0 0 0]))
@@ -31,7 +31,7 @@
                   app-view       (test-util/setup-app-view!)
                   node           (test-util/resource-node project "/massive.collection")
                   view           (test-util/open-scene-view! project app-view node 128 128)
-                  go-node-output (first (g/sources-of node :child-scenes))]
+                  go-node-output (first (g/sources-of (g/node-id node) :child-scenes))]
               (g/invalidate! [[(g/node-id (first go-node-output)) (second go-node-output)]])
               (let [scene (g/node-value node :scene)
                     renderer (g/graph-value (g/node->graph-id view) :renderer)

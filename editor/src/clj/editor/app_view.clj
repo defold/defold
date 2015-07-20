@@ -53,7 +53,7 @@
   (g/invalidate! [[(g/node-id node) label]]))
 
 (defn- disconnect-sources [target-node target-label]
-  (for [[source-node source-label] (g/sources-of target-node target-label)]
+  (for [[source-node source-label] (g/sources-of (g/node-id target-node) target-label)]
     (g/disconnect (g/node-id source-node) source-label (g/node-id target-node) target-label)))
 
 (defn- replace-connection [source-node source-label target-node target-label]
