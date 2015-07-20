@@ -519,11 +519,11 @@
 (defn sources-of
   "Find the [node label] pairs for all connections into the given
   node's input label. The result is a sequence of pairs."
-  ([node label]
-   (sources-of (now) node label))
-  ([basis node label]
+  ([node-id label]
+   (sources-of (now) node-id label))
+  ([basis node-id label]
    (map #(update %1 0 (partial node-by-id basis))
-        (sources basis (node-id node) label))))
+        (sources basis node-id label))))
 
 (defn invalidate!
   "Invalidate the given outputs and _everything_ that could be

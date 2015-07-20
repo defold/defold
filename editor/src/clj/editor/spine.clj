@@ -469,30 +469,31 @@
                   :anim-data anim-data}
       :deps dep-build-targets}]))
 
-(defn- connect-atlas [project self atlas]
+(defn- connect-atlas [project self-id atlas]
   (if-let [atlas-node (project/get-resource-node project atlas)]
     (let [outputs (-> atlas-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect (g/node-id atlas-node) :anim-data (g/node-id self) :anim-data)
-         (g/connect (g/node-id atlas-node) :gpu-texture (g/node-id self) :gpu-texture)
-         (g/connect (g/node-id atlas-node) :build-targets (g/node-id self) :dep-build-targets)]
+        [(g/connect (g/node-id atlas-node) :anim-data self-id :anim-data)
+         (g/connect (g/node-id atlas-node) :gpu-texture self-id :gpu-texture)
+         (g/connect (g/node-id atlas-node) :build-targets self-id :dep-build-targets)]
         []))
     []))
 
-(defn- disconnect-all [self label]
-  (let [sources (g/sources-of self label)]
+(defn- disconnect-all [node-id label]
+  (let [sources (g/sources-of node-id label)]
     (for [[src-node src-label] sources]
-      (g/disconnect (g/node-id src-node) src-label (g/node-id self) label))))
+      (g/disconnect (g/node-id src-node) src-label node-id label))))
 
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:atlas} labels)
-    (let [atlas (:atlas self)
+    (let [self-id (g/node-id self)
+          atlas (:atlas self)
           project (project/get-project self)]
       (concat
-        (disconnect-all self :anim-data)
-        (disconnect-all self :gpu-texture)
-        (disconnect-all self :dep-build-targets)
-        (connect-atlas project self atlas)))))
+        (disconnect-all self-id :anim-data)
+        (disconnect-all self-id :gpu-texture)
+        (disconnect-all self-id :dep-build-targets)
+        (connect-atlas project self-id atlas)))))
 
 (g/defnode SpineSceneNode
   (inherits project/ResourceNode)
@@ -522,7 +523,7 @@
       (g/set-property (g/node-id self) :atlas atlas)
       (g/set-property (g/node-id self) :sample-rate (:sample-rate spine))
       (project/connect-resource-node project spine-resource (g/node-id self) [[:content :spine-scene]])
-      (connect-atlas project self atlas))))
+      (connect-atlas project (g/node-id self) atlas))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

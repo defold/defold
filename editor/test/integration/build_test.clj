@@ -166,7 +166,7 @@
                    (is (contains? content-by-target (:sound sound-desc)))))))))
 
 (defn- first-source [node label]
-  (ffirst (g/sources-of node label)))
+  (ffirst (g/sources-of (g/node-id node) label)))
 
 (deftest break-merged-targets
   (testing "Verify equivalent game objects are not merged after being changed in memory"
@@ -223,7 +223,7 @@
                      _ (project/build project resource-node)
                      cache-count (count @(:build-cache project))]
                  (g/transact
-                   (for [[node label] (g/sources-of resource-node :dep-build-targets)]
+                   (for [[node label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
                      (g/delete-node (g/node-id node))))
                  (project/build project resource-node)
                  (is (< (count @(:build-cache project)) cache-count)))))))
@@ -238,7 +238,7 @@
                      _ (project/build-and-write project resource-node)
                      cache-count (count @(:fs-build-cache project))]
                  (g/transact
-                   (for [[node label] (g/sources-of resource-node :dep-build-targets)]
+                   (for [[node label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
                      (g/delete-node (g/node-id node))))
                  (project/build-and-write project resource-node)
                  (is (< (count @(:fs-build-cache project)) cache-count)))))))
