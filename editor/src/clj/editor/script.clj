@@ -37,7 +37,8 @@
                (let [key (:name p)
                      prop (select-keys p [:value])
                      prop (assoc prop
-                                 :edit-type {:type (properties/go-prop-type->clj-type (:type p))})]
+                                 :edit-type {:type (properties/go-prop-type->clj-type (:type p))
+                                             :go-prop-type (:type p)})]
                  [key prop]))
              (filter #(= :ok (:status %)) script-properties))))
 

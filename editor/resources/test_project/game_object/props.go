@@ -14,7 +14,7 @@ components {
   }
   properties {
     id: "number"
-    value: "2"
+    value: "2.0"
     type: PROPERTY_TYPE_NUMBER
   }
   properties {
@@ -26,5 +26,25 @@ components {
     id: "url"
     value: "/url"
     type: PROPERTY_TYPE_URL
+  }
+  properties {
+    id: "vec3"
+    value: "1.0,2.0,3.0"
+    type: PROPERTY_TYPE_VECTOR3
+  }
+  properties {
+    id: "quat"
+    value: "1.0,0.0,0.0,0.0"
+    type: PROPERTY_TYPE_QUAT
+  }
+  properties {
+    id: "vec4"
+    value: "1.0,2.0,3.0,4.0"
+    type: PROPERTY_TYPE_VECTOR4
+  }
+  properties {
+    id: "bool"
+    value: "true"
+    type: PROPERTY_TYPE_BOOLEAN
   }
 }
