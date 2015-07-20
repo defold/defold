@@ -240,7 +240,7 @@
   (output grid-pane GridPane :cached (g/fnk [parent-view _self workspace selected-node-properties] (update-grid parent-view _self workspace selected-node-properties)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (:repainter self))
+                                     (.stop ^AnimationTimer (g/node-value self :repainter))
                                      nil)))
 
 (defn make-properties-view [workspace project view-graph parent]

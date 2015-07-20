@@ -273,7 +273,7 @@ ordinary paths."
   (when resource-node (workspace/resource-type (:resource resource-node))))
 
 (defn get-project [resource-node]
-  (g/node-by-id (:project-id resource-node)))
+  (g/node-by-id (g/node-value resource-node :project-id)))
 
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)

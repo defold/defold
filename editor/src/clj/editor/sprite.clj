@@ -216,20 +216,20 @@
   (if-let [image-node (project/get-resource-node project image)]
     (let [outputs (-> image-node g/node-type g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect (g/node-id image-node) :anim-data (g/node-id self) :anim-data)
-         (g/connect (g/node-id image-node) :gpu-texture (g/node-id self) :gpu-texture)
-         (g/connect (g/node-id image-node) :build-targets (g/node-id self) :dep-build-targets)]
+        [(g/connect (g/node-id image-node) :anim-data     self :anim-data)
+         (g/connect (g/node-id image-node) :gpu-texture   self :gpu-texture)
+         (g/connect (g/node-id image-node) :build-targets self :dep-build-targets)]
         []))
     []))
 
-(defn- disconnect-all [self label]
-  (let [sources (g/sources-of (g/node-id self) label)]
+(defn- disconnect-all [node-id label]
+  (let [sources (g/sources-of node-id label)]
     (for [[src-node src-label] sources]
-      (g/disconnect (g/node-id src-node) src-label (g/node-id self) label))))
+      (g/disconnect (g/node-id src-node) src-label node-id label))))
 
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:image} labels)
-    (let [image (:image self)
+    (let [image (g/node-value self :image)
           project (project/get-project self)]
       (concat
         (disconnect-all self :anim-data)
@@ -281,7 +281,7 @@
       (g/set-property (g/node-id self) :default-animation (:default-animation sprite))
       (g/set-property (g/node-id self) :material material)
       (g/set-property (g/node-id self) :blend-mode (:blend-mode sprite))
-      (connect-image project self image)
+      (connect-image project (g/node-id self) image)
       (if-let [material-node (project/get-resource-node project material)]
         (g/connect (g/node-id material-node) :build-targets (g/node-id self) :dep-build-targets)
         []))))

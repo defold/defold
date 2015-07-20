@@ -47,7 +47,7 @@
   (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (:refresh-timer self)))))
+                                     (.stop ^AnimationTimer (g/node-value self :refresh-timer)))))
 
 (defn- invalidate [node label]
   (g/invalidate! [[(g/node-id node) label]]))
