@@ -442,7 +442,7 @@
                                                   (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
                                                     (reset! tool-user-data (g/node-value self :selected-tool-renderables)))
                                                   (g/transact (g/set-property (g/node-id self) :picking-rect picking-rect))
-                                                  (dispatch-input (g/sources-of self :input-handlers) action @tool-user-data))))
+                                                  (dispatch-input (g/sources-of (g/node-id self) :input-handlers) action @tool-user-data))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                     (Platform/runLater
                                                      (fn []

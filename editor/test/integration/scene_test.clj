@@ -20,13 +20,13 @@
   (testing "Scene generation"
            (let [cases {"/logic/atlas_sprite.collection"
                         (fn [node]
-                          (let [go (ffirst (g/sources-of node :child-scenes))]
+                          (let [go (ffirst (g/sources-of (g/node-id node) :child-scenes))]
                             (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
                             (g/transact (g/set-property (g/node-id go) :position [10 0 0]))
                             (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/logic/atlas_sprite.go"
                         (fn [node]
-                          (let [component (ffirst (g/sources-of node :child-scenes))]
+                          (let [component (ffirst (g/sources-of (g/node-id node) :child-scenes))]
                             (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
                             (g/transact (g/set-property (g/node-id component) :position [10 0 0]))
                             (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
@@ -86,7 +86,7 @@
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+                   go-node       (ffirst (g/sources-of (g/node-id resource-node) :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Press
                (test-util/mouse-press! view 32 32)
@@ -116,7 +116,7 @@
                    path          "/logic/two_atlas_sprites.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-nodes      (map first (g/sources-of resource-node :child-scenes))]
+                   go-nodes      (map first (g/sources-of (g/node-id resource-node) :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Drag entire screen
                (test-util/mouse-drag! view 0 0 128 128)
@@ -139,7 +139,7 @@
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+                   go-node       (ffirst (g/sources-of (g/node-id resource-node) :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Initial selection
                (test-util/mouse-click! view 64 64)
@@ -173,7 +173,7 @@
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+                   go-node       (ffirst (g/sources-of (g/node-id resource-node) :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Click
                (test-util/mouse-click! view 32 32)
@@ -203,7 +203,7 @@
                    path          "/collection/empty_go.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+                   go-node       (ffirst (g/sources-of (g/node-id resource-node) :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Initial selection (empty go's are not selectable in the view)
                (project/select! project [go-node])
