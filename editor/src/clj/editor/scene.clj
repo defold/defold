@@ -134,7 +134,7 @@
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (g/transact (g/set-property _self :gl-drawable drawable))
+        (g/transact (g/set-property (g/node-id _self) :gl-drawable drawable))
         drawable))))
 
 (defn- make-current [^Region viewport ^GLAutoDrawable drawable]
@@ -441,7 +441,7 @@
                                                   ; Only look for tool selection when the mouse is moving with no button pressed
                                                   (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
                                                     (reset! tool-user-data (g/node-value self :selected-tool-renderables)))
-                                                  (g/transact (g/set-property self :picking-rect picking-rect))
+                                                  (g/transact (g/set-property (g/node-id self) :picking-rect picking-rect))
                                                   (dispatch-input (g/sources-of self :input-handlers) action @tool-user-data))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                     (Platform/runLater
@@ -474,7 +474,7 @@
                                     (catch Exception e
                                       (.setImage image-view nil)
                                       (.stop ^AnimationTimer this)))))))]
-          (g/transact (g/set-property view :repainter repainter))
+          (g/transact (g/set-property (g/node-id view) :repainter repainter))
           (.start repainter)))
       (g/refresh view))))
 
@@ -564,25 +564,25 @@
                            mode (if toggle :toggle :direct)]
                        (g/transact
                          (concat
-                           (g/set-property self :op-seq op-seq)
-                           (g/set-property self :start cursor-pos)
-                           (g/set-property self :current cursor-pos)
-                           (g/set-property self :mode mode)
-                           (g/set-property self :prev-selection-set (set (g/node-value self :selection)))))
+                           (g/set-property (g/node-id self) :op-seq op-seq)
+                           (g/set-property (g/node-id self) :start cursor-pos)
+                           (g/set-property (g/node-id self) :current cursor-pos)
+                           (g/set-property (g/node-id self) :mode mode)
+                           (g/set-property (g/node-id self) :prev-selection-set (set (g/node-value self :selection)))))
                        (select self op-seq mode)
                        nil)
       :mouse-released (do
                         (g/transact
                           (concat
-                            (g/set-property self :start nil)
-                            (g/set-property self :current nil)
-                            (g/set-property self :op-seq nil)
-                            (g/set-property self :mode nil)
-                            (g/set-property self :prev-selection-set nil)))
+                            (g/set-property (g/node-id self) :start nil)
+                            (g/set-property (g/node-id self) :current nil)
+                            (g/set-property (g/node-id self) :op-seq nil)
+                            (g/set-property (g/node-id self) :mode nil)
+                            (g/set-property (g/node-id self) :prev-selection-set nil)))
                         nil)
       :mouse-moved (if start
                      (do
-                       (g/transact (g/set-property self :current cursor-pos))
+                       (g/transact (g/set-property (g/node-id self) :current cursor-pos))
                        (select self op-seq mode)
                        nil)
                      action)
@@ -693,8 +693,8 @@
 
   scene-tools/Movable
   (scene-tools/move [self delta] (let [p (doto (Vector3d. (double-array (:position self))) (.add delta))]
-                                   (g/set-property self :position [(.x p) (.y p) (.z p)])))
+                                   (g/set-property (g/node-id self) :position [(.x p) (.y p) (.z p)])))
   scene-tools/Rotatable
   (scene-tools/rotate [self delta] (let [new-rotation (doto (Quat4d. ^Quat4d (math/euler->quat (:rotation self))) (.mul delta))
                                          new-euler (math/quat->euler new-rotation)]
-                                     (g/set-property self :rotation new-euler))))
+                                     (g/set-property (g/node-id self) :rotation new-euler))))

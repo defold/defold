@@ -518,9 +518,9 @@
         spine-resource (workspace/resolve-resource resource (:spine-json spine))
         atlas (workspace/resolve-resource resource (:atlas spine))]
     (concat
-      (g/set-property self :spine-json spine-resource)
-      (g/set-property self :atlas atlas)
-      (g/set-property self :sample-rate (:sample-rate spine))
+      (g/set-property (g/node-id self) :spine-json spine-resource)
+      (g/set-property (g/node-id self) :atlas atlas)
+      (g/set-property (g/node-id self) :sample-rate (:sample-rate spine))
       (project/connect-resource-node project spine-resource (g/node-id self) [[:content :spine-scene]])
       (connect-atlas project self atlas))))
 

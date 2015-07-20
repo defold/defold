@@ -422,15 +422,15 @@
 (defn set-property
   "Assign a value to a node's property (or properties) value(s) in a
   transaction."
-  [n & kvs]
+  [node-id & kvs]
   (mapcat
    (fn [[p v]]
-     (it/update-property n p (constantly v) []))
+     (it/update-property node-id p (constantly v) []))
    (partition-all 2 kvs)))
 
 (defn set-property!
-  [n & kvs]
-  (transact (apply set-property n kvs)))
+  [node-id & kvs]
+  (transact (apply set-property node-id kvs)))
 
 (defn update-property
   "Apply a function to a node's property in a transaction. The

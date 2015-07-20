@@ -222,7 +222,7 @@
     (if (not= template prev-template)
       (let [grid (make-grid parent workspace all-properties)]
         (ui/user-data! parent ::template template)
-        (g/set-property! self :prev-grid-pane grid)
+        (g/set-property! (g/node-id self) :prev-grid-pane grid)
         grid)
       (do
         (let [grid (:prev-grid-pane self)]
@@ -252,7 +252,7 @@
                             grid (g/node-value self :grid-pane)])))]
     (g/transact
       (concat
-        (g/set-property view :repainter repainter)
+        (g/set-property (g/node-id view) :repainter repainter)
         (g/connect (g/node-id project) :selected-node-properties (g/node-id view) :selected-node-properties)))
     (.start repainter)
     (g/refresh view)))
