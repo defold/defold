@@ -634,7 +634,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
-(defn initialize
+(defn initialize!
   [config]
   (reset! *the-system* (is/make-system config)))
 
