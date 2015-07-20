@@ -22,13 +22,13 @@
                         (fn [node]
                           (let [go (ffirst (g/sources-of node :child-scenes))]
                             (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
-                            (g/transact (g/set-property go :position [10 0 0]))
+                            (g/transact (g/set-property (g/node-id go) :position [10 0 0]))
                             (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/logic/atlas_sprite.go"
                         (fn [node]
                           (let [component (ffirst (g/sources-of node :child-scenes))]
                             (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
-                            (g/transact (g/set-property component :position [10 0 0]))
+                            (g/transact (g/set-property (g/node-id component) :position [10 0 0]))
                             (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/sprite/atlas.sprite"
                         (fn [node]

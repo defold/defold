@@ -204,7 +204,7 @@
                  (is (every? #(> (count %) 0) [first-build-results second-build-results]))
                  (is (not-any? :cached first-build-results))
                  (is (every? :cached second-build-results))
-                 (g/transact (g/set-property main-collection :name "my-test-name"))
+                 (g/transact (g/set-property (g/node-id main-collection) :name "my-test-name"))
                  (let [build-results (project/build project resource-node)]
                    (is (> (count build-results) 0))
                    (is (not-every? :cached build-results)))

@@ -435,12 +435,12 @@
 (defn update-property
   "Apply a function to a node's property in a transaction. The
   function f will be invoked as if by (apply f current-value args)"
-  [n p f & args]
-  (it/update-property n p f args))
+  [node-id p f & args]
+  (it/update-property node-id p f args))
 
 (defn update-property!
-  [n p f & args]
-  (transact (apply update-property n p f args)))
+  [node-id p f & args]
+  (transact (apply update-property node-id p f args)))
 
 (defn set-graph-value
   "Attach a named value to a graph."
