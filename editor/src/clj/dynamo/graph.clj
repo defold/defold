@@ -657,7 +657,7 @@
   []
   (is/last-graph @*the-system*))
 
-(defn delete-graph
+(defn delete-graph!
   [graph-id]
   (when-let [graph (is/graph @*the-system* graph-id)]
     (transact (mapv it/delete-node (ig/node-ids graph)))
