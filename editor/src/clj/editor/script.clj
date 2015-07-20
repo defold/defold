@@ -47,20 +47,21 @@
    :content content})
 
 (defn- build-script [self basis resource dep-resources user-data]
-  {:resource resource :content (protobuf/map->bytes Lua$LuaModule
-                                                    {:source {:script (ByteString/copyFromUtf8 (:content user-data))
-                                                              :filename (workspace/proj-path (:resource resource))}
-                                                     ; TODO - fix this
-                                                     :modules []
-                                                     :resources []
-                                                     ; TODO - properties
-                                                     })})
+  (let [user-properties (:user-properties user-data)
+        properties (mapv (fn [[k v]] {:id k :value (:value v) :type (get-in v [:edit-type :go-prop-type])}) user-properties)]
+    {:resource resource :content (protobuf/map->bytes Lua$LuaModule
+                                                     {:source {:script (ByteString/copyFromUtf8 (:content user-data))
+                                                               :filename (workspace/proj-path (:resource resource))}
+                                                      ; TODO - fix this
+                                                      :modules []
+                                                      :resources []
+                                                      :properties (properties/properties->decls properties)})}))
 
-(g/defnk produce-build-targets [_node-id resource content]
+(g/defnk produce-build-targets [_node-id resource content user-properties]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
-    :user-data {:content content}}])
+    :user-data {:content content :user-properties user-properties}}])
 
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
