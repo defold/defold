@@ -689,7 +689,7 @@
   [graph]
   (is/clear-history (is/graph-history @*the-system* graph)))
 
-(defn cancel
+(defn cancel!
   [graph sequence-id]
   (let [snapshot @*the-system*]
     (when-let [ks (is/cancel (is/graph-history snapshot graph) snapshot sequence-id)]
