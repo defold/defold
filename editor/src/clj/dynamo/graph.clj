@@ -30,8 +30,8 @@
 (namespaces/import-macro schema.core/defn s-defn)
 (namespaces/import-macro schema.core/defrecord s-defrecord)
 
-(let [gid ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
-  (defn next-graph-id [] (.getAndIncrement gid)))
+(let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
+  (defn next-graph-id [] (.getAndIncrement graph-id)))
 
 (declare node-value)
 
@@ -52,8 +52,8 @@
 
 (defn node-by-id
   ([node-id]
-   (let [gid (node-id->graph-id node-id)]
-     (ig/node (is/graph @*the-system* gid) node-id)))
+   (let [graph-id (node-id->graph-id node-id)]
+     (ig/node (is/graph @*the-system* graph-id) node-id)))
   ([basis node-id]
    (ig/node-by-id-at basis node-id)))
 
@@ -65,33 +65,33 @@
 
 (defn cache [] (is/system-cache @*the-system*))
 
-(defn graph [gid] (is/graph @*the-system* gid))
+(defn graph [graph-id] (is/graph @*the-system* graph-id))
 
-(defn- has-history? [sys gid] (not (nil? (is/graph-history sys gid))))
+(defn- has-history? [sys graph-id] (not (nil? (is/graph-history sys graph-id))))
 (def ^:private meaningful-change? contains?)
 
 (defn- remember-change
-  [sys gid before after outputs-modified]
-  (alter (is/graph-history sys gid) is/merge-or-push-history (is/graph-ref sys gid) before after outputs-modified))
+  [sys graph-id before after outputs-modified]
+  (alter (is/graph-history sys graph-id) is/merge-or-push-history (is/graph-ref sys graph-id) before after outputs-modified))
 
 (defn- merge-graphs
   [sys basis post-tx-graphs significantly-modified-graphs outputs-modified]
   (let [outputs-modified (group-by #(node-id->graph-id (first %)) outputs-modified)]
-    (doseq [[gid graph] post-tx-graphs]
+    (doseq [[graph-id graph] post-tx-graphs]
       (let [start-tx    (:tx-id graph -1)
-            sidereal-tx (is/graph-time sys gid)]
+            sidereal-tx (is/graph-time sys graph-id)]
         (if (< start-tx sidereal-tx)
           ;; graph was modified concurrently by a different transaction.
           (throw (ex-info "Concurrent modification of graph"
-                          {:_gid gid :start-tx start-tx :sidereal-tx sidereal-tx}))
-          (let [gref   (is/graph-ref sys gid)
+                          {:_gid graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
+          (let [gref   (is/graph-ref sys graph-id)
                 before @gref
                 after  (update-in graph [:tx-id] util/safe-inc)
-                after  (if (not (meaningful-change? significantly-modified-graphs gid))
+                after  (if (not (meaningful-change? significantly-modified-graphs graph-id))
                          (assoc after :tx-sequence-label (:tx-sequence-label before))
                          after)]
-            (when (and (has-history? sys gid) (meaningful-change? significantly-modified-graphs gid))
-              (remember-change sys gid before after (outputs-modified gid)))
+            (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
+              (remember-change sys graph-id before after (outputs-modified graph-id)))
             (ref-set gref after)))))))
 
 (when *tps-debug*
@@ -336,12 +336,12 @@
                    camera     [c/CameraController :camera (c/make-orthographic)]]
      (g/connect background   :renderable scene :renderables)
      (g/connect atlas-render :renderable scene :renderables))"
-  [gid binding-expr & body-exprs]
+  [graph-id binding-expr & body-exprs]
   (assert (vector? binding-expr) "make-nodes requires a vector for its binding")
   (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
   (let [locals (take-nth 2 binding-expr)
         ctors  (take-nth 2 (next binding-expr))
-        ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~gid))]
+        ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~graph-id))]
     `(let [~@(interleave locals ids)]
        (concat
         ~@(map
@@ -365,12 +365,12 @@
   (it/sequence-label label))
 
 (defn make-node
-  [gid node-type & args]
-  (it/new-node (apply construct node-type :_id (is/next-node-id @*the-system* gid) args)))
+  [graph-id node-type & args]
+  (it/new-node (apply construct node-type :_id (is/next-node-id @*the-system* graph-id) args)))
 
 (defn make-node!
-  [gid node-type & args]
-  (first (tx-nodes-added (transact (apply make-node gid node-type args)))))
+  [graph-id node-type & args]
+  (first (tx-nodes-added (transact (apply make-node graph-id node-type args)))))
 
 (defn delete-node
   "Remove a node from the world."
@@ -444,12 +444,12 @@
 
 (defn set-graph-value
   "Attach a named value to a graph."
-  [gid k v]
-  (it/update-graph gid assoc [k v]))
+  [graph-id k v]
+  (it/update-graph graph-id assoc [k v]))
 
 (defn set-graph-value!
-  [gid k v]
-  (transact (set-graph-value gid k v)))
+  [graph-id k v]
+  (transact (set-graph-value graph-id k v)))
 
 ;; ---------------------------------------------------------------------------
 ;; Values
@@ -479,10 +479,10 @@
    (in/node-value basis cache node label)))
 
 (defn graph-value
-  ([gid k]
-   (graph-value (now) gid k))
-  ([basis gid k]
-   (get-in basis [:graphs gid k])))
+  ([graph-id k]
+   (graph-value (now) graph-id k))
+  ([basis graph-id k]
+   (get-in basis [:graphs graph-id k])))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
@@ -552,14 +552,14 @@
 (defn- all-sources [basis node-id]
   (gt/arcs-by-tail basis node-id))
 
-(defn- in-same-graph? [gid node-id]
-  (= gid (node-id->graph-id node-id)))
+(defn- in-same-graph? [graph-id node-id]
+  (= graph-id (node-id->graph-id node-id)))
 
 (defn- predecessors [basis ^Arc arc]
   (let [sid (.source arc)
-        gid (node-id->graph-id sid)
+        graph-id (node-id->graph-id sid)
         all-arcs (mapcat #(all-sources basis (.target ^Arc %)) (gt/arcs-by-tail basis sid))]
-    (filterv #(in-same-graph? gid (.source ^Arc %)) all-arcs)))
+    (filterv #(in-same-graph? graph-id (.source ^Arc %)) all-arcs)))
 
 (defn- input-traverse [basis pred root-ids]
   (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
@@ -608,8 +608,8 @@
       :arcs  (mapv #(serialize-arc basis write-handlers %) fragment-arcs)})))
 
 (defn- deserialize-node
-  [g {:keys [node-type properties] :as node-spec}]
-  (apply make-node g node-type (mapcat identity properties)))
+  [graph-id {:keys [node-type properties] :as node-spec}]
+  (apply make-node graph-id node-type (mapcat identity properties)))
 
 (defn- deserialize-arc
   [id-dictionary read-handlers [source target]]
@@ -620,10 +620,10 @@
     (connect real-src-id src-label real-tgt-id tgt-label)))
 
 (defn paste
-  ([g fragment opts]
-   (paste (now) g fragment opts))
-  ([basis g fragment {:keys [read-handlers] :as opts}]
-   (let [node-txs      (vec (mapcat #(deserialize-node g %) (:nodes fragment)))
+  ([graph-id fragment opts]
+   (paste (now) graph-id fragment opts))
+  ([basis graph-id fragment {:keys [read-handlers] :as opts}]
+   (let [node-txs      (vec (mapcat #(deserialize-node graph-id %) (:nodes fragment)))
          nodes         (map :node node-txs)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) (map #(gt/node-id (:node %)) node-txs))
          connect-txs   (mapcat #(deserialize-arc id-dictionary read-handlers %) (:arcs fragment))]
@@ -664,33 +664,33 @@
     (swap! *the-system* is/detach-graph graph-id)))
 
 (defn undo!
-  [graph]
+  [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/undo-history (is/graph-history snapshot graph) snapshot)]
+    (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate! ks))))
 
 (defn has-undo?
-  [graph]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph))]
+  [graph-id]
+  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
     (not (empty? undo-stack))))
 
 (defn redo!
-  [graph]
+  [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/redo-history (is/graph-history snapshot graph) snapshot)]
+    (when-let [ks (is/redo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate! ks))))
 
 (defn has-redo?
-  [graph]
-  (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph))]
+  [graph-id]
+  (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph-id))]
     (not (empty? redo-stack))))
 
 (defn reset-undo!
-  [graph]
-  (is/clear-history (is/graph-history @*the-system* graph)))
+  [graph-id]
+  (is/clear-history (is/graph-history @*the-system* graph-id)))
 
 (defn cancel!
-  [graph sequence-id]
+  [graph-id sequence-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/cancel (is/graph-history snapshot graph) snapshot sequence-id)]
+    (when-let [ks (is/cancel (is/graph-history snapshot graph-id) snapshot sequence-id)]
       (invalidate! ks))))
