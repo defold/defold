@@ -15,7 +15,8 @@
 
 (defn- value->clj [type value]
   (cond
-    (#{:property-type-vector3 :property-type-vector4 :property-type-quat} type) (math/vecmath->clj value)
+    (#{:property-type-vector3 :property-type-vector4} type) (math/vecmath->clj value)
+    (= :property-type-quat type) (math/quat->euler value)
     :else value))
 
 (defn- prop->clj [^LuaScanner$Property property]

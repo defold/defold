@@ -22,7 +22,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -86,14 +86,12 @@
     (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
     [check update-ui-fn]))
 
-(defmethod create-property-control! types/Vec3 [_ _ property-fn]
-  (let [x (TextField.)
-        y (TextField.)
-        z (TextField.)
+(defn- create-multi-textfield! [labels property-fn]
+  (let [text-fields (mapv (fn [l] (TextField.)) labels)
         box (doto (HBox.)
               (.setAlignment (Pos/BASELINE_LEFT)))
         update-ui-fn (fn [values]
-                       (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(nth % i) values)))]) [x y z])]
+                       (doseq [[t v] (map-indexed (fn [i t] [t (str (properties/unify-values (map #(nth % i) values)))]) text-fields)]
                          (ui/text! t v)))]
     (.setSpacing box 6)
     (doseq [[t f] (map-indexed (fn [i t]
@@ -102,15 +100,21 @@
                                               (if v
                                                 (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
                                                 (update-ui-fn current-vals))))])
-                               [x y z])]
+                               text-fields)]
       (ui/on-action! ^TextField t f))
-    (doseq [[t label] (map vector [x y z] ["x" "y" "z"])]
+    (doseq [[t label] (map vector text-fields labels)]
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (doto (.getChildren box)
         (.add (Label. label))
         (.add t)))
     [box update-ui-fn]))
+
+(defmethod create-property-control! types/Vec3 [_ _ property-fn]
+  (create-multi-textfield! ["x" "y" "z"] property-fn))
+
+(defmethod create-property-control! types/Vec4 [_ _ property-fn]
+  (create-multi-textfield! ["x" "y" "z" "w"] property-fn))
 
 #_(defmethod create-property-control! types/Color [_ _ on-new-value]
    (let [color-picker (ColorPicker.)

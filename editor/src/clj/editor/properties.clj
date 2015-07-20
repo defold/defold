@@ -2,15 +2,56 @@
   (:require [clojure.set :as set]
             [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
-            [editor.types :as t]))
+            [editor.types :as t]
+            [editor.math :as math])
+  (:import [java.util StringTokenizer]
+           [javax.vecmath Quat4d]))
 
 (def go-prop-type->clj-type {:property-type-number g/Num
                              :property-type-hash String
                              :property-type-url String
                              :property-type-vector3 t/Vec3
-                             :property-type-vector4 nil #_t/Vec4
-                             :property-type-quat nil #_t/Vec4
+                             :property-type-vector4 t/Vec4
+                             :property-type-quat t/Vec3
                              :property-type-bool g/Bool})
+
+(defn- q-round [v]
+  (let [f 10e6]
+    (/ (Math/round (* v f)) f)))
+
+(defn go-prop->str [value type]
+  (case type
+    :property-type-vector3 (apply format "%s,%s,%s" (map str value))
+    :property-type-vector4 (apply format "%s,%s,%s,%s" (map str value))
+    :property-type-quat (let [q (math/euler->quat value)]
+                          (apply format "%s,%s,%s,%s" (map (comp str q-round) (math/vecmath->clj q))))
+    (str value)))
+
+(defn- parse-num [s]
+  (num (Double/parseDouble s)))
+
+(defn- tokenize! [tokenizer parse-fn]
+  (-> tokenizer (.nextToken) (.trim) (parse-fn)))
+
+(defn- parse-vec [s count]
+  (let [tokenizer (StringTokenizer. s ",")]
+    (loop [result []
+           counter 0]
+      (if (< counter count)
+        (recur (conj result (tokenize! tokenizer parse-num))
+               (inc counter))
+        result))))
+
+(defn str->go-prop [s type]
+  (case type
+    :property-type-number (parse-num s)
+    (:property-type-hash :property-type-url) s
+    :property-type-vector3 (parse-vec s 3)
+    :property-type-vector4 (parse-vec s 4)
+    :property-type-quat (let [v (parse-vec s 4)
+                              q (Quat4d. (double-array v))]
+                          (math/quat->euler q))
+    :property-type-boolean (Boolean/parseBoolean s)))
 
 (defn- property-edit-type [property]
   (or (get property :edit-type)
