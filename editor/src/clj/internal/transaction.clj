@@ -286,7 +286,14 @@
     (if-let [action (first actions)]
       (if (sequential? action)
         (recur (apply-tx ctx action) (next actions))
-        (recur (update-in (perform ctx action) [:completed] conj action) (next actions)))
+        (recur
+         (update-in
+          (try (perform ctx action)
+               (catch Exception e
+                 (when *tx-debug*
+                   (println (txerrstr ctx "Transaction failed on " action)))
+                 (throw e)))
+          [:completed] conj action) (next actions)))
       ctx)))
 
 (defn- last-seen-node
