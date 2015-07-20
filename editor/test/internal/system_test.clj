@@ -45,7 +45,7 @@
     (ts/with-clean-system
       (let [gid (g/make-graph!)
             g   (graph gid)
-            _   (g/delete-graph gid)]
+            _   (g/delete-graph! gid)]
         (is (= 1 (count (graphs)))))))
 
   (testing "a graph can be found by its id"
@@ -441,7 +441,7 @@
 
           (is (undo-redo-state? pgraph-id [nil nil] []))
 
-          (g/delete-graph agraph-id)
+          (g/delete-graph! agraph-id)
 
           (is (= 2 (count (graphs))))
 
@@ -464,7 +464,7 @@
           (g/transact
            (for [[n1 n2] (partition 2 1 nodes)]
              (g/connect (g/node-id n1) :downstream (g/node-id n2) :upstream)))
-          (g/delete-graph pgraph-id)
+          (g/delete-graph! pgraph-id)
 
           (is (= 100 @ctr))))))
 
@@ -489,7 +489,7 @@
 
           (is (undo-redo-state? project-graph-id [nil nil] []))
 
-          (g/delete-graph project-graph-id)
+          (g/delete-graph! project-graph-id)
 
           (is (= 2 (count (graphs))))
 
