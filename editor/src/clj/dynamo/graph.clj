@@ -511,11 +511,10 @@
   "Find the one-and-only node that sources this input on this node.
    Should you use this on an input label with multiple connections,
    the result is undefined."
-  ([node label]
-   (node-feeding-into (now) node label))
-  ([basis node label]
-   (node basis
-         (ffirst (sources basis (node-id node) label)))))
+  ([node-id label]
+   (node-feeding-into (now) node-id label))
+  ([basis node-id label]
+   (ffirst (sources basis node-id label))))
 
 (defn sources-of
   "Find the [node label] pairs for all connections into the given
