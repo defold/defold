@@ -77,7 +77,7 @@
                                     (.setX s (* (.x s) (.x d)))
                                     (.setY s (* (.y s) (.y d)))
                                     (.setZ s (* (.z s) (.z d)))
-                                    (g/set-property self :scale [(.x s) (.y s) (.z s)]))))
+                                    (g/set-property (g/node-id self) :scale [(.x s) (.y s) (.z s)]))))
 
 (defn- outline-sort-by-fn [v]
   [(:name (g/node-type (g/node-by-id (:node-id v)))) (:label v)])
@@ -415,7 +415,7 @@
   (let [collection (protobuf/read-text GameObject$CollectionDesc input)
         project-graph (g/node->graph-id project)]
     (concat
-      (g/set-property self :name (:name collection))
+      (g/set-property (g/node-id self) :name (:name collection))
       (let [tx-go-creation (flatten
                              (concat
                                (for [game-object (:instances collection)

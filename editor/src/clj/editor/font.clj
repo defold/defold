@@ -54,7 +54,7 @@
   (let [font (protobuf/read-text Font$FontDesc input)
         resource (:resource self)]
     (concat
-      (g/set-property self :pb font))))
+      (g/set-property (g/node-id self) :pb font))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

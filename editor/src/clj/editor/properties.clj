@@ -149,11 +149,10 @@
 
 (defn- set-values [property values]
   (let [key (:key property)]
-    (for [[node-id value] (map vector (:node-ids property) values)
-          :let [node (g/node-by-id node-id)]]
+    (for [[node-id value] (map vector (:node-ids property) values)]
       (if (vector? key)
-        (g/update-property node (first key) assoc-in (rest key) value)
-        (g/set-property node (:key property) value)))))
+        (g/update-property node-id (first key) assoc-in (rest key) value)
+        (g/set-property node-id (:key property) value)))))
 
 (defn label
   [property]
@@ -203,6 +202,5 @@
       (concat
         (g/operation-label (str "Set " (label property)))
         (let [key (:key property)]
-          (for [node-id (:node-ids property)
-                :let [node (g/node-by-id node-id)]]
-            (g/update-property node (first key) dissoc-in (rest key))))))))
+          (for [node-id (:node-ids property)]
+            (g/update-property node-id (first key) dissoc-in (rest key))))))))

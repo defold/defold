@@ -90,7 +90,7 @@
   (let [content (slurp input)
         resource (:resource self)]
     (concat
-      (g/set-property self :content content))))
+      (g/set-property (g/node-id self) :content content))))
 
 (defn- register [workspace def]
   (workspace/register-resource-type workspace

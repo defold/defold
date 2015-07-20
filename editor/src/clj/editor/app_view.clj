@@ -47,13 +47,13 @@
   (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (:refresh-timer self)))))
+                                     (.stop ^AnimationTimer (g/node-value self :refresh-timer)))))
 
 (defn- invalidate [node label]
   (g/invalidate! [[(g/node-id node) label]]))
 
 (defn- disconnect-sources [target-node target-label]
-  (for [[source-node source-label] (g/sources-of target-node target-label)]
+  (for [[source-node source-label] (g/sources-of (g/node-id target-node) target-label)]
     (g/disconnect (g/node-id source-node) source-label (g/node-id target-node) target-label)))
 
 (defn- replace-connection [source-node source-label target-node target-label]
@@ -73,17 +73,17 @@
 
 (handler/defhandler :move-tool :global
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
+  (run [app-view] (g/transact (g/set-property (g/node-id app-view) :active-tool :move)))
   (state [app-view] (= (:active-tool (g/refresh app-view)) :move)))
 
 (handler/defhandler :scale-tool :global
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
+  (run [app-view] (g/transact (g/set-property (g/node-id app-view) :active-tool :scale)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale)))
 
 (handler/defhandler :rotate-tool :global
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
+  (run [app-view] (g/transact (g/set-property (g/node-id app-view) :active-tool :rotate)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate)))
 
 (ui/extend-menu ::toolbar nil
@@ -221,7 +221,7 @@
                                (g/node-value node label)))))]
       (g/transact
         (concat
-          (g/set-property app-view :refresh-timer refresh-timer)))
+          (g/set-property (g/node-id app-view) :refresh-timer refresh-timer)))
       (.start refresh-timer))
     app-view))
 
@@ -241,7 +241,7 @@
                               :tab tab)
             view       (make-view-fn view-graph parent resource-node opts)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
-        (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
+        (.setOnClosed tab (ui/event-handler event (g/delete-graph! view-graph)))
         (.select (.getSelectionModel tab-pane) tab)
         (project/select! project [resource-node]))
       (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))

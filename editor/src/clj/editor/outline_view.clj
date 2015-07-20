@@ -105,7 +105,7 @@
         (.setExpanded new-root true))
       (.setRoot tree-view new-root)
       (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property _self :root-cache new-cache)))))
+      (g/transact (g/set-property (g/node-id _self) :root-cache new-cache)))))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
