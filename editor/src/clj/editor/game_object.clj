@@ -73,6 +73,7 @@
   (inherits scene/SceneNode)
 
   (property id g/Str)
+
   (property embedded g/Bool (dynamic visible (g/always false)))
   (property path g/Str (dynamic visible (g/always false)))
   (property properties g/Any
@@ -123,8 +124,13 @@
                   {:component (workspace/proj-path resource)})))
        inst-data))
 
+(defn- build-props [component]
+  (let [properties (mapv #(assoc % :value (properties/str->go-prop (:value %) (:type %))) (:properties component))]
+    (assoc component :property-decls (properties/properties->decls properties))))
+
 (defn- build-game-object [self basis resource dep-resources user-data]
   (let [instance-msgs (externalize (:instance-data user-data) dep-resources)
+        instance-msgs (mapv build-props instance-msgs)
         msg {:components instance-msgs}]
     {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
 

@@ -16,6 +16,8 @@
            [com.dynamo.spine.proto Spine$SpineScene]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
+           [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -323,7 +325,43 @@
     (let [workspace     (test-util/setup-workspace! world project-path)
           project       (test-util/setup-project! workspace)
           path          "/script/props.script"
-          resource-node (test-util/resource-node project path)]
-      (prn "properties" (g/node-value resource-node :user-properties)))))
+          resource-node (test-util/resource-node project path)
+          build-results (project/build project resource-node)
+          content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+      (let [content (get content-by-source path)
+            lua (Lua$LuaModule/parseFrom content)
+            decl (-> lua (.getProperties))]
+        (is (< 0 (.getNumberEntriesCount decl)))
+        (is (< 0 (.getHashEntriesCount decl)))
+        (is (< 0 (.getUrlEntriesCount decl)))
+        (is (< 0 (.getVector3EntriesCount decl)))
+        (is (< 0 (.getVector4EntriesCount decl)))
+        (is (< 0 (.getQuatEntriesCount decl)))
+        (is (< 0 (.getBoolEntriesCount decl)))
+        (is (< 0 (.getFloatValuesCount decl)))
+        (is (< 0 (.getHashValuesCount decl)))
+        (is (< 0 (.getStringValuesCount decl)))))))
 
-(build-script)
+(deftest build-script-properties
+  (with-clean-system
+    (let [workspace     (test-util/setup-workspace! world project-path)
+          project       (test-util/setup-project! workspace)
+          path          "/script/props.go"
+          resource-node (test-util/resource-node project path)
+          build-results (project/build project resource-node)
+          content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+      (let [content (get content-by-source path)
+            desc (GameObject$PrototypeDesc/parseFrom content)
+            decl (-> desc (.getComponents 0) (.getPropertyDecls))]
+        (is (< 0 (.getNumberEntriesCount decl)))
+        (is (< 0 (.getHashEntriesCount decl)))
+        (is (< 0 (.getUrlEntriesCount decl)))
+        (is (< 0 (.getVector3EntriesCount decl)))
+        (is (< 0 (.getVector4EntriesCount decl)))
+        (is (< 0 (.getQuatEntriesCount decl)))
+        (is (< 0 (.getBoolEntriesCount decl)))
+        (is (< 0 (.getFloatValuesCount decl)))
+        (is (< 0 (.getHashValuesCount decl)))
+        (is (< 0 (.getStringValuesCount decl)))))))
