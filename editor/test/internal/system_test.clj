@@ -251,7 +251,7 @@
           (touch root 2.8 :b)
           (touch root 2.9 :b)
 
-          (g/cancel pgraph-id :b)
+          (g/cancel! pgraph-id :b)
 
           (is (undo-redo-state? pgraph-id [nil 1] []))
 
@@ -289,7 +289,7 @@
           (touch root 2.8 :b)
           (touch root 2.9 :b)
 
-          (g/cancel pgraph-id :a)
+          (g/cancel! pgraph-id :a)
 
           (is (undo-redo-state? pgraph-id [nil 1 2.9] []))))))
 
