@@ -1,5 +1,6 @@
 (ns editor.script
-  (:require [editor.protobuf :as protobuf]
+  (:require [clojure.string :as string]
+            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.types :as t]
             [editor.geom :as geom]
@@ -46,22 +47,33 @@
   {:resource resource
    :content content})
 
+(defn- lua-module->path [module]
+  (str "/" (string/replace module #"\." "/") ".lua"))
+
+(defn- lua-module->build-path [module]
+  (str (lua-module->path module) "c"))
+
 (defn- build-script [self basis resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
-        properties (mapv (fn [[k v]] {:id k :value (:value v) :type (get-in v [:edit-type :go-prop-type])}) user-properties)]
+        properties (mapv (fn [[k v]] {:id k :value (:value v) :type (get-in v [:edit-type :go-prop-type])}) user-properties)
+        modules (:modules user-data)]
     {:resource resource :content (protobuf/map->bytes Lua$LuaModule
                                                      {:source {:script (ByteString/copyFromUtf8 (:content user-data))
                                                                :filename (workspace/proj-path (:resource resource))}
-                                                      ; TODO - fix this
-                                                      :modules []
-                                                      :resources []
+                                                      :modules modules
+                                                      :resources (mapv lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))
 
-(g/defnk produce-build-targets [_node-id resource content user-properties]
+(g/defnk produce-build-targets [_node-id project-id resource content user-properties modules]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
-    :user-data {:content content :user-properties user-properties}}])
+    :user-data {:content content :user-properties user-properties :modules modules}
+    :deps (mapcat (fn [mod]
+                    (let [path (lua-module->path mod)
+                          project (g/node-by-id project-id)
+                          mod-node (project/get-resource-node project path)]
+                      (g/node-value mod-node :build-targets))) modules)}])
 
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
