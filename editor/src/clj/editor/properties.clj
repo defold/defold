@@ -3,7 +3,8 @@
             [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
             [editor.types :as t]
-            [editor.math :as math])
+            [editor.math :as math]
+            [editor.protobuf :as protobuf])
   (:import [java.util StringTokenizer]
            [javax.vecmath Quat4d]))
 
@@ -52,6 +53,48 @@
                               q (Quat4d. (double-array v))]
                           (math/quat->euler q))
     :property-type-boolean (Boolean/parseBoolean s)))
+
+(defn- ->decl [keys]
+  (into {} (map (fn [k] [k (transient [])]) keys)))
+
+(def ^:private type->entry-keys {:property-type-number [:number-entries :float-values]
+                                 :property-type-hash [:hash-entries :hash-values]
+                                 :property-type-url [:url-entries :string-values]
+                                 :property-type-vector3 [:vector3-entries :float-values]
+                                 :property-type-vector4 [:vector4-entries :float-values]
+                                 :property-type-quat [:quat-entries :float-values]
+                                 :property-type-boolean [:bool-entries :float-values]})
+
+(defn append-values! [values vs]
+  (loop [vs vs
+         values values]
+    (if-let [v (first vs)]
+      (recur (rest vs) (conj! values v))
+      values)))
+
+(defn properties->decls [properties]
+  (loop [properties properties
+         decl (->decl [:number-entries :hash-entries :url-entries :vector3-entries
+                       :vector4-entries :quat-entries :bool-entries :float-values
+                       :hash-values :string-values])]
+    (if-let [prop (first properties)]
+      (let [type (:type prop)
+            value (:value prop)
+            value (case type
+                    (:property-type-number :property-type-url) [value]
+                    :property-type-hash [(protobuf/hash64 value)]
+                    :property-type-boolean [(if value 1.0 0.0)]
+                    :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
+                    value)
+            [entry-key values-key] (type->entry-keys type)
+            entry {:key (:id prop)
+                   :id (protobuf/hash64 (:id prop))
+                   :index (count (get decl values-key))}]
+        (recur (rest properties)
+               (-> decl
+                 (update entry-key conj! entry)
+                 (update values-key append-values! value))))
+      (into {} (map (fn [[k v]] [k (persistent! v)]) decl)))))
 
 (defn- property-edit-type [property]
   (or (get property :edit-type)
