@@ -309,8 +309,8 @@
     (let [camera (camera-orthographic-frame-aabb camera viewport aabb)]
       (g/transact
        (concat
-        (g/set-property self :camera camera)
-        (g/set-property self :reframe false)))
+        (g/set-property (g/node-id self) :camera camera)
+        (g/set-property (g/node-id self) :reframe false)))
       camera)
     camera))
 

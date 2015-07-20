@@ -201,8 +201,8 @@
   (let [pb (protobuf/read-text (:pb-class def) input)
         resource (:resource self)]
     (concat
-      (g/set-property self :pb pb)
-      (g/set-property self :def def)
+      (g/set-property (g/node-id self) :pb pb)
+      (g/set-property (g/node-id self) :def def)
       (for [res (:resource-fields def)]
         (if (vector? res)
           (for [v (get pb (first res))]

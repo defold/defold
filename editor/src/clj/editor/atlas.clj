@@ -259,9 +259,9 @@
   (let [atlas         (protobuf/read-text AtlasProto$Atlas input)
         graph-id      (g/node->graph-id self)]
     (concat
-      (g/set-property self :margin (:margin atlas))
-      (g/set-property self :inner-padding (:inner-padding atlas))
-      (g/set-property self :extrude-borders (:extrude-borders atlas))
+      (g/set-property (g/node-id self) :margin (:margin atlas))
+      (g/set-property (g/node-id self) :inner-padding (:inner-padding atlas))
+      (g/set-property (g/node-id self) :extrude-borders (:extrude-borders atlas))
       (attach-atlas-image-nodes graph-id self (g/node-id self) (map :image (:images atlas)) :animation :animations)
       (for [anim (:animations atlas)
             :let [images (map :image (:images anim))]]

@@ -231,12 +231,12 @@
         palette-hit
         (g/transact
          [(g/operation-label "Select Brush")
-          (g/set-property self :active-brush (:image palette-hit))])
+          (g/set-property (g/node-id self) :active-brush (:image palette-hit))])
 
         level-hit
         (g/transact
          [(g/operation-label "Paint Cell")
-          (g/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))])
+          (g/set-property (g/node-id self) :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))])
         :default
         action))
     action))
@@ -288,9 +288,9 @@
     (let [level      (edn/read reader)
           atlas-resource (workspace/resolve-resource (:resource self) switcher-atlas-file)]
       (concat
-        (g/set-property self :width (:width level))
-        (g/set-property self :height (:height level))
-        (g/set-property self :blocks (:blocks level))
+        (g/set-property (g/node-id self) :width (:width level))
+        (g/set-property (g/node-id self) :height (:height level))
+        (g/set-property (g/node-id self) :blocks (:blocks level))
         (project/connect-resource-node project
                                        atlas-resource (g/node-id self)
                                        [[:anim-data :anim-data]

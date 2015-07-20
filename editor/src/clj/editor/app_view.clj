@@ -73,17 +73,17 @@
 
 (handler/defhandler :move-tool :global
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
+  (run [app-view] (g/transact (g/set-property (g/node-id app-view) :active-tool :move)))
   (state [app-view] (= (:active-tool (g/refresh app-view)) :move)))
 
 (handler/defhandler :scale-tool :global
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
+  (run [app-view] (g/transact (g/set-property (g/node-id app-view) :active-tool :scale)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale)))
 
 (handler/defhandler :rotate-tool :global
   (enabled? [app-view] true)
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
+  (run [app-view] (g/transact (g/set-property (g/node-id app-view) :active-tool :rotate)))
   (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate)))
 
 (ui/extend-menu ::toolbar nil
@@ -221,7 +221,7 @@
                                (g/node-value node label)))))]
       (g/transact
         (concat
-          (g/set-property app-view :refresh-timer refresh-timer)))
+          (g/set-property (g/node-id app-view) :refresh-timer refresh-timer)))
       (.start refresh-timer))
     app-view))
 
