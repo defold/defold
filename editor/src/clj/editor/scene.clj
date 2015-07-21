@@ -336,11 +336,9 @@
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
 (defn dispatch-input [input-handlers action user-data]
-  (reduce (fn [action input-handler]
-            (let [node (first input-handler)
-                  label (second input-handler)]
-              (when action
-                ((g/node-value node label) node action user-data))))
+  (reduce (fn [action [node-id label]]
+            (when action
+              ((g/node-value node-id label) node-id action user-data)))
           action input-handlers))
 
 (g/defnode SceneView
@@ -392,16 +390,16 @@
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
 (defn augment-action [view action]
-  (let [x (:x action)
-        y (:y action)
+  (let [x          (:x action)
+        y          (:y action)
         screen-pos (Vector3d. x y 0)
-        view-graph (g/node->graph-id view)
-        camera (g/node-value (g/graph-value view-graph :camera) :camera)
-        viewport (g/node-value view :viewport)
-        world-pos (Point3d. ^Vector3d (screen->world camera viewport screen-pos))
-        world-dir (doto ^Vector3d (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
-                    (.sub world-pos)
-                    (.normalize))]
+        view-graph (g/node-id->graph-id view)
+        camera     (g/node-value (g/graph-value view-graph :camera) :camera)
+        viewport   (g/node-value view :viewport)
+        world-pos  (Point3d. ^Vector3d (screen->world camera viewport screen-pos))
+        world-dir  (doto ^Vector3d (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
+                         (.sub world-pos)
+                         (.normalize))]
     (assoc action
            :screen-pos screen-pos
            :world-pos world-pos
@@ -432,17 +430,16 @@
       (let [node-id (g/node-id view)
             tool-user-data (atom [])
             event-handler (reify EventHandler (handle [this e]
-                                                (let [self (g/node-by-id node-id)
-                                                      action (augment-action self (i/action-from-jfx e))
+                                                (let [action (augment-action node-id (i/action-from-jfx e))
                                                       x (:x action)
                                                       y (:y action)
                                                       pos [x y 0.0]
                                                       picking-rect (calc-picking-rect pos pos)]
                                                   ; Only look for tool selection when the mouse is moving with no button pressed
                                                   (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
-                                                    (reset! tool-user-data (g/node-value self :selected-tool-renderables)))
-                                                  (g/transact (g/set-property (g/node-id self) :picking-rect picking-rect))
-                                                  (dispatch-input (g/sources-of (g/node-id self) :input-handlers) action @tool-user-data))))
+                                                    (reset! tool-user-data (g/node-value node-id :selected-tool-renderables)))
+                                                  (g/transact (g/set-property node-id :picking-rect picking-rect))
+                                                  (dispatch-input (g/sources-of node-id :input-handlers) action @tool-user-data))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                     (Platform/runLater
                                                      (fn []
@@ -536,8 +533,7 @@
        (.glEnd gl)))))
 
 (defn- select [controller op-seq mode]
-  (let [controller (g/refresh controller)
-        select-fn (g/node-value controller :select-fn)
+  (let [select-fn (g/node-value controller :select-fn)
         selection (g/node-value controller :picking-selection)
         sel-filter-fn (case mode
                         :direct (fn [selection] selection)
@@ -546,17 +542,17 @@
                                         prev-selection-set (g/node-value controller :prev-selection-set)]
                                     (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set))))))
         selection (or (not-empty (sel-filter-fn (map :node-id selection))) (filter #(not (nil? %)) [(:node-id (g/node-value controller :scene))]))]
-    (select-fn (map #(g/node-by-id %) selection) op-seq)))
+    (select-fn selection op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})
 (def other-toggle-modifiers #{:control})
 (def toggle-modifiers (if util/mac? mac-toggle-modifiers other-toggle-modifiers))
 
 (defn handle-selection-input [self action user-data]
-  (let [start (g/node-value self :start)
-        current (g/node-value self :current)
-        op-seq (g/node-value self :op-seq)
-        mode (g/node-value self :mode)
+  (let [start      (g/node-value self :start)
+        current    (g/node-value self :current)
+        op-seq     (g/node-value self :op-seq)
+        mode       (g/node-value self :mode)
         cursor-pos [(:x action) (:y action) 0]]
     (case (:type action)
       :mouse-pressed (let [op-seq (gensym)
@@ -564,25 +560,25 @@
                            mode (if toggle :toggle :direct)]
                        (g/transact
                          (concat
-                           (g/set-property (g/node-id self) :op-seq op-seq)
-                           (g/set-property (g/node-id self) :start cursor-pos)
-                           (g/set-property (g/node-id self) :current cursor-pos)
-                           (g/set-property (g/node-id self) :mode mode)
-                           (g/set-property (g/node-id self) :prev-selection-set (set (g/node-value self :selection)))))
+                           (g/set-property self :op-seq op-seq)
+                           (g/set-property self :start cursor-pos)
+                           (g/set-property self :current cursor-pos)
+                           (g/set-property self :mode mode)
+                           (g/set-property self :prev-selection-set (set (g/node-value self :selection)))))
                        (select self op-seq mode)
                        nil)
       :mouse-released (do
                         (g/transact
                           (concat
-                            (g/set-property (g/node-id self) :start nil)
-                            (g/set-property (g/node-id self) :current nil)
-                            (g/set-property (g/node-id self) :op-seq nil)
-                            (g/set-property (g/node-id self) :mode nil)
-                            (g/set-property (g/node-id self) :prev-selection-set nil)))
+                            (g/set-property self :start nil)
+                            (g/set-property self :current nil)
+                            (g/set-property self :op-seq nil)
+                            (g/set-property self :mode nil)
+                            (g/set-property self :prev-selection-set nil)))
                         nil)
       :mouse-moved (if start
                      (do
-                       (g/transact (g/set-property (g/node-id self) :current cursor-pos))
+                       (g/transact (g/set-property self :current cursor-pos))
                        (select self op-seq mode)
                        nil)
                      action)

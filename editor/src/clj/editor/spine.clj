@@ -480,9 +480,8 @@
     []))
 
 (defn- disconnect-all [node-id label]
-  (let [sources (g/sources-of node-id label)]
-    (for [[src-node src-label] sources]
-      (g/disconnect (g/node-id src-node) src-label node-id label))))
+  (for [[src-node-id src-label] (g/sources-of node-id label)]
+    (g/disconnect src-node-id src-label node-id label)))
 
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:atlas} labels)

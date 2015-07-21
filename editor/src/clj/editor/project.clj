@@ -313,33 +313,32 @@ ordinary paths."
           (connect-if-output node-type new-resource consumer-node connections))))))
 
 (defn select
-  [project nodes]
+  [project node-ids]
     (let [project-id (g/node-id project)]
       (concat
-        (for [[node label] (g/sources-of (g/node-id project) :selected-node-ids)]
-          (g/disconnect (g/node-id node) label project-id :selected-node-ids))
-        (for [[node label] (g/sources-of (g/node-id project) :selected-nodes)]
-          (g/disconnect (g/node-id node) label project-id :selected-nodes))
-        (for [[node label] (g/sources-of (g/node-id project) :selected-node-properties)]
-          (g/disconnect (g/node-id node) label project-id :selected-node-properties))
-        (for [node nodes
-              :let [node-id (g/node-id node)]]
+        (for [[node-id label] (g/sources-of (g/node-id project) :selected-node-ids)]
+          (g/disconnect node-id label project-id :selected-node-ids))
+        (for [[node-id label] (g/sources-of (g/node-id project) :selected-nodes)]
+          (g/disconnect node-id label project-id :selected-nodes))
+        (for [[node-id label] (g/sources-of (g/node-id project) :selected-node-properties)]
+          (g/disconnect node-id label project-id :selected-node-properties))
+        (for [node-id node-ids]
           (concat
-            (g/connect node-id :_node-id project-id :selected-node-ids)
-            (g/connect node-id :_self project-id :selected-nodes)
+            (g/connect node-id :_node-id    project-id :selected-node-ids)
+            (g/connect node-id :_self       project-id :selected-nodes)
             (g/connect node-id :_properties project-id :selected-node-properties))))))
 
 (defn select!
-  ([project nodes]
-    (select! project nodes (gensym)))
-  ([project nodes op-seq]
+  ([project node-ids]
+    (select! project node-ids (gensym)))
+  ([project node-ids op-seq]
     (let [old-nodes (g/node-value project :selected-nodes)]
-      (when (not= nodes old-nodes)
+      (when (not= node-ids old-nodes)
         (g/transact
           (concat
             (g/operation-sequence op-seq)
             (g/operation-label "Select")
-            (select project nodes)))))))
+            (select project node-ids)))))))
 
 (defn make-project [graph workspace]
   (let [project
