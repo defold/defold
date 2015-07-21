@@ -954,6 +954,9 @@
             <reference-type-class
                   type-class="gui_script">
             </reference-type-class>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.guied.resourcetypes.gui">
+            </reference-resource-type>
          </references>
       </resource-type>
    </extension>

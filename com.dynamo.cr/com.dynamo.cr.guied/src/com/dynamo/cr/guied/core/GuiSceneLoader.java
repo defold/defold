@@ -226,7 +226,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
                 NodeDesc.Builder defaultBuilder = GuiNodeStateBuilder.getBuilders(guiNode.getStateBuilder()).get(GuiNodeStateBuilder.getDefaultStateId());
                 if(descBuilder.getOverriddenFieldsCount() != 0) {
                     List<Integer> ofList = descBuilder.getOverriddenFieldsList();
-                    for(FieldDescriptor field : newDefaultBuilder.getAllFields().keySet()) {
+                    for(FieldDescriptor field : defaultBuilder.getAllFields().keySet()) {
                         if(ofList.contains(field.getNumber())) {
                             continue;
                         }
