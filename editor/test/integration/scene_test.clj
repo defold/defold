@@ -19,39 +19,39 @@
 (deftest gen-scene
   (testing "Scene generation"
            (let [cases {"/logic/atlas_sprite.collection"
-                        (fn [node]
-                          (let [go (ffirst (g/sources-of (g/node-id node) :child-scenes))]
-                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
-                            (g/transact (g/set-property (g/node-id go) :position [10 0 0]))
-                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
+                        (fn [node-id]
+                          (let [go (ffirst (g/sources-of node-id :child-scenes))]
+                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-101 -97] [101 97])))
+                            (g/transact (g/set-property go :position [10 0 0]))
+                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/logic/atlas_sprite.go"
-                        (fn [node]
-                          (let [component (ffirst (g/sources-of (g/node-id node) :child-scenes))]
-                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
-                            (g/transact (g/set-property (g/node-id component) :position [10 0 0]))
-                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
+                        (fn [node-id]
+                          (let [component (ffirst (g/sources-of node-id :child-scenes))]
+                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-101 -97] [101 97])))
+                            (g/transact (g/set-property component :position [10 0 0]))
+                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/sprite/atlas.sprite"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [-101 -97] [101 97])]
                             (is (= (:aabb scene) aabb))))
                         "/car/env/env.cubemap"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)]
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)]
                             (is (= (:aabb scene) geom/unit-bounding-box))))
                         "/platformer/level1.platformer"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [0 10] [20 10])]
                             (is (= (:aabb scene) aabb))))
                         "/switcher/level01.switcher"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [-45 -45] [45 45])]
                             (is (= (:aabb scene) aabb))))
                         "/switcher/switcher.atlas"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [0 0] [2048 1024])]
                             (is (= (:aabb scene) aabb))))
                         }]
@@ -63,7 +63,7 @@
                    (let [node (test-util/resource-node project path)
                          view (test-util/open-scene-view! project app-view node 128 128)]
                      (is (not (nil? node)) (format "Could not find '%s'" path))
-                     (test-fn node))))))))
+                     (test-fn (g/node-id node)))))))))
 
 (deftest gen-renderables
   (testing "Renderables generation"
@@ -99,13 +99,13 @@
                (is (test-util/selected? project go-node))
                ; Deselect - default to "root" node
                (test-util/mouse-press! view 0 0)
-               (is (test-util/selected? project resource-node))
+               (is (test-util/selected? project (g/node-id resource-node)))
                ; Toggling
                (let [modifiers (if util/mac? [:meta] [:control])]
                  (test-util/mouse-click! view 32 32)
                  (is (test-util/selected? project go-node))
                  (test-util/mouse-click! view 32 32 modifiers)
-                 (is (test-util/selected? project resource-node)))))))
+                 (is (test-util/selected? project (g/node-id resource-node))))))))
 
 (deftest scene-multi-selection
   (testing "Scene multi selection"
@@ -179,7 +179,7 @@
                (test-util/mouse-click! view 32 32)
                (is (test-util/selected? project go-node))
                ; Delete
-               (g/transact (g/delete-node (g/node-id go-node)))
+               (g/transact (g/delete-node go-node))
                (is (test-util/empty-selection? project))
                ; Undo
                (g/undo! project-graph)
@@ -188,11 +188,11 @@
                (test-util/mouse-click! view 32 32)
                (is (test-util/selected? project go-node))
                ; Delete again
-               (g/transact (g/delete-node (g/node-id go-node)))
+               (g/transact (g/delete-node go-node))
                (is (test-util/empty-selection? project))
                ;Select again
                (test-util/mouse-click! view 32 32)
-               (is (test-util/selected? project resource-node))))))
+               (is (test-util/selected? project (g/node-id resource-node)))))))
 
 (deftest transform-tools-empty-go
   (testing "Transform tools and manipulator interactions"

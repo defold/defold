@@ -54,7 +54,7 @@
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of (g/node-id target-node) target-label)]
-    (g/disconnect (g/node-id source-node) source-label (g/node-id target-node) target-label)))
+    (g/disconnect source-node source-label (g/node-id target-node) target-label)))
 
 (defn- replace-connection [source-node source-label target-node target-label]
   (concat
@@ -243,7 +243,7 @@
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
         (.setOnClosed tab (ui/event-handler event (g/delete-graph! view-graph)))
         (.select (.getSelectionModel tab-pane) tab)
-        (project/select! project [resource-node]))
+        (project/select! project [(g/node-id resource-node)]))
       (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))
 
 (handler/defhandler :open-asset :global

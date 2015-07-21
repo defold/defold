@@ -231,12 +231,12 @@
         palette-hit
         (g/transact
          [(g/operation-label "Select Brush")
-          (g/set-property (g/node-id self) :active-brush (:image palette-hit))])
+          (g/set-property self :active-brush (:image palette-hit))])
 
         level-hit
         (g/transact
          [(g/operation-label "Paint Cell")
-          (g/set-property (g/node-id self) :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))])
+          (g/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (g/node-value self :active-brush)))])
         :default
         action))
     action))

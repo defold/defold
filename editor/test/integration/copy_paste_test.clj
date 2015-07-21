@@ -24,12 +24,12 @@
             tx-result           (g/transact (:tx-data paste-data))
             new-collection-id   (first (:root-node-ids paste-data))
             new-collection-node (g/node-by-id new-collection-id)
-            new-go-node         (ffirst (g/sources-of (g/node-id new-collection-node) :child-scenes))]
+            new-go-node         (ffirst (g/sources-of new-collection-id :child-scenes))]
 
-        (is (g/connected? (g/now) (g/node-id new-go-node) :scene (g/node-id new-collection-node) :child-scenes))
+        (is (g/connected? (g/now) new-go-node :scene new-collection-id :child-scenes))
 
-        (is (g/connected? (g/now) (g/node-id sprite-node) :_self (g/node-id go-node)     :source))
-        (is (g/connected? (g/now) (g/node-id sprite-node) :_self (g/node-id new-go-node) :source))))))
+        (is (g/connected? (g/now) (g/node-id sprite-node) :_self go-node     :source))
+        (is (g/connected? (g/now) (g/node-id sprite-node) :_self new-go-node :source))))))
 
 (deftest undo-paste-removes-pasted-nodes
   (with-clean-system
@@ -40,15 +40,15 @@
           sprite-node     (test-util/resource-node project "/logic/atlas_sprite.go")
           collection-node (test-util/resource-node project "/logic/atlas_sprite.collection")
           view            (test-util/open-scene-view! project app-view collection-node 128 128)
-          go-node         (ffirst (g/sources-of (g/node-id collection-node) :child-scenes))
-          fragment        (project/copy [(g/node-id collection-node)])]
+          collection-node-id (g/node-id collection-node)
+          go-node         (ffirst (g/sources-of collection-node-id :child-scenes))
+          fragment        (project/copy [collection-node-id])]
 
       (let [paste-data          (project/paste workspace project fragment)
             tx-result           (g/transact (:tx-data paste-data))
             new-collection-id   (first (:root-node-ids paste-data))
             new-collection-node (g/node-by-id new-collection-id)
-            new-go-node         (ffirst (g/sources-of (g/node-id new-collection-node) :child-scenes))
-            new-go-node-id      (g/node-id new-go-node)]
+            new-go-node-id      (ffirst (g/sources-of new-collection-id :child-scenes))]
 
         (g/undo! project-graph)
 
@@ -60,9 +60,9 @@
         (is (not (nil? (g/node-by-id new-collection-id))))
         (is (not (nil? (g/node-by-id new-go-node-id))))
 
-        (is (g/connected? (g/now) (g/node-id new-go-node) :scene (g/node-id new-collection-node) :child-scenes))
-        (is (g/connected? (g/now) (g/node-id sprite-node) :_self  (g/node-id go-node)     :source))
-        (is (g/connected? (g/now) (g/node-id sprite-node) :_self  (g/node-id new-go-node) :source))
+        (is (g/connected? (g/now) new-go-node-id :scene new-collection-id :child-scenes))
+        (is (g/connected? (g/now) (g/node-id sprite-node) :_self  go-node        :source))
+        (is (g/connected? (g/now) (g/node-id sprite-node) :_self  new-go-node-id :source))
 
         (g/undo! project-graph)
 

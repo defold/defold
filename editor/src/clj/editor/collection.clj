@@ -330,12 +330,12 @@
                     (g/connect go-node     :_self         (g/node-id self)    :nodes)))))
 
 (defn- add-game-object [selection]
-  (let [coll-node (g/node-by-id (first selection))
-        project (project/get-project coll-node)
-        workspace (:workspace (:resource coll-node))
-        ext "go"
+  (let [coll-node     (g/node-by-id (first selection))
+        project       (project/get-project coll-node)
+        workspace     (:workspace (:resource coll-node))
+        ext           "go"
         resource-type (workspace/get-resource-type workspace ext)
-        template (workspace/template resource-type)]
+        template      (workspace/template resource-type)]
     (let [id (gen-instance-id coll-node ext)
           op-seq (gensym)
           [go-node source-node] (g/tx-nodes-added
@@ -350,8 +350,8 @@
         (g/operation-label "Add Game Object")
         (g/connect (g/node-id go-node) :outline (g/node-id coll-node) :child-outlines)
         (g/connect (g/node-id go-node) :scene   (g/node-id coll-node) :child-scenes)
-        ((:load-fn resource-type) project source-node (io/reader (:resource source-node)))
-        (project/select project [go-node]))))))
+        ((:load-fn resource-type) project source-node (io/reader (g/node-value source-node :resource)))
+        (project/select project [(g/node-id go-node)]))))))
 
 (handler/defhandler :add :global
   (active? [selection] (and (single-selection? selection)
