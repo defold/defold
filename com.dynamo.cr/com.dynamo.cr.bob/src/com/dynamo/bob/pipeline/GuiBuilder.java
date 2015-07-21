@@ -479,7 +479,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             this.project = project;
         }
 
-        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException, CompileExceptionError {
+        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException {
             SceneDesc.Builder sceneBuilder = resourceCache.get(resourcePath);
             if(sceneBuilder == null) {
                 IResource templateSceneResource = this.project.getResource(resourcePath);
