@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.GuiBuilder;
+import com.dynamo.bob.pipeline.Messages;
+import com.dynamo.bob.util.BobNLS;
 import com.dynamo.cr.guied.core.GuiNode;
 import com.dynamo.cr.guied.core.GuiSceneLoader;
 import com.dynamo.cr.guied.core.GuiSceneNode;
@@ -187,6 +189,9 @@ public class GuiTemplateBuilder  {
             if(sceneBuilder == null) {
                 IFile file = model.getFile(resourcePath);
                 InputStream stream = null;
+                if(!file.exists()) {
+                    throw new IOException(BobNLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, "template", resourcePath));
+                }
                 try {
                 stream = file.getContents();
                 } catch (CoreException e) {
