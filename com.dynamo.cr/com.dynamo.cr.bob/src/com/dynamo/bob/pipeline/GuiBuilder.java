@@ -389,9 +389,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             // read in template scene (text version) and transform recursively
             if(node.getType() == Type.TYPE_TEMPLATE) {
                 SceneDesc.Builder templateBuilder = sceneIO.readScene(node.getTemplate(), sceneResourceCache);
-                if(templateBuilder == null) {
-                    return null;
-                }
                 templateBuilder = transformScene(builder, node.getTemplate(), templateBuilder, sceneIO, sceneResourceCache, false);
 
                 // merge template scene nodes with overrides of current scene
@@ -482,7 +479,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             this.project = project;
         }
 
-        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException, CompileExceptionError {
+        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException {
             SceneDesc.Builder sceneBuilder = resourceCache.get(resourcePath);
             if(sceneBuilder == null) {
                 IResource templateSceneResource = this.project.getResource(resourcePath);

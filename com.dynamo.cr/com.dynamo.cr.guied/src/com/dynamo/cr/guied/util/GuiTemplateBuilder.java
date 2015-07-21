@@ -128,13 +128,16 @@ public class GuiTemplateBuilder  {
         HashMap<String, GuiNodeStateBuilder> nodeStates = new HashMap<String, GuiNodeStateBuilder>();
         nodeStatesToStateMap(nodeStates, node.getChildren());
 
-        // reset template
-        node.clearChildren();
-        node.setTemplateScene(null);
+        // reset template if empty template property
         if(node.getTemplatePath().isEmpty()) {
+            node.clearChildren();
+            node.setTemplateScene(null);
             return true;
         }
+        // no model, no loading
         if(node.getModel() == null) {
+            node.clearChildren();
+            node.setTemplateScene(null);
             return false;
         }
 
@@ -147,14 +150,16 @@ public class GuiTemplateBuilder  {
             sceneBuilder = GuiBuilder.transformScene(null, node.getTemplate(), sceneBuilder, sceneBuilderIO, sceneResourceCache, false);
         } catch (CompileExceptionError e) {
             logger.error("Failed creating resource: " + node.getTemplate(), e);
-            node.setTemplatePath("");
             return false;
         } catch (IOException e) {
-            logger.error("Failed loading resource: " + node.getTemplate(), e);
-            node.setTemplatePath("");
+            logger.error("Failed reading resource: " + node.getTemplate(), e);
             return false;
         }
 
+        // reset old template
+        node.clearChildren();
+        node.setTemplateScene(null);
+        
         // load the scene from builder
         if(!loadScene(node, sceneBuilder)) {
             return false;
@@ -184,7 +189,7 @@ public class GuiTemplateBuilder  {
             this.model = model;
         }
 
-        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException, CompileExceptionError {
+        public SceneDesc.Builder readScene(String resourcePath, HashMap<String, SceneDesc.Builder> resourceCache) throws IOException {
             SceneDesc.Builder sceneBuilder = resourceCache.getOrDefault(resourcePath, null);
             if(sceneBuilder == null) {
                 IFile file = model.getFile(resourcePath);
