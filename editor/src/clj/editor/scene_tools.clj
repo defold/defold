@@ -424,50 +424,50 @@
 
 (defn handle-input [self action selection-data]
   (case (:type action)
-    :mouse-pressed (if-let [manip (first (get selection-data (g/node-id self)))]
-                     (let [active-tool (g/node-value self :active-tool)
-                           tool (get transform-tools active-tool)
-                           filter-fn (:filter-fn tool)
+    :mouse-pressed (if-let [manip (first (get selection-data self))]
+                     (let [active-tool          (g/node-value self :active-tool)
+                           tool                 (get transform-tools active-tool)
+                           filter-fn            (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (g/node-by-id (:node-id %))) (g/node-value self :selected-renderables))
-                           original-values (map #(do [(g/node-by-id (:node-id %)) (:world-transform %)]) selected-renderables)]
+                           original-values      (map #(do [(g/node-by-id (:node-id %)) (:world-transform %)]) selected-renderables)]
                        (when (not (empty? original-values))
                          (g/transact
                             (concat
-                              (g/set-property (g/node-id self) :start-action action)
-                              (g/set-property (g/node-id self) :prev-action action)
-                              (g/set-property (g/node-id self) :original-values original-values)
-                              (g/set-property (g/node-id self) :active-manip manip)
-                              (g/set-property (g/node-id self) :hot-manip nil)
-                              (g/set-property (g/node-id self) :op-seq (gensym)))))
+                              (g/set-property self :start-action action)
+                              (g/set-property self :prev-action action)
+                              (g/set-property self :original-values original-values)
+                              (g/set-property self :active-manip manip)
+                              (g/set-property self :hot-manip nil)
+                              (g/set-property self :op-seq (gensym)))))
                        nil)
                      action)
-    :mouse-released (if (:start-action self)
+    :mouse-released (if (g/node-value self :start-action)
                       (do
                         (g/transact
                           (concat
-                            (g/set-property (g/node-id self) :start-action nil)
-                            (g/set-property (g/node-id self) :prev-action nil)
-                            (g/set-property (g/node-id self) :original-values nil)))
+                            (g/set-property self :start-action nil)
+                            (g/set-property self :prev-action nil)
+                            (g/set-property self :original-values nil)))
                         nil)
                       action)
-    :mouse-moved (if-let [start-action (:start-action self)]
-                   (let [prev-action (:prev-action self)
-                         active-tool (g/node-value self :active-tool)
-                         original-values (:original-values self)
-                         manip (:active-manip self)
-                         op-seq (:op-seq self)
-                         camera (g/node-value self :camera)
-                         viewport (g/node-value self :viewport)]
+    :mouse-moved (if-let [start-action (g/node-value self :start-action)]
+                   (let [prev-action     (g/node-value self :prev-action)
+                         active-tool     (g/node-value self :active-tool)
+                         original-values (g/node-value self :original-values)
+                         manip           (g/node-value self :active-manip)
+                         op-seq          (g/node-value self :op-seq)
+                         camera          (g/node-value self :camera)
+                         viewport        (g/node-value self :viewport)]
                      (g/transact
                        (concat
                          (g/operation-label (get-in transform-tools [active-tool :label]))
                          (g/operation-sequence op-seq)
                          (apply-manipulator original-values manip start-action prev-action action camera viewport)))
-                     (g/transact (g/set-property (g/node-id self) :prev-action action))
+                     (g/transact (g/set-property self :prev-action action))
                      nil)
-                   (let [manip (first (get selection-data (g/node-id self)))]
-                     (when (not= manip (:hot-manip self))
-                       (g/transact (g/set-property (g/node-id self) :hot-manip manip)))
+                   (let [manip (first (get selection-data self))]
+                     (when (not= manip (g/node-value self :hot-manip))
+                       (g/transact (g/set-property self :hot-manip manip)))
                      action))
     action))
 
