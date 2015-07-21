@@ -674,9 +674,11 @@ namespace dmGui
             scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
             scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
         } else {
-            return scene->m_Nodes[node->m_ParentIndex].m_Node.m_LocalScale;
+            Vector4 adjust_scale = scene->m_Nodes[node->m_ParentIndex].m_Node.m_LocalAdjustScale;
+            scale_x = adjust_scale.getX();
+            scale_y = adjust_scale.getY();
         }
-        return Vector4(scale_x, scale_y, 1, 1);
+        return Vector4(scale_x, scale_y, 1.0f, 1.0f);
     }
 
     struct UpdateDynamicTexturesParams
@@ -1932,14 +1934,15 @@ namespace dmGui
         Node& node = n->m_Node;
 
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
-        node.m_LocalScale = node.m_Properties[dmGui::PROPERTY_SCALE];
+        Vector4 prop_scale = node.m_Properties[dmGui::PROPERTY_SCALE];
+        node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
         Vector4 reference_scale = CalculateReferenceScale(scene, n);
-        AdjustPosScale(scene, n, reference_scale, position, node.m_LocalScale);
+        AdjustPosScale(scene, n, reference_scale, position, node.m_LocalAdjustScale);
         const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
         Quat r = dmVMath::EulerToQuat(rotation);
         r = normalize(r);
 
-        node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale(node.m_LocalScale.getXYZ()) );
+        node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale( mulPerElem(node.m_LocalAdjustScale, prop_scale).getXYZ() ));
         node.m_LocalTransform.setTranslation(position.getXYZ());
 
         if (scene->m_AdjustReference == ADJUST_REFERENCE_PARENT && n->m_ParentIndex != INVALID_INDEX)
