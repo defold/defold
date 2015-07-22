@@ -140,8 +140,10 @@ ordinary paths."
       (let [ws-id (g/node-id workspace)]
         (g/invalidate! (mapv #(do [ws-id %]) [:resource-tree :resource-list :resource-map]))))
     (when notify-listeners?
-      (doseq [listener @(:resource-listeners workspace)]
-        (handle-changes listener changes))))))
+      (let [changes (into {} (map (fn [[type resources]]
+                                    [type (filter #(not= (source-type %) :folder) resources)]) changes))]
+        (doseq [listener @(:resource-listeners workspace)]
+          (handle-changes listener changes)))))))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (:resource-listeners workspace) conj listener))
