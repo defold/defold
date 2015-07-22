@@ -15,7 +15,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
-(def game-project-icon "icons/16/Icons_04-Project-file.png")
+(def game-project-icon "icons/32/Icons_04-Project-file.png")
 
 (g/defnk produce-save-data [resource content]
   {:resource resource
@@ -95,6 +95,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "project"
+                                    :label "Project"
                                     :node-type GameProjectNode
                                     :load-fn load-game-project
                                     :icon game-project-icon

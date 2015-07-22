@@ -153,7 +153,7 @@
                                                          (proxy-super setContextMenu nil))
                                                        (let [{:keys [label icon]} item]
                                                          (proxy-super setText label)
-                                                         (proxy-super setGraphic (jfx/get-image-view icon)))))))))))
+                                                         (proxy-super setGraphic (jfx/get-image-view icon 16)))))))))))
 
 (defn- propagate-selection [change selection-fn]
   (when-not *programmatic-selection*

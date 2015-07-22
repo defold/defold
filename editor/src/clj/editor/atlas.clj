@@ -29,9 +29,9 @@
 
 (set! *warn-on-reflection* true)
 
-(def atlas-icon "icons/16/Icons_13-Atlas.png")
-(def animation-icon "icons/16/Icons_24-AT-Animation.png")
-(def image-icon "icons/16/Icons_25-AT-Image.png")
+(def atlas-icon "icons/32/Icons_13-Atlas.png")
+(def animation-icon "icons/32/Icons_24-AT-Animation.png")
+(def image-icon "icons/32/Icons_25-AT-Image.png")
 
 (defn render-overlay
   [^GL2 gl ^TextRenderer text-renderer width height]
@@ -278,6 +278,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "atlas"
+                                    :label "Atlas"
                                     :build-ext "texturesetc"
                                     :node-type AtlasNode
                                     :load-fn load-atlas

@@ -240,7 +240,7 @@
                               :project project
                               :tab tab)
             view       (make-view-fn view-graph parent resource-node opts)]
-        (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
+        (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
         (.setOnClosed tab (ui/event-handler event (g/delete-graph! view-graph)))
         (.select (.getSelectionModel tab-pane) tab)
         (project/select! project [resource-node]))

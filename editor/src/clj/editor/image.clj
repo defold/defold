@@ -173,6 +173,8 @@ region will be identical to the nearest pixel of the source image."
   (concat
     (workspace/register-resource-type workspace
                                       :ext ["jpg" "png"]
+                                      :label "Image"
+                                      :icon "icons/32/Icons_25-AT-Image"
                                       :build-ext "texturec"
                                       :node-type ImageNode
                                       :view-types [:default])

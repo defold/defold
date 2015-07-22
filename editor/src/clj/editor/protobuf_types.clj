@@ -57,96 +57,105 @@
       (dissoc :modifiers))))
 
 (def pb-defs [{:ext "input_binding"
-               :icon "icons/pictures.png"
-               :pb-class Input$InputBinding}
+               :icon "icons/32/Icons_35-Inputbinding.png"
+               :pb-class Input$InputBinding
+               :label "Input Binding"}
               {:ext "render"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$RenderPrototypeDesc
-               :resource-fields [:script]}
+               :resource-fields [:script]
+               :label "Render"}
               {:ext "material"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_31-Material.png"
                :pb-class Material$MaterialDesc
-               :resource-fields [:vertex-program :fragment-program]}
+               :resource-fields [:vertex-program :fragment-program]
+               :label "Material"}
               {:ext "factory"
                :label "Factory"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_07-Factory.png"
                :pb-class GameSystem$FactoryDesc
                :resource-fields [:prototype]
                :tags #{:component}}
               {:ext "collectionfactory"
                :label "Collection Factory"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_08-Collection-factory.png"
                :pb-class GameSystem$CollectionFactoryDesc
                :resource-fields [:prototype]
                :tags #{:component}}
               {:ext "collectionproxy"
                :label "Collection Proxy"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_09-Collection.png"
                :pb-class GameSystem$CollectionProxyDesc
                :resource-fields [:collection]
                :tags #{:component}}
               {:ext "light"
                :label "Light"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_21-Light.png"
                :pb-class GameSystem$LightDesc
                :tags #{:component}}
               {:ext "collisionobject"
                :label "Collision Object"
-               :icon "icons/pictures.png"
+               ; TODO - missing icon
+               :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
                :pb-class Physics$CollisionObjectDesc
                :resources-fields [:collision_shape]
                :tags #{:component}}
               {:ext "gamepads"
-               :icon "icons/pictures.png"
+               :label "Gamepads"
+               :icon "icons/32/Icons_34-Gamepad.png"
                :pb-class Input$GamepadMaps}
               {:ext "camera"
                :label "Camera"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_20-Camera.png"
                :pb-class Camera$CameraDesc
                :tags #{:component}}
               {:ext "model"
                :label "Model"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_22-Model.png"
                :resource-fields [:mesh :material [:textures]]
                :pb-class Model$ModelDesc
                :tags #{:component}}
               {:ext "convexshape"
-               :icon "icons/pictures.png"
+               :label "Convex Shape"
+               ; TODO - missing icon
+               :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
                :pb-class Physics$ConvexShape}
               {:ext "gui"
                :label "Gui"
-               :icon "icons/16/Icons_38-GUI.png"
+               :icon "icons/32/Icons_38-GUI.png"
                :pb-class Gui$SceneDesc
                :resource-fields [:script :material [:fonts :font] [:textures :texture]]
                :tags #{:component}}
               {:ext ["tilemap" "tilegrid"]
                :build-ext "tilegridc"
                :label "Tile Map"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_48-Tilemap.png"
                :pb-class Tile$TileGrid
                :resource-fields [:tile-set :material]
                :tags #{:component}}
               {:ext "particlefx"
                :label "Particle FX"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_17-ParticleFX.png"
                :pb-class Particle$ParticleFX
                :resource-fields [[:emitters :tile-source] [:emitters :material]]
                :tags #{:component}
                :transform-fn particle-fx-transform}
               {:ext "sound"
                :label "Sound"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_26-AT-Sound.png"
                :pb-class Sound$SoundDesc
                :resource-fields [:sound]
                :tags #{:component}}
               {:ext "spinemodel"
                :label "Spine Model"
-               :icon "icons/pictures.png"
+               :icon "icons/32/Icons_15-Spine-model.png"
                :pb-class Spine$SpineModelDesc
                :resource-fields [:spine-scene :material]
                :tags #{:component}}
               {:ext "display_profiles"
-               :icon "icons/pictures.png"
+               :label "Display Profiles"
+               ; TODO - missing icon
+               :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$DisplayProfiles}])
 
 (g/defnk produce-save-data [resource def pb]
@@ -216,11 +225,13 @@
     (for [ext exts]
       (workspace/register-resource-type workspace
                                      :ext ext
+                                     :label (:label def)
                                      :build-ext (:build-ext def)
                                      :node-type ProtobufNode
                                      :load-fn (fn [project self input] (load-pb project self input def))
                                      :icon (:icon def)
-                                     :tags (:tags def)))))
+                                     :tags (:tags def)
+                                     :template (:template def)))))
 
 (defn register-resource-types [workspace]
   (for [def pb-defs]

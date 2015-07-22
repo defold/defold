@@ -418,7 +418,8 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
     (slurp (types/replace-extension sdef "fp"))))
 
 (def shader-defs [{:ext "vp"
-                   :icon "icons/16/Icons_32-Vertex-shader.png"
+                   :label "Vertex Program"
+                   :icon "icons/32/Icons_32-Vertex-shader.png"
                    :prefix (string/join "\n" ["#ifndef GL_ES"
                                               "#define lowp"
                                               "#define mediump"
@@ -426,7 +427,8 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                                               "#endif"
                                               ""])}
                   {:ext "fp"
-                   :icon "icons/16/Icons_33-Fragment-shader.png"
+                   :label "Fragment Program"
+                   :icon "icons/32/Icons_33-Fragment-shader.png"
                    :prefix (string/join "\n" ["#ifdef GL_ES"
                                               "precision mediump float;"
                                               "#endif"
@@ -464,6 +466,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (defn- register [workspace def]
   (workspace/register-resource-type workspace
                                    :ext (:ext def)
+                                   :label (:label def)
                                    :node-type ShaderNode
                                    :load-fn (fn [project self input] (load-shader project self input def))
                                    :icon (:icon def)))
