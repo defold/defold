@@ -471,11 +471,11 @@
 
 (defn- connect-atlas [project node-id atlas]
   (if-let [atlas-node (project/get-resource-node project atlas)]
-    (let [outputs (-> atlas-node g/node-type g/output-labels)]
+    (let [outputs (-> atlas-node g/node-type* g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect (g/node-id atlas-node) :anim-data     node-id :anim-data)
-         (g/connect (g/node-id atlas-node) :gpu-texture   node-id :gpu-texture)
-         (g/connect (g/node-id atlas-node) :build-targets node-id :dep-build-targets)]
+        [(g/connect atlas-node :anim-data     node-id :anim-data)
+         (g/connect atlas-node :gpu-texture   node-id :gpu-texture)
+         (g/connect atlas-node :build-targets node-id :dep-build-targets)]
         []))
     []))
 

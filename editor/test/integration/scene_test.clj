@@ -63,7 +63,7 @@
                    (let [node (test-util/resource-node project path)
                          view (test-util/open-scene-view! project app-view node 128 128)]
                      (is (not (nil? node)) (format "Could not find '%s'" path))
-                     (test-fn (g/node-id node)))))))))
+                     (test-fn node))))))))
 
 (deftest gen-renderables
   (testing "Renderables generation"
@@ -86,7 +86,7 @@
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-node       (ffirst (g/sources-of (g/node-id resource-node) :child-scenes))]
+                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Press
                (test-util/mouse-press! view 32 32)
@@ -99,13 +99,13 @@
                (is (test-util/selected? project go-node))
                ; Deselect - default to "root" node
                (test-util/mouse-press! view 0 0)
-               (is (test-util/selected? project (g/node-id resource-node)))
+               (is (test-util/selected? project resource-node))
                ; Toggling
                (let [modifiers (if util/mac? [:meta] [:control])]
                  (test-util/mouse-click! view 32 32)
                  (is (test-util/selected? project go-node))
                  (test-util/mouse-click! view 32 32 modifiers)
-                 (is (test-util/selected? project (g/node-id resource-node))))))))
+                 (is (test-util/selected? project resource-node)))))))
 
 (deftest scene-multi-selection
   (testing "Scene multi selection"
@@ -116,7 +116,7 @@
                    path          "/logic/two_atlas_sprites.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-nodes      (map first (g/sources-of (g/node-id resource-node) :child-scenes))]
+                   go-nodes      (map first (g/sources-of resource-node :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Drag entire screen
                (test-util/mouse-drag! view 0 0 128 128)
@@ -139,7 +139,7 @@
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-node       (ffirst (g/sources-of (g/node-id resource-node) :child-scenes))]
+                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Initial selection
                (test-util/mouse-click! view 64 64)
@@ -173,7 +173,7 @@
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-node       (ffirst (g/sources-of (g/node-id resource-node) :child-scenes))]
+                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Click
                (test-util/mouse-click! view 32 32)
@@ -192,7 +192,7 @@
                (is (test-util/empty-selection? project))
                ;Select again
                (test-util/mouse-click! view 32 32)
-               (is (test-util/selected? project (g/node-id resource-node)))))))
+               (is (test-util/selected? project resource-node))))))
 
 (deftest transform-tools-empty-go
   (testing "Transform tools and manipulator interactions"
@@ -203,7 +203,7 @@
                    path          "/collection/empty_go.collection"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   go-node       (ffirst (g/sources-of (g/node-id resource-node) :child-scenes))]
+                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
                (is (test-util/empty-selection? project))
                ; Initial selection (empty go's are not selectable in the view)
                (project/select! project [go-node])

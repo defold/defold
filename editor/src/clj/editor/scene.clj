@@ -617,10 +617,10 @@
                    tool-controller scene-tools/ToolController]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
-                  (g/connect (g/node-id resource-node) :scene view-id :scene)
-                  (g/connect (g/node-id resource-node) :scene selection :scene)
-                  (g/set-graph-value view-graph :renderer renderer)
-                  (g/set-graph-value view-graph :camera   camera)
+                  (g/connect resource-node        :scene                     view-id          :scene)
+                  (g/connect resource-node        :scene                     selection        :scene)
+                  (g/set-graph-value view-graph   :renderer                  renderer)
+                  (g/set-graph-value view-graph   :camera                    camera)
 
                   (g/connect background           :renderable                renderer         :aux-renderables)
                   (g/connect camera               :camera                    renderer         :camera)

@@ -32,13 +32,14 @@
   (output label g/Keyword produce-label))
 
 (deftest compatible-inputs-and-outputs
-  (let [recv    (g/construct Receiver)
-        sender  (g/construct Sender1)
-        sampler (g/construct Sampler)
-        labeler (g/construct Labeler)]
-    (is (= #{[sender  :surname recv :surname]} (core/injection-candidates [recv] [sender])))
-    (is (= #{[sampler :sample  recv :samples]} (core/injection-candidates [recv] [sampler])))
-    (is (= #{[labeler :label   recv :label]}   (core/injection-candidates [recv] [labeler])))))
+  (with-clean-system
+    (let [[recv sender sampler labeler] (tx-nodes (g/make-node world Receiver)
+                                                  (g/make-node world Sender1)
+                                                  (g/make-node world Sampler)
+                                                  (g/make-node world Labeler))]
+      (is (= #{[sender  :surname recv :surname]} (core/injection-candidates (g/now) [recv] [sender])))
+      (is (= #{[sampler :sample  recv :samples]} (core/injection-candidates (g/now) [recv] [sampler])))
+      (is (= #{[labeler :label   recv :label]}   (core/injection-candidates (g/now) [recv] [labeler]))))))
 
 (g/defnode ValueConsumer
   (input local-names g/Str :inject :array)
@@ -62,7 +63,7 @@
                          world
                          [scope    InjectionScope
                           producer [ValueProducer :value "a known value"]]
-                         (g/connect producer :_self scope :nodes))))]
+                         (g/connect producer :_id scope :nodes))))]
         (is (= "a known value" (g/node-value scope :passthrough))))))
 
   (testing "attach one node output to input on another node"
@@ -75,8 +76,8 @@
                [scope core/Scope
                 producer [ValueProducer :value "a known value"]
                 consumer ValueConsumer]
-               (g/connect producer :_self scope :nodes)
-               (g/connect consumer :_self scope :nodes))))]
+               (g/connect producer :_id scope :nodes)
+               (g/connect consumer :_id scope :nodes))))]
         (is (= "a known value" (g/node-value consumer :concatenation))))))
 
   (testing "attach nodes in different transactions"
@@ -87,13 +88,13 @@
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
-                          (g/connect consumer :_self scope :nodes))))
+                          (g/connect consumer :_id scope :nodes))))
             [producer] (g/tx-nodes-added
                         (g/transact
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
-                          (g/connect producer :_self scope :nodes))))]
+                          (g/connect producer :_id scope :nodes))))]
         (is (= "a known value" (g/node-value consumer :concatenation))))))
 
   (testing "attach nodes in different transactions and reverse order"
@@ -104,13 +105,13 @@
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
-                          (g/connect producer :_self scope :nodes))))
+                          (g/connect producer :_id scope :nodes))))
             [consumer] (g/tx-nodes-added
                         (g/transact
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
-                          (g/connect consumer :_self scope :nodes))))]
+                          (g/connect consumer :_id scope :nodes))))]
         (is (= "a known value" (g/node-value consumer :concatenation))))))
 
   (testing "explicitly connect nodes, see if injection also happens"
@@ -121,13 +122,13 @@
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
-                          (g/connect producer :_self scope :nodes))))
+                          (g/connect producer :_id scope :nodes))))
             [consumer] (g/tx-nodes-added
                         (g/transact
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
-                          (g/connect consumer :_self scope :nodes)
+                          (g/connect consumer :_id scope :nodes)
                           (g/connect producer :local-name consumer :local-names))))]
         (is (= "a known value" (g/node-value consumer :concatenation)))))))
 
@@ -161,7 +162,7 @@
                           world
                           [provider [OutputProvider :context 119]
                            consumer InputConsumer]
-                          (g/connect consumer :_self provider :nodes))))]
+                          (g/connect consumer :_id provider :nodes))))]
         (is (= 1 (count (g/targets (g/now) provider :context)))))))
 
   (testing "two consumers each in their own nested scope"
@@ -173,13 +174,13 @@
                            world
                            [provider [OutputProvider :context 119]
                             consumer InputConsumer]
-                           (g/connect consumer :_self provider :nodes))))
+                           (g/connect consumer :_id provider :nodes))))
             [provider2] (g/tx-nodes-added
                          (g/transact
                           (g/make-nodes
                            world
                            [provider [OutputProvider :context 113]
                             consumer InputConsumer]
-                           (g/connect consumer :_self provider :nodes))))]
+                           (g/connect consumer :_id provider :nodes))))]
         (is (= 1 (count (g/targets (g/now) provider1 :context))))
         (is (= 1 (count (g/targets (g/now) provider2 :context))))))))
