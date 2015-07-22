@@ -473,12 +473,15 @@
 
   The label must exist as a defined transform on the node, or an
   AssertionError will result."
-  ([node label]
-   (in/node-value (now) (cache) node label))
-  ([basis node label]
-   (in/node-value basis (cache) node label))
-  ([basis cache node label]
-   (in/node-value basis cache node label)))
+  ([node-id label]
+   (in/node-value (now) (cache) node-id label))
+  ([basis node-id label]
+   (in/node-value basis (cache) node-id label))
+  ([basis cache node-id label]
+   (when (instance? Node node-id)
+     (try (throw (ex-info "Pass node IDs instead of node objects!" {}))
+          (catch Exception e (.printStackTrace e))))
+   (in/node-value basis cache node-id label)))
 
 (defn graph-value
   ([graph-id k]
