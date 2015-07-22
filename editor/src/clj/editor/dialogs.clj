@@ -4,14 +4,18 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [javafx.event ActionEvent EventHandler]
+  (:import [java.io File]
+           [java.nio.file Path Paths]
+           [javafx.beans.binding StringBinding]
+           [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button ProgressBar TextField]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.web WebView]
-           [javafx.stage Stage Modality]))
+           [javafx.stage Stage Modality DirectoryChooser]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -163,6 +167,53 @@
                                                  false)
                                            (.close stage)))))
     
+    (.initModality stage Modality/WINDOW_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+
+    @return))
+
+(defn- relativize [^File base ^File path]
+  (let [[^Path base ^Path path] (map #(Paths/get (.toURI ^File %)) [base path])]
+    (str ""
+         (when (.startsWith path base)
+           (-> base
+             (.relativize path)
+             (.toString))))))
+
+(defn make-new-file-dialog [^File base-dir ^File location type ext]
+  (let [root ^Parent (FXMLLoader/load (io/resource "new-file-dialog.fxml"))
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["name" "location" "browse" "path" "ok"])
+        return (atom nil)
+        close (fn [perform?]
+                (when perform?
+                  (reset! return (File. base-dir ^String (ui/text (:path controls)))))
+                (.close stage))
+        set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
+    (.initOwner stage (ui/main-stage))
+    (ui/title! stage (str "New " type))
+    (set-location location)
+
+    (.bind (.textProperty ^TextField (:path controls))
+      (.concat (.concat (.textProperty ^TextField (:location controls)) "/") (.concat (.textProperty ^TextField (:name controls)) (str "." ext))))
+    
+    (ui/on-action! (:browse controls) (fn [_] (let [location (-> (doto (DirectoryChooser.)
+                                                                   (.setInitialDirectory (File. (str base-dir "/" (ui/text (:location controls)))))
+                                                                   (.setTitle "Set Path"))
+                                                               (.showDialog nil))]
+                                                (when location
+                                                  (set-location location)))))
+    (ui/on-action! (:ok controls) (fn [_] (close true)))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+                     (ui/event-handler event
+                                       (let [code (.getCode ^KeyEvent event)]
+                                         (condp = code
+                                           KeyCode/ENTER (close true)
+                                           KeyCode/ESCAPE (close false)))))
+
     (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
     (ui/show-and-wait! stage)

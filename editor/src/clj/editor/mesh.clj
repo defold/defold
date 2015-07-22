@@ -22,7 +22,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
-(def mesh-icon "icons/pictures.png")
+(def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
 
 (defn- build-mesh [self basis resource dep-resources user-data]
   (let [content (:content user-data)]
@@ -112,6 +112,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "dae"
+                                    :label "Collada Mesh"
                                     :build-ext "meshc"
                                     :node-type MeshNode
                                     :icon mesh-icon))

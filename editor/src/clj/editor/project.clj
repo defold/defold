@@ -293,19 +293,20 @@ ordinary paths."
       (g/connect src src-label tgt tgt-label))))
 
 (defn connect-resource-node [project resource consumer-node connections]
-  (let [node (get-resource-node project resource)]
-    (if node
+  (if resource
+    (if-let [node (get-resource-node project resource)]
       (connect-if-output (g/node-type node) (g/node-id node) consumer-node connections)
       (let [resource-type (workspace/resource-type resource)
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
-          (g/node-id->graph-id project)
-          [new-resource [node-type :resource resource :project-id project]]
-          (g/connect new-resource :_self project :nodes)
-          (if ((g/output-labels node-type) :save-data)
-            (g/connect new-resource :save-data project :save-data)
-            [])
-          (connect-if-output node-type new-resource consumer-node connections))))))
+         (g/node-id->graph-id project)
+         [new-resource [node-type :resource resource :project-id project]]
+         (g/connect new-resource :_self project :nodes)
+         (if ((g/output-labels node-type) :save-data)
+           (g/connect new-resource :save-data project :save-data)
+           [])
+         (connect-if-output node-type new-resource consumer-node connections))))
+    []))
 
 (defn select
   [project-id node-ids]

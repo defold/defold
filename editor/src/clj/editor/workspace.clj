@@ -103,11 +103,12 @@ ordinary paths."
     (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
 (defn template [resource-type]
-  (when-let [template-path (:template resource-type)]
-    (with-open [f (io/reader (io/resource template-path))]
-      (slurp f))))
+  (when-let [template-path (or (:template resource-type) (str "templates/template." (:ext resource-type)))]
+    (when-let [resource (io/resource template-path)]
+      (with-open [f (io/reader resource)]
+        (slurp f)))))
 
-(def default-icons {:file "icons/page_white.png" :folder "icons/16/Icons_01-Folder-closed.png"})
+(def default-icons {:file "icons/32/Icons_29-AT-Unkown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
 
 (defn resource-icon [resource]
   (and resource (or (:icon (resource-type resource)) (get default-icons (source-type resource)))))
@@ -140,8 +141,10 @@ ordinary paths."
       ; TODO - bug in graph when invalidating internal dependencies, need to be explicit for every output
       (g/invalidate! (mapv #(do [workspace %]) [:resource-tree :resource-list :resource-map])))
     (when notify-listeners?
-      (doseq [listener @(g/node-value workspace :resource-listeners)]
-        (handle-changes listener changes))))))
+      (let [changes (into {} (map (fn [[type resources]]
+                                    [type (filter #(not (nil? (resource-type %))) resources)]) changes))]
+        (doseq [listener @(g/node-value workspace :resource-listeners)]
+          (handle-changes listener changes)))))))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))

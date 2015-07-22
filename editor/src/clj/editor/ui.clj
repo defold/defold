@@ -220,7 +220,7 @@
         (proxy-super updateItem (and object (:text render-data)) empty)
         (let [name (or (and (not empty) (:text render-data)) nil)]
           (proxy-super setText name))
-        (proxy-super setGraphic (jfx/get-image-view (:icon render-data)))))))
+        (proxy-super setGraphic (jfx/get-image-view (:icon render-data) 16))))))
 
 (defn- make-list-cell-factory [render-fn]
   (reify Callback (call ^ListCell [this view] (make-list-cell render-fn))))
@@ -312,7 +312,7 @@
   (when (seq menu-items)
     (let [menu (Menu. label)]
       (when icon
-        (.setGraphic menu (jfx/get-image-view icon)))
+        (.setGraphic menu (jfx/get-image-view icon 16)))
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
@@ -323,7 +323,7 @@
     (when acc
       (.setAccelerator menu-item (KeyCombination/keyCombination acc)))
     (when icon
-      (.setGraphic menu-item (jfx/get-image-view icon)))
+      (.setGraphic menu-item (jfx/get-image-view icon 16)))
     (.setDisable menu-item (not (handler/enabled? command command-contexts user-data)))
     (.setOnAction menu-item (event-handler event (handler/run command command-contexts user-data)))
     (user-data! menu-item ::menu-user-data user-data)
@@ -572,3 +572,11 @@ return value."
         fn-var     (first body)
         body       (rest body)]
     `(def ^:handler ~name [~command ~fn-var ~@body])))
+
+(defn tree-item-seq [item]
+  (if item
+    (tree-seq
+      #(not (.isLeaf ^TreeItem %))
+      #(seq (.getChildren ^TreeItem %))
+      item)
+    []))

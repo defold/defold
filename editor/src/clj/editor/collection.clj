@@ -457,9 +457,9 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "collection"
+                                    :label "Collection"
                                     :node-type CollectionNode
                                     :load-fn load-collection
                                     :icon collection-icon
                                     :view-types [:scene]
-                                    :view-opts {:scene {:grid true}}
-                                    :template "templates/template.collection"))
+                                    :view-opts {:scene {:grid true}}))
