@@ -168,3 +168,34 @@
     (ui/show-and-wait! stage)
 
     @return))
+
+(defn make-new-file-dialog [base-dir name]
+  (let [root ^Parent (FXMLLoader/load (io/resource "new-file-dialog.fxml"))
+        stage (Stage.)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["name" "ok"])
+        return (atom nil)
+        close (fn [] (reset! return (ui/text (:name controls))) (.close stage))]
+    (.initOwner stage (ui/main-stage))
+    (doto ^TextField (:name controls)
+      (ui/text! name)
+      (.home)
+      (.selectEndOfNextWord))
+    (ui/title! stage "New File")
+
+    (ui/on-action! (:ok controls) (fn [_] (close)))
+
+    (.addEventFilter scene KeyEvent/KEY_PRESSED
+                     (ui/event-handler event
+                                       (let [code (.getCode ^KeyEvent event)]
+                                         (when (condp = code
+                                                 KeyCode/ENTER (do (reset! return (ui/text (:name controls))) true)
+                                                 KeyCode/ESCAPE true
+                                                 false)
+                                           (.close stage)))))
+    
+    (.initModality stage Modality/WINDOW_MODAL)
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+
+    @return))

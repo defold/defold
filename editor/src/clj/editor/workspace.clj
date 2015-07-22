@@ -107,7 +107,7 @@ ordinary paths."
     (with-open [f (io/reader (io/resource template-path))]
       (slurp f))))
 
-(def default-icons {:file "icons/page_white.png" :folder "icons/16/Icons_01-Folder-closed.png"})
+(def default-icons {:file "icons/32/Icons_29-AT-Unkown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
 
 (defn resource-icon [resource]
   (and resource (or (:icon (resource-type resource)) (get default-icons (source-type resource)))))
