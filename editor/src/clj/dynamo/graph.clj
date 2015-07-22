@@ -508,7 +508,7 @@
   ([basis node-id] (arcs->tuples (gt/arcs-by-head basis node-id))))
 
 (defn node-feeding-into
-  "Find the one-and-only node that sources this input on this node.
+  "Find the one-and-only node ID that sources this input on this node.
    Should you use this on an input label with multiple connections,
    the result is undefined."
   ([node-id label]
@@ -517,13 +517,12 @@
    (ffirst (sources basis node-id label))))
 
 (defn sources-of
-  "Find the [node label] pairs for all connections into the given
+  "Find the [node-id label] pairs for all connections into the given
   node's input label. The result is a sequence of pairs."
   ([node-id label]
    (sources-of (now) node-id label))
   ([basis node-id label]
-   (map #(update %1 0 (partial node-by-id basis))
-        (sources basis node-id label))))
+   (gt/sources basis node-id label)))
 
 (defn invalidate!
   "Invalidate the given outputs and _everything_ that could be
