@@ -22,12 +22,10 @@
 
 (defn simple-copy-fragment [world]
   (let [[node1 node2] (ts/tx-nodes (g/make-node world ConsumerNode)
-                                   (g/make-node world ProducerNode))
-        node1-id      (g/node-id node1)
-        node2-id      (g/node-id node2)]
+                                   (g/make-node world ProducerNode))]
     (g/transact
-     (g/connect (g/node-id node2) :produces-value (g/node-id node1) :consumes-value))
-    (g/copy [node1-id] (constantly false))))
+     (g/connect node2 :produces-value node1 :consumes-value))
+    (g/copy [node1] (constantly false))))
 
 (deftest simple-copy
   (ts/with-clean-system
@@ -71,12 +69,12 @@
           paste-twice        (g/paste world fragment {})
           paste-twice-result (g/transact (:tx-data paste-twice))
           [node1-twice node2-twice] (g/tx-nodes-added paste-twice-result)]
-      (is (not= (g/node-id node1-once) (g/node-id node1-twice)))
-      (is (not= (g/node-id node2-once) (g/node-id node2-twice)))
-      (is (g/connected? (g/now) (g/node-id node2-once)  :produces-value (g/node-id node1-once)  :consumes-value))
-      (is (g/connected? (g/now) (g/node-id node2-twice) :produces-value (g/node-id node1-twice) :consumes-value))
-      (is (not (g/connected? (g/now) (g/node-id node2-once)  :produces-value (g/node-id node1-twice) :consumes-value)))
-      (is (not (g/connected? (g/now) (g/node-id node2-twice) :produces-value (g/node-id node1-once)  :consumes-value))))))
+      (is (not= node1-once node1-twice))
+      (is (not= node2-once node2-twice))
+      (is (g/connected? (g/now) node2-once  :produces-value node1-once  :consumes-value))
+      (is (g/connected? (g/now) node2-twice :produces-value node1-twice :consumes-value))
+      (is (not (g/connected? (g/now) node2-once  :produces-value node1-twice :consumes-value)))
+      (is (not (g/connected? (g/now) node2-twice :produces-value node1-once  :consumes-value))))))
 
 (defn diamond-copy-fragment [world]
   (let [[node1 node2 node3 node4] (ts/tx-nodes (g/make-node world ConsumeAndProduceNode)
@@ -84,11 +82,11 @@
                                                (g/make-node world ConsumeAndProduceNode)
                                                (g/make-node world ProducerNode) )]
     (g/transact
-     [(g/connect (g/node-id node2) :produces-value (g/node-id node1) :consumes-value)
-      (g/connect (g/node-id node3) :produces-value (g/node-id node1) :consumes-value)
-      (g/connect (g/node-id node4) :produces-value (g/node-id node3) :consumes-value)
-      (g/connect (g/node-id node4) :produces-value (g/node-id node2) :consumes-value)])
-    (g/copy [(g/node-id node1)] (constantly true))))
+     [(g/connect node2 :produces-value node1 :consumes-value)
+      (g/connect node3 :produces-value node1 :consumes-value)
+      (g/connect node4 :produces-value node3 :consumes-value)
+      (g/connect node4 :produces-value node2 :consumes-value)])
+    (g/copy [node1] (constantly true))))
 
 (deftest diamond-copy
   (ts/with-clean-system
@@ -121,13 +119,12 @@
   (ts/with-clean-system
     (let [[node1 node2 node3] (ts/tx-nodes (g/make-node world ConsumerNode)
                                            (g/make-node world ConsumeAndProduceNode)
-                                           (g/make-node world ConsumeAndProduceNode))
-          node1-id            (g/node-id node1)]
+                                           (g/make-node world ConsumeAndProduceNode))]
       (g/transact
-       [(g/connect (g/node-id node2) :produces-value (g/node-id node1) :consumes-value)
-        (g/connect (g/node-id node3) :produces-value (g/node-id node2) :consumes-value)
-        (g/connect (g/node-id node2) :produces-value (g/node-id node3) :consumes-value)])
-      (let [fragment            (g/copy [node1-id] (constantly true))
+       [(g/connect node2 :produces-value node1 :consumes-value)
+        (g/connect node3 :produces-value node2 :consumes-value)
+        (g/connect node2 :produces-value node3 :consumes-value)])
+      (let [fragment            (g/copy [node1] (constantly true))
             fragment-nodes      (:nodes fragment)]
         (is (= 3 (count (:arcs fragment))))
         (is (= 3 (count fragment-nodes)))))))
@@ -138,12 +135,11 @@
           g2                  (g/make-graph!)
           [node1 node2 node3] (ts/tx-nodes (g/make-node g1 ConsumerNode)
                                            (g/make-node g1 ConsumeAndProduceNode)
-                                           (g/make-node g2 ProducerNode))
-          node1-id            (g/node-id node1)]
+                                           (g/make-node g2 ProducerNode))]
       (g/transact
-       [(g/connect (g/node-id node2) :produces-value (g/node-id node1) :consumes-value)
-        (g/connect (g/node-id node3) :produces-value (g/node-id node2) :consumes-value)])
-      (let [fragment            (g/copy [node1-id] (constantly true))
+       [(g/connect node2 :produces-value node1 :consumes-value)
+        (g/connect node3 :produces-value node2 :consumes-value)])
+      (let [fragment            (g/copy [node1] (constantly true))
             fragment-nodes      (:nodes fragment)]
         (is (= 1 (count (:arcs fragment))))
         (is (= 2 (count fragment-nodes)))))))
@@ -154,7 +150,7 @@
 (deftest no-functions
   (ts/with-clean-system
     (let [[node1]       (ts/tx-nodes (g/make-node world FunctionPropertyNode :a-function (fn [] false)))
-          fragment      (g/copy [(g/node-id node1)] (constantly false))
+          fragment      (g/copy [node1] (constantly false))
           fragment-node (first (:nodes fragment))]
       (is (not (contains? (:properties fragment-node) :a-function))))))
 
@@ -179,11 +175,11 @@
                                                (g/make-node world StopperNode :a-property "the one and only")
                                                (g/make-node world ProducerNode))]
       (g/transact
-       [(g/connect (g/node-id node2) :produces-value (g/node-id node1) :consumes-value)
-        (g/connect (g/node-id node3) :produces-value (g/node-id node2) :consumes-value)
-        (g/connect (g/node-id node4) :produces-value (g/node-id node3) :discards-value)])
-      [node3 (g/copy [(g/node-id node1)] {:continue? stop-at-stoppers
-                                     :write-handlers {StopperNode serialize-stopper}})]))
+       [(g/connect node2 :produces-value node1 :consumes-value)
+        (g/connect node3 :produces-value node2 :consumes-value)
+        (g/connect node4 :produces-value node3 :discards-value)])
+      [node3 (g/copy [node1] {:continue? stop-at-stoppers
+                              :write-handlers {StopperNode serialize-stopper}})]))
 
 (deftest serialization-uses-predicates
   (ts/with-clean-system
@@ -210,5 +206,5 @@
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count (:nodes paste-data)) (count new-nodes-added)))
       (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
-      (is (g/connected? (g/now) (g/node-id original-stopper) :produces-value (g/node-id new-leaf) :consumes-value))
+      (is (g/connected? (g/now) original-stopper :produces-value (g/node-id new-leaf) :consumes-value))
       (is (= "the one and only" (g/node-value new-root :produces-value))))))

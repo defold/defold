@@ -223,12 +223,12 @@
                (let [path "/main/main.collection"
                      resource-node (test-util/resource-node project path)
                      _ (project/build project resource-node)
-                     cache-count (count @(:build-cache project))]
+                     cache-count (count @(g/node-value project :build-cache))]
                  (g/transact
                    (for [[node-id label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
                      (g/delete-node node-id)))
                  (project/build project resource-node)
-                 (is (< (count @(:build-cache project)) cache-count)))))))
+                 (is (< (count @(g/node-value project :build-cache)) cache-count)))))))
 
 (deftest prune-fs-build-cache
   (testing "Verify the fs build cache works as expected"
@@ -238,12 +238,12 @@
                (let [path "/main/main.collection"
                      resource-node (test-util/resource-node project path)
                      _ (project/build-and-write project resource-node)
-                     cache-count (count @(:fs-build-cache project))]
+                     cache-count (count @(g/node-value project :fs-build-cache))]
                  (g/transact
                    (for [[node-id label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
                      (g/delete-node node-id)))
                  (project/build-and-write project resource-node)
-                 (is (< (count @(:fs-build-cache project)) cache-count)))))))
+                 (is (< (count @(g/node-value project :fs-build-cache)) cache-count)))))))
 
 (deftest build-atlas
   (testing "Building atlas"

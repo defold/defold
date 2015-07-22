@@ -17,10 +17,10 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           proj-graph-id (g/make-graph! :history true :volatility 1)
-          project (project/make-project proj-graph-id workspace)]
-      (project/load-project project)
+          project-id (project/make-project proj-graph-id workspace)]
+      (project/load-project project-id)
       (is (not= 0 (node-count (g/graph proj-graph-id))))
-      (g/delete-node! (g/node-id project))
+      (g/delete-node! project-id)
       (let [final-node-ids (set (ig/node-ids (g/graph proj-graph-id)))
             orphans (map g/node-by-id final-node-ids)]
         (is (= 0 (count orphans)))))))
@@ -30,7 +30,7 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           project (test-util/setup-project! workspace)
-          graph-id (g/node->graph-id project)
+          graph-id (g/node-id->graph-id project)
           old-count (node-count (g/graph graph-id))
           old-node-ids (set (ig/node-ids (g/graph graph-id)))
           mem-resource (project/make-embedded-resource project resource-type-name inline-resource)]
