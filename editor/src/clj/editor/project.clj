@@ -241,7 +241,7 @@ ordinary paths."
           (let [nid resource-node]
             (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
     (when reset-undo?
-      (g/reset-undo! (g/node-id->graph-id project)))))
+      (g/reset-undo! (graph project)))))
 
 (g/defnode Project
   (inherits core/Scope)
@@ -298,7 +298,7 @@ ordinary paths."
       (let [resource-type (workspace/resource-type resource)
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
-         (g/node-id->graph-id project)
+         (graph project)
          [new-resource [node-type :resource resource :project-id project]]
          (g/connect new-resource :_id project :nodes)
          (if ((g/output-labels node-type) :save-data)
@@ -394,7 +394,7 @@ ordinary paths."
      [(g/operation-label \"paste sprite\")
   (:tx-data (g/paste fragment))])"
   [workspace project fragment]
-  (g/paste (g/node-id->graph-id project) fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}}))
+  (g/paste (graph project) fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}}))
 
 (defn workspace [project]
   (g/node-value project :workspace))
