@@ -628,8 +628,8 @@
    (paste (now) graph-id fragment opts))
   ([basis graph-id fragment {:keys [read-handlers] :as opts}]
    (let [node-txs      (vec (mapcat #(deserialize-node graph-id %) (:nodes fragment)))
-         nodes         (map :node node-txs)
-         id-dictionary (zipmap (map :serial-id (:nodes fragment)) (map #(gt/node-id (:node %)) node-txs))
+         nodes         (map (comp :_id :node) node-txs)
+         id-dictionary (zipmap (map :serial-id (:nodes fragment)) nodes)
          connect-txs   (mapcat #(deserialize-arc id-dictionary read-handlers %) (:arcs fragment))]
      {:root-node-ids (map #(get id-dictionary %) (:roots fragment))
       :nodes         nodes
