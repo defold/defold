@@ -81,7 +81,7 @@
 
 (def the-root (atom nil))
 
-(defn load-stage [workspace project prefs]
+(defn load-stage [workspace project-id prefs]
   (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
@@ -95,32 +95,32 @@
 
     (let [close-handler (ui/event-handler event
                           (g/transact
-                            (g/delete-node (g/node-id project)))
+                            (g/delete-node project-id))
                           (g/dispose-pending!))
           dispose-handler (ui/event-handler event (g/dispose-pending!))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
-    (let [^MenuBar menu-bar (.lookup root "#menu-bar")
+    (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
-          ^TreeView outline (.lookup root "#outline")
-          ^Tab assets (.lookup root "#assets")
-          app-view (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)]
+          ^TreeView outline    (.lookup root "#outline")
+          ^Tab assets          (.lookup root "#assets")
+          app-view-id          (app-view/make-app-view *view-graph* *project-graph* project-id stage menu-bar editor-tabs prefs)
+          outline-view-id      (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project-id nodes)) project-id)]
       (g/transact
         (concat
-          (g/connect (g/node-id project) :selected-node-ids (g/node-id outline-view) :selection)
+          (g/connect project-id :selected-node-ids outline-view-id :selection)
           (for [label [:active-resource :active-outline :open-resources]]
-            (g/connect (g/node-id app-view) label (g/node-id outline-view) label))
-          (g/update-property (g/node-id app-view) :auto-pulls conj [outline-view :tree-view])))
-      (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource))))
+            (g/connect app-view-id label outline-view-id label))
+          (g/update-property app-view-id :auto-pulls conj [outline-view-id :tree-view])))
+      (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view-id workspace project-id resource))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
 
 (defn- create-view [game-project ^VBox root place node-type]
-  (let [node (g/make-node! (g/node->graph-id game-project) node-type)]
-    (core/post-create node (g/now) {:parent (.lookup root place)})))
+  (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
+    (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
@@ -128,29 +128,27 @@
       (concat
         (text/register-view-types workspace)
         (scene/register-view-types workspace)))
-    (let [workspace (g/refresh workspace)]
-      (g/transact
-        (concat
-          (collection/register-resource-types workspace)
-          (font/register-resource-types workspace)
-          (game-object/register-resource-types workspace)
-          (game-project/register-resource-types workspace)
-          (cubemap/register-resource-types workspace)
-          (image/register-resource-types workspace)
-          (atlas/register-resource-types workspace)
-          (platformer/register-resource-types workspace)
-          (protobuf-types/register-resource-types workspace)
-          (script/register-resource-types workspace)
-          (switcher/register-resource-types workspace)
-          (sprite/register-resource-types workspace)
-          (shader/register-resource-types workspace)
-          (tile-source/register-resource-types workspace)
-          (sound/register-resource-types workspace)
-          (spine/register-resource-types workspace)
-          (json/register-resource-types workspace)
-          (mesh/register-resource-types workspace))))
-    (g/refresh workspace)))
-
+    (g/transact
+     (concat
+      (collection/register-resource-types workspace)
+      (font/register-resource-types workspace)
+      (game-object/register-resource-types workspace)
+      (game-project/register-resource-types workspace)
+      (cubemap/register-resource-types workspace)
+      (image/register-resource-types workspace)
+      (atlas/register-resource-types workspace)
+      (platformer/register-resource-types workspace)
+      (protobuf-types/register-resource-types workspace)
+      (script/register-resource-types workspace)
+      (switcher/register-resource-types workspace)
+      (sprite/register-resource-types workspace)
+      (shader/register-resource-types workspace)
+      (tile-source/register-resource-types workspace)
+      (sound/register-resource-types workspace)
+      (spine/register-resource-types workspace)
+      (json/register-resource-types workspace)
+      (mesh/register-resource-types workspace)))
+    workspace))
 
 (defn open-project
   [^File game-project-file prefs]

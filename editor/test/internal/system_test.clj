@@ -84,7 +84,7 @@
             tx-report    (g/transact [(g/make-node pgraph-id Root)
                                       (g/operation-label "Build root")])
             root         (first (g/tx-nodes-added tx-report))
-            tx-report    (g/transact [(g/set-property (g/node-id root) :touched 1)
+            tx-report    (g/transact [(g/set-property root :touched 1)
                                       (g/operation-label "Increment touch count")])
             undos-after  (is/undo-stack (graph-history pgraph-id))
             redos-after  (is/redo-stack (graph-history pgraph-id))
@@ -110,7 +110,7 @@
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
 
-          (g/transact (g/set-property (g/node-id root) :touched 1))
+          (g/transact (g/set-property root :touched 1))
 
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
@@ -132,7 +132,7 @@
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
 
-          (g/transact (g/set-property (g/node-id root) :touched 1))
+          (g/transact (g/set-property root :touched 1))
 
           (is      (g/has-undo? pgraph-id))
           (is (not (g/has-redo? pgraph-id)))
@@ -153,7 +153,7 @@
                      [(g/operation-label label)
                       (when seq-id
                         (g/operation-sequence seq-id))
-                      (g/set-property (g/node-id node) :touched label)])))
+                      (g/set-property node :touched label)])))
 
 (deftest undo-coalescing
   (testing "Transactions with no sequence-id each make an undo point"
@@ -306,8 +306,8 @@
 
           (touch node-p 1 :a)
 
-          (g/transact [(g/set-property (g/node-id node-p) :touched 2)
-                        (g/set-property (g/node-id node-a) :touched 2)
+          (g/transact [(g/set-property node-p :touched 2)
+                        (g/set-property node-a :touched 2)
                         (g/operation-label 2)
                         (g/operation-sequence :a)])
 
@@ -337,8 +337,6 @@
   (input target-label String)
   (output loud String :cached (g/fnk [target-label] (when target-label (str/upper-case target-label)))))
 
-(defn id [n] (g/node-id n))
-
 (deftest tracing-across-graphs
   (ts/with-clean-system
     (let [pgraph-id (g/make-graph! :history true)
@@ -353,24 +351,24 @@
                                                      (g/make-node agraph-id Sink))]
 
         (g/transact
-         [(g/connect (g/node-id source-p1) :source-label (g/node-id sink-p1) :target-label)
-          (g/connect (g/node-id source-p1) :source-label (g/node-id pipe-p1) :target-label)
-          (g/connect (g/node-id pipe-p1)   :soft         (g/node-id sink-a1) :target-label)
-          (g/connect (g/node-id source-a1) :source-label (g/node-id sink-a2) :target-label)])
+         [(g/connect source-p1 :source-label sink-p1 :target-label)
+          (g/connect source-p1 :source-label pipe-p1 :target-label)
+          (g/connect pipe-p1   :soft         sink-a1 :target-label)
+          (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-        (is (= (set (g/dependencies (g/now) [[(id source-a1) :source-label]]))
-               #{[(id sink-a2)   :loud]
-                 [(id source-a1) :source-label]
-                 [(id source-a1) :_self]
-                 [(id source-a1) :_properties]}))
+        (is (= (set (g/dependencies (g/now) [[source-a1 :source-label]]))
+               #{[sink-a2   :loud]
+                 [source-a1 :source-label]
+                 [source-a1 :_self]
+                 [source-a1 :_properties]}))
 
-        (is (= (set (g/dependencies (g/now) [[(id source-p1) :source-label]]))
-               #{[(id sink-p1)   :loud]
-                 [(id pipe-p1)   :soft]
-                 [(id sink-a1)   :loud]
-                 [(id source-p1) :source-label]
-                 [(id source-p1) :_self]
-                 [(id source-p1) :_properties]}))))))
+        (is (= (set (g/dependencies (g/now) [[source-p1 :source-label]]))
+               #{[sink-p1   :loud]
+                 [pipe-p1   :soft]
+                 [sink-a1   :loud]
+                 [source-p1 :source-label]
+                 [source-p1 :_self]
+                 [source-p1 :_properties]}))))))
 
 (g/defnode ChainedLink
   (input source-label String)
@@ -391,20 +389,20 @@
                                             (g/make-node view-graph Sink))]
         (g/transact
          (concat
-          (g/connect (g/node-id source) :source-label (g/node-id link) :source-label)
-          (g/connect (g/node-id link)   :source-label (g/node-id sink) :target-label)))
+          (g/connect source :source-label link :source-label)
+          (g/connect link   :source-label sink :target-label)))
 
         (is (= "FROM PROJECT GRAPH" (g/node-value sink :loud)))
         (g/transact
-         (g/set-property (g/node-id source) :source-label "after change"))
+         (g/set-property source :source-label "after change"))
 
-        (g/delete-node! (g/node-id source))
+        (g/delete-node! source)
         (is (= nil (g/node-value sink :loud)))
 
         (g/undo! project-graph)
         (is (= "AFTER CHANGE" (g/node-value sink :loud)))
 
-        (g/delete-node! (g/node-id source))
+        (g/delete-node! source)
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn bump-counter
@@ -434,10 +432,10 @@
                                                        (g/make-node agraph-id Sink))]
 
           (g/transact
-           [(g/connect (g/node-id source-p1) :source-label (g/node-id sink-p1) :target-label)
-            (g/connect (g/node-id source-p1) :source-label (g/node-id pipe-p1) :target-label)
-            (g/connect (g/node-id pipe-p1)   :soft         (g/node-id sink-a1) :target-label)
-            (g/connect (g/node-id source-a1) :source-label (g/node-id sink-a2) :target-label)])
+           [(g/connect source-p1 :source-label sink-p1 :target-label)
+            (g/connect source-p1 :source-label pipe-p1 :target-label)
+            (g/connect pipe-p1   :soft         sink-a1 :target-label)
+            (g/connect source-a1 :source-label sink-a2 :target-label)])
 
           (is (undo-redo-state? pgraph-id [nil nil] []))
 
@@ -447,12 +445,12 @@
 
           (is (undo-redo-state? pgraph-id [nil nil] []))
 
-          (is (= (set (g/dependencies (g/now) [[(id source-p1) :source-label]]))
-                 #{[(id sink-p1)   :loud]
-                   [(id pipe-p1)   :soft]
-                   [(id source-p1) :source-label]
-                   [(id source-p1) :_self]
-                   [(id source-p1) :_properties]}))))))
+          (is (= (set (g/dependencies (g/now) [[source-p1 :source-label]]))
+                 #{[sink-p1   :loud]
+                   [pipe-p1   :soft]
+                   [source-p1 :source-label]
+                   [source-p1 :_self]
+                   [source-p1 :_properties]}))))))
 
   (testing "Nodes in a deleted graph are deleted"
     (ts/with-clean-system
@@ -463,7 +461,7 @@
                        (g/make-node pgraph-id CountOnDelete :counter ctr)))]
           (g/transact
            (for [[n1 n2] (partition 2 1 nodes)]
-             (g/connect (g/node-id n1) :downstream (g/node-id n2) :upstream)))
+             (g/connect n1 :downstream n2 :upstream)))
           (g/delete-graph! pgraph-id)
 
           (is (= 100 @ctr))))))
@@ -482,10 +480,10 @@
                                                        (g/make-node view-graph-id Sink))]
 
           (g/transact
-           [(g/connect (g/node-id source-p1) :source-label (g/node-id sink-p1) :target-label)
-            (g/connect (g/node-id source-p1) :source-label (g/node-id pipe-p1) :target-label)
-            (g/connect (g/node-id pipe-p1)   :soft         (g/node-id sink-a1) :target-label)
-            (g/connect (g/node-id source-a1) :source-label (g/node-id sink-a2) :target-label)])
+           [(g/connect source-p1 :source-label sink-p1 :target-label)
+            (g/connect source-p1 :source-label pipe-p1 :target-label)
+            (g/connect pipe-p1   :soft         sink-a1 :target-label)
+            (g/connect source-a1 :source-label sink-a2 :target-label)])
 
           (is (undo-redo-state? project-graph-id [nil nil] []))
 
@@ -495,11 +493,11 @@
 
           (is (nil? (graph-ref project-graph-id)))
 
-          (is (= (set (g/dependencies (g/now) [[(id source-a1) :source-label]]))
-                 #{[(id sink-a2)   :loud]
-                   [(id source-a1) :source-label]
-                   [(id source-a1) :_self]
-                   [(id source-a1) :_properties]})))))))
+          (is (= (set (g/dependencies (g/now) [[source-a1 :source-label]]))
+                 #{[sink-a2   :loud]
+                   [source-a1 :source-label]
+                   [source-a1 :_self]
+                   [source-a1 :_properties]})))))))
 
 (deftest graph-values
   (testing "Values can be attached to graphs"

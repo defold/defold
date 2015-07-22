@@ -171,13 +171,13 @@
   (output scene         g/Any :cached produce-scene))
 
 (defn load-level [project self input]
-  (with-open [reader (PushbackReader. (io/reader (:resource self)))]
+  (with-open [reader (PushbackReader. (io/reader (g/node-value self :resource)))]
     (let [level (edn/read reader)]
       (concat
-        (g/set-property (g/node-id self) :control-points (:control-points level))
-        (g/set-property (g/node-id self) :base-texture (:base-texture level))
-        (if-let [img-resource (workspace/resolve-resource (:resource self) (:base-texture level))]
-          (project/connect-resource-node project img-resource (g/node-id self) [[:content :base-texture-img]])
+        (g/set-property self :control-points (:control-points level))
+        (g/set-property self :base-texture (:base-texture level))
+        (if-let [img-resource (workspace/resolve-resource (g/node-value self :resource) (:base-texture level))]
+          (project/connect-resource-node project img-resource self [[:content :base-texture-img]])
           [])))))
 
 (defn register-resource-types [workspace]

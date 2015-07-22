@@ -441,8 +441,10 @@
 (defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
 (defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
 
-(defn- has-property? [node-type argument] (gt/property-type node-type argument))
-(defn- has-output? [node-type argument] (gt/output-type node-type argument))
+(defn has-input?    [node-type argument] (gt/input-type node-type argument))
+(defn has-property? [node-type argument] (gt/property-type node-type argument))
+(defn has-output?   [node-type argument] (gt/output-type node-type argument))
+
 (defn- property-overloads-output? [node-type argument output] (and (= output argument) (has-property? node-type argument)))
 (defn- unoverloaded-output? [node-type argument output] (and (not= output argument) (has-output? node-type argument)))
 

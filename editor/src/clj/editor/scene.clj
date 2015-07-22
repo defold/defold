@@ -426,28 +426,28 @@
 (defn- make-scene-view [scene-graph ^Parent parent opts]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
-    (let [view (g/make-node! scene-graph SceneView :image-view image-view)]
-      (let [node-id (g/node-id view)
+    (let [view-id (g/make-node! scene-graph SceneView :image-view image-view)]
+      (let [node-id view-id
             tool-user-data (atom [])
             event-handler (reify EventHandler (handle [this e]
-                                                (let [action (augment-action node-id (i/action-from-jfx e))
+                                                (let [action (augment-action view-id (i/action-from-jfx e))
                                                       x (:x action)
                                                       y (:y action)
                                                       pos [x y 0.0]
                                                       picking-rect (calc-picking-rect pos pos)]
                                                   ; Only look for tool selection when the mouse is moving with no button pressed
                                                   (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
-                                                    (reset! tool-user-data (g/node-value node-id :selected-tool-renderables)))
-                                                  (g/transact (g/set-property node-id :picking-rect picking-rect))
-                                                  (dispatch-input (g/sources-of node-id :input-handlers) action @tool-user-data))))
+                                                    (reset! tool-user-data (g/node-value view-id :selected-tool-renderables)))
+                                                  (g/transact (g/set-property view-id :picking-rect picking-rect))
+                                                  (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))
             change-listener (reify ChangeListener (changed [this observable old-val new-val]
                                                     (Platform/runLater
                                                      (fn []
                                                        (let [bb ^BoundingBox (.getBoundsInParent (.getParent parent))
                                                              w (- (.getMaxX bb) (.getMinX bb))
                                                              h (- (.getMaxY bb) (.getMinY bb))]
-                                                         (flip-y (:image-view (g/node-by-id node-id)) h)
-                                                         (g/transact (g/set-property node-id :viewport (types/->Region 0 w 0 h))))))))]
+                                                         (flip-y (g/node-value view-id :image-view) h)
+                                                         (g/transact (g/set-property view-id :viewport (types/->Region 0 w 0 h))))))))]
         (.setOnMousePressed parent event-handler)
         (.setOnMouseReleased parent event-handler)
         (.setOnMouseClicked parent event-handler)
@@ -461,19 +461,18 @@
               repainter   (proxy [AnimationTimer] []
                             (handle [now]
                               (when *fps-debug* (send-off fps-counter tick now))
-                              (let [self                  (g/node-by-id node-id)
-                                    image-view ^ImageView (:image-view self)
+                              (let [image-view ^ImageView (g/node-value view-id :image-view)
                                     visible               (.isSelected tab)]
                                 (when (and visible)
                                   (try
-                                    (let [image (g/node-value self :image)]
+                                    (let [image (g/node-value view-id :image)]
                                       (when (not= image (.getImage image-view)) (.setImage image-view image)))
                                     (catch Exception e
                                       (.setImage image-view nil)
                                       (.stop ^AnimationTimer this)))))))]
-          (g/transact (g/set-property (g/node-id view) :repainter repainter))
+          (g/transact (g/set-property view-id :repainter repainter))
           (.start repainter)))
-      (g/refresh view))))
+      view-id)))
 
 
 (g/defnode PreviewView
@@ -605,10 +604,10 @@
                                                                                     :user-data {:start start :current current}}]}))
   (output input-handler Runnable :cached (g/always handle-selection-input)))
 
-(defn setup-view [view resource-node opts]
-  (let [view-graph (g/node->graph-id view)
-        app-view   (:app-view opts)
-        project    (:project opts)]
+(defn setup-view [view-id resource-node opts]
+  (let [view-graph  (g/node-id->graph-id view-id)
+        app-view-id (:app-view opts)
+        project     (:project opts)]
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
                    selection  [SelectionController :select-fn (fn [selection op-seq] (project/select! project selection op-seq))]
@@ -618,32 +617,32 @@
                    tool-controller scene-tools/ToolController]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
-                  (g/connect (g/node-id resource-node) :scene (g/node-id view) :scene)
+                  (g/connect (g/node-id resource-node) :scene view-id :scene)
                   (g/connect (g/node-id resource-node) :scene selection :scene)
                   (g/set-graph-value view-graph :renderer renderer)
                   (g/set-graph-value view-graph :camera   camera)
 
                   (g/connect background           :renderable                renderer         :aux-renderables)
                   (g/connect camera               :camera                    renderer         :camera)
-                  (g/connect camera               :input-handler             (g/node-id view) :input-handlers)
-                  (g/connect (g/node-id view)     :aabb                      camera           :aabb)
-                  (g/connect (g/node-id view)     :viewport                  camera           :viewport)
-                  (g/connect (g/node-id view)     :viewport                  renderer         :viewport)
-                  (g/connect (g/node-id view)     :scene                     renderer         :scene)
+                  (g/connect camera               :input-handler             view-id          :input-handlers)
+                  (g/connect view-id              :aabb                      camera           :aabb)
+                  (g/connect view-id              :viewport                  camera           :viewport)
+                  (g/connect view-id              :viewport                  renderer         :viewport)
+                  (g/connect view-id              :scene                     renderer         :scene)
 
-                  (g/connect (g/node-id project)  :selected-node-ids         (g/node-id view) :selection)
-                  (g/connect (g/node-id view)     :selection                 renderer         :selection)
-                  (g/connect renderer             :frame                     (g/node-id view) :frame)
+                  (g/connect project              :selected-node-ids         view-id          :selection)
+                  (g/connect view-id              :selection                 renderer         :selection)
+                  (g/connect renderer             :frame                     view-id          :frame)
 
-                  (g/connect tool-controller      :input-handler             (g/node-id view) :input-handlers)
+                  (g/connect tool-controller      :input-handler             view-id          :input-handlers)
 
                   (g/connect selection            :renderable                renderer         :tool-renderables)
-                  (g/connect selection            :input-handler             (g/node-id view) :input-handlers)
+                  (g/connect selection            :input-handler             view-id          :input-handlers)
                   (g/connect selection            :picking-rect              renderer         :picking-rect)
                   (g/connect renderer             :picking-selection         selection        :picking-selection)
-                  (g/connect (g/node-id view)     :selection                 selection        :selection)
-                  (g/connect (g/node-id view)     :picking-rect              renderer         :tool-picking-rect)
-                  (g/connect renderer             :selected-tool-renderables (g/node-id view) :selected-tool-renderables)
+                  (g/connect view-id              :selection                 selection        :selection)
+                  (g/connect view-id              :picking-rect              renderer         :tool-picking-rect)
+                  (g/connect renderer             :selected-tool-renderables view-id          :selected-tool-renderables)
 
                   (g/connect grid                 :renderable                renderer         :aux-renderables)
                   (g/connect camera               :camera                    grid             :camera)
@@ -651,25 +650,25 @@
 
                   (g/connect tool-controller      :renderables               renderer         :tool-renderables)
 
-                  (g/connect (g/node-id app-view) :active-tool               (g/node-id view) :active-tool)
-                  (g/connect (g/node-id view)     :active-tool               tool-controller  :active-tool)
-                  (g/connect (g/node-id view)     :viewport                  tool-controller  :viewport)
+                  (g/connect app-view-id          :active-tool               view-id          :active-tool)
+                  (g/connect view-id              :active-tool               tool-controller  :active-tool)
+                  (g/connect view-id              :viewport                  tool-controller  :viewport)
                   (g/connect camera               :camera                    tool-controller  :camera)
                   (g/connect renderer             :selected-renderables      tool-controller  :selected-renderables)
                   (when (not (:grid opts))
                     (g/delete-node grid)))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
-  (let [view (make-scene-view graph parent opts)]
+  (let [view-id (make-scene-view graph parent opts)]
     (g/transact
-      (setup-view view resource-node opts))
-    view))
+      (setup-view view-id resource-node opts))
+    view-id))
 
 (defn make-preview [graph resource-node opts width height]
-  (let [view (make-preview-view graph width height)]
+  (let [view-id (make-preview-view graph width height)]
     (g/transact
-      (setup-view view resource-node (dissoc opts :grid)))
-    view))
+      (setup-view view-id resource-node (dissoc opts :grid)))
+    view-id))
 
 (defn register-view-types [workspace]
                                (workspace/register-view-type workspace

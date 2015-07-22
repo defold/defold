@@ -120,12 +120,12 @@
 (defn load-cubemap [project self input]
   (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))]
     (for [[side input] cubemap-message
-          :let [img-resource (workspace/resolve-resource (:resource self) input)]]
+          :let [img-resource (workspace/resolve-resource (g/node-value self :resource) input)]]
       (concat
         (project/connect-resource-node project
-                                       img-resource (g/node-id self)
+                                       img-resource self
                                        [[:content (keyword (subs (str side "-img") 1))]])
-        (g/set-property (g/node-id self) side input)))))
+        (g/set-property self side input)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

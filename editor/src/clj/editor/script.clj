@@ -87,10 +87,10 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-script [project self input]
-  (let [content (slurp input)
-        resource (:resource self)]
+  (let [content  (slurp input)
+        resource (g/node-value self :resource)]
     (concat
-      (g/set-property (g/node-id self) :content content))))
+      (g/set-property self :content content))))
 
 (defn- register [workspace def]
   (workspace/register-resource-type workspace

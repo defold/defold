@@ -244,15 +244,14 @@
                                      nil)))
 
 (defn make-properties-view [workspace project view-graph parent]
-  (let [view      (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
-        self-ref  (g/node-id view)
+  (let [view-id   (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         repainter (proxy [AnimationTimer] []
                     (handle [now]
-                      (let [self (g/node-by-id self-ref)
-                            grid (g/node-value self :grid-pane)])))]
+                      (let [self (g/node-by-id view-id)
+                            grid (g/node-value view-id :grid-pane)])))]
     (g/transact
       (concat
-        (g/set-property (g/node-id view) :repainter repainter)
-        (g/connect (g/node-id project) :selected-node-properties (g/node-id view) :selected-node-properties)))
+        (g/set-property view-id :repainter repainter)
+        (g/connect project :selected-node-properties view-id :selected-node-properties)))
     (.start repainter)
-    (g/refresh view)))
+    view-id))
