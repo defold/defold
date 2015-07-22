@@ -91,14 +91,13 @@
          (.delete (File. (workspace/abs-path resource))))
        (workspace/fs-sync workspace)))
 
-(handler/defhandler :show-in-desktop :asset-browser
-  (enabled? [selection] (and (= 1 (count selection)) (not= nil (workspace/abs-path (first selection)))) )
-  (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))
-                         dir (to-folder f)]
-                     (.open (Desktop/getDesktop) dir))))
-
 (defn- to-folder [file]
   (if (.isFile file) (.getParentFile file) file))
+
+(handler/defhandler :show-in-desktop :asset-browser
+  (enabled? [selection] (and (= 1 (count selection)) (not= nil (workspace/abs-path (first selection)))) )
+  (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))]
+                     (.open (Desktop/getDesktop) (to-folder f)))))
 
 (handler/defhandler :new-file :asset-browser
   (label [user-data] (if-not user-data
