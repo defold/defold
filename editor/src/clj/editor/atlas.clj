@@ -140,13 +140,13 @@
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
 (g/defnk produce-build-targets [_node-id project-id resource texture-set-data save-data]
-  (let [workspace (project/workspace (g/node-by-id project-id))
-        texture-type (workspace/get-resource-type workspace "texture")
+  (let [workspace        (project/workspace project-id)
+        texture-type     (workspace/get-resource-type workspace "texture")
         texture-resource (workspace/make-memory-resource workspace texture-type (:content save-data))
-        texture-target {:node-id _node-id
-                        :resource (workspace/make-build-resource texture-resource)
-                        :build-fn build-texture
-                        :user-data {:image (:image texture-set-data)}}]
+        texture-target   {:node-id   _node-id
+                          :resource  (workspace/make-build-resource texture-resource)
+                          :build-fn  build-texture
+                          :user-data {:image (:image texture-set-data)}}]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture-set
@@ -247,32 +247,32 @@
       [atlas-image [AtlasImage]]
       (project/connect-resource-node (project/get-project base-node) image atlas-image [[:content :src-image]
                                                                                         [:resource :src-resource]])
-      (g/connect atlas-image :_self       (g/node-id base-node)   :nodes)
+      (g/connect atlas-image :_self       base-node   :nodes)
       (g/connect atlas-image src-label    parent      tgt-label)
       (g/connect atlas-image :outline     parent      :outline)
       (g/connect atlas-image :ddf-message parent      :img-ddf))))
 
 (defn add-images [atlas-node img-resources]
-  (attach-atlas-image-nodes (g/node->graph-id atlas-node) atlas-node (g/node-id atlas-node) img-resources :animation :animations))
+  (attach-atlas-image-nodes (g/node-id->graph-id atlas-node) atlas-node atlas-node img-resources :animation :animations))
 
 (defn load-atlas [project self input]
   (let [atlas         (protobuf/read-text AtlasProto$Atlas input)
-        graph-id      (g/node->graph-id self)]
+        graph-id      (g/node-id->graph-id self)]
     (concat
-      (g/set-property (g/node-id self) :margin (:margin atlas))
-      (g/set-property (g/node-id self) :inner-padding (:inner-padding atlas))
-      (g/set-property (g/node-id self) :extrude-borders (:extrude-borders atlas))
-      (attach-atlas-image-nodes graph-id self (g/node-id self) (map :image (:images atlas)) :animation :animations)
+      (g/set-property self :margin (:margin atlas))
+      (g/set-property self :inner-padding (:inner-padding atlas))
+      (g/set-property self :extrude-borders (:extrude-borders atlas))
+      (attach-atlas-image-nodes graph-id self self (map :image (:images atlas)) :animation :animations)
       (for [anim (:animations atlas)
             :let [images (map :image (:images anim))]]
         (g/make-nodes
-          (g/node->graph-id self)
+          (g/node-id->graph-id self)
           [atlas-anim [AtlasAnimation :flip-horizontal (not= 0 (:flip-horizontal anim)) :flip-vertical (not= 0 (:flip-vertical anim))
                        :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
-          (g/connect atlas-anim :_self       (g/node-id self) :nodes)
-          (g/connect atlas-anim :animation   (g/node-id self) :animations)
-          (g/connect atlas-anim :outline     (g/node-id self) :outline)
-          (g/connect atlas-anim :ddf-message (g/node-id self) :anim-ddf)
+          (g/connect atlas-anim :_self       self :nodes)
+          (g/connect atlas-anim :animation   self :animations)
+          (g/connect atlas-anim :outline     self :outline)
+          (g/connect atlas-anim :ddf-message self :anim-ddf)
           (attach-atlas-image-nodes graph-id self atlas-anim images :image :frames))))))
 
 (defn register-resource-types [workspace]

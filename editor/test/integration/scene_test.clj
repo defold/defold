@@ -74,7 +74,7 @@
                    path          "/sprite/small_atlas.sprite"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   renderables   (g/node-value (g/graph-value (g/node->graph-id view) :renderer) :renderables)]
+                   renderables   (g/node-value (g/graph-value (g/node-id->graph-id view) :renderer) :renderables)]
                (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
@@ -134,7 +134,7 @@
            (with-clean-system
              (let [workspace     (test-util/setup-workspace! world)
                    project       (test-util/setup-project! workspace)
-                   project-graph (g/node->graph-id project)
+                   project-graph (g/node-id->graph-id project)
                    app-view      (test-util/setup-app-view!)
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
@@ -168,7 +168,7 @@
            (with-clean-system
              (let [workspace     (test-util/setup-workspace! world)
                    project       (test-util/setup-project! workspace)
-                   project-graph (g/node->graph-id project)
+                   project-graph (g/node-id->graph-id project)
                    app-view      (test-util/setup-app-view!)
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)

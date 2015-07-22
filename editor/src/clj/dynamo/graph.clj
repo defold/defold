@@ -19,6 +19,8 @@
 
 (namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties declared-inputs injectable-inputs declared-outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
 
+(namespaces/import-vars [internal.node has-input? has-output? has-property?])
+
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
 (namespaces/import-vars [internal.graph.types IDisposable dispose disposable?])
@@ -126,8 +128,8 @@
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------
 (defn tx-nodes-added
-  [{:keys [basis nodes-added]}]
-  (map (partial ig/node-by-id-at basis) nodes-added))
+  [transaction]
+  (:nodes-added transaction))
 
 (defn is-modified?
   ([transaction node-id]

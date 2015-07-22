@@ -271,18 +271,18 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-sprite [project self input]
-  (let [sprite (protobuf/read-text Sprite$SpriteDesc input)
-        resource (:resource self)
-        image (workspace/resolve-resource resource (:tile-set sprite))
+  (let [sprite   (protobuf/read-text Sprite$SpriteDesc input)
+        resource (g/node-value self :resource)
+        image    (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
-      (g/set-property (g/node-id self) :image image)
-      (g/set-property (g/node-id self) :default-animation (:default-animation sprite))
-      (g/set-property (g/node-id self) :material material)
-      (g/set-property (g/node-id self) :blend-mode (:blend-mode sprite))
-      (connect-image project (g/node-id self) image)
+      (g/set-property self :image image)
+      (g/set-property self :default-animation (:default-animation sprite))
+      (g/set-property self :material material)
+      (g/set-property self :blend-mode (:blend-mode sprite))
+      (connect-image project self image)
       (if-let [material-node (project/get-resource-node project material)]
-        (g/connect (g/node-id material-node) :build-targets (g/node-id self) :dep-build-targets)
+        (g/connect (g/node-id material-node) :build-targets self :dep-build-targets)
         []))))
 
 (defn register-resource-types [workspace]

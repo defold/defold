@@ -4,14 +4,7 @@
             [editor.messages :as m])
   (:import [clojure.lang Compiler]))
 
-(def test-namespaces '[editor.buffers-test
-                       dynamo.defnode-test
-                       editor.geom-test
-                       editor.gl.translate-test
-                       editor.gl.vertex-test
-                       editor.image-test
-                       dynamo.transaction-test
-                       dynamo.util-test
+(def test-namespaces '[dynamo.defnode-test
                        dynamo.integration.error-substitute-values
                        dynamo.integration.garbage-collection
                        dynamo.integration.graph-functions
@@ -19,18 +12,29 @@
                        dynamo.integration.schema-validation
                        dynamo.integration.value-disposal
                        dynamo.integration.visibility-enablement
+                       dynamo.transaction-test
+                       dynamo.util-test
+                       editor.buffers-test
+                       editor.geom-test
+                       editor.gl.translate-test
+                       editor.gl.vertex-test
                        editor.handler-test
+                       editor.image-test
                        editor.injection-test
                        editor.math-test
                        editor.project-test
                        editor.ui-test
-                       integration.undo-test
                        integration.asset-browser-test
+                       integration.benchmark-test
+                       integration.build-test
+                       integration.collection-test
+                       integration.copy-paste-test
+                       integration.reload-test
                        integration.save-test
                        integration.scene-test
                        integration.scope-test
-                       integration.collection-test
-                       integration.copy-paste-test
+                       integration.tex-packing-test
+                       integration.undo-test
                        internal.cache-test
                        internal.connection-rules
                        internal.copy-paste-test

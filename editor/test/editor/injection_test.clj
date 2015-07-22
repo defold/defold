@@ -87,13 +87,13 @@
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
-                          (g/connect consumer :_self (g/node-id scope) :nodes))))
+                          (g/connect consumer :_self scope :nodes))))
             [producer] (g/tx-nodes-added
                         (g/transact
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
-                          (g/connect producer :_self (g/node-id scope) :nodes))))]
+                          (g/connect producer :_self scope :nodes))))]
         (is (= "a known value" (g/node-value consumer :concatenation))))))
 
   (testing "attach nodes in different transactions and reverse order"
@@ -104,13 +104,13 @@
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
-                          (g/connect producer :_self (g/node-id scope) :nodes))))
+                          (g/connect producer :_self scope :nodes))))
             [consumer] (g/tx-nodes-added
                         (g/transact
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
-                          (g/connect consumer :_self (g/node-id scope) :nodes))))]
+                          (g/connect consumer :_self scope :nodes))))]
         (is (= "a known value" (g/node-value consumer :concatenation))))))
 
   (testing "explicitly connect nodes, see if injection also happens"
@@ -121,14 +121,14 @@
                          (g/make-nodes
                           world
                           [producer [ValueProducer :value "a known value"]]
-                          (g/connect producer :_self (g/node-id scope) :nodes))))
+                          (g/connect producer :_self scope :nodes))))
             [consumer] (g/tx-nodes-added
                         (g/transact
                          (g/make-nodes
                           world
                           [consumer ValueConsumer]
-                          (g/connect consumer :_self (g/node-id scope) :nodes)
-                          (g/connect (g/node-id producer) :local-name consumer :local-names))))]
+                          (g/connect consumer :_self scope :nodes)
+                          (g/connect producer :local-name consumer :local-names))))]
         (is (= "a known value" (g/node-value consumer :concatenation)))))))
 
 (g/defnode ReflexiveFeedback
@@ -139,7 +139,7 @@
   (testing "don't connect a node's own output to its input"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world ReflexiveFeedback))]
-        (is (not (g/connected? (g/now) (g/node-id node) :port (g/node-id node) :ports)))))))
+        (is (not (g/connected? (g/now) node :port node :ports)))))))
 
 (g/defnode OutputProvider
   (inherits core/Scope)
@@ -162,7 +162,7 @@
                           [provider [OutputProvider :context 119]
                            consumer InputConsumer]
                           (g/connect consumer :_self provider :nodes))))]
-        (is (= 1 (count (g/targets (g/now) (g/node-id provider) :context)))))))
+        (is (= 1 (count (g/targets (g/now) provider :context)))))))
 
   (testing "two consumers each in their own nested scope"
     (with-clean-system
@@ -181,5 +181,5 @@
                            [provider [OutputProvider :context 113]
                             consumer InputConsumer]
                            (g/connect consumer :_self provider :nodes))))]
-        (is (= 1 (count (g/targets (g/now) (g/node-id provider1) :context))))
-        (is (= 1 (count (g/targets (g/now) (g/node-id provider2) :context))))))))
+        (is (= 1 (count (g/targets (g/now) provider1 :context))))
+        (is (= 1 (count (g/targets (g/now) provider2 :context))))))))

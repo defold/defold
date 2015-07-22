@@ -155,15 +155,15 @@
 
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [def (:def user-data)
-        pb (:pb user-data)
-        pb (if (:transform-fn def) ((:transform-fn def) pb) pb)
-        pb (reduce (fn [pb [label resource]]
-                     (if (vector? label)
-                       (assoc-in pb label resource)
-                       (assoc pb label resource)))
-                   pb (map (fn [[label res]]
-                             [label (workspace/proj-path (get dep-resources res))])
-                           (:dep-resources user-data)))]
+        pb  (:pb user-data)
+        pb  (if (:transform-fn def) ((:transform-fn def) pb) pb)
+        pb  (reduce (fn [pb [label resource]]
+                      (if (vector? label)
+                        (assoc-in pb label resource)
+                        (assoc pb label resource)))
+                    pb (map (fn [[label res]]
+                              [label (workspace/proj-path (get dep-resources res))])
+                            (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
 
 (g/defnk produce-build-targets [_node-id project-id resource pb def dep-build-targets]
@@ -194,21 +194,21 @@
   (output outline g/Any :cached (g/fnk [_node-id def] {:node-id _node-id :label (:label def) :icon (:icon def)})))
 
 (defn- connect-build-targets [self project path]
-  (let [resource (workspace/resolve-resource (:resource self) path)]
-    (project/connect-resource-node project resource (g/node-id self) [[:build-targets :dep-build-targets]])))
+  (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
+    (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
 
 (defn load-pb [project self input def]
   (let [pb (protobuf/read-text (:pb-class def) input)
-        resource (:resource self)]
+        resource (g/node-value self :resource)]
     (concat
-      (g/set-property (g/node-id self) :pb pb)
-      (g/set-property (g/node-id self) :def def)
-      (for [res (:resource-fields def)]
-        (if (vector? res)
-          (for [v (get pb (first res))]
-            (let [path (if (second res) (get v (second res)) v)]
-              (connect-build-targets self project path)))
-          (connect-build-targets self project (get pb res)))))))
+     (g/set-property self :pb pb)
+     (g/set-property self :def def)
+     (for [res (:resource-fields def)]
+       (if (vector? res)
+         (for [v (get pb (first res))]
+           (let [path (if (second res) (get v (second res)) v)]
+             (connect-build-targets self project path)))
+         (connect-build-targets self project (get pb res)))))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
