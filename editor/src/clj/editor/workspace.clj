@@ -141,7 +141,7 @@ ordinary paths."
         (g/invalidate! (mapv #(do [ws-id %]) [:resource-tree :resource-list :resource-map]))))
     (when notify-listeners?
       (let [changes (into {} (map (fn [[type resources]]
-                                    [type (filter #(not= (source-type %) :folder) resources)]) changes))]
+                                    [type (filter #(not (nil? (resource-type %))) resources)]) changes))]
         (doseq [listener @(:resource-listeners workspace)]
           (handle-changes listener changes)))))))
 
