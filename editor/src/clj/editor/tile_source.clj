@@ -12,7 +12,7 @@
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer ByteOrder FloatBuffer]))
 
-(def atlas-icon "icons/images.png")
+(def atlas-icon "icons/32/Icons_47-Tilesource.png")
 
 ; TODO - fix real profiles
 (def test-profile {:name "test-profile"
@@ -106,9 +106,8 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext ["tilesource" "tileset"]
+                                    :label "Tile Source"
                                     :build-ext "texturesetc"
                                     :node-type TileSourceNode
                                     :load-fn load-tile-source
-                                    :icon atlas-icon
-                                    :view-types [:scene]
-                                    :view-opts {:scene {:grid false}}))
+                                    :icon atlas-icon))

@@ -3,7 +3,8 @@
             [clojure.test :refer :all]
             [editor.fs-watch :as fs-watch])
   (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]))
+           [java.nio.file Files attribute.FileAttribute]
+           [org.apache.commons.io FileUtils]))
 
 (def filter-fn (fn [^File f]
                  (let [name (.getName f)]
@@ -30,6 +31,14 @@
 (defn- remove-file [root file]
   (.delete (File. root file)))
 
+(defn- add-dir [root name]
+  (let [f (File. root name)]
+    (.mkdirs f)))
+
+(defn- remove-dir [root name]
+  (let [f (File. root name)]
+    (FileUtils/deleteDirectory f)))
+
 (defn- fileify [watcher file]
   (when file
     (File. (:root watcher) file)))
@@ -54,10 +63,20 @@
                   (watch watcher :changed "test.txt"))
         watcher (do
                   (remove-file root "test.txt")
-                  (watch watcher :removed "test.txt"))
+                  (watch watcher :removed "test.txt" :changed ""))
         watcher (do
                   (add-file root "build/test.txt" "test")
                   (watch watcher))
         watcher (do
                   (add-file root ".test.txt" "test")
                   (watch watcher))]))
+
+(deftest directory
+  (let [[watcher root] (setup)
+        watcher (watch watcher)
+        watcher (do
+                  (add-dir root "my-dir")
+                  (watch watcher :added "my-dir"))
+        watcher (do
+                  (remove-dir root "my-dir")
+                  (watch watcher :removed "my-dir"))]))

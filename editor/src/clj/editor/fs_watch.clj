@@ -7,7 +7,7 @@
 (defn- file-map-seq [^File root file-filter]
   "Similar to file-seq but returns a map {file last-modified} with files only"
   (->> (tree-seq (fn [^File f] (and (.isDirectory f) (file-filter f))) (fn [^File f] (seq (.listFiles f))) root)
-    (filter (fn [^File f] (and (.isFile f) (file-filter f))))
+    (filter (fn [^File f] (file-filter f)))
     (mapcat (fn [^File file] [file (.lastModified file)]))
     (apply hash-map)))
 

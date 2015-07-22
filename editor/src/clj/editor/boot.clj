@@ -81,7 +81,7 @@
 
 (def the-root (atom nil))
 
-(defn load-stage [workspace project-id prefs]
+(defn load-stage [workspace project prefs]
   (let [^VBox root (FXMLLoader/load (io/resource "editor.fxml"))
         stage (Stage.)
         scene (Scene. root)]
@@ -95,7 +95,7 @@
 
     (let [close-handler (ui/event-handler event
                           (g/transact
-                            (g/delete-node project-id))
+                            (g/delete-node project))
                           (g/dispose-pending!))
           dispose-handler (ui/event-handler event (g/dispose-pending!))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
@@ -105,15 +105,17 @@
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^Tab assets          (.lookup root "#assets")
-          app-view-id          (app-view/make-app-view *view-graph* *project-graph* project-id stage menu-bar editor-tabs prefs)
-          outline-view-id      (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project-id nodes)) project-id)]
+          app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
+          outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource)))]
       (g/transact
         (concat
-          (g/connect project-id :selected-node-ids outline-view-id :selection)
+          (g/connect project :selected-node-ids outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
-            (g/connect app-view-id label outline-view-id label))
-          (g/update-property app-view-id :auto-pulls conj [outline-view-id :tree-view])))
-      (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view-id workspace project-id resource))))
+            (g/connect app-view label outline-view label))
+          (for [view [outline-view asset-browser]]
+            (g/update-property app-view :auto-pulls conj [view :tree-view]))
+          (g/update-property app-view :auto-pulls conj [outline-view :tree-view]))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
