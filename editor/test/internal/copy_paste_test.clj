@@ -57,8 +57,8 @@
       (is (= 2 (count (:nodes paste-data))))
       (is (= [:create-node :create-node :connect]  (map :type paste-tx-data)))
       (is (= 2 (count new-nodes-added)))
-      (is (= (g/node-id node1) (first (:root-node-ids paste-data))))
-      (is (g/connected? (g/now) (g/node-id node2) :produces-value (g/node-id node1) :consumes-value)))))
+      (is (= node1 (first (:root-node-ids paste-data))))
+      (is (g/connected? (g/now) node2 :produces-value node1 :consumes-value)))))
 
 (deftest paste-and-clone
   (ts/with-clean-system
@@ -202,9 +202,9 @@
           paste-tx-result             (g/transact paste-tx-data)
           new-nodes-added             (g/tx-nodes-added paste-tx-result)
           new-root                    (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))
-          new-leaf                    (first (remove #(= (g/node-id %) (g/node-id new-root)) (:nodes paste-data)))]
+          new-leaf                    (first (remove #(= % (g/node-id new-root)) (:nodes paste-data)))]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count (:nodes paste-data)) (count new-nodes-added)))
       (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
-      (is (g/connected? (g/now) original-stopper :produces-value (g/node-id new-leaf) :consumes-value))
+      (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
       (is (= "the one and only" (g/node-value new-root :produces-value))))))
