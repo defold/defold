@@ -105,20 +105,25 @@
   (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))]
                      (.open (Desktop/getDesktop) (to-folder f)))))
 
+(def update-tree-view nil)
+
 (handler/defhandler :new-file :asset-browser
   (label [user-data] (if-not user-data
                        "New"
                        (let [rt (:resource-type user-data)]
                          (or (:label rt) (:ext rt)))))
   (enabled? [selection] (and (= (count selection) 1) (not= nil (workspace/abs-path (first selection)))))
-  (run [selection user-data workspace]
+  (run [selection user-data workspace tree-view open-fn]
        (let [resource (first selection)
              f (File. ^String (workspace/abs-path resource))
              base-folder (to-folder f)
              rt (:resource-type user-data)]
          (when-let [f (dialogs/make-new-file-dialog (File. (:root workspace)) base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (spit f (workspace/template rt))
-           (workspace/fs-sync workspace))))
+           (workspace/fs-sync workspace)
+           (let [resource (FileResource. workspace f [])]
+             (update-tree-view tree-view (g/node-value workspace :resource-tree) [resource])
+             (open-fn resource)))))
   (options [workspace selection user-data]
            (when (not user-data)
              (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
@@ -167,9 +172,8 @@
           (doto (-> tree-view (.getSelectionModel))
             (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
 
-(g/defnk update-tree-view [tree-view resource-tree]
-  (let [selection (workspace/selection tree-view)
-        root (.getRoot tree-view)
+(defn update-tree-view [tree-view resource-tree selection]
+  (let [root (.getRoot tree-view)
         new-root (->>
                    (tree-item resource-tree)
                    (sync-tree root))]
@@ -178,6 +182,9 @@
     (.setRoot tree-view new-root)
     (sync-selection tree-view new-root (mapv workspace/proj-path selection))
     tree-view))
+
+(g/defnk produce-tree-view [tree-view resource-tree]
+  (update-tree-view tree-view resource-tree (workspace/selection tree-view)))
 
 (defn- setup-asset-browser [workspace ^TreeView tree-view open-resource-fn]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
@@ -205,7 +212,7 @@
 
   (input resource-tree FileResource)
 
-  (output tree-view TreeView :cached update-tree-view))
+  (output tree-view TreeView :cached produce-tree-view))
 
 (defn make-asset-browser [graph workspace tree-view open-resource-fn]
   (let [asset-browser (first
