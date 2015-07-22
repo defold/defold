@@ -19,7 +19,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d]))
 
-(def cubemap-icon "icons/16/Icons_23-Cubemap.png")
+(def cubemap-icon "icons/32/Icons_23-Cubemap.png")
 
 (vtx/defvertex normal-vtx
   (vec3 position)
@@ -130,6 +130,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "cubemap"
+                                    :label "Cubemap"
                                     :node-type CubemapNode
                                     :load-fn load-cubemap
                                     :icon cubemap-icon

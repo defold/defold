@@ -23,14 +23,18 @@
            [javax.vecmath Matrix4d Point3d]))
 
 (def script-defs [{:ext "script"
-                   :icon "icons/pictures.png"
+                   :label "Script"
+                   :icon "icons/32/Icons_12-Script-type.png"
                    :tags #{:component}}
                   {:ext "render_script"
-                   :icon "icons/pictures.png"}
+                   :label "Render Script"
+                   :icon "icons/32/Icons_12-Script-type.png"}
                   {:ext "gui_script"
-                   :icon "icons/pictures.png"}
+                   :label "Gui Script"
+                   :icon "icons/32/Icons_12-Script-type.png"}
                   {:ext "lua"
-                   :icon "icons/pictures.png"}])
+                   :label "Lua Module"
+                   :icon "icons/32/Icons_11-Script-general.png"}])
 
 (g/defnk produce-user-properties [script-properties]
   (into {}
@@ -93,12 +97,10 @@
       (g/set-property self :content content))))
 
 (defn- register [workspace def]
-  (workspace/register-resource-type workspace
-                                    :ext (:ext def)
-                                    :node-type ScriptNode
-                                    :load-fn load-script
-                                    :icon (:icon def)
-                                    :tags (:tags def)))
+  (let [args (merge def
+                    {:node-type ScriptNode
+                     :load-fn load-script})]
+    (apply workspace/register-resource-type workspace (flatten (seq args)))))
 
 (defn register-resource-types [workspace]
   (for [def script-defs]
