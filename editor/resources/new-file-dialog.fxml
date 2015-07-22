@@ -5,17 +5,33 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox prefHeight="100.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+
+<AnchorPane prefWidth="500.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
-      <Label text="New file name" />
-      <TextField id="name" />
-      <AnchorPane>
-	<children>
-	  <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="Ok" AnchorPane.bottomAnchor="0.0" AnchorPane.rightAnchor="0.0" />
-        </children>
-      </AnchorPane>
+      <GridPane AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+         <columnConstraints>
+            <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" percentWidth="0.0" />
+            <ColumnConstraints hgrow="SOMETIMES" maxWidth="1.7976931348623157E308" minWidth="10.0" prefWidth="100.0" />
+            <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" percentWidth="0.0" />
+         </columnConstraints>
+         <rowConstraints>
+            <RowConstraints minHeight="10.0" vgrow="SOMETIMES" />
+            <RowConstraints minHeight="10.0" vgrow="SOMETIMES" />
+            <RowConstraints minHeight="10.0" vgrow="SOMETIMES" />
+         </rowConstraints>
+         <children>
+            <Label alignment="BASELINE_LEFT" minHeight="28.0" minWidth="58.0" text="Name" />
+            <TextField id="name" alignment="BASELINE_LEFT" promptText="Specify" text="untitled" GridPane.columnIndex="1" />
+            <Label alignment="BASELINE_LEFT" minHeight="28.0" minWidth="58.0" prefHeight="28.0" prefWidth="58.0" text="Location" GridPane.rowIndex="1" />
+            <TextField id="location" alignment="BASELINE_LEFT" promptText="Specify" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+            <Button id="browse" alignment="BASELINE_LEFT" minHeight="28.0" minWidth="80.0" mnemonicParsing="false" text="Browse..." GridPane.columnIndex="2" GridPane.rowIndex="1" />
+            <Label alignment="BASELINE_LEFT" minHeight="28.0" minWidth="58.0" prefHeight="28.0" prefWidth="58.0" text="Path" GridPane.rowIndex="2" />
+            <TextField id="path" alignment="BASELINE_LEFT" editable="false" promptText="Specify" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+      	  <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="Ok" GridPane.columnIndex="2" GridPane.rowIndex="2" />
+         </children>
+      </GridPane>
    </children>
    <padding>
       <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
    </padding>
-</VBox>
+</AnchorPane>
