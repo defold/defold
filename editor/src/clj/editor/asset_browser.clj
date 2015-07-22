@@ -109,11 +109,10 @@
        (let [resource (first selection)
              f (File. ^String (workspace/abs-path resource))
              base-folder (to-folder f)
-             rt (:resource-type user-data)
-             name (dialogs/make-new-file-dialog base-folder (format "untitled.%s" (:ext rt)))
-             f (File. base-folder (format "%s.%s" (FilenameUtils/removeExtension name) (:ext rt)))]
-         (spit f (workspace/template rt))
-         (workspace/fs-sync workspace)))
+             rt (:resource-type user-data)]
+         (when-let [f (dialogs/make-new-file-dialog (File. (:root workspace)) base-folder (or (:label rt) (:ext rt)) (:ext rt))]
+           (spit f (workspace/template rt))
+           (workspace/fs-sync workspace))))
   (options [workspace selection user-data]
            (when (not user-data)
              (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
