@@ -187,7 +187,10 @@
         scene (Scene. root)
         controls (ui/collect-controls root ["name" "location" "browse" "path" "ok"])
         return (atom nil)
-        close (fn [] (reset! return (File. base-dir ^String (ui/text (:path controls)))) (.close stage))
+        close (fn [perform?]
+                (when perform?
+                  (reset! return (File. base-dir ^String (ui/text (:path controls)))))
+                (.close stage))
         set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
     (.initOwner stage (ui/main-stage))
     (ui/title! stage (str "New " type))
@@ -202,16 +205,14 @@
                                                                (.showDialog nil))]
                                                 (when location
                                                   (set-location location)))))
-    (ui/on-action! (:ok controls) (fn [_] (close)))
+    (ui/on-action! (:ok controls) (fn [_] (close true)))
 
     (.addEventFilter scene KeyEvent/KEY_PRESSED
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
-                                         (when (condp = code
-                                                 KeyCode/ENTER (do (reset! return (ui/text (:name controls))) true)
-                                                 KeyCode/ESCAPE true
-                                                 false)
-                                           (.close stage)))))
+                                         (condp = code
+                                           KeyCode/ENTER (close true)
+                                           KeyCode/ESCAPE (close false)))))
 
     (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
