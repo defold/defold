@@ -47,7 +47,8 @@
   (let [cached (atom false)]
     (proxy [TreeItem] [parent]
       (isLeaf []
-        (not= :folder (workspace/source-type (.getValue ^TreeItem this))))
+        (or (not= :folder (workspace/source-type (.getValue ^TreeItem this)))
+            (empty? (:children (.getValue ^TreeItem this)))))
       (getChildren []
         (let [this ^TreeItem this
               ^ObservableList children (proxy-super getChildren)]
@@ -131,10 +132,11 @@
 
 (handler/defhandler :new-folder :asset-browser
   (enabled? [selection] (and (= (count selection) 1) (not= nil (workspace/abs-path (first selection)))))
-  (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))
-                         base-folder (to-folder f)]
-                     (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
-                       (.mkdir (resolve-sub-folder base-folder new-folder-name))))))
+  (run [selection workspace] (let [f (File. ^String (workspace/abs-path (first selection)))
+                                   base-folder (to-folder f)]
+                               (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
+                                 (.mkdir (resolve-sub-folder base-folder new-folder-name))
+                                 (workspace/fs-sync workspace)))))
 
 (defn- item->path [^TreeItem item]
   (-> item (.getValue) (workspace/proj-path)))
