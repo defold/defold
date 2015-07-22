@@ -73,9 +73,9 @@
   (let [sel (g/node-value project :selected-node-ids)]
     (empty? sel)))
 
-(defn selected? [project tgt-node]
+(defn selected? [project tgt-node-id]
   (let [sel (g/node-value project :selected-node-ids)]
-    (not (nil? (some #{(g/node-id tgt-node)} sel)))))
+    (not (nil? (some #{tgt-node-id} sel)))))
 
 (g/defnode DummyAppView
   (property active-tool g/Keyword))
@@ -99,13 +99,13 @@
   ([view type x y modifiers]
     (let [pos [x y 0.0]]
       (g/transact (g/set-property (g/node-id view) :picking-rect (scene/calc-picking-rect pos pos))))
-    (let [handlers (g/sources-of (g/node-id view) :input-handlers)
-          user-data (g/node-value view :selected-tool-renderables)
-          action (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)
-          action (scene/augment-action view action)]
-      (doseq [[node label] handlers]
-        (let [handler-fn (g/node-value node label)]
-          (handler-fn node action user-data))))))
+    (let [handlers  (g/sources-of (g/node-id view) :input-handlers)
+          user-data (g/node-value (g/node-id view) :selected-tool-renderables)
+          action    (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)
+          action    (scene/augment-action (g/node-id view) action)]
+      (doseq [[node-id label] handlers]
+        (let [handler-fn (g/node-value node-id label)]
+          (handler-fn node-id action user-data))))))
 
 (defn mouse-press!
   ([view x y]

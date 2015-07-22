@@ -159,7 +159,7 @@
   (when-not *programmatic-selection*
     (when-let [changes (filter (comp not nil?) (and change (.getList change)))]
       ; TODO - handle selection order
-      (selection-fn (map #(g/node-by-id (item->node-id %)) changes)))))
+      (selection-fn (map item->node-id changes)))))
 
 (defn make-outline-view [graph tree-view selection-fn selection-provider]
   (let [selection-listener (reify ListChangeListener

@@ -22,7 +22,8 @@
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
                    node      (test-util/resource-node project "/logic/hierarchy.collection")
-                   outline   (g/node-value node :outline)]
+                   node-id   (g/node-id node)
+                   outline   (g/node-value node-id :outline)]
                ; Two game objects under the collection
                (is (= 2 (count (:children outline))))
                ; One component and game object under the game object
@@ -34,7 +35,8 @@
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
                    node      (test-util/resource-node project "/logic/hierarchy.collection")
-                   scene     (g/node-value node :scene)]
+                   node-id   (g/node-id node)
+                   scene     (g/node-value node-id :scene)]
                ; Two game objects under the collection
                (is (= 2 (count (:children scene))))
                ; One component and game object under the game object
@@ -45,15 +47,16 @@
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
-                   node      (test-util/resource-node project "/logic/hierarchy.collection")]
+                   node      (test-util/resource-node project "/logic/hierarchy.collection")
+                   node-id   (g/node-id node)]
                ; Two game objects under the collection
-               (is (= 2 (count (:children (g/node-value node :outline)))))
+               (is (= 2 (count (:children (g/node-value node-id :outline)))))
                ; Select the collection node
-               (project/select! project [node])
+               (project/select! project [node-id])
                ; Run the add handler
-               (handler/run :add [{:name :global :env {:selection [(g/node-id node)]}}] {})
+               (handler/run :add [{:name :global :env {:selection [node-id]}}] {})
                ; Three game objects under the collection
-               (is (= 3 (count (:children (g/node-value node :outline)))))))))
+               (is (= 3 (count (:children (g/node-value node-id :outline)))))))))
 
 (deftest empty-go
   (testing "Collection with a single empty game object"
@@ -61,13 +64,14 @@
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
                    node      (test-util/resource-node project "/collection/empty_go.collection")
+                   node-id   (g/node-id node)
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
-                   outline   (g/node-value node :outline)
-                   scene     (g/node-value node :scene)]
+                   outline   (g/node-value node-id :outline)
+                   scene     (g/node-value node-id :scene)]
                ; Verify outline labels
                (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
                ; Verify AABBs
-               (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node :scene)))))))))
+               (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
 
 (deftest unknown-components
   (testing "Load a collection with unknown components"
@@ -75,11 +79,12 @@
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
                    node      (test-util/resource-node project "/collection/unknown_components.collection")
-                   outline   (g/node-value node :outline)
-                   scene     (g/node-value node :scene)
+                   node-id   (g/node-id node)
+                   outline   (g/node-value node-id :outline)
+                   scene     (g/node-value node-id :scene)
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
                ; Verify outline labels
                (is (= (list "Collection" "my_instance (/game_object/unknown_components.go)" "unknown (/game_object/test.unknown)")
                       (map :label (tree-seq :children :children outline))))
                ; Verify AABBs
-               (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node :scene)))))))))
+               (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))

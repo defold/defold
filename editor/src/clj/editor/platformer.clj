@@ -85,36 +85,36 @@
       cp)))
 
 (defn handle-input [self action]
-  (let [camera (g/node-value self :camera)
-        viewport (g/node-value self :viewport)
+  (let [camera         (g/node-value self :camera)
+        viewport       (g/node-value self :viewport)
         control-points (g/node-value self :control-points)
-        active-cp (g/node-value self :active-cp)
-        inactive-cps (g/node-value self :inactive-cps)
-        pos {:x (:x action) :y (:y action)}
-        world-pos-v4 (c/camera-unproject camera viewport (:x action) (:y action) 0)
-        world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)}
-        cp-hit (some #(hit? % pos camera viewport) control-points)]
+        active-cp      (g/node-value self :active-cp)
+        inactive-cps   (g/node-value self :inactive-cps)
+        pos            {:x (:x action) :y (:y action)}
+        world-pos-v4   (c/camera-unproject camera viewport (:x action) (:y action) 0)
+        world-pos      {:x (.x world-pos-v4) :y (.y world-pos-v4)}
+        cp-hit         (some #(hit? % pos camera viewport) control-points)]
     (case (:type action)
       :mouse-moved
       (if active-cp
-        (do (g/set-property (g/node-id self) :control-points (conj inactive-cps world-pos))
+        (do (g/set-property self :control-points (conj inactive-cps world-pos))
           nil)
         action)
       :mouse-pressed
       (let [click-count (get action :click-count 0)]
         (if (= click-count 2)
-          (g/set-property (g/node-id self) :control-points
+          (g/set-property self :control-points
                            (if cp-hit
                              (filter #(not= %1 cp-hit) control-points)
                              (conj control-points world-pos)))
           (do
-            (g/set-property (g/node-id self) :active-cp world-pos)
-            (g/set-property (g/node-id self) :inactive-cps (filter #(not= %1 cp-hit) control-points))))
+            (g/set-property self :active-cp world-pos)
+            (g/set-property self :inactive-cps (filter #(not= %1 cp-hit) control-points))))
         (when (nil? cp-hit) action))
       :mouse-released
       (do
-        (g/set-property (g/node-id self) :active-cp nil)
-        (g/set-property (g/node-id self) :inactive-cps nil)
+        (g/set-property self :active-cp nil)
+        (g/set-property self :inactive-cps nil)
         (when (nil? active-cp) action))
       action)))
 

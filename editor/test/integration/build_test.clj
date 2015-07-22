@@ -168,7 +168,7 @@
                    (is (contains? content-by-target (:sound sound-desc)))))))))
 
 (defn- first-source [node label]
-  (ffirst (g/sources-of (g/node-id node) label)))
+  (ffirst (g/sources-of node label)))
 
 (deftest break-merged-targets
   (testing "Verify equivalent game objects are not merged after being changed in memory"
@@ -184,9 +184,9 @@
                                                      build-results))]
                  (is (= 1 (count-exts (keys content-by-target) "goc")))
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))
-                 (let [go-node (first-source (first-source resource-node :child-scenes) :source)
+                 (let [go-node (first-source (first-source (g/node-id resource-node) :child-scenes) :source)
                        comp-node (first-source go-node :child-scenes)]
-                   (g/transact (g/delete-node (g/node-id comp-node)))
+                   (g/transact (g/delete-node comp-node))
                    (let [build-results (project/build project resource-node)
                          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
                                                          build-results))]
@@ -225,8 +225,8 @@
                      _ (project/build project resource-node)
                      cache-count (count @(:build-cache project))]
                  (g/transact
-                   (for [[node label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
-                     (g/delete-node (g/node-id node))))
+                   (for [[node-id label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
+                     (g/delete-node node-id)))
                  (project/build project resource-node)
                  (is (< (count @(:build-cache project)) cache-count)))))))
 
@@ -240,8 +240,8 @@
                      _ (project/build-and-write project resource-node)
                      cache-count (count @(:fs-build-cache project))]
                  (g/transact
-                   (for [[node label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
-                     (g/delete-node (g/node-id node))))
+                   (for [[node-id label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
+                     (g/delete-node node-id)))
                  (project/build-and-write project resource-node)
                  (is (< (count @(:fs-build-cache project)) cache-count)))))))
 
