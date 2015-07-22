@@ -103,9 +103,10 @@ ordinary paths."
     (filter #(contains? (:tags %) tag) (map second (:resource-types workspace)))))
 
 (defn template [resource-type]
-  (when-let [template-path (:template resource-type)]
-    (with-open [f (io/reader (io/resource template-path))]
-      (slurp f))))
+  (when-let [template-path (or (:template resource-type) (str "templates/template." (:ext resource-type)))]
+    (when-let [resource (io/resource template-path)]
+      (with-open [f (io/reader resource)]
+        (slurp f)))))
 
 (def default-icons {:file "icons/32/Icons_29-AT-Unkown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
 

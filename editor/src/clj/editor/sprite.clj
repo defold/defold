@@ -294,5 +294,4 @@
                                     :icon sprite-icon
                                     :view-types [:scene]
                                     :tags #{:component}
-                                    :label "Sprite"
-                                    :template "templates/template.sprite"))
+                                    :label "Sprite"))

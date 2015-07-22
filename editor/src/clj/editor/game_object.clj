@@ -27,7 +27,7 @@
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [org.apache.commons.io FilenameUtils]))
 
-(def game-object-icon "icons/16/Icons_06-Game-object.png")
+(def game-object-icon "icons/32/Icons_06-Game-object.png")
 
 (defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation properties user-properties save-data]
   (let [props (map (fn [[k v]] {:id k :type (get-in v [:edit-type :go-prop-type])}) user-properties)
@@ -308,9 +308,9 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "go"
+                                    :label "Game Object"
                                     :node-type GameObjectNode
                                     :load-fn load-game-object
                                     :icon game-object-icon
                                     :view-types [:scene]
-                                    :view-opts {:scene {:grid true}}
-                                    :template "templates/template.go"))
+                                    :view-opts {:scene {:grid true}}))

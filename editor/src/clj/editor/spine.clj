@@ -24,8 +24,8 @@
 
 (set! *warn-on-reflection* true)
 
-(def spine-scene-icon "icons/pictures.png")
-(def spine-model-icon "icons/pictures.png")
+(def spine-scene-icon "icons/32/Icons_16-Spine-scene.png")
+(def spine-model-icon "icons/32/Icons_15-Spine-model.png")
 
 ; Node defs
 
@@ -527,9 +527,8 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "spinescene"
+                                    :label "Spine Scene"
                                     :node-type SpineSceneNode
                                     :load-fn load-spine-scene
                                     :icon spine-scene-icon
-                                    :view-types [:scene]
-                                    :tags #{:component}
-                                    :template "templates/template.spinescene"))
+                                    :tags #{:component}))

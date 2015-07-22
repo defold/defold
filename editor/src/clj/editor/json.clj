@@ -19,7 +19,8 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
-(def json-icon "icons/pictures.png")
+; TODO - missing icon
+(def json-icon "icons/32/Icons_29-AT-Unkown.png")
 
 (g/defnk produce-content [resource]
   (let [content (slurp resource)]
