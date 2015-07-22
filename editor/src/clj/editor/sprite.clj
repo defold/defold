@@ -214,11 +214,11 @@
 
 (defn- connect-image [project self image]
   (if-let [image-node (project/get-resource-node project image)]
-    (let [outputs (-> image-node g/node-type g/output-labels)]
+    (let [outputs (-> image-node g/node-type* g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect (g/node-id image-node) :anim-data     self :anim-data)
-         (g/connect (g/node-id image-node) :gpu-texture   self :gpu-texture)
-         (g/connect (g/node-id image-node) :build-targets self :dep-build-targets)]
+        [(g/connect image-node :anim-data     self :anim-data)
+         (g/connect image-node :gpu-texture   self :gpu-texture)
+         (g/connect image-node :build-targets self :dep-build-targets)]
         []))
     []))
 
@@ -282,7 +282,7 @@
       (g/set-property self :blend-mode (:blend-mode sprite))
       (connect-image project self image)
       (if-let [material-node (project/get-resource-node project material)]
-        (g/connect (g/node-id material-node) :build-targets self :dep-build-targets)
+        (g/connect material-node :build-targets self :dep-build-targets)
         []))))
 
 (defn register-resource-types [workspace]

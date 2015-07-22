@@ -183,7 +183,7 @@
                   (concat
                     (for [[src tgt] [[:outline :outline]
                                      [:properties :component-properties]
-                                     [:_self :nodes]
+                                     [:_id :nodes]
                                      [:build-targets :dep-build-targets]
                                      [:ddf-message :ref-ddf]
                                      [:id :child-ids]
@@ -235,17 +235,17 @@
                     (g/connect source-node :scene         comp-node :scene)
                     (g/connect source-node :build-targets comp-node :build-targets)
                     (g/connect source-node :project-id    comp-node :project-id)
-                    (g/connect source-node :_self         self      :nodes)
+                    (g/connect source-node :_id           self      :nodes)
                     (g/connect comp-node   :outline       self      :outline)
                     (g/connect comp-node   :ddf-message   self      :embed-ddf)
                     (g/connect comp-node   :id            self      :child-ids)
                     (g/connect comp-node   :scene         self      :child-scenes)
-                    (g/connect comp-node   :_self         self      :nodes)
+                    (g/connect comp-node   :_id           self      :nodes)
                     (g/connect comp-node   :build-targets self      :dep-build-targets))
       (g/make-nodes (g/node-id->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
                     (g/connect comp-node   :outline      self       :outline)
-                    (g/connect comp-node   :_self        self       :nodes)))))
+                    (g/connect comp-node   :_id          self       :nodes)))))
 
 (defn add-embedded-component-handler
   ([self]
@@ -276,17 +276,17 @@
                        (let [rt (:resource-type user-data)]
                          (or (:label rt) (:ext rt)))))
   (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-  (run [user-data] (add-embedded-component-handler (:_self user-data) (:resource-type user-data)))
+  (run [user-data] (add-embedded-component-handler (:_id user-data) (:resource-type user-data)))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (g/node-by-id (first selection))
+             (let [self (first selection)
                    project (project/get-project self)
                    workspace (:workspace (g/node-value self :resource))
                    resource-types (workspace/get-resource-types workspace :component)]
                (mapv (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                                      :icon (:icon res-type)
                                      :command :add
-                                     :user-data {:_self self :resource-type res-type}}) resource-types)))))
+                                     :user-data {:_id self :resource-type res-type}}) resource-types)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))

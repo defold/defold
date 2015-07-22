@@ -369,7 +369,7 @@
   (testing "delete scope first"
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
-        (g/transact (g/connect inner :_self outer :nodes))
+        (g/transact (g/connect inner :_id outer :nodes))
         (is (= :ok (:status (g/transact
                              (concat
                               (g/delete-node outer)
@@ -378,7 +378,7 @@
   (testing "delete inner node first"
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
-        (g/transact (g/connect inner :_self outer :nodes))
+        (g/transact (g/connect inner :_id outer :nodes))
 
         (is (= :ok (:status (g/transact
                              (concat

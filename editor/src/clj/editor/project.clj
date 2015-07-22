@@ -43,7 +43,7 @@ ordinary paths."
             (g/make-nodes
               project-graph
               [new-resource [node-type :resource resource :project-id project]]
-              (g/connect new-resource :_self project :nodes)
+              (g/connect new-resource :_id project :nodes)
               (if ((g/output-labels node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
                 []))
@@ -210,13 +210,12 @@ ordinary paths."
         external (filter (complement loadable?) resources)]
     (g/transact
       (for [resource internal
-            :let [node-id (g/node-id (get-resource-node project resource))]]
+            :let [node-id (get-resource-node project resource)]]
         ; TODO - recreate a polluted node
         (g/delete-node node-id)))
     (doseq [resource external
-            :let [resource-node (get-resource-node project resource)
-                  nid (g/node-id resource-node)]]
-      (g/invalidate! (mapv #(do [nid (first %)]) (outputs nid))))))
+            :let [resource-node (get-resource-node project resource)]]
+      (g/invalidate! (mapv #(do [resource-node (first %)]) (outputs resource-node))))))
 
 (defn- handle-resource-changes [project changes]
   (let [all (reduce into [] (vals changes))
@@ -226,9 +225,9 @@ ordinary paths."
     (doseq [resource (:changed changes)
             :let [resource-node (get-resource-node project resource)]
             :when resource-node]
-      (let [current-outputs (outputs (g/node-id resource-node))]
+      (let [current-outputs (outputs resource-node)]
         (if (loadable? resource)
-          (let [current-outputs (outputs (g/node-id resource-node))
+          (let [current-outputs (outputs resource-node)
                 nodes (make-nodes project [resource])]
             (load-nodes project nodes)
             (let [new-node (first nodes)
@@ -236,10 +235,10 @@ ordinary paths."
                   outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
               (g/transact
                 (concat
-                  (g/delete-node (g/node-id resource-node))
+                  (g/delete-node resource-node)
                   (for [[src-label [tgt-node tgt-label]] outputs-to-make]
                     (g/connect new-node src-label tgt-node tgt-label))))))
-          (let [nid (g/node-id resource-node)]
+          (let [nid resource-node]
             (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
     (when reset-undo?
       (g/reset-undo! (g/node-id->graph-id project)))))
@@ -261,11 +260,11 @@ ordinary paths."
   (output selected-node-ids g/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
   (output selected-nodes g/Any :cached (g/fnk [selected-nodes] selected-nodes))
   (output selected-node-properties g/Any :cached (g/fnk [selected-node-properties] selected-node-properties))
-  (output nodes-by-resource g/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(:resource n) n]) nodes))))
+  (output nodes-by-resource g/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(g/node-value n :resource) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data))))
 
 (defn get-resource-type [resource-node]
-  (when resource-node (workspace/resource-type (:resource resource-node))))
+  (when resource-node (workspace/resource-type (g/node-value resource-node :resource))))
 
 (defn get-project [resource-node]
   (g/node-value resource-node :project-id))
@@ -295,13 +294,13 @@ ordinary paths."
 (defn connect-resource-node [project resource consumer-node connections]
   (if resource
     (if-let [node (get-resource-node project resource)]
-      (connect-if-output (g/node-type node) (g/node-id node) consumer-node connections)
+      (connect-if-output (g/node-type* node) node consumer-node connections)
       (let [resource-type (workspace/resource-type resource)
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
          (g/node-id->graph-id project)
          [new-resource [node-type :resource resource :project-id project]]
-         (g/connect new-resource :_self project :nodes)
+         (g/connect new-resource :_id project :nodes)
          (if ((g/output-labels node-type) :save-data)
            (g/connect new-resource :save-data project :save-data)
            [])
@@ -320,7 +319,7 @@ ordinary paths."
      (for [node-id node-ids]
        (concat
         (g/connect node-id :_node-id    project-id :selected-node-ids)
-        (g/connect node-id :_self       project-id :selected-nodes)
+        (g/connect node-id :_id         project-id :selected-nodes)
         (g/connect node-id :_properties project-id :selected-node-properties)))))
 
 (defn select!
@@ -368,7 +367,7 @@ ordinary paths."
 (defn resolve-reference [workspace project reference]
   (let [resource      (workspace/resolve-workspace-resource workspace (:path reference))
         resource-node (get-resource-node project resource)]
-    [(g/node-id resource-node) (:label reference)]))
+    [resource-node (:label reference)]))
 
 (defn copy
   "Copy a fragment of the project graph. This returns a 'fragment' that

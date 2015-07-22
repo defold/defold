@@ -249,13 +249,13 @@
                   [go-node [GameObjectInstanceNode :id id :path path
                             :position position :rotation rotation :scale scale]]
                   (concat
-                    (g/connect go-node :_self         self :nodes)
+                    (g/connect go-node :_id           self :nodes)
                     (g/connect go-node :ddf-message   self :ref-inst-ddf)
                     (g/connect go-node :build-targets self :dep-build-targets)
                     (g/connect go-node :id            self :ids)
                     (project/connect-resource-node project
                                                    source-resource go-node
-                                                   [[:_self           :source]
+                                                   [[:_id            :source]
                                                     [:outline        :outline]
                                                     [:save-data      :save-data]
                                                     [:build-targets  :build-targets]
@@ -315,19 +315,19 @@
                     [go-node [GameObjectInstanceNode :id id :embedded true
                               :position position :rotation rotation :scale scale]
                      source-node [(:node-type resource-type) :resource resource :project-id project]]
-                    (g/connect source-node :_self         go-node :source)
+                    (g/connect source-node :_id           go-node :source)
                     (g/connect source-node :outline       go-node :outline)
                     (g/connect source-node :save-data     go-node :save-data)
                     (g/connect source-node :build-targets go-node :build-targets)
                     (g/connect source-node :scene         go-node :scene)
-                    (g/connect source-node :_self         self    :nodes)
+                    (g/connect source-node :_id           self    :nodes)
                     (g/connect go-node     :ddf-message   self    :embed-inst-ddf)
                     (g/connect go-node     :build-targets self    :dep-build-targets)
                     (g/connect go-node     :id            self    :ids)
-                    (g/connect go-node     :_self         self    :nodes))
+                    (g/connect go-node     :_id           self    :nodes))
       (g/make-nodes (g/node-id->graph-id self)
                     [go-node [GameObjectInstanceNode :id id :embedded true]]
-                    (g/connect go-node     :_self         self    :nodes)))))
+                    (g/connect go-node     :_id           self    :nodes)))))
 
 (defn- add-game-object [selection]
   (let [coll-node     (first selection)
@@ -370,14 +370,14 @@
                   [coll-node [CollectionInstanceNode :id id :path path
                               :position position :rotation rotation :scale scale]]
                   (g/connect coll-node :outline       self :child-outlines)
-                  (g/connect coll-node :_self         self :nodes)
+                  (g/connect coll-node :_id           self :nodes)
                   (g/connect coll-node :ddf-message   self :ref-coll-ddf)
                   (g/connect coll-node :id            self :ids)
                   (g/connect coll-node :scene         self :child-scenes)
                   (g/connect coll-node :build-targets self :sub-build-targets)
                   (project/connect-resource-node project
                                                  source-resource coll-node
-                                                 [[:_self          :source]
+                                                 [[:_id           :source]
                                                   [:outline       :outline]
                                                   [:save-data     :save-data]
                                                   [:scene         :scene]
