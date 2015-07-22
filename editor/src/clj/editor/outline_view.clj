@@ -58,22 +58,14 @@
 (defn- map-filter [filter-fn m]
   (into {} (filter filter-fn m)))
 
-(defn tree-item-seq [item]
-  (if item
-    (tree-seq
-      #(not (.isLeaf ^TreeItem %))
-      #(seq (.getChildren ^TreeItem %))
-      item)
-    []))
-
 (defn- item->node-id [^TreeItem item]
   (:node-id (.getValue item)))
 
 (defn- sync-tree [old-root new-root]
-  (let [item-seq (tree-item-seq old-root)
+  (let [item-seq (ui/tree-item-seq old-root)
         expanded (zipmap (map item->node-id item-seq)
                          (map #(.isExpanded ^TreeItem %) item-seq))]
-    (doseq [^TreeItem item (tree-item-seq new-root)]
+    (doseq [^TreeItem item (ui/tree-item-seq new-root)]
       (when (get expanded (item->node-id item))
         (.setExpanded item true))))
   new-root)

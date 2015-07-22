@@ -106,14 +106,15 @@
           ^TreeView outline (.lookup root "#outline")
           ^Tab assets (.lookup root "#assets")
           app-view (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)]
+          outline-view (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
+          asset-browser (asset-browser/make-asset-browser *view-graph* workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource)))]
       (g/transact
         (concat
           (g/connect (g/node-id project) :selected-node-ids (g/node-id outline-view) :selection)
           (for [label [:active-resource :active-outline :open-resources]]
             (g/connect (g/node-id app-view) label (g/node-id outline-view) label))
-          (g/update-property (g/node-id app-view) :auto-pulls conj [outline-view :tree-view])))
-      (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource))))
+          (for [view [outline-view asset-browser]]
+            (g/update-property (g/node-id app-view) :auto-pulls conj [view :tree-view])))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
