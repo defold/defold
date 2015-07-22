@@ -28,7 +28,7 @@
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [org.apache.commons.io FilenameUtils]))
+           [org.apache.commons.io FileUtils FilenameUtils]))
 
 (declare tree-item)
 
@@ -74,7 +74,9 @@
                   :icon "icons/32/Icons_01-Folder-closed.png"}])
 
 (defn- is-resource [x] (satisfies? workspace/Resource x))
-(defn- is-deletable-resource [x] (and (satisfies? workspace/Resource x) (not (workspace/read-only? x))))
+(defn- is-deletable-resource [x] (and (satisfies? workspace/Resource x)
+                                      (not (workspace/read-only? x))
+                                      (not (#{"/" "/game.project"} (workspace/proj-path x)))))
 (defn- is-file-resource [x] (and (satisfies? workspace/Resource x)
                                  (= :file (workspace/source-type x))))
 
@@ -88,7 +90,10 @@
   (enabled? [selection] (every? is-deletable-resource selection))
   (run [selection workspace]
        (doseq [resource selection]
-         (.delete (File. (workspace/abs-path resource))))
+         (let [f (File. (workspace/abs-path resource))]
+           (if (.isDirectory f)
+             (FileUtils/deleteDirectory f)
+             (.delete (File. (workspace/abs-path resource))))))
        (workspace/fs-sync workspace)))
 
 (defn- to-folder [file]
