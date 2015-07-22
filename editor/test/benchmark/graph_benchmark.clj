@@ -132,14 +132,17 @@
                   (let [[new-node] (g/tx-nodes-added (g/transact (g/make-node world AThing)))]
                     (g/transact (g/delete-node new-node))))))
 
+(defn- safe-rand-nth [coll]
+  (when (seq? coll)
+    (rand-nth coll)))
+
 (defn set-property-some-nodes []
   (with-clean-system
-    (let [r              (load-test-project! world)
-          project-graph (isys/graph @g/*the-system* (:project-graph r))
+    (let [r               (load-test-project! world)
+          project-graph   (isys/graph @g/*the-system* (:project-graph r))
           affected-num    100
           chosen-node-ids (repeatedly affected-num (partial rand-nth (ig/node-ids project-graph)))
-          chosen-nodes    (mapv #(ig/node project-graph %) chosen-node-ids)
-          chosen-props    (mapv (fn [node]  (rand-nth (vec (disj (set (keys (gt/properties node))) :id)))) chosen-nodes)]
+          chosen-props    (mapv (fn [node-id]  (safe-rand-nth (vec (disj (set (keys (-> node-id g/node-type* gt/properties))) :id)))) chosen-node-ids)]
       (str "Set Property on " affected-num " Nodes")
       (do-benchmark (str "Set Property on " affected-num " Nodes")
                     (mapv (fn [node property] (g/set-property node property nil)) chosen-node-ids chosen-props)))))
@@ -196,11 +199,11 @@
   (with-clean-system
     (let [[resources views] (build-fake-graphs! 1000 100)
           actions           (map (fn [& a] a)
-                                 (repeatedly n #(g/node-id (rand-nth resources)))
+                                 (repeatedly n #(rand-nth resources))
                                  (repeat n :path)
                                  (repeat :scene))
           pulls             (map (fn [& a] a)
-                                 (repeatedly #(g/node-id (rand-nth views)))
+                                 (repeatedly #(rand-nth views))
                                  (repeatedly #(rand-nth [:view :omega])))]
       (run-transactions-for-tracing actions pulls))))
 
@@ -208,11 +211,11 @@
   (with-clean-system
     (let [[resources views] (build-fake-graphs! 1000 100)
           actions           (map (fn [& a] a)
-                                 (repeatedly n #(g/node-id (rand-nth resources)))
+                                 (repeatedly n #(rand-nth resources))
                                  (repeat n :path)
                                  (repeatedly n #(rand-int 10000)))
           pulls             (map (fn [& a] a)
-                                 (repeatedly #(g/node-id (rand-nth views)))
+                                 (repeatedly #(rand-nth views))
                                  (repeat :scene))]
       (do-benchmark
        (format "Run %s transactions of setting a property and pulling values" n)
