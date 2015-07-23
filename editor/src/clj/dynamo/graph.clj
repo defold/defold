@@ -456,12 +456,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
-(defn refresh
-  ([n]
-   (refresh (now) n))
-  ([basis n]
-   (node-by-id basis (node-id n))))
-
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
   The value may be cached or it may be computed on demand. This is

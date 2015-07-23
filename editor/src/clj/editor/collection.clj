@@ -80,7 +80,7 @@
                                     (g/set-property (g/node-id self) :scale [(.x s) (.y s) (.z s)]))))
 
 (defn- outline-sort-by-fn [v]
-  [(:name (g/node-type (g/node-by-id (:node-id v)))) (:label v)])
+  [(:name (g/node-type* (:node-id v))) (:label v)])
 
 (g/defnode GameObjectInstanceNode
   (inherits ScalableSceneNode)
@@ -265,12 +265,12 @@
   (= 1 (count selection)))
 
 (defn- selected-collection? [selection]
-  (= CollectionNode (g/node-type (g/node-by-id (first selection)))))
+  (= CollectionNode (g/node-type* (first selection))))
 
 (defn- selected-embedded-instance? [selection]
-  (let [node (g/node-by-id (first selection))]
-    (and (= GameObjectInstanceNode (g/node-type node))
-         (:embedded node))))
+  (let [node (first selection)]
+    (and (= GameObjectInstanceNode (g/node-type* node))
+         (g/node-value node :embedded))))
 
 (defn- add-game-object-file [selection]
   (let [coll-node (first selection)
@@ -365,7 +365,8 @@
                      (selected-embedded-instance? selection) (game-object/add-embedded-component-handler (g/node-value (first selection) :source)))))
 
 (defn- add-collection-instance [self source-resource id position rotation scale]
-  (let [project (g/node-by-id (g/node-value self :project-id)) path (workspace/proj-path source-resource)]
+  (let [project (g/node-value self :project-id)
+        path    (workspace/proj-path source-resource)]
     (g/make-nodes (g/node-id->graph-id self)
                   [coll-node [CollectionInstanceNode :id id :path path
                               :position position :rotation rotation :scale scale]]
@@ -386,10 +387,10 @@
 (handler/defhandler :add-secondary-from-file :global
   (active? [selection] (and (single-selection? selection) (selected-collection? selection)))
   (label [] "Add Collection File")
-  (run [selection] (let [coll-node (g/node-by-id (first selection))
-                         project (project/get-project coll-node)
-                         workspace (:workspace (:resource coll-node))
-                         ext "collection"
+  (run [selection] (let [coll-node     (first selection)
+                         project       (project/get-project coll-node)
+                         workspace     (:workspace (g/node-value coll-node :resource))
+                         ext           "collection"
                          resource-type (workspace/get-resource-type workspace ext)]
                      (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext ext :title "Select Collection File"}))]
                        (let [base (FilenameUtils/getBaseName (workspace/resource-name resource))

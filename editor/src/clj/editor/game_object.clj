@@ -221,7 +221,7 @@
 (handler/defhandler :add-from-file :global
   (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
   (label [] "Add Component File")
-  (run [selection] (add-component-handler (g/node-by-id (first selection)))))
+  (run [selection] (add-component-handler (first selection))))
 
 (defn- add-embedded-component [self project type data id position rotation]
   (let [resource (project/make-embedded-resource project type data)]
