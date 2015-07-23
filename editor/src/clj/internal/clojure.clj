@@ -28,7 +28,7 @@
     (try
       (binding [*warn-on-reflection* true]
         (Compiler/load (io/reader path) (types/local-path path) (.getName source-file)))
-      (g/set-property node :namespace (UnloadableNamespace. ns-decl))
+      (g/set-property (g/node-id node) :namespace (UnloadableNamespace. ns-decl))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (println compile-error)))))
 

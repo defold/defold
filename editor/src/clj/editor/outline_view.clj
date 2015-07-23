@@ -58,22 +58,14 @@
 (defn- map-filter [filter-fn m]
   (into {} (filter filter-fn m)))
 
-(defn tree-item-seq [item]
-  (if item
-    (tree-seq
-      #(not (.isLeaf ^TreeItem %))
-      #(seq (.getChildren ^TreeItem %))
-      item)
-    []))
-
 (defn- item->node-id [^TreeItem item]
   (:node-id (.getValue item)))
 
 (defn- sync-tree [old-root new-root]
-  (let [item-seq (tree-item-seq old-root)
+  (let [item-seq (ui/tree-item-seq old-root)
         expanded (zipmap (map item->node-id item-seq)
                          (map #(.isExpanded ^TreeItem %) item-seq))]
-    (doseq [^TreeItem item (tree-item-seq new-root)]
+    (doseq [^TreeItem item (ui/tree-item-seq new-root)]
       (when (get expanded (item->node-id item))
         (.setExpanded item true))))
   new-root)
@@ -105,7 +97,7 @@
         (.setExpanded new-root true))
       (.setRoot tree-view new-root)
       (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property _self :root-cache new-cache)))))
+      (g/transact (g/set-property (g/node-id _self) :root-cache new-cache)))))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
@@ -161,13 +153,13 @@
                                                          (proxy-super setContextMenu nil))
                                                        (let [{:keys [label icon]} item]
                                                          (proxy-super setText label)
-                                                         (proxy-super setGraphic (jfx/get-image-view icon)))))))))))
+                                                         (proxy-super setGraphic (jfx/get-image-view icon 16)))))))))))
 
 (defn- propagate-selection [change selection-fn]
   (when-not *programmatic-selection*
     (when-let [changes (filter (comp not nil?) (and change (.getList change)))]
       ; TODO - handle selection order
-      (selection-fn (map #(g/node-by-id (item->node-id %)) changes)))))
+      (selection-fn (map item->node-id changes)))))
 
 (defn make-outline-view [graph tree-view selection-fn selection-provider]
   (let [selection-listener (reify ListChangeListener

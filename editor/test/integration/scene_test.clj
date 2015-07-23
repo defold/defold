@@ -19,39 +19,39 @@
 (deftest gen-scene
   (testing "Scene generation"
            (let [cases {"/logic/atlas_sprite.collection"
-                        (fn [node]
-                          (let [go (ffirst (g/sources-of node :child-scenes))]
-                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
+                        (fn [node-id]
+                          (let [go (ffirst (g/sources-of node-id :child-scenes))]
+                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-101 -97] [101 97])))
                             (g/transact (g/set-property go :position [10 0 0]))
-                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
+                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/logic/atlas_sprite.go"
-                        (fn [node]
-                          (let [component (ffirst (g/sources-of node :child-scenes))]
-                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-101 -97] [101 97])))
+                        (fn [node-id]
+                          (let [component (ffirst (g/sources-of node-id :child-scenes))]
+                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-101 -97] [101 97])))
                             (g/transact (g/set-property component :position [10 0 0]))
-                            (is (= (:aabb (g/node-value node :scene)) (make-aabb [-91 -97] [111 97])))))
+                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-91 -97] [111 97])))))
                         "/sprite/atlas.sprite"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [-101 -97] [101 97])]
                             (is (= (:aabb scene) aabb))))
                         "/car/env/env.cubemap"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)]
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)]
                             (is (= (:aabb scene) geom/unit-bounding-box))))
                         "/platformer/level1.platformer"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [0 10] [20 10])]
                             (is (= (:aabb scene) aabb))))
                         "/switcher/level01.switcher"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [-45 -45] [45 45])]
                             (is (= (:aabb scene) aabb))))
                         "/switcher/switcher.atlas"
-                        (fn [node]
-                          (let [scene (g/node-value node :scene)
+                        (fn [node-id]
+                          (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [0 0] [2048 1024])]
                             (is (= (:aabb scene) aabb))))
                         }]
@@ -74,7 +74,7 @@
                    path          "/sprite/small_atlas.sprite"
                    resource-node (test-util/resource-node project path)
                    view          (test-util/open-scene-view! project app-view resource-node 128 128)
-                   renderables   (g/node-value (g/graph-value (g/node->graph-id view) :renderer) :renderables)]
+                   renderables   (g/node-value (g/graph-value (g/node-id->graph-id view) :renderer) :renderables)]
                (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
@@ -134,7 +134,7 @@
            (with-clean-system
              (let [workspace     (test-util/setup-workspace! world)
                    project       (test-util/setup-project! workspace)
-                   project-graph (g/node->graph-id project)
+                   project-graph (g/node-id->graph-id project)
                    app-view      (test-util/setup-app-view!)
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
@@ -168,7 +168,7 @@
            (with-clean-system
              (let [workspace     (test-util/setup-workspace! world)
                    project       (test-util/setup-project! workspace)
-                   project-graph (g/node->graph-id project)
+                   project-graph (g/node-id->graph-id project)
                    app-view      (test-util/setup-app-view!)
                    path          "/logic/atlas_sprite.collection"
                    resource-node (test-util/resource-node project path)
@@ -179,7 +179,7 @@
                (test-util/mouse-click! view 32 32)
                (is (test-util/selected? project go-node))
                ; Delete
-               (g/transact (g/delete-node (g/node-id go-node)))
+               (g/transact (g/delete-node go-node))
                (is (test-util/empty-selection? project))
                ; Undo
                (g/undo! project-graph)
@@ -188,7 +188,7 @@
                (test-util/mouse-click! view 32 32)
                (is (test-util/selected? project go-node))
                ; Delete again
-               (g/transact (g/delete-node (g/node-id go-node)))
+               (g/transact (g/delete-node go-node))
                (is (test-util/empty-selection? project))
                ;Select again
                (test-util/mouse-click! view 32 32)

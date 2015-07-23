@@ -95,32 +95,34 @@
 
     (let [close-handler (ui/event-handler event
                           (g/transact
-                            (g/delete-node (g/node-id project)))
+                            (g/delete-node project))
                           (g/dispose-pending!))
           dispose-handler (ui/event-handler event (g/dispose-pending!))]
       (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
-    (let [^MenuBar menu-bar (.lookup root "#menu-bar")
+    (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
-          ^TreeView outline (.lookup root "#outline")
-          ^Tab assets (.lookup root "#assets")
-          app-view (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)]
+          ^TreeView outline    (.lookup root "#outline")
+          ^Tab assets          (.lookup root "#assets")
+          app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
+          outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource)))]
       (g/transact
         (concat
-          (g/connect (g/node-id project) :selected-node-ids (g/node-id outline-view) :selection)
+          (g/connect project :selected-node-ids outline-view :selection)
           (for [label [:active-resource :active-outline :open-resources]]
-            (g/connect (g/node-id app-view) label (g/node-id outline-view) label))
-          (g/update-property app-view :auto-pulls conj [outline-view :tree-view])))
-      (asset-browser/make-asset-browser workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource))))
+            (g/connect app-view label outline-view label))
+          (for [view [outline-view asset-browser]]
+            (g/update-property app-view :auto-pulls conj [view :tree-view]))
+          (g/update-property app-view :auto-pulls conj [outline-view :tree-view]))))
     (graph-view/setup-graph-view root *project-graph*)
     (reset! the-root root)
     root))
 
 (defn- create-view [game-project ^VBox root place node-type]
-  (let [node (g/make-node! (g/node->graph-id game-project) node-type)]
-    (core/post-create node (g/now) {:parent (.lookup root place)})))
+  (let [node-id (g/make-node! (g/node-id->graph-id game-project) node-type)]
+    (core/post-create (g/node-by-id node-id) (g/now) {:parent (.lookup root place)})))
 
 (defn setup-workspace [project-path]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
@@ -128,29 +130,27 @@
       (concat
         (text/register-view-types workspace)
         (scene/register-view-types workspace)))
-    (let [workspace (g/refresh workspace)]
-      (g/transact
-        (concat
-          (collection/register-resource-types workspace)
-          (font/register-resource-types workspace)
-          (game-object/register-resource-types workspace)
-          (game-project/register-resource-types workspace)
-          (cubemap/register-resource-types workspace)
-          (image/register-resource-types workspace)
-          (atlas/register-resource-types workspace)
-          (platformer/register-resource-types workspace)
-          (protobuf-types/register-resource-types workspace)
-          (script/register-resource-types workspace)
-          (switcher/register-resource-types workspace)
-          (sprite/register-resource-types workspace)
-          (shader/register-resource-types workspace)
-          (tile-source/register-resource-types workspace)
-          (sound/register-resource-types workspace)
-          (spine/register-resource-types workspace)
-          (json/register-resource-types workspace)
-          (mesh/register-resource-types workspace))))
-    (g/refresh workspace)))
-
+    (g/transact
+     (concat
+      (collection/register-resource-types workspace)
+      (font/register-resource-types workspace)
+      (game-object/register-resource-types workspace)
+      (game-project/register-resource-types workspace)
+      (cubemap/register-resource-types workspace)
+      (image/register-resource-types workspace)
+      (atlas/register-resource-types workspace)
+      (platformer/register-resource-types workspace)
+      (protobuf-types/register-resource-types workspace)
+      (script/register-resource-types workspace)
+      (switcher/register-resource-types workspace)
+      (sprite/register-resource-types workspace)
+      (shader/register-resource-types workspace)
+      (tile-source/register-resource-types workspace)
+      (sound/register-resource-types workspace)
+      (spine/register-resource-types workspace)
+      (json/register-resource-types workspace)
+      (mesh/register-resource-types workspace)))
+    workspace))
 
 (defn open-project
   [^File game-project-file prefs]
@@ -162,8 +162,7 @@
         ^VBox root   (ui/run-now (load-stage workspace project prefs))
         curve        (ui/run-now (create-view project root "#curve-editor-container" CurveEditor))
         changes      (ui/run-now (changes-view/make-changes-view *view-graph* workspace (.lookup root "#changes-container")))
-        properties   (ui/run-now (properties-view/make-properties-view workspace *view-graph* (.lookup root "#properties")))]
-    (g/transact (g/connect (g/node-id project) :selected-nodes (g/node-id properties) :selection))
+        properties   (ui/run-now (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties")))]
     (g/reset-undo! *project-graph*)))
 
 (defn- add-to-recent-projects [prefs project-file]
@@ -241,7 +240,7 @@
                            (fn [report-fn]
                              (report-fn -1 "loading assets")
                              (when (nil? @the-root)
-                               (g/initialize {})
+                               (g/initialize! {})
                                (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
                                (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
                                (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2))))

@@ -15,7 +15,7 @@
   [world]
   (let [workspace            (test-util/setup-workspace! world)
         project              (test-util/setup-project! workspace)
-        project-graph        (g/node->graph-id project)
+        project-graph        (g/node-id->graph-id project)
         app-view             (test-util/setup-app-view!)
         atlas-node           (test-util/resource-node project "/switcher/fish.atlas")
         view                 (test-util/open-scene-view! project app-view atlas-node 128 128)]
@@ -63,7 +63,7 @@
 
   (output scene g/Int :cached (g/fnk [omega view] (+ omega view))))
 
-(defn pile-of-nodes [where tp n] (map g/node-id (tx-nodes (repeatedly (int n) #(g/make-node where tp)))))
+(defn pile-of-nodes [where tp n] (tx-nodes (repeatedly (int n) #(g/make-node where tp))))
 (defn connection-targets [how-many from] (partition how-many (repeatedly #(rand-nth from))))
 
 (defn build-fake-graphs!
@@ -130,19 +130,22 @@
     (load-test-project! world)
     (do-benchmark "Add One Node and Delete One Node"
                   (let [[new-node] (g/tx-nodes-added (g/transact (g/make-node world AThing)))]
-                    (g/transact (g/delete-node (g/node-id new-node)))))))
+                    (g/transact (g/delete-node new-node))))))
+
+(defn- safe-rand-nth [coll]
+  (when (seq? coll)
+    (rand-nth coll)))
 
 (defn set-property-some-nodes []
   (with-clean-system
-    (let [r              (load-test-project! world)
-          project-graph (isys/graph @g/*the-system* (:project-graph r))
+    (let [r               (load-test-project! world)
+          project-graph   (isys/graph @g/*the-system* (:project-graph r))
           affected-num    100
           chosen-node-ids (repeatedly affected-num (partial rand-nth (ig/node-ids project-graph)))
-          chosen-nodes    (mapv #(ig/node project-graph %) chosen-node-ids)
-          chosen-props    (mapv (fn [node]  (rand-nth (vec (disj (set (keys (gt/properties node))) :id)))) chosen-nodes)]
+          chosen-props    (mapv (fn [node-id]  (safe-rand-nth (vec (disj (set (keys (-> node-id g/node-type* gt/properties))) :id)))) chosen-node-ids)]
       (str "Set Property on " affected-num " Nodes")
       (do-benchmark (str "Set Property on " affected-num " Nodes")
-                    (mapv (fn [node property] (g/set-property node property nil)) chosen-nodes chosen-props)))))
+                    (mapv (fn [node property] (g/set-property node property nil)) chosen-node-ids chosen-props)))))
 
 (defn add-two-nodes-and-connect-them []
   (with-clean-system
@@ -151,7 +154,7 @@
                   (let [txn-results (g/transact [(g/make-node world AThing)
                                                  (g/make-node world Container)])
                         [new-input-node new-output-node] (g/tx-nodes-added txn-results)]
-                    (g/transact (g/connect (g/node-id new-input-node) :a-property (g/node-id new-output-node) :nodes))))))
+                    (g/transact (g/connect new-input-node :a-property new-output-node :nodes))))))
 
 (defn add-two-nodes-and-connect-and-disconnect-them []
   (with-clean-system
@@ -160,8 +163,8 @@
      (let [txn-results (g/transact [(g/make-node world AThing)
                                     (g/make-node world Container)])
            [new-input-node new-output-node] (g/tx-nodes-added txn-results)]
-       (g/transact (g/connect (g/node-id new-input-node) :a-property (g/node-id new-output-node) :nodes))
-       (g/transact (g/disconnect (g/node-id new-input-node) :a-property (g/node-id new-output-node) :nodes))))))
+       (g/transact (g/connect new-input-node :a-property new-output-node :nodes))
+       (g/transact (g/disconnect new-input-node :a-property new-output-node :nodes))))))
 
 (defn one-node-value []
   (with-clean-system
@@ -196,11 +199,11 @@
   (with-clean-system
     (let [[resources views] (build-fake-graphs! 1000 100)
           actions           (map (fn [& a] a)
-                                 (repeatedly n #(g/node-id (rand-nth resources)))
+                                 (repeatedly n #(rand-nth resources))
                                  (repeat n :path)
                                  (repeat :scene))
           pulls             (map (fn [& a] a)
-                                 (repeatedly #(g/node-id (rand-nth views)))
+                                 (repeatedly #(rand-nth views))
                                  (repeatedly #(rand-nth [:view :omega])))]
       (run-transactions-for-tracing actions pulls))))
 
@@ -208,11 +211,11 @@
   (with-clean-system
     (let [[resources views] (build-fake-graphs! 1000 100)
           actions           (map (fn [& a] a)
-                                 (repeatedly n #(g/node-id (rand-nth resources)))
+                                 (repeatedly n #(rand-nth resources))
                                  (repeat n :path)
                                  (repeatedly n #(rand-int 10000)))
           pulls             (map (fn [& a] a)
-                                 (repeatedly #(g/node-id (rand-nth views)))
+                                 (repeatedly #(rand-nth views))
                                  (repeat :scene))]
       (do-benchmark
        (format "Run %s transactions of setting a property and pulling values" n)
