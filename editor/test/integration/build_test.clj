@@ -33,7 +33,7 @@
     (->BuildResource project path nil))
   ([project path prefix]
     (let [node (test-util/resource-node project path)]
-      (workspace/make-build-resource (:resource node) prefix))))
+      (workspace/make-build-resource (g/node-value node :resource) prefix))))
 
 (def pb-cases [{:label "ParticleFX"
                 :path "/main/blob.particlefx"
@@ -184,7 +184,7 @@
                                                      build-results))]
                  (is (= 1 (count-exts (keys content-by-target) "goc")))
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))
-                 (let [go-node (first-source (first-source (g/node-id resource-node) :child-scenes) :source)
+                 (let [go-node (first-source (first-source resource-node :child-scenes) :source)
                        comp-node (first-source go-node :child-scenes)]
                    (g/transact (g/delete-node comp-node))
                    (let [build-results (project/build project resource-node)
@@ -206,7 +206,7 @@
                  (is (every? #(> (count %) 0) [first-build-results second-build-results]))
                  (is (not-any? :cached first-build-results))
                  (is (every? :cached second-build-results))
-                 (g/transact (g/set-property (g/node-id main-collection) :name "my-test-name"))
+                 (g/transact (g/set-property main-collection :name "my-test-name"))
                  (let [build-results (project/build project resource-node)]
                    (is (> (count build-results) 0))
                    (is (not-every? :cached build-results)))
@@ -223,12 +223,12 @@
                (let [path "/main/main.collection"
                      resource-node (test-util/resource-node project path)
                      _ (project/build project resource-node)
-                     cache-count (count @(:build-cache project))]
+                     cache-count (count @(g/node-value project :build-cache))]
                  (g/transact
-                   (for [[node-id label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
+                   (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
                      (g/delete-node node-id)))
                  (project/build project resource-node)
-                 (is (< (count @(:build-cache project)) cache-count)))))))
+                 (is (< (count @(g/node-value project :build-cache)) cache-count)))))))
 
 (deftest prune-fs-build-cache
   (testing "Verify the fs build cache works as expected"
@@ -238,12 +238,12 @@
                (let [path "/main/main.collection"
                      resource-node (test-util/resource-node project path)
                      _ (project/build-and-write project resource-node)
-                     cache-count (count @(:fs-build-cache project))]
+                     cache-count (count @(g/node-value project :fs-build-cache))]
                  (g/transact
-                   (for [[node-id label] (g/sources-of (g/node-id resource-node) :dep-build-targets)]
+                   (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
                      (g/delete-node node-id)))
                  (project/build-and-write project resource-node)
-                 (is (< (count @(:fs-build-cache project)) cache-count)))))))
+                 (is (< (count @(g/node-value project :fs-build-cache)) cache-count)))))))
 
 (deftest build-atlas
   (testing "Building atlas"

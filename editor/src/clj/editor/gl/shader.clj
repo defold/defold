@@ -460,8 +460,8 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (defn- load-shader [project self input def]
   (let [source (slurp input)]
     (concat
-      (g/set-property (g/node-id self) :source source)
-      (g/set-property (g/node-id self) :def def))))
+      (g/set-property self :source source)
+      (g/set-property self :def def))))
 
 (defn- register [workspace def]
   (workspace/register-resource-type workspace

@@ -81,16 +81,16 @@
     (workspace/resolve-resource base-resource path)))
 
 (defn load-game-project [project self input]
-  (let [content (slurp input)
+  (let [content    (slurp input)
         properties (parse-properties (BufferedReader. (StringReader. content)))
-        resource (:resource self)
-        roots (map (fn [[category field]] (root-resource resource properties category field))
-                   [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
-                    ["bootstrap" "render"] ["display" "display_profiles"]])]
+        resource   (g/node-value self :resource)
+        roots      (map (fn [[category field]] (root-resource resource properties category field))
+                        [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
+                         ["bootstrap" "render"] ["display" "display_profiles"]])]
     (concat
-      (g/set-property (g/node-id self) :content content)
-      (for [root roots]
-        (project/connect-resource-node project root (g/node-id self) [[:build-targets :dep-build-targets]])))))
+     (g/set-property self :content content)
+     (for [root roots]
+       (project/connect-resource-node project root self [[:build-targets :dep-build-targets]])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

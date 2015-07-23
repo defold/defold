@@ -15,9 +15,11 @@
             [schema.core :as s])
   (:import [internal.graph.types Arc]))
 
-(namespaces/import-vars [plumbing.core <- ?> ?>> aconcat as->> assoc-when conj-when cons-when count-when defnk dissoc-in distinct-by distinct-fast distinct-id fn-> fn->> fnk for-map frequencies-fast get-and-set! grouped-map if-letk indexed interleave-all keywordize-map lazy-get letk map-from-keys map-from-vals mapply memoized-fn millis positions rsort-by safe-get safe-get-in singleton sum swap-pair! unchunk update-in-when when-letk])
+(namespaces/import-vars [plumbing.core defnk fnk])
 
 (namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties declared-inputs injectable-inputs declared-outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
+
+(namespaces/import-vars [internal.node has-input? has-output? has-property?])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
@@ -126,8 +128,8 @@
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------
 (defn tx-nodes-added
-  [{:keys [basis nodes-added]}]
-  (map (partial ig/node-by-id-at basis) nodes-added))
+  [transaction]
+  (:nodes-added transaction))
 
 (defn is-modified?
   ([transaction node-id]
@@ -454,12 +456,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
-(defn refresh
-  ([n]
-   (refresh (now) n))
-  ([basis n]
-   (node-by-id basis (node-id n))))
-
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
   The value may be cached or it may be computed on demand. This is
@@ -471,12 +467,15 @@
 
   The label must exist as a defined transform on the node, or an
   AssertionError will result."
-  ([node label]
-   (in/node-value (now) (cache) node label))
-  ([basis node label]
-   (in/node-value basis (cache) node label))
-  ([basis cache node label]
-   (in/node-value basis cache node label)))
+  ([node-id label]
+   (in/node-value (now) (cache) node-id label))
+  ([basis node-id label]
+   (in/node-value basis (cache) node-id label))
+  ([basis cache node-id label]
+   (when (instance? Node node-id)
+     (try (throw (ex-info "Pass node IDs instead of node objects!" {}))
+          (catch Exception e (.printStackTrace e))))
+   (in/node-value basis cache node-id label)))
 
 (defn graph-value
   ([graph-id k]
@@ -493,7 +492,7 @@
 
 (defn inputs
   "Return the inputs to this node. Returns a collection like
-  [[node-id output] [node-id output]...].
+  [[source-id output target-id input] [source-id output target-id input]...].
 
   If there are no inputs connected, returns an empty collection."
   ([node-id]       (inputs (now) node-id))
@@ -501,7 +500,7 @@
 
 (defn outputs
   "Return the outputs from this node. Returns a collection like
-  [[node-id input] [node-id input]...].
+  [[source-id output target-id input] [source-id output target-id input]...].
 
   If there are no outputs connected, returns an empty collection."
   ([node-id]       (outputs (now) node-id))
@@ -623,8 +622,8 @@
    (paste (now) graph-id fragment opts))
   ([basis graph-id fragment {:keys [read-handlers] :as opts}]
    (let [node-txs      (vec (mapcat #(deserialize-node graph-id %) (:nodes fragment)))
-         nodes         (map :node node-txs)
-         id-dictionary (zipmap (map :serial-id (:nodes fragment)) (map #(gt/node-id (:node %)) node-txs))
+         nodes         (map (comp :_id :node) node-txs)
+         id-dictionary (zipmap (map :serial-id (:nodes fragment)) nodes)
          connect-txs   (mapcat #(deserialize-arc id-dictionary read-handlers %) (:arcs fragment))]
      {:root-node-ids (map #(get id-dictionary %) (:roots fragment))
       :nodes         nodes

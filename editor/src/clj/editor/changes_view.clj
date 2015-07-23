@@ -68,12 +68,12 @@
   (dispose [this]))
 
 (defn make-changes-view [view-graph workspace parent]
-  (let [view      (g/make-node! view-graph ChangesView :parent-view parent)
-        self-ref  (g/node-id view)]
+  (let [view-id (g/make-node! view-graph ChangesView :parent-view parent)
+        view    (g/node-by-id view-id)]
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
-      (core/post-create view (g/now) {:parent parent :git (Git/open (io/file (:root workspace)))})
-      (g/refresh view)
+      (core/post-create view (g/now) {:parent parent :git (Git/open (io/file (g/node-value workspace :root)))})
+      view-id
       (catch Exception e
         (log/error :exception e)))))

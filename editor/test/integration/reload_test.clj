@@ -73,7 +73,7 @@
     (workspace/fs-sync workspace)))
 
 (defn- has-undo? [project]
-  (g/has-undo? (g/node->graph-id project)))
+  (g/has-undo? (g/node-id->graph-id project)))
 
 (defn- no-undo? [project]
   (not (has-undo? project)))
@@ -102,34 +102,34 @@
 (deftest external-file
  (with-clean-system
    (let [[workspace project] (setup world)
-         atlas-node (project/get-resource-node project "/atlas/empty.atlas")
+         atlas-node-id (project/get-resource-node project "/atlas/empty.atlas")
          img-path "/test_img.png"
          anim-id (FilenameUtils/getBaseName img-path)]
-     (is (not (nil? atlas-node)))
+     (is (not (nil? atlas-node-id)))
      (testing "Add external file, no transaction"
-              (add-img workspace img-path 64 64)
-              (let [node (project/get-resource-node project img-path)]
-                (is (nil? node)))
-              (is (no-undo? project)))
+       (add-img workspace img-path 64 64)
+       (let [node (project/get-resource-node project img-path)]
+         (is (nil? node)))
+       (is (no-undo? project)))
      (testing "Reference it, node added and linked"
-              (g/transact
-                (atlas/add-images atlas-node [(workspace/resolve-resource (:resource atlas-node) img-path)]))
-              (is (has-undo? project))
-              (let [undo-count (count (undo-stack (g/node->graph-id project)))
-                    anim-data (g/node-value atlas-node :anim-data)
-                    anim (get anim-data anim-id)]
-                (is (and (= 64 (:width anim)) (= 64 (:height anim))))
-                (testing "Modify image, anim data updated"
-                         (add-img workspace img-path 128 128)
-                         (is (= undo-count (count (undo-stack (g/node->graph-id project)))))
-                         (let [anim-data (g/node-value atlas-node :anim-data)
-                               anim (get anim-data anim-id)]
-                           (is (and (= 128 (:width anim)) (= 128 (:height anim))))))
-                (testing "Delete it, errors produced"
-                         (delete-file workspace img-path)
-                         (is (= undo-count (count (undo-stack (g/node->graph-id project)))))
-                         ; TODO - fix node pollution
-                         (is (thrown? java.io.FileNotFoundException (g/node-value atlas-node :anim-data)))))))))
+       (g/transact
+        (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
+       (is (has-undo? project))
+       (let [undo-count (count (undo-stack (g/node-id->graph-id project)))
+             anim-data (g/node-value atlas-node-id :anim-data)
+             anim (get anim-data anim-id)]
+         (is (and (= 64 (:width anim)) (= 64 (:height anim))))
+         (testing "Modify image, anim data updated"
+           (add-img workspace img-path 128 128)
+           (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+           (let [anim-data (g/node-value atlas-node-id :anim-data)
+                 anim (get anim-data anim-id)]
+             (is (and (= 128 (:width anim)) (= 128 (:height anim))))))
+         (testing "Delete it, errors produced"
+           (delete-file workspace img-path)
+           (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+                                        ; TODO - fix node pollution
+           (is (thrown? java.io.FileNotFoundException (g/node-value atlas-node-id :anim-data)))))))))
 
 (deftest save-no-reload
   (with-clean-system
@@ -138,7 +138,7 @@
                (add-file workspace "/test.collection")
                (let [node (project/get-resource-node project "/test.collection")]
                  (g/transact
-                   (g/set-property (g/node-id node) :name "new_name"))
+                   (g/set-property node :name "new_name"))
                  (is (has-undo? project))
                  (project/save-all project)
                  (workspace/fs-sync workspace)

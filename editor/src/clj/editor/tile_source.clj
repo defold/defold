@@ -33,13 +33,13 @@
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
 (g/defnk produce-build-targets [_node-id project-id resource texture-set-data save-data]
-  (let [workspace (project/workspace (g/node-by-id project-id))
-        texture-type (workspace/get-resource-type workspace "texture")
+  (let [workspace        (project/workspace project-id)
+        texture-type     (workspace/get-resource-type workspace "texture")
         texture-resource (workspace/make-memory-resource workspace texture-type (:content save-data))
-        texture-target {:node-id _node-id
-                        :resource (workspace/make-build-resource texture-resource)
-                        :build-fn build-texture
-                        :user-data {:image (:image texture-set-data)}}]
+        texture-target   {:node-id   _node-id
+                          :resource  (workspace/make-build-resource texture-resource)
+                          :build-fn  build-texture
+                          :user-data {:image (:image texture-set-data)}}]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture-set
@@ -95,12 +95,12 @@
 (defn- load-tile-source [project self input]
   (let [tile-source (protobuf/read-text Tile$TileSet input)]
     (concat
-      (g/set-property (g/node-id self) :pb tile-source)
-      (if-let [image-resource (workspace/resolve-resource (:resource self) (:image tile-source))]
-        (project/connect-resource-node project image-resource (g/node-id self) [[:content :image-content]])
+      (g/set-property self :pb tile-source)
+      (if-let [image-resource (workspace/resolve-resource (g/node-value self :resource) (:image tile-source))]
+        (project/connect-resource-node project image-resource self [[:content :image-content]])
         [])
-      (if-let [image-resource (workspace/resolve-resource (:resource self) (:collision tile-source))]
-        (project/connect-resource-node project image-resource (g/node-id self) [[:content :collision-content]])
+      (if-let [image-resource (workspace/resolve-resource (g/node-value self :resource) (:collision tile-source))]
+        (project/connect-resource-node project image-resource self [[:content :collision-content]])
         []))))
 
 (defn register-resource-types [workspace]
