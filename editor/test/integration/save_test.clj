@@ -8,7 +8,8 @@
 (deftest save-all
   (testing "Saving all resource nodes in the project"
            (let [queries ["**/level1.platformer" "**/level01.switcher" "**/env.cubemap" "**/switcher.atlas"
-                          "**/atlas_sprite.collection" "**/atlas_sprite.go" "**/atlas.sprite"]]
+                          "**/atlas_sprite.collection" "**/atlas_sprite.go" "**/atlas.sprite"
+                          "**/props.go"]]
              (with-clean-system
                (let [workspace (test-util/setup-workspace! world)
                      project   (test-util/setup-project! workspace)

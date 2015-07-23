@@ -26,13 +26,13 @@
 
 (defrecord FileResource [workspace ^File file children]
   Resource
-  (resource-type [this] (get (:resource-types workspace) (FilenameUtils/getExtension (.getPath file))))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension (.getPath file))))
   (source-type [this] (if (.isFile file) :file :folder))
   (read-only? [this] (not (.canWrite file)))
-  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String (:root workspace)) file)))
+  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String (g/node-value workspace :root)) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
-  (url [this] (relative-path (File. ^String (:root workspace)) file))
+  (url [this] (relative-path (File. ^String (g/node-value workspace :root)) file))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
@@ -70,7 +70,7 @@
 
 (defrecord ZipResource [workspace name path data children]
   Resource
-  (resource-type [this] (get (:resource-types workspace) (FilenameUtils/getExtension name)))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension name)))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (read-only? [this] true)
   (path [this] path)

@@ -214,22 +214,21 @@
 
 (defn- connect-image [project self image]
   (if-let [image-node (project/get-resource-node project image)]
-    (let [outputs (-> image-node g/node-type g/output-labels)]
+    (let [outputs (-> image-node g/node-type* g/output-labels)]
       (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect (g/node-id image-node) :anim-data (g/node-id self) :anim-data)
-         (g/connect (g/node-id image-node) :gpu-texture (g/node-id self) :gpu-texture)
-         (g/connect (g/node-id image-node) :build-targets (g/node-id self) :dep-build-targets)]
+        [(g/connect image-node :anim-data     self :anim-data)
+         (g/connect image-node :gpu-texture   self :gpu-texture)
+         (g/connect image-node :build-targets self :dep-build-targets)]
         []))
     []))
 
-(defn- disconnect-all [self label]
-  (let [sources (g/sources-of self label)]
-    (for [[src-node src-label] sources]
-      (g/disconnect (g/node-id src-node) src-label (g/node-id self) label))))
+(defn- disconnect-all [node-id label]
+  (for [[src-node-id src-label] (g/sources-of node-id label)]
+    (g/disconnect src-node-id src-label node-id label)))
 
 (defn reconnect [transaction graph self label kind labels]
   (when (some #{:image} labels)
-    (let [image (:image self)
+    (let [image (g/node-value self :image)
           project (project/get-project self)]
       (concat
         (disconnect-all self :anim-data)
@@ -272,9 +271,9 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-sprite [project self input]
-  (let [sprite (protobuf/read-text Sprite$SpriteDesc input)
-        resource (:resource self)
-        image (workspace/resolve-resource resource (:tile-set sprite))
+  (let [sprite   (protobuf/read-text Sprite$SpriteDesc input)
+        resource (g/node-value self :resource)
+        image    (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
       (g/set-property self :image image)
@@ -283,7 +282,7 @@
       (g/set-property self :blend-mode (:blend-mode sprite))
       (connect-image project self image)
       (if-let [material-node (project/get-resource-node project material)]
-        (g/connect (g/node-id material-node) :build-targets (g/node-id self) :dep-build-targets)
+        (g/connect material-node :build-targets self :dep-build-targets)
         []))))
 
 (defn register-resource-types [workspace]
@@ -294,5 +293,4 @@
                                     :icon sprite-icon
                                     :view-types [:scene]
                                     :tags #{:component}
-                                    :label "Sprite"
-                                    :template "templates/template.sprite"))
+                                    :label "Sprite"))

@@ -16,7 +16,7 @@ stat             ::= ';' |
                      &'for' Keyword Name '=' exp ',' exp [',' exp] doblock |
                      &'for' Keyword namelist &'in' Keyword explist doblock |
                      &'function' Keyword funcname funcbody |
-                     &'local' Keyword &'function' Name funcbody |
+                     &'local' Keyword &'function' Keyword Name funcbody |
                      &'local' Keyword namelist ['=' explist]
 
 doblock          ::= &'do' Keyword block &'end' Keyword
@@ -68,7 +68,8 @@ unop             ::= '-' | &'not' Keyword | '#' | '~'
 
 Name             ::= !Keyword #"[A-Za-z_][A-Za-z0-9_\.]*"
 
-LiteralString    ::= #"\"[^\"]*\""
+LiteralString    ::= #"\"[^\"]*\"" |
+                     #"'[^\']*'"
 
 Numeral          ::= #"(?<![\d.])\s0x[a-fA-F\d]+|\b\d+(\.\d+)?([eE]-?\d+)?|\.\d+([eE]-?\d+)?"
 

@@ -85,15 +85,15 @@
       cp)))
 
 (defn handle-input [self action]
-  (let [camera (g/node-value self :camera)
-        viewport (g/node-value self :viewport)
+  (let [camera         (g/node-value self :camera)
+        viewport       (g/node-value self :viewport)
         control-points (g/node-value self :control-points)
-        active-cp (g/node-value self :active-cp)
-        inactive-cps (g/node-value self :inactive-cps)
-        pos {:x (:x action) :y (:y action)}
-        world-pos-v4 (c/camera-unproject camera viewport (:x action) (:y action) 0)
-        world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)}
-        cp-hit (some #(hit? % pos camera viewport) control-points)]
+        active-cp      (g/node-value self :active-cp)
+        inactive-cps   (g/node-value self :inactive-cps)
+        pos            {:x (:x action) :y (:y action)}
+        world-pos-v4   (c/camera-unproject camera viewport (:x action) (:y action) 0)
+        world-pos      {:x (.x world-pos-v4) :y (.y world-pos-v4)}
+        cp-hit         (some #(hit? % pos camera viewport) control-points)]
     (case (:type action)
       :mouse-moved
       (if active-cp
@@ -171,13 +171,13 @@
   (output scene         g/Any :cached produce-scene))
 
 (defn load-level [project self input]
-  (with-open [reader (PushbackReader. (io/reader (:resource self)))]
+  (with-open [reader (PushbackReader. (io/reader (g/node-value self :resource)))]
     (let [level (edn/read reader)]
       (concat
         (g/set-property self :control-points (:control-points level))
         (g/set-property self :base-texture (:base-texture level))
-        (if-let [img-resource (workspace/resolve-resource (:resource self) (:base-texture level))]
-          (project/connect-resource-node project img-resource (g/node-id self) [[:content :base-texture-img]])
+        (if-let [img-resource (workspace/resolve-resource (g/node-value self :resource) (:base-texture level))]
+          (project/connect-resource-node project img-resource self [[:content :base-texture-img]])
           [])))))
 
 (defn register-resource-types [workspace]

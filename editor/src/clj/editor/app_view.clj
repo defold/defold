@@ -47,20 +47,20 @@
   (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (:refresh-timer self)))))
+                                     (.stop ^AnimationTimer (g/node-value self :refresh-timer)))))
 
 (defn- invalidate [node label]
-  (g/invalidate! [[(g/node-id node) label]]))
+  (g/invalidate! [[node label]]))
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
-    (g/disconnect (g/node-id source-node) source-label (g/node-id target-node) target-label)))
+    (g/disconnect source-node source-label target-node target-label)))
 
 (defn- replace-connection [source-node source-label target-node target-label]
   (concat
     (disconnect-sources target-node target-label)
-    (if (and source-node (contains? (-> source-node g/node-type g/output-labels) source-label))
-      (g/connect (g/node-id source-node) source-label (g/node-id target-node) target-label)
+    (if (and source-node (contains? (-> source-node g/node-type* g/output-labels) source-label))
+      (g/connect source-node source-label target-node target-label)
       [])))
 
 (defn- on-selected-tab-changed [app-view resource-node]
@@ -74,17 +74,17 @@
 (handler/defhandler :move-tool :global
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
-  (state [app-view] (= (:active-tool (g/refresh app-view)) :move)))
+  (state [app-view] (= (g/node-value app-view :active-tool) :move)))
 
 (handler/defhandler :scale-tool :global
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
-  (state [app-view]  (= (:active-tool (g/refresh app-view)) :scale)))
+  (state [app-view]  (= (g/node-value app-view :active-tool) :scale)))
 
 (handler/defhandler :rotate-tool :global
   (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
-  (state [app-view]  (= (:active-tool (g/refresh app-view)) :rotate)))
+  (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
 
 (ui/extend-menu ::toolbar nil
                 [{:icon "icons/Icons_T_01_Select.png"
@@ -115,8 +115,8 @@
 
 (handler/defhandler :close :global
   (enabled? [] true)
-  (run [app-view] (when-let [tab (-> (:tab-pane app-view) (.getSelectionModel) (.getSelectedItem))]
-                    (.remove (.getTabs (:tab-pane app-view)) tab)
+  (run [app-view] (when-let [tab (-> (g/node-value app-view :tab-pane) (.getSelectionModel) (.getSelectedItem))]
+                    (.remove (.getTabs (g/node-value app-view :tab-pane)) tab)
                     ; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
                     ; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
                     (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))))
@@ -189,13 +189,13 @@
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))
-        env {:app-view app-view
-             :project project
+        env {:app-view      app-view
+             :project       project
              :project-graph project-graph
-             :prefs prefs
-             :workspace (:workspace project)}]
+             :prefs         prefs
+             :workspace     (g/node-value project :workspace)}]
 
-    (ui/context! (.getRoot (.getScene stage)) :global env project)
+    (ui/context! (.getRoot (.getScene stage)) :global env (project/selection-provider project))
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -216,7 +216,7 @@
                           (handle [now]
                             ; TODO: Not invoke this function every frame...
                             (ui/refresh (.getScene stage))
-                            (let [auto-pulls (:auto-pulls (g/refresh app-view))]
+                            (let [auto-pulls (g/node-value app-view :auto-pulls)]
                              (doseq [[node label] auto-pulls]
                                (g/node-value node label)))))]
       (g/transact
@@ -230,7 +230,7 @@
         resource-type (project/get-resource-type resource-node)
         view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
     (if-let [make-view-fn (:make-view-fn view-type)]
-      (let [^TabPane tab-pane   (:tab-pane app-view)
+      (let [^TabPane tab-pane   (g/node-value app-view :tab-pane)
             parent     (AnchorPane.)
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
@@ -240,8 +240,8 @@
                               :project project
                               :tab tab)
             view       (make-view-fn view-graph parent resource-node opts)]
-        (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png")))
-        (.setOnClosed tab (ui/event-handler event (g/delete-graph view-graph)))
+        (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
+        (.setOnClosed tab (ui/event-handler event (g/delete-graph! view-graph)))
         (.select (.getSelectionModel tab-pane) tab)
         (project/select! project [resource-node]))
       (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))

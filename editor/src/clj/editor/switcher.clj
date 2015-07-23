@@ -236,7 +236,7 @@
         level-hit
         (g/transact
          [(g/operation-label "Paint Cell")
-          (g/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self)))])
+          (g/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (g/node-value self :active-brush)))])
         :default
         action))
     action))
@@ -284,15 +284,15 @@
   (output scene     g/Any :cached produce-scene))
 
 (defn load-level [project self input]
-  (with-open [reader (PushbackReader. (io/reader (:resource self)))]
+  (with-open [reader (PushbackReader. (io/reader (g/node-value self :resource)))]
     (let [level      (edn/read reader)
-          atlas-resource (workspace/resolve-resource (:resource self) switcher-atlas-file)]
+          atlas-resource (workspace/resolve-resource (g/node-value self :resource) switcher-atlas-file)]
       (concat
         (g/set-property self :width (:width level))
         (g/set-property self :height (:height level))
         (g/set-property self :blocks (:blocks level))
         (project/connect-resource-node project
-                                       atlas-resource (g/node-id self)
+                                       atlas-resource self
                                        [[:anim-data :anim-data]
                                         [:gpu-texture :gpu-texture]])))))
 

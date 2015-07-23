@@ -309,8 +309,8 @@
     (let [camera (camera-orthographic-frame-aabb camera viewport aabb)]
       (g/transact
        (concat
-        (g/set-property self :camera camera)
-        (g/set-property self :reframe false)))
+        (g/set-property (g/node-id self) :camera camera)
+        (g/set-property (g/node-id self) :reframe false)))
       camera)
     camera))
 
@@ -326,26 +326,28 @@
      camera)))
 
 (defn handle-input [self action user-data]
-  (let [viewport (g/node-value self :viewport)]
+  (let [viewport          (g/node-value self :viewport)
+        movements-enabled (g/node-value self :movements-enabled)
+        ui-state          (g/node-value self :ui-state)]
     (case (:type action)
-      :scroll (if (contains? (:movements-enabled self) :dolly)
+      :scroll (if (contains? movements-enabled :dolly)
                 (let [dy (:delta-y action)]
                   (g/transact (g/update-property self :camera dolly (* -0.002 dy)))
                   nil)
                 action)
-      :mouse-pressed (let [movement (get (:movements-enabled self) (camera-movement action) :idle)]
-                       (swap! (:ui-state self) assoc
+      :mouse-pressed (let [movement (get movements-enabled (camera-movement action) :idle)]
+                       (swap! ui-state assoc
                               :last-x (:x action)
                               :last-y (:y action)
                               :movement movement)
                        (if (= movement :idle) action nil))
-      :mouse-released (let [movement (:movement @(:ui-state self))]
-                        (swap! (:ui-state self) assoc
+      :mouse-released (let [movement (:movement @ui-state)]
+                        (swap! ui-state assoc
                                :last-x nil
                                :last-y nil
                                :movement :idle)
                         (if (= movement :idle) action nil))
-      :mouse-moved (let [{:keys [movement last-x last-y]} @(:ui-state self)
+      :mouse-moved (let [{:keys [movement last-x last-y]} @ui-state
                          {:keys [x y]} action]
                      (if (not (= :idle movement))
                        (do
@@ -355,7 +357,7 @@
                              :track  (g/update-property self :camera track viewport last-x last-y x y)
                              :tumble (g/update-property self :camera tumble last-x last-y x y)
                              nil))
-                         (swap! (:ui-state self) assoc
+                         (swap! ui-state assoc
                                 :last-x x
                                 :last-y y)
                          nil)
