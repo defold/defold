@@ -209,13 +209,14 @@ ordinary paths."
         external (filter (complement loadable?) resources)]
     (g/transact
       (for [resource internal
+            :when resource
             :let [node-id (g/node-id (get-resource-node project resource))]]
         ; TODO - recreate a polluted node
         (g/delete-node node-id)))
     (doseq [resource external
-            :let [resource-node (get-resource-node project resource)
-                  nid (g/node-id resource-node)]]
-      (g/invalidate! (mapv #(do [nid (first %)]) (outputs resource-node))))))
+            :let [resource-node (get-resource-node project resource)]
+            :when resource-node]
+      (g/invalidate! (mapv #(do [(g/node-id resource-node) (first %)]) (outputs resource-node))))))
 
 (defn- handle-resource-changes [project changes]
   (let [all (reduce into [] (vals changes))

@@ -226,11 +226,11 @@
     app-view))
 
 (defn open-resource [app-view workspace project resource]
-  (let [resource-node (project/get-resource-node project resource)
-        resource-type (project/get-resource-type resource-node)
+  (let [resource-type (workspace/resource-type resource)
         view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
     (if-let [make-view-fn (:make-view-fn view-type)]
-      (let [^TabPane tab-pane   (:tab-pane app-view)
+      (let [resource-node (project/get-resource-node project resource)
+            ^TabPane tab-pane   (:tab-pane app-view)
             parent     (AnchorPane.)
             tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
