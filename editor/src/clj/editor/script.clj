@@ -69,15 +69,14 @@
                                                       :properties (properties/properties->decls properties)})}))
 
 (g/defnk produce-build-targets [_node-id project-id resource content user-properties modules]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-script
+  [{:node-id   _node-id
+    :resource  (workspace/make-build-resource resource)
+    :build-fn  build-script
     :user-data {:content content :user-properties user-properties :modules modules}
-    :deps (mapcat (fn [mod]
-                    (let [path (lua-module->path mod)
-                          project (g/node-by-id project-id)
-                          mod-node (project/get-resource-node project path)]
-                      (g/node-value mod-node :build-targets))) modules)}])
+    :deps      (mapcat (fn [mod]
+                         (let [path     (lua-module->path mod)
+                               mod-node (project/get-resource-node project-id path)]
+                           (g/node-value mod-node :build-targets))) modules)}])
 
 (g/defnode ScriptNode
   (inherits project/ResourceNode)
@@ -91,10 +90,10 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-script [project self input]
-  (let [content (slurp input)
-        resource (:resource self)]
+  (let [content  (slurp input)
+        resource (g/node-value self :resource)]
     (concat
-      (g/set-property (g/node-id self) :content content))))
+      (g/set-property self :content content))))
 
 (defn- register [workspace def]
   (let [args (merge def

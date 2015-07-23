@@ -34,28 +34,27 @@
       (g/transact
         (concat
           (scene/register-view-types workspace)))
-      (let [workspace (g/refresh workspace)]
-        (g/transact
-          (concat
-            (collection/register-resource-types workspace)
-            (font/register-resource-types workspace)
-            (game-object/register-resource-types workspace)
-            (game-project/register-resource-types workspace)
-            (cubemap/register-resource-types workspace)
-            (image/register-resource-types workspace)
-            (atlas/register-resource-types workspace)
-            (platformer/register-resource-types workspace)
-            (protobuf-types/register-resource-types workspace)
-            (switcher/register-resource-types workspace)
-            (sprite/register-resource-types workspace)
-            (script/register-resource-types workspace)
-            (shader/register-resource-types workspace)
-            (tile-source/register-resource-types workspace)
-            (sound/register-resource-types workspace)
-            (spine/register-resource-types workspace)
-            (json/register-resource-types workspace)
-            (mesh/register-resource-types workspace))))
-      (g/refresh workspace))))
+      (g/transact
+       (concat
+        (collection/register-resource-types workspace)
+        (font/register-resource-types workspace)
+        (game-object/register-resource-types workspace)
+        (game-project/register-resource-types workspace)
+        (cubemap/register-resource-types workspace)
+        (image/register-resource-types workspace)
+        (atlas/register-resource-types workspace)
+        (platformer/register-resource-types workspace)
+        (protobuf-types/register-resource-types workspace)
+        (switcher/register-resource-types workspace)
+        (sprite/register-resource-types workspace)
+        (script/register-resource-types workspace)
+        (shader/register-resource-types workspace)
+        (tile-source/register-resource-types workspace)
+        (sound/register-resource-types workspace)
+        (spine/register-resource-types workspace)
+        (json/register-resource-types workspace)
+        (mesh/register-resource-types workspace)))
+      workspace)))
 
 (defn setup-project!
   [workspace]
@@ -66,7 +65,7 @@
     project))
 
 (defn resource-node [project path]
-  (let [workspace (:workspace project)]
+  (let [workspace (g/node-value project :workspace)]
     (project/get-resource-node project (workspace/file-resource workspace path))))
 
 (defn empty-selection? [project]
@@ -86,23 +85,22 @@
     app-view))
 
 (defn set-active-tool! [app-view tool]
-  (g/transact (g/set-property (g/node-id app-view) :active-tool tool)))
+  (g/transact (g/set-property app-view :active-tool tool)))
 
 (defn open-scene-view! [project app-view resource-node width height]
-  (let [view-graph (g/make-graph! :history false :volatility 2)
-        view (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)]
-    (g/refresh view)))
+  (let [view-graph (g/make-graph! :history false :volatility 2)]
+    (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)))
 
 (defn- fake-input!
   ([view type x y]
     (fake-input! view type x y []))
   ([view type x y modifiers]
     (let [pos [x y 0.0]]
-      (g/transact (g/set-property (g/node-id view) :picking-rect (scene/calc-picking-rect pos pos))))
-    (let [handlers  (g/sources-of (g/node-id view) :input-handlers)
-          user-data (g/node-value (g/node-id view) :selected-tool-renderables)
+      (g/transact (g/set-property view :picking-rect (scene/calc-picking-rect pos pos))))
+    (let [handlers  (g/sources-of view :input-handlers)
+          user-data (g/node-value view :selected-tool-renderables)
           action    (reduce #(assoc %1 %2 true) {:type type :x x :y y} modifiers)
-          action    (scene/augment-action (g/node-id view) action)]
+          action    (scene/augment-action view action)]
       (doseq [[node-id label] handlers]
         (let [handler-fn (g/node-value node-id label)]
           (handler-fn node-id action user-data))))))
