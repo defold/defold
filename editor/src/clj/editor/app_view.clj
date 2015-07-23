@@ -172,6 +172,15 @@
                               :icon "icons/redo.png"
                               :command :redo}
                              {:label :separator}
+                             {:label "Copy"
+                              :acc "Shortcut+C"
+                              :command :copy}
+                             {:label "Cut"
+                              :acc "Shortcut+X"
+                              :command :cut}
+                             {:label "Paste"
+                              :acc "Shortcut+V"
+                              :command :paste}
                              {:label "Delete"
                               :acc "Shortcut+BACKSPACE"
                               :icon_ "icons/redo.png"
