@@ -23,7 +23,7 @@ ordinary paths."
 (def build-dir "/build/default/")
 
 (defn build-path [workspace]
-  (str (:root workspace) build-dir))
+  (str (g/node-value workspace :root) build-dir))
 
 (defrecord BuildResource [resource prefix]
   Resource
@@ -63,9 +63,9 @@ ordinary paths."
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace %) (filter resource-filter (.listFiles file))))]
     (FileResource. workspace file children)))
 
-(g/defnk produce-resource-tree [_self ^String root]
-  (let [tree (create-resource-tree _self (File. root))]
-    (update-in tree [:children] concat (make-zip-tree _self (io/resource "builtins.zip")))))
+(g/defnk produce-resource-tree [_id ^String root]
+  (let [tree (create-resource-tree _id (File. root))]
+    (update-in tree [:children] concat (make-zip-tree _id (io/resource "builtins.zip")))))
 
 (g/defnk produce-resource-list [_self resource-tree]
   (tree-seq #(= :folder (source-type %)) :children resource-tree))
@@ -74,7 +74,7 @@ ordinary paths."
   (into {} (map #(do [(proj-path %) %]) resource-list)))
 
 (defn get-view-type [workspace id]
-  (get (:view-types workspace) id))
+  (get (g/node-value workspace :view-types) id))
 
 (defn register-resource-type [workspace & {:keys [ext build-ext node-type load-fn icon view-types view-opts tags template label]}]
   (let [resource-type {:ext ext
@@ -94,56 +94,60 @@ ordinary paths."
       (g/update-property workspace :resource-types assoc (:ext resource-type) resource-type))))
 
 (defn get-resource-type [workspace ext]
-  (get (:resource-types workspace) ext))
+  (get (g/node-value workspace :resource-types) ext))
 
 (defn get-resource-types
   ([workspace]
-    (map second (:resource-types workspace)))
+    (map second (g/node-value workspace :resource-types)))
   ([workspace tag]
-    (filter #(contains? (:tags %) tag) (map second (:resource-types workspace)))))
+    (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
 (defn template [resource-type]
-  (when-let [template-path (:template resource-type)]
-    (with-open [f (io/reader (io/resource template-path))]
-      (slurp f))))
+  (when-let [template-path (or (:template resource-type) (str "templates/template." (:ext resource-type)))]
+    (when-let [resource (io/resource template-path)]
+      (with-open [f (io/reader resource)]
+        (slurp f)))))
 
-(def default-icons {:file "icons/page_white.png" :folder "icons/16/Icons_01-Folder-closed.png"})
+(def default-icons {:file "icons/32/Icons_29-AT-Unkown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
 
 (defn resource-icon [resource]
   (and resource (or (:icon (resource-type resource)) (get default-icons (source-type resource)))))
 
 (defn file-resource [workspace path]
-  (FileResource. workspace (File. (str (:root workspace) path)) []))
+  (FileResource. workspace (File. (str (g/node-value workspace :root) path)) []))
 
 (defn find-resource [workspace path]
   (let [proj-path path]
     (get (g/node-value workspace :resource-map) proj-path)))
 
+(defn resolve-workspace-resource [workspace path]
+  (or
+   (find-resource workspace path)
+   (file-resource workspace path)))
+
 (defn resolve-resource [base-resource path]
     ; TODO handle relative paths
   (when (not (empty? path))
-    (let [workspace (:workspace base-resource)]
-      (or
-        (find-resource workspace path)
-        (file-resource workspace path)))))
+    (when-let [workspace (:workspace base-resource)]
+      (resolve-workspace-resource workspace path))))
 
 (defn fs-sync
   ([workspace]
     (fs-sync workspace true))
   ([workspace notify-listeners?]
-  (let [watcher-atom (:fs-watcher workspace)
-        watcher (swap! (:fs-watcher workspace) fs-watch/watch)
+  (let [watcher (swap! (g/node-value workspace :fs-watcher) fs-watch/watch)
         changes (into {} (map (fn [[type files]] [type (map #(FileResource. workspace % []) files)]) (:changes watcher)))]
     (when (or (not (empty? (:added changes))) (not (empty? (:removed changes))))
       ; TODO - bug in graph when invalidating internal dependencies, need to be explicit for every output
-      (let [ws-id (g/node-id workspace)]
-        (g/invalidate! (mapv #(do [ws-id %]) [:resource-tree :resource-list :resource-map]))))
+      (g/invalidate! (mapv #(do [workspace %]) [:resource-tree :resource-list :resource-map])))
     (when notify-listeners?
-      (doseq [listener @(:resource-listeners workspace)]
-        (handle-changes listener changes))))))
+      (let [changes (into {} (map (fn [[type resources]]
+                                    [type (filter #(not (nil? (resource-type %))) resources)]) changes))]
+        (doseq [listener @(g/node-value workspace :resource-listeners)]
+          (handle-changes listener changes)))))))
 
 (defn add-resource-listener! [workspace listener]
-  (swap! (:resource-listeners workspace) conj listener))
+  (swap! (g/node-value workspace :resource-listeners) conj listener))
 
 (g/defnode Workspace
   (property root g/Str)

@@ -15,7 +15,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
-(def game-project-icon "icons/16/Icons_04-Project-file.png")
+(def game-project-icon "icons/32/Icons_04-Project-file.png")
 
 (g/defnk produce-save-data [resource content]
   {:resource resource
@@ -81,20 +81,21 @@
     (workspace/resolve-resource base-resource path)))
 
 (defn load-game-project [project self input]
-  (let [content (slurp input)
+  (let [content    (slurp input)
         properties (parse-properties (BufferedReader. (StringReader. content)))
-        resource (:resource self)
-        roots (map (fn [[category field]] (root-resource resource properties category field))
-                   [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
-                    ["bootstrap" "render"] ["display" "display_profiles"]])]
+        resource   (g/node-value self :resource)
+        roots      (map (fn [[category field]] (root-resource resource properties category field))
+                        [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
+                         ["bootstrap" "render"] ["display" "display_profiles"]])]
     (concat
-      (g/set-property self :content content)
-      (for [root roots]
-        (project/connect-resource-node project root (g/node-id self) [[:build-targets :dep-build-targets]])))))
+     (g/set-property self :content content)
+     (for [root roots]
+       (project/connect-resource-node project root self [[:build-targets :dep-build-targets]])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "project"
+                                    :label "Project"
                                     :node-type GameProjectNode
                                     :load-fn load-game-project
                                     :icon game-project-icon

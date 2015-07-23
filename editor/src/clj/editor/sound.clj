@@ -7,9 +7,9 @@
            [org.apache.commons.io IOUtils]))
 
 (def sound-defs [{:ext "wav"
-                  :icon "icons/pictures.png"}
+                  :icon "icons/32/Icons_26-AT-Sound.png"}
                  {:ext "ogg"
-                  :icon "icons/pictures.png"}])
+                  :icon "icons/32/Icons_26-AT-Sound.png"}])
 
 (defn- build-sound [self basis resource dep-resources user-data]
   (let [source (:resource resource)

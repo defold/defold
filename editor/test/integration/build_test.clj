@@ -16,6 +16,8 @@
            [com.dynamo.spine.proto Spine$SpineScene]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
+           [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region]
            [editor.workspace BuildResource]
            [java.awt.image BufferedImage]
@@ -31,7 +33,7 @@
     (->BuildResource project path nil))
   ([project path prefix]
     (let [node (test-util/resource-node project path)]
-      (workspace/make-build-resource (:resource node) prefix))))
+      (workspace/make-build-resource (g/node-value node :resource) prefix))))
 
 (def pb-cases [{:label "ParticleFX"
                 :path "/main/blob.particlefx"
@@ -184,7 +186,7 @@
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))
                  (let [go-node (first-source (first-source resource-node :child-scenes) :source)
                        comp-node (first-source go-node :child-scenes)]
-                   (g/transact (g/delete-node (g/node-id comp-node)))
+                   (g/transact (g/delete-node comp-node))
                    (let [build-results (project/build project resource-node)
                          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)])
                                                          build-results))]
@@ -221,12 +223,12 @@
                (let [path "/main/main.collection"
                      resource-node (test-util/resource-node project path)
                      _ (project/build project resource-node)
-                     cache-count (count @(:build-cache project))]
+                     cache-count (count @(g/node-value project :build-cache))]
                  (g/transact
-                   (for [[node label] (g/sources-of resource-node :dep-build-targets)]
-                     (g/delete-node (g/node-id node))))
+                   (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
+                     (g/delete-node node-id)))
                  (project/build project resource-node)
-                 (is (< (count @(:build-cache project)) cache-count)))))))
+                 (is (< (count @(g/node-value project :build-cache)) cache-count)))))))
 
 (deftest prune-fs-build-cache
   (testing "Verify the fs build cache works as expected"
@@ -236,12 +238,12 @@
                (let [path "/main/main.collection"
                      resource-node (test-util/resource-node project path)
                      _ (project/build-and-write project resource-node)
-                     cache-count (count @(:fs-build-cache project))]
+                     cache-count (count @(g/node-value project :fs-build-cache))]
                  (g/transact
-                   (for [[node label] (g/sources-of resource-node :dep-build-targets)]
-                     (g/delete-node (g/node-id node))))
+                   (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
+                     (g/delete-node node-id)))
                  (project/build-and-write project resource-node)
-                 (is (< (count @(:fs-build-cache project)) cache-count)))))))
+                 (is (< (count @(g/node-value project :fs-build-cache)) cache-count)))))))
 
 (deftest build-atlas
   (testing "Building atlas"
@@ -317,3 +319,49 @@
                      desc (Model$ModelDesc/parseFrom content)]
                  #_(prn desc)
                  #_(is (contains? content-by-target (.getTextureSet desc))))))))
+
+(deftest build-script
+  (with-clean-system
+    (let [workspace     (test-util/setup-workspace! world project-path)
+          project       (test-util/setup-project! workspace)
+          path          "/script/props.script"
+          resource-node (test-util/resource-node project path)
+          build-results (project/build project resource-node)
+          content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+      (let [content (get content-by-source path)
+            lua (Lua$LuaModule/parseFrom content)
+            decl (-> lua (.getProperties))]
+        (is (< 0 (.getNumberEntriesCount decl)))
+        (is (< 0 (.getHashEntriesCount decl)))
+        (is (< 0 (.getUrlEntriesCount decl)))
+        (is (< 0 (.getVector3EntriesCount decl)))
+        (is (< 0 (.getVector4EntriesCount decl)))
+        (is (< 0 (.getQuatEntriesCount decl)))
+        (is (< 0 (.getBoolEntriesCount decl)))
+        (is (< 0 (.getFloatValuesCount decl)))
+        (is (< 0 (.getHashValuesCount decl)))
+        (is (< 0 (.getStringValuesCount decl)))))))
+
+(deftest build-script-properties
+  (with-clean-system
+    (let [workspace     (test-util/setup-workspace! world project-path)
+          project       (test-util/setup-project! workspace)
+          path          "/script/props.go"
+          resource-node (test-util/resource-node project path)
+          build-results (project/build project resource-node)
+          content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
+          content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))]
+      (let [content (get content-by-source path)
+            desc (GameObject$PrototypeDesc/parseFrom content)
+            decl (-> desc (.getComponents 0) (.getPropertyDecls))]
+        (is (< 0 (.getNumberEntriesCount decl)))
+        (is (< 0 (.getHashEntriesCount decl)))
+        (is (< 0 (.getUrlEntriesCount decl)))
+        (is (< 0 (.getVector3EntriesCount decl)))
+        (is (< 0 (.getVector4EntriesCount decl)))
+        (is (< 0 (.getQuatEntriesCount decl)))
+        (is (< 0 (.getBoolEntriesCount decl)))
+        (is (< 0 (.getFloatValuesCount decl)))
+        (is (< 0 (.getHashValuesCount decl)))
+        (is (< 0 (.getStringValuesCount decl)))))))

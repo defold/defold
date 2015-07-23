@@ -59,6 +59,11 @@
               (g/one g/Num "y")
               (g/one g/Num "z")])
 
+(def Vec4    [(g/one g/Num "x")
+              (g/one g/Num "y")
+              (g/one g/Num "z")
+              (g/one g/Num "w")])
+
 (defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])
 

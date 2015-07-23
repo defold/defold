@@ -21,7 +21,7 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d]))
 
-(def font-icon "icons/16/Icons_28-AT-Font.png")
+(def font-icon "icons/32/Icons_28-AT-Font.png")
 
 ; Node defs
 
@@ -51,14 +51,15 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-font [project self input]
-  (let [font (protobuf/read-text Font$FontDesc input)
-        resource (:resource self)]
+  (let [font     (protobuf/read-text Font$FontDesc input)
+        resource (g/node-value self :resource)]
     (concat
       (g/set-property self :pb font))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "font"
+                                    :label "Font"
                                     :node-type FontNode
                                     :load-fn load-font
                                     :icon font-icon))

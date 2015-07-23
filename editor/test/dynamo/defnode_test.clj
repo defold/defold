@@ -428,12 +428,12 @@
 
     (let [node-type-var          (resolve 'dynamo.defnode-test/MutagenicNode)
           node-type              (var-get node-type-var)
-          [node-before-mutation] (tx-nodes (g/make-node world node-type))
-          original-node-id       (:_id node-before-mutation)]
+          [original-node-id] (tx-nodes (g/make-node world node-type))
+          node-before-mutation  (g/node-by-id original-node-id)]
       (binding [*ns* (find-ns 'dynamo.defnode-test)]
         (eval replacement-node-definition))
 
-      (let [node-after-mutation (g/refresh node-before-mutation)]
+      (let [node-after-mutation (g/node-by-id original-node-id)]
         (is (not (instance? MarkerInterface node-before-mutation)))
         (is (= "a-string" (:a-property node-after-mutation)))
         (is (= true       (:b-property node-after-mutation)))

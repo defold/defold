@@ -149,12 +149,15 @@
 ;; ----------------------------------------
 (def ^{:doc "Associate file extensions to syntax functions."}
   ext->syntax
-  {"java"   (partial regex-parse java-syntax)
-   "script" (partial instaparse lua-p)})
+  {"java"          (partial regex-parse java-syntax)
+   "script"        (partial instaparse lua-p)
+   "gui_script"    (partial instaparse lua-p)
+   "render_script" (partial instaparse lua-p)
+   "lua"           (partial instaparse lua-p)})
 
 (defn node->syntax
   [resource-node]
-  (-> resource-node :resource resource/resource-type :ext ext->syntax))
+  (-> resource-node (g/node-value :resource) resource/resource-type :ext ext->syntax))
 
 (defn highlighting-for
   "Turns span data structures into the StyleSpans object needed by the
@@ -193,7 +196,7 @@
     (.setParagraphGraphicFactory text-area (LineNumberFactory/get text-area))
     (when-let [syntax (node->syntax resource-node)]
       (ui/observe (.textProperty text-area) (partial do-highlighting text-area syntax)))
-    (.replaceText text-area 0 0 (slurp (:resource resource-node)))
+    (.replaceText text-area 0 0 (slurp (g/node-value resource-node :resource)))
     (.add (.getChildren ^Pane parent) text-area)
     (ui/fill-control text-area)
     (g/make-node! graph TextView :text-area text-area)))

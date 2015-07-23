@@ -32,7 +32,7 @@
   [^Class enum-class val]
   (Enum/valueOf enum-class (s/replace (s/upper-case (name val)) "-" "_")))
 
-(defn- pb-enum->val
+(defn pb-enum->val
   [^Descriptors$EnumValueDescriptor val]
   (keyword (s/lower-case (s/replace (.getName val) "_" "-"))))
 
@@ -125,23 +125,39 @@
        (.setM30 (.getElement v 3 0)) (.setM31 (.getElement v 3 1)) (.setM32 (.getElement v 3 2)) (.setM33 (.getElement v 3 3)))
      (.build))))
 
+(defn- field->key [^Descriptors$FieldDescriptor field-desc]
+  (keyword (s/replace (.getName field-desc) "_" "-")))
+
 (defn pb->map
   [^Message pb]
-  (let [fld->map (fn [m [^Descriptors$FieldDescriptor descriptor value]]
-                   (let [prop      (keyword (s/replace (.getName descriptor) "_" "-"))
-                         repeated? (.isRepeated descriptor)]
+  (let [fld->map (fn [^Descriptors$FieldDescriptor descriptor value]
+                   (let [repeated? (.isRepeated descriptor)]
                      (cond
                        (= (.getType descriptor) Descriptors$FieldDescriptor$Type/MESSAGE)
-                       (assoc m prop (if repeated? (vec (map pb->map value)) (pb->map value)))
+                       (if repeated? (vec (map pb->map value)) (pb->map value))
 
                        (= (.getType descriptor) Descriptors$FieldDescriptor$Type/ENUM)
-                       (assoc m prop (if repeated? (vec (map pb-enum->val value)) (pb-enum->val value)))
+                       (if repeated? (vec (map pb-enum->val value)) (pb-enum->val value))
 
                        :else
-                       (assoc m prop (if repeated? (vec value) value)))))
-        all-fields     (.getFields (.getDescriptorForType pb))]
-    (->> (reduce fld->map {} (zipmap all-fields (map #(.getField pb %) all-fields)))
-      (msg->clj pb))))
+                       (if repeated? (vec value) value))))
+        all-fields (.getFields (.getDescriptorForType pb))]
+    (let [m (into {} (map (fn [^Descriptors$FieldDescriptor field-desc]
+                            (let [key (field->key field-desc)
+                                  v (fld->map field-desc (.getField pb field-desc))]
+                              [key v]))
+                          all-fields))
+          meta-defaults (into {} (map (fn [^Descriptors$FieldDescriptor field-desc]
+                                       (let [k (field->key field-desc)]
+                                         [k (get m k)]))
+                                     (filter (fn [^Descriptors$FieldDescriptor field-desc]
+                                               (and (not (.isRepeated field-desc)) (not (.hasField pb field-desc))))
+                                             all-fields)))
+          m (with-meta m {:proto-defaults meta-defaults})]
+      (msg->clj pb m))))
+
+(defn field-set? [m key]
+  (not (identical? (get m key) (get-in (meta m) [:proto-defaults key]))))
 
 (defn- desc->cls [^Descriptors$FieldDescriptor desc val]
  (if (.isRepeated desc)
@@ -235,8 +251,8 @@
               :m30 :m31 :m32 :m33]})
 
 (defn- set-field [m ^Descriptors$FieldDescriptor desc ^GeneratedMessage$Builder builder]
-  (let [key (keyword (s/replace (.getName desc) "_" "-"))]
-    (when (contains? m key)
+  (let [key (field->key desc)]
+    (when (and (contains? m key) (field-set? m key))
       (let [clj-val (get m key)
             repeated? (.isRepeated desc)
             name (.getName desc)
@@ -246,9 +262,9 @@
             value (if repeated? (map #(clj->java desc %) clj-val) (clj->java desc clj-val))
             cls (desc->cls desc value)]
         (when (not (nil? value))
-          (do
-            (-> (.getClass builder) (.getDeclaredMethod set-name (into-array Class [cls]))
-              (.invoke builder (into-array Object [value])))))))))
+          (-> (.getClass builder)
+            (.getDeclaredMethod set-name (into-array Class [cls]))
+            (.invoke builder (into-array Object [value]))))))))
 
 (defn map->pb
   [desc-or-cls m]
