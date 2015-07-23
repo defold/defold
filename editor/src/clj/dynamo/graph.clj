@@ -492,7 +492,7 @@
 
 (defn inputs
   "Return the inputs to this node. Returns a collection like
-  [[node-id output] [node-id output]...].
+  [[source-id output target-id input] [source-id output target-id input]...].
 
   If there are no inputs connected, returns an empty collection."
   ([node-id]       (inputs (now) node-id))
@@ -500,7 +500,7 @@
 
 (defn outputs
   "Return the outputs from this node. Returns a collection like
-  [[node-id input] [node-id input]...].
+  [[source-id output target-id input] [source-id output target-id input]...].
 
   If there are no outputs connected, returns an empty collection."
   ([node-id]       (outputs (now) node-id))
