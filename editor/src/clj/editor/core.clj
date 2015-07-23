@@ -9,27 +9,24 @@
 ;; Dependency Injection
 ;; ---------------------------------------------------------------------------
 
-;; TODO - inject-new-nodes should not require any internal namespaces
-
-
 (defn compatible?
-  [[out-node out-label in-node in-label]]
-  (let [out-type          (-> out-node g/node-type (g/output-type out-label))
-        in-type           (-> in-node  g/node-type (g/input-type in-label))
-        in-cardinality    (-> in-node  g/node-type (g/input-cardinality in-label))
+  [basis [out-node out-label in-node in-label]]
+  (let [out-type          (some-> out-node (->> (g/node-type* basis)) (g/output-type out-label))
+        in-type           (some-> in-node  (->> (g/node-type* basis)) (g/input-type in-label))
+        in-cardinality    (some-> in-node  (->> (g/node-type* basis)) (g/input-cardinality in-label))
         type-compatible?  (g/type-compatible? out-type in-type)
         names-compatible? (or (= out-label in-label)
-                              (and (= in-label(inflect/plural out-label)) (= in-cardinality :many)))]
+                              (and (= in-label (inflect/plural out-label)) (= in-cardinality :many)))]
     (and type-compatible? names-compatible?)))
 
 (defn injection-candidates
-  [in-nodes out-nodes]
+  [basis in-nodes out-nodes]
   (into #{}
-     (filter compatible?
+     (filter #(compatible? basis %)
         (for [in-node   in-nodes
-              in-label  (-> in-node g/node-type g/injectable-inputs)
+              in-label  (->> in-node (g/node-type* basis) g/injectable-inputs)
               out-node  out-nodes
-              out-label (keys (-> out-node g/node-type g/transform-types))]
+              out-label (keys (->> out-node (g/node-type* basis) g/transform-types))]
             [out-node out-label in-node in-label]))))
 
 (defn inject-new-nodes
@@ -37,27 +34,24 @@
 This function should not be called directly."
   [transaction basis self label kind inputs-affected]
   (when (inputs-affected :nodes)
-    (let [nodes-before-txn         (cons (g/node-by-id basis self)
-                                         (if-let [original-self (g/node-by-id self)]
-                                           (g/node-value original-self :nodes)
+    (let [nodes-before-txn         (into #{self}
+                                         (if-let [original-self (g/node-by-id (:original-basis transaction) self)]
+                                           (g/node-value (:original-basis transaction) original-self :nodes)
                                            []))
           nodes-after-txn          (g/node-value basis self :nodes)
-          nodes-before-txn-ids     (into #{} (map g/node-id nodes-before-txn))
-          new-nodes-in-scope       (remove #(nodes-before-txn-ids (g/node-id %)) nodes-after-txn)
-          out-from-new-connections (injection-candidates nodes-before-txn new-nodes-in-scope)
-          in-to-new-connections    (injection-candidates new-nodes-in-scope nodes-before-txn)
-          between-new-nodes        (injection-candidates new-nodes-in-scope new-nodes-in-scope)
+          new-nodes-in-scope       (remove nodes-before-txn nodes-after-txn)
+          out-from-new-connections (injection-candidates basis nodes-before-txn new-nodes-in-scope)
+          in-to-new-connections    (injection-candidates basis new-nodes-in-scope nodes-before-txn)
+          between-new-nodes        (injection-candidates basis new-nodes-in-scope new-nodes-in-scope)
           candidates               (set/union out-from-new-connections in-to-new-connections between-new-nodes)
           candidates               (remove
                                     (fn [[out out-label in in-label]]
                                       (or
-                                       (= (g/node-id out) (g/node-id in))
-                                       (g/connected? (g/transaction-basis transaction)
-                                                     (g/node-id out) out-label
-                                                     (g/node-id in)  in-label)))
+                                       (= out in)
+                                       (g/connected? (g/transaction-basis transaction) out out-label in in-label)))
                                     candidates)]
       (for [[out out-label in in-label] candidates]
-        (g/connect (g/node-id out) out-label (g/node-id in) in-label)))))
+        (g/connect out out-label in in-label)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Cascading delete
@@ -69,7 +63,7 @@ This function should not be called directly."
   [transaction graph self label kind]
   (when (g/is-deleted? transaction self)
     (for [node-to-delete (g/node-value self :nodes)]
-      (g/delete-node (g/node-id node-to-delete)))))
+      (g/delete-node node-to-delete))))
 
 ;; ---------------------------------------------------------------------------
 ;; Bootstrapping the core node types
@@ -77,7 +71,7 @@ This function should not be called directly."
 
 (g/defnode Scope
   "Scope provides a level of grouping for nodes. Scopes nest.
-When a node is added to a Scope, the node's :_self output will be
+When a node is added to a Scope, the node's :_id output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."

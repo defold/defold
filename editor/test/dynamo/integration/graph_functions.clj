@@ -25,18 +25,15 @@
 (deftest test-inputs
   (testing "inputs know about nodes externally connected to them"
     (with-clean-system
-      (let [[source sink] (tx-nodes (g/make-node world SourceNode)
-                                    (g/make-node world SinkNode))
-            source-id     (g/node-id source)
-            sink-id       (g/node-id sink)]
-        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink) :an-input))
+      (let [[source-id sink-id] (tx-nodes (g/make-node world SourceNode)
+                                          (g/make-node world SinkNode))]
+        (g/transact (g/connect source-id :an-output sink-id :an-input))
         (is (= [[source-id :an-output sink-id :an-input]] (g/inputs sink-id)))))))
 
 (defn- has-no-inputs
   [ntype]
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world ntype))
-          nid    (g/node-id node)]
+    (let [[nid] (tx-nodes (g/make-node world ntype))]
       (empty? (g/inputs nid)))))
 
 (deftest test-empty-inputs
@@ -49,19 +46,16 @@
 (deftest test-outputs
   (testing "outputs know about nodes connected to them"
     (with-clean-system
-      (let [[source sink] (tx-nodes (g/make-node world SourceNode)
-                                    (g/make-node world SinkNode))
-            source-id     (g/node-id source)
-            sink-id       (g/node-id sink)]
-        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink) :an-input))
+      (let [[source-id sink-id] (tx-nodes (g/make-node world SourceNode)
+                                          (g/make-node world SinkNode))]
+        (g/transact (g/connect source-id :an-output sink-id :an-input))
         (is (= [[source-id :an-output sink-id :an-input]] (g/outputs source-id)))))))
 
 (defn- has-no-outputs
   [ntype]
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world ntype))
-          nid    (g/node-id node)]
-      (empty? (g/outputs nid)))))
+    (let [[node] (tx-nodes (g/make-node world ntype))]
+      (empty? (g/outputs node)))))
 
 (deftest test-empty-outputs
   (testing "nodes without defined outputs do not have results"
@@ -74,28 +68,22 @@
 (deftest chained-connected-input-nodes
   (testing "only immediate node inputs should be returned"
     (with-clean-system
-      (let [[source sink1 sink2] (tx-nodes (g/make-node world SourceNode)
-                                           (g/make-node world SinkNode)
-                                           (g/make-node world SinkNode))
-            source-id            (g/node-id source)
-            sink1-id             (g/node-id sink1)
-            sink2-id             (g/node-id sink2)]
-        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink1) :an-input))
-        (g/transact (g/connect (g/node-id sink1) :an-output (g/node-id sink2) :an-input))
+      (let [[source-id sink1-id sink2-id] (tx-nodes (g/make-node world SourceNode)
+                                                    (g/make-node world SinkNode)
+                                                    (g/make-node world SinkNode))]
+        (g/transact (g/connect source-id :an-output sink1-id :an-input))
+        (g/transact (g/connect sink1-id :an-output sink2-id :an-input))
         (is (= [[sink1-id :an-output sink2-id :an-input]] (g/inputs sink2-id)))))))
 
 
 (deftest array-input-nodes
   (testing "multiple connections to a single input"
     (with-clean-system
-      (let [[source1 source2 sink] (tx-nodes (g/make-node world SourceNode)
-                                             (g/make-node world SourceNode)
-                                             (g/make-node world SinkNode))
-            source1-id             (g/node-id source1)
-            source2-id             (g/node-id source2)
-            sink-id                (g/node-id sink)]
-        (g/transact (g/connect (g/node-id source1) :an-output (g/node-id sink) :an-array-input))
-        (g/transact (g/connect (g/node-id source2) :an-output (g/node-id sink) :an-array-input))
+      (let [[source1-id source2-id sink-id] (tx-nodes (g/make-node world SourceNode)
+                                                      (g/make-node world SourceNode)
+                                                      (g/make-node world SinkNode))]
+        (g/transact (g/connect source1-id :an-output sink-id :an-array-input))
+        (g/transact (g/connect source2-id :an-output sink-id :an-array-input))
         (is (= [[source1-id :an-output sink-id :an-array-input]
                 [source2-id :an-output sink-id :an-array-input]]
                (g/inputs sink-id)))))))
@@ -103,14 +91,11 @@
 (deftest multiple-consumer-output-nodes
   (testing "multiple connections to a single input"
     (with-clean-system
-      (let [[source sink1 sink2] (tx-nodes (g/make-node world SourceNode)
-                                           (g/make-node world SinkNode)
-                                           (g/make-node world SinkNode))
-            source-id            (g/node-id source)
-            sink1-id             (g/node-id sink1)
-            sink2-id             (g/node-id sink2)]
-        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink1) :an-input))
-        (g/transact (g/connect (g/node-id source) :an-output (g/node-id sink2) :an-input))
+      (let [[source-id sink1-id sink2-id] (tx-nodes (g/make-node world SourceNode)
+                                                    (g/make-node world SinkNode)
+                                                    (g/make-node world SinkNode))]
+        (g/transact (g/connect source-id :an-output sink1-id :an-input))
+        (g/transact (g/connect source-id :an-output sink2-id :an-input))
         (is (= [[source-id :an-output sink1-id :an-input]
                 [source-id :an-output sink2-id :an-input]]
                (g/outputs source-id)))))))

@@ -21,8 +21,7 @@
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
-                   node      (test-util/resource-node project "/logic/hierarchy.collection")
-                   node-id   (g/node-id node)
+                   node-id   (test-util/resource-node project "/logic/hierarchy.collection")
                    outline   (g/node-value node-id :outline)]
                ; Two game objects under the collection
                (is (= 2 (count (:children outline))))
@@ -34,8 +33,7 @@
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
-                   node      (test-util/resource-node project "/logic/hierarchy.collection")
-                   node-id   (g/node-id node)
+                   node-id   (test-util/resource-node project "/logic/hierarchy.collection")
                    scene     (g/node-value node-id :scene)]
                ; Two game objects under the collection
                (is (= 2 (count (:children scene))))
@@ -47,8 +45,7 @@
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
-                   node      (test-util/resource-node project "/logic/hierarchy.collection")
-                   node-id   (g/node-id node)]
+                   node-id   (test-util/resource-node project "/logic/hierarchy.collection")]
                ; Two game objects under the collection
                (is (= 2 (count (:children (g/node-value node-id :outline)))))
                ; Select the collection node
@@ -63,8 +60,7 @@
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
-                   node      (test-util/resource-node project "/collection/empty_go.collection")
-                   node-id   (g/node-id node)
+                   node-id   (test-util/resource-node project "/collection/empty_go.collection")
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
                    outline   (g/node-value node-id :outline)
                    scene     (g/node-value node-id :scene)]
@@ -78,8 +74,7 @@
            (with-clean-system
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
-                   node      (test-util/resource-node project "/collection/unknown_components.collection")
-                   node-id   (g/node-id node)
+                   node-id   (test-util/resource-node project "/collection/unknown_components.collection")
                    outline   (g/node-value node-id :outline)
                    scene     (g/node-value node-id :scene)
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]

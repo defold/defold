@@ -12,7 +12,7 @@
            (with-clean-system
              (let [workspace  (test-util/setup-workspace! world)
                    project    (test-util/setup-project! workspace)
-                   proj-graph (g/node->graph-id project)
+                   proj-graph (g/node-id->graph-id project)
                    app-view   (test-util/setup-app-view!)
                    _          (is (not (g/has-undo? proj-graph)))
                    atlas-node (test-util/resource-node project "/switcher/fish.atlas")
@@ -24,15 +24,13 @@
            (with-clean-system
              (let [workspace            (test-util/setup-workspace! world)
                    project              (test-util/setup-project! workspace)
-                   project-graph        (g/node->graph-id project)
+                   project-graph        (g/node-id->graph-id project)
                    app-view             (test-util/setup-app-view!)
                    atlas-node           (test-util/resource-node project "/switcher/fish.atlas")
-                   atlas-node-id        (g/node-id atlas-node)
                    view                 (test-util/open-scene-view! project app-view atlas-node 128 128)
-                   view-id              (g/node-id view)
-                   check-conn           #(not (empty? (g/node-value view-id :scene)))
+                   check-conn           #(not (empty? (g/node-value view :scene)))
                    connected-after-open (check-conn)]
-               (g/transact (g/delete-node atlas-node-id))
+               (g/transact (g/delete-node atlas-node))
                (let [connected-after-delete (check-conn)]
                  (g/undo! project-graph)
                  (let [connected-after-undo (check-conn)]
@@ -45,17 +43,16 @@
            (with-clean-system
              (let [workspace     (test-util/setup-workspace! world)
                    project       (test-util/setup-project! workspace)
-                   project-graph (g/node->graph-id project)
-                   atlas-node    (test-util/resource-node project "/switcher/fish.atlas")
-                   atlas-node-id (g/node-id atlas-node)]
+                   project-graph (g/node-id->graph-id project)
+                   atlas-node    (test-util/resource-node project "/switcher/fish.atlas")]
                (g/transact
                  (concat
                    (g/operation-sequence (gensym))
-                   (g/set-property atlas-node-id :margin 1)))
-               (g/transact (g/set-property atlas-node-id :margin 10))
-               (g/transact (g/set-property atlas-node-id :margin 2))
+                   (g/set-property atlas-node :margin 1)))
+               (g/transact (g/set-property atlas-node :margin 10))
+               (g/transact (g/set-property atlas-node :margin 2))
                (g/undo! project-graph)
-               (is (= 10 (g/node-value atlas-node-id :margin)))))))
+               (is (= 10 (g/node-value atlas-node :margin)))))))
 
 (defn outline-children [node-id] (:children (g/node-value node-id :outline)))
 
@@ -63,23 +60,22 @@
  (with-clean-system
    (let [workspace  (test-util/setup-workspace! world)
          project    (test-util/setup-project! workspace)
-         proj-graph (g/node->graph-id project)
-         go-node    (test-util/resource-node project "/switcher/test.go")
-         go-node-id (g/node-id go-node)]
-     (is (= 1 (count (outline-children go-node-id))))
+         proj-graph (g/node-id->graph-id project)
+         go-node    (test-util/resource-node project "/switcher/test.go")]
+     (is (= 1 (count (outline-children go-node))))
 
-     (g/transact (g/delete-node (:node-id (first (outline-children go-node-id)))))
+     (g/transact (g/delete-node (:node-id (first (outline-children go-node)))))
 
-     (is (= 0 (count (outline-children go-node-id))))
+     (is (= 0 (count (outline-children go-node))))
 
      ;; undo deletion
      (g/undo! proj-graph)
-     (is (= 1 (count (outline-children go-node-id))))
+     (is (= 1 (count (outline-children go-node))))
 
      ;; redo deletion
      (g/redo! proj-graph)
 
-     (is (= 0 (count (outline-children go-node-id)))))))
+     (is (= 0 (count (outline-children go-node)))))))
 
 (g/defnode DummyComponent
   (output outline g/Any (g/fnk [_self] {:node-id (g/node-id _self) :label "dummy" :icon nil :children []})))
@@ -105,7 +101,7 @@
 
 (defn- add-component! [project go-node-id]
   (let [op-seq     (gensym)
-        proj-graph (g/node->graph-id project)
+        proj-graph (g/node-id->graph-id project)
         component  (first
                     (g/tx-nodes-added
                      (g/transact
@@ -119,23 +115,21 @@
      (concat
       (g/operation-sequence op-seq)
       (g/operation-label "Add Component")
-      (project/select project [(g/node-id component)])))
+      (project/select project [component])))
     component))
 
 (deftest undo-redo-undo-redo
  (with-clean-system
    (let [workspace  (test-util/setup-workspace! world)
          project    (test-util/setup-project! workspace)
-         proj-graph (g/node->graph-id project)
+         proj-graph (g/node-id->graph-id project)
          app-view   (test-util/setup-app-view!)
-         view-graph (g/node->graph-id app-view)
+         view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
-         go-node-id (g/node-id go-node)
-         outline    (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
-         outline-id (g/node-id outline)
-         component  (add-component! project go-node-id)]
+         outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
+         component  (add-component! project go-node)]
 
-     (g/transact (g/connect go-node-id :outline outline-id :outline))
+     (g/transact (g/connect go-node :outline outline-id :outline))
 
      (let [original-outline (remove-handlers (g/node-value outline-id :outline))]
        (g/reset-undo! proj-graph)
@@ -143,7 +137,7 @@
        ;; delete the component
        (g/transact
          [(g/operation-label "delete node")
-          (g/delete-node (g/node-id component))])
+          (g/delete-node component)])
 
        ;; force :outline to be cached
        (let [outline-without-component (remove-handlers (g/node-value outline-id :outline))]
@@ -174,23 +168,21 @@
          ;; :outline should be re-produced yet again
          (is (= outline-without-component (remove-handlers (g/node-value outline-id :outline)))))))))
 
-(defn- child-count [go-node-id]
-  (count (outline-children go-node-id)))
+(defn- child-count [go-node]
+  (count (outline-children go-node)))
 
 (deftest add-undo-updated-outline
  (with-clean-system
    (let [workspace  (test-util/setup-workspace! world)
          project    (test-util/setup-project! workspace)
-         proj-graph (g/node->graph-id project)
+         proj-graph (g/node-id->graph-id project)
          app-view   (test-util/setup-app-view!)
-         view-graph (g/node->graph-id app-view)
+         view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
-         go-node-id (g/node-id go-node)
-         outline    (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
-         outline-id (g/node-id outline)]
-     (g/transact (g/connect go-node-id :outline outline-id :outline))
-     (is (= 1 (child-count outline)))
-     (let [component (add-component! project go-node-id)]
+         outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))]
+     (g/transact (g/connect go-node :outline outline-id :outline))
+     (is (= 1 (child-count outline-id)))
+     (let [component (add-component! project go-node)]
        (is (= 2 (child-count outline-id)))
        (g/undo! proj-graph)
        (is (= 1 (child-count outline-id)))))))

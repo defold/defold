@@ -340,7 +340,7 @@
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :tree-view tree-view]]
-                                          (g/connect (g/node-id workspace) :resource-tree asset-browser :resource-tree)))))]
+                                          (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
     (ui/context! tree-view :asset-browser {:tree-view tree-view :workspace workspace :open-fn open-resource-fn} tree-view)
     (setup-asset-browser workspace tree-view open-resource-fn)
     asset-browser))
