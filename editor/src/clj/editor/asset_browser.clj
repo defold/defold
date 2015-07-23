@@ -18,7 +18,7 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
-           [javafx.scene.input ClipboardContent]
+           [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.input DragEvent TransferMode]
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell TreeView Menu MenuItem SeparatorMenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
@@ -68,6 +68,15 @@
 (ui/extend-menu ::resource-menu nil
                 [{:label "Open"
                   :command :open}
+                 {:label "Copy"
+                  :command :copy
+                  :acc "Shortcut+C"}
+                 {:label "Cut"
+                  :command :cut
+                  :acc "Shortcut+X"}
+                 {:label "Paste"
+                  :command :paste
+                  :acc "Shortcut+V"}
                  {:label "Delete"
                   :command :delete
                   :icon "icons/cross.png"
@@ -95,6 +104,38 @@
        (doseq [resource selection]
          (open-fn resource))))
 
+(defn- roots [resources]
+  (let [resources (into {} (map (fn [resource] [(->path (workspace/proj-path resource)) resource]) resources))
+        roots (loop [paths (keys resources)
+                     roots []]
+                (if-let [path (first paths)]
+                  (let [roots (if (empty? (filter #(.startsWith path %) roots))
+                                (conj roots path)
+                                roots)]
+                    (recur (rest paths) roots))
+                  roots))]
+    (mapv #(resources %) roots)))
+
+(defn tmp-file [^File dir resource]
+  (let [f (File. dir (workspace/resource-name resource))]
+    (if (= :file (workspace/source-type resource))
+      (with-open [out (io/writer f)]
+        (IOUtils/copy (io/input-stream resource) out))
+      (do
+        (.mkdirs f)
+        (doseq [c (:children resource)]
+          (tmp-file f c))))
+    f))
+
+(defn- fileify [resources]
+  (let [tmp (doto (-> (Files/createTempDirectory "asset-dnd" (into-array FileAttribute []))
+                    (.toFile))
+              (.deleteOnExit))]
+    (mapv (fn [r]
+            (let [^String abs-path (or (workspace/abs-path r) (.getAbsolutePath ^File (tmp-file tmp r)))]
+              (File. abs-path)))
+          resources)))
+
 (defn- delete [resources]
   (when (not (empty? resources))
     (let [workspace (workspace/workspace (first resources))]
@@ -104,6 +145,57 @@
             (FileUtils/deleteDirectory f)
             (.delete (File. (workspace/abs-path resource))))))
       (workspace/fs-sync workspace))))
+
+(defn- copy [files]
+  (let [cb (Clipboard/getSystemClipboard)
+        content (ClipboardContent.)]
+    (.putFiles content files)
+    (.setContent cb content)))
+
+(handler/defhandler :copy :asset-browser
+  (enabled? [selection] (not (empty? selection)))
+  (run [selection]
+       (copy (-> selection roots fileify))))
+
+(handler/defhandler :cut :asset-browser
+  (enabled? [selection] (every? is-deletable-resource selection))
+  (run [selection]
+       (let [tmp (doto (-> (Files/createTempDirectory "asset-cut" (into-array FileAttribute []))
+                         (.toFile))
+                   (.deleteOnExit))]
+         (copy (mapv #(tmp-file tmp %) (roots selection))))
+       (delete selection)))
+
+(defn- unique [^File f]
+  (if (.exists f)
+    (let [path (.getAbsolutePath f)
+          ext (FilenameUtils/getExtension path)
+          path (str (FilenameUtils/removeExtension path) "_copy")
+          path (if (not (empty? ext))
+                 (str path "." ext)
+                 path)]
+      (recur (File. path)))
+    f))
+
+(handler/defhandler :paste :asset-browser
+  (enabled? [selection]
+            (let [cb (Clipboard/getSystemClipboard)]
+              (and (.hasFiles cb)
+                   (= 1 (count selection))
+                   (empty? (filter workspace/read-only? selection)))))
+  (run [selection]
+       (let [resource (first selection)
+             tgt-dir (to-folder (File. (workspace/abs-path resource)))]
+         (doseq [src-file (.getFiles (Clipboard/getSystemClipboard))
+                 :let [tgt-dir (if (= tgt-dir src-file)
+                                 (.getParent tgt-dir)
+                                 tgt-dir)]]
+           (let [tgt-file (unique (File. tgt-dir (FilenameUtils/getName (.toString src-file))))]
+             (if (.isDirectory src-file)
+               (FileUtils/copyDirectory src-file tgt-file)
+               (FileUtils/copyFile src-file tgt-file))))
+         ; TODO - notify move instead of ordinary sync
+         (workspace/fs-sync (workspace/workspace resource)))))
 
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (every? is-deletable-resource selection))
@@ -198,38 +290,6 @@
 
 (g/defnk produce-tree-view [tree-view resource-tree]
   (update-tree-view tree-view resource-tree (workspace/selection tree-view)))
-
-(defn- roots [resources]
-  (let [resources (into {} (map (fn [resource] [(->path (workspace/proj-path resource)) resource]) resources))
-        roots (loop [paths (keys resources)
-                     roots []]
-                (if-let [path (first paths)]
-                  (let [roots (if (empty? (filter #(.startsWith path %) roots))
-                                (conj roots path)
-                                roots)]
-                    (recur (rest paths) roots))
-                  roots))]
-    (mapv #(resources %) roots)))
-
-(defn tmp-file [^File dir resource]
-  (let [f (File. dir (workspace/resource-name resource))]
-    (if (= :file (workspace/source-type resource))
-      (with-open [out (io/writer f)]
-        (IOUtils/copy (io/input-stream resource) out))
-      (do
-        (.mkdirs f)
-        (doseq [c (:children resource)]
-          (tmp-file f c))))
-    f))
-
-(defn- fileify [resources]
-  (let [tmp (doto (-> (Files/createTempDirectory "asset-dnd" (into-array FileAttribute []))
-                    (.toFile))
-              (.deleteOnExit))]
-    (mapv (fn [r]
-            (let [^String abs-path (or (workspace/abs-path r) (.getAbsolutePath ^File (tmp-file tmp r)))]
-              (File. abs-path)))
-          resources)))
 
 (defn- drag-detected [e selection]
   (let [resources (roots selection)
