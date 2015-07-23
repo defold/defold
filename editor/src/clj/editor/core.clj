@@ -35,8 +35,8 @@ This function should not be called directly."
   [transaction basis self label kind inputs-affected]
   (when (inputs-affected :nodes)
     (let [nodes-before-txn         (into #{self}
-                                         (if-let [original-self (g/node-by-id self)]
-                                           (g/node-value original-self :nodes)
+                                         (if-let [original-self (g/node-by-id (:original-basis transaction) self)]
+                                           (g/node-value (:original-basis transaction) original-self :nodes)
                                            []))
           nodes-after-txn          (g/node-value basis self :nodes)
           new-nodes-in-scope       (remove nodes-before-txn nodes-after-txn)

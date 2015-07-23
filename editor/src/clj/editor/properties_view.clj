@@ -246,9 +246,7 @@
 (defn make-properties-view [workspace project view-graph parent]
   (let [view-id   (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         repainter (proxy [AnimationTimer] []
-                    (handle [now]
-                      (let [self (g/node-by-id view-id)
-                            grid (g/node-value view-id :grid-pane)])))]
+                    (handle [now]))]
     (g/transact
       (concat
         (g/set-property view-id :repainter repainter)
