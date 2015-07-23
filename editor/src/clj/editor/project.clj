@@ -93,7 +93,7 @@ ordinary paths."
         cache (let [cache (get @build-cache resource)] (and (= key (:key cache)) cache))]
     (if cache
      cache
-     (let [node (g/node-by-id basis (:node-id target))
+     (let [node (:node-id target)
            dep-resources (into {} (map #(let [resource (:resource %)
                                               key (target-key %)] [resource (:resource (get all-targets key))]) (:deps target)))
            result ((:build-fn target) node basis resource dep-resources (:user-data target))
