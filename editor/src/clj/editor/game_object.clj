@@ -156,7 +156,12 @@
   (input dep-build-targets g/Any :array)
   (input component-properties g/Any :array)
 
-  (output outline g/Any :cached (g/fnk [_node-id outline] {:node-id _node-id :label "Game Object" :icon game-object-icon :children outline}))
+  (output outline g/Any :cached (g/fnk [_node-id outline]
+                                       {:node-id _node-id
+                                        :label "Game Object"
+                                        :icon game-object-icon
+                                        :children outline
+                                        :accepts-child-fn (constantly true) }))
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)

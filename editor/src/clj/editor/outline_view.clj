@@ -1,8 +1,10 @@
 (ns editor.outline-view
   (:require [dynamo.graph :as g]
+            [clojure.edn :as edn]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
+            [editor.project :as project]
             [editor.workspace :as workspace])
   (:import [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -13,6 +15,7 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
+           [javafx.scene.input Clipboard ClipboardContent DragEvent TransferMode DataFormat]
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeView TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
@@ -87,10 +90,19 @@
           (doto (-> tree-view (.getSelectionModel))
             (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
 
+(defn- pathify
+  ([root]
+    (pathify [] root))
+  ([path item]
+    (let [path (conj path (:node-id item))]
+      (-> item
+        (assoc :path path)
+        (update :children (fn [children] (mapv #(pathify path %) children)))))))
+
 (g/defnk update-tree-view [_self ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
   (let [resource-set (set open-resources)
        root (get root-cache active-resource)
-       new-root (when active-outline (sync-tree root (tree-item active-outline)))
+       new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
     (binding [*programmatic-selection* true]
       (when new-root
@@ -132,6 +144,134 @@
                          (g/operation-label "Delete")
                          (g/delete-node (first selection))))))
 
+(defn- roots [items]
+  (let [items (into {} (map #(do [(:path %) %]) items))
+        roots (loop [paths (keys items)
+                     roots []]
+                (if-let [path (first paths)]
+                  (let [ancestors (filter #(= (subvec path 0 (count %)) %) roots)
+                        roots (if (empty? ancestors)
+                                (conj roots path)
+                                roots)]
+                    (recur (rest paths) roots))
+                  roots))]
+    (vals (into {} (map #(let [item (items %)]
+                           [(:node-id item) item]) roots)))))
+
+(def resource? (partial g/node-instance? project/ResourceNode))
+
+(defrecord ResourceReference [path label])
+
+(defn make-reference [node label]
+  #_{:path (workspace/proj-path (:resource node)) :label label}
+  (ResourceReference. (workspace/proj-path (:resource node)) label))
+
+(defn resolve-reference [workspace project reference]
+  (let [resource      (workspace/resolve-workspace-resource workspace (:path reference))
+        resource-node (project/get-resource-node project resource)]
+    [resource-node (:label reference)]))
+
+(def data-format-fn (fn []
+                      (let [format "graph-format"]
+                        (or (DataFormat/lookupMimeType format)
+                            (DataFormat. (into-array String [format]))))))
+
+(defn- drag-detected [e selection]
+  (let [items (roots selection)
+        mode TransferMode/COPY #_(if (empty? (filter workspace/read-only? resources))
+                    TransferMode/MOVE
+                    TransferMode/COPY)
+        db (.startDragAndDrop (.getSource e) (into-array TransferMode [mode]))
+        content (ClipboardContent.)
+        copy-data (g/copy (mapv :node-id items) {:continue? (comp not resource?)
+                                                 :write-handlers {project/ResourceNode make-reference}})
+        root-node (:node-id (.getValue (.getRoot (.getSource e))))
+        graph-id (g/node-id->graph-id root-node)
+        project (project/get-project root-node)
+        workspace (project/workspace project)
+        paste-data (g/paste graph-id copy-data {:read-handlers {ResourceReference (partial resolve-reference workspace project)}})]
+    (prn "paste" paste-data)
+    (let [copy-data (edn/read-string
+                      {:readers {'editor.outline_view.ResourceReference map->ResourceReference
+                                 'dynamo.graph.Endpoint g/map->Endpoint}}
+                      (prn-str copy-data))
+          #_paste-data #_(g/paste graph-id copy-data {:read-handlers {ResourceReference (partial resolve-reference workspace project)}})])
+    #_(prn "rtr" (edn/read-string
+                  {:readers {'editor.outline_view.ResourceReference map->ResourceReference
+                             'dynamo.graph.Endpoint g/map->Endpoint}}
+                  (prn-str copy-data)))
+    #_(.putString content (prn-str copy-data))
+    (.setContent db {(data-format-fn) copy-data})
+    (.consume e)))
+
+(defn- drag-done [e selection]
+  #_(when (and
+           (.isAccepted e)
+           (= TransferMode/MOVE (.getTransferMode e)))
+     (let [resources (roots selection)
+           delete? (empty? (filter workspace/read-only? resources))]
+       (when delete?
+         (delete resources)))))
+
+(defn- target [^Node node]
+  (when node
+    (if (instance? TreeCell node)
+      node
+      (target (.getParent node)))))
+
+(defn- drag-over [^DragEvent e]
+  (let [db (.getDragboard e)]
+    (when-let [cell (target (.getTarget e))]
+      ; Auto scrolling
+      (let [view (.getTreeView cell)
+            view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
+            height (.getHeight (.getBoundsInLocal view))]
+        (when (< view-y 15)
+          (.scrollTo view (dec (.getIndex cell))))
+        (when (> view-y (- height 15))
+          (.scrollTo view (inc (.getIndex cell)))))
+      (when (and (instance? TreeCell cell)
+                 (not (.isEmpty cell))
+                 (.hasContent db (data-format-fn)))
+        (let [tgt-item (-> cell (.getTreeItem) (.getValue))
+              graph-id (g/node-id->graph-id (:node-id tgt-item))
+              project (project/get-project (:node-id (.getValue (.getRoot (.getTreeView cell)))))
+              workspace (project/workspace project)]
+          (try
+            (let [fragment (edn/read-string
+                             {:readers {'editor.outline_view.ResourceReference map->ResourceReference
+                                        'dynamo.graph.Endpoint g/map->Endpoint}}
+                             (.getContent db (data-format-fn)))
+                  paste-data (g/paste graph-id fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}})]
+              (prn paste-data))
+            #_(catch Throwable t
+               (prn "unknown data" t)))
+          ; TODO - handle target acceptance
+          #_(prn "over" tgt-item)
+          #_(when (not (workspace/read-only? tgt-resource))
+             (let [tgt-path (-> tgt-resource resource/abs-path File. to-folder .getAbsolutePath ->path)
+                   tgt-descendant? (not (empty? (filter (fn [^Path p] (or
+                                                                        (.equals tgt-path (.getParent p))
+                                                                        (.startsWith tgt-path p))) (map #(-> % .getAbsolutePath ->path) (.getFiles db)))))]
+               (when (not tgt-descendant?)
+                 (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+                 (.consume e)))))))))
+
+(defn- drag-dropped [^DragEvent e]
+  #_(let [db (.getDragboard e)]
+     (when (.hasFiles db)
+       (let [resource (-> e (.getTarget) (target) (.getTreeItem) (.getValue))
+             tgt-dir (to-folder (File. (workspace/abs-path resource)))]
+         (doseq [src-file (.getFiles db)]
+           (let [tgt-file (File. tgt-dir (FilenameUtils/getName (.toString src-file)))]
+             (if (.isDirectory src-file)
+               (FileUtils/copyDirectory src-file tgt-file)
+               (FileUtils/copyFile src-file tgt-file))))
+         ; TODO - notify move instead of ordinary sync
+         (workspace/fs-sync (workspace/workspace resource))))
+     (.setDropCompleted e true)
+     (.consume e)))
+
 (defn- setup-tree-view [^TreeView tree-view ^ListChangeListener selection-listener selection-provider]
   (-> tree-view
       (.getSelectionModel)
@@ -140,20 +280,28 @@
       (.getSelectionModel)
       (.getSelectedItems)
       (.addListener selection-listener))
+  (doto tree-view
+    (.setOnDragDetected (ui/event-handler e (drag-detected e (workspace/selection tree-view))))
+    (.setOnDragDone (ui/event-handler e (drag-done e (workspace/selection tree-view)))))
   (ui/register-context-menu tree-view ::outline-menu)
-  (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
-                                               (proxy [TreeCell] []
-                                                 (updateItem [item empty]
-                                                   (let [this ^TreeCell this]
-                                                     (proxy-super updateItem item empty)
-                                                     (if empty
-                                                       (do
-                                                         (proxy-super setText nil)
-                                                         (proxy-super setGraphic nil)
-                                                         (proxy-super setContextMenu nil))
-                                                       (let [{:keys [label icon]} item]
-                                                         (proxy-super setText label)
-                                                         (proxy-super setGraphic (jfx/get-image-view icon 16)))))))))))
+  (let [over-handler (ui/event-handler e (drag-over e))
+        dropped-handler (ui/event-handler e (drag-dropped e))]
+    (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
+                                                 (let [cell (proxy [TreeCell] []
+                                                              (updateItem [item empty]
+                                                                (let [this ^TreeCell this]
+                                                                  (proxy-super updateItem item empty)
+                                                                  (if empty
+                                                                    (do
+                                                                      (proxy-super setText nil)
+                                                                      (proxy-super setGraphic nil)
+                                                                      (proxy-super setContextMenu nil))
+                                                                    (let [{:keys [label icon]} item]
+                                                                      (proxy-super setText label)
+                                                                      (proxy-super setGraphic (jfx/get-image-view icon 16)))))))]
+                                                   (doto cell
+                                                     (.setOnDragOver over-handler)
+                                                     (.setOnDragDropped dropped-handler))))))))
 
 (defn- propagate-selection [change selection-fn]
   (when-not *programmatic-selection*
