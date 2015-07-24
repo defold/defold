@@ -177,6 +177,9 @@
       (recur (File. path)))
     f))
 
+(defn- to-folder [file]
+  (if (.isFile file) (.getParentFile file) file))
+
 (handler/defhandler :paste :asset-browser
   (enabled? [selection]
             (let [cb (Clipboard/getSystemClipboard)]
@@ -201,9 +204,6 @@
   (enabled? [selection] (every? is-deletable-resource selection))
   (run [selection]
        (delete selection)))
-
-(defn- to-folder [file]
-  (if (.isFile file) (.getParentFile file) file))
 
 (handler/defhandler :show-in-desktop :asset-browser
   (enabled? [selection] (and (= 1 (count selection)) (not= nil (workspace/abs-path (first selection)))) )
