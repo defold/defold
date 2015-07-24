@@ -185,7 +185,12 @@
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output outline g/Any :cached (g/fnk [_node-id child-outlines] {:node-id _node-id :label "Collection" :icon collection-icon :children child-outlines :sort-by-fn outline-sort-by-fn}))
+  (output outline g/Any :cached (g/fnk [_node-id child-outlines]
+                                       {:node-id _node-id
+                                        :label "Collection"
+                                        :icon collection-icon
+                                        :children child-outlines
+                                        :sort-by-fn outline-sort-by-fn}))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :children child-scenes
