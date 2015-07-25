@@ -76,7 +76,7 @@
   (let [font (Font. "Courier New" 13)
         texts (mapv (fn [e] (make-text font lines (selector e))) edits)
         heights (reductions (fn [sum t] (+ sum (:height (ui/local-bounds t)))) 0 texts)]
-    (doseq [[t y] (map vector texts heights)]
+    (doseq [[^Text t y] (map vector texts heights)]
       (.setY t (+ (- (:miny (ui/local-bounds t))) y)))
     (ui/children! box texts)
     texts))
