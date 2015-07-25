@@ -215,6 +215,7 @@
   (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) properties))
 
 (defn- update-grid [parent self workspace properties]
+  ()
   ; NOTE: We cache the ui based on the ::template user-data
   (let [all-properties (properties/coalesce properties)
         template (properties->template all-properties)
@@ -246,7 +247,8 @@
 (defn make-properties-view [workspace project view-graph parent]
   (let [view-id   (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         repainter (proxy [AnimationTimer] []
-                    (handle [now]))]
+                    (handle [now]
+                      (g/node-value view-id :grid-pane)))]
     (g/transact
       (concat
         (g/set-property view-id :repainter repainter)
