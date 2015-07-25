@@ -177,6 +177,9 @@
       (recur (File. path)))
     f))
 
+(defn- to-folder [file]
+  (if (.isFile file) (.getParentFile file) file))
+
 (handler/defhandler :paste :asset-browser
   (enabled? [selection]
             (let [cb (Clipboard/getSystemClipboard)]
@@ -202,9 +205,6 @@
   (run [selection]
        (delete selection)))
 
-(defn- to-folder [file]
-  (if (.isFile file) (.getParentFile file) file))
-
 (handler/defhandler :show-in-desktop :asset-browser
   (enabled? [selection] (and (= 1 (count selection)) (not= nil (workspace/abs-path (first selection)))) )
   (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))]
@@ -223,7 +223,7 @@
              f (File. ^String (workspace/abs-path resource))
              base-folder (to-folder f)
              rt (:resource-type user-data)]
-         (when-let [f (dialogs/make-new-file-dialog (File. (:root workspace)) base-folder (or (:label rt) (:ext rt)) (:ext rt))]
+         (when-let [f (dialogs/make-new-file-dialog (File. (g/node-value workspace :root)) base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (spit f (workspace/template rt))
            (workspace/fs-sync workspace)
            (let [resource (FileResource. workspace f [])]
