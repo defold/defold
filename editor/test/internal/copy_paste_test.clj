@@ -34,16 +34,20 @@
           serial-ids          (map :serial-id fragment-nodes)
           arc-node-references (into #{} (concat (map #(:node-id (first %))  (:arcs fragment))
                                                 (map #(:node-id (second %)) (:arcs fragment))))]
+      (def frag* fragment)
       (is (= 1 (count (:roots fragment))))
       (is (every? integer? (:roots fragment)))
       (is (every? integer? serial-ids))
       (is (= (count serial-ids) (count (distinct serial-ids))))
-      (is (= [ConsumerNode ProducerNode] (map :node-type fragment-nodes)))
-      (is (= "foo" (:a-property (:properties (first fragment-nodes)))))
+      (is (= #{ProducerNode ConsumerNode} (into #{}  (map :node-type fragment-nodes))))
+      (is (= "foo" (:a-property (:properties (first (filter #(= ConsumerNode (:node-type %)) fragment-nodes))))))
       (is (= 1 (count (:arcs fragment))))
       (is (every? #(instance? Endpoint %) (map first (:arcs fragment))))
       (is (every? #(instance? Endpoint %) (map second (:arcs fragment))))
       (is (empty? (set/difference (set arc-node-references) (set serial-ids)))))))
+
+(defn- pasted-node [type paste-data]
+  (first (filter #(= type (g/node-type* %)) (:nodes paste-data))))
 
 (deftest simple-paste
   (ts/with-clean-system
@@ -52,29 +56,32 @@
           paste-tx-data   (:tx-data paste-data)
           paste-tx-result (g/transact paste-tx-data)
           new-nodes-added (g/tx-nodes-added paste-tx-result)
-          [node1 node2]   (:nodes paste-data)]
+          producer        (pasted-node ProducerNode paste-data)
+          consumer        (pasted-node ConsumerNode paste-data)]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count (:nodes paste-data))))
       (is (= [:create-node :create-node :connect]  (map :type paste-tx-data)))
       (is (= 2 (count new-nodes-added)))
-      (is (= node1 (first (:root-node-ids paste-data))))
-      (is (g/connected? (g/now) node2 :produces-value node1 :consumes-value)))))
+      (is (every? #(contains? (into #{} (:nodes paste-data)) %) (:root-node-ids paste-data)))
+      (is (g/connected? (g/now) producer :produces-value consumer :consumes-value)))))
 
 (deftest paste-and-clone
   (ts/with-clean-system
     (let [fragment           (simple-copy-fragment world)
           paste-once         (g/paste world fragment {})
           paste-once-result  (g/transact (:tx-data paste-once))
-          [node1-once node2-once] (g/tx-nodes-added paste-once-result)
+          producer-once      (pasted-node ProducerNode paste-once)
+          consumer-once      (pasted-node ConsumerNode paste-once)
           paste-twice        (g/paste world fragment {})
           paste-twice-result (g/transact (:tx-data paste-twice))
-          [node1-twice node2-twice] (g/tx-nodes-added paste-twice-result)]
-      (is (not= node1-once node1-twice))
-      (is (not= node2-once node2-twice))
-      (is (g/connected? (g/now) node2-once  :produces-value node1-once  :consumes-value))
-      (is (g/connected? (g/now) node2-twice :produces-value node1-twice :consumes-value))
-      (is (not (g/connected? (g/now) node2-once  :produces-value node1-twice :consumes-value)))
-      (is (not (g/connected? (g/now) node2-twice :produces-value node1-once  :consumes-value))))))
+          producer-twice     (pasted-node ProducerNode paste-twice)
+          consumer-twice     (pasted-node ConsumerNode paste-twice)]
+      (is (not= producer-once producer-twice))
+      (is (not= consumer-once consumer-twice))
+      (is (g/connected? (g/now) producer-once  :produces-value consumer-once  :consumes-value))
+      (is (g/connected? (g/now) producer-twice :produces-value consumer-twice :consumes-value))
+      (is (not (g/connected? (g/now) producer-once  :produces-value consumer-twice :consumes-value)))
+      (is (not (g/connected? (g/now) producer-twice :produces-value consumer-once  :consumes-value))))))
 
 (defn diamond-copy-fragment [world]
   (let [[node1 node2 node3 node4] (ts/tx-nodes (g/make-node world ConsumeAndProduceNode)

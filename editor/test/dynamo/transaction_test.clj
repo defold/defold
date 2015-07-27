@@ -262,6 +262,16 @@
                                                    formal-greeter    #{:passthrough}
                                                    multi-node-target #{:aggregated}}))))
 
+
+(deftest blanket-invalidation
+  (with-clean-system
+    (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)
+          tx-result        (g/transact (g/invalidate person))
+          outputs-modified (:outputs-modified tx-result)]
+      (doseq [output [:_id :_node-id :_self :_properties :friendly-name :full-name :date-of-birth :age]]
+        (is (some #{[person output]} outputs-modified))))))
+
+
 (g/defnode DisposableNode
   g/IDisposable
   (dispose [this] true))
@@ -285,7 +295,7 @@
           real-id          (first (g/tx-nodes-added tx-result))
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
-      (is (= #{:_id :_properties :_self :_node-id :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (is (= #{:_id :_properties :_self :_node-id :_output-jammers :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
