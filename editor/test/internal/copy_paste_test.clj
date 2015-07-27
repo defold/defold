@@ -2,6 +2,7 @@
   (:require [clojure.set :as set]
             [clojure.string :as str]
             [clojure.test :refer :all]
+            [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [support.test-support :as ts])
   (:import [dynamo.graph Endpoint]))
@@ -169,7 +170,7 @@
   (output produces-value g/Str (g/fnk [a-property] a-property)))
 
 (defn- stop-at-stoppers [node]
-  (not (= "StopperNode" (:name (g/node-type* node)))))
+  (not (= "internal.copy-paste-test/StopperNode" (:name (g/node-type* node)))))
 
 (defrecord StopArc [id label])
 
@@ -194,7 +195,7 @@
           fragment-nodes (:nodes fragment)]
       (is (= 2 (count (:arcs fragment))))
       (is (= 2 (count fragment-nodes)))
-      (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "StopperNode")))
+      (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "internal.copy-paste-test/StopperNode")))
       (is (= #{StopArc Endpoint} (into #{} (map (comp class first) (:arcs fragment)))))
       (is (= #{Endpoint} (into #{} (map (comp class second) (:arcs fragment))))))))
 
@@ -215,3 +216,32 @@
       (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
       (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
       (is (= "the one and only" (g/node-value new-root :produces-value))))))
+
+(defrecord StructuredValue [a b c])
+
+(def extra-writers (transit/record-write-handlers StructuredValue))
+
+(def extra-readers (transit/record-read-handlers StructuredValue))
+
+(g/defnode RichNode
+  (property deep-value StructuredValue
+            (default (->StructuredValue 1 2 3))))
+
+(defn rich-value-fragment [world]
+  (let [[node] (ts/tx-nodes (g/make-node world RichNode))]
+    (g/copy [node] (constantly true))))
+
+(deftest roundtrip-serialization-deserialization
+  (ts/with-clean-system
+    (let [simple-fragment (simple-copy-fragment world)
+          rich-fragment   (rich-value-fragment world)]
+      (are [x] (= x (g/read-graph (g/write-graph x extra-writers) extra-readers))
+        1
+        [1]
+        {:x 1}
+        #{1 2}
+        'food
+        ConsumerNode
+        (dynamo.graph.Endpoint. 1 :foo)
+        simple-fragment
+        rich-fragment))))

@@ -1,6 +1,8 @@
 (ns dynamo.graph
-  (:require [clojure.set :as set]
+  (:require [clojure.edn :as edn]
+            [clojure.set :as set]
             [clojure.tools.macro :as ctm]
+            [cognitect.transit :as transit]
             [dynamo.util :as util]
             [internal.cache :as c]
             [internal.disposal :as dispose]
@@ -13,7 +15,8 @@
             [plumbing.core :as pc]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
-  (:import [internal.graph.types Arc]))
+  (:import [internal.graph.types Arc]
+           [java.io ByteArrayOutputStream ByteArrayInputStream StringBufferInputStream]))
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
@@ -565,6 +568,44 @@
 ;; Support for serialization, copy & paste, and drag & drop
 ;; ---------------------------------------------------------------------------
 (defrecord Endpoint [node-id label])
+
+(def ^:private node-type-writer
+  (transit/write-handler
+   (constantly "node-type")
+   (fn [t] (select-keys t [:name]))))
+
+(def ^:private write-handlers
+  (merge (transit/record-write-handlers Endpoint)
+         {internal.node.NodeTypeImpl node-type-writer}))
+
+(def ^:private node-type-reader
+  (transit/read-handler
+   (fn [{:keys [name]}]
+     (var-get (resolve (symbol name))))))
+
+(def ^:private read-handlers
+  (merge (transit/record-read-handlers Endpoint)
+         {"node-type" node-type-reader}))
+
+(defn read-graph
+  "Read a graph fragment from a string. Returns a fragment suitable
+  for pasting."
+  ([s] (read-graph s {}))
+  ([s extra-handlers]
+   (let [handlers (merge read-handlers extra-handlers)
+         reader   (transit/reader (StringBufferInputStream. s) :json {:handlers handlers})]
+     (transit/read reader))))
+
+(defn write-graph
+  "Return a serialized string representation of the graph fragment."
+  ([fragment]
+   (write-graph fragment {}))
+  ([fragment extra-handlers]
+   (let [handlers (merge write-handlers extra-handlers)
+         out      (ByteArrayOutputStream. 4096)
+         writer   (transit/writer out :json {:handlers handlers})]
+     (transit/write writer fragment)
+     (.toString out))))
 
 (defn- all-sources [basis node-id]
   (gt/arcs-by-tail basis node-id))

@@ -1,9 +1,35 @@
 (ns editor.core
   "Essential node types"
   (:require [clojure.set :as set]
+            [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.types :as types]
             [inflections.core :as inflect]))
+
+
+;; ---------------------------------------------------------------------------
+;; Copy/paste support
+;; ---------------------------------------------------------------------------
+(def ^:dynamic *serialization-handlers* {:read {} :write {}})
+
+(defn register-read-handler!
+  [tag handler]
+  (alter-var-root #'*serialization-handlers* assoc-in [:read tag] handler))
+
+(defn register-write-handler!
+  [class handler]
+  (alter-var-root #'*serialization-handlers* assoc-in [:write class] handler))
+
+(defn register-record-type
+  [type]
+  (alter-var-root #'*serialization-handlers*
+                  #(-> %
+                       (update :read merge (transit/record-read-handlers type))
+                       (update :write merge (transit/record-write-handlers type)))))
+
+(defn read-handlers [] (:read *serialization-handlers*))
+
+(defn write-handlers [] (:write *serialization-handlers*))
 
 ;; ---------------------------------------------------------------------------
 ;; Dependency Injection
