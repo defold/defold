@@ -364,6 +364,8 @@ ordinary paths."
 
 (defrecord ResourceReference [path label])
 
+(core/register-record-type ResourceReference)
+
 (defn make-reference [node label] (ResourceReference. (workspace/proj-path (:resource node)) label))
 
 (defn resolve-reference [workspace project reference]
@@ -383,6 +385,12 @@ ordinary paths."
   (g/copy root-ids {:continue? (comp not resource?)
                     :write-handlers {ResourceNode make-reference}}))
 
+(defn serialize
+  "Convert a graph fragment into a format that can be exchanged with
+  the system clipboard."
+  [fragment]
+  (g/write-graph fragment (core/write-handlers)))
+
 (defn paste
   "Paste a fragment into the project graph. This returns a map with two keys:
    - :root-node-ids - Contains a list of the new node IDs for the roots of the fragment.
@@ -397,6 +405,12 @@ ordinary paths."
   (:tx-data (g/paste fragment))])"
   [workspace project fragment]
   (g/paste (graph project) fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}}))
+
+(defn deserialize
+  "Convert the system clipboard format into a graph fragment, suitable
+  for pasting."
+  [text]
+  (g/read-graph text (core/read-handlers)))
 
 (defn workspace [project]
   (g/node-value project :workspace))
