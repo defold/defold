@@ -219,7 +219,7 @@
       (is (some #{:a-property} (keys node)))))
 
   (testing "_id is an internal property"
-    (is (= [:_id] (keys (g/internal-properties SinglePropertyNode))))
+    (is (= [:_id :_output-jammers] (keys (g/internal-properties SinglePropertyNode))))
     (is (= [:a-property] (keys (g/properties SinglePropertyNode)))))
 
   (testing "two properties"
@@ -250,7 +250,8 @@
       (is (= {:_id              #{:_id}
               :another-property #{:_properties :another-property :_self}
               :a-property       #{:_properties :a-property :_self}
-              :_self             #{:_properties}}
+              :_self            #{:_properties}
+              :_output-jammers  #{:_output-jammers}}
              (-> node g/node-type g/input-dependencies)))))
 
   (testing "do not allow a property to shadow an input of the same name"
@@ -340,24 +341,27 @@
       (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
 
   (testing "output dependencies include transforms and their inputs"
-    (is (= {:_id           #{:_id}
-            :project       #{:integer-output}
-            :string-input  #{:inline-string}
-            :integer-input #{:string-output :cached-output}
-            :_self          #{:_properties}}
+    (is (= {:_id             #{:_id}
+            :project         #{:integer-output}
+            :string-input    #{:inline-string}
+            :integer-input   #{:string-output :cached-output}
+            :_self           #{:_properties}
+            :_output-jammers #{:_output-jammers}}
            (g/input-dependencies MultipleOutputNode)))
-    (is (= {:_id           #{:_id}
-            :project       #{:integer-output}
-            :string-input  #{:inline-string}
-            :integer-input #{:string-output :abstract-output :cached-output}
-            :_self          #{:_properties}}
+    (is (= {:_id             #{:_id}
+            :project         #{:integer-output}
+            :string-input    #{:inline-string}
+            :integer-input   #{:string-output :abstract-output :cached-output}
+            :_self           #{:_properties}
+            :_output-jammers #{:_output-jammers}}
            (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
     (is (= {:_id                #{:_id}
             :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property :_self}
             :direct-calculation #{:indirect-calculation}
-            :_self               #{:_properties}}
+            :_self              #{:_properties}
+            :_output-jammers    #{:_output-jammers}}
            (g/input-dependencies TwoLayerDependencyNode))))
 
   (testing "outputs defined without the type cause a compile error"
