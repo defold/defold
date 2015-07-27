@@ -97,6 +97,10 @@
 
 (g/defnode EmptyNode)
 
+(g/defnode OverrideOutputNode
+  (property a-property String (default "a-property"))
+  (output overridden String (g/fnk [a-property] a-property)))
+
 (g/defnode SinkNode
   (input a-node-id g/NodeID))
 
@@ -105,25 +109,45 @@
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world EmptyNode))]
         (is (identical? (g/node-by-id node) (g/node-value node :_self))))))
+
   (testing "the _properties output delivers properties (except the 'internal' properties)"
-      (with-clean-system
-        (let [[n1]         (tx-nodes     (g/make-node world SimpleTestNode))
-              foo-before   (g/node-value n1 :foo)
-              tx-result    (g/transact   (g/set-property n1 :foo "quux"))
-              foo-after    (g/node-value n1 :foo)
-              [n2]         (tx-nodes     (g/make-node world SimpleTestNode :foo "bar"))
-              foo-override (g/node-value n2 :foo)]
-          (is (= "FOO!" foo-before))
-          (is (= "quux" foo-after))
-          (is (= "bar"  foo-override))
-          (is (every? gt/property-type? (map :type (vals (g/node-value n1 :_properties)))))
-          (is (empty? (filter (fn [k] (= :_id k)) (keys (g/node-value n1 :_properties))))))))
-  (with-clean-system
-    (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
-                                  (g/make-node world SinkNode))]
-      (g/transact
-       (g/connect source :_node-id sink :a-node-id))
-      (is (= source (g/node-value source :_node-id) (g/node-value sink :a-node-id))))))
+    (with-clean-system
+      (let [[n1]         (tx-nodes     (g/make-node world SimpleTestNode))
+            foo-before   (g/node-value n1 :foo)
+            tx-result    (g/transact   (g/set-property n1 :foo "quux"))
+            foo-after    (g/node-value n1 :foo)
+            [n2]         (tx-nodes     (g/make-node world SimpleTestNode :foo "bar"))
+            foo-override (g/node-value n2 :foo)]
+        (is (= "FOO!" foo-before))
+        (is (= "quux" foo-after))
+        (is (= "bar"  foo-override))
+        (is (every? gt/property-type? (map :type (vals (g/node-value n1 :_properties)))))
+        (is (empty? (filter (fn [k] (= :_id k)) (keys (g/node-value n1 :_properties))))))))
+
+  (testing "the _node-id output delivers the node's id."
+    (with-clean-system
+      (let [[source sink] (tx-nodes (g/make-node world EmptyNode)
+                                    (g/make-node world SinkNode))]
+        (g/transact
+         (g/connect source :_node-id sink :a-node-id))
+        (is (= source (g/node-value source :_node-id) (g/node-value sink :a-node-id))))))
+
+  (testing "the _output-jammers property overrides ordinary output values"
+    (with-clean-system
+      (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
+        (is (= "a-property" (g/node-value source :overridden)))
+
+        (g/transact (g/set-property source :_output-jammers {:overridden (constantly "Raspberry")}))
+
+        (is (= "Raspberry" (g/node-value source :overridden)))
+
+        (g/transact (g/set-property source :_output-jammers {}))
+
+        (is (= "a-property" (g/node-value source :overridden)))
+
+        (g/transact (g/set-property source :_output-jammers {:something-else (constantly "Plaid")}))
+
+        (is (= "a-property" (g/node-value source :overridden)))))))
 
 
 (defn- expect-modified

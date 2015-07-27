@@ -100,6 +100,11 @@
   [{:type  :sequence-label
     :label seq-label}])
 
+(defn invalidate
+  [node-id]
+  [{:type :invalidate
+    :node-id node-id}])
+
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
@@ -278,6 +283,13 @@
 (defmethod perform :sequence-label
   [ctx {:keys [label]}]
   (assoc ctx :sequence-label label))
+
+(defmethod perform :invalidate
+  [{:keys [basis nodes-affected] :as ctx} {:keys [node-id] :as tx-data}]
+  (if-let [node (ig/node-by-id-at basis node-id)]
+    (assoc ctx :nodes-affected (merge-with set/union nodes-affected {node-id (-> node gt/node-type gt/output-labels)}))
+    ctx))
+
 
 (defn- apply-tx
   [ctx actions]

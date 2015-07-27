@@ -160,6 +160,7 @@
 ;; ---------------------------------------------------------------------------
 (def node-intrinsics
   [(list 'property '_id `s/Int)
+   (list 'property '_output-jammers `{s/Keyword s/Any})
    (list 'output '_self `s/Any `(pc/fnk [~'this] ~'this))
    (list 'output '_node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
 
@@ -452,6 +453,24 @@
 (defn set-graph-value!
   [graph-id k v]
   (transact (set-graph-value graph-id k v)))
+
+(defn invalidate
+  [node-id]
+  (it/invalidate node-id))
+
+(defn invalidate!
+  [node-id]
+  (transact (invalidate node-id)))
+
+(defn mark-defective
+  [node-id defective-value]
+  (list
+   (set-property node-id :_output-jammers (util/map-vals (fn [_] (always defective-value)) (-> node-id node-type* gt/transforms)))
+   (invalidate node-id)))
+
+(defn mark-defective!
+  [node-id defective-value]
+  (transact (mark-defective node-id defective-value)))
 
 ;; ---------------------------------------------------------------------------
 ;; Values
