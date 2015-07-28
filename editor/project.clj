@@ -32,7 +32,10 @@
                      [potemkin                                    "0.3.13"]
                      [instaparse                                  "1.4.1"]
                      [rhizome                                     "0.2.5"]
-                     [org.fxmisc.richtext/richtextfx              "0.6.4"]
+                     [org.fxmisc.richtext/richtextfx              "0.6.4" :exclusions [org.fxmisc.undo/undofx
+                                                                                       org.fxmisc.wellbehaved/wellbehavedfx]]
+                     [org.fxmisc.undo/undofx                      "1.1"]
+                     [org.fxmisc.wellbehaved/wellbehavedfx        "0.1.1"]
 
                      [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
