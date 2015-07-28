@@ -20,7 +20,7 @@
   [class handler]
   (alter-var-root #'*serialization-handlers* assoc-in [:write class] handler))
 
-(defn register-record-type
+(defn register-record-type!
   [type]
   (alter-var-root #'*serialization-handlers*
                   #(-> %
