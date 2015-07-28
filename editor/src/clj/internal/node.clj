@@ -430,7 +430,7 @@
 (defn node-type-forms
   "Given all the forms in a defnode macro, emit the forms that will build the node type description."
   [symb forms]
-  (concat [`-> {:name (str symb)}]
+  (concat [`-> {:name (str (symbol (str *ns*) (str symb)))}]
           (map node-type-form forms)))
 
 (defn defaults

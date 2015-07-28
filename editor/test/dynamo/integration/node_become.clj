@@ -32,8 +32,8 @@
             old-node (g/node-by-id node)
             _        (g/transact (g/become node (g/construct NewNode)))
             new-node (g/node-by-id node)]
-        (is (= "OriginalNode" (:name (g/node-type old-node))))
-        (is (= "NewNode" (:name (g/node-type new-node)))))))
+        (is (= "dynamo.integration.node-become/OriginalNode" (:name (g/node-type old-node))))
+        (is (= "dynamo.integration.node-become/NewNode" (:name (g/node-type new-node)))))))
 
   (testing "node id is is the same"
     (with-clean-system

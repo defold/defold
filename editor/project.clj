@@ -13,6 +13,7 @@
                      [org.clojure/core.match                      "0.2.2"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]
+                     [com.cognitect/transit-clj                   "0.8.275"]
                      [prismatic/schema                            "0.4.3"]
                      [prismatic/plumbing                          "0.4.4"]
                      [inflections/inflections                     "0.9.14"]
