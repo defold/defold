@@ -82,7 +82,7 @@
   (io/make-output-stream [this opts] (io/make-output-stream (.toCharArray ^String (:data this)) opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
-(core/register-record-type MemoryResource)
+(core/register-record-type! MemoryResource)
 
 (defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
   (.write w (format "MemoryResource{:workspace %s :data %s}" (:workspace memory-resource) (:data memory-resource))))
@@ -107,7 +107,7 @@
   (io/make-output-stream [this opts] (throw (Exception. "Zip resources are read-only")))
   (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only"))))
 
-(core/register-record-type ZipResource)
+(core/register-record-type! ZipResource)
 
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "ZipResource{:workspace %s :path %s :children %s}" (:workspace zip-resource) (:path zip-resource) (str (:children zip-resource)))))

@@ -364,7 +364,7 @@ ordinary paths."
 
 (defrecord ResourceReference [path label])
 
-(core/register-record-type ResourceReference)
+(core/register-record-type! ResourceReference)
 
 (defn make-reference [node label] (ResourceReference. (workspace/proj-path (:resource node)) label))
 
