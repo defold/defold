@@ -1,6 +1,5 @@
 (ns dynamo.graph
-  (:require [clojure.edn :as edn]
-            [clojure.set :as set]
+  (:require [clojure.set :as set]
             [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [dynamo.util :as util]
@@ -16,7 +15,7 @@
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.types Arc]
-           [java.io ByteArrayOutputStream ByteArrayInputStream StringBufferInputStream]))
+           [java.io ByteArrayOutputStream StringBufferInputStream]))
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
