@@ -7,19 +7,9 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#define LIB_NAME "facebook"
+#include "facebook.h"
 
-// Must match iOS for now
-enum State
-{
-    STATE_CREATED              = 0,
-    STATE_CREATED_TOKEN_LOADED = 1,
-    STATE_CREATED_OPENING      = 2,
-    STATE_OPEN                 = 1 | (1 << 9),
-    STATE_OPEN_TOKEN_EXTENDED  = 2 | (1 << 9),
-    STATE_CLOSED_LOGIN_FAILED  = 1 | (1 << 8),
-    STATE_CLOSED               = 2 | (1 << 8)
-};
+#define LIB_NAME "facebook"
 
 // Must match iOS for now
 enum Audience

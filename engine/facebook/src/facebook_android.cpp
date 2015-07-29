@@ -14,6 +14,8 @@
 
 #include <android_native_app_glue.h>
 
+#include "facebook.h"
+
 #define LIB_NAME "facebook"
 
 extern struct android_app* g_AndroidApp;
@@ -22,37 +24,6 @@ extern struct android_app* g_AndroidApp;
 #define CMD_REQUEST_READ 2
 #define CMD_REQUEST_PUBLISH 3
 #define CMD_DIALOG_COMPLETE 4
-
-enum State {
-    STATE_FAILED               = 0,
-    STATE_OPEN                 = 1,
-    STATE_OPEN_TOKEN_EXTENDED  = 2,
-    STATE_CLOSED               = 3,
-    STATE_CLOSED_LOGIN_FAILED  = 4,
-    STATE_CREATED              = 5,
-    STATE_CREATED_TOKEN_LOADED = 6,
-    STATE_CREATED_OPENING      = 7,
-};
-
-enum GameRequestAction {
-    GAMEREQUEST_ACTIONTYPE_NONE   = -1,
-    GAMEREQUEST_ACTIONTYPE_SEND   = 0,
-    GAMEREQUEST_ACTIONTYPE_ASKFOR = 1,
-    GAMEREQUEST_ACTIONTYPE_TURN   = 2,
-};
-
-enum GameRequestFilters {
-    GAMEREQUEST_FILTER_NONE        = -1,
-    GAMEREQUEST_FILTER_APPUSERS    = 0,
-    GAMEREQUEST_FILTER_APPNONUSERS = 1,
-};
-
-enum Audience {
-    AUDIENCE_NONE     = -1,
-    AUDIENCE_ONLYME   = 0,
-    AUDIENCE_FRIENDS  = 1,
-    AUDIENCE_EVERYONE = 2,
-};
 
 struct Command
 {
@@ -63,7 +34,7 @@ struct Command
     uint8_t m_Type;
     uint16_t m_State;
     lua_State* m_L;
-    const char* m_Url;
+    const char* m_Results;
     const char* m_Error;
 };
 
@@ -177,6 +148,7 @@ static void RunCallback(Command* cmd)
         (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        g_Facebook.m_Callback = LUA_NOREF;
     } else {
         dmLogError("No callback set");
     }
@@ -206,14 +178,19 @@ static void RunDialogResultCallback(Command* cmd)
             return;
         }
 
-        lua_createtable(L, 0, 1);
-        lua_pushliteral(L, "url");
-        if (cmd->m_Url) {
-            lua_pushstring(L, cmd->m_Url);
+        // dialog results are sent as a JSON string from Java
+        if (cmd->m_Results) {
+            dmJson::Document doc;
+            dmJson::Result r = dmJson::Parse((const char*) cmd->m_Results, &doc);
+            if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
+                dmScript::JsonToLua(L, &doc, 0);
+            } else {
+                dmLogError("Failed to parse dialog JSON result (%d)", r);
+                lua_pushnil(L);
+            }
         } else {
             lua_pushnil(L);
         }
-        lua_rawset(L, -3);
 
         PushError(L, error);
 
@@ -221,6 +198,7 @@ static void RunDialogResultCallback(Command* cmd)
         (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        g_Facebook.m_Callback = LUA_NOREF;
     } else {
         dmLogError("No callback set");
     }
@@ -287,12 +265,12 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPub
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComplete
-  (JNIEnv *env, jobject, jlong userData, jstring url, jstring error)
+  (JNIEnv *env, jobject, jlong userData, jstring results, jstring error)
 {
     Command cmd;
     cmd.m_Type = CMD_DIALOG_COMPLETE;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
-    cmd.m_Url = StrDup(env, url);
+    cmd.m_Results = StrDup(env, results);
     cmd.m_Error = StrDup(env, error);
     QueueCommand(&cmd);
 }
@@ -627,37 +605,39 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     }
 
     g_Facebook.m_RefCount++;
+    g_Facebook.m_Callback = LUA_NOREF;
 
     lua_State* L = params->m_L;
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, Facebook_methods);
 
-#define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) name); \
+#define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); \
         lua_setfield(L, -2, #name);\
 
-    SETCONSTANT(STATE_CREATED);
-    SETCONSTANT(STATE_CREATED_TOKEN_LOADED);
-    SETCONSTANT(STATE_CREATED_OPENING);
-    SETCONSTANT(STATE_OPEN);
-    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED);
-    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED);
-    SETCONSTANT(STATE_CLOSED);
+    SETCONSTANT(STATE_CREATED,              dmFacebook::STATE_CREATED);
+    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, dmFacebook::STATE_CREATED_TOKEN_LOADED);
+    SETCONSTANT(STATE_CREATED_OPENING,      dmFacebook::STATE_CREATED_OPENING);
+    SETCONSTANT(STATE_OPEN,                 dmFacebook::STATE_OPEN);
+    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED,  dmFacebook::STATE_OPEN_TOKEN_EXTENDED);
+    SETCONSTANT(STATE_CLOSED,               dmFacebook::STATE_CLOSED);
+    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED,  dmFacebook::STATE_CLOSED_LOGIN_FAILED);
 
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE,   dmFacebook::GAMEREQUEST_ACTIONTYPE_NONE);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND,   dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, dmFacebook::GAMEREQUEST_ACTIONTYPE_ASKFOR);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN,   dmFacebook::GAMEREQUEST_ACTIONTYPE_TURN);
 
-    SETCONSTANT(GAMEREQUEST_FILTER_NONE);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS);
+    SETCONSTANT(GAMEREQUEST_FILTER_NONE,        dmFacebook::GAMEREQUEST_FILTER_NONE);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS,    dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, dmFacebook::GAMEREQUEST_FILTER_APPNONUSERS);
 
-    SETCONSTANT(AUDIENCE_NONE);
-    SETCONSTANT(AUDIENCE_ONLYME);
-    SETCONSTANT(AUDIENCE_FRIENDS);
-    SETCONSTANT(AUDIENCE_EVERYONE);
+    SETCONSTANT(AUDIENCE_NONE,     dmFacebook::AUDIENCE_NONE);
+    SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
+    SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
+    SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
 
+#undef SETCONSTANT
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
@@ -688,10 +668,10 @@ dmExtension::Result UpdateFacebook(dmExtension::Params* params)
                     RunDialogResultCallback(&cmd);
                     break;
             }
-            if (cmd.m_Url != 0x0)
+            if (cmd.m_Results != 0x0)
             {
-                free((void*)cmd.m_Url);
-                cmd.m_Url = 0x0;
+                free((void*)cmd.m_Results);
+                cmd.m_Results = 0x0;
             }
             if (cmd.m_Error != 0x0)
             {
