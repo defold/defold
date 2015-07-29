@@ -5,21 +5,18 @@ import java.net.URLEncoder;
 import java.util.Map;
 import java.util.Set;
 import java.util.Iterator;
+import java.util.Collection;
+import java.util.Arrays;
 
 import android.app.Activity;
 import android.util.Log;
 import android.os.Bundle;
 
-// import com.facebook.SessionDefaultAudience;
-// import com.facebook.SessionState;
-// import com.facebook.widget.WebDialog;
-// import com.facebook.FacebookException;
-// import com.facebook.Session;
-
 import com.facebook.login.DefaultAudience;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 class FacebookJNI {
 
@@ -31,11 +28,65 @@ class FacebookJNI {
 
     private native void onRequestPublish(long userData, String error);
 
-    private native void onDialogComplete(long userData, String url, String error);
+    private native void onDialogComplete(long userData, String results, String error);
 
     private native void onIterateMeEntry(long userData, String key, String value);
 
     private native void onIteratePermissionsEntry(long userData, String permission);
+
+    // JSONObject.wrap not available in Java 7,
+    // Using https://android.googlesource.com/platform/libcore/+/master/json/src/main/java/org/json/JSONObject.java
+    private static Object JSONWrap(Object o) {
+        if (o == null) {
+            return null;
+        }
+        if (o instanceof JSONArray || o instanceof JSONObject) {
+            return o;
+        }
+        if (o.equals(null)) {
+            return o;
+        }
+        try {
+            if (o instanceof Collection) {
+                return new JSONArray((Collection) o);
+            } else if (o.getClass().isArray()) {
+                return new JSONArray(Arrays.asList((Object[])o));
+            }
+            if (o instanceof Map) {
+                return new JSONObject((Map) o);
+            }
+            if (o instanceof Boolean ||
+                o instanceof Byte ||
+                o instanceof Character ||
+                o instanceof Double ||
+                o instanceof Float ||
+                o instanceof Integer ||
+                o instanceof Long ||
+                o instanceof Short ||
+                o instanceof String) {
+                return o;
+            }
+            if (o.getClass().getPackage().getName().startsWith("java.")) {
+                return o.toString();
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    // From http://stackoverflow.com/questions/21858528/convert-a-bundle-to-json
+    private static JSONObject bundleToJson(final Bundle in) throws JSONException {
+        JSONObject json = new JSONObject();
+        if (in == null) {
+            return json;
+        }
+        Set<String> keys = in.keySet();
+        for (String key : keys) {
+            json.put(key, JSONWrap(in.get(key)));
+        }
+
+        return json;
+    }
 
     private Facebook facebook;
     private Activity activity;
@@ -43,48 +94,6 @@ class FacebookJNI {
     public FacebookJNI(Activity activity, String appId) {
         this.facebook = new Facebook(activity, appId);
         this.activity = activity;
-    }
-
-    /*
-    TODO: Implement for SDK 4
-    private int convertSessionState(SessionState state) {
-        // Must match iOS for now
-        switch (state) {
-        case CREATED:
-            return 0;
-        case CREATED_TOKEN_LOADED:
-            return 1;
-        case OPENING:
-            return 2;
-        case OPENED:
-            return 1 | (1 << 9);
-        case OPENED_TOKEN_UPDATED:
-            return 2 | (1 << 9);
-        case CLOSED_LOGIN_FAILED:
-            return 1 | (1 << 8);
-        case CLOSED:
-            return 2 | (1 << 8);
-        default:
-            return -1;
-        }
-        return -1;
-    }
-    */
-
-    private DefaultAudience convertSessionDefaultAudience(int defaultAudience) {
-        // Must match iOS for now
-        switch (defaultAudience) {
-        case 0:
-            return DefaultAudience.NONE;
-        case 10:
-            return DefaultAudience.ONLY_ME;
-        case 20:
-            return DefaultAudience.FRIENDS;
-        case 30:
-            return DefaultAudience.EVERYONE;
-        default:
-            return DefaultAudience.FRIENDS;
-        }
     }
 
     public void login(final long userData) {
@@ -155,7 +164,7 @@ class FacebookJNI {
                         onRequestRead(userData, error);
                     }
                 };
-                facebook.requestPubPermissions(convertSessionDefaultAudience(defaultAudience), permissions.split(","), cb);
+                facebook.requestPubPermissions(defaultAudience, permissions.split(","), cb);
             }
         });
     }
@@ -168,8 +177,19 @@ class FacebookJNI {
             public void run() {
                 Facebook.DialogCallback cb = new Facebook.DialogCallback() {
                     @Override
-                    public void onDone(final String result, final String error) {
-                        onDialogComplete(userData, result, error);
+                    public void onDone(final Bundle result, final String error) {
+
+                        // serialize bundle as JSON for C/Lua side
+                        String res = null;
+                        String err = error;
+                        try {
+                            JSONObject obj = bundleToJson(result);
+                            res = obj.toString();
+                        } catch(JSONException e) {
+                            err = "Error while converting dialog result to JSON: " + e.getMessage();
+                        }
+
+                        onDialogComplete(userData, res, err);
                     }
                 };
 
