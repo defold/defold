@@ -8,16 +8,7 @@
 #import <FBSDKShareKit/FBSDKShareKit.h>
 #import <objc/runtime.h>
 
-enum FBStatusProxy {
-    STATE_FAILED               = 0,
-    STATE_OPEN                 = 1,
-    STATE_OPEN_TOKEN_EXTENDED  = 2,
-    STATE_CLOSED               = 3,
-    STATE_CLOSED_LOGIN_FAILED  = 4,
-    STATE_CREATED              = 5,
-    STATE_CREATED_TOKEN_LOADED = 6,
-    STATE_CREATED_OPENING      = 7,
-};
+#include "facebook.h"
 
 #define LIB_NAME "facebook"
 
@@ -81,15 +72,17 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
 
     // Sharing related methods
     - (void)sharer:(id<FBSDKSharing>)sharer didCompleteWithResults :(NSDictionary *)results {
-       RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
+        RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
     }
 
-     - (void)sharer:(id<FBSDKSharing>)sharer didFailWithError:(NSError *)error {
-       RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
+    - (void)sharer:(id<FBSDKSharing>)sharer didFailWithError:(NSError *)error {
+        RunDialogResultCallback(g_Facebook.m_MainThread, 0, error);
     }
 
     - (void)sharerDidCancel:(id<FBSDKSharing>)sharer {
-       RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
+        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:@"Share dialog was cancelled" forKey:NSLocalizedDescriptionKey];
+        RunDialogResultCallback(g_Facebook.m_MainThread, 0, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
     }
 
     // App invite related methods
@@ -111,7 +104,9 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     }
 
     - (void)gameRequestDialogDidCancel:(FBSDKGameRequestDialog *)gameRequestDialog {
-        RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
+        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:@"Game request dialog was cancelled" forKey:NSLocalizedDescriptionKey];
+        RunDialogResultCallback(g_Facebook.m_MainThread, 0, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
     }
 
 
@@ -199,8 +194,7 @@ static void VerifyCallback(lua_State* L)
     }
 }
 
-//static void RunStateCallback(lua_State*L, FBSessionState status, NSError* error)
-static void RunStateCallback(lua_State*L, int status, NSError* error)
+static void RunStateCallback(lua_State*L, dmFacebook::State status, NSError* error)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -302,10 +296,6 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
                     lua_rawset(L, -3);
                 }
             }
-        } else {
-            lua_pushliteral(L, "url");
-            lua_pushnil(L);
-            lua_rawset(L, -3);
         }
 
         PushError(L, error);
@@ -348,16 +338,53 @@ static void UpdateUserData(lua_State* L)
         [g_Facebook.m_Me release];
         if (!error) {
             g_Facebook.m_Me = [[NSDictionary alloc] initWithDictionary: graphresult];
-            RunStateCallback(L, STATE_OPEN, error);
+            RunStateCallback(L, dmFacebook::STATE_OPEN, error);
         } else {
             g_Facebook.m_Me = nil;
             dmLogWarning("Failed to fetch user-info: %s", [[error localizedDescription] UTF8String]);
-            RunStateCallback(L, STATE_FAILED, error);
+            RunStateCallback(L, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
         }
 
     }];
 }
 
+static FBSDKDefaultAudience convertDefaultAudience(int fromLuaInt) {
+    switch (fromLuaInt) {
+        case 2:
+            return FBSDKDefaultAudienceOnlyMe;
+        case 4:
+            return FBSDKDefaultAudienceEveryone;
+        case 3:
+        default:
+            return FBSDKDefaultAudienceFriends;
+    }
+}
+
+static FBSDKGameRequestActionType convertGameRequestAction(int fromLuaInt) {
+    switch (fromLuaInt) {
+        case 3:
+            return FBSDKGameRequestActionTypeAskFor;
+        case 4:
+            return FBSDKGameRequestActionTypeTurn;
+        case 2:
+            return FBSDKGameRequestActionTypeSend;
+        case 1:
+        default:
+            return FBSDKGameRequestActionTypeNone;
+    }
+}
+
+static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
+    switch (fromLuaInt) {
+        case 3:
+            return FBSDKGameRequestFilterAppNonUsers;
+        case 2:
+            return FBSDKGameRequestFilterAppUsers;
+        case 1:
+        default:
+            return FBSDKGameRequestFilterNone;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Lua API
@@ -376,7 +403,7 @@ int Facebook_Login(lua_State* L)
 
     if ([FBSDKAccessToken currentAccessToken]) {
 
-        UpdateUserData(L);
+        UpdateUserData(main_thread);
 
     } else {
 
@@ -384,20 +411,25 @@ int Facebook_Login(lua_State* L)
         [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
 
             if (error) {
-                RunStateCallback(main_thread, STATE_FAILED, error);
+                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
             } else if (result.isCancelled) {
-                RunStateCallback(main_thread, STATE_CLOSED, error);
+                NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+                [errorDetail setValue:@"Login was cancelled" forKey:NSLocalizedDescriptionKey];
+                RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
             } else {
 
                 if ([result.grantedPermissions containsObject:@"public_profile"] &&
                     [result.grantedPermissions containsObject:@"email"] &&
                     [result.grantedPermissions containsObject:@"user_friends"]) {
 
-                    UpdateUserData(L);
+                    UpdateUserData(main_thread);
 
                 } else {
-                    // FIXME what status should be sent here?
-                    RunStateCallback(main_thread, STATE_FAILED, error);
+                    // FIXME: Skip this check and ignore if we didn't get all permissions.
+                    //        This will show in the facebook.permissions() call anyway.
+                    NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+                    [errorDetail setValue:@"Not granted all requested permissions." forKey:NSLocalizedDescriptionKey];
+                    RunStateCallback(main_thread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
                 }
             }
 
@@ -447,7 +479,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     VerifyCallback(L);
 
     luaL_checktype(L, 1, LUA_TTABLE);
-    FBSDKDefaultAudience audience = (FBSDKDefaultAudience) luaL_checkinteger(L, 2);
+    FBSDKDefaultAudience audience = convertDefaultAudience(luaL_checkinteger(L, 2));
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -475,9 +507,6 @@ int Facebook_AccessToken(lua_State* L)
     return 1;
 }
 
-// TODO: Can we trust this one? Sometimes we only get "basic_info" even
-// though the app is authorized for additional permissions
-// Better to fetch via graph?
 int Facebook_Permissions(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -549,7 +578,7 @@ static int Facebook_ShowDialog(lua_State* L)
         FBSDKShareLinkContent* content = [[FBSDKShareLinkContent alloc] init];
         content.contentTitle       = GetTableValue(L, 2, @[@"contentTitle", @"title"]);
         content.contentDescription = GetTableValue(L, 2, @[@"contentDescription", @"description"]);
-        content.imageURL           = GetTableValue(L, 2, @[@"imageURL"]);
+        content.imageURL           = [NSURL URLWithString:GetTableValue(L, 2, @[@"imageURL"])];
         content.contentURL         = [NSURL URLWithString:GetTableValue(L, 2, @[@"contentURL", @"link"])];
         content.peopleIDs          = GetTableValue(L, 2, @[@"peopleIDs"]);
         content.placeID            = GetTableValue(L, 2, @[@"placeID"]);
@@ -566,17 +595,31 @@ static int Facebook_ShowDialog(lua_State* L)
         [FBSDKAppInviteDialog showWithContent:content delegate:g_Facebook.m_Delegate];
 
     } else if (dialog == dmHashString64("gamerequest") ||
-               dialog == dmHashString64("apprequest")) {
+               dialog == dmHashString64("apprequests")) {
 
         FBSDKGameRequestContent* content = [[FBSDKGameRequestContent alloc] init];
         content.title      = GetTableValue(L, 2, @[@"title"]);
         content.message    = GetTableValue(L, 2, @[@"message"]);
-        content.actionType = [GetTableValue(L, 2, @[@"actionType"]) unsignedIntValue];
-        content.filters    = [GetTableValue(L, 2, @[@"filters"]) unsignedIntValue];
+        content.actionType = convertGameRequestAction([GetTableValue(L, 2, @[@"actionType"]) unsignedIntValue]);
+        content.filters    = convertGameRequestFilters([GetTableValue(L, 2, @[@"filters"]) unsignedIntValue]);
         content.data       = GetTableValue(L, 2, @[@"data"]);
         content.objectID   = GetTableValue(L, 2, @[@"objectID"]);
-        content.recipients = GetTableValue(L, 2, @[@"recipients"]);
-        content.recipientSuggestions = GetTableValue(L, 2, @[@"recipientSuggestions"]);
+
+        // handle SDK < 4.0 deprecated way of specifying recipients and suggestions
+        NSString* recipients = GetTableValue(L, 2, @[@"to"]);
+        NSString* suggestions = GetTableValue(L, 2, @[@"suggestions"]);
+
+        if (recipients != nil) {
+            content.recipients = [recipients componentsSeparatedByString:@","];
+        } else {
+            content.recipients = GetTableValue(L, 2, @[@"recipients"]);
+        }
+        if (suggestions != nil) {
+            content.recipientSuggestions = [suggestions componentsSeparatedByString:@","];
+        } else {
+            content.recipientSuggestions = GetTableValue(L, 2, @[@"recipientSuggestions"]);
+        }
+
 
         [FBSDKGameRequestDialog showWithContent:content delegate:g_Facebook.m_Delegate];
 
@@ -638,27 +681,27 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         lua_pushnumber(L, (lua_Number) val); \
         lua_setfield(L, -2, #name);\
 
-    SETCONSTANT(STATE_CREATED, STATE_CREATED);
-    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, STATE_CREATED_TOKEN_LOADED);
-    SETCONSTANT(STATE_CREATED_OPENING, STATE_CREATED_OPENING);
-    SETCONSTANT(STATE_OPEN, STATE_OPEN);
-    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED, STATE_OPEN_TOKEN_EXTENDED);
-    SETCONSTANT(STATE_CLOSED, STATE_CLOSED);
-    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED, STATE_CLOSED_LOGIN_FAILED);
+    SETCONSTANT(STATE_CREATED,              dmFacebook::STATE_CREATED);
+    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, dmFacebook::STATE_CREATED_TOKEN_LOADED);
+    SETCONSTANT(STATE_CREATED_OPENING,      dmFacebook::STATE_CREATED_OPENING);
+    SETCONSTANT(STATE_OPEN,                 dmFacebook::STATE_OPEN);
+    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED,  dmFacebook::STATE_OPEN_TOKEN_EXTENDED);
+    SETCONSTANT(STATE_CLOSED,               dmFacebook::STATE_CLOSED);
+    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED,  dmFacebook::STATE_CLOSED_LOGIN_FAILED);
 
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE, FBSDKGameRequestActionTypeNone);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND, FBSDKGameRequestActionTypeSend);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, FBSDKGameRequestActionTypeAskFor);
-    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN, FBSDKGameRequestActionTypeTurn);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE,   dmFacebook::GAMEREQUEST_ACTIONTYPE_NONE);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND,   dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, dmFacebook::GAMEREQUEST_ACTIONTYPE_ASKFOR);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN,   dmFacebook::GAMEREQUEST_ACTIONTYPE_TURN);
 
-    SETCONSTANT(GAMEREQUEST_FILTER_NONE, FBSDKGameRequestFilterNone);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS, FBSDKGameRequestFilterAppUsers);
-    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, FBSDKGameRequestFilterAppNonUsers);
+    SETCONSTANT(GAMEREQUEST_FILTER_NONE,        dmFacebook::GAMEREQUEST_FILTER_NONE);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS,    dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, dmFacebook::GAMEREQUEST_FILTER_APPNONUSERS);
 
-    SETCONSTANT(AUDIENCE_NONE, -1) // ??
-    SETCONSTANT(AUDIENCE_ONLYME, FBSDKDefaultAudienceOnlyMe)
-    SETCONSTANT(AUDIENCE_FRIENDS, FBSDKDefaultAudienceFriends)
-    SETCONSTANT(AUDIENCE_EVERYONE, FBSDKDefaultAudienceEveryone)
+    SETCONSTANT(AUDIENCE_NONE,     dmFacebook::AUDIENCE_NONE);
+    SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
+    SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
+    SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
 
 #undef SETCONSTANT
 

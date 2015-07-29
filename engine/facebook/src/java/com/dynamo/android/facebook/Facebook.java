@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Set;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -41,7 +42,7 @@ public class Facebook implements Handler.Callback {
     public static final String MSG_KEY_STATE            = "defold.fb.msg.state";
     public static final String MSG_KEY_USER             = "defold.fb.msg.user";
     public static final String MSG_KEY_ACCESS_TOKEN     = "defold.fb.msg.access_token";
-    public static final String MSG_KEY_POST_ID          = "defold.fb.msg.post_id";
+    public static final String MSG_KEY_DIALOG_RESULT    = "defold.fb.msg.dialog_result";
 
     public static final String ACTION_LOGIN             = "defold.fb.intent.action.LOGIN";
     public static final String ACTION_REQ_READ_PERMS    = "defold.fb.intent.action.REQ_READ_PERMS";
@@ -67,7 +68,7 @@ public class Facebook implements Handler.Callback {
     }
 
     public interface DialogCallback {
-        void onDone(String result, String error);
+        void onDone(Bundle result, String error);
     }
 
     public Facebook(Activity activity, String appId) {
@@ -141,11 +142,11 @@ public class Facebook implements Handler.Callback {
         startActivity(ACTION_REQ_READ_PERMS, extras);
     }
 
-    public void requestPubPermissions(DefaultAudience defaultAudience, String[] permissions,
+    public void requestPubPermissions(int defaultAudience, String[] permissions,
             Callback cb) {
         this.callback = cb;
         Bundle extras = new Bundle();
-        extras.putInt(INTENT_EXTRA_AUDIENCE, defaultAudience.ordinal());
+        extras.putInt(INTENT_EXTRA_AUDIENCE, defaultAudience);
         extras.putStringArray(INTENT_EXTRA_PERMISSIONS, permissions);
         startActivity(ACTION_REQ_PUB_PERMS, extras);
     }
@@ -194,7 +195,7 @@ public class Facebook implements Handler.Callback {
             this.callback.onDone(error);
 
         } else if (action.equals(ACTION_SHOW_DIALOG)) {
-            this.dialogCallback.onDone(data.getString(MSG_KEY_POST_ID, ""), error);
+            this.dialogCallback.onDone(data.getBundle(MSG_KEY_DIALOG_RESULT), error);
 
         }
         return handled;
