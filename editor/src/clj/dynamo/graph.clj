@@ -19,7 +19,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property?])
 
@@ -165,6 +165,27 @@
    (list 'property '_output-jammers `{s/Keyword s/Any})
    (list 'output '_self `s/Any `(pc/fnk [~'this] ~'this))
    (list 'output '_node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
+
+(defn display-groups [order] (into #{} (keep #(and (vector? %) (first %)) order)))
+
+(defn display-group [order grp] (first (filter #(and (vector? %) (= grp (first %))) order)))
+
+(defn join-display-groups [order2 elem]
+  (if (keyword? elem)
+    elem
+    (into elem (rest (display-group order2 (first elem))))))
+
+(defn merge-display-order
+  ([order] order)
+  ([order1 order2]
+   (let [pass1       (mapv (partial join-display-groups order2) order1)
+         seen        (into (set (filter keyword? order1)) (display-groups pass1))
+         already-added (fn [o] (or (seen o) (and (vector? o) (display-group pass1 (first o)))))]
+     (into pass1 (remove already-added order2))))
+  ([order1 order2 & more]
+   (if more
+     (recur (merge-display-order order1 order2) (first more) (next more))
+     (merge-display-order order1 order2))))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
