@@ -138,28 +138,6 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
     return handled;
 }
 
-/*
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    printf("glfw delegate didFinishLaunchingWithOptions etc!\n");
-    SEL sel = @selector(application:didFinishLaunchingWithOptions:);
-    BOOL handled = NO;
-
-    if ([g_ApplicationDelegate respondsToSelector:sel]) {
-        if ([g_ApplicationDelegate application: application didFinishLaunchingWithOptions: launchOptions])
-            handled = YES;
-    }
-
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: sel]) {
-            if ([g_AppDelegates[i] application: application didFinishLaunchingWithOptions: launchOptions])
-                handled = YES;
-        }
-    }
-
-    return handled;
-}
-*/
-
 - (void)forwardInvocation:(NSInvocation *)anInvocation {
     BOOL invoked = NO;
     if ([g_ApplicationDelegate respondsToSelector: [anInvocation selector]]) {
@@ -1083,42 +1061,6 @@ _GLFWwin g_Savewin;
 
     return handled;
 }
-/*
-- (void)applicationDidFinishLaunching:(UIApplication *)application
-{
-    [self forceDeviceOrientation];
-
-    // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
-    // Points vs pixels (and scale factors). I'm not sure that this correct though
-    // and that we really get the correct and highest physical resolution in pixels.
-    CGRect bounds = [UIScreen mainScreen].bounds;
-
-    window = [[UIWindow alloc] initWithFrame:bounds];
-    window.rootViewController = [[[ViewController alloc] init] autorelease];
-    [window makeKeyAndVisible];
-
-    UIApplication* app = [UIApplication sharedApplication];
-    AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];
-    g_ApplicationDelegate = [app.delegate retain];
-    app.delegate = proxy;
-
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: @selector(applicationDidFinishLaunching:)]) {
-            [g_AppDelegates[i] applicationDidFinishLaunching: application];
-        }
-    }
-
-    if (!setjmp(_glfwWin.finishInitBuf))
-    {
-        g_StartupPhase = INIT1;
-        longjmp(_glfwWin.bailEventLoopBuf, 1);
-    }
-    else
-    {
-        g_StartupPhase = INIT2;
-    }
-}
-*/
 
 - (void)applicationWillResignActive:(UIApplication *)application
 {
