@@ -669,18 +669,14 @@ namespace dmGui
     {
         float scale_x = 1.0f;
         float scale_y = 1.0f;
-        float scale_orig_x = 1.0f;
-        float scale_orig_y = 1.0f;
 
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || node == 0x0 || node->m_ParentIndex == INVALID_INDEX) {
             scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
             scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
-            scale_orig_x = scale_x;
-            scale_orig_y = scale_y;
         } else {
             return scene->m_Nodes[node->m_ParentIndex].m_Node.m_LocalScale;
         }
-        return Vector4(scale_x, scale_y, scale_orig_x, scale_orig_y);
+        return Vector4(scale_x, scale_y, 1, 1);
     }
 
     struct UpdateDynamicTexturesParams
