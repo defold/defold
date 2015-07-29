@@ -559,8 +559,27 @@
   (property id g/Str)
   (property path g/Str))
 
+(g/defnode SpecificDisplayOrder
+  (inherits SceneNode)
+
+  (property ambient Vec3)
+  (property specular Vec3)
+
+  (display-order [["Material" :specular :ambient]]))
+
+(g/defnode DisplayGroupOrdering
+  (inherits SpecificDisplayOrder)
+
+  (display-order [:overlay ["Material"] :subtitle])
+
+  (property overlay String)
+  (property subtitle String))
+
 (deftest properties-have-a-display-order
-  (are [expected type] (= expected (g/property-display-order type))
-    [:position :rotation]                  SceneNode
-    [:position :rotation :scale]           ScalableSceneNode
-    [:position :rotation :scale :id :path] CollectionInstanceNode))
+  (testing "The default display order is declaration order"
+    (are [expected type] (= expected (g/property-display-order type))
+      [:position :rotation]                                                    SceneNode
+      [:scale :position :rotation]                                             ScalableSceneNode
+      [:id :path :scale :position :rotation]                                   CollectionInstanceNode
+      [["Material" :specular :ambient] :position :rotation]                    SpecificDisplayOrder
+      [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] DisplayGroupOrdering)))

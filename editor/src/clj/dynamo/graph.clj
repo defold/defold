@@ -21,7 +21,7 @@
 
 (namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
 
-(namespaces/import-vars [internal.node has-input? has-output? has-property?])
+(namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
@@ -165,29 +165,6 @@
    (list 'property '_output-jammers `{s/Keyword s/Any})
    (list 'output '_self `s/Any `(pc/fnk [~'this] ~'this))
    (list 'output '_node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
-
-(defn display-group? [elem grp] (and (vector? elem) (= grp (first elem))))
-
-(defn display-group [order grp] (first (filter #(display-group? % grp) order)))
-
-(defn join-display-groups [order2 [group & _ :as elem]]
-  (into elem (rest (display-group order2 group))))
-
-(defn merge-display-order
-  ([order] order)
-  ([order1 order2]
-   (loop [result []
-          left   order1
-          right  order2]
-     (if-let [elem (first left)]
-       (if (keyword? elem)
-         (recur (conj result elem) (next left) (remove #{elem} right))
-         (recur (conj result (join-display-groups right elem)) (next left) (remove #(display-group? % (first elem)) right)))
-       (into result right))))
-  ([order1 order2 & more]
-   (if more
-     (recur (merge-display-order order1 order2) (first more) (next more))
-     (merge-display-order order1 order2))))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
