@@ -28,6 +28,7 @@
   (transform-types       [this])
   (internal-properties   [this])
   (properties            [this])
+  (externs               [this])
   (declared-inputs       [this])
   (injectable-inputs     [this])
   (declared-outputs      [this])

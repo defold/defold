@@ -19,7 +19,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties declared-inputs injectable-inputs declared-outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs declared-inputs injectable-inputs declared-outputs cached-outputs event-handlers input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property?])
 
@@ -466,9 +466,14 @@
 
 (defn mark-defective
   [node-id defective-value]
-  (list
-   (set-property node-id :_output-jammers (util/map-vals (fn [_] (always defective-value)) (-> node-id node-type* gt/transforms)))
-   (invalidate node-id)))
+  (let [node-type (node-type* node-id)
+        outputs   (keys (gt/transforms node-type))
+        externs   (gt/externs node-type)]
+    (list
+     (set-property node-id :_output-jammers
+                   (zipmap (remove externs outputs)
+                           (repeat (always defective-value))))
+     (invalidate node-id))))
 
 (defn mark-defective!
   [node-id defective-value]
