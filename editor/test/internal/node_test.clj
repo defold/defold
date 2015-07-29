@@ -147,7 +147,17 @@
 
         (g/transact (g/set-property source :_output-jammers {:something-else (constantly "Plaid")}))
 
-        (is (= "a-property" (g/node-value source :overridden)))))))
+        (is (= "a-property" (g/node-value source :overridden))))))
+
+  (testing "jamming with an error value does not cause exceptions in g/node-value"
+    (with-clean-system
+      (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
+        (is (= "a-property" (g/node-value source :overridden)))
+
+        (g/transact (g/set-property source :_output-jammers {:overridden #(g/error "jammed")}))
+
+        (is (gt/error? (g/node-value source :overridden)))
+        (is (= "jammed" (:reason (g/node-value source :overridden))))))))
 
 
 (defn- expect-modified
