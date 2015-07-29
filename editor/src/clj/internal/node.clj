@@ -43,6 +43,30 @@
         (c/cache-encache cache local-for-encache)))
     result))
 
+
+(defn display-group? [elem grp] (and (vector? elem) (= grp (first elem))))
+
+(defn display-group [order grp] (first (filter #(display-group? % grp) order)))
+
+(defn join-display-groups [order2 [group & _ :as elem]]
+  (into elem (rest (display-group order2 group))))
+
+(defn merge-display-order
+  ([order] order)
+  ([order1 order2]
+   (loop [result []
+          left   order1
+          right  order2]
+     (if-let [elem (first left)]
+       (if (keyword? elem)
+         (recur (conj result elem) (next left) (remove #{elem} right))
+         (recur (conj result (join-display-groups right elem)) (next left) (remove #(display-group? % (first elem)) right)))
+       (into result right))))
+  ([order1 order2 & more]
+   (if more
+     (recur (merge-display-order order1 order2) (first more) (next more))
+     (merge-display-order order1 order2))))
+
 (defn- all-properties [node-type]
   (merge (gt/properties node-type) (gt/internal-properties node-type)))
 
@@ -194,6 +218,7 @@
              (map #(inputs-for %) (vals transforms))))))
 
 (def ^:private map-merge (partial merge-with merge))
+(defn- flip [f] (fn [x y] (f y x)))
 
 (defn make-node-type
   "Create a node type object from a maplike description of the node.
@@ -217,7 +242,7 @@
       (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
       (update-in [:property-types]        combine-with merge      {} (from-supertypes description :property-types))
       (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
-      (update-in [:property-display-order] combine-with into      [] (from-supertypes description gt/property-display-order))
+      (update-in [:property-display-order] combine-with (flip merge-display-order) [] (from-supertypes description gt/property-display-order))
       attach-properties-output
       attach-input-dependencies
       verify-inputs-for-dynamics
@@ -313,7 +338,7 @@
         (update-in [:transform-types] assoc label (:value-type property-type))
         (update-in [:property-passthroughs] #(conj (or % #{}) label))
         (cond->
-            (not (internal-keys label))
+            (not (or (internal-keys label) (contains? (into #{} (flatten (:property-display-order description))) label)))
             (update-in [:property-display-order] #(conj (or % []) label))))))
 
 (defn attach-extern
@@ -407,6 +432,9 @@
          [(['extern label tp & options] :seq)]
          (do (assert-symbol "extern" label)
              `(attach-extern ~(keyword label) ~(ip/property-type-descriptor (str label) tp options) (pc/fnk [~label] ~label)))
+
+         [(['display-order ordering] :seq)]
+         `(assoc :property-display-order ~ordering)
 
          [(['trigger label & rest] :seq)]
          (do
