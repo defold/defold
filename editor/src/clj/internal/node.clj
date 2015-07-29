@@ -73,7 +73,7 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs inputs injectable-inputs cached-outputs event-handlers input-dependencies substitutes cardinalities property-types property-passthroughs]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-types property-passthroughs]
 
   gt/NodeType
   (supertypes            [_] supertypes)
@@ -90,7 +90,6 @@
   (injectable-inputs     [_] injectable-inputs)
   (declared-outputs      [_] (set (keys transforms)))
   (cached-outputs        [_] cached-outputs)
-  (event-handlers        [_] event-handlers)
   (input-dependencies    [_] input-dependencies)
   (substitute-for        [_ input] (get substitutes input))
   (input-type            [_ input] (get inputs input))
@@ -208,7 +207,6 @@
       (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
       (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
       (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs))
-      (update-in [:event-handlers]        combine-with set/union #{} (from-supertypes description gt/event-handlers))
       (update-in [:interfaces]            combine-with set/union #{} (from-supertypes description gt/interfaces))
       (update-in [:protocols]             combine-with set/union #{} (from-supertypes description gt/protocols))
       (update-in [:method-impls]          combine-with merge      {} (from-supertypes description gt/method-impls))
@@ -326,11 +324,6 @@
       (attach-property label property-type passthrough)
       (update :externs #(conj (or % #{}) label))))
 
-(defn attach-event-handler
-  "Update the node type description with the given event handler."
-  [description label handler]
-  (assoc-in description [:event-handlers label] handler))
-
 (defn attach-trigger
   "Update the node type description with the given trigger."
   [description label kinds action]
@@ -414,10 +407,6 @@
          [(['extern label tp & options] :seq)]
          (do (assert-symbol "extern" label)
              `(attach-extern ~(keyword label) ~(ip/property-type-descriptor (str label) tp options) (pc/fnk [~label] ~label)))
-
-
-         [(['on label & fn-body] :seq)]
-         `(attach-event-handler ~(keyword label) (fn [~'self ~'event] ~@fn-body))
 
          [(['trigger label & rest] :seq)]
          (do
