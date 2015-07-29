@@ -166,22 +166,24 @@
    (list 'output '_self `s/Any `(pc/fnk [~'this] ~'this))
    (list 'output '_node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
 
-(defn display-groups [order] (into #{} (keep #(and (vector? %) (first %)) order)))
+(defn display-group? [elem grp] (and (vector? elem) (= grp (first elem))))
 
-(defn display-group [order grp] (first (filter #(and (vector? %) (= grp (first %))) order)))
+(defn display-group [order grp] (first (filter #(display-group? % grp) order)))
 
-(defn join-display-groups [order2 elem]
-  (if (keyword? elem)
-    elem
-    (into elem (rest (display-group order2 (first elem))))))
+(defn join-display-groups [order2 [group & _ :as elem]]
+  (into elem (rest (display-group order2 group))))
 
 (defn merge-display-order
   ([order] order)
   ([order1 order2]
-   (let [pass1       (mapv (partial join-display-groups order2) order1)
-         seen        (into (set (filter keyword? order1)) (display-groups pass1))
-         already-added (fn [o] (or (seen o) (and (vector? o) (display-group pass1 (first o)))))]
-     (into pass1 (remove already-added order2))))
+   (loop [result []
+          left   order1
+          right  order2]
+     (if-let [elem (first left)]
+       (if (keyword? elem)
+         (recur (conj result elem) (next left) (remove #{elem} right))
+         (recur (conj result (join-display-groups right elem)) (next left) (remove #(display-group? % (first elem)) right)))
+       (into result right))))
   ([order1 order2 & more]
    (if more
      (recur (merge-display-order order1 order2) (first more) (next more))
