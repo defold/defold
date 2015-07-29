@@ -34,8 +34,6 @@
                             :basis    basis
                             :in-production []}
         result             (and node (gt/produce-value node label evaluation-context))]
-    (when (gt/error? result)
-      (throw (ex-info "Error Value Found in Node." {:error result})))
     (when (and node cache)
       (let [local             @(:local evaluation-context)
             local-for-encache (for [[node-id vmap] local
@@ -566,9 +564,12 @@
      (if-let [~'error (some gt/error? (vals pfn-input#))]
        ~(if output-multi? `[~'error] 'error)
        (if-let [validation-error# (s/check schema# pfn-input#)]
-         (let [~'error (gt/error validation-error#)]
+         (do
            (warn (gt/node-id ~'this) ~node-type-name ~transform schema# validation-error#)
-           ~(if output-multi? `[~'error] 'error))
+           (throw (ex-info "SCHEMA-VALIDATION"
+                           {:node-id (gt/node-id ~'this) :type ~node-type-name :output ~transform
+                            :expected schema# :actual pfn-input#
+                            :validation-error validation-error#})))
          (let [~'result ((~transform (gt/transforms ~node-type-name)) pfn-input#)]
            ~epilogue
            ~'result)))))
