@@ -538,3 +538,29 @@
   (is (thrown? AssertionError
                (eval '(dynamo.graph/defnode BadDynamicArgument
                         (property foo dynamo.defnode-test/NeedsADifferentInput))))))
+
+;;; example taken from editor/collection.clj
+(def Vec3    [(g/one g/Num "x")
+              (g/one g/Num "y")
+              (g/one g/Num "z")])
+
+(g/defnode SceneNode
+  (property position Vec3)
+  (property rotation Vec3))
+
+(g/defnode ScalableSceneNode
+  (inherits SceneNode)
+
+  (property scale Vec3))
+
+(g/defnode CollectionInstanceNode
+  (inherits ScalableSceneNode)
+
+  (property id g/Str)
+  (property path g/Str))
+
+(deftest properties-have-a-display-order
+  (are [expected type] (= expected (g/property-display-order type))
+    [:position :rotation]                  SceneNode
+    [:position :rotation :scale]           ScalableSceneNode
+    [:position :rotation :scale :id :path] CollectionInstanceNode))

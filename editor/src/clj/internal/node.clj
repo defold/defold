@@ -67,13 +67,14 @@
   (let [self           (:_self kwargs)
         kwargs         (dissoc kwargs :_self)
         property-names (-> self gt/node-type gt/properties keys)]
-    (zipmap property-names (map (partial gather-property self kwargs) property-names))))
+    {:properties (zipmap property-names (map (partial gather-property self kwargs) property-names))
+     :display-order (-> self gt/node-type gt/property-display-order)}))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-types property-passthroughs]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-types property-passthroughs property-display-order]
 
   gt/NodeType
   (supertypes            [_] supertypes)
@@ -96,7 +97,8 @@
   (input-cardinality     [_ input] (get cardinalities input))
   (output-type           [_ output] (get transform-types output))
   (property-type         [_ output] (get property-types output))
-  (property-passthrough? [_ output] (contains? property-passthroughs output)))
+  (property-passthrough? [_ output] (contains? property-passthroughs output))
+  (property-display-order [this] property-display-order))
 
 (defmethod print-method NodeTypeImpl
   [^NodeTypeImpl v ^java.io.Writer w]
@@ -215,6 +217,7 @@
       (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
       (update-in [:property-types]        combine-with merge      {} (from-supertypes description :property-types))
       (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
+      (update-in [:property-display-order] combine-with into      [] (from-supertypes description gt/property-display-order))
       attach-properties-output
       attach-input-dependencies
       verify-inputs-for-dynamics
@@ -303,18 +306,15 @@
   "Update the node type description with the given property."
   [description label property-type passthrough]
   (let [prop-key (if (contains? internal-keys label) :internal-properties :properties)]
-   (cond-> (update-in description [prop-key] assoc label property-type)
-     true
-     (assoc-in [:property-types label] property-type)
-
-     true
-     (update-in [:transforms] assoc-in [label] passthrough)
-
-     true
-     (update-in [:transform-types] assoc label (:value-type property-type))
-
-     true
-     (update-in [:property-passthroughs] #(conj (or % #{}) label)))))
+    (-> description
+        (update-in  [prop-key] assoc label property-type)
+        (assoc-in [:property-types label] property-type)
+        (update-in [:transforms] assoc-in [label] passthrough)
+        (update-in [:transform-types] assoc label (:value-type property-type))
+        (update-in [:property-passthroughs] #(conj (or % #{}) label))
+        (cond->
+            (not (internal-keys label))
+            (update-in [:property-display-order] #(conj (or % []) label))))))
 
 (defn attach-extern
   "Update the node type description with the given extern. It will be

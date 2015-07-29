@@ -269,3 +269,14 @@
   (is (= (argument-schema :an-input) (dynamic-arguments PropertyWithDynamicAttribute :fooable)))
   (is (= (argument-schema :an-input :another-input) (dynamic-arguments PropertyWithDynamicVarAsSymbol :fooable)))
   (is (= (argument-schema :an-input :another-input) (dynamic-arguments PropertyWithDynamicVarForm :fooable))))
+
+(deftest property-display-order-merging
+  (are [expected _ sources] (= expected (apply g/merge-display-order sources))
+    [:id :path]                                                     -> [[:id :path]]
+    [:id :path :rotation :position]                                 -> [[:id :path] [:rotation :position]]
+    [:rotation :position :id :path]                                 -> [[:rotation :position] [:id :path]]
+    [:rotation :position :scale :id :path]                          -> [[:rotation :position] [:scale] [:id :path]]
+    [["Transform" :rotation :position :scale]]                      -> [[["Transform" :rotation :position]] [["Transform" :scale]]]
+    [["Transform" :rotation :position :scale] :path]                -> [[["Transform" :rotation :position]] [["Transform" :scale] :path]]
+    [:id ["Transform" :rotation :scale] :path ["Foo" :scale] :cake] -> [[:id ["Transform" :rotation]] [["Transform" :scale] :path] [["Foo" :scale] :cake]]
+    [:id :path ["Transform" :rotation :position :scale]]            -> [[:id :path ["Transform"]] [["Transform" :rotation :position :scale]]]))
