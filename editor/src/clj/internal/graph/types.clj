@@ -33,7 +33,6 @@
   (injectable-inputs     [this])
   (declared-outputs      [this])
   (cached-outputs        [this])
-  (event-handlers        [this])
   (input-dependencies    [this])
   (substitute-for        [this input])
   (input-type            [this input])
