@@ -121,7 +121,7 @@
                                               override-pairs)))))
 
 (defn coalesce [properties]
-  (let [properties (mapv flatten-properties properties)
+  (let [properties (mapv (comp flatten-properties :properties) properties)
         node-count (count properties)
         ; Filter out invisible properties
         ; TODO - not= k :id is a hack since intrinsics are currently included in :properties output
