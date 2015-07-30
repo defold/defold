@@ -299,7 +299,7 @@
       true
       (update-in [:property-passthroughs] disj label))))
 
-(def ^:private internal-keys #{:_id})
+(def ^:private internal-keys #{:_id :_output-jammers})
 
 (defn attach-property
   "Update the node type description with the given property."
@@ -430,7 +430,7 @@
 (defn node-type-forms
   "Given all the forms in a defnode macro, emit the forms that will build the node type description."
   [symb forms]
-  (concat [`-> {:name (str symb)}]
+  (concat [`-> {:name (str (symbol (str *ns*) (str symb)))}]
           (map node-type-form forms)))
 
 (defn defaults
@@ -599,17 +599,19 @@
                                            ~(produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))
                                       (produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))]]
     `(defn ~funcname [~'this ~'evaluation-context]
-       ~(if property-passthrough?
-          `(get ~'this ~transform)
-          `(do
-             (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
-                     (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
-             (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
-               ~(if (= transform :_self)
-                  refresh
-                  (if (= transform :this)
-                    (gt/node-id ~'this)
-                    lookup))))))))
+       (if-let [jammer# (get (:_output-jammers ~'this) ~transform)]
+         (jammer#)
+         ~(if property-passthrough?
+            `(get ~'this ~transform)
+            `(do
+               (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
+                       (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
+               (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
+                 ~(if (= transform :_self)
+                    refresh
+                    (if (= transform :this)
+                      (gt/node-id ~'this)
+                      lookup)))))))))
 
 
 (defn node-input-value-function-forms

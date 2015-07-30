@@ -66,3 +66,17 @@
 
         (is (nil? (g/node-by-id new-collection-id)))
         (is (nil? (g/node-by-id new-go-node-id)))))))
+
+
+(deftest copy-paste-serialization
+  (with-clean-system
+    (let [workspace       (test-util/setup-workspace! world)
+          project         (test-util/setup-project! workspace)
+          project-graph   (g/node-id->graph-id project)
+          app-view        (test-util/setup-app-view!)
+          sprite-node     (test-util/resource-node project "/logic/atlas_sprite.go")
+          collection-node (test-util/resource-node project "/logic/atlas_sprite.collection")
+          view            (test-util/open-scene-view! project app-view collection-node 128 128)
+          go-node         (ffirst (g/sources-of collection-node :child-scenes))
+          fragment        (project/copy [collection-node])]
+      (is (= fragment (project/deserialize (project/serialize fragment)))))))

@@ -19,7 +19,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.input DragEvent TransferMode]
+           [javafx.scene.input DragEvent TransferMode MouseEvent]
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell TreeView Menu MenuItem SeparatorMenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
@@ -33,6 +33,8 @@
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [org.apache.commons.io FileUtils FilenameUtils IOUtils]))
+
+(set! *warn-on-reflection* true)
 
 (declare tree-item)
 
@@ -108,8 +110,8 @@
   (let [resources (into {} (map (fn [resource] [(->path (workspace/proj-path resource)) resource]) resources))
         roots (loop [paths (keys resources)
                      roots []]
-                (if-let [path (first paths)]
-                  (let [roots (if (empty? (filter #(.startsWith path %) roots))
+                (if-let [^Path path (first paths)]
+                  (let [roots (if (empty? (filter (fn [^Path p] (.startsWith path p)) roots))
                                 (conj roots path)
                                 roots)]
                     (recur (rest paths) roots))
@@ -117,7 +119,7 @@
     (mapv #(resources %) roots)))
 
 (defn tmp-file [^File dir resource]
-  (let [f (File. dir (workspace/resource-name resource))]
+  (let [f (File. dir ^String (workspace/resource-name resource))]
     (if (= :file (workspace/source-type resource))
       (with-open [out (io/writer f)]
         (IOUtils/copy (io/input-stream resource) out))
@@ -140,10 +142,10 @@
   (when (not (empty? resources))
     (let [workspace (workspace/workspace (first resources))]
       (doseq [resource resources]
-        (let [f (File. (workspace/abs-path resource))]
+        (let [f (File. ^String (workspace/abs-path resource))]
           (if (.isDirectory f)
             (FileUtils/deleteDirectory f)
-            (.delete (File. (workspace/abs-path resource))))))
+            (.delete (File. ^String (workspace/abs-path resource))))))
       (workspace/fs-sync workspace))))
 
 (defn- copy [files]
@@ -177,7 +179,7 @@
       (recur (File. path)))
     f))
 
-(defn- to-folder [file]
+(defn- to-folder [^File file]
   (if (.isFile file) (.getParentFile file) file))
 
 (handler/defhandler :paste :asset-browser
@@ -188,12 +190,12 @@
                    (empty? (filter workspace/read-only? selection)))))
   (run [selection]
        (let [resource (first selection)
-             tgt-dir (to-folder (File. (workspace/abs-path resource)))]
-         (doseq [src-file (.getFiles (Clipboard/getSystemClipboard))
+             ^File tgt-dir (to-folder (File. ^String (workspace/abs-path resource)))]
+         (doseq [^File src-file (.getFiles (Clipboard/getSystemClipboard))
                  :let [tgt-dir (if (= tgt-dir src-file)
-                                 (.getParent tgt-dir)
+                                 (.getParentFile ^File tgt-dir)
                                  tgt-dir)]]
-           (let [tgt-file (unique (File. tgt-dir (FilenameUtils/getName (.toString src-file))))]
+           (let [^File tgt-file (unique (File. tgt-dir (FilenameUtils/getName (.toString src-file))))]
              (if (.isDirectory src-file)
                (FileUtils/copyDirectory src-file tgt-file)
                (FileUtils/copyFile src-file tgt-file))))
@@ -223,7 +225,7 @@
              f (File. ^String (workspace/abs-path resource))
              base-folder (to-folder f)
              rt (:resource-type user-data)]
-         (when-let [f (dialogs/make-new-file-dialog (File. (:root workspace)) base-folder (or (:label rt) (:ext rt)) (:ext rt))]
+         (when-let [f (dialogs/make-new-file-dialog (File. ^String (g/node-value workspace :root)) base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (spit f (workspace/template rt))
            (workspace/fs-sync workspace)
            (let [resource (FileResource. workspace f [])]
@@ -237,7 +239,7 @@
                                                                                        :command :new-file
                                                                                        :user-data {:resource-type res-type}}) resource-types))))))
 
-(defn- resolve-sub-folder [base-folder new-folder-name]
+(defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))
 
 (handler/defhandler :new-folder :asset-browser
@@ -245,7 +247,7 @@
   (run [selection workspace] (let [f (File. ^String (workspace/abs-path (first selection)))
                                    base-folder (to-folder f)]
                                (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
-                                 (.mkdir (resolve-sub-folder base-folder new-folder-name))
+                                 (.mkdir ^File (resolve-sub-folder base-folder new-folder-name))
                                  (workspace/fs-sync workspace)))))
 
 (defn- item->path [^TreeItem item]
@@ -261,13 +263,13 @@
   new-root)
 
 (defn- auto-expand [items selected-paths]
-  (reduce #(or %1 %2) false (map (fn [item] (let [path (item->path item)
-                                                  selected (boolean (selected-paths path))
-                                                  expanded (auto-expand (.getChildren item) selected-paths)]
-                                              (when expanded (.setExpanded item expanded))
-                                              selected)) items)))
+  (reduce #(or %1 %2) false (map (fn [^TreeItem item] (let [path (item->path item)
+                                                            selected (boolean (selected-paths path))
+                                                            expanded (auto-expand (.getChildren item) selected-paths)]
+                                                        (when expanded (.setExpanded item expanded))
+                                                        selected)) items)))
 
-(defn- sync-selection [^TreeView tree-view root selection]
+(defn- sync-selection [^TreeView tree-view ^TreeItem root selection]
   (when (and root (not (empty? selection)))
     (let [selected-paths (set selection)]
       (auto-expand (.getChildren root) selected-paths)
@@ -277,11 +279,11 @@
           (doto (-> tree-view (.getSelectionModel))
             (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
 
-(defn update-tree-view [tree-view resource-tree selection]
+(defn update-tree-view [^TreeView tree-view resource-tree selection]
   (let [root (.getRoot tree-view)
-        new-root (->>
-                   (tree-item resource-tree)
-                   (sync-tree root))]
+        ^TreeItem new-root (->>
+                             (tree-item resource-tree)
+                             (sync-tree root))]
     (when new-root
       (.setExpanded new-root true))
     (.setRoot tree-view new-root)
@@ -291,19 +293,19 @@
 (g/defnk produce-tree-view [tree-view resource-tree]
   (update-tree-view tree-view resource-tree (workspace/selection tree-view)))
 
-(defn- drag-detected [e selection]
+(defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)
         files (fileify resources)
         mode (if (empty? (filter workspace/read-only? resources))
                TransferMode/MOVE
                TransferMode/COPY)
-        db (.startDragAndDrop (.getSource e) (into-array TransferMode [mode]))
+        db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
         content (ClipboardContent.)]
     (.putFiles content files)
     (.setContent db content)
     (.consume e)))
 
-(defn- drag-done [e selection]
+(defn- drag-done [^DragEvent e selection]
   (when (and
           (.isAccepted e)
           (= TransferMode/MOVE (.getTransferMode e)))
@@ -320,34 +322,33 @@
 
 (defn- drag-over [^DragEvent e]
   (let [db (.getDragboard e)]
-    (when-let [cell (target (.getTarget e))]
-      (when (and (instance? TreeCell cell)
-                 (not (.isEmpty cell))
+    (when-let [^TreeCell cell (target (.getTarget e))]
+      (when (and (not (.isEmpty cell))
                  (.hasFiles db))
-        ; Auto scrolling
-        (let [view (.getTreeView cell)
-              view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
-              height (.getHeight (.getBoundsInLocal view))]
-          (when (< view-y 15)
-            (.scrollTo view (dec (.getIndex cell))))
-          (when (> view-y (- height 15))
-            (.scrollTo view (inc (.getIndex cell)))))
-        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
-          (when (not (workspace/read-only? tgt-resource))
-            (let [tgt-path (-> tgt-resource resource/abs-path File. to-folder .getAbsolutePath ->path)
-                  tgt-descendant? (not (empty? (filter (fn [^Path p] (or
-                                                                       (.equals tgt-path (.getParent p))
-                                                                       (.startsWith tgt-path p))) (map #(-> % .getAbsolutePath ->path) (.getFiles db)))))]
-              (when (not tgt-descendant?) 
-                (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
-                (.consume e)))))))))
+       ; Auto scrolling
+       (let [view (.getTreeView cell)
+             view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
+             height (.getHeight (.getBoundsInLocal view))]
+         (when (< view-y 15)
+           (.scrollTo view (dec (.getIndex cell))))
+         (when (> view-y (- height 15))
+           (.scrollTo view (inc (.getIndex cell)))))
+       (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
+         (when (not (workspace/read-only? tgt-resource))
+           (let [^Path tgt-path (-> tgt-resource ^String resource/abs-path File. ^File to-folder .getAbsolutePath ->path)
+                 tgt-descendant? (not (empty? (filter (fn [^Path p] (or
+                                                                      (.equals tgt-path (.getParent p))
+                                                                      (.startsWith tgt-path p))) (map (fn [^File f] (-> f .getAbsolutePath ->path)) (.getFiles db)))))]
+             (when (not tgt-descendant?)
+               (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+               (.consume e)))))))))
 
 (defn- drag-dropped [^DragEvent e]
   (let [db (.getDragboard e)]
     (when (.hasFiles db)
-      (let [resource (-> e (.getTarget) (target) (.getTreeItem) (.getValue))
-            tgt-dir (to-folder (File. (workspace/abs-path resource)))]
-        (doseq [src-file (.getFiles db)]
+      (let [resource (-> e (.getTarget) ^TreeCell (target) (.getTreeItem) (.getValue))
+            ^File tgt-dir (to-folder (File. ^String (workspace/abs-path resource)))]
+        (doseq [^File src-file (.getFiles db)]
           (let [tgt-file (File. tgt-dir (FilenameUtils/getName (.toString src-file)))]
             (if (.isDirectory src-file)
               (FileUtils/copyDirectory src-file tgt-file)
