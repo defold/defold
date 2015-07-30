@@ -1,7 +1,9 @@
 (ns editor.resource
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [dynamo.graph :as g])
+            [cognitect.transit :as transit]
+            [dynamo.graph :as g]
+            [editor.core :as core])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -43,6 +45,21 @@
   (io/make-output-stream [this opts] (io/make-output-stream file opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
+(core/register-read-handler!
+ "file-resource"
+ (transit/read-handler
+  (fn [{:keys [workspace file children]}]
+    (FileResource. workspace (File. file) children))))
+
+(core/register-write-handler!
+ FileResource
+ (transit/write-handler
+  (constantly "file-resource")
+  (fn [^FileResource r]
+    {:workspace (:workspace r)
+     :file      (.getPath (:file r))
+     :children  (:children r)})))
+
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "FileResource{:workspace %s :file %s :children %s}" (:workspace file-resource) (:file file-resource) (str (:children file-resource)))))
 
@@ -64,6 +81,8 @@
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (io/make-output-stream (.toCharArray ^String (:data this)) opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+
+(core/register-record-type! MemoryResource)
 
 (defmethod print-method MemoryResource [memory-resource ^java.io.Writer w]
   (.write w (format "MemoryResource{:workspace %s :data %s}" (:workspace memory-resource) (:data memory-resource))))
@@ -87,6 +106,8 @@
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (throw (Exception. "Zip resources are read-only")))
   (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only"))))
+
+(core/register-record-type! ZipResource)
 
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "ZipResource{:workspace %s :path %s :children %s}" (:workspace zip-resource) (:path zip-resource) (str (:children zip-resource)))))

@@ -7,12 +7,13 @@
   :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
                      [codox "0.8.10"]]
 
-  :dependencies     [[org.clojure/clojure                         "1.7.0"]
+  :dependencies     [[org.clojure/clojure                         "1.8.0-alpha2"]
                      [org.clojure/core.cache                      "0.6.4"]
                      [org.clojure/core.async                      "0.1.346.0-17112a-alpha"]
                      [org.clojure/core.match                      "0.2.2"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]
+                     [com.cognitect/transit-clj                   "0.8.275"]
                      [prismatic/schema                            "0.4.3"]
                      [prismatic/plumbing                          "0.4.4"]
                      [inflections/inflections                     "0.9.14"]
@@ -30,6 +31,12 @@
                      [org.projectodd.shimdandy/shimdandy-api      "1.1.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.1.0"]
                      [potemkin                                    "0.3.13"]
+                     [instaparse                                  "1.4.1"]
+                     [rhizome                                     "0.2.5"]
+                     [org.fxmisc.richtext/richtextfx              "0.6.4" :exclusions [org.fxmisc.undo/undofx
+                                                                                       org.fxmisc.wellbehaved/wellbehavedfx]]
+                     [org.fxmisc.undo/undofx                      "1.1"]
+                     [org.fxmisc.wellbehaved/wellbehavedfx        "0.1.1"]
 
                      [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
