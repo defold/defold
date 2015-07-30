@@ -399,7 +399,8 @@
   "Update the node type description with the given function, which
   must be part of a protocol or interface attached to the description."
   [description sym argv fn-def]
-  (assoc-in description [:method-impls sym] [argv fn-def]))
+  (let [arglist     (mapv #(with-meta (gensym) (meta %)) argv)]
+    (assoc-in description [:method-impls sym] [arglist fn-def])))
 
 (defn- parse-flags-and-options
   [allowed-flags allowed-options args]
