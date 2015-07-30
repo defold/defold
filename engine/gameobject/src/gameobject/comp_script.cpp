@@ -46,7 +46,6 @@ namespace dmGameObject
     CreateResult CompScriptCreate(const ComponentCreateParams& params)
     {
         HScript script = (HScript)params.m_Resource;
-
         ScriptWorld* script_world = (ScriptWorld*)params.m_World;
         if (script_world->m_Instances.Full())
         {
