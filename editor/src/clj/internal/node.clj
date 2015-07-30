@@ -43,6 +43,52 @@
         (c/cache-encache cache local-for-encache)))
     result))
 
+
+(defn- display-group?
+  [label elem]
+  (and (vector? elem) (= label (first elem))))
+
+(defn- display-group
+  [order label]
+  (first (filter #(display-group? label %) order)))
+
+(defn- join-display-groups
+  [[label & _ :as elem] order2]
+  (into elem (rest (display-group order2 label))))
+
+(defn- expand-node-types
+  [coll]
+  (flatten
+   (map #(if (gt/node-type? %) (gt/property-display-order %) %) coll)))
+
+(defn merge-display-order
+  ([order] order)
+  ([order1 order2]
+   (loop [result []
+          left   order1
+          right  order2]
+     (if-let [elem (first left)]
+       (cond
+         (gt/node-type? elem)
+         (recur result (concat (expand-node-types [elem]) (next left)) right)
+
+         (keyword? elem)
+         (recur (conj result elem) (next left) (remove #{elem} right))
+
+         (sequential? elem)
+         (if (some gt/node-type? elem)
+           (recur result (cons (expand-node-types elem) (next left)) right)
+           (let [group-label   (first elem)
+                 group-member? (set (next elem))]
+             (recur (conj result (join-display-groups elem right))
+                    (next left)
+                    (remove #(or (group-member? %) (display-group? group-label %)) right)))))
+       (into result right))))
+  ([order1 order2 & more]
+   (if more
+     (recur (merge-display-order order1 order2) (first more) (next more))
+     (merge-display-order order1 order2))))
+
 (defn- all-properties [node-type]
   (merge (gt/properties node-type) (gt/internal-properties node-type)))
 
@@ -67,13 +113,14 @@
   (let [self           (:_self kwargs)
         kwargs         (dissoc kwargs :_self)
         property-names (-> self gt/node-type gt/properties keys)]
-    (zipmap property-names (map (partial gather-property self kwargs) property-names))))
+    {:properties (zipmap property-names (map (partial gather-property self kwargs) property-names))
+     :display-order (-> self gt/node-type gt/property-display-order)}))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-types property-passthroughs]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-types property-passthroughs property-display-order]
 
   gt/NodeType
   (supertypes            [_] supertypes)
@@ -96,7 +143,8 @@
   (input-cardinality     [_ input] (get cardinalities input))
   (output-type           [_ output] (get transform-types output))
   (property-type         [_ output] (get property-types output))
-  (property-passthrough? [_ output] (contains? property-passthroughs output)))
+  (property-passthrough? [_ output] (contains? property-passthroughs output))
+  (property-display-order [this] property-display-order))
 
 (defmethod print-method NodeTypeImpl
   [^NodeTypeImpl v ^java.io.Writer w]
@@ -104,6 +152,12 @@
 
 (defn- from-supertypes [local op]                (map op (:supertypes local)))
 (defn- combine-with    [local op zero into-coll] (op (reduce op zero into-coll) local))
+
+(defn resolve-display-order
+  [{:keys [display-order-decl property-order-decl supertypes] :as description}]
+  (-> description
+      (assoc :property-display-order (apply merge-display-order display-order-decl property-order-decl (map gt/property-display-order supertypes)))
+      (dissoc :display-order-decl :property-order-decl)))
 
 (declare attach-output)
 
@@ -192,6 +246,7 @@
              (map #(inputs-for %) (vals transforms))))))
 
 (def ^:private map-merge (partial merge-with merge))
+(defn- flip [f] (fn [x y] (f y x)))
 
 (defn make-node-type
   "Create a node type object from a maplike description of the node.
@@ -215,6 +270,7 @@
       (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
       (update-in [:property-types]        combine-with merge      {} (from-supertypes description :property-types))
       (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
+      resolve-display-order
       attach-properties-output
       attach-input-dependencies
       verify-inputs-for-dynamics
@@ -303,18 +359,15 @@
   "Update the node type description with the given property."
   [description label property-type passthrough]
   (let [prop-key (if (contains? internal-keys label) :internal-properties :properties)]
-   (cond-> (update-in description [prop-key] assoc label property-type)
-     true
-     (assoc-in [:property-types label] property-type)
-
-     true
-     (update-in [:transforms] assoc-in [label] passthrough)
-
-     true
-     (update-in [:transform-types] assoc label (:value-type property-type))
-
-     true
-     (update-in [:property-passthroughs] #(conj (or % #{}) label)))))
+    (-> description
+        (update-in  [prop-key] assoc label property-type)
+        (assoc-in [:property-types label] property-type)
+        (update-in [:transforms] assoc-in [label] passthrough)
+        (update-in [:transform-types] assoc label (:value-type property-type))
+        (update-in [:property-passthroughs] #(conj (or % #{}) label))
+        (cond->
+            (not (or (internal-keys label)))
+            (update-in [:property-order-decl] #(conj (or % []) label))))))
 
 (defn attach-extern
   "Update the node type description with the given extern. It will be
@@ -407,6 +460,9 @@
          [(['extern label tp & options] :seq)]
          (do (assert-symbol "extern" label)
              `(attach-extern ~(keyword label) ~(ip/property-type-descriptor (str label) tp options) (pc/fnk [~label] ~label)))
+
+         [(['display-order ordering] :seq)]
+         `(assoc :display-order-decl ~ordering)
 
          [(['trigger label & rest] :seq)]
          (do
