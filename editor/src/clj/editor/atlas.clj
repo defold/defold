@@ -170,7 +170,7 @@
            (conj! [x0 y0 0 1 0 1])))))
 
 (g/defnk produce-scene
-  [_self texture-set-data aabb gpu-texture]
+  [texture-set-data aabb gpu-texture]
   (let [^BufferedImage img (:image texture-set-data)
         width (.getWidth img)
         height (.getHeight img)
