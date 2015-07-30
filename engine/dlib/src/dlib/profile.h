@@ -114,8 +114,9 @@ namespace dmProfile
         uint32_t    m_Elapsed;
         /// Thread id this sample belongs to
         uint16_t    m_ThreadId;
-        /// Padding
+        /// Padding to 64-bit align
         uint16_t    m_Pad;
+        uint32_t    m_Pad2;
     };
 
     /**
