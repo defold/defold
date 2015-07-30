@@ -19,9 +19,9 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
 
-(namespaces/import-vars [internal.node has-input? has-output? has-property?])
+(namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
