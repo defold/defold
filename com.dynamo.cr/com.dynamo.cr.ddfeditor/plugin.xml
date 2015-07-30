@@ -395,6 +395,27 @@
          </references>
       </resource-type>
       <resource-type
+            edit-support-class="com.dynamo.cr.ddfeditor.resourcetypes.GuiEditSupport"
+            file-extension="gui"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Gui"
+            name="Gui"
+            proto-message-class="com.dynamo.gui.proto.Gui$SceneDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.GuiRefactorParticipant"
+            template-data="script: &apos;&apos; adjust_reference: ADJUST_REFERENCE_PARENT"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="fontdesc">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="gui_script">
+            </reference-type-class>
+         </references>
+      </resource-type>
+      <resource-type
             file-extension="font"
             id="com.dynamo.cr.ddfeditor.resourcetypes.FontDesc"
             name="Font Desc"
