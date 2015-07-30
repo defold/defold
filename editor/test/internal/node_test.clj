@@ -121,8 +121,11 @@
         (is (= "FOO!" foo-before))
         (is (= "quux" foo-after))
         (is (= "bar"  foo-override))
-        (is (every? gt/property-type? (map :type (vals (g/node-value n1 :_properties)))))
-        (is (empty? (filter (fn [k] (= :_id k)) (keys (g/node-value n1 :_properties))))))))
+        (let [properties (g/node-value n1 :_properties)]
+          (is (not (empty? (:properties properties))))
+          (is (every? gt/property-type? (map :type (vals (:properties properties)))))
+          (is (empty? (filter (fn [k] (= :_id k)) (keys (:properties properties)))))
+          (is (not (empty? (:display-order properties))))))))
 
   (testing "the _node-id output delivers the node's id."
     (with-clean-system
@@ -189,9 +192,9 @@
     (let [[snode vnode] (tx-nodes (g/make-node world SimpleTestNode)
                                   (g/make-node world VisibilityTestNode))]
       (g/transact (g/connect snode :foo vnode :bar))
-      (is (= true (get-in (g/node-value vnode :_properties) [:baz :visible])))
+      (is (= true (get-in (g/node-value vnode :_properties) [:properties :baz :visible])))
       (g/transact (g/set-property snode :foo nil))
-      (is (= false (get-in (g/node-value vnode :_properties) [:baz :visible]))))))
+      (is (= false (get-in (g/node-value vnode :_properties) [:properties :baz :visible]))))))
 
 (deftest invalidating-enablement-properties
   (with-clean-system
@@ -208,9 +211,9 @@
     (let [[snode enode] (tx-nodes (g/make-node world SimpleIntTestNode :foo 1)
                                   (g/make-node world EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
-      (is (= true (get-in (g/node-value enode :_properties) [:baz :enabled])))
+      (is (= true (get-in (g/node-value enode :_properties) [:properties :baz :enabled])))
       (g/transact (g/set-property snode :foo -1))
-      (is (= false (get-in (g/node-value enode :_properties) [:baz :enabled]))))))
+      (is (= false (get-in (g/node-value enode :_properties) [:properties :baz :enabled]))))))
 
 (g/defnode PropertyDynamicsTestNode
   (property one-dynamic  g/Str
@@ -225,7 +228,7 @@
 (deftest node-property-dynamics-evaluation
   (with-clean-system
     (let [[node] (tx-nodes (g/make-node world PropertyDynamicsTestNode :three-dynamics "You?"))]
-      (let [props (g/node-value node :_properties)]
+      (let [props (get (g/node-value node :_properties) :properties)]
         (is (= true  (get-in props [:one-dynamic :emphatic?])))
         (is (= false (get-in props [:three-dynamics :emphatic?])))
         (is (= true  (get-in props [:three-dynamics :querulous?])))
@@ -234,13 +237,13 @@
       (g/transact
        (g/set-property node :one-dynamic "bar?"))
 
-      (let [props (g/node-value node :_properties)]
+      (let [props (get (g/node-value node :_properties) :properties)]
         (is (= false (get-in props [:one-dynamic :emphatic?]))))
 
       (g/transact
        (g/set-property node :three-dynamics "I've made a huge mistake!"))
 
-      (let [props (g/node-value node :_properties)]
+      (let [props (get (g/node-value node :_properties) :properties)]
         (is (= true  (get-in props [:three-dynamics :emphatic?])))
         (is (= false (get-in props [:three-dynamics :querulous?])))
         (is (= true  (get-in props [:three-dynamics :mistake?])))))))
@@ -411,7 +414,7 @@
   (with-clean-system
     (let [[node]     (tx-nodes (g/make-node world PropertyValidationNode :even-number 1))
           properties (g/node-value node :_properties)]
-      (is (= ["only even numbers are allowed"] (some-> properties :even-number :validation-problems))))))
+      (is (= ["only even numbers are allowed"] (some-> properties :properties :even-number :validation-problems))))))
 
 (g/defnk pass-through [i] i)
 
@@ -449,7 +452,7 @@
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world AlwaysNode))]
         (= 99 (g/node-value node :always-99))
-        (is (= true (get-in (g/node-value node :_properties) [:foo :visible])))))))
+        (is (= true (get-in (g/node-value node :_properties) [:properties :foo :visible])))))))
 
 (deftest test-node-type*
   (testing "node type from node-id"
