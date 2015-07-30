@@ -93,15 +93,15 @@
   (merge (gt/properties node-type) (gt/internal-properties node-type)))
 
 (defn- gather-property
-  [self kwargs prop]
-  (let [type              (-> self gt/node-type gt/properties prop)
+  [id node-type self kwargs prop]
+  (let [property-type     (-> node-type gt/properties prop)
         value             (get self prop)
-        problems          (gt/property-validate type value)
-        dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes type))]
+        problems          (gt/property-validate property-type value)
+        dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes property-type))]
     (merge dynamics
-           {:node-id             (gt/node-id self)
+           {:node-id             id
             :value               value
-            :type                type
+            :type                property-type
             :validation-problems problems})))
 
 (defn- gather-properties
@@ -109,12 +109,13 @@
   properties of this node. This is used to create the :_properties
   output on a node. You should not call it directly. Instead,
   call `(g/node-value _n_ :_properties)`"
-  [kwargs]
-  (let [self           (:_self kwargs)
-        kwargs         (dissoc kwargs :_self)
-        property-names (-> self gt/node-type gt/properties keys)]
-    {:properties (zipmap property-names (map (partial gather-property self kwargs) property-names))
-     :display-order (-> self gt/node-type gt/property-display-order)}))
+  [{:keys [_id basis] :as kwargs}]
+  (let [kwargs         (dissoc kwargs :_id)
+        self           (ig/node-by-id-at basis _id)
+        node-type      (gt/node-type self)
+        property-names (-> node-type gt/properties keys)]
+    {:properties (zipmap property-names (map (partial gather-property _id node-type self kwargs) property-names))
+     :display-order (-> node-type gt/property-display-order)}))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
@@ -171,8 +172,8 @@
 
 (defn- properties-output-arguments
   [properties]
-  (cons :_self (concat (set (keys properties))
-                      (mapcat property-dynamics-arguments properties))))
+  (concat (set (keys properties))
+          (mapcat property-dynamics-arguments properties)))
 
 (defn attach-properties-output
   [node-type-description]
@@ -226,8 +227,7 @@
 
 (defn description->input-dependencies
   [{:keys [transforms properties] :as description}]
-  (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))
-        transforms (assoc transforms :_self (keys properties))]
+  (let [transforms (zipmap (keys transforms) (map #(dependency-seq description (inputs-for %)) (vals transforms)))]
     (invert-map transforms)))
 
 (defn attach-input-dependencies
@@ -240,7 +240,7 @@
   type. This is a specialized case and if it's not apparent what it
   means, you should probably call input-dependencies instead."
   [node-type]
-  (let [transforms (dissoc (gt/transforms node-type) :_self)]
+  (let [transforms (gt/transforms node-type)]
     (invert-map
      (zipmap (keys transforms)
              (map #(inputs-for %) (vals transforms))))))
@@ -630,7 +630,9 @@
                            {:node-id (gt/node-id ~'this) :type ~node-type-name :output ~transform
                             :expected schema# :actual pfn-input#
                             :validation-error validation-error#})))
-         (let [~'result ((~transform (gt/transforms ~node-type-name)) pfn-input#)]
+         (let [~'result ((~transform (gt/transforms ~node-type-name))
+                         (assoc pfn-input# :_id (gt/node-id ~'this)
+                                :basis (:basis ~'evaluation-context)))]
            ~epilogue
            ~'result)))))
 
@@ -653,7 +655,6 @@
                                             (map (partial node-input-forms transform node-type-name node-type) argument-schema))
               epilogue              (when cached?
                                       `(swap! (:local ~'evaluation-context) assoc-in [(gt/node-id ~'this) ~transform] ~'result))
-              refresh               `(ig/node-by-id-at (:basis ~'evaluation-context) (gt/node-id ~'this))
               lookup                (if cached?
                                       `(or ~(local-cache 'evaluation-context transform)
                                            ~(global-cache 'evaluation-context transform)
@@ -668,11 +669,9 @@
                (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
                        (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
                (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
-                 ~(if (= transform :_self)
-                    refresh
-                    (if (= transform :this)
-                      (gt/node-id ~'this)
-                      lookup)))))))))
+                 ~(if (= transform :this)
+                    (gt/node-id ~'this)
+                    lookup))))))))
 
 
 (defn node-input-value-function-forms

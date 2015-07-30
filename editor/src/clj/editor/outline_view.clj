@@ -87,7 +87,7 @@
           (doto (-> tree-view (.getSelectionModel))
             (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
 
-(g/defnk update-tree-view [_self ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
+(g/defnk update-tree-view [_id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
   (let [resource-set (set open-resources)
        root (get root-cache active-resource)
        new-root (when active-outline (sync-tree root (tree-item active-outline)))
@@ -97,7 +97,7 @@
         (.setExpanded new-root true))
       (.setRoot tree-view new-root)
       (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property (g/node-id _self) :root-cache new-cache)))))
+      (g/transact (g/set-property _id :root-cache new-cache)))))
 
 (g/defnode OutlineView
   (property tree-view TreeView)

@@ -175,7 +175,6 @@
     (let [[node-id]       (tx-nodes (g/make-node world OutputChaining))]
       (g/node-value node-id :chained-output)
       (is (cached? cache node-id :chained-output))
-      (is (not (cached? cache node-id :_self)))
       (is (not (cached? cache node-id :a-property))))))
 
 (g/defnode Source

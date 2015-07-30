@@ -77,9 +77,9 @@
         view-layer     (pile-of-nodes view-graph    FView     view-node-count)]
 
     (g/transact
-     [(for [b bottom-layer] (g/connect b :_self workspace :children))
-      (for [m middle-layer] (g/connect m :_self workspace :children))
-      (for [t top-layer]    (g/connect t :_self workspace :children))])
+     [(for [b bottom-layer] (g/connect b :_id workspace :children))
+      (for [m middle-layer] (g/connect m :_id workspace :children))
+      (for [t top-layer]    (g/connect t :_id workspace :children))])
 
     (g/transact
      (mapcat #(g/set-property % :path (rand-int 10000)) bottom-layer))
