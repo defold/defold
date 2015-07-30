@@ -60,7 +60,11 @@
      (if-let [elem (first left)]
        (if (keyword? elem)
          (recur (conj result elem) (next left) (remove #{elem} right))
-         (recur (conj result (join-display-groups right elem)) (next left) (remove #(display-group? % (first elem)) right)))
+         (let [group   (first elem)
+               group-member? (set (next elem))]
+          (recur (conj result (join-display-groups right elem))
+                 (next left)
+                 (remove #(or (group-member? %) (display-group? % group)) right))))
        (into result right))))
   ([order1 order2 & more]
    (if more
@@ -130,6 +134,12 @@
 
 (defn- from-supertypes [local op]                (map op (:supertypes local)))
 (defn- combine-with    [local op zero into-coll] (op (reduce op zero into-coll) local))
+
+(defn resolve-display-order
+  [{:keys [display-order-decl property-order-decl supertypes] :as description}]
+  (-> description
+      (assoc :property-display-order (apply merge-display-order display-order-decl property-order-decl (map gt/property-display-order supertypes)))
+      (dissoc :display-order-decl :property-order-decl)))
 
 (declare attach-output)
 
@@ -242,7 +252,7 @@
       (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
       (update-in [:property-types]        combine-with merge      {} (from-supertypes description :property-types))
       (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
-      (update-in [:property-display-order] combine-with (flip merge-display-order) [] (from-supertypes description gt/property-display-order))
+      resolve-display-order
       attach-properties-output
       attach-input-dependencies
       verify-inputs-for-dynamics
@@ -338,8 +348,8 @@
         (update-in [:transform-types] assoc label (:value-type property-type))
         (update-in [:property-passthroughs] #(conj (or % #{}) label))
         (cond->
-            (not (or (internal-keys label) (contains? (into #{} (flatten (:property-display-order description))) label)))
-            (update-in [:property-display-order] #(conj (or % []) label))))))
+            (not (or (internal-keys label)))
+            (update-in [:property-order-decl] #(conj (or % []) label))))))
 
 (defn attach-extern
   "Update the node type description with the given extern. It will be
@@ -434,7 +444,7 @@
              `(attach-extern ~(keyword label) ~(ip/property-type-descriptor (str label) tp options) (pc/fnk [~label] ~label)))
 
          [(['display-order ordering] :seq)]
-         `(assoc :property-display-order ~ordering)
+         `(assoc :display-order-decl ~ordering)
 
          [(['trigger label & rest] :seq)]
          (do
