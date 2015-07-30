@@ -2,6 +2,7 @@
   (:require [clojure.set :as set]
             [clojure.string :as str]
             [clojure.test :refer :all]
+            [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [support.test-support :as ts])
   (:import [dynamo.graph Endpoint]))
@@ -34,16 +35,20 @@
           serial-ids          (map :serial-id fragment-nodes)
           arc-node-references (into #{} (concat (map #(:node-id (first %))  (:arcs fragment))
                                                 (map #(:node-id (second %)) (:arcs fragment))))]
+      (def frag* fragment)
       (is (= 1 (count (:roots fragment))))
       (is (every? integer? (:roots fragment)))
       (is (every? integer? serial-ids))
       (is (= (count serial-ids) (count (distinct serial-ids))))
-      (is (= [ConsumerNode ProducerNode] (map :node-type fragment-nodes)))
-      (is (= "foo" (:a-property (:properties (first fragment-nodes)))))
+      (is (= #{ProducerNode ConsumerNode} (into #{}  (map :node-type fragment-nodes))))
+      (is (= "foo" (:a-property (:properties (first (filter #(= ConsumerNode (:node-type %)) fragment-nodes))))))
       (is (= 1 (count (:arcs fragment))))
       (is (every? #(instance? Endpoint %) (map first (:arcs fragment))))
       (is (every? #(instance? Endpoint %) (map second (:arcs fragment))))
       (is (empty? (set/difference (set arc-node-references) (set serial-ids)))))))
+
+(defn- pasted-node [type paste-data]
+  (first (filter #(= type (g/node-type* %)) (:nodes paste-data))))
 
 (deftest simple-paste
   (ts/with-clean-system
@@ -52,29 +57,32 @@
           paste-tx-data   (:tx-data paste-data)
           paste-tx-result (g/transact paste-tx-data)
           new-nodes-added (g/tx-nodes-added paste-tx-result)
-          [node1 node2]   (:nodes paste-data)]
+          producer        (pasted-node ProducerNode paste-data)
+          consumer        (pasted-node ConsumerNode paste-data)]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count (:nodes paste-data))))
       (is (= [:create-node :create-node :connect]  (map :type paste-tx-data)))
       (is (= 2 (count new-nodes-added)))
-      (is (= node1 (first (:root-node-ids paste-data))))
-      (is (g/connected? (g/now) node2 :produces-value node1 :consumes-value)))))
+      (is (every? #(contains? (into #{} (:nodes paste-data)) %) (:root-node-ids paste-data)))
+      (is (g/connected? (g/now) producer :produces-value consumer :consumes-value)))))
 
 (deftest paste-and-clone
   (ts/with-clean-system
     (let [fragment           (simple-copy-fragment world)
           paste-once         (g/paste world fragment {})
           paste-once-result  (g/transact (:tx-data paste-once))
-          [node1-once node2-once] (g/tx-nodes-added paste-once-result)
+          producer-once      (pasted-node ProducerNode paste-once)
+          consumer-once      (pasted-node ConsumerNode paste-once)
           paste-twice        (g/paste world fragment {})
           paste-twice-result (g/transact (:tx-data paste-twice))
-          [node1-twice node2-twice] (g/tx-nodes-added paste-twice-result)]
-      (is (not= node1-once node1-twice))
-      (is (not= node2-once node2-twice))
-      (is (g/connected? (g/now) node2-once  :produces-value node1-once  :consumes-value))
-      (is (g/connected? (g/now) node2-twice :produces-value node1-twice :consumes-value))
-      (is (not (g/connected? (g/now) node2-once  :produces-value node1-twice :consumes-value)))
-      (is (not (g/connected? (g/now) node2-twice :produces-value node1-once  :consumes-value))))))
+          producer-twice     (pasted-node ProducerNode paste-twice)
+          consumer-twice     (pasted-node ConsumerNode paste-twice)]
+      (is (not= producer-once producer-twice))
+      (is (not= consumer-once consumer-twice))
+      (is (g/connected? (g/now) producer-once  :produces-value consumer-once  :consumes-value))
+      (is (g/connected? (g/now) producer-twice :produces-value consumer-twice :consumes-value))
+      (is (not (g/connected? (g/now) producer-once  :produces-value consumer-twice :consumes-value)))
+      (is (not (g/connected? (g/now) producer-twice :produces-value consumer-once  :consumes-value))))))
 
 (defn diamond-copy-fragment [world]
   (let [[node1 node2 node3 node4] (ts/tx-nodes (g/make-node world ConsumeAndProduceNode)
@@ -162,7 +170,7 @@
   (output produces-value g/Str (g/fnk [a-property] a-property)))
 
 (defn- stop-at-stoppers [node]
-  (not (= "StopperNode" (:name (g/node-type* node)))))
+  (not (= "internal.copy-paste-test/StopperNode" (:name (g/node-type* node)))))
 
 (defrecord StopArc [id label])
 
@@ -187,7 +195,7 @@
           fragment-nodes (:nodes fragment)]
       (is (= 2 (count (:arcs fragment))))
       (is (= 2 (count fragment-nodes)))
-      (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "StopperNode")))
+      (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "internal.copy-paste-test/StopperNode")))
       (is (= #{StopArc Endpoint} (into #{} (map (comp class first) (:arcs fragment)))))
       (is (= #{Endpoint} (into #{} (map (comp class second) (:arcs fragment))))))))
 
@@ -208,3 +216,32 @@
       (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
       (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
       (is (= "the one and only" (g/node-value new-root :produces-value))))))
+
+(defrecord StructuredValue [a b c])
+
+(def extra-writers (transit/record-write-handlers StructuredValue))
+
+(def extra-readers (transit/record-read-handlers StructuredValue))
+
+(g/defnode RichNode
+  (property deep-value StructuredValue
+            (default (->StructuredValue 1 2 3))))
+
+(defn rich-value-fragment [world]
+  (let [[node] (ts/tx-nodes (g/make-node world RichNode))]
+    (g/copy [node] (constantly true))))
+
+(deftest roundtrip-serialization-deserialization
+  (ts/with-clean-system
+    (let [simple-fragment (simple-copy-fragment world)
+          rich-fragment   (rich-value-fragment world)]
+      (are [x] (= x (g/read-graph (g/write-graph x extra-writers) extra-readers))
+        1
+        [1]
+        {:x 1}
+        #{1 2}
+        'food
+        ConsumerNode
+        (dynamo.graph.Endpoint. 1 :foo)
+        simple-fragment
+        rich-fragment))))
