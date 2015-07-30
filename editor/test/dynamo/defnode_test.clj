@@ -573,7 +573,15 @@
   (display-order [:overlay ["Material"] :subtitle])
 
   (property overlay String)
-  (property subtitle String))
+  (property subtitle String)
+  (property description String))
+
+(g/defnode PartialDisplayOrder
+  (inherits SpecificDisplayOrder)
+
+  (property overlay String)
+  (property subtitle String)
+  (display-order [:overlay ["Material"]]))
 
 (deftest properties-have-a-display-order
   (testing "The default display order is declaration order"
@@ -582,4 +590,5 @@
       [:scale :position :rotation]                                             ScalableSceneNode
       [:id :path :scale :position :rotation]                                   CollectionInstanceNode
       [["Material" :specular :ambient] :position :rotation]                    SpecificDisplayOrder
-      [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] DisplayGroupOrdering)))
+      [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation] DisplayGroupOrdering
+      [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder)))
