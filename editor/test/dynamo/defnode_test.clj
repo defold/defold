@@ -166,7 +166,7 @@
       (is (= [42 :overridden] (.oneMethod node 42)))))
   (testing "preserves type hints"
     (let [[arglist _] (get (g/method-impls OneMethodNode) 'oneMethod)]
-      (is (= ['this 'x] arglist))
+      (is (= 2 (count arglist)))
       (is (= {:tag 'Long} (meta (second arglist)))))))
 
 (defprotocol LocalProtocol
@@ -183,6 +183,12 @@
   (inherits LocalProtocolNode)
   (protocol-method [this x y] [:override-ok x y]))
 
+(g/defnode ProtocolWithDestructuring
+  LocalProtocol
+  (protocol-method
+   [this {:keys [a b c] :as x} [y1 & ys]]
+   a))
+
 (deftest nodes-can-support-protocols
   (testing "support a single protocol"
     (let [node (g/construct LocalProtocolNode)]
@@ -194,7 +200,10 @@
       (is (= [:ok 5 10] (protocol-method node 5 10))))
     (let [node (g/construct InheritedProtocolOverride)]
       (is (satisfies? LocalProtocol node))
-      (is (= [:override-ok 5 10] (protocol-method node 5 10))))))
+      (is (= [:override-ok 5 10] (protocol-method node 5 10)))))
+  (testing "call protocol methods with destructuring"
+    (let [node (g/construct ProtocolWithDestructuring)]
+      (is (= "yes!" (protocol-method node {:a "yes!" :b 'no :c "wrong answer"} (range 10)))))))
 
 (g/defnode SinglePropertyNode
   (property a-property g/Str))
