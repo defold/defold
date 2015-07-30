@@ -44,12 +44,22 @@
     result))
 
 
-(defn display-group? [elem grp] (and (vector? elem) (= grp (first elem))))
+(defn- display-group?
+  [label elem]
+  (and (vector? elem) (= label (first elem))))
 
-(defn display-group [order grp] (first (filter #(display-group? % grp) order)))
+(defn- display-group
+  [order label]
+  (first (filter #(display-group? label %) order)))
 
-(defn join-display-groups [order2 [group & _ :as elem]]
-  (into elem (rest (display-group order2 group))))
+(defn- join-display-groups
+  [[label & _ :as elem] order2]
+  (into elem (rest (display-group order2 label))))
+
+(defn- expand-node-types
+  [coll]
+  (flatten
+   (map #(if (gt/node-type? %) (gt/property-display-order %) %) coll)))
 
 (defn merge-display-order
   ([order] order)
@@ -58,13 +68,21 @@
           left   order1
           right  order2]
      (if-let [elem (first left)]
-       (if (keyword? elem)
+       (cond
+         (gt/node-type? elem)
+         (recur result (concat (expand-node-types [elem]) (next left)) right)
+
+         (keyword? elem)
          (recur (conj result elem) (next left) (remove #{elem} right))
-         (let [group   (first elem)
-               group-member? (set (next elem))]
-          (recur (conj result (join-display-groups right elem))
-                 (next left)
-                 (remove #(or (group-member? %) (display-group? % group)) right))))
+
+         (sequential? elem)
+         (if (some gt/node-type? elem)
+           (recur result (cons (expand-node-types elem) (next left)) right)
+           (let [group-label   (first elem)
+                 group-member? (set (next elem))]
+             (recur (conj result (join-display-groups elem right))
+                    (next left)
+                    (remove #(or (group-member? %) (display-group? group-label %)) right)))))
        (into result right))))
   ([order1 order2 & more]
    (if more

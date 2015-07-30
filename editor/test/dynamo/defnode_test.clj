@@ -583,6 +583,20 @@
   (property subtitle String)
   (display-order [:overlay ["Material"]]))
 
+(g/defnode EmitterKeys
+  (property color-alpha g/Int)
+  (property color-blue g/Int)
+  (property color-green g/Int)
+  (property color-red g/Int)
+
+  (display-order [:color-red :color-green :color-blue]))
+
+(g/defnode GroupingBySymbol
+  (inherits ScalableSceneNode)
+  (inherits EmitterKeys)
+
+  (display-order [["Transform" ScalableSceneNode] EmitterKeys]))
+
 (deftest properties-have-a-display-order
   (testing "The default display order is declaration order"
     (are [expected type] (= expected (g/property-display-order type))
@@ -591,4 +605,5 @@
       [:id :path :scale :position :rotation]                                   CollectionInstanceNode
       [["Material" :specular :ambient] :position :rotation]                    SpecificDisplayOrder
       [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation] DisplayGroupOrdering
-      [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder)))
+      [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
+      [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
