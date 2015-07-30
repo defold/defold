@@ -13,9 +13,6 @@
            [javax.imageio ImageIO]
            [javax.vecmath Point3d Matrix4d]))
 
-(defn- dump-outline [outline]
-  {:_self (type (:_self outline)) :children (map dump-outline (:children outline))})
-
 (deftest hierarchical-outline
   (testing "Hierarchical outline"
            (with-clean-system

@@ -248,9 +248,8 @@
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
       (is (= {:_id              #{:_id}
-              :another-property #{:_properties :another-property :_self}
-              :a-property       #{:_properties :a-property :_self}
-              :_self            #{:_properties}
+              :another-property #{:_properties :another-property}
+              :a-property       #{:_properties :a-property}
               :_output-jammers  #{:_output-jammers}}
              (-> node g/node-type g/input-dependencies)))))
 
@@ -262,7 +261,7 @@
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
-      (is (= {:a-property #{:_properties :a-property :_self}}
+      (is (= {:a-property #{:_properties :a-property}}
              (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
@@ -357,22 +356,19 @@
             :project         #{:integer-output}
             :string-input    #{:inline-string}
             :integer-input   #{:string-output :cached-output}
-            :_self           #{:_properties}
             :_output-jammers #{:_output-jammers}}
            (g/input-dependencies MultipleOutputNode)))
     (is (= {:_id             #{:_id}
             :project         #{:integer-output}
             :string-input    #{:inline-string}
             :integer-input   #{:string-output :abstract-output :cached-output}
-            :_self           #{:_properties}
             :_output-jammers #{:_output-jammers}}
            (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
     (is (= {:_id                #{:_id}
-            :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property :_self}
+            :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property}
             :direct-calculation #{:indirect-calculation}
-            :_self              #{:_properties}
             :_output-jammers    #{:_output-jammers}}
            (g/input-dependencies TwoLayerDependencyNode))))
 

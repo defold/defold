@@ -304,22 +304,22 @@
     (set-orthographic (camera-fov-from-aabb camera viewport aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
-(defn reframe-camera-tx [self camera viewport aabb]
+(defn reframe-camera-tx [id camera viewport aabb]
   (if aabb
     (let [camera (camera-orthographic-frame-aabb camera viewport aabb)]
       (g/transact
        (concat
-        (g/set-property (g/node-id self) :camera camera)
-        (g/set-property (g/node-id self) :reframe false)))
+        (g/set-property id :camera camera)
+        (g/set-property id :reframe false)))
       camera)
     camera))
 
-(g/defnk produce-camera [_self camera viewport reframe aabb]
+(g/defnk produce-camera [_id camera viewport reframe aabb]
   (let [w (- (:right viewport) (:left viewport))
        h (- (:bottom viewport) (:top viewport))]
    (if (and (> w 0) (> h 0))
      (let [camera (if reframe
-                    (reframe-camera-tx _self camera viewport aabb)
+                    (reframe-camera-tx _id camera viewport aabb)
                     camera)
            aspect (/ (double w) h)]
        (set-orthographic camera (:fov camera) aspect -100000 100000))
