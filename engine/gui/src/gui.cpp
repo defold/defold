@@ -549,7 +549,10 @@ namespace dmGui
     Result AddLayer(HScene scene, const char* layer_name)
     {
         if (scene->m_Layers.Full())
+        {
+            dmLogError("Max number of layers exhausted (max %d total)", scene->m_Layers.Capacity());
             return RESULT_OUT_OF_RESOURCES;
+        }
 
         uint64_t layer_hash = dmHashString64(layer_name);
         uint16_t index = scene->m_NextLayerIndex++;
