@@ -42,6 +42,8 @@
   (property-passthrough?  [this output])
   (property-display-order [this]))
 
+(defn node-type? [x] (satisfies? NodeType x))
+
 (defn input-labels    [node-type] (-> node-type declared-inputs keys set))
 (defn output-labels   [node-type] (-> node-type declared-outputs))
 (defn property-labels [node-type] (-> node-type properties keys set))
