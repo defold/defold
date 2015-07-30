@@ -65,6 +65,7 @@ namespace dmGameObject
         }
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
 
+        uint32_t created_instances = 0;
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
@@ -107,17 +108,19 @@ namespace dmGameObject
                 {
                     dmLogError("Unable to set identifier %s. Name clash?", instance_desc.m_Id);
                 }
+
+                created_instances++;
             }
             else
             {
                 dmLogError("Could not instantiate game object from prototype %s.", instance_desc.m_Prototype);
                 res = dmResource::RESULT_FORMAT_ERROR; // TODO: Could be out-of-resources as well..
-                goto bail;
+                break;
             }
         }
 
         // Setup hierarchy
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        for (uint32_t i = 0; i < created_instances; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
@@ -145,7 +148,7 @@ namespace dmGameObject
         dmGameObject::UpdateTransforms(collection);
 
         // Create components and set properties
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        for (uint32_t i = 0; i < created_instances; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
@@ -200,6 +203,7 @@ namespace dmGameObject
                         ++component_instance_data_index;
                 }
             } else {
+                dmGameObject::ReleaseIdentifier(collection, instance);
                 dmGameObject::UndoNewInstance(collection, instance);
                 res = dmResource::RESULT_FORMAT_ERROR;
             }
