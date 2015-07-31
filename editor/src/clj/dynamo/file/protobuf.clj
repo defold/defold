@@ -1,4 +1,5 @@
 (ns dynamo.file.protobuf
+  "Protobuf conversion"
   (:require [camel-snake-kebab :refer [->camelCase ->kebab-case]]
             [clojure.java.io :as io]
             [internal.java :as j])
