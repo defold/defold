@@ -85,7 +85,7 @@
                       :exclude                   [internal]
                       :src-dir-uri               "http://github.com/relevance/defold/blob/clojure-sceneed"
                       :src-linenum-anchor-prefix "L"
-                      :doc/format                :markdown}
+                      :defaults {:doc/format :markdown}}
 
   :profiles          {:test        {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
                       :uberjar     {:main com.defold.editor.Start
