@@ -51,10 +51,13 @@
 (namespaces/import-vars [internal.system system-cache cache-disposal-queue deleted-disposal-queue])
 
 (defn now
+  "The basis at the current point in time"
   []
   (is/basis @*the-system*))
 
 (defn node-by-id
+  "Returns a node given its id. If the basis is provided, it returns the value of the node using that basis.
+   Otherwise, it uses the current basis."
   ([node-id]
    (let [graph-id (node-id->graph-id node-id)]
      (ig/node (is/graph @*the-system* graph-id) node-id)))
@@ -62,14 +65,19 @@
    (ig/node-by-id-at basis node-id)))
 
 (defn node-type*
+  "Return the node-type given a node-id.  Uses the current basis if not provided."
   ([node-id]
    (node-type* (now) node-id))
   ([basis node-id]
    (gt/node-type (ig/node-by-id-at basis node-id))))
 
-(defn cache [] (is/system-cache @*the-system*))
+(defn cache "The system cache of node values"
+  []
+  (is/system-cache @*the-system*))
 
-(defn graph [graph-id] (is/graph @*the-system* graph-id))
+(defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
+  [graph-id]
+  (is/graph @*the-system* graph-id))
 
 (defn- has-history? [sys graph-id] (not (nil? (is/graph-history sys graph-id))))
 (def ^:private meaningful-change? contains?)
@@ -113,6 +121,18 @@
     tps-counts))
 
 (defn transact
+  "Provides a way to run a transaction against the graph system.  It takes a list of transaction steps.
+
+  Example:
+
+      (g/transact
+         [(g/connect n1 output-name n :xs)
+         (g/connect n2 output-name n :xs)])
+
+  It returns the transaction result, (tx-result),  which is a map containing keys about the transaction.
+  Transaction result-keys:
+  `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :properties-modified :label :sequence-label]`
+  "
   [txs]
   (when *tps-debug*
     (send-off tps-counter tick (System/nanoTime)))
@@ -130,30 +150,37 @@
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------
 (defn tx-nodes-added
+ "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [transaction]
   (:nodes-added transaction))
 
 (defn is-modified?
+  "Returns a boolean if a node, or node and output, was modified as a result of a transaction given a tx-result."
   ([transaction node-id]
     (boolean (contains? (:outputs-modified transaction) node-id)))
   ([transaction node-id output]
     (boolean (get-in transaction [:outputs-modified node-id output]))))
 
 (defn is-added? [transaction node-id]
+  "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
   (contains? (:nodes-added transaction) node-id))
 
 (defn is-deleted? [transaction node-id]
+  "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
   (contains? (:nodes-deleted transaction) node-id))
 
 (defn outputs-modified
+  "Returns the pairs of node-id and label of the outputs that were modified for a node as the result of a transaction given a tx-result and node"
   [transaction node-id]
   (get-in transaction [:outputs-modified node-id]))
 
 (defn transaction-basis
+  "Returns the final basis from the result of a transaction given a tx-result"
   [transaction]
   (:basis transaction))
 
 (defn pre-transaction-basis
+  "Returns the original, statrting basis from the result of a transaction given a tx-result"
   [transaction]
   (:original-basis transaction))
 
@@ -169,6 +196,15 @@
 ;; Definition
 ;; ---------------------------------------------------------------------------
 (defmacro defproperty [name value-type & body-forms]
+  "Defines a property that can later be referred to in a `defnode`
+
+   Example:
+
+      (defproperty StringWithDefault g/Str (default \"foo\"))
+
+      (defnode TestNode
+        (property a-prop StringWithDefault))"
+
   (apply ip/def-property-type-descriptor name value-type body-forms))
 
 (declare become)
@@ -369,48 +405,97 @@
   (it/sequence-label label))
 
 (defn make-node
+ "Returns the transaction step for creating a new node.
+  Needs to be executed within a transact to actually create the node on a graph.
+
+  Example:
+
+  `(transact (make-node world SimpleTestNode))`"
   [graph-id node-type & args]
   (it/new-node (apply construct node-type :_id (is/next-node-id @*the-system* graph-id) args)))
 
 (defn make-node!
+  "Creates the transaction step and runs it in a transaction, returning the resulting node.
+
+  Example:
+
+  `(make-node! world SimpleTestNode)`"
   [graph-id node-type & args]
   (first (tx-nodes-added (transact (apply make-node graph-id node-type args)))))
 
 (defn delete-node
-  "Remove a node from the world."
+ "Returns the transaction step for deleting a node.
+  Needs to be executed within a transact to actually create the node on a graph.
+
+  Example:
+
+  `(transact (delete-node node-id))`"
   [node-id]
   (it/delete-node node-id))
 
 (defn delete-node!
+  "Creates the transaction step for deleting a node and runs it in a transaction.
+  It returns the transaction results, tx-result
+
+  Example:
+
+  `(delete-node! node-id)`"
+
   [node-id]
   (transact (delete-node node-id)))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
-   Takes effect when a transaction is applied."
+   Takes effect when a transaction is applied.
+
+  Example:
+
+  `(transact (connect content-node :scalar view-node :first-name))`"
   [source-node-id source-label target-node-id target-label]
   (it/connect source-node-id source-label target-node-id target-label))
 
 (defn connect!
+ "Creates the transaction step to make a connection from an output of the source node to an input on the target node
+  and applies it in a transaction
+
+  Example:
+
+  `(connect! content-node :scalar view-node :first-name)`"
   [source-node-id source-label target-node-id target-label]
   (transact (connect source-node-id source-label target-node-id target-label)))
 
 (defn disconnect
-  "Remove a connection from an output of the source node to the input on the target node.
+  "Creates the transaction step to remove a connection from an output of the source node to the input on the target node.
   Note that there might still be connections between the two nodes,
   from other outputs to other inputs.  Takes effect when a transaction
-  is applied."
+  is applied with transact.
+
+  Example:
+
+  (`transact (disconnect aux-node :scalar view-node :last-name))`"
   [source-node-id source-label target-node-id target-label]
   (it/disconnect source-node-id source-label target-node-id target-label))
 
 (defn disconnect!
+ "Creates the transaction step to remove a connection from an output of the source node to the input on the target node.
+  It also applies it in transaction, returning the transaction result, (tx-result).
+  Note that there might still be connections between the two nodes,
+  from other outputs to other inputs.
+
+  Example:
+
+  `(disconnect aux-node :scalar view-node :last-name)`"
   [source-node-id source-label target-node-id target-label]
   (transact (disconnect source-node-id source-label target-node-id target-label)))
 
 (defn become
-  "Turn one kind of node into another, in a transaction. All properties and their values
+  "Creates the transaction step to turn one kind of node into another, in a transaction. All properties and their values
    will be carried over from source-node to new-node. The resulting node will still have
    the same node-id.
+
+  Example:
+
+  `(transact (become counter (construct StringSource))`
 
    Any input or output connections to labels that exist on both
   source-node and new-node will continue to exist. Any connections to
@@ -420,12 +505,28 @@
   (it/become node-id new-node))
 
 (defn become!
+  "Creates the transaction step to turn one kind of node into another and applies it in a transaction. All properties and their values
+   will be carried over from source-node to new-node. The resulting node will still have
+   the same node-id.  Returns the transaction-result, (tx-result).
+
+  Example:
+
+  `(become! counter (construct StringSource)`
+
+   Any input or output connections to labels that exist on both
+  source-node and new-node will continue to exist. Any connections to
+  labels that don't exist on new-node will be disconnected in the same
+  transaction."
   [source-node new-node]
   (transact (become source-node new-node)))
 
 (defn set-property
-  "Assign a value to a node's property (or properties) value(s) in a
-  transaction."
+  "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
+  is applies in a transact.
+
+  Example:
+
+  `(transact (set-property root-id :touched 1))`"
   [node-id & kvs]
   (mapcat
    (fn [[p v]]
@@ -433,37 +534,83 @@
    (partition-all 2 kvs)))
 
 (defn set-property!
+  "Creates the transaction step to assign a value to a node's property (or properties) value(s) and applies it in a transaction.
+  It returns the result of the transaction, (tx-result).
+
+  Example:
+
+  `(set-property! root-id :touched 1)`"
   [node-id & kvs]
   (transact (apply set-property node-id kvs)))
 
 (defn update-property
-  "Apply a function to a node's property in a transaction. The
-  function f will be invoked as if by (apply f current-value args)"
+  "Create the transaction step to apply a function to a node's property in a transaction. The
+  function f will be invoked as if by (apply f current-value args).  It will take effect when the transaction is
+  applied in a transact.
+
+  Example:
+
+  `(transact (g/update-property node-id :int-prop inc))`"
   [node-id p f & args]
   (it/update-property node-id p f args))
 
 (defn update-property!
+  "Create the transaction step to apply a function to a node's property in a transaction. Then it applies the transaction.
+   The function f will be invoked as if by (apply f current-value args).  The transaction results, (tx-result), are returned.
+
+  Example:
+
+  `g/update-property! node-id :int-prop inc)`"
   [node-id p f & args]
   (transact (apply update-property node-id p f args)))
 
 (defn set-graph-value
-  "Attach a named value to a graph."
+ "Create the transaction step to attach a named value to a graph. It will take effect when the transaction is
+  applied in a transact.
+
+  Example:
+
+  `(transact (set-graph-value 0 :string-value \"A String\"))`"
   [graph-id k v]
   (it/update-graph graph-id assoc [k v]))
 
 (defn set-graph-value!
+  "Create the transaction step to attach a named value to a graph and applies the transaction.
+  Returns the transaction result, (tx-result).
+
+  Example:
+
+  (set-graph-value! 0 :string-value \"A String\")"
   [graph-id k v]
   (transact (set-graph-value graph-id k v)))
 
 (defn invalidate
+ "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaciton is
+  applied in a transact.
+
+  Example:
+
+  `(transact (invalidate node-id))`"
   [node-id]
   (it/invalidate node-id))
 
 (defn invalidate!
+ "Creates the transaction step to invalidate all the outputs of the node and applies the transaction.
+
+  Example:
+
+  `(invalidate! node-id)`"
   [node-id]
   (transact (invalidate node-id)))
 
 (defn mark-defective
+  "Creates the transaction step to mark a node as _defective_.
+  This means that all the outputs of the node will be replace by the defective value.
+  It will take effect when the transaction is applied in a transact.
+
+  Example:
+
+  `(transact (mark-defective node-id (g/error \"Resource Not Found\")))`"
   [node-id defective-value]
   (let [node-type (node-type* node-id)
         outputs   (keys (gt/transforms node-type))
@@ -475,6 +622,13 @@
      (invalidate node-id))))
 
 (defn mark-defective!
+  "Creates the transaction step to mark a node as _defective_.
+  This means that all the outputs of the node will be replace by the defective value.
+  It will take effect when the transaction is applied in a transact.
+
+  Example:
+
+  `(mark-defective! node-id (g/error \"Resource Not Found\"))`"
   [node-id defective-value]
   (transact (mark-defective node-id defective-value)))
 
@@ -491,7 +645,11 @@
   recently committed transaction.
 
   The label must exist as a defined transform on the node, or an
-  AssertionError will result."
+  AssertionError will result.
+
+  Example:
+
+  `(node-value node-id :chained-output)`"
   ([node-id label]
    (in/node-value (now) (cache) node-id label))
   ([basis node-id label]
@@ -503,6 +661,12 @@
    (in/node-value basis cache node-id label)))
 
 (defn graph-value
+  "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
+  If the basis is not provided, it will take it from the current point of time in the system.
+
+  Example:
+
+  `(graph-value (node->graph-id view) :renderer)`"
   ([graph-id k]
    (graph-value (now) graph-id k))
   ([basis graph-id k]
@@ -657,6 +821,12 @@
    g))
 
 (defn copy
+  "Given a vector of root ids, and an options map that can contain a `:continue?` predicate and a `write-handlers` map, returns a copy graph fragment that can be serialized or pasted.  Works on the current basis, if a basis is not provided.
+
+  Example:
+
+  `(g/copy root-ids {:continue? (comp not resource?)
+                    :write-handlers {ResourceNode make-reference}})`"
   ([root-ids opts]
    (copy (now) root-ids opts))
   ([basis root-ids {:keys [continue? write-handlers] :or {continue? (constantly true)} :as opts}]
@@ -681,6 +851,12 @@
     (connect real-src-id src-label real-tgt-id tgt-label)))
 
 (defn paste
+  "Given a `graph-id` and graph fragment from copying, provides the transaction data to create the nodes on the graph and connect all the new nodes together with the same arcs in the fragment.  It will take effect when it is applied with a transact.
+
+  Example:
+
+  `(g/paste (graph project) fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}})`
+"
   ([graph-id fragment opts]
    (paste (now) graph-id fragment opts))
   ([basis graph-id fragment {:keys [read-handlers] :as opts}]
@@ -696,10 +872,12 @@
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
 (defn initialize!
+  "Set up the initial system including graphs, caches, and dispoal queues"
   [config]
   (reset! *the-system* (is/make-system config)))
 
 (defn dispose-pending!
+  "Empties the dispoal queues of all values"
   []
   (dispose/dispose-pending *the-system*))
 
@@ -709,48 +887,79 @@
     (assoc (ig/empty-graph) :_volatility volatility)))
 
 (defn make-graph!
+  "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
+  options are provided, the history ability is false and the volatility is 0
+
+  Example:
+
+  `(make-graph! :history true :volatility 1)`"
   [& {:keys [history volatility] :or {history false volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
         s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
     (:last-graph s)))
 
 (defn last-graph-added
+  "Retuns the last graph added to the system"
   []
   (is/last-graph @*the-system*))
 
 (defn delete-graph!
+  "Given a `graph-id`, deletes it from the system
+
+  Example:
+
+  ` (delete-graph! agraph-id)`"
   [graph-id]
   (when-let [graph (is/graph @*the-system* graph-id)]
     (transact (mapv it/delete-node (ig/node-ids graph)))
     (swap! *the-system* is/detach-graph graph-id)))
 
 (defn undo!
+  "Given a `graph-id` resets the graph back to the last _step_ in time.
+
+  Example:
+
+  (undo gid)"
   [graph-id]
   (let [snapshot @*the-system*]
     (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate! ks))))
 
 (defn has-undo?
+  "Returns true/false if a `graph-id` has an undo available"
   [graph-id]
   (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
     (not (empty? undo-stack))))
 
 (defn redo!
+  "Given a `graph-id` reverts an undo of the graph
+
+  Example: `(redo gid)`"
   [graph-id]
   (let [snapshot @*the-system*]
     (when-let [ks (is/redo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate! ks))))
 
 (defn has-redo?
+  "Returns true/false if a `graph-id` has an redo available"
   [graph-id]
   (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph-id))]
     (not (empty? redo-stack))))
 
 (defn reset-undo!
+  "Given a `graph-id`, clears all undo history for the graph
+
+  Example:
+  `(reset-undo! gid)`"
   [graph-id]
   (is/clear-history (is/graph-history @*the-system* graph-id)))
 
 (defn cancel!
+  "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
+  if they had never happened in the history.
+
+  Example:
+  `(cancel! gid :a)`"
   [graph-id sequence-id]
   (let [snapshot @*the-system*]
     (when-let [ks (is/cancel (is/graph-history snapshot graph-id) snapshot sequence-id)]
