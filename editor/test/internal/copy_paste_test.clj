@@ -133,9 +133,25 @@
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node2 :produces-value node3 :consumes-value)])
       (let [fragment            (g/copy [node1] (constantly true))
-            fragment-nodes      (:nodes fragment)]
-        (is (= 3 (count (:arcs fragment))))
-        (is (= 3 (count fragment-nodes)))))))
+            fragment-nodes      (:nodes fragment)
+            paste-data          (g/paste world fragment {})
+            paste-tx-data       (:tx-data paste-data)
+            paste-tx-result     (g/transact paste-tx-data)
+            new-nodes-added     (map #(g/node-by-id-at (g/now) %) (g/tx-nodes-added paste-tx-result))
+            new-root            (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))
+            [newleaf1 newleaf2] (remove #(= % new-root) new-nodes-added)]
+
+        (testing "copy short-circuts cycles"
+          (is (= 3 (count (:arcs fragment))))
+                 (is (= 3 (count fragment-nodes)))
+                 (is (= 3 (count new-nodes-added))))
+
+        (testing "paste preserves cycle noodles and connections"
+          (is (= #{"internal.copy-paste-test/ConsumeAndProduceNode"}
+                 (into #{} (map #(:name (g/node-type %)) [newleaf1 newleaf2]))))
+          (is (g/connected? (g/now) (g/node-id newleaf1) :produces-value (g/node-id newleaf2) :consumes-value))
+          (is (g/connected? (g/now) (g/node-id newleaf2) :produces-value (g/node-id newleaf1) :consumes-value)))
+))))
 
 (deftest cross-graph-copy
   (ts/with-clean-system
