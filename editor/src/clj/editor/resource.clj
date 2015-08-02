@@ -63,9 +63,9 @@
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "FileResource{:workspace %s :file %s :children %s}" (:workspace file-resource) (:file file-resource) (str (:children file-resource)))))
 
-(defrecord MemoryResource [workspace resource-type data]
+(defrecord MemoryResource [workspace ext data]
   Resource
-  (resource-type [this] resource-type)
+  (resource-type [this] (get (g/node-value workspace :resource-types) ext))
   (source-type [this] :file)
   (read-only? [this] false)
   (path [this] nil)

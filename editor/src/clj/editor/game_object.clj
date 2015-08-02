@@ -145,6 +145,27 @@
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
+(defn- attach-component [self-id comp-id]
+  (let [conns [[:outline :outline]
+               [:properties :component-properties]
+               [:_id :nodes]
+               [:build-targets :dep-build-targets]
+               [:ddf-message :ref-ddf]
+               [:id :child-ids]
+               [:scene :child-scenes]]]
+    (for [[from to] conns]
+      (g/connect comp-id from self-id to))))
+
+(defn- attach-embedded-component [self-id comp-id]
+  (let [conns [[:outline :outline]
+               [:ddf-message :embed-ddf]
+               [:id :child-ids]
+               [:scene :child-scenes]
+               [:_id :nodes]
+               [:build-targets :dep-build-targets]]]
+    (for [[from to] conns]
+      (g/connect comp-id from self-id to))))
+
 (g/defnode GameObjectNode
   (inherits project/ResourceNode)
 
@@ -161,7 +182,12 @@
                                         :label "Game Object"
                                         :icon game-object-icon
                                         :children outline
-                                        :accepts-child-fn (constantly true) }))
+                                        :child-reqs [{:node-type ComponentNode
+                                                      :values {:embedded (comp not true?)}
+                                                      :tx-attach-fn attach-component}
+                                                     {:node-type ComponentNode
+                                                      :values {:embedded true?}
+                                                      :tx-attach-fn attach-embedded-component}]}))
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
@@ -186,14 +212,7 @@
     (g/make-nodes (g/node-id->graph-id self)
                   [comp-node [ComponentNode :id id :position position :rotation rotation :path path :properties properties]]
                   (concat
-                    (for [[src tgt] [[:outline :outline]
-                                     [:properties :component-properties]
-                                     [:_id :nodes]
-                                     [:build-targets :dep-build-targets]
-                                     [:ddf-message :ref-ddf]
-                                     [:id :child-ids]
-                                     [:scene :child-scenes]]]
-                      (g/connect comp-node src self tgt))
+                    (attach-component self comp-node)
                     (project/connect-resource-node project
                                                    source-resource comp-node
                                                    [[:outline :outline]
@@ -241,12 +260,7 @@
                     (g/connect source-node :build-targets comp-node :build-targets)
                     (g/connect source-node :project-id    comp-node :project-id)
                     (g/connect source-node :_id           self      :nodes)
-                    (g/connect comp-node   :outline       self      :outline)
-                    (g/connect comp-node   :ddf-message   self      :embed-ddf)
-                    (g/connect comp-node   :id            self      :child-ids)
-                    (g/connect comp-node   :scene         self      :child-scenes)
-                    (g/connect comp-node   :_id           self      :nodes)
-                    (g/connect comp-node   :build-targets self      :dep-build-targets))
+                    (attach-embedded-component self comp-node))
       (g/make-nodes (g/node-id->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
                     (g/connect comp-node   :outline      self       :outline)
