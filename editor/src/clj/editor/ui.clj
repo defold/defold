@@ -258,6 +258,21 @@
                       (filter (comp not nil?))
                       (mapv #(.getValue ^TreeItem %)))))
 
+(defn selection-roots [^TreeView tree-view path-fn id-fn]
+  (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
+    (let [items (into {} (map #(do [(path-fn %) %]) selection))
+          roots (loop [paths (keys items)
+                       roots []]
+                  (if-let [path (first paths)]
+                    (let [ancestors (filter #(= (subvec path 0 (count %)) %) roots)
+                          roots (if (empty? ancestors)
+                                  (conj roots path)
+                                  roots)]
+                      (recur (rest paths) roots))
+                    roots))]
+    (vals (into {} (map #(let [item (items %)]
+                          [(id-fn item) item]) roots))))))
+
 (extend-type ListView
   workspace/SelectionProvider
   (selection [this] (some->> this
