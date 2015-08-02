@@ -5,7 +5,7 @@
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [javafx.application Platform]
-           [javafx.animation AnimationTimer]
+           [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
@@ -15,7 +15,7 @@
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
-           [javafx.util Callback]))
+           [javafx.util Callback Duration]))
 
 ;; These two lines initialize JavaFX and OpenGL when we're generating
 ;; API docs
@@ -595,3 +595,15 @@ return value."
       #(seq (.getChildren ^TreeItem %))
       item)
     []))
+
+(defprotocol Future
+  (cancel [this]))
+
+(extend-type Timeline
+  Future
+  (cancel [this] (.stop this)))
+
+(defn ->future [delay run-fn]
+  (let [^EventHandler handler (event-handler e (run-fn))]
+    (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler (into-array KeyValue []))]))
+      (.play))))
