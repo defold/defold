@@ -67,10 +67,10 @@ ordinary paths."
   (let [tree (create-resource-tree _id (File. root))]
     (update-in tree [:children] concat (make-zip-tree _id (io/resource "builtins.zip")))))
 
-(g/defnk produce-resource-list [_self resource-tree]
+(g/defnk produce-resource-list [resource-tree]
   (tree-seq #(= :folder (source-type %)) :children resource-tree))
 
-(g/defnk produce-resource-map [_self resource-list]
+(g/defnk produce-resource-map [resource-list]
   (into {} (map #(do [(proj-path %) %]) resource-list)))
 
 (defn get-view-type [workspace id]

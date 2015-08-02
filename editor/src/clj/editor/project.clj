@@ -16,8 +16,8 @@ ordinary paths."
 (g/defnode ResourceNode
   (inherits core/Scope)
 
-  (property resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
-  (property project-id g/NodeID (dynamic visible (g/always false)))
+  (extern resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
+  (extern project-id g/NodeID (dynamic visible (g/always false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
@@ -248,7 +248,8 @@ ordinary paths."
 (g/defnode Project
   (inherits core/Scope)
 
-  (property workspace g/Any)
+  (extern workspace g/Any)
+
   (property build-cache g/Any)
   (property fs-build-cache g/Any)
 

@@ -89,10 +89,11 @@
                         (g/connect b-node :bad-int-output b-node :int-input)
                         (g/connect b-node :bad-str-output a-node :str-array-input)
                         (g/connect b-node :bad-int-output a-node :int-array-input)])
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :str-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :int-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :str-array-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :int-array-pass-through)))))))
+
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :str-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :int-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :str-array-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :int-array-pass-through)))))))
 
   (testing "disconnected mismatched values do not produce errors"
     (with-clean-system
@@ -112,10 +113,10 @@
                         (g/connect b-node :bad-int-output b-node :int-input)
                         (g/connect b-node :bad-str-output a-node :str-array-input)
                         (g/connect b-node :bad-int-output a-node :int-array-input)])
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-str-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-int-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-str-array-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-int-array-pass-through)))))))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-str-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-int-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :cascade-str-array-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :cascade-int-array-pass-through)))))))
 
   (testing "values that do not match input schemas with substitutions produce errors not substitutes"
     (with-clean-system
@@ -126,10 +127,10 @@
                         (g/connect b-node :bad-int-output b-node :sub-int-input)
                         (g/connect b-node :bad-str-output a-node :sub-str-array-input)
                         (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :sub-str-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :sub-int-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :sub-str-array-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :sub-int-array-pass-through)))))))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :sub-str-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :sub-int-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :sub-str-array-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :sub-int-array-pass-through)))))))
 
   (testing "values that do not match input schemas with substitutions produce substitue values with cascades"
     (with-clean-system
@@ -140,7 +141,7 @@
                         (g/connect b-node :bad-int-output b-node :sub-int-input)
                         (g/connect b-node :bad-str-output a-node :sub-str-array-input)
                         (g/connect b-node :bad-int-output a-node :sub-int-array-input)])
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-sub-str-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value b-node :cascade-sub-int-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-sub-str-array-pass-through)))
-          (is (thrown-with-msg? Exception #"Error Value Found in Node." (g/node-value a-node :cascade-sub-int-array-pass-through))))))))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-sub-str-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value b-node :cascade-sub-int-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :cascade-sub-str-array-pass-through)))
+          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value a-node :cascade-sub-int-array-pass-through))))))))

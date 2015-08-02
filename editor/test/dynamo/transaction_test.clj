@@ -253,10 +253,10 @@
   (with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)]
       (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-property update)))
-        [calculator :touched true]                {calculator        #{:_properties :touched :_self}}
-        [person :date-of-birth (java.util.Date.)] {person            #{:_properties :age :date-of-birth :_self}
+        [calculator :touched true]                {calculator        #{:_properties :touched}}
+        [person :date-of-birth (java.util.Date.)] {person            #{:_properties :age :date-of-birth}
                                                    calculator        #{:passthrough}}
-        [first-name-cell :name "Sam"]             {first-name-cell   #{:_properties :name :_self}
+        [first-name-cell :name "Sam"]             {first-name-cell   #{:_properties :name}
                                                    person            #{:full-name :friendly-name}
                                                    greeter           #{:passthrough}
                                                    formal-greeter    #{:passthrough}
@@ -268,7 +268,7 @@
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)
           tx-result        (g/transact (g/invalidate person))
           outputs-modified (:outputs-modified tx-result)]
-      (doseq [output [:_id :_node-id :_self :_properties :friendly-name :full-name :date-of-birth :age]]
+      (doseq [output [:_id :_node-id :_properties :friendly-name :full-name :date-of-birth :age]]
         (is (some #{[person output]} outputs-modified))))))
 
 
@@ -295,12 +295,12 @@
           real-id          (first (g/tx-nodes-added tx-result))
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
-      (is (= #{:_id :_properties :_self :_node-id :_output-jammers :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (is (= #{:_id :_properties :_node-id :_output-jammers :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map first outputs-modified)))
-        (is (= #{:_properties :a-property :ordinary :self-dependent :_self} (into #{} (map second outputs-modified))))))))
+        (is (= #{:_properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
 
 (g/defnode CachedValueNode
   (output cached-output g/Str :cached (fnk [] "an-output-value")))

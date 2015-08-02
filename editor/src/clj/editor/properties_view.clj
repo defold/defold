@@ -214,8 +214,7 @@
 (defn- properties->template [properties]
   (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) properties))
 
-(defn- update-grid [parent self workspace properties]
-  ()
+(defn- update-grid [parent id workspace properties]
   ; NOTE: We cache the ui based on the ::template user-data
   (let [all-properties (properties/coalesce properties)
         template (properties->template all-properties)
@@ -223,10 +222,10 @@
     (if (not= template prev-template)
       (let [grid (make-grid parent workspace all-properties)]
         (ui/user-data! parent ::template template)
-        (g/set-property! (g/node-id self) :prev-grid-pane grid)
+        (g/set-property! id :prev-grid-pane grid)
         grid)
       (do
-        (let [grid (:prev-grid-pane self)]
+        (let [grid (g/node-value id :prev-grid-pane)]
           (refresh-grid parent grid workspace all-properties)
           grid)))))
 
@@ -238,7 +237,7 @@
 
   (input selected-node-properties g/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view _self workspace selected-node-properties] (update-grid parent-view _self workspace selected-node-properties)))
+  (output grid-pane GridPane :cached (g/fnk [parent-view _id workspace selected-node-properties] (update-grid parent-view _id workspace selected-node-properties)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (g/node-value self :repainter))
