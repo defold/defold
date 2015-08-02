@@ -273,6 +273,18 @@
             (.setDropCompleted e true)
             (.consume e)))))))
 
+(defn- drag-entered [tree-view ^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    (let [future (ui/->future 0.5 (fn []
+                                    (-> cell (.getTreeItem) (.setExpanded true))))]
+      (ui/user-data! cell :future-expand future))))
+
+(defn- drag-exited [tree-view ^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    (when-let [future (ui/user-data cell :future-expand)]
+      (ui/cancel future)
+      (ui/user-data! cell :future-expand nil))))
+
 (defn- setup-tree-view [^TreeView tree-view ^ListChangeListener selection-listener selection-provider]
   (-> tree-view
       (.getSelectionModel)
@@ -286,7 +298,9 @@
     (.setOnDragDone (ui/event-handler e (drag-done tree-view e))))
   (ui/register-context-menu tree-view ::outline-menu)
   (let [over-handler (ui/event-handler e (drag-over tree-view e))
-        dropped-handler (ui/event-handler e (drag-dropped tree-view e))]
+        dropped-handler (ui/event-handler e (drag-dropped tree-view e))
+        drag-entered-handler (ui/event-handler e (drag-entered tree-view e))
+        drag-exited-handler (ui/event-handler e (drag-exited tree-view e))]
     (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                  (let [cell (proxy [TreeCell] []
                                                               (updateItem [item empty]
@@ -302,7 +316,9 @@
                                                                       (proxy-super setGraphic (jfx/get-image-view icon 16)))))))]
                                                    (doto cell
                                                      (.setOnDragOver over-handler)
-                                                     (.setOnDragDropped dropped-handler))))))))
+                                                     (.setOnDragDropped dropped-handler)
+                                                     (.setOnDragEntered drag-entered-handler)
+                                                     (.setOnDragExited drag-exited-handler))))))))
 
 (defn- propagate-selection [change selection-fn]
   (when-not *programmatic-selection*
