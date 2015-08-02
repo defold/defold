@@ -18,7 +18,7 @@
     (loop [outline (g/node-value node :outline)
            path path]
       (if-let [segment (first path)]
-        (recur (get (:children outline) segment) (rest path))
+        (recur (get (vec (:children outline)) segment) (rest path))
         outline))))
 
 (def ^:private ^:dynamic *clipboard* nil)
@@ -107,8 +107,8 @@
       ; 1 sprite comp + 1 go instance
       (is (= 2 (child-count root [0])))
       ; sprite can be cut
-      (is (cut? project root [0 0]))
-      (cut! project root [0 0])
+      (is (cut? root [0 0]))
+      (cut! root [0 0])
       ; 1 go instance
       (is (= 1 (child-count root [0]))))))
 
@@ -142,8 +142,9 @@
       (is (not (drop? project root)))
       (is (not (drop? project root [0])))
       (copy-paste! project root [0])
-      (drag! root [0])
-      (is (drop? project root [1]))
-      (drop! project root [1])
+      (is (= 2 (child-count root)))
+      (drag! root [1])
+      (is (drop? project root [0]))
+      (drop! project root [0])
       (is (= 1 (child-count root)))
       (is (= 2 (child-count root [0]))))))
