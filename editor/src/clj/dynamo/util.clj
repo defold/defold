@@ -1,4 +1,5 @@
 (ns dynamo.util
+  "Helpful utility functions for graph"
   (:require [camel-snake-kebab :refer [->Camel_Snake_Case_String]]
             [clojure.java.io :as io]
             [clojure.set :as set]

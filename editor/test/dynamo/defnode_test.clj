@@ -166,7 +166,7 @@
       (is (= [42 :overridden] (.oneMethod node 42)))))
   (testing "preserves type hints"
     (let [[arglist _] (get (g/method-impls OneMethodNode) 'oneMethod)]
-      (is (= ['this 'x] arglist))
+      (is (= 2 (count arglist)))
       (is (= {:tag 'Long} (meta (second arglist)))))))
 
 (defprotocol LocalProtocol
@@ -183,6 +183,12 @@
   (inherits LocalProtocolNode)
   (protocol-method [this x y] [:override-ok x y]))
 
+(g/defnode ProtocolWithDestructuring
+  LocalProtocol
+  (protocol-method
+   [this {:keys [a b c] :as x} [y1 & ys]]
+   a))
+
 (deftest nodes-can-support-protocols
   (testing "support a single protocol"
     (let [node (g/construct LocalProtocolNode)]
@@ -194,7 +200,10 @@
       (is (= [:ok 5 10] (protocol-method node 5 10))))
     (let [node (g/construct InheritedProtocolOverride)]
       (is (satisfies? LocalProtocol node))
-      (is (= [:override-ok 5 10] (protocol-method node 5 10))))))
+      (is (= [:override-ok 5 10] (protocol-method node 5 10)))))
+  (testing "call protocol methods with destructuring"
+    (let [node (g/construct ProtocolWithDestructuring)]
+      (is (= "yes!" (protocol-method node {:a "yes!" :b 'no :c "wrong answer"} (range 10)))))))
 
 (g/defnode SinglePropertyNode
   (property a-property g/Str))
@@ -248,9 +257,8 @@
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
       (is (= {:_id              #{:_id}
-              :another-property #{:_properties :another-property :_self}
-              :a-property       #{:_properties :a-property :_self}
-              :_self            #{:_properties}
+              :another-property #{:_properties :another-property}
+              :a-property       #{:_properties :a-property}
               :_output-jammers  #{:_output-jammers}}
              (-> node g/node-type g/input-dependencies)))))
 
@@ -262,7 +270,7 @@
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
-      (is (= {:a-property #{:_properties :a-property :_self}}
+      (is (= {:a-property #{:_properties :a-property}}
              (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
@@ -274,6 +282,18 @@
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode BadProperty
                           (property a-symbol :not-a-type)))))))
+
+(g/defnode ExternNode
+  (extern external-resource g/Str (default "/foo")))
+
+(deftest node-externs
+  (testing "Nodes can have externs"
+    (let [node (g/construct ExternNode)]
+      (is (= "/foo" (:external-resource node)))
+      (is (contains? (g/property-labels ExternNode) :external-resource))
+      (is (contains? (g/externs ExternNode) :external-resource))
+      (is (some #{:external-resource} (keys node))))))
+
 
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
@@ -345,22 +365,19 @@
             :project         #{:integer-output}
             :string-input    #{:inline-string}
             :integer-input   #{:string-output :cached-output}
-            :_self           #{:_properties}
             :_output-jammers #{:_output-jammers}}
            (g/input-dependencies MultipleOutputNode)))
     (is (= {:_id             #{:_id}
             :project         #{:integer-output}
             :string-input    #{:inline-string}
             :integer-input   #{:string-output :abstract-output :cached-output}
-            :_self           #{:_properties}
             :_output-jammers #{:_output-jammers}}
            (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
     (is (= {:_id                #{:_id}
-            :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property :_self}
+            :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property}
             :direct-calculation #{:indirect-calculation}
-            :_self              #{:_properties}
             :_output-jammers    #{:_output-jammers}}
            (g/input-dependencies TwoLayerDependencyNode))))
 
@@ -526,3 +543,72 @@
   (is (thrown? AssertionError
                (eval '(dynamo.graph/defnode BadDynamicArgument
                         (property foo dynamo.defnode-test/NeedsADifferentInput))))))
+
+;;; example taken from editor/collection.clj
+(def Vec3    [(g/one g/Num "x")
+              (g/one g/Num "y")
+              (g/one g/Num "z")])
+
+(g/defnode SceneNode
+  (property position Vec3)
+  (property rotation Vec3))
+
+(g/defnode ScalableSceneNode
+  (inherits SceneNode)
+
+  (property scale Vec3))
+
+(g/defnode CollectionInstanceNode
+  (inherits ScalableSceneNode)
+
+  (property id g/Str)
+  (property path g/Str))
+
+(g/defnode SpecificDisplayOrder
+  (inherits SceneNode)
+
+  (property ambient Vec3)
+  (property specular Vec3)
+
+  (display-order [["Material" :specular :ambient]]))
+
+(g/defnode DisplayGroupOrdering
+  (inherits SpecificDisplayOrder)
+
+  (display-order [:overlay ["Material"] :subtitle])
+
+  (property overlay String)
+  (property subtitle String)
+  (property description String))
+
+(g/defnode PartialDisplayOrder
+  (inherits SpecificDisplayOrder)
+
+  (property overlay String)
+  (property subtitle String)
+  (display-order [:overlay ["Material"]]))
+
+(g/defnode EmitterKeys
+  (property color-alpha g/Int)
+  (property color-blue g/Int)
+  (property color-green g/Int)
+  (property color-red g/Int)
+
+  (display-order [:color-red :color-green :color-blue]))
+
+(g/defnode GroupingBySymbol
+  (inherits ScalableSceneNode)
+  (inherits EmitterKeys)
+
+  (display-order [["Transform" ScalableSceneNode] EmitterKeys]))
+
+(deftest properties-have-a-display-order
+  (testing "The default display order is declaration order"
+    (are [expected type] (= expected (g/property-display-order type))
+      [:position :rotation]                                                    SceneNode
+      [:scale :position :rotation]                                             ScalableSceneNode
+      [:id :path :scale :position :rotation]                                   CollectionInstanceNode
+      [["Material" :specular :ambient] :position :rotation]                    SpecificDisplayOrder
+      [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation] DisplayGroupOrdering
+      [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
+      [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))

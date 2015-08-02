@@ -175,7 +175,6 @@
     (let [[node-id]       (tx-nodes (g/make-node world OutputChaining))]
       (g/node-value node-id :chained-output)
       (is (cached? cache node-id :chained-output))
-      (is (not (cached? cache node-id :_self)))
       (is (not (cached? cache node-id :a-property))))))
 
 (g/defnode Source
@@ -313,11 +312,11 @@
     (testing "source sends errors"
       (testing "unary"
         (with-clean-system
-          (is (thrown? Exception (arrange-error-value-call world :unary-no-sub true (g/error {}))))
+          (is (g/error? (arrange-error-value-call world :unary-no-sub true (g/error {}))))
           (is (= 99 (arrange-error-value-call world :unary-with-sub true (g/error {}))))))
       (testing "multi"
         (with-clean-system
-          (is (thrown? Exception (arrange-error-value-call world :multi-no-sub true (g/error {}))))
+          (is (g/error? (arrange-error-value-call world :multi-no-sub true (g/error {}))))
           (is (= [4848] (arrange-error-value-call world :multi-with-sub true (g/error {})))))))))
 
 
@@ -332,7 +331,7 @@
      (with-clean-system
        (let [[node1] (tx-nodes (g/make-node world StringInputIntOutputNode))]
          (g/transact (g/connect node1 :int-output node1 :string-input))
-         (is (thrown-with-msg? Exception #"Error Value Found in Node" (g/node-value node1 :combined))))))))
+         (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value node1 :combined))))))))
 
 (g/defnode NilPropertyNode
   (property could-be-nil g/Str)

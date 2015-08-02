@@ -108,7 +108,7 @@
         link-pairs (filter #(contains? (second %) :link) pairs)
         override-pairs (filter #(contains? (second %) :override) pairs)]
     (reduce merge (into {} flat-pairs) (concat
-                                         (map #(flatten-properties (:link (second %))) link-pairs)
+                                         (map #(flatten-properties (:properties (:link (second %)))) link-pairs)
                                          (mapcat (fn [[k v]]
                                                    (let [k (if (vector? k) k (vector k))]
                                                      (map (fn [[o-k o-v]]
@@ -121,7 +121,7 @@
                                               override-pairs)))))
 
 (defn coalesce [properties]
-  (let [properties (mapv flatten-properties properties)
+  (let [properties (mapv flatten-properties (mapv :properties properties))
         node-count (count properties)
         ; Filter out invisible properties
         ; TODO - not= k :id is a hack since intrinsics are currently included in :properties output
