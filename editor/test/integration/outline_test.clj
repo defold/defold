@@ -39,10 +39,11 @@
     (alter-var-root #'*clipboard* (constantly data))))
 
 (defn- cut? [node path]
-  (outline/cut? (->iterator node path)))
+  (outline/cut? [(->iterator node path)]))
 
 (defn- cut! [node path]
-  (outline/cut! (->iterator node path)))
+  (let [data (outline/cut! [(->iterator node path)])]
+    (alter-var-root #'*clipboard* (constantly data))))
 
 (defn- paste!
   ([project node]
@@ -90,8 +91,6 @@
       ; 2 comp instances
       (is (= 2 (child-count root))))))
 
-(copy-paste-game-object)
-
 (deftest copy-paste-collection
   (with-clean-system
     (let [[workspace project] (setup world)
@@ -110,6 +109,27 @@
       ; sprite can be cut
       (is (cut? project root [0 0]))
       (cut! project root [0 0])
+      ; 1 go instance
+      (is (= 1 (child-count root [0]))))))
+
+(deftest copy-paste-collection-instance
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          root (test-util/resource-node project "/collection/sub_props.collection")]
+      ; 1 collection instance
+      (is (= 1 (child-count root)))
+      ; 1 go instance
+      (is (= 1 (child-count root [0])))
+      (cut! root [0 0])
+      (paste! project root)
+      ; 1 collection instance + 1 go instances
+      (is (= 2 (child-count root)))
+      ; 0 go instances under coll instance
+      (is (= 0 (child-count root [0])))
+      (cut! root [1])
+      (paste! project root [0])
+      ; 1 collection instance
+      (is (= 1 (child-count root)))
       ; 1 go instance
       (is (= 1 (child-count root [0]))))))
 

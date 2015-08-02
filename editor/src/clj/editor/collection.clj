@@ -209,6 +209,58 @@
               id))))
       id)))
 
+(defn- attach-coll-go [coll-id child-id ddf-label]
+  (let [conns [[:_id :nodes]
+               [:ddf-message ddf-label]
+               [:build-targets :dep-build-targets]
+               [:id :ids]
+               [:outline :child-outlines]
+               [:scene :child-scenes]]]
+    (for [[from to] conns]
+      (g/connect child-id from coll-id to))))
+
+(defn- attach-coll-ref-go [coll-id child-id]
+  (attach-coll-go coll-id child-id :ref-inst-ddf))
+
+; TODO - attach the source node to the collection scope as well
+(defn- attach-coll-embedded-go [coll-id child-id]
+  (attach-coll-go coll-id child-id :embed-inst-ddf))
+
+(defn- attach-coll-coll [coll-id child-id]
+  (let [conns [[:outline :child-outlines]
+               [:_id :nodes]
+               [:ddf-message :ref-coll-ddf]
+               [:id :ids]
+               [:scene :child-scenes]
+               [:build-targets :sub-build-targets]]]
+    (for [[from to] conns]
+      (g/connect child-id from coll-id to))))
+
+(def CollectionInstanceNode nil)
+
+(g/defnk produce-coll-outline [_node-id child-outlines ids]
+  {:node-id _node-id
+   :label "Collection"
+   :icon collection-icon
+   :children child-outlines
+   :sort-by-fn outline-sort-by-fn
+   :child-reqs [{:node-type GameObjectInstanceNode
+                 :values {:embedded (comp not true?)}
+                 :tx-attach-fn (fn [self-id child-id]
+                                 (concat
+                                   (g/update-property child-id :id resolve-id ids)
+                                   (attach-coll-ref-go self-id child-id)))}
+                {:node-type GameObjectInstanceNode
+                 :values {:embedded true?}
+                 :tx-attach-fn (fn [self-id child-id]
+                                 (concat
+                                   (g/update-property child-id :id resolve-id ids)
+                                   (attach-coll-embedded-go self-id child-id)))}
+                {:node-type CollectionInstanceNode
+                 :tx-attach-fn (fn [self-id child-id]
+                                 (concat
+                                   (g/update-property child-id :id resolve-id ids)
+                                   (attach-coll-coll self-id child-id)))}]})
 (g/defnode CollectionNode
   (inherits project/ResourceNode)
 
@@ -226,25 +278,7 @@
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output outline g/Any :cached (g/fnk [_node-id child-outlines ids]
-                                       {:node-id _node-id
-                                        :label "Collection"
-                                        :icon collection-icon
-                                        :children child-outlines
-                                        :sort-by-fn outline-sort-by-fn
-                                        :child-reqs [{:node-type GameObjectInstanceNode
-                                                      :values {:embedded (comp not true?)}
-                                                      :tx-attach-fn (fn [self-id child-id]
-                                                                      (concat
-                                                                        (g/update-property child-id :id resolve-id ids)
-                                                                        (let [conns [[:_id :nodes]
-                                                                                     [:ddf-message :ref-inst-ddf]
-                                                                                     [:build-targets :dep-build-targets]
-                                                                                     [:id :ids]
-                                                                                     [:outline :child-outlines]
-                                                                                     [:scene :child-scenes]]]
-                                                                          (for [[from to] conns]
-                                                                            (g/connect child-id from self-id to)))))}]}))
+  (output outline g/Any :cached produce-coll-outline)
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :children child-scenes
@@ -266,6 +300,17 @@
         child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
     (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids) instance-data))))
 
+(g/defnk produce-coll-inst-outline [_node-id id path outline source]
+  (let [suffix (format " (%s)" path)]
+    (-> outline
+      (assoc :node-id _node-id
+             :label (str id suffix)
+             :icon collection-icon)
+      (update :child-reqs (fn [reqs]
+                            (mapv (fn [req] (update req :tx-attach-fn #(fn [self-id child-id]
+                                                                         (% source child-id))))
+                                  reqs))))))
+
 (g/defnode CollectionInstanceNode
   (inherits ScalableSceneNode)
   (inherits InstanceNode)
@@ -278,8 +323,7 @@
   (input scene g/Any)
   (input build-targets g/Any)
 
-  (output outline g/Any :cached (g/fnk [_node-id id path outline] (let [suffix (format " (%s)" path)]
-                                                                   (merge outline {:node-id _node-id :label (str id suffix) :icon collection-icon}))))
+  (output outline g/Any :cached produce-coll-inst-outline)
   (output ddf-message g/Any :cached (g/fnk [id path ^Vector3d position ^Quat4d rotation ^Vector3d scale]
                                            {:id id
                                             :collection path
@@ -315,12 +359,12 @@
                     (g/connect go-node :outline       self :child-outlines)
                     (g/connect go-node :scene         self :child-scenes)
                     (project/connect-resource-node project
-                                                                       source-resource go-node
-                                                                       [[:_id            :source]
-                                                                        [:outline        :outline]
-                                                                        [:save-data      :save-data]
-                                                                        [:build-targets  :build-targets]
-                                                                        [:scene          :scene]])))))
+                                                   source-resource go-node
+                                                   [[:_id            :source]
+                                                    [:outline        :outline]
+                                                    [:save-data      :save-data]
+                                                    [:build-targets  :build-targets]
+                                                    [:scene          :scene]])))))
 
 (defn- single-selection? [selection]
   (= 1 (count selection)))
@@ -429,12 +473,7 @@
     (g/make-nodes (g/node-id->graph-id self)
                   [coll-node [CollectionInstanceNode :id id :path path
                               :position position :rotation rotation :scale scale]]
-                  (g/connect coll-node :outline       self :child-outlines)
-                  (g/connect coll-node :_id           self :nodes)
-                  (g/connect coll-node :ddf-message   self :ref-coll-ddf)
-                  (g/connect coll-node :id            self :ids)
-                  (g/connect coll-node :scene         self :child-scenes)
-                  (g/connect coll-node :build-targets self :sub-build-targets)
+                  (attach-coll-coll self coll-node)
                   (project/connect-resource-node project
                                                  source-resource coll-node
                                                  [[:_id           :source]
