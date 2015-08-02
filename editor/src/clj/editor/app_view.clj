@@ -197,14 +197,7 @@
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
   (.setTitle stage "Defold Editor 2.0!")
-  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))
-        env {:app-view      app-view
-             :project       project
-             :project-graph project-graph
-             :prefs         prefs
-             :workspace     (g/node-value project :workspace)}]
-
-    (ui/context! (.getRoot (.getScene stage)) :global env (project/selection-provider project))
+  (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
     (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)

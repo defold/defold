@@ -5,8 +5,10 @@
             [editor.jfx :as jfx]
             [editor.ui :as ui]
             [editor.project :as project]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.outline :as outline])
   (:import [com.defold.editor Start]
+           [editor.outline ItemIterator]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -56,7 +58,20 @@
           (when-not @cached
             (reset! cached true)
             (.setAll children (list-children parent)))
-          children)))))
+          children))
+      (outline/value [this]
+        (.getValue this))
+      (outline/parent [this]
+        (.getParent this)))))
+
+(defrecord TreeItemIterator [^TreeItem tree-item]
+  outline/ItemIterator
+  (value [this] (.getValue tree-item))
+  (parent [this] (when (.getParent tree-item)
+                   (TreeItemIterator. (.getParent tree-item)))))
+
+(defn- ->iterator [^TreeView tree-item]
+  (TreeItemIterator. tree-item))
 
 (defn- map-filter [filter-fn m]
   (into {} (filter filter-fn m)))
@@ -109,7 +124,8 @@
         (.setExpanded new-root true))
       (.setRoot tree-view new-root)
       (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property (g/node-id _self) :root-cache new-cache)))))
+      (g/transact (g/set-property (g/node-id _self) :root-cache new-cache))
+      tree-view)))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
@@ -144,74 +160,78 @@
                          (g/operation-label "Delete")
                          (g/delete-node (first selection))))))
 
-(defn- roots [items]
-  (let [items (into {} (map #(do [(:path %) %]) items))
-        roots (loop [paths (keys items)
-                     roots []]
-                (if-let [path (first paths)]
-                  (let [ancestors (filter #(= (subvec path 0 (count %)) %) roots)
-                        roots (if (empty? ancestors)
-                                (conj roots path)
-                                roots)]
-                    (recur (rest paths) roots))
-                  roots))]
-    (vals (into {} (map #(let [item (items %)]
-                           [(:node-id item) item]) roots)))))
+(defn- item->path [^TreeItem item]
+  (:path (.getValue item)))
 
-(def resource? (partial g/node-instance? project/ResourceNode))
+(defn- item->id [^TreeItem item]
+  (:node-id (.getValue item)))
 
-(defrecord ResourceReference [path label])
+(defn- root-iterators [^TreeView tree-view]
+  (mapv ->iterator (ui/selection-roots tree-view item->path item->id)))
 
-(defn make-reference [node label]
-  #_{:path (workspace/proj-path (:resource node)) :label label}
-  (ResourceReference. (workspace/proj-path (:resource node)) label))
-
-(defn resolve-reference [workspace project reference]
-  (let [resource      (workspace/resolve-workspace-resource workspace (:path reference))
-        resource-node (project/get-resource-node project resource)]
-    [resource-node (:label reference)]))
+(defn- project [tree-view]
+  (project/get-project (:node-id (.getValue (.getRoot tree-view)))))
 
 (def data-format-fn (fn []
-                      (let [format "graph-format"]
-                        (or (DataFormat/lookupMimeType format)
-                            (DataFormat. (into-array String [format]))))))
+                      (let [json "application/json"
+                            text "text/plain"]
+                        (or (DataFormat/lookupMimeType json)
+                            (DataFormat/lookupMimeType text)
+                            (DataFormat. (into-array String [json text]))))))
 
-(defn- drag-detected [e selection]
-  (let [items (roots selection)
-        mode TransferMode/COPY #_(if (empty? (filter workspace/read-only? resources))
-                    TransferMode/MOVE
-                    TransferMode/COPY)
-        db (.startDragAndDrop (.getSource e) (into-array TransferMode [mode]))
-        content (ClipboardContent.)
-        copy-data (g/copy (mapv :node-id items) {:continue? (comp not resource?)
-                                                 :write-handlers {project/ResourceNode make-reference}})
-        root-node (:node-id (.getValue (.getRoot (.getSource e))))
-        graph-id (g/node-id->graph-id root-node)
-        project (project/get-project root-node)
-        workspace (project/workspace project)
-        paste-data (g/paste graph-id copy-data {:read-handlers {ResourceReference (partial resolve-reference workspace project)}})]
-    (prn "paste" paste-data)
-    (let [copy-data (edn/read-string
-                      {:readers {'editor.outline_view.ResourceReference map->ResourceReference
-                                 'dynamo.graph.Endpoint g/map->Endpoint}}
-                      (prn-str copy-data))
-          #_paste-data #_(g/paste graph-id copy-data {:read-handlers {ResourceReference (partial resolve-reference workspace project)}})])
-    #_(prn "rtr" (edn/read-string
-                  {:readers {'editor.outline_view.ResourceReference map->ResourceReference
-                             'dynamo.graph.Endpoint g/map->Endpoint}}
-                  (prn-str copy-data)))
-    #_(.putString content (prn-str copy-data))
-    (.setContent db {(data-format-fn) copy-data})
-    (.consume e)))
+(handler/defhandler :copy :global
+  (enabled? [selection] (< 0 (count selection)))
+  (run [outline-view]
+       (let [tree-view (g/node-value outline-view :tree-view)
+             item-iterators (root-iterators tree-view)
+             project (project tree-view)
+             cb (Clipboard/getSystemClipboard)
+             data (outline/copy item-iterators)]
+         (.setContent cb {(data-format-fn) data}))))
 
-(defn- drag-done [e selection]
-  #_(when (and
-           (.isAccepted e)
-           (= TransferMode/MOVE (.getTransferMode e)))
-     (let [resources (roots selection)
-           delete? (empty? (filter workspace/read-only? resources))]
-       (when delete?
-         (delete resources)))))
+(handler/defhandler :paste :global
+  (enabled? [selection outline-view]
+            (let [cb (Clipboard/getSystemClipboard)
+                  tree-view (g/node-value outline-view :tree-view)
+                  item-iterators (root-iterators tree-view)
+                  data-format (data-format-fn)]
+              (and (= 1 (count item-iterators))
+                   (.hasContent cb data-format)
+                   (outline/paste? (project tree-view) (first item-iterators) (.getContent cb data-format)))))
+  (run [outline-view]
+       (let [tree-view (g/node-value outline-view :tree-view)
+             item-iterators (root-iterators tree-view)
+             project (project tree-view)
+             cb (Clipboard/getSystemClipboard)
+             data-format (data-format-fn)]
+         (outline/paste! project (first item-iterators) (.getContent cb data-format)))))
+
+(handler/defhandler :cut :global
+  (enabled? [selection outline-view]
+            (let [tree-view (g/node-value outline-view :tree-view)
+                  item-iterators (root-iterators tree-view)]
+              (and (< 0 (count item-iterators))
+                   (outline/cut? item-iterators))))
+  (run [outline-view]
+       (let [tree-view (g/node-value outline-view :tree-view)
+             item-iterators (root-iterators tree-view)
+             cb (Clipboard/getSystemClipboard)
+             data-format (data-format-fn)]
+         (.setContent cb {data-format (outline/cut! item-iterators)}))))
+
+(defn- selection [tree-view]
+  (-> tree-view (.getSelectionModel) (.getSelectedItems)))
+
+(defn- drag-detected [tree-view e]
+  (let [item-iterators (root-iterators tree-view)
+        project (project tree-view)]
+    (when (outline/drag? project item-iterators)
+      (let [db (.startDragAndDrop (.getSource e) (into-array TransferMode [TransferMode/MOVE]))
+            data (outline/copy item-iterators)]
+        (.setContent db {(data-format-fn) data})
+        (.consume e)))))
+
+(defn- drag-done [tree-view e])
 
 (defn- target [^Node node]
   (when node
@@ -219,58 +239,39 @@
       node
       (target (.getParent node)))))
 
-(defn- drag-over [^DragEvent e]
-  (let [db (.getDragboard e)]
-    (when-let [cell (target (.getTarget e))]
-      ; Auto scrolling
-      (let [view (.getTreeView cell)
-            view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
-            height (.getHeight (.getBoundsInLocal view))]
-        (when (< view-y 15)
-          (.scrollTo view (dec (.getIndex cell))))
-        (when (> view-y (- height 15))
-          (.scrollTo view (inc (.getIndex cell)))))
+(defn- drag-over [tree-view ^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    ; Auto scrolling
+    (let [view (.getTreeView cell)
+          view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
+          height (.getHeight (.getBoundsInLocal view))]
+      (when (< view-y 15)
+        (.scrollTo view (dec (.getIndex cell))))
+      (when (> view-y (- height 15))
+        (.scrollTo view (inc (.getIndex cell)))))
+    (let [db (.getDragboard e)]
       (when (and (instance? TreeCell cell)
                  (not (.isEmpty cell))
                  (.hasContent db (data-format-fn)))
-        (let [tgt-item (-> cell (.getTreeItem) (.getValue))
-              graph-id (g/node-id->graph-id (:node-id tgt-item))
-              project (project/get-project (:node-id (.getValue (.getRoot (.getTreeView cell)))))
-              workspace (project/workspace project)]
-          (try
-            (let [fragment (edn/read-string
-                             {:readers {'editor.outline_view.ResourceReference map->ResourceReference
-                                        'dynamo.graph.Endpoint g/map->Endpoint}}
-                             (.getContent db (data-format-fn)))
-                  paste-data (g/paste graph-id fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}})]
-              (prn paste-data))
-            #_(catch Throwable t
-               (prn "unknown data" t)))
-          ; TODO - handle target acceptance
-          #_(prn "over" tgt-item)
-          #_(when (not (workspace/read-only? tgt-resource))
-             (let [tgt-path (-> tgt-resource resource/abs-path File. to-folder .getAbsolutePath ->path)
-                   tgt-descendant? (not (empty? (filter (fn [^Path p] (or
-                                                                        (.equals tgt-path (.getParent p))
-                                                                        (.startsWith tgt-path p))) (map #(-> % .getAbsolutePath ->path) (.getFiles db)))))]
-               (when (not tgt-descendant?)
-                 (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
-                 (.consume e)))))))))
+        (let [item-iterators (root-iterators tree-view)
+              project (project tree-view)]
+          (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
+                               (.getContent db (data-format-fn)))
+            (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+            (.consume e)))))))
 
-(defn- drag-dropped [^DragEvent e]
-  #_(let [db (.getDragboard e)]
-     (when (.hasFiles db)
-       (let [resource (-> e (.getTarget) (target) (.getTreeItem) (.getValue))
-             tgt-dir (to-folder (File. (workspace/abs-path resource)))]
-         (doseq [src-file (.getFiles db)]
-           (let [tgt-file (File. tgt-dir (FilenameUtils/getName (.toString src-file)))]
-             (if (.isDirectory src-file)
-               (FileUtils/copyDirectory src-file tgt-file)
-               (FileUtils/copyFile src-file tgt-file))))
-         ; TODO - notify move instead of ordinary sync
-         (workspace/fs-sync (workspace/workspace resource))))
-     (.setDropCompleted e true)
-     (.consume e)))
+(defn- drag-dropped [tree-view ^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    (let [db (.getDragboard e)]
+      (when (and (instance? TreeCell cell)
+                 (not (.isEmpty cell))
+                 (.hasContent db (data-format-fn)))
+        (let [item-iterators (root-iterators tree-view)
+              project (project tree-view)]
+          (when (outline/drop! project item-iterators (->iterator (.getTreeItem cell))
+                               (.getContent db (data-format-fn)))
+            (.setDropCompleted e true)
+            (.consume e)))))))
 
 (defn- setup-tree-view [^TreeView tree-view ^ListChangeListener selection-listener selection-provider]
   (-> tree-view
@@ -281,11 +282,11 @@
       (.getSelectedItems)
       (.addListener selection-listener))
   (doto tree-view
-    (.setOnDragDetected (ui/event-handler e (drag-detected e (workspace/selection tree-view))))
-    (.setOnDragDone (ui/event-handler e (drag-done e (workspace/selection tree-view)))))
+    (.setOnDragDetected (ui/event-handler e (drag-detected tree-view e)))
+    (.setOnDragDone (ui/event-handler e (drag-done tree-view e))))
   (ui/register-context-menu tree-view ::outline-menu)
-  (let [over-handler (ui/event-handler e (drag-over e))
-        dropped-handler (ui/event-handler e (drag-dropped e))]
+  (let [over-handler (ui/event-handler e (drag-over tree-view e))
+        dropped-handler (ui/event-handler e (drag-dropped tree-view e))]
     (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                  (let [cell (proxy [TreeCell] []
                                                               (updateItem [item empty]
