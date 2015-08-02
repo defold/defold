@@ -35,8 +35,4 @@
 (g/defnode ClojureSourceNode
   (inherits core/ResourceNode)
 
-  (property namespace UnloadableNamespace)
-
-  (on :load
-      (g/transact
-       [(compile-source-node self (:project event) (:filename self))])))
+  (property namespace UnloadableNamespace))
