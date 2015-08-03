@@ -103,8 +103,7 @@ connected to the Scope's :nodes input.
 When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes g/Any :array)
 
-  ; TODO - Does not work with nodes created in the same transaction
-  #_(trigger dependency-injection :input-connections #'inject-new-nodes)
+  (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted           #'dispose-nodes))
 
 (defn scope [node-id]
