@@ -47,7 +47,7 @@
                    (try
                      (let [exchange-info (handle-request prefs client session)]
                        (prefs/set-prefs prefs "email" (:email exchange-info))
-                       (prefs/set-prefs prefs "token" (:auth-cookie exchange-info)))
+                       (prefs/set-prefs prefs "token" (:auth-token exchange-info)))
                      (reset! return true)
                      (catch Exception e
                        (reset! return e)
