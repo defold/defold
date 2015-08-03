@@ -671,10 +671,10 @@
     view-id))
 
 (defn register-view-types [workspace]
-                               (workspace/register-view-type workspace
-                                                             :id :scene
-                                                             :make-view-fn make-view
-                                                             :make-preview-fn make-preview))
+  (workspace/register-view-type workspace
+                                :id :scene
+                                :make-view-fn make-view
+                                :make-preview-fn make-preview))
 
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0]))

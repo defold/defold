@@ -90,14 +90,15 @@
                  (swap! (g/node-value _id :counter) inc)
                  outline)))
 
-(defn remove-handlers
-  "Handlers are functions, so they are never equal. Strip them out of the outline"
+(defn remove-fns
+  "Dynamic functions are never equal. Strip them out of the outline"
   [outline]
-  (walk/postwalk
-    (fn [form]
-      (if-not (and (vector? form) (= :handler-fn (first form)))
-        form))
-    outline))
+  (let [fns #{:handler-fn :child-reqs}]
+    (walk/postwalk
+      (fn [form]
+        (if-not (and (vector? form) (fns (first form)))
+          form))
+      outline)))
 
 (defn- add-component! [project go-node-id]
   (let [op-seq     (gensym)
@@ -131,7 +132,7 @@
 
      (g/transact (g/connect go-node :outline outline-id :outline))
 
-     (let [original-outline (remove-handlers (g/node-value outline-id :outline))]
+     (let [original-outline (remove-fns (g/node-value outline-id :outline))]
        (g/reset-undo! proj-graph)
 
        ;; delete the component
@@ -140,33 +141,33 @@
           (g/delete-node component)])
 
        ;; force :outline to be cached
-       (let [outline-without-component (remove-handlers (g/node-value outline-id :outline))]
+       (let [outline-without-component (remove-fns (g/node-value outline-id :outline))]
 
          ;; undo the deletion (component is back)
          (g/undo! proj-graph)
 
          ;; same :outline should be re-produced
-         (let [outline-after-undo (remove-handlers (g/node-value outline-id :outline))]
+         (let [outline-after-undo (remove-fns (g/node-value outline-id :outline))]
            (is (= original-outline outline-after-undo)))
 
          ;; redo the deletion (component is gone)
          (g/redo! proj-graph)
 
          ;; :outline should be re-produced again
-         (is (= outline-without-component (remove-handlers (g/node-value outline-id :outline))))
+         (is (= outline-without-component (remove-fns (g/node-value outline-id :outline))))
 
          ;; undo the deletion again (component is back again)
          (g/undo! proj-graph)
 
          ;; :outline should be re-produced
-         (let [outline-after-second-undo (remove-handlers (g/node-value outline-id :outline))]
+         (let [outline-after-second-undo (remove-fns (g/node-value outline-id :outline))]
            (is (= original-outline outline-after-second-undo)))
 
          ;; redo the deletion yet again (component is gone again)
          (g/redo! proj-graph)
 
          ;; :outline should be re-produced yet again
-         (is (= outline-without-component (remove-handlers (g/node-value outline-id :outline)))))))))
+         (is (= outline-without-component (remove-fns (g/node-value outline-id :outline)))))))))
 
 (defn- child-count [go-node]
   (count (outline-children go-node)))

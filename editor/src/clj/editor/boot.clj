@@ -108,6 +108,13 @@
           app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
           outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets (fn [resource] (app-view/open-resource app-view workspace project resource)))]
+      (let [context-env {:app-view      app-view
+                         :project       project
+                         :project-graph (project/graph project)
+                         :prefs         prefs
+                         :workspace     (g/node-value project :workspace)
+                         :outline-view  outline-view}]
+        (ui/context! (.getRoot (.getScene stage)) :global context-env (project/selection-provider project)))
       (g/transact
         (concat
           (g/connect project :selected-node-ids outline-view :selection)
