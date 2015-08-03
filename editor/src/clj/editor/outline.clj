@@ -30,8 +30,12 @@
 
 (core/register-record-type! ResourceReference)
 
+(defn- actual-path [node]
+  (workspace/proj-path (:resource node)))
+
 (defn- make-reference [node label]
-  (ResourceReference. (workspace/proj-path (:resource node)) label))
+  (when-let [project-path (actual-path node)]
+    (ResourceReference. project-path label)))
 
 (defn- resolve-reference [project reference]
   (let [workspace (project/workspace project)
@@ -145,7 +149,7 @@
     (let [tgt (value item-iterator)]
       (not (reduce (fn [parent? it] (or parent? (= (value (parent it)) tgt))) false src-item-iterators)))
     ; src is not descendant of target
-    (not 
+    (not
       (reduce (fn [desc? it] (or desc?
                                  (descendant? (value it) item-iterator)))
               false src-item-iterators))

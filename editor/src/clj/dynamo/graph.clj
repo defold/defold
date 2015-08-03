@@ -812,8 +812,9 @@
         [cid clabel]  (gt/tail arc)
         pnode         (ig/node-by-id-at basis pid)
         cnode         (ig/node-by-id-at basis cid)
-        write-handler (lookup-handler write-handlers pnode default-write-handler)]
-   [(write-handler pnode plabel) (default-write-handler cnode clabel)]))
+        write-handler (lookup-handler write-handlers pnode default-write-handler)
+        node-ref      (or (write-handler pnode plabel) (default-write-handler pnode plabel))]
+   [node-ref (default-write-handler cnode clabel)]))
 
 (defn- guard-arc [f g]
   (util/guard
