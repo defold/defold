@@ -18,7 +18,7 @@ ordinary paths."
   (selection [this]))
 
 (defn make-memory-resource [workspace resource-type data]
-  (MemoryResource. workspace resource-type data))
+  (MemoryResource. workspace (:ext resource-type) data))
 
 (def build-dir "/build/default/")
 
