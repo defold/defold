@@ -102,30 +102,90 @@
 
 (def ^:private links #{:link :override})
 
+(defn category? [v]
+  (and (sequential? v) (string? (first v))))
+
+(defn- inject-display-order [display-order key injected-display-order]
+  (let [injected-display-order (loop [keys injected-display-order
+                                      result []]
+                                 (if-let [k (first keys)]
+                                   (let [result (if (category? k)
+                                                  (apply conj result (rest k))
+                                                  (conj result k))]
+                                     (recur (rest keys) result))
+                                   result))]
+    (loop [v display-order
+           result []]
+      (if-let [k (first v)]
+        (let [result (if (= k key)
+                       (apply conj result injected-display-order)
+                       (let [k (if (category? k)
+                                 (inject-display-order k key injected-display-order)
+                                 k)]
+                         (conj result k)))]
+          (recur (rest v) result))
+        result))))
+
+(defn- replace-display-order [display-order new-keys]
+  (mapv (fn [k]
+          (if (category? k)
+            (vec (cons (first k) (replace-display-order (rest k) new-keys)))
+            (new-keys k)))
+        display-order))
+
 (defn- flatten-properties [properties]
-  (let [pairs (seq properties)
+  (let [pairs (seq (:properties properties))
         flat-pairs (filter #(not-any? links (keys (second %))) pairs)
         link-pairs (filter #(contains? (second %) :link) pairs)
-        override-pairs (filter #(contains? (second %) :override) pairs)]
-    (reduce merge (into {} flat-pairs) (concat
-                                         (map #(flatten-properties (:properties (:link (second %)))) link-pairs)
-                                         (mapcat (fn [[k v]]
-                                                   (let [k (if (vector? k) k (vector k))]
-                                                     (map (fn [[o-k o-v]]
-                                                            (let [prop (-> o-v
-                                                                         (set/rename-keys {:value :default-value})
-                                                                         (assoc :node-id (:node-id v)
-                                                                                :value (get (:value v) o-k)))]
-                                                              [(conj k o-k) prop]))
-                                                         (flatten-properties (:override v)))))
-                                              override-pairs)))))
+        link->props (into {} (map (fn [[k v]] [k (flatten-properties (:link v))]) link-pairs))
+        override-pairs (filter #(contains? (second %) :override) pairs)
+        override->props (into {} (map (fn [[k v]]
+                                     (let [v (let [k (if (vector? k) k (vector k))
+                                                 properties (flatten-properties (:override v))
+                                                 new-keys (into {} (map #(do [% (conj k %)]) (keys (:properties properties))))]
+                                               {:properties (into {} (map (fn [[o-k o-v]]
+                                                                      (let [prop (-> o-v
+                                                                                   (set/rename-keys {:value :default-value})
+                                                                                   (assoc :node-id (:node-id v)
+                                                                                          :value (get (:value v) o-k)))]
+                                                                        [(conj k o-k) prop]))
+                                                                   (:properties properties)))
+                                                  :display-order (replace-display-order (:display-order properties) new-keys)})]
+                                       [k v]))
+                                   override-pairs))
+        key->display-order (apply merge-with concat (mapv (fn [m] (into {} (map (fn [[k v]] [k (:display-order v)]) m))) [link->props override->props]))
+        display-order (reduce (fn [display-order [key injected]] (inject-display-order display-order key injected))
+                              (:display-order properties)
+                              key->display-order)]
+    {:properties (reduce merge
+                         (into {} flat-pairs)
+                         (concat
+                           (map :properties (vals link->props))
+                           (map :properties (vals override->props))))
+     :display-order display-order}))
+
+(defn- prune-display-order [display-order key-set]
+  (loop [display-order display-order
+         result []]
+    (if-let [k (first display-order)]
+      (let [result (if (category? k)
+                     (let [keys (prune-display-order (rest k) key-set)]
+                       (if (empty? keys)
+                         result
+                         (conj result (vec (cons (first k) keys)))))
+                     (if (contains? key-set k)
+                       (conj result k)
+                       result))]
+        (recur (rest display-order) result))
+      result)))
 
 (defn coalesce [properties]
-  (let [properties (mapv flatten-properties (mapv :properties properties))
+  (let [properties (mapv flatten-properties properties)
+        display-orders (mapv :display-order properties)
+        properties (mapv :properties properties)
         node-count (count properties)
         ; Filter out invisible properties
-        ; TODO - not= k :id is a hack since intrinsics are currently included in :properties output
-        visible-props (mapcat (fn [p] (filter (fn [[k v]] (and (not= k :_id) (get v :visible true))) p)) properties)
+        visible-props (mapcat (fn [p] (filter (fn [[k v]] (get v :visible true)) p)) properties)
         ; Filter out properties not common to *all* property sets
         ; Heuristic is to compare count and also type
         common-props (filter (fn [[k v]] (and (= node-count (count v)) (apply = (map property-edit-type v))))
@@ -140,7 +200,8 @@
                                         prop (if (empty? default-vals) prop (assoc prop :default-values default-vals))]
                                     [k prop]))
                                 common-props))]
-    coalesced))
+    {:properties coalesced
+     :display-order (prune-display-order (first display-orders) (set (keys coalesced)))}))
 
 (defn values [property]
   (if (contains? property :default-values)

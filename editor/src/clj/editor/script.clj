@@ -37,15 +37,17 @@
                    :icon "icons/32/Icons_11-Script-general.png"}])
 
 (g/defnk produce-user-properties [script-properties]
-  (into {}
-        (map (fn [p]
-               (let [key (:name p)
-                     prop (select-keys p [:value])
-                     prop (assoc prop
-                                 :edit-type {:type (properties/go-prop-type->clj-type (:type p))
-                                             :go-prop-type (:type p)})]
-                 [key prop]))
-             (filter #(= :ok (:status %)) script-properties))))
+  (let [script-props (filter #(= :ok (:status %)) script-properties)
+        props (into {} (map (fn [p]
+                              (let [key (:name p)
+                                    prop (-> (select-keys p [:value])
+                                           (assoc :edit-type {:type (properties/go-prop-type->clj-type (:type p))
+                                                              :go-prop-type (:type p)}))]
+                                [key prop]))
+                            script-props))
+        display-order (mapv :name script-props)]
+    {:properties props
+     :display-order display-order}))
 
 (g/defnk produce-save-data [resource content]
   {:resource resource
@@ -59,7 +61,8 @@
 
 (defn- build-script [self basis resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
-        properties (mapv (fn [[k v]] {:id k :value (:value v) :type (get-in v [:edit-type :go-prop-type])}) user-properties)
+        properties (mapv (fn [[k v]] {:id k :value (:value v) :type (get-in v [:edit-type :go-prop-type])})
+                         (:properties user-properties))
         modules (:modules user-data)]
     {:resource resource :content (protobuf/map->bytes Lua$LuaModule
                                                      {:source {:script (ByteString/copyFromUtf8 (:content user-data))

@@ -169,7 +169,8 @@
   (on-action! [this fn]))
 
 (defprotocol HasChildren
-  (children! [this c]))
+  (children! [this c])
+  (add-child! [this c]))
 
 (defprotocol CollectionView
   (selection [this])
@@ -202,7 +203,9 @@
     (doto
       (.getChildren this)
       (.clear)
-      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c)))))
+      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c))))
+  (add-child! [this c]
+    (-> this (.getChildren) (.add c))))
 
 (extend-type Group
   HasChildren
@@ -210,7 +213,9 @@
     (doto
       (.getChildren this)
       (.clear)
-      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c)))))
+      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c))))
+  (add-child! [this c]
+    (-> this (.getChildren) (.add c))))
 
 (defn- make-list-cell [render-fn]
   (proxy [ListCell] []

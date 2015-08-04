@@ -31,8 +31,11 @@
 (g/defnode Vec3Prop
   (property my-prop t/Vec3))
 
-(defn coalesce-nodes [nodes]
-  (properties/coalesce (mapv #(g/node-value % :_properties) nodes)))
+(defn- coalesce-nodes [nodes]
+  (:properties (properties/coalesce (mapv #(g/node-value % :_properties) nodes))))
+
+(defn- display-order [nodes]
+  (:display-order (properties/coalesce (mapv #(g/node-value % :_properties) nodes))))
 
 (deftest coalesce-properties
   (with-clean-system
@@ -59,19 +62,22 @@
                                               (g/make-node world AnotherNumProp :my-prop 2.0))))
                    props (coalesce-nodes nodes)]
               (is (not (empty? props)))
-              (is (false? (reduce = (get-in props [:my-prop :values]))))))
+              (is (false? (reduce = (get-in props [:my-prop :values]))))
+              (is (= [:my-prop] (display-order nodes)))))
     (testing "Different names are excluded"
              (let [nodes (g/tx-nodes-added (g/transact
                                             (concat
                                               (g/make-node world NumProp :my-prop 1.0)
                                               (g/make-node world NumPropDiffName :my-other-prop 1.0))))]
-              (is (empty? (coalesce-nodes nodes)))))
+              (is (empty? (coalesce-nodes nodes)))
+              (is (empty? (display-order nodes)))))
     (testing "Different types are excluded"
              (let [nodes (g/tx-nodes-added (g/transact
                                             (concat
                                               (g/make-node world NumProp :my-prop 1.0)
                                               (g/make-node world StrProp :my-prop "1.0"))))]
-              (is (empty? (coalesce-nodes nodes)))))))
+              (is (empty? (coalesce-nodes nodes)))
+              (is (empty? (display-order nodes)))))))
 
 (deftest linked-properties
   (with-clean-system
@@ -90,7 +96,8 @@
              (let [[user-node linked-node]
                    (g/tx-nodes-added
                      (g/transact
-                       (g/make-nodes world [user-node [UserProps :user-properties {:int {:edit-type {:type g/Int} :value 1}}]
+                       (g/make-nodes world [user-node [UserProps :user-properties {:properties {:int {:edit-type {:type g/Int} :value 1}}
+                                                                                   :display-order [:int]}]
                                             linked-node [LinkedProps]]
                                      (g/connect user-node :user-properties linked-node :user-properties))))
                    property (fn [n] (-> [n] (coalesce-nodes) (first) (second)))]
@@ -146,3 +153,31 @@
                  vals (map #(do (swap! counter inc) %) (range count))]
              (is (nil? (properties/unify-values vals)))
              (is (< @counter count)))))
+
+(g/defnode DisplayLinkedProps
+  (property a g/Num)
+  (property linked-properties g/Any (default {})
+            (dynamic link (g/fnk [linked-properties-input] linked-properties-input)))
+  (property linked-properties-cat g/Any (default {})
+            (dynamic link (g/fnk [linked-properties-input] linked-properties-input)))
+  (property overridden-properties g/Any (default {})
+            (dynamic override (g/fnk [user-properties-input] user-properties-input)))
+  (property overridden-properties-cat g/Any (default {})
+           (dynamic override (g/fnk [user-properties-input] user-properties-input)))
+  (property b g/Num)
+
+  (display-order [:a :b ["Linked" :linked-properties-cat] ["Overridden" :overridden-properties-cat]])
+  (input linked-properties-input g/Any)
+  (input user-properties-input g/Any))
+
+(deftest multi-display-order
+  (with-clean-system
+    (let [link-node (first (g/tx-nodes-added (g/transact
+                                               (g/make-nodes world [linked-node [DisplayLinkedProps]
+                                                                    str-node [StrProp :my-prop "1.0"]
+                                                                    user-node [UserProps :user-properties {:properties {:int {:edit-type {:type g/Int} :value 1}}
+                                                                                                           :display-order [:int]}]]
+                                                             (g/connect str-node :_properties linked-node :linked-properties-input)
+                                                             (g/connect user-node :user-properties linked-node :user-properties-input)))))]
+      (is (= [:a :b ["Linked" :my-prop] ["Overridden" [:overridden-properties-cat :int]] :my-prop [:overridden-properties :int]]
+             (display-order [link-node]))))))
