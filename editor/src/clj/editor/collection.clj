@@ -68,6 +68,8 @@
 
   (property scale types/Vec3 (default [1 1 1]))
 
+  (display-order [scene/SceneNode :scale])
+
   (output scale Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
   (output transform Matrix4d :cached produce-transform)
 
