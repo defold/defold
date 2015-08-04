@@ -25,7 +25,7 @@
            [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
+           [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Stage FileChooser]
            [javafx.util Callback StringConverter]
@@ -194,50 +194,72 @@
 
 (defn- make-grid [parent workspace properties]
   (let [grid (GridPane.)]
-      (.setPadding grid (Insets. 10 10 10 10))
       (.setHgap grid 4)
       (.setVgap grid 6)
-      (ui/user-data! grid ::properties properties)
-      (let [update-fns (create-properties workspace grid properties)]
+      (ui/add-child! parent grid)
+      (create-properties workspace grid properties)))
+
+(defn- make-pane [parent workspace properties]
+  (let [vbox (VBox. (double 10.0))]
+      (.setPadding vbox (Insets. 10 10 10 10))
+      (ui/user-data! vbox ::properties properties)
+      (let [display-order (:display-order properties)
+            properties (:properties properties)
+            generics [nil (mapv (fn [k] [k (get properties k)]) (filter (comp not properties/category?) display-order))]
+            categories (mapv (fn [order]
+                               [(first order) (mapv (fn [k] [k (get properties k)]) (rest order))])
+                             (filter properties/category? display-order))
+            update-fns (loop [sections (cons generics categories)
+                              result []]
+                         (if-let [[category properties] (first sections)]
+                           (let [update-fns (if (empty? properties)
+                                              []
+                                              (do
+                                                (when category
+                                                  (let [label (Label. category)]
+                                                    (ui/add-child! vbox label)))
+                                                (make-grid vbox workspace properties)))]
+                             (recur (rest sections) (into result update-fns)))
+                           result))]
         ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
         (ui/user-data! parent ::update-fns (into {} update-fns)))
-      (ui/children! parent [grid])
-      grid))
+      (ui/children! parent [vbox])
+      vbox))
 
-(defn- refresh-grid [parent ^GridPane grid workspace properties]
-  (ui/user-data! grid ::properties properties)
+(defn- refresh-pane [parent ^Pane pane workspace properties]
+  (ui/user-data! pane ::properties properties)
   (let [update-fns (ui/user-data parent ::update-fns)]
-    (doseq [[key property] properties]
+    (doseq [[key property] (:properties properties)]
       (when-let [update-ui-fn (get update-fns key)]
         (update-ui-fn property)))))
 
 (defn- properties->template [properties]
-  (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) properties))
+  (mapv (fn [[k v]] [k (select-keys v [:edit-type])]) (:properties properties)))
 
-(defn- update-grid [parent id workspace properties]
+(defn- update-pane [parent id workspace properties]
   ; NOTE: We cache the ui based on the ::template user-data
-  (let [all-properties (properties/coalesce properties)
-        template (properties->template all-properties)
+  (let [properties (properties/coalesce properties)
+        template (properties->template properties)
         prev-template (ui/user-data parent ::template)]
     (if (not= template prev-template)
-      (let [grid (make-grid parent workspace all-properties)]
+      (let [pane (make-pane parent workspace properties)]
         (ui/user-data! parent ::template template)
-        (g/set-property! id :prev-grid-pane grid)
-        grid)
+        (g/set-property! id :prev-pane pane)
+        pane)
       (do
-        (let [grid (g/node-value id :prev-grid-pane)]
-          (refresh-grid parent grid workspace all-properties)
-          grid)))))
+        (let [pane (g/node-value id :prev-pane)]
+          (refresh-pane parent pane workspace properties)
+          pane)))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property repainter AnimationTimer)
   (property workspace g/Any)
-  (property prev-grid-pane GridPane)
+  (property prev-pane Pane)
 
   (input selected-node-properties g/Any)
 
-  (output grid-pane GridPane :cached (g/fnk [parent-view _id workspace selected-node-properties] (update-grid parent-view _id workspace selected-node-properties)))
+  (output pane Pane :cached (g/fnk [parent-view _id workspace selected-node-properties] (update-pane parent-view _id workspace selected-node-properties)))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
                                      (.stop ^AnimationTimer (g/node-value self :repainter))
@@ -247,7 +269,7 @@
   (let [view-id   (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         repainter (proxy [AnimationTimer] []
                     (handle [now]
-                      (g/node-value view-id :grid-pane)))]
+                      (g/node-value view-id :pane)))]
     (g/transact
       (concat
         (g/set-property view-id :repainter repainter)

@@ -74,10 +74,14 @@
   (property id g/Str)
 
   (property embedded g/Bool (dynamic visible (g/always false)))
-  (property path g/Str (dynamic visible (g/always false)))
+  (property path g/Str
+            (dynamic visible (g/fnk [embedded] (false? embedded)))
+            (dynamic enabled (g/always false)))
   (property properties g/Any
             (dynamic link (g/fnk [source-properties] source-properties))
             (dynamic override (g/fnk [user-properties] user-properties)))
+
+  (display-order [:id :path scene/SceneNode])
 
   (input source-properties g/Any)
   (input user-properties g/Any)
@@ -92,7 +96,7 @@
   (output ddf-message g/Any :cached (g/fnk [id embedded position rotation properties user-properties save-data]
                                            (if embedded
                                              (gen-embed-ddf id position rotation save-data)
-                                             (gen-ref-ddf id position rotation properties user-properties save-data))))
+                                             (gen-ref-ddf id position rotation properties (:properties user-properties) save-data))))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                      (assoc scene
                                             :node-id _node-id
