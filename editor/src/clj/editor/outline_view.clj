@@ -1,10 +1,14 @@
 (ns editor.outline-view
   (:require [dynamo.graph :as g]
+            [clojure.edn :as edn]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.project :as project]
+            [editor.workspace :as workspace]
+            [editor.outline :as outline])
   (:import [com.defold.editor Start]
+           [editor.outline ItemIterator]
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -13,6 +17,7 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
+           [javafx.scene.input Clipboard ClipboardContent DragEvent TransferMode DataFormat]
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeView TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
@@ -53,7 +58,20 @@
           (when-not @cached
             (reset! cached true)
             (.setAll children (list-children parent)))
-          children)))))
+          children))
+      (outline/value [this]
+        (.getValue this))
+      (outline/parent [this]
+        (.getParent this)))))
+
+(defrecord TreeItemIterator [^TreeItem tree-item]
+  outline/ItemIterator
+  (value [this] (.getValue tree-item))
+  (parent [this] (when (.getParent tree-item)
+                   (TreeItemIterator. (.getParent tree-item)))))
+
+(defn- ->iterator [^TreeView tree-item]
+  (TreeItemIterator. tree-item))
 
 (defn- map-filter [filter-fn m]
   (into {} (filter filter-fn m)))
@@ -87,17 +105,27 @@
           (doto (-> tree-view (.getSelectionModel))
             (.selectIndices (int (first selected-indices)) (int-array (rest selected-indices)))))))))
 
+(defn- pathify
+  ([root]
+    (pathify [] root))
+  ([path item]
+    (let [path (conj path (:node-id item))]
+      (-> item
+        (assoc :path path)
+        (update :children (fn [children] (mapv #(pathify path %) children)))))))
+
 (g/defnk update-tree-view [_id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
   (let [resource-set (set open-resources)
        root (get root-cache active-resource)
-       new-root (when active-outline (sync-tree root (tree-item active-outline)))
+       new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
     (binding [*programmatic-selection* true]
       (when new-root
         (.setExpanded new-root true))
       (.setRoot tree-view new-root)
       (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property _id :root-cache new-cache)))))
+      (g/transact (g/set-property _id :root-cache new-cache))
+      tree-view)))
 
 (g/defnode OutlineView
   (property tree-view TreeView)
@@ -132,6 +160,131 @@
                          (g/operation-label "Delete")
                          (g/delete-node (first selection))))))
 
+(defn- item->path [^TreeItem item]
+  (:path (.getValue item)))
+
+(defn- item->id [^TreeItem item]
+  (:node-id (.getValue item)))
+
+(defn- root-iterators [^TreeView tree-view]
+  (mapv ->iterator (ui/selection-roots tree-view item->path item->id)))
+
+(defn- project [tree-view]
+  (project/get-project (:node-id (.getValue (.getRoot tree-view)))))
+
+(def data-format-fn (fn []
+                      (let [json "application/json"
+                            text "text/plain"]
+                        (or (DataFormat/lookupMimeType json)
+                            (DataFormat/lookupMimeType text)
+                            (DataFormat. (into-array String [json text]))))))
+
+(handler/defhandler :copy :global
+  (enabled? [selection] (< 0 (count selection)))
+  (run [outline-view]
+       (let [tree-view (g/node-value outline-view :tree-view)
+             item-iterators (root-iterators tree-view)
+             project (project tree-view)
+             cb (Clipboard/getSystemClipboard)
+             data (outline/copy item-iterators)]
+         (.setContent cb {(data-format-fn) data}))))
+
+(handler/defhandler :paste :global
+  (enabled? [selection outline-view]
+            (let [cb (Clipboard/getSystemClipboard)
+                  tree-view (g/node-value outline-view :tree-view)
+                  item-iterators (root-iterators tree-view)
+                  data-format (data-format-fn)]
+              (and (= 1 (count item-iterators))
+                   (.hasContent cb data-format)
+                   (outline/paste? (project tree-view) (first item-iterators) (.getContent cb data-format)))))
+  (run [outline-view]
+       (let [tree-view (g/node-value outline-view :tree-view)
+             item-iterators (root-iterators tree-view)
+             project (project tree-view)
+             cb (Clipboard/getSystemClipboard)
+             data-format (data-format-fn)]
+         (outline/paste! project (first item-iterators) (.getContent cb data-format)))))
+
+(handler/defhandler :cut :global
+  (enabled? [selection outline-view]
+            (let [tree-view (g/node-value outline-view :tree-view)
+                  item-iterators (root-iterators tree-view)]
+              (and (< 0 (count item-iterators))
+                   (outline/cut? item-iterators))))
+  (run [outline-view]
+       (let [tree-view (g/node-value outline-view :tree-view)
+             item-iterators (root-iterators tree-view)
+             cb (Clipboard/getSystemClipboard)
+             data-format (data-format-fn)]
+         (.setContent cb {data-format (outline/cut! item-iterators)}))))
+
+(defn- selection [tree-view]
+  (-> tree-view (.getSelectionModel) (.getSelectedItems)))
+
+(defn- drag-detected [tree-view e]
+  (let [item-iterators (root-iterators tree-view)
+        project (project tree-view)]
+    (when (outline/drag? project item-iterators)
+      (let [db (.startDragAndDrop (.getSource e) (into-array TransferMode [TransferMode/MOVE]))
+            data (outline/copy item-iterators)]
+        (.setContent db {(data-format-fn) data})
+        (.consume e)))))
+
+(defn- drag-done [tree-view e])
+
+(defn- target [^Node node]
+  (when node
+    (if (instance? TreeCell node)
+      node
+      (target (.getParent node)))))
+
+(defn- drag-over [tree-view ^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    ; Auto scrolling
+    (let [view (.getTreeView cell)
+          view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
+          height (.getHeight (.getBoundsInLocal view))]
+      (when (< view-y 15)
+        (.scrollTo view (dec (.getIndex cell))))
+      (when (> view-y (- height 15))
+        (.scrollTo view (inc (.getIndex cell)))))
+    (let [db (.getDragboard e)]
+      (when (and (instance? TreeCell cell)
+                 (not (.isEmpty cell))
+                 (.hasContent db (data-format-fn)))
+        (let [item-iterators (root-iterators tree-view)
+              project (project tree-view)]
+          (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
+                               (.getContent db (data-format-fn)))
+            (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+            (.consume e)))))))
+
+(defn- drag-dropped [tree-view ^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    (let [db (.getDragboard e)]
+      (when (and (instance? TreeCell cell)
+                 (not (.isEmpty cell))
+                 (.hasContent db (data-format-fn)))
+        (let [item-iterators (root-iterators tree-view)
+              project (project tree-view)]
+          (when (outline/drop! project item-iterators (->iterator (.getTreeItem cell))
+                               (.getContent db (data-format-fn)))
+            (.setDropCompleted e true)
+            (.consume e)))))))
+
+(defn- drag-entered [tree-view ^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    (let [future (ui/->future 0.5 (fn []
+                                    (-> cell (.getTreeItem) (.setExpanded true))))]
+      (ui/user-data! cell :future-expand future))))
+
+(defn- drag-exited [tree-view ^DragEvent e]
+  (when-let [cell (target (.getTarget e))]
+    (when-let [future (ui/user-data cell :future-expand)]
+      (ui/cancel future)
+      (ui/user-data! cell :future-expand nil))))
+
 (defn- setup-tree-view [^TreeView tree-view ^ListChangeListener selection-listener selection-provider]
   (-> tree-view
       (.getSelectionModel)
@@ -140,20 +293,32 @@
       (.getSelectionModel)
       (.getSelectedItems)
       (.addListener selection-listener))
+  (doto tree-view
+    (.setOnDragDetected (ui/event-handler e (drag-detected tree-view e)))
+    (.setOnDragDone (ui/event-handler e (drag-done tree-view e))))
   (ui/register-context-menu tree-view ::outline-menu)
-  (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
-                                               (proxy [TreeCell] []
-                                                 (updateItem [item empty]
-                                                   (let [this ^TreeCell this]
-                                                     (proxy-super updateItem item empty)
-                                                     (if empty
-                                                       (do
-                                                         (proxy-super setText nil)
-                                                         (proxy-super setGraphic nil)
-                                                         (proxy-super setContextMenu nil))
-                                                       (let [{:keys [label icon]} item]
-                                                         (proxy-super setText label)
-                                                         (proxy-super setGraphic (jfx/get-image-view icon 16)))))))))))
+  (let [over-handler (ui/event-handler e (drag-over tree-view e))
+        dropped-handler (ui/event-handler e (drag-dropped tree-view e))
+        drag-entered-handler (ui/event-handler e (drag-entered tree-view e))
+        drag-exited-handler (ui/event-handler e (drag-exited tree-view e))]
+    (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
+                                                 (let [cell (proxy [TreeCell] []
+                                                              (updateItem [item empty]
+                                                                (let [this ^TreeCell this]
+                                                                  (proxy-super updateItem item empty)
+                                                                  (if empty
+                                                                    (do
+                                                                      (proxy-super setText nil)
+                                                                      (proxy-super setGraphic nil)
+                                                                      (proxy-super setContextMenu nil))
+                                                                    (let [{:keys [label icon]} item]
+                                                                      (proxy-super setText label)
+                                                                      (proxy-super setGraphic (jfx/get-image-view icon 16)))))))]
+                                                   (doto cell
+                                                     (.setOnDragOver over-handler)
+                                                     (.setOnDragDropped dropped-handler)
+                                                     (.setOnDragEntered drag-entered-handler)
+                                                     (.setOnDragExited drag-exited-handler))))))))
 
 (defn- propagate-selection [change selection-fn]
   (when-not *programmatic-selection*
