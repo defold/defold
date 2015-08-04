@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.image :as image]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -84,7 +85,9 @@
   (output path g/Str (g/fnk [src-resource] (workspace/proj-path src-resource)))
   (output image Image (g/fnk [path ^BufferedImage src-image] (Image. path src-image (.getWidth src-image) (.getHeight src-image))))
   (output animation Animation (g/fnk [image] (image->animation image)))
-  (output outline g/Any (g/fnk [_node-id path src-image] {:node-id _node-id :label (path->id path) :icon image-icon}))
+  (output outline g/Any (g/fnk [_node-id path] {:node-id _node-id
+                                                :label (format "%s - %s" (path->id path) path)
+                                                :icon image-icon}))
   (output ddf-message g/Any :cached (g/fnk [path] {:image path})))
 
 (g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]

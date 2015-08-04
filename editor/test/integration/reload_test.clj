@@ -106,10 +106,10 @@
          img-path "/test_img.png"
          anim-id (FilenameUtils/getBaseName img-path)]
      (is (not (nil? atlas-node-id)))
-     (testing "Add external file, no transaction"
+     (testing "Add external file, cleared history"
        (add-img workspace img-path 64 64)
        (let [node (project/get-resource-node project img-path)]
-         (is (nil? node)))
+         (is (some? node)))
        (is (no-undo? project)))
      (testing "Reference it, node added and linked"
        (g/transact
@@ -129,7 +129,7 @@
            (delete-file workspace img-path)
            (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
                                         ; TODO - fix node pollution
-           (is (thrown? java.io.FileNotFoundException (g/node-value atlas-node-id :anim-data)))))))))
+           (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))
 
 (deftest save-no-reload
   (with-clean-system
@@ -143,3 +143,21 @@
                  (project/save-all project)
                  (workspace/fs-sync workspace)
                  (is (has-undo? project)))))))
+
+(defn- error? [type v]
+  (and (g/error? v) (= type (get-in v [:reason :type]))))
+
+(deftest external-file-errors
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          atlas-node-id (project/get-resource-node project "/atlas/single.atlas")
+          img-path "/test_img.png"]
+      (is (error? :file-not-found (g/node-value atlas-node-id :anim-data)))
+      (add-img workspace img-path 64 64)
+      (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
+      (delete-file workspace img-path)
+      (is (error? :file-not-found (g/node-value atlas-node-id :anim-data)))
+      (add-img workspace img-path 64 64)
+      (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
+      (write-file workspace img-path "this is not png format")
+      (is (error? :invalid-content (g/node-value atlas-node-id :anim-data))))))

@@ -6,6 +6,7 @@
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode]
@@ -29,10 +30,11 @@
 
 (handler/defhandler :revert :asset-browser
   (enabled? [selection] (prn selection) (pos? (count selection)))
-  (run [selection git list-view]
+  (run [selection git list-view workspace]
        (doseq [status selection]
          (git/revert git [(or (:new-path status) (:old-path status))]))
-       (refresh! git list-view)))
+       (refresh! git list-view)
+       (workspace/fs-sync workspace)))
 
 (handler/defhandler :diff :asset-browser
   (enabled? [selection] (= 1 (count selection)))
@@ -53,12 +55,12 @@
   core/ICreate
   (post-create
    [this basis event]
-   (let [{:keys [^Parent parent git]} event
+   (let [{:keys [^Parent parent git workspace]} event
          refresh                      (.lookup parent "#changes-refresh")
          list-view                    (.lookup parent "#changes")]
      (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
      ; TODO: Should we really include both git and list-view in the context. Have to think about this
-     (ui/context! list-view :asset-browser {:git git :list-view list-view} list-view)
+     (ui/context! list-view :asset-browser {:git git :list-view list-view :workspace workspace} list-view)
      (ui/register-context-menu list-view ::changes-menu)
      (ui/cell-factory! list-view status-render)
      (ui/on-action! refresh (fn [_] (refresh! git list-view)))
@@ -73,7 +75,7 @@
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
-      (core/post-create view (g/now) {:parent parent :git (Git/open (io/file (g/node-value workspace :root)))})
+      (core/post-create view (g/now) {:parent parent :git (Git/open (io/file (g/node-value workspace :root))) :workspace workspace})
       view-id
       (catch Exception e
         (log/error :exception e)))))
