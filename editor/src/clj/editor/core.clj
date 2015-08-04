@@ -106,6 +106,14 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted           #'dispose-nodes))
 
+(defn scope [node-id]
+  (let [[_ _ scope _] (first
+                        (filter
+                          (fn [[src src-lbl tgt tgt-lbl]]
+                            (and (= src-lbl :_id)
+                                 (= tgt-lbl :nodes)))
+                          (g/outputs node-id)))]
+    scope))
 
 (g/defnode Saveable
   "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit

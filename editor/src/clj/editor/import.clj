@@ -23,8 +23,8 @@
 
 (defn- clone-project [prefs dialog controls]
   (let [project (first (ui/selection (:projects controls)))
-        directory (format "%s/%s" (ui/text (:location controls)) (g/node-value project :name))]
-    (clone-repo prefs (g/node-value project :repository-url) directory (git/make-clone-monitor (dialogs/progress-bar dialog)))
+        directory (format "%s/%s" (ui/text (:location controls)) (:name project))]
+    (clone-repo prefs (:repository-url project) directory (git/make-clone-monitor (dialogs/progress-bar dialog)))
     (dialogs/return! dialog (format "%s/game.project" directory))
     (ui/run-later (dialogs/close! dialog))))
 
