@@ -1,9 +1,10 @@
 (ns editor.outline
   (:require [dynamo.graph :as g]
-            [editor.resource :as resource]
+            [editor.core :as core]
             [editor.project :as project]
-            [editor.workspace :as workspace]
-            [editor.core :as core]))
+            [editor.resource :as resource]
+            [editor.workspace :as workspace])
+  (:import [editor.resource FileResource ZipResource]))
 
 (defprotocol ItemIterator
   (value [this])
@@ -21,27 +22,6 @@
 (defn- find-req [node reqs]
   (when reqs
     (first (filter #(req-satisfied? % node) reqs))))
-
-(defn- resource-reference? [node-id]
-  (and (g/node-instance? project/ResourceNode node-id)
-       (some? (resource/proj-path (g/node-value node-id :resource)))))
-
-(defrecord ResourceReference [path label])
-
-(core/register-record-type! ResourceReference)
-
-(defn- actual-path [node]
-  (workspace/proj-path (:resource node)))
-
-(defn- make-reference [node label]
-  (when-let [project-path (actual-path node)]
-    (ResourceReference. project-path label)))
-
-(defn- resolve-reference [project reference]
-  (let [workspace (project/workspace project)
-        resource (workspace/resolve-workspace-resource workspace (:path reference))
-        resource-node (project/get-resource-node project resource)]
-    [resource-node (:label reference)]))
 
 (defn- serialize
   [fragment]
@@ -65,10 +45,35 @@
         (recur (parent item-iterator) root-nodes)))
     nil))
 
+(defrecord ResourceReference [path])
+
+(core/register-record-type! ResourceReference)
+
+(defn file-node?
+  [node]
+  (and (g/node-instance? project/ResourceNode (g/node-id node))
+       (or (instance? FileResource (:resource node))
+           (instance? ZipResource  (:resource node)))))
+
+(defn- actual-path [node]
+  (workspace/proj-path (:resource node)))
+
+(defn- make-reference [node]
+  (when-let [project-path (actual-path node)]
+    (ResourceReference. project-path)))
+
+(defn- resolve-reference [basis project reference]
+  (let [resource (workspace/resolve-workspace-resource (project/workspace project) (:path reference))]
+     (g/node-by-id-at basis (project/get-resource-node project resource))))
+
 (defn copy [src-item-iterators]
-  (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)]
-    (serialize (g/copy root-ids {:continue? (comp not resource-reference?)
-                                 :write-handlers {project/ResourceNode make-reference}}))))
+  (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
+        fragment (g/copy root-ids {:include?  (comp not file-node?)
+                                   :serializer (fn [node]
+                                                 (if (file-node? node)
+                                                   (make-reference node)
+                                                   (g/default-node-serializer node)))})]
+    (serialize fragment)))
 
 (defn cut? [src-item-iterators]
   (loop [src-item-iterators src-item-iterators]
@@ -81,7 +86,7 @@
       true)))
 
 (defn cut! [src-item-iterators]
-  (let [data (copy src-item-iterators)
+  (let [data     (copy src-item-iterators)
         root-ids (mapv #(:node-id (value %)) src-item-iterators)]
     (g/transact
       (concat
@@ -96,7 +101,12 @@
 
 (defn- paste [project fragment]
   (let [graph (project/graph project)]
-    (g/paste graph (deserialize fragment) {:read-handlers {ResourceReference (partial resolve-reference project)}})))
+    (g/paste graph (deserialize fragment)
+             {:deserializer
+              (fn [basis graph-id record]
+                (if (instance? ResourceReference record)
+                  (resolve-reference basis project record)
+                  (g/default-node-deserializer basis graph-id record)))})))
 
 (defn- root-nodes [paste-data]
   (let [nodes (into {} (map #(let [n (:node %)] [(:_id n) n]) (filter #(= (:type %) :create-node) (:tx-data paste-data))))]
