@@ -4,8 +4,13 @@
             [clojure.test :refer :all]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
-            [support.test-support :as ts])
-  (:import [dynamo.graph Endpoint]))
+            [support.test-support :as ts]))
+
+(defn arc-node-references
+  [fragment]
+  (into #{} (concat (map first (:arcs fragment))
+                    (map #(nth % 2) (:arcs fragment)))))
+
 
 ;;  simple copy: two nodes, one arc
 (g/defnode ConsumerNode
@@ -26,16 +31,13 @@
                                    (g/make-node world ProducerNode))]
     (g/transact
      (g/connect node2 :produces-value node1 :consumes-value))
-    (g/copy [node1] (constantly false))))
+    (g/copy [node1] {:include? (constantly true)})))
 
 (deftest simple-copy
   (ts/with-clean-system
     (let [fragment            (simple-copy-fragment world)
           fragment-nodes      (:nodes fragment)
-          serial-ids          (map :serial-id fragment-nodes)
-          arc-node-references (into #{} (concat (map #(:node-id (first %))  (:arcs fragment))
-                                                (map #(:node-id (second %)) (:arcs fragment))))]
-      (def frag* fragment)
+          serial-ids          (map :serial-id fragment-nodes)]
       (is (= 1 (count (:roots fragment))))
       (is (every? integer? (:roots fragment)))
       (is (every? integer? serial-ids))
@@ -43,9 +45,8 @@
       (is (= #{ProducerNode ConsumerNode} (into #{}  (map :node-type fragment-nodes))))
       (is (= "foo" (:a-property (:properties (first (filter #(= ConsumerNode (:node-type %)) fragment-nodes))))))
       (is (= 1 (count (:arcs fragment))))
-      (is (every? #(instance? Endpoint %) (map first (:arcs fragment))))
-      (is (every? #(instance? Endpoint %) (map second (:arcs fragment))))
-      (is (empty? (set/difference (set arc-node-references) (set serial-ids)))))))
+      (is (every? #(= 4 (count %)) (:arcs fragment)))
+      (is (empty? (set/difference (arc-node-references fragment) (set serial-ids)))))))
 
 (defn- pasted-node [type paste-data]
   (first (filter #(= type (g/node-type* %)) (:nodes paste-data))))
@@ -94,15 +95,15 @@
       (g/connect node3 :produces-value node1 :consumes-value)
       (g/connect node4 :produces-value node3 :consumes-value)
       (g/connect node4 :produces-value node2 :consumes-value)])
-    (g/copy [node1] (constantly true))))
+    (g/copy [node1] {:include? (constantly true)})))
 
 (deftest diamond-copy
   (ts/with-clean-system
     (let [fragment            (diamond-copy-fragment world)
           fragment-nodes      (:nodes fragment)
           serial-ids          (map :serial-id fragment-nodes)
-          arc-node-references (into #{} (concat (map #(:node-id (first %))  (:arcs fragment))
-                                                (map #(:node-id (second %)) (:arcs fragment))))]
+          arc-node-references (into #{} (concat (map first (:arcs fragment))
+                                                (map #(nth % 2) (:arcs fragment))))]
       (is (= 4 (count (:arcs fragment))))
       (is (= 4 (count fragment-nodes)))
       (is (empty? (set/difference (set arc-node-references) (set serial-ids)))))))
@@ -186,12 +187,12 @@
   (output produces-value g/Str (g/fnk [a-property] a-property)))
 
 (defn- stop-at-stoppers [node]
-  (not (= "internal.copy-paste-test/StopperNode" (:name (g/node-type* node)))))
+  (not (= StopperNode (g/node-type node))))
 
-(defrecord StopArc [id label])
+(defrecord Standin [original-id])
 
-(defn- serialize-stopper [node label]
-  (StopArc. (g/node-id node) label))
+(defn- serialize-stopper [node]
+  (Standin. (g/node-id node)))
 
 (defn serialization-uses-predicates-copy-fragment [world]
   (let [[node1 node2 node3 node4] (ts/tx-nodes (g/make-node world ConsumeAndProduceNode)
@@ -202,33 +203,38 @@
        [(g/connect node2 :produces-value node1 :consumes-value)
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node4 :produces-value node3 :discards-value)])
-      [node3 (g/copy [node1] {:continue? stop-at-stoppers
-                              :write-handlers {StopperNode serialize-stopper}})]))
+      [node3 (g/copy [node1] {:include? (comp stop-at-stoppers)
+                              :serializer (fn [node]
+                                            (if (= StopperNode (g/node-type node))
+                                              (serialize-stopper node)
+                                              (g/default-node-serializer node)))})]))
 
 (deftest serialization-uses-predicates
   (ts/with-clean-system
     (let [[_ fragment]   (serialization-uses-predicates-copy-fragment world)
           fragment-nodes (:nodes fragment)]
       (is (= 2 (count (:arcs fragment))))
-      (is (= 2 (count fragment-nodes)))
-      (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "internal.copy-paste-test/StopperNode")))
-      (is (= #{StopArc Endpoint} (into #{} (map (comp class first) (:arcs fragment)))))
-      (is (= #{Endpoint} (into #{} (map (comp class second) (:arcs fragment))))))))
+      (is (= 3 (count fragment-nodes)))
+      (is (not (contains? (into #{} (map (comp :name :node-type) fragment-nodes)) "internal.copy-paste-test/StopperNode"))))))
 
-(defn resolve-by-id [record]
-  [(:id record) (:label record)])
+(defn resolve-by-id
+  [basis graph-id record]
+  (if (instance? Standin record)
+    (g/node-by-id-at basis (:original-id record))
+    (g/default-node-deserializer basis graph-id record)))
 
 (deftest deserialization-with-resolver
   (ts/with-clean-system
     (let [[original-stopper fragment] (serialization-uses-predicates-copy-fragment world)
-          paste-data                  (g/paste world fragment {:read-handlers {StopArc resolve-by-id}})
+          paste-data                  (g/paste world fragment {:deserializer resolve-by-id})
           paste-tx-data               (:tx-data paste-data)
           paste-tx-result             (g/transact paste-tx-data)
           new-nodes-added             (g/tx-nodes-added paste-tx-result)
           new-root                    (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))
           new-leaf                    (first (remove #(= % (g/node-id new-root)) (:nodes paste-data)))]
       (is (= 1 (count (:root-node-ids paste-data))))
-      (is (= 2 (count (:nodes paste-data)) (count new-nodes-added)))
+      (is (= 2 (count new-nodes-added)))
+      (is (= 3 (count (:nodes paste-data))))
       (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
       (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
       (is (= "the one and only" (g/node-value new-root :produces-value))))))
@@ -258,6 +264,5 @@
         #{1 2}
         'food
         ConsumerNode
-        (dynamo.graph.Endpoint. 1 :foo)
         simple-fragment
         rich-fragment))))

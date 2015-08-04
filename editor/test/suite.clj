@@ -28,7 +28,6 @@
                        integration.benchmark-test
                        integration.build-test
                        integration.collection-test
-                       integration.copy-paste-test
                        integration.reload-test
                        integration.save-test
                        integration.scene-test
