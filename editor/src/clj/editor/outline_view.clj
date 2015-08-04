@@ -154,11 +154,13 @@
                   :command :delete}])
 
 (handler/defhandler :delete :global
-    (enabled? [selection] (= 1 (count selection)))
-    (run [selection] (g/transact
-                       (concat
-                         (g/operation-label "Delete")
-                         (g/delete-node (first selection))))))
+    (enabled? [selection] (< 0 (count selection)))
+    (run [selection]
+         (g/transact
+           (concat
+             (g/operation-label "Delete")
+             (for [node-id selection]
+               (g/delete-node node-id))))))
 
 (defn- item->path [^TreeItem item]
   (:path (.getValue item)))
