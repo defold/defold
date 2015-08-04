@@ -221,16 +221,18 @@ ordinary paths."
 
 (defn- handle-resource-changes [project changes]
   (let [all (reduce into [] (vals changes))
-        reset-undo? (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))]
-    (add-resources project (:added changes))
+        reset-undo? (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))
+        unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
+        to-reload (concat (:changed changes) (filter #(some? (get-resource-node project %)) (:added changes)))
+        to-add (filter #(nil? (get-resource-node project %)) (:added changes))]
+    (add-resources project to-add)
     (remove-resources project (:removed changes))
-    (doseq [resource (:changed changes)
+    (doseq [resource to-reload
             :let [resource-node (get-resource-node project resource)]
             :when resource-node]
       (let [current-outputs (outputs resource-node)]
         (if (loadable? resource)
-          (let [current-outputs (outputs resource-node)
-                nodes (make-nodes project [resource])]
+          (let [nodes (make-nodes project [resource])]
             (load-nodes project nodes)
             (let [new-node (first nodes)
                   new-outputs (set (outputs new-node))
@@ -243,7 +245,9 @@ ordinary paths."
           (let [nid resource-node]
             (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
     (when reset-undo?
-      (g/reset-undo! (graph project)))))
+      (g/reset-undo! (graph project)))
+    (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
+                                             (clojure.string/join ", " (map resource/proj-path unknown-changed))))))
 
 (g/defnode Project
   (inherits core/Scope)
@@ -294,20 +298,26 @@ ordinary paths."
           :when (contains? outputs src-label)]
       (g/connect src src-label tgt tgt-label))))
 
-(defn connect-resource-node [project resource consumer-node connections]
-  (if resource
-    (if-let [node (get-resource-node project resource)]
+(defn workspace [project]
+  (g/node-value project :workspace))
+
+(defn connect-resource-node [project path-or-resource consumer-node connections]
+  (if path-or-resource
+    (if-let [node (get-resource-node project path-or-resource)]
       (connect-if-output (g/node-type* node) node consumer-node connections)
-      (let [resource-type (workspace/resource-type resource)
+      (let [resource (if (string? path-or-resource)
+                       (workspace/resolve-workspace-resource (workspace project) path-or-resource)
+                       path-or-resource)
+            resource-type (workspace/resource-type resource)
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
-         (graph project)
-         [new-resource [node-type :resource resource :project-id project]]
-         (g/connect new-resource :_id project :nodes)
-         (if ((g/output-labels node-type) :save-data)
-           (g/connect new-resource :save-data project :save-data)
-           [])
-         (connect-if-output node-type new-resource consumer-node connections))))
+          (graph project)
+          [new-resource [node-type :resource resource :project-id project]]
+          (g/connect new-resource :_id project :nodes)
+          (if ((g/output-labels node-type) :save-data)
+            (g/connect new-resource :save-data project :save-data)
+            [])
+          (connect-if-output node-type new-resource consumer-node connections))))
     []))
 
 (defn select
@@ -359,6 +369,3 @@ ordinary paths."
                             (g/connect workspace-id :resource-types project :resource-types)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
-
-(defn workspace [project]
-  (g/node-value project :workspace))
