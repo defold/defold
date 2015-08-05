@@ -32,6 +32,8 @@ struct Facebook
     int m_Callback;
     int m_Self;
     const char* m_appId;
+    const char* m_MeJson;
+    const char* m_PermissionsJson;
     bool m_Initialized;
 };
 
@@ -56,6 +58,56 @@ extern "C" {
     void dmFacebookDoLogout();
     void dmFacebookRequestReadPermissions(const char* permissions, OnRequestReadPermissionsCallback callback, lua_State* L);
     void dmFacebookRequestPublishPermissions(const char* permissions, int audience, OnRequestPublishPermissionsCallback callback, lua_State* L);
+}
+
+// TODO: Move out to common stuff (also in engine/iap/src/iap_android.cpp and script_json among others)
+static int ToLua(lua_State*L, dmJson::Document* doc, int index)
+{
+    const dmJson::Node& n = doc->m_Nodes[index];
+    const char* json = doc->m_Json;
+    int l = n.m_End - n.m_Start;
+    switch (n.m_Type)
+    {
+    case dmJson::TYPE_PRIMITIVE:
+        if (l == 4 && memcmp(json + n.m_Start, "null", 4) == 0) {
+            lua_pushnil(L);
+        } else if (l == 4 && memcmp(json + n.m_Start, "true", 4) == 0) {
+            lua_pushboolean(L, 1);
+        } else if (l == 5 && memcmp(json + n.m_Start, "false", 5) == 0) {
+            lua_pushboolean(L, 0);
+        } else {
+            double val = atof(json + n.m_Start);
+            lua_pushnumber(L, val);
+        }
+        return index + 1;
+
+    case dmJson::TYPE_STRING:
+        lua_pushlstring(L, json + n.m_Start, l);
+        return index + 1;
+
+    case dmJson::TYPE_ARRAY:
+        lua_createtable(L, n.m_Size, 0);
+        ++index;
+        for (int i = 0; i < n.m_Size; ++i) {
+            index = ToLua(L, doc, index);
+            lua_rawseti(L, -2, i+1);
+        }
+        return index;
+
+    case dmJson::TYPE_OBJECT:
+        lua_createtable(L, 0, n.m_Size);
+        ++index;
+        for (int i = 0; i < n.m_Size; i += 2) {
+            index = ToLua(L, doc, index);
+            index = ToLua(L, doc, index);
+            lua_rawset(L, -3);
+        }
+
+        return index;
+    }
+
+    assert(false && "not reached");
+    return index;
 }
 
 static void PushError(lua_State*L, const char* error)
@@ -135,7 +187,7 @@ static void RunCallback(lua_State* L, const char *error)
     }
 }
 
-static void RunDialogResultCallback(lua_State* L, const char *url, const char *error)
+static void RunDialogResultCallback(lua_State* L, const char *result_json, const char *error)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
@@ -156,15 +208,23 @@ static void RunDialogResultCallback(lua_State* L, const char *url, const char *e
             return;
         }
 
-        lua_createtable(L, 0, 1);
-        lua_pushliteral(L, "url");
-        // TODO: handle url=0 ?
-        if (url) {
-            lua_pushstring(L, url);
-        } else {
-            lua_pushnil(L);
+        if(result_json != 0)
+        {
+            dmJson::Document doc;
+            dmJson::Result r = dmJson::Parse(result_json, &doc);
+            if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
+                ToLua((lua_State *)L, &doc, 0);
+            } else {
+                dmLogError("Failed to parse dialog result JSON (%d)", r);
+                lua_newtable((lua_State *)L);
+            }
+            dmJson::Free(&doc);
         }
-        lua_rawset(L, -3);
+        else
+        {
+            dmLogError("Got empty dialog result JSON (or FB error).");
+            lua_newtable((lua_State *)L);
+        }
 
         PushError(L, error);
 
@@ -187,59 +247,11 @@ static void VerifyCallback(lua_State* L)
     }
 }
 
-// TODO: Move out to common stuff (also in engine/iap/src/iap_android.cpp and script_json among others)
-static int ToLua(lua_State*L, dmJson::Document* doc, int index)
-{
-    const dmJson::Node& n = doc->m_Nodes[index];
-    const char* json = doc->m_Json;
-    int l = n.m_End - n.m_Start;
-    switch (n.m_Type)
-    {
-    case dmJson::TYPE_PRIMITIVE:
-        if (l == 4 && memcmp(json + n.m_Start, "null", 4) == 0) {
-            lua_pushnil(L);
-        } else if (l == 4 && memcmp(json + n.m_Start, "true", 4) == 0) {
-            lua_pushboolean(L, 1);
-        } else if (l == 5 && memcmp(json + n.m_Start, "false", 5) == 0) {
-            lua_pushboolean(L, 0);
-        } else {
-            double val = atof(json + n.m_Start);
-            lua_pushnumber(L, val);
-        }
-        return index + 1;
-
-    case dmJson::TYPE_STRING:
-        lua_pushlstring(L, json + n.m_Start, l);
-        return index + 1;
-
-    case dmJson::TYPE_ARRAY:
-        lua_createtable(L, n.m_Size, 0);
-        ++index;
-        for (int i = 0; i < n.m_Size; ++i) {
-            index = ToLua(L, doc, index);
-            lua_rawseti(L, -2, i+1);
-        }
-        return index;
-
-    case dmJson::TYPE_OBJECT:
-        lua_createtable(L, 0, n.m_Size);
-        ++index;
-        for (int i = 0; i < n.m_Size; i += 2) {
-            index = ToLua(L, doc, index);
-            index = ToLua(L, doc, index);
-            lua_rawset(L, -3);
-        }
-
-        return index;
-    }
-
-    assert(false && "not reached");
-    return index;
-}
-
-void OnLoginComplete(void* L, int state, const char* error)
+void OnLoginComplete(void* L, int state, const char* error, const char* me_json, const char* permissions_json)
 {
     dmLogDebug("FB login complete...(%d, %s)", state, error);
+    g_Facebook.m_MeJson = me_json;
+    g_Facebook.m_PermissionsJson = permissions_json;
     RunStateCallback((lua_State*)L, state, error);
 }
 
@@ -256,7 +268,7 @@ int Facebook_Login(lua_State* L)
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    dmFacebookDoLogin(STATE_OPEN, STATE_CLOSED, STATE_CLOSED_LOGIN_FAILED, (OnLoginCallback) OnLoginComplete, L);
+    dmFacebookDoLogin(dmFacebook::STATE_OPEN, dmFacebook::STATE_CLOSED, dmFacebook::STATE_CLOSED_LOGIN_FAILED, (OnLoginCallback) OnLoginComplete, L);
 
     assert(top == lua_gettop(L));
     return 0;
@@ -268,6 +280,13 @@ int Facebook_Logout(lua_State* L)
     VerifyCallback(L);
 
     dmFacebookDoLogout();
+
+    if (g_Facebook.m_MeJson) {
+        g_Facebook.m_MeJson = 0;
+    }
+    if (g_Facebook.m_PermissionsJson) {
+        g_Facebook.m_PermissionsJson = 0;
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -291,8 +310,12 @@ void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
 }
 
 
-void OnRequestReadPermissionsComplete(void* L, const char* error)
+void OnRequestReadPermissionsComplete(void* L, const char* error, const char* permissions_json)
 {
+    if (permissions_json != 0)
+    {
+        g_Facebook.m_PermissionsJson = permissions_json;
+    }
     RunCallback((lua_State*)L, error);
 }
 
@@ -318,8 +341,12 @@ int Facebook_RequestReadPermissions(lua_State* L)
     return 0;
 }
 
-void OnRequestPublishPermissionsComplete(void* L, const char* error)
+void OnRequestPublishPermissionsComplete(void* L, const char* error, const char* permissions_json)
 {
+    if (permissions_json != 0)
+    {
+        g_Facebook.m_PermissionsJson = permissions_json;
+    }
     RunCallback((lua_State*)L, error);
 }
 
@@ -371,14 +398,16 @@ int Facebook_AccessToken(lua_State* L)
     return 1;
 }
 
-void OnPermissionsComplete(void* L, const char* json_arr)
+int Facebook_Permissions(lua_State* L)
 {
-    if(json_arr != 0)
+    int top = lua_gettop(L);
+
+    if(g_Facebook.m_PermissionsJson != 0)
     {
         // Note that the permissionsJsonArray contains a regular string array in json format,
         // e.g. ["foo", "bar", "baz", ...]
         dmJson::Document doc;
-        dmJson::Result r = dmJson::Parse(json_arr, &doc);
+        dmJson::Result r = dmJson::Parse(g_Facebook.m_PermissionsJson, &doc);
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
             ToLua((lua_State *)L, &doc, 0);
         } else {
@@ -393,30 +422,25 @@ void OnPermissionsComplete(void* L, const char* json_arr)
         // This follows the iOS implementation...
         lua_newtable((lua_State *)L);
     }
-}
-
-int Facebook_Permissions(lua_State* L)
-{
-    int top = lua_gettop(L);
-
-    dmFacebookPermissions((OnPermissionsCallback) OnPermissionsComplete, L);
 
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
 
-void OnMeComplete(void* L, const char* json)
+int Facebook_Me(lua_State* L)
 {
-    if(json != 0)
+    int top = lua_gettop(L);
+
+    if(g_Facebook.m_MeJson != 0)
     {
         // Note: this will pass ALL key/values back to lua, not just string types!
         dmJson::Document doc;
-        dmJson::Result r = dmJson::Parse(json, &doc);
+        dmJson::Result r = dmJson::Parse(g_Facebook.m_MeJson, &doc);
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-            ToLua((lua_State *)L, &doc, 0);
+            ToLua(L, &doc, 0);
         } else {
             dmLogError("Failed to parse Facebook_Me response (%d)", r);
-            lua_pushnil((lua_State *)L);
+            lua_pushnil(L);
         }
         dmJson::Free(&doc);
     }
@@ -424,15 +448,8 @@ void OnMeComplete(void* L, const char* json)
     {
         // This follows the iOS implementation...
         dmLogError("Got empty Facebook_Me response (or FB error).");
-        lua_pushnil((lua_State *)L);
+        lua_pushnil(L);
     }
-}
-
-int Facebook_Me(lua_State* L)
-{
-    int top = lua_gettop(L);
-
-    dmFacebookMe((OnMeCallback) OnMeComplete, L);
 
     assert(top + 1 == lua_gettop(L));
     return 1;
@@ -441,9 +458,9 @@ int Facebook_Me(lua_State* L)
 
 
 
-void OnShowDialogComplete(void* L, const char* url, const char* error)
+void OnShowDialogComplete(void* L, const char* result_json, const char* error)
 {
-    RunDialogResultCallback((lua_State*)L, url, error);
+    RunDialogResultCallback((lua_State*)L, result_json, error);
 }
 
 int Facebook_ShowDialog(lua_State* L)
@@ -517,21 +534,33 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, Facebook_methods);
 
-#define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) name); \
+#define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); \
         lua_setfield(L, -2, #name);\
 
-    SETCONSTANT(STATE_CREATED);
-    SETCONSTANT(STATE_CREATED_TOKEN_LOADED);
-    SETCONSTANT(STATE_CREATED_OPENING);
-    SETCONSTANT(STATE_OPEN);
-    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED);
-    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED);
-    SETCONSTANT(STATE_CLOSED);
-    SETCONSTANT(AUDIENCE_NONE)
-    SETCONSTANT(AUDIENCE_ONLYME)
-    SETCONSTANT(AUDIENCE_FRIENDS)
-    SETCONSTANT(AUDIENCE_EVERYONE)
+    SETCONSTANT(STATE_CREATED,              dmFacebook::STATE_CREATED);
+    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, dmFacebook::STATE_CREATED_TOKEN_LOADED);
+    SETCONSTANT(STATE_CREATED_OPENING,      dmFacebook::STATE_CREATED_OPENING);
+    SETCONSTANT(STATE_OPEN,                 dmFacebook::STATE_OPEN);
+    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED,  dmFacebook::STATE_OPEN_TOKEN_EXTENDED);
+    SETCONSTANT(STATE_CLOSED,               dmFacebook::STATE_CLOSED);
+    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED,  dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE,   dmFacebook::GAMEREQUEST_ACTIONTYPE_NONE);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND,   dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, dmFacebook::GAMEREQUEST_ACTIONTYPE_ASKFOR);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN,   dmFacebook::GAMEREQUEST_ACTIONTYPE_TURN);
+
+    SETCONSTANT(GAMEREQUEST_FILTER_NONE,        dmFacebook::GAMEREQUEST_FILTER_NONE);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS,    dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, dmFacebook::GAMEREQUEST_FILTER_APPNONUSERS);
+
+    SETCONSTANT(AUDIENCE_NONE,     dmFacebook::AUDIENCE_NONE);
+    SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
+    SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
+    SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
+
+#undef SETCONSTANT
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
