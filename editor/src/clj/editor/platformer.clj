@@ -143,8 +143,8 @@
         (persistent! vbuf)))))
 
 (g/defnk produce-scene
-  [_id aabb base-texture-tex control-points]
-  (let [scene {:node-id _id :aabb aabb}
+  [_node-id aabb base-texture-tex control-points]
+  (let [scene {:node-id _node-id :aabb aabb}
         vertex-buffer (gen-vertex-buffer control-points)]
     (if vertex-buffer
       (assoc scene :renderable {:render-fn (fn [gl render-args renderables count]

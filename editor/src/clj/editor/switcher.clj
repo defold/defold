@@ -256,10 +256,10 @@
    :content (with-out-str (pprint level))})
 
 (g/defnk produce-scene
-   [_id aabb level gpu-texture anim-data]
+   [_node-id aabb level gpu-texture anim-data]
    (let [level-layout (layout-level level)
          level-vertex-binding (vtx/use-with (gen-level-vertex-buffer anim-data level-layout cell-size-half) shader)]
-     {:id _id
+     {:id _node-id
       :aabb aabb
       :renderable {:render-fn (fn [gl render-args renderables count] (render-level gl level gpu-texture level-vertex-binding level-layout))
                    :passes [pass/transparent]}}))

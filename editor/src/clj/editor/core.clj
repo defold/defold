@@ -97,7 +97,7 @@ This function should not be called directly."
 
 (g/defnode Scope
   "Scope provides a level of grouping for nodes. Scopes nest.
-When a node is added to a Scope, the node's :_id output will be
+When a node is added to a Scope, the node's :_node-id output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."
@@ -110,7 +110,7 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   (let [[_ _ scope _] (first
                         (filter
                           (fn [[src src-lbl tgt tgt-lbl]]
-                            (and (= src-lbl :_id)
+                            (and (= src-lbl :_node-id)
                                  (= tgt-lbl :nodes)))
                           (g/outputs node-id)))]
     scope))

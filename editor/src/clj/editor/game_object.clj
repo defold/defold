@@ -152,7 +152,7 @@
 (defn- attach-component [self-id comp-id]
   (let [conns [[:outline :outline]
                [:properties :component-properties]
-               [:_id :nodes]
+               [:_node-id :nodes]
                [:build-targets :dep-build-targets]
                [:ddf-message :ref-ddf]
                [:id :child-ids]
@@ -165,7 +165,7 @@
                [:ddf-message :embed-ddf]
                [:id :child-ids]
                [:scene :child-scenes]
-               [:_id :nodes]
+               [:_node-id :nodes]
                [:build-targets :dep-build-targets]]]
     (for [[from to] conns]
       (g/connect comp-id from self-id to))))
@@ -263,12 +263,12 @@
                     (g/connect source-node :scene         comp-node :scene)
                     (g/connect source-node :build-targets comp-node :build-targets)
                     (g/connect source-node :project-id    comp-node :project-id)
-                    (g/connect source-node :_id           self      :nodes)
+                    (g/connect source-node :_node-id           self      :nodes)
                     (attach-embedded-component self comp-node))
       (g/make-nodes (g/node-id->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true]]
                     (g/connect comp-node   :outline      self       :outline)
-                    (g/connect comp-node   :_id          self       :nodes)))))
+                    (g/connect comp-node   :_node-id          self       :nodes)))))
 
 (defn add-embedded-component-handler
   ([self]
@@ -299,7 +299,7 @@
                        (let [rt (:resource-type user-data)]
                          (or (:label rt) (:ext rt)))))
   (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-  (run [user-data] (add-embedded-component-handler (:_id user-data) (:resource-type user-data)))
+  (run [user-data] (add-embedded-component-handler (:_node-id user-data) (:resource-type user-data)))
   (options [selection user-data]
            (when (not user-data)
              (let [self (first selection)
@@ -309,7 +309,7 @@
                (mapv (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                                      :icon (:icon res-type)
                                      :command :add
-                                     :user-data {:_id self :resource-type res-type}}) resource-types)))))
+                                     :user-data {:_node-id self :resource-type res-type}}) resource-types)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))

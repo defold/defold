@@ -189,9 +189,8 @@
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
 (def node-intrinsics
-  [(list 'property '_id `s/Int)
-   (list 'property '_output-jammers `{s/Keyword s/Any})
-   (list 'output '_node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
+  [(list 'extern '_node-id `s/Int)
+   (list 'extern '_output-jammers `{s/Keyword s/Any})])
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -227,7 +226,7 @@
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
   (assert (::ctor node-type))
-  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (merge (internal-properties node-type) (properties node-type))))]
+  (let [args-without-properties (set/difference (util/key-set args) (externs node-type) (util/key-set (merge (internal-properties node-type) (properties node-type))))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
   ((::ctor node-type) args))
 
@@ -389,8 +388,8 @@
            (fn [ctor id]
              (list `it/new-node
                    (if (sequential? ctor)
-                     `(construct ~@ctor :_id ~id)
-                     `(construct  ~ctor :_id ~id))))
+                     `(construct ~@ctor :_node-id ~id)
+                     `(construct  ~ctor :_node-id ~id))))
            ctors locals)
         ~@body-exprs))))
 
@@ -407,7 +406,7 @@
 
 (defn- construct-node-with-id
   [graph-id node-type args]
-  (apply construct node-type :_id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
+  (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
 
 (defn make-node
   "Returns the transaction step for creating a new node.
