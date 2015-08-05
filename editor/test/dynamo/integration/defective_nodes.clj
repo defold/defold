@@ -17,6 +17,10 @@
   (output catted g/Str (g/fnk [a-property b-property] (str a-property b-property)))
   (output upper  g/Str :cached (g/fnk [a-property] (.toUpperCase a-property))))
 
+(g/defnode StringConsumer
+  (input a-string g/Str)
+  (output duplicated g/Str :cached (g/fnk [a-string] (str a-string a-string))))
+
 (deftest defective-node-overrides-outputs
   (with-clean-system
     (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
@@ -30,14 +34,28 @@
 
 (deftest defective-nodes-values-are-decached
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
-      (is (= "A"  (g/node-value node :upper)))
+    (let [[node downstream prop-consumer] (tx-nodes (g/make-node world OrdinaryNode)
+                                                    (g/make-node world StringConsumer)
+                                                    (g/make-node world StringConsumer))]
 
-      (is (cached? cache node :upper))
+      (g/transact [(g/connect node :upper downstream :a-string)
+                   (g/connect node :a-property prop-consumer :a-string)])
+
+      (is (= "A"  (g/node-value node :upper)))
+      (is (= "AA" (g/node-value downstream :duplicated)))
+      (is (= "aa" (g/node-value prop-consumer :duplicated)))
+
+      (are [n l] (cached? cache n l)
+        node          :upper
+        downstream    :duplicated
+        prop-consumer :duplicated)
 
       (g/transact (g/mark-defective node :bad-value))
 
-      (is (not (cached? cache node :upper))))))
+      (are [n l] (not (cached? cache n l))
+        node          :upper
+        downstream    :duplicated
+        prop-consumer :duplicated))))
 
 (deftest defective-node-excludes-externs
   (with-clean-system
