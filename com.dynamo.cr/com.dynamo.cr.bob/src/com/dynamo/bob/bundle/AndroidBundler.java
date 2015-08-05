@@ -123,7 +123,7 @@ public class AndroidBundler implements IBundler {
                 "--no-crunch",
                 "-f",
                 "--extra-packages",
-                "com.facebook.android:com.google.android.gms",
+                "com.facebook:com.google.android.gms",
                 "-m",
                 //"--debug-mode",
                 "--auto-add-overlay",
