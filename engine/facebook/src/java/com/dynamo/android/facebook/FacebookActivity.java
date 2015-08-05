@@ -258,19 +258,19 @@ public class FacebookActivity implements PseudoActivity {
             String dialogType = extras.getString(Facebook.INTENT_EXTRA_DIALOGTYPE);
             Bundle dialogParams = extras.getBundle(Facebook.INTENT_EXTRA_DIALOGPARAMS);
 
-            if (dialogType.equals("feed") || dialogType.equals("link")) {
+            if (dialogType.equals("feed")) {
 
                 ShareDialog shareDialog = new ShareDialog(parent);
                 ShareLinkContent.Builder content = new ShareLinkContent.Builder()
-                    .setContentUrl(Uri.parse(dialogParams.getString("contentURL", "")))
-                    .setContentTitle(dialogParams.getString("contentTitle", ""))
-                    .setImageUrl(Uri.parse(dialogParams.getString("imageURL", "")))
-                    .setContentDescription(dialogParams.getString("contentDescription", ""))
-                    .setPlaceId(dialogParams.getString("placeID", ""))
+                    .setContentUrl(Uri.parse(dialogParams.getString("link", "")))
+                    .setContentTitle(dialogParams.getString("caption", ""))
+                    .setImageUrl(Uri.parse(dialogParams.getString("picture", "")))
+                    .setContentDescription(dialogParams.getString("description", ""))
+                    .setPlaceId(dialogParams.getString("place_id", ""))
                     .setRef(dialogParams.getString("ref", ""));
 
-                    if (dialogParams.getStringArray("peopleIDs") != null) {
-                        content.setPeopleIds(Arrays.asList(dialogParams.getStringArray("peopleIDs")));
+                    if (dialogParams.getStringArray("people_ids") != null) {
+                        content.setPeopleIds(Arrays.asList(dialogParams.getStringArray("people_ids")));
                     }
 
                     shareDialog.registerCallback(callbackManager, new DefaultDialogCallback<Sharer.Result>() {
@@ -279,7 +279,7 @@ public class FacebookActivity implements PseudoActivity {
                         public void onSuccess(Sharer.Result result) {
                             Bundle data = new Bundle();
                             Bundle subdata = new Bundle();
-                            subdata.putString("postID", result.getPostId());
+                            subdata.putString("post_id", result.getPostId());
                             data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
                             data.putBundle(Facebook.MSG_KEY_DIALOG_RESULT, subdata);
                             respond(Facebook.ACTION_SHOW_DIALOG, data);
@@ -293,8 +293,8 @@ public class FacebookActivity implements PseudoActivity {
 
                 AppInviteDialog appInviteDialog = new AppInviteDialog(parent);
                 AppInviteContent content = new AppInviteContent.Builder()
-                    .setApplinkUrl(dialogParams.getString("appLinkURL", ""))
-                    .setPreviewImageUrl(dialogParams.getString("appInvitePreviewImageURL", ""))
+                    .setApplinkUrl(dialogParams.getString("url", ""))
+                    .setPreviewImageUrl(dialogParams.getString("preview_image_url", ""))
                     .build();
 
                     appInviteDialog.registerCallback(callbackManager, new DefaultDialogCallback<AppInviteDialog.Result>() {
@@ -310,23 +310,19 @@ public class FacebookActivity implements PseudoActivity {
                     });
                     appInviteDialog.show(parent, content);
 
-            } else if (dialogType.equals("gamerequest") || dialogType.equals("apprequests")) {
+            } else if (dialogType.equals("apprequests")) {
 
                 GameRequestDialog appInviteDialog = new GameRequestDialog(parent);
 
                 ArrayList<String> suggestionsArray = new ArrayList<String>();
-                String recipientsString = null;
-                String[] suggestions = dialogParams.getStringArray("recipientSuggestions");
-                String[] recipients = dialogParams.getStringArray("recipients");
-
-                // handle SDK < 4.0 way of specifying recipients and suggestions
-                if (dialogParams.getString("suggestions") != null) {
-                    suggestions = dialogParams.getString("suggestions").split(",");
-                }
+                String[] suggestions = dialogParams.getStringArray("suggestions");
                 if (suggestions != null) {
                     suggestionsArray.addAll(Arrays.asList(suggestions));
                 }
 
+                // comply with JS way of specifying recipients/to
+                String recipientsString = null;
+                String[] recipients = null;
                 // FB SDK is weird, special case on Android, recipients/to
                 // can only be one person. We pick the first one in the list,
                 // if multiple are supplied...
@@ -341,9 +337,9 @@ public class FacebookActivity implements PseudoActivity {
                     .setTitle(dialogParams.getString("title", ""))
                     .setMessage(dialogParams.getString("message", ""))
                     .setData(dialogParams.getString("data"))
-                    .setObjectId(dialogParams.getString("objectID"));
+                    .setObjectId(dialogParams.getString("object_id"));
 
-                    int actionInt = Integer.parseInt(dialogParams.getString("actionType", "0"));
+                    int actionInt = Integer.parseInt(dialogParams.getString("action_type", "0"));
                     content.setActionType(convertGameRequestAction(actionInt));
 
                     // recipients, filters and suggestions are mutually exclusive
@@ -363,8 +359,8 @@ public class FacebookActivity implements PseudoActivity {
                             final String[] recipients = result.getRequestRecipients().toArray(new String[result.getRequestRecipients().size()]);
                             Bundle data = new Bundle();
                             Bundle subdata = new Bundle();
-                            subdata.putString("requestID", result.getRequestId());
-                            subdata.putStringArray("requestRecipients", recipients);
+                            subdata.putString("request_id", result.getRequestId());
+                            subdata.putStringArray("to", recipients);
                             data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
                             data.putBundle(Facebook.MSG_KEY_DIALOG_RESULT, subdata);
                             respond(Facebook.ACTION_SHOW_DIALOG, data);

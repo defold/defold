@@ -572,16 +572,15 @@ static int Facebook_ShowDialog(lua_State* L)
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
     g_Facebook.m_MainThread = dmScript::GetMainThread(L);
 
-    if (dialog == dmHashString64("feed") ||
-        dialog == dmHashString64("link")) {
+    if (dialog == dmHashString64("feed")) {
 
         FBSDKShareLinkContent* content = [[FBSDKShareLinkContent alloc] init];
-        content.contentTitle       = GetTableValue(L, 2, @[@"contentTitle", @"title"]);
-        content.contentDescription = GetTableValue(L, 2, @[@"contentDescription", @"description"]);
-        content.imageURL           = [NSURL URLWithString:GetTableValue(L, 2, @[@"imageURL"])];
-        content.contentURL         = [NSURL URLWithString:GetTableValue(L, 2, @[@"contentURL", @"link"])];
-        content.peopleIDs          = GetTableValue(L, 2, @[@"peopleIDs"]);
-        content.placeID            = GetTableValue(L, 2, @[@"placeID"]);
+        content.contentTitle       = GetTableValue(L, 2, @[@"caption", @"title"]);
+        content.contentDescription = GetTableValue(L, 2, @[@"description"]);
+        content.imageURL           = [NSURL URLWithString:GetTableValue(L, 2, @[@"picture"])];
+        content.contentURL         = [NSURL URLWithString:GetTableValue(L, 2, @[@"link"])];
+        content.peopleIDs          = GetTableValue(L, 2, @[@"people_ids"]);
+        content.placeID            = GetTableValue(L, 2, @[@"place_id"]);
         content.ref                = GetTableValue(L, 2, @[@"ref"]);
 
         [FBSDKShareDialog showFromViewController:nil withContent:content delegate:g_Facebook.m_Delegate];
@@ -589,37 +588,27 @@ static int Facebook_ShowDialog(lua_State* L)
     } else if (dialog == dmHashString64("appinvite")) {
 
         FBSDKAppInviteContent* content = [[FBSDKAppInviteContent alloc] init];
-        content.appLinkURL               = [NSURL URLWithString:GetTableValue(L, 2, @[@"appLinkURL"])];
-        content.appInvitePreviewImageURL = [NSURL URLWithString:GetTableValue(L, 2, @[@"appInvitePreviewImageURL"])];
+        content.appLinkURL               = [NSURL URLWithString:GetTableValue(L, 2, @[@"url"])];
+        content.appInvitePreviewImageURL = [NSURL URLWithString:GetTableValue(L, 2, @[@"preview_image_url"])];
 
         [FBSDKAppInviteDialog showWithContent:content delegate:g_Facebook.m_Delegate];
 
-    } else if (dialog == dmHashString64("gamerequest") ||
-               dialog == dmHashString64("apprequests")) {
+    } else if (dialog == dmHashString64("apprequests")) {
 
         FBSDKGameRequestContent* content = [[FBSDKGameRequestContent alloc] init];
         content.title      = GetTableValue(L, 2, @[@"title"]);
         content.message    = GetTableValue(L, 2, @[@"message"]);
-        content.actionType = convertGameRequestAction([GetTableValue(L, 2, @[@"actionType"]) unsignedIntValue]);
+        content.actionType = convertGameRequestAction([GetTableValue(L, 2, @[@"action_type"]) unsignedIntValue]);
         content.filters    = convertGameRequestFilters([GetTableValue(L, 2, @[@"filters"]) unsignedIntValue]);
         content.data       = GetTableValue(L, 2, @[@"data"]);
-        content.objectID   = GetTableValue(L, 2, @[@"objectID"]);
+        content.objectID   = GetTableValue(L, 2, @[@"object_id"]);
+        content.recipientSuggestions = GetTableValue(L, 2, @[@"suggestions"]);
 
-        // handle SDK < 4.0 deprecated way of specifying recipients and suggestions
+        // comply with JS way of specifying recipients/to
         NSString* recipients = GetTableValue(L, 2, @[@"to"]);
-        NSString* suggestions = GetTableValue(L, 2, @[@"suggestions"]);
-
         if (recipients != nil) {
             content.recipients = [recipients componentsSeparatedByString:@","];
-        } else {
-            content.recipients = GetTableValue(L, 2, @[@"recipients"]);
         }
-        if (suggestions != nil) {
-            content.recipientSuggestions = [suggestions componentsSeparatedByString:@","];
-        } else {
-            content.recipientSuggestions = GetTableValue(L, 2, @[@"recipientSuggestions"]);
-        }
-
 
         [FBSDKGameRequestDialog showWithContent:content delegate:g_Facebook.m_Delegate];
 
