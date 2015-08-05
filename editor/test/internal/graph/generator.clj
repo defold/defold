@@ -74,7 +74,7 @@
         (mapcat
          (fn [[sym node]]
            `[~sym  ~(next-node-id)
-             ~gsym (ig/add-node ~gsym ~sym (assoc ~node :_id ~sym))])
+             ~gsym (ig/add-node ~gsym ~sym (assoc ~node :_node-id ~sym))])
          nodes)))
 
 (defn remove-nodes

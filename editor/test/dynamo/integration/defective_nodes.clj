@@ -47,3 +47,12 @@
       (g/transact (g/mark-defective node :bad-value))
 
       (is (= "/foo" (g/node-value node :external-ref))))))
+
+(deftest defective-node-excludes-intrinsics
+  (with-clean-system
+    (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
+
+      (g/transact (g/mark-defective node :bad-value))
+
+      (is (= node (g/node-value node :_node-id)))
+      (is (contains? (g/node-value node :_output-jammers) :catted)))))
