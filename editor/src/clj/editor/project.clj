@@ -43,7 +43,7 @@ ordinary paths."
             (g/make-nodes
               project-graph
               [new-resource [node-type :resource resource :project-id project]]
-              (g/connect new-resource :_id project :nodes)
+              (g/connect new-resource :_node-id project :nodes)
               (if ((g/output-labels node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
                 []))
@@ -313,7 +313,7 @@ ordinary paths."
         (g/make-nodes
           (graph project)
           [new-resource [node-type :resource resource :project-id project]]
-          (g/connect new-resource :_id project :nodes)
+          (g/connect new-resource :_node-id project :nodes)
           (if ((g/output-labels node-type) :save-data)
             (g/connect new-resource :save-data project :save-data)
             [])
@@ -332,7 +332,7 @@ ordinary paths."
      (for [node-id node-ids]
        (concat
         (g/connect node-id :_node-id    project-id :selected-node-ids)
-        (g/connect node-id :_id         project-id :selected-nodes)
+        (g/connect node-id :_node-id         project-id :selected-nodes)
         (g/connect node-id :_properties project-id :selected-node-properties)))))
 
 (defn select!

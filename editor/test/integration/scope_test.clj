@@ -71,9 +71,9 @@
 "
   name: \"main\"
   instances {
-    id: \"parent_id\"
+    id: \"parent_node-id\"
     prototype: \"/logic/atlas_sprite.go\"
-    children: \"child_id\"
+    children: \"child_node-id\"
     position {
       x: 0.0
       y: 0.0
@@ -88,7 +88,7 @@
     scale: 1.0
   }
   instances {
-    id: \"child_id\"
+    id: \"child_node-id\"
     prototype: \"/logic/atlas_sprite.go\"
     position {
       x: 100.0
@@ -104,7 +104,7 @@
     scale: 1.0
   }
   embedded_instances {
-    id: \"embedded_id\"
+    id: \"embedded_node-id\"
     data: \"\"
     position {
       x: 100.0

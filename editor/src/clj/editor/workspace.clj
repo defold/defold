@@ -63,9 +63,9 @@ ordinary paths."
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace %) (filter resource-filter (.listFiles file))))]
     (FileResource. workspace file children)))
 
-(g/defnk produce-resource-tree [_id ^String root]
-  (let [tree (create-resource-tree _id (File. root))]
-    (update-in tree [:children] concat (make-zip-tree _id (io/resource "builtins.zip")))))
+(g/defnk produce-resource-tree [_node-id ^String root]
+  (let [tree (create-resource-tree _node-id (File. root))]
+    (update-in tree [:children] concat (make-zip-tree _node-id (io/resource "builtins.zip")))))
 
 (g/defnk produce-resource-list [resource-tree]
   (tree-seq #(= :folder (source-type %)) :children resource-tree))

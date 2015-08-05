@@ -109,7 +109,7 @@
                   (g/default-node-deserializer basis graph-id record)))})))
 
 (defn- root-nodes [paste-data]
-  (let [nodes (into {} (map #(let [n (:node %)] [(:_id n) n]) (filter #(= (:type %) :create-node) (:tx-data paste-data))))]
+  (let [nodes (into {} (map #(let [n (:node %)] [(:_node-id n) n]) (filter #(= (:type %) :create-node) (:tx-data paste-data))))]
     (mapv (partial get nodes) (:root-node-ids paste-data))))
 
 (defn- build-tx-data [item reqs paste-data]
@@ -129,7 +129,7 @@
             (concat
               (g/operation-label "Paste")
               (build-tx-data item reqs paste-data)
-              (project/select project (mapv :_id root-nodes)))))))
+              (project/select project (mapv :_node-id root-nodes)))))))
 
 (defn paste? [project item-iterator data]
   (try
@@ -177,4 +177,4 @@
             (build-tx-data item reqs paste-data)
             (for [it src-item-iterators]
               (g/delete-node (:node-id (value it))))
-            (project/select project (mapv :_id root-nodes))))))))
+            (project/select project (mapv :_node-id root-nodes))))))))

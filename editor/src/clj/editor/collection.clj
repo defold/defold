@@ -361,10 +361,10 @@
                   (if child?
                     (child-coll-any self go-node)
                     [])
-                  (g/connect go-node :_id self :nodes)
+                  (g/connect go-node :_node-id self :nodes)
                   (project/connect-resource-node project
                                                  source-resource go-node
-                                                 [[:_id            :source]
+                                                 [[:_node-id            :source]
                                                   [:outline        :outline]
                                                   [:save-data      :save-data]
                                                   [:build-targets  :build-targets]
@@ -422,20 +422,20 @@
                     [go-node [GameObjectInstanceNode :id id :embedded true
                               :position position :rotation rotation :scale scale]
                      source-node [(:node-type resource-type) :resource resource :project-id project]]
-                    (g/connect source-node :_id           go-node :source)
+                    (g/connect source-node :_node-id           go-node :source)
                     (g/connect source-node :outline       go-node :outline)
                     (g/connect source-node :save-data     go-node :save-data)
                     (g/connect source-node :build-targets go-node :build-targets)
                     (g/connect source-node :scene         go-node :scene)
-                    (g/connect source-node :_id           self    :nodes)
-                    (g/connect go-node     :_id           self    :nodes)
+                    (g/connect source-node :_node-id           self    :nodes)
+                    (g/connect go-node     :_node-id           self    :nodes)
                     (attach-coll-embedded-go self go-node)
                     (if child?
                       (child-coll-any self go-node)
                       []))
       (g/make-nodes (g/node-id->graph-id self)
                     [go-node [GameObjectInstanceNode :id id :embedded true]]
-                    (g/connect go-node     :_id           self    :nodes)))))
+                    (g/connect go-node     :_node-id           self    :nodes)))))
 
 (defn- add-game-object [selection]
   (let [coll-node     (first selection)
@@ -478,10 +478,10 @@
                               :position position :rotation rotation :scale scale]]
                   (attach-coll-coll self coll-node)
                   (child-coll-any self coll-node)
-                  (g/connect coll-node :_id self :nodes)
+                  (g/connect coll-node :_node-id self :nodes)
                   (project/connect-resource-node project
                                                  source-resource coll-node
-                                                 [[:_id           :source]
+                                                 [[:_node-id           :source]
                                                   [:outline       :outline]
                                                   [:save-data     :save-data]
                                                   [:scene         :scene]

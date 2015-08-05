@@ -268,7 +268,7 @@
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)
           tx-result        (g/transact (g/invalidate person))
           outputs-modified (:outputs-modified tx-result)]
-      (doseq [output [:_id :_node-id :_properties :friendly-name :full-name :date-of-birth :age]]
+      (doseq [output [:_node-id :_properties :friendly-name :full-name :date-of-birth :age]]
         (is (some #{[person output]} outputs-modified))))))
 
 
@@ -295,7 +295,7 @@
           real-id          (first (g/tx-nodes-added tx-result))
           outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map first outputs-modified)))
-      (is (= #{:_id :_properties :_node-id :_output-jammers :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (is (= #{:_properties :_node-id :_output-jammers :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
       (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
@@ -379,7 +379,7 @@
   (testing "delete scope first"
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
-        (g/transact (g/connect inner :_id outer :nodes))
+        (g/transact (g/connect inner :_node-id outer :nodes))
         (is (= :ok (:status (g/transact
                              (concat
                               (g/delete-node outer)
@@ -388,7 +388,7 @@
   (testing "delete inner node first"
     (with-clean-system
       (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
-        (g/transact (g/connect inner :_id outer :nodes))
+        (g/transact (g/connect inner :_node-id outer :nodes))
 
         (is (= :ok (:status (g/transact
                              (concat
@@ -406,4 +406,4 @@
 (deftest construct-complains-about-missing-properties
   (with-clean-system
     (is (thrown? AssertionError
-                 (g/construct MyNode :_id 1 :no-such-property 1)))))
+                 (g/construct MyNode :_node-id 1 :no-such-property 1)))))
