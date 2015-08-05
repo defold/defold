@@ -72,7 +72,15 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
 
     // Sharing related methods
     - (void)sharer:(id<FBSDKSharing>)sharer didCompleteWithResults :(NSDictionary *)results {
-        RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
+        if (results != nil) {
+            // fix result so it complies with JS result fields
+            NSMutableDictionary* new_res = [NSMutableDictionary dictionaryWithDictionary:@{
+                @"post_id" : results[@"postId"]
+            }];
+            RunDialogResultCallback(g_Facebook.m_MainThread, new_res, 0);
+        } else {
+            RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
+        }
     }
 
     - (void)sharer:(id<FBSDKSharing>)sharer didFailWithError:(NSError *)error {
@@ -96,7 +104,24 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
 
     // Game request related methods
     - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didCompleteWithResults:(NSDictionary *)results {
-        RunDialogResultCallback(g_Facebook.m_MainThread, results, 0);
+        if (results != nil) {
+            // fix result so it complies with JS result fields
+            NSMutableDictionary* new_res = [NSMutableDictionary dictionaryWithDictionary:@{
+                @"to" : [[NSMutableDictionary alloc] init]
+            }];
+
+            int i = 0;
+            for (NSString* key in results) {
+                if ([key hasPrefix:@"to"]) {
+                    [new_res[@"to"] setObject:results[key] forKey:[NSString stringWithFormat:@"%d", i++]];
+                } else {
+                    [new_res setObject:results[key] forKey:key];
+                }
+            }
+            RunDialogResultCallback(g_Facebook.m_MainThread, new_res, 0);
+        } else {
+            RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
+        }
     }
 
     - (void)gameRequestDialog:(FBSDKGameRequestDialog *)gameRequestDialog didFailWithError:(NSError *)error {
@@ -267,6 +292,37 @@ static void RunCallback(lua_State*L, NSError* error)
     }
 }
 
+static void ObjCToLua(lua_State*L, id obj)
+{
+    if ([obj isKindOfClass:[NSString class]]) {
+        const char* str = [((NSString*) obj) UTF8String];
+        lua_pushstring(L, str);
+    } else if ([obj isKindOfClass:[NSNumber class]]) {
+        lua_pushnumber(L, [((NSNumber*) obj) doubleValue]);
+    } else if ([obj isKindOfClass:[NSNull class]]) {
+        lua_pushnil(L);
+    } else if ([obj isKindOfClass:[NSDictionary class]]) {
+        NSDictionary* dict = (NSDictionary*) obj;
+        lua_createtable(L, 0, [dict count]);
+        for (NSString* key in dict) {
+            lua_pushstring(L, [key UTF8String]);
+            id value = [dict objectForKey:key];
+            ObjCToLua(L, (NSDictionary*) value);
+            lua_rawset(L, -3);
+        }
+    } else if ([obj isKindOfClass:[NSArray class]]) {
+        NSArray* a = (NSArray*) obj;
+        lua_createtable(L, [a count], 0);
+        for (int i = 0; i < [a count]; ++i) {
+            ObjCToLua(L, [a objectAtIndex: i]);
+            lua_rawseti(L, -2, i+1);
+        }
+    } else {
+        dmLogWarning("Unsupported value '%s' (%s)", [[obj description] UTF8String], [[[obj class] description] UTF8String]);
+        lua_pushnil(L);
+    }
+}
+
 static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* error)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
@@ -286,17 +342,7 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
             return;
         }
 
-        lua_createtable(L, 0, 1);
-        if (result) {
-            for (id key in result) {
-                id obj = [result objectForKey: key];
-                if ([obj isKindOfClass:[NSString class]]) {
-                    lua_pushstring(L, [key UTF8String]);
-                    lua_pushstring(L, [obj UTF8String]);
-                    lua_rawset(L, -3);
-                }
-            }
-        }
+        ObjCToLua(L, result);
 
         PushError(L, error);
 
