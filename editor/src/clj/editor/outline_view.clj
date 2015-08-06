@@ -132,10 +132,10 @@
   (property root-cache g/Any)
   (property selection-listener ListChangeListener)
 
-  (input active-outline g/Any)
-  (input active-resource (g/protocol workspace/Resource))
-  (input open-resources g/Any)
-  (input selection g/Any)
+  (input active-outline g/Any :substitute {})
+  (input active-resource (g/protocol workspace/Resource) :substitute nil)
+  (input open-resources g/Any :substitute [])
+  (input selection g/Any :substitute [])
 
   (output tree-view TreeView :cached update-tree-view))
 
