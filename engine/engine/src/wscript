@@ -51,7 +51,6 @@ def build(bld):
     dynamo_home = os.getenv('DYNAMO_HOME')
 
     activities=[('com.facebook.FacebookActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar" android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation" android:label="dmengine"'), ('com.defold.iap.IapActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar"')]
-    # activities=[('com.facebook.LoginActivity', ''), ('com.defold.iap.IapActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar"')]
     extra_packages = 'com.facebook:com.google.android.gms'
 
     android_jar_paths = ['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
