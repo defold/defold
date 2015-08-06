@@ -13,3 +13,8 @@ components {
     w: 1.0
   }
 }
+embedded_components {
+  id: "sprite"
+  type: "sprite"
+  data: "tile_set: \"/atlas/single.atlas\" default_animation: \"test_img\""
+}

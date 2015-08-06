@@ -109,12 +109,12 @@
   properties of this node. This is used to create the :_properties
   output on a node. You should not call it directly. Instead,
   call `(g/node-value _n_ :_properties)`"
-  [{:keys [_id basis] :as kwargs}]
-  (let [kwargs         (dissoc kwargs :_id)
-        self           (ig/node-by-id-at basis _id)
+  [{:keys [_node-id basis] :as kwargs}]
+  (let [kwargs         (dissoc kwargs :_node-id)
+        self           (ig/node-by-id-at basis _node-id)
         node-type      (gt/node-type self)
         property-names (-> node-type gt/properties keys)]
-    {:properties (zipmap property-names (map (partial gather-property _id node-type self kwargs) property-names))
+    {:properties (zipmap property-names (map (partial gather-property _node-id node-type self kwargs) property-names))
      :display-order (-> node-type gt/property-display-order)}))
 
 ;; ---------------------------------------------------------------------------
@@ -353,7 +353,7 @@
       true
       (update-in [:property-passthroughs] disj label))))
 
-(def ^:private internal-keys #{:_id :_output-jammers})
+(def ^:private internal-keys #{:_node-id :_output-jammers})
 
 (defn attach-property
   "Update the node type description with the given property."
@@ -632,7 +632,7 @@
                             :expected schema# :actual pfn-input#
                             :validation-error validation-error#})))
          (let [~'result ((~transform (gt/transforms ~node-type-name))
-                         (assoc pfn-input# :_id (gt/node-id ~'this)
+                         (assoc pfn-input# :_node-id (gt/node-id ~'this)
                                 :basis (:basis ~'evaluation-context)))]
            ~epilogue
            ~'result)))))
@@ -714,7 +714,7 @@
   `(do
      (defrecord ~record-name ~(state-vector node-type)
        gt/Node
-       (node-id        [this#]    (:_id this#))
+       (node-id        [this#]    (:_node-id this#))
        (node-type      [_]        ~node-type-name)
        (produce-value  [~'this label# ~'evaluation-context]
          (case label#
@@ -748,7 +748,7 @@
        [~node w#]
        (.write
         ^java.io.Writer w#
-        (str "#" '~node-type-name "{" (:_id ~node)
+        (str "#" '~node-type-name "{" (:_node-id ~node)
              ~@(interpose-every 3 ", "
                                 (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))])
                                         (keys (all-properties node-type))))

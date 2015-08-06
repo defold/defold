@@ -189,9 +189,8 @@
 ;; Intrinsics
 ;; ---------------------------------------------------------------------------
 (def node-intrinsics
-  [(list 'property '_id `s/Int)
-   (list 'property '_output-jammers `{s/Keyword s/Any})
-   (list 'output '_node-id `NodeID `(pc/fnk [~'this] (gt/node-id ~'this)))])
+  [(list 'extern '_node-id `s/Int)
+   (list 'extern '_output-jammers `{s/Keyword s/Any})])
 
 ;; ---------------------------------------------------------------------------
 ;; Definition
@@ -227,7 +226,7 @@
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
   (assert (::ctor node-type))
-  (let [args-without-properties (set/difference (util/key-set args) (util/key-set (merge (internal-properties node-type) (properties node-type))))]
+  (let [args-without-properties (set/difference (util/key-set args) (externs node-type) (util/key-set (merge (internal-properties node-type) (properties node-type))))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
   ((::ctor node-type) args))
 
@@ -389,8 +388,8 @@
            (fn [ctor id]
              (list `it/new-node
                    (if (sequential? ctor)
-                     `(construct ~@ctor :_id ~id)
-                     `(construct  ~ctor :_id ~id))))
+                     `(construct ~@ctor :_node-id ~id)
+                     `(construct  ~ctor :_node-id ~id))))
            ctors locals)
         ~@body-exprs))))
 
@@ -405,15 +404,20 @@
   [label]
   (it/sequence-label label))
 
+(defn- construct-node-with-id
+  [graph-id node-type args]
+  (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
+
 (defn make-node
- "Returns the transaction step for creating a new node.
-  Needs to be executed within a transact to actually create the node on a graph.
+  "Returns the transaction step for creating a new node.
+  Needs to be executed within a transact to actually create the node
+  on a graph.
 
   Example:
 
   `(transact (make-node world SimpleTestNode))`"
-  [graph-id node-type & args]
-  (it/new-node (apply construct node-type :_id (is/next-node-id @*the-system* graph-id) args)))
+  [graph-id node-type & {:as args}]
+  (it/new-node (construct-node-with-id graph-id node-type args)))
 
 (defn make-node!
   "Creates the transaction step and runs it in a transaction, returning the resulting node.
@@ -735,25 +739,15 @@
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
 ;; ---------------------------------------------------------------------------
-(defrecord Endpoint [node-id label])
-
-(def ^:private node-type-writer
-  (transit/write-handler
-   (constantly "node-type")
-   (fn [t] (select-keys t [:name]))))
-
 (def ^:private write-handlers
-  (merge (transit/record-write-handlers Endpoint)
-         {internal.node.NodeTypeImpl node-type-writer}))
-
-(def ^:private node-type-reader
-  (transit/read-handler
-   (fn [{:keys [name]}]
-     (var-get (resolve (symbol name))))))
+  {internal.node.NodeTypeImpl (transit/write-handler
+                               (constantly "node-type")
+                               (fn [t] (select-keys t [:name])))})
 
 (def ^:private read-handlers
-  (merge (transit/record-read-handlers Endpoint)
-         {"node-type" node-type-reader}))
+  {"node-type"                (transit/read-handler
+                               (fn [{:keys [name]}]
+                                 (var-get (resolve (symbol name)))))})
 
 (defn read-graph
   "Read a graph fragment from a string. Returns a fragment suitable
@@ -775,99 +769,128 @@
      (transit/write writer fragment)
      (.toString out))))
 
-(defn- all-sources [basis node-id]
-  (gt/arcs-by-tail basis node-id))
-
 (defn- in-same-graph? [graph-id node-id]
   (= graph-id (node-id->graph-id node-id)))
 
-(defn- predecessors [basis ^Arc arc]
-  (let [sid (.source arc)
-        graph-id (node-id->graph-id sid)
-        all-arcs (mapcat #(all-sources basis (.target ^Arc %)) (gt/arcs-by-tail basis sid))]
-    (filterv #(in-same-graph? graph-id (.source ^Arc %)) all-arcs)))
+(defn- serialize-arc [id-dictionary arc]
+  (let [[src-id src-label]  (gt/head arc)
+        [tgt-id tgt-label]  (gt/tail arc)]
+    [(id-dictionary src-id) src-label (id-dictionary tgt-id) tgt-label]))
 
-(defn- input-traverse [basis pred root-ids]
-  (ig/pre-traverse basis (into [] (mapcat #(all-sources basis %) root-ids)) pred))
+(defn- connecting-arcs
+  [basis nodes]
+  (let [included?           (set nodes)
+        endpoints-included? (fn [^Arc a]
+                              (and (included? (.source a))
+                                   (included? (.target a))))]
+    (reduce (fn [merged arcs]
+              (into merged (filter endpoints-included? arcs)))
+            #{}
+            [(mapcat #(gt/arcs-by-tail basis %) nodes)
+             (mapcat #(gt/arcs-by-head basis %) nodes)])))
 
-(defn- serialize-node [node]
-  (let [all-node-properties    (select-keys node (keys (-> node gt/node-type gt/properties)))
+(defn- predecessors
+  [basis node-id]
+  (let [same-graph? (partial in-same-graph? (node-id->graph-id node-id))]
+    (filterv same-graph? (map first (sources basis node-id)))))
+
+(defn- input-traverse
+  [basis pred root-ids]
+  (ig/pre-traverse basis root-ids
+                   (util/guard #(pred (ig/node-by-id-at %1 %2)) predecessors)))
+
+(defn default-node-serializer
+  [node]
+  (let [property-labels        (keys (-> node gt/node-type gt/properties))
+        all-node-properties    (select-keys node property-labels)
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
-    {:serial-id (gt/node-id node)
-     :node-type (gt/node-type node)
+    {:node-type  (gt/node-type node)
      :properties properties-without-fns}))
 
-(defn- default-write-handler [node label]
-  (Endpoint. (gt/node-id node) label))
-
-(defn- default-read-handler [id-dictionary endpoint]
-  [(get id-dictionary (:node-id endpoint)) (:label endpoint)])
-
-(defn- lookup-handler [handlers node not-found]
-  (let [all-types (conj (supertypes (node-type node)) (node-type node))]
-    (or (some #(get handlers %) all-types) not-found)))
-
-(defn- serialize-arc [basis write-handlers arc]
-  (let [[pid plabel]  (gt/head arc)
-        [cid clabel]  (gt/tail arc)
-        pnode         (ig/node-by-id-at basis pid)
-        cnode         (ig/node-by-id-at basis cid)
-        write-handler (lookup-handler write-handlers pnode default-write-handler)
-        node-ref      (or (write-handler pnode plabel) (default-write-handler pnode plabel))]
-   [node-ref (default-write-handler cnode clabel)]))
-
-(defn- guard-arc [f g]
-  (util/guard
-   (fn [basis ^Arc arc]
-     (f (.source arc)))
-   g))
-
 (defn copy
-  "Given a vector of root ids, and an options map that can contain a `:continue?` predicate and a `write-handlers` map, returns a copy graph fragment that can be serialized or pasted.  Works on the current basis, if a basis is not provided.
+  "Given a vector of root ids, and an options map that can contain an
+  `:include?` predicate and a `serializer` function, returns a copy
+  graph fragment that can be serialized or pasted.  Works on the
+  current basis, if a basis is not provided.
+
+   The `:include?` predicate determines whether the node will be
+  included at all. If it returns a falsey value, then traversal stops
+  there. That node and all arcs to it will be left behind. If the
+  predicate returns true, then that node --- or a stand-in for it ---
+  will be included in the fragment.
+
+  `:include?` will be called with the node value.
+
+   The `:serializer` function determines _how_ to represent the node
+  in the fragment.  `dynamo.graph/default-node-serializer` adds a map
+  with the original node's properties and node type. `paste` knows how
+  to turn that map into a new (copied) node.
+
+   You would use a `:serializer` function if you wanted to record a
+  memo that could later be used to resolve and connect to an existing
+  node rather than copy it.
+
+  `:serializer` will be called with the node value. It must return an
+   associative data structure (e.g., a map or a record).
 
   Example:
 
-  `(g/copy root-ids {:continue? (comp not resource?)
-                    :write-handlers {ResourceNode make-reference}})`"
+  `(g/copy root-ids {:include? (comp not resource?)
+                     :serializer (some-fn custom-serializer default-node-serializer %)}"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [continue? write-handlers] :or {continue? (constantly true)} :as opts}]
-   (let [fragment-arcs     (input-traverse basis (guard-arc continue? predecessors) root-ids)
-         fragment-node-ids (into #{} (concat (map #(.target %) fragment-arcs) (map #(.source %) fragment-arcs)))
-         fragment-nodes    (map #(ig/node-by-id-at basis %) (filter continue? fragment-node-ids))
-         root-nodes        (map #(ig/node-by-id-at basis %) root-ids)]
-     {:roots root-ids
-      :nodes (mapv serialize-node (into #{} (concat root-nodes fragment-nodes)))
-      :arcs  (mapv #(serialize-arc basis write-handlers %) fragment-arcs)})))
-
-(defn- deserialize-node
-  [graph-id {:keys [node-type properties] :as node-spec}]
-  (apply make-node graph-id node-type (mapcat identity properties)))
+  ([basis root-ids {:keys [include? serializer] :or {include? (constantly true) serializer default-node-serializer} :as opts}]
+   (let [serializer     #(assoc (serializer (ig/node-by-id-at basis %2)) :serial-id %1)
+         original-ids   (input-traverse basis include? root-ids)
+         replacements   (zipmap original-ids (map-indexed serializer original-ids))
+         serial-ids     (util/map-vals :serial-id replacements)
+         fragment-arcs  (connecting-arcs basis original-ids)]
+     {:roots (map serial-ids root-ids)
+      :nodes (vec (vals replacements))
+      :arcs  (mapv (partial serialize-arc serial-ids) fragment-arcs)})))
 
 (defn- deserialize-arc
-  [id-dictionary read-handlers [source target]]
-  (let [read-handler            (get read-handlers (class source) (partial default-read-handler id-dictionary))
-        [real-src-id src-label] (read-handler source)
-        [real-tgt-id tgt-label] (default-read-handler id-dictionary target)]
-    (assert real-src-id (str "Don't know how to resolve " (pr-str source) " to a node. You might need to put a :read-handler on the call to dynamo.graph/paste"))
-    (connect real-src-id src-label real-tgt-id tgt-label)))
+  [id-dictionary arc]
+  (-> arc
+      (update 0 id-dictionary)
+      (update 2 id-dictionary)
+      (->> (apply connect))))
+
+(defn default-node-deserializer
+  [basis graph-id {:keys [node-type properties]}]
+  (construct-node-with-id graph-id node-type properties))
 
 (defn paste
-  "Given a `graph-id` and graph fragment from copying, provides the transaction data to create the nodes on the graph and connect all the new nodes together with the same arcs in the fragment.  It will take effect when it is applied with a transact.
+  "Given a `graph-id` and graph fragment from copying, provides the
+  transaction data to create the nodes on the graph and connect all
+  the new nodes together with the same arcs in the fragment.  It will
+  take effect when it is applied with a transact.
+
+  Any nodes that were replaced during the copy must be resolved into
+  real nodes here. That is the job of the `:deserializer` function. It
+  receives the current basis, the graph-id being pasted into, and
+  whatever data the :serializer function returned.
+
+  `dynamo.graph/default-node-deserializer` creates new nodes (copies)
+  from the fragment. Yours may look up nodes in the world, create new
+  instances, or anything else. The deserializer _must_ return valid
+  transaction data, even if that data is just an empty vector.
 
   Example:
 
-  `(g/paste (graph project) fragment {:read-handlers {ResourceReference (partial resolve-reference workspace project)}})`
-"
+  `(g/paste (graph project) fragment {:deserializer default-node-deserializer})"
   ([graph-id fragment opts]
    (paste (now) graph-id fragment opts))
-  ([basis graph-id fragment {:keys [read-handlers] :as opts}]
-   (let [node-txs      (vec (mapcat #(deserialize-node graph-id %) (:nodes fragment)))
-         nodes         (map (comp :_id :node) node-txs)
-         id-dictionary (zipmap (map :serial-id (:nodes fragment)) nodes)
-         connect-txs   (mapcat #(deserialize-arc id-dictionary read-handlers %) (:arcs fragment))]
-     {:root-node-ids (map #(get id-dictionary %) (:roots fragment))
-      :nodes         nodes
+  ([basis graph-id fragment {:keys [deserializer] :or {deserializer default-node-deserializer} :as opts}]
+   (let [deserializer  (partial deserializer basis graph-id)
+         nodes         (map deserializer (:nodes fragment))
+         new-nodes     (remove #(ig/node-by-id-at basis (gt/node-id %)) nodes)
+         node-txs      (vec (mapcat it/new-node new-nodes))
+         node-ids      (map gt/node-id nodes)
+         id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
+         connect-txs   (mapcat #(deserialize-arc id-dictionary %) (:arcs fragment))]
+     {:root-node-ids (map id-dictionary (:roots fragment))
+      :nodes         node-ids
       :tx-data       (into node-txs connect-txs)})))
 
 ;; ---------------------------------------------------------------------------

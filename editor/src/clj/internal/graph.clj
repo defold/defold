@@ -271,7 +271,7 @@
   (replace-node
     [this node-id new-node]
     (let [gid   (gt/node-id->graph-id node-id)
-          graph (replace-node (node-id->graph graphs node-id) node-id (assoc new-node :_id node-id))
+          graph (replace-node (node-id->graph graphs node-id) node-id (assoc new-node :_node-id node-id))
           node  (node graph node-id)]
       [(update this :graphs assoc gid graph) node]))
 

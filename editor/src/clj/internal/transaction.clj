@@ -23,7 +23,7 @@
 (defmacro txerrstr [ctx & rest]
   `(str (:txid ~ctx) ":" (:txpass ~ctx) " " ~@(interpose " " rest)))
 
-(defn nid [n] (if (number? n) n (if (gt/node? n) (gt/node-id n) (if (map? n) (:_id n) n))))
+(defn nid [n] (if (number? n) n (if (gt/node? n) (gt/node-id n) (if (map? n) (:_node-id n) n))))
 
 ;; ---------------------------------------------------------------------------
 ;; Building transactions

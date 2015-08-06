@@ -43,7 +43,7 @@ ordinary paths."
             (g/make-nodes
               project-graph
               [new-resource [node-type :resource resource :project-id project]]
-              (g/connect new-resource :_id project :nodes)
+              (g/connect new-resource :_node-id project :nodes)
               (if ((g/output-labels node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
                 []))
@@ -55,7 +55,10 @@ ordinary paths."
                            :let [resource (g/node-value node-id :resource)
                                  load-fn (and resource (:load-fn (resource/resource-type resource)))]
                            :when load-fn]
-                       (load-fn project node-id (io/reader resource)))
+                       (try
+                         (load-fn project node-id (io/reader resource))
+                         (catch java.io.IOException e
+                           (g/mark-defective node-id (g/error {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))})))))
         new-nodes (g/tx-nodes-added (g/transact all-nodes-tx))]
     (when (not (empty? new-nodes))
       (recur project new-nodes))))
@@ -208,42 +211,64 @@ ordinary paths."
 (defn- remove-resources [project resources]
   (let [internal (filter loadable? resources)
         external (filter (complement loadable?) resources)]
-    (g/transact
-      (for [resource internal
-            :when resource
-            :let [node-id (get-resource-node project resource)]]
-        ; TODO - recreate a polluted node
-        (g/delete-node node-id)))
+    (doseq [resource internal
+            :let [resource-node (get-resource-node project resource)]
+            :when resource-node]
+      (let [current-outputs (outputs resource-node)
+            new-node (first (make-nodes project [resource]))
+            new-outputs (set (outputs new-node))
+            outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+        (g/transact
+          (concat
+            (g/mark-defective new-node (g/error {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/delete-node resource-node)
+            (for [[src-label [tgt-node tgt-label]] outputs-to-make]
+              (g/connect new-node src-label tgt-node tgt-label))))))
     (doseq [resource external
             :let [resource-node (get-resource-node project resource)]
             :when resource-node]
       (g/invalidate! (mapv #(do [resource-node (first %)]) (outputs resource-node))))))
 
+(defn- move-resources [project moved]
+  (g/transact
+    (for [[from to] moved
+          :let [resource-node (get-resource-node project from)]
+          :when resource-node]
+      (g/set-property resource-node :resource to))))
+
 (defn- handle-resource-changes [project changes]
-  (let [all (reduce into [] (vals changes))
-        reset-undo? (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))]
-    (add-resources project (:added changes))
+  (let [moved (:moved changes)
+        all (reduce into [] (vals (select-keys changes [:added :removed :changed])))
+        reset-undo? (or (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))
+                        (not (empty? moved)))
+        unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
+        to-reload (concat (:changed changes) (filter #(some? (get-resource-node project %)) (:added changes)))
+        to-add (filter #(nil? (get-resource-node project %)) (:added changes))]
+    (add-resources project to-add)
     (remove-resources project (:removed changes))
-    (doseq [resource (:changed changes)
+    (move-resources project moved)
+    (doseq [resource to-reload
             :let [resource-node (get-resource-node project resource)]
             :when resource-node]
       (let [current-outputs (outputs resource-node)]
         (if (loadable? resource)
-          (let [current-outputs (outputs resource-node)
-                nodes (make-nodes project [resource])]
-            (load-nodes project nodes)
-            (let [new-node (first nodes)
-                  new-outputs (set (outputs new-node))
-                  outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
-              (g/transact
-                (concat
-                  (g/delete-node resource-node)
-                  (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-                    (g/connect new-node src-label tgt-node tgt-label))))))
+          (do
+            (let [nodes (make-nodes project [resource])]
+              (load-nodes project nodes)
+              (let [new-node (first nodes)
+                    new-outputs (set (outputs new-node))
+                    outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+                (g/transact
+                  (concat
+                    (g/delete-node resource-node)
+                    (for [[src-label [tgt-node tgt-label]] outputs-to-make]
+                      (g/connect new-node src-label tgt-node tgt-label)))))))
           (let [nid resource-node]
             (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
     (when reset-undo?
-      (g/reset-undo! (graph project)))))
+      (g/reset-undo! (graph project)))
+    (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
+                                             (clojure.string/join ", " (map resource/proj-path unknown-changed))))))
 
 (g/defnode Project
   (inherits core/Scope)
@@ -294,20 +319,26 @@ ordinary paths."
           :when (contains? outputs src-label)]
       (g/connect src src-label tgt tgt-label))))
 
-(defn connect-resource-node [project resource consumer-node connections]
-  (if resource
-    (if-let [node (get-resource-node project resource)]
+(defn workspace [project]
+  (g/node-value project :workspace))
+
+(defn connect-resource-node [project path-or-resource consumer-node connections]
+  (if path-or-resource
+    (if-let [node (get-resource-node project path-or-resource)]
       (connect-if-output (g/node-type* node) node consumer-node connections)
-      (let [resource-type (workspace/resource-type resource)
+      (let [resource (if (string? path-or-resource)
+                       (workspace/resolve-workspace-resource (workspace project) path-or-resource)
+                       path-or-resource)
+            resource-type (workspace/resource-type resource)
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
-         (graph project)
-         [new-resource [node-type :resource resource :project-id project]]
-         (g/connect new-resource :_id project :nodes)
-         (if ((g/output-labels node-type) :save-data)
-           (g/connect new-resource :save-data project :save-data)
-           [])
-         (connect-if-output node-type new-resource consumer-node connections))))
+          (graph project)
+          [new-resource [node-type :resource resource :project-id project]]
+          (g/connect new-resource :_node-id project :nodes)
+          (if ((g/output-labels node-type) :save-data)
+            (g/connect new-resource :save-data project :save-data)
+            [])
+          (connect-if-output node-type new-resource consumer-node connections))))
     []))
 
 (defn select
@@ -322,7 +353,7 @@ ordinary paths."
      (for [node-id node-ids]
        (concat
         (g/connect node-id :_node-id    project-id :selected-node-ids)
-        (g/connect node-id :_id         project-id :selected-nodes)
+        (g/connect node-id :_node-id         project-id :selected-nodes)
         (g/connect node-id :_properties project-id :selected-node-properties)))))
 
 (defn select!
@@ -359,6 +390,3 @@ ordinary paths."
                             (g/connect workspace-id :resource-types project :resource-types)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
-
-(defn workspace [project]
-  (g/node-value project :workspace))

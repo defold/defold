@@ -6,6 +6,7 @@
             [editor.project :as project]
             [editor.protobuf :as protobuf]
             [editor.atlas :as atlas]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
@@ -19,6 +20,7 @@
            [com.dynamo.model.proto Model$ModelDesc]
            [editor.types Region]
            [editor.workspace BuildResource]
+           [editor.resource FileResource]
            [java.awt.image BufferedImage]
            [java.io File]
            [java.nio.file Files attribute.FileAttribute]
@@ -63,6 +65,16 @@
     (.delete f))
   (workspace/fs-sync workspace))
 
+(defn- copy-file [workspace name new-name]
+  (let [[f new-f] (mapv #(File. (File. *project-path*) %) [name new-name])]
+    (FileUtils/copyFile f new-f))
+  (workspace/fs-sync workspace))
+
+(defn- move-file [workspace name new-name]
+  (let [[f new-f] (mapv #(File. (File. *project-path*) %) [name new-name])]
+    (FileUtils/moveFile f new-f)
+    (workspace/fs-sync workspace true [[f new-f]])))
+
 (defn- add-img [workspace name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
         type (FilenameUtils/getExtension name)
@@ -106,10 +118,10 @@
          img-path "/test_img.png"
          anim-id (FilenameUtils/getBaseName img-path)]
      (is (not (nil? atlas-node-id)))
-     (testing "Add external file, no transaction"
+     (testing "Add external file, cleared history"
        (add-img workspace img-path 64 64)
        (let [node (project/get-resource-node project img-path)]
-         (is (nil? node)))
+         (is (some? node)))
        (is (no-undo? project)))
      (testing "Reference it, node added and linked"
        (g/transact
@@ -129,7 +141,7 @@
            (delete-file workspace img-path)
            (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
                                         ; TODO - fix node pollution
-           (is (thrown? java.io.FileNotFoundException (g/node-value atlas-node-id :anim-data)))))))))
+           (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))
 
 (deftest save-no-reload
   (with-clean-system
@@ -143,3 +155,59 @@
                  (project/save-all project)
                  (workspace/fs-sync workspace)
                  (is (has-undo? project)))))))
+
+(defn- error? [type v]
+  (and (g/error? v) (= type (get-in v [:reason :type]))))
+
+(defn- no-error? [v]
+  (not (g/error? v)))
+
+(deftest external-file-errors
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          atlas-node-id (project/get-resource-node project "/atlas/single.atlas")
+          img-path "/test_img.png"]
+      (is (error? :file-not-found (g/node-value atlas-node-id :anim-data)))
+      (add-img workspace img-path 64 64)
+      (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
+      (delete-file workspace img-path)
+      (is (error? :file-not-found (g/node-value atlas-node-id :anim-data)))
+      (add-img workspace img-path 64 64)
+      (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
+      (write-file workspace img-path "this is not png format")
+      (is (error? :invalid-content (g/node-value atlas-node-id :anim-data))))))
+
+(defn- dump-all-nodes
+  [project]
+  (let [nodes (g/node-value project :nodes-by-resource)]
+    (prn (mapv str (keys nodes)))))
+
+(deftest internal-file-errors
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          node-id (project/get-resource-node project "/main/main.go")
+          img-path "/test_img.png"
+          atlas-path "/atlas/single.atlas"]
+      (is (error? :file-not-found (g/node-value node-id :scene)))
+      (add-img workspace img-path 64 64)
+      (is (no-error? (g/node-value node-id :scene)))
+      (copy-file workspace atlas-path "/tmp.atlas")
+      (delete-file workspace atlas-path)
+      (is (error? :file-not-found (g/node-value node-id :scene)))
+      (copy-file workspace "/tmp.atlas" atlas-path)
+      (is (no-error? (g/node-value node-id :scene)))
+      (write-file workspace atlas-path "test")
+      (is (error? :invalid-content (g/node-value node-id :scene)))
+      (copy-file workspace "/tmp.atlas" atlas-path)
+      (is (no-error? (g/node-value node-id :scene))))))
+
+(deftest refactoring
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          node-id (project/get-resource-node project "/atlas/single.atlas")
+          img-path "/test_img.png"
+          new-img-path "/test_img2.png"]
+      (add-img workspace img-path 64 64)
+      (is (no-error? (g/node-value node-id :scene)))
+      (move-file workspace img-path new-img-path)
+      (is (no-error? (g/node-value node-id :scene))))))
