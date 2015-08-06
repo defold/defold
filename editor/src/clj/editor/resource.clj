@@ -29,7 +29,7 @@
 (defrecord FileResource [workspace ^File file children]
   Resource
   (resource-type [this] (get (g/node-value workspace :resource-types) (FilenameUtils/getExtension (.getPath file))))
-  (source-type [this] (if (.isFile file) :file :folder))
+  (source-type [this] (if (.isDirectory file) :folder :file))
   (read-only? [this] (not (.canWrite file)))
   (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String (g/node-value workspace :root)) file)))
   (abs-path [this] (.getAbsolutePath  file))
