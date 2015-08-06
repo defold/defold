@@ -182,24 +182,34 @@
 (defn- to-folder [^File file]
   (if (.isFile file) (.getParentFile file) file))
 
+(defn- file-resource [workspace ^File file]
+  (let [children (mapv #(file-resource workspace %) (.listFiles file))]
+    (FileResource. workspace file children)))
+
+(defn- select-files! [workspace tree-view files]
+  (let [selection (mapv #(file-resource workspace %) files)]
+    (ui/user-data! tree-view ::pending-selection selection)))
+
 (handler/defhandler :paste :asset-browser
   (enabled? [selection]
             (let [cb (Clipboard/getSystemClipboard)]
               (and (.hasFiles cb)
                    (= 1 (count selection))
                    (empty? (filter workspace/read-only? selection)))))
-  (run [selection]
+  (run [selection workspace tree-view]
        (let [resource (first selection)
-             ^File tgt-dir (to-folder (File. ^String (workspace/abs-path resource)))]
-         (doseq [^File src-file (.getFiles (Clipboard/getSystemClipboard))
-                 :let [tgt-dir (if (= tgt-dir src-file)
-                                 (.getParentFile ^File tgt-dir)
-                                 tgt-dir)]]
-           (let [^File tgt-file (unique (File. tgt-dir (FilenameUtils/getName (.toString src-file))))]
-             (if (.isDirectory src-file)
-               (FileUtils/copyDirectory src-file tgt-file)
-               (FileUtils/copyFile src-file tgt-file))))
-         ; TODO - notify move instead of ordinary sync
+             src-files (.getFiles (Clipboard/getSystemClipboard))
+             ^File tgt-dir (reduce (fn [^File tgt ^File src]
+                                     (if (= tgt src)
+                                       (.getParentFile ^File tgt)
+                                       tgt))
+                                   (to-folder (File. ^String (workspace/abs-path resource))) src-files)
+             pairs (mapv (fn [^File f] [f (unique (File. tgt-dir (FilenameUtils/getName (.toString f))))]) src-files)]
+         (doseq [[^File src-file ^File tgt-file] pairs]
+           (if (.isDirectory src-file)
+             (FileUtils/copyDirectory src-file tgt-file)
+             (FileUtils/copyFile src-file tgt-file)))
+         (select-files! workspace tree-view (mapv second pairs))
          (workspace/fs-sync (workspace/workspace resource)))))
 
 (handler/defhandler :delete :asset-browser
@@ -291,7 +301,9 @@
     tree-view))
 
 (g/defnk produce-tree-view [tree-view resource-tree]
-  (update-tree-view tree-view resource-tree (workspace/selection tree-view)))
+  (let [selection (or (ui/user-data tree-view ::pending-selection) (workspace/selection tree-view))]
+    (update-tree-view tree-view resource-tree selection)
+    (ui/user-data! tree-view ::pending-selection nil)))
 
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)
@@ -305,20 +317,13 @@
     (.setContent db content)
     (.consume e)))
 
-(defn- drag-done [^DragEvent e selection]
-  (when (and
-          (.isAccepted e)
-          (= TransferMode/MOVE (.getTransferMode e)))
-    (let [resources (roots selection)
-          delete? (empty? (filter workspace/read-only? resources))]
-      (when delete?
-        (delete resources)))))
-
 (defn- target [^Node node]
   (when node
     (if (instance? TreeCell node)
       node
       (target (.getParent node)))))
+
+(defn- drag-done [^DragEvent e selection])
 
 (defn- drag-over [^DragEvent e]
   (let [db (.getDragboard e)]
@@ -343,18 +348,41 @@
                (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
                (.consume e)))))))))
 
+(defn- find-files [^File src ^File tgt]
+  (if (.isDirectory src)
+    (let [base (.getAbsolutePath src)
+          base-count (inc (count base))]
+      (mapv (fn [^File f]
+              (let [rel-path (subs (.getAbsolutePath f) base-count)]
+                [f (File. tgt rel-path)]))
+            (filter (fn [^File f] (.isFile f)) (file-seq src))))
+    [[src tgt]]))
+
 (defn- drag-dropped [^DragEvent e]
   (let [db (.getDragboard e)]
     (when (.hasFiles db)
-      (let [resource (-> e (.getTarget) ^TreeCell (target) (.getTreeItem) (.getValue))
-            ^File tgt-dir (to-folder (File. ^String (workspace/abs-path resource)))]
-        (doseq [^File src-file (.getFiles db)]
-          (let [tgt-file (File. tgt-dir (FilenameUtils/getName (.toString src-file)))]
+      (let [target (-> e (.getTarget) ^TreeCell (target))
+            tree-view (.getTreeView target)
+            resource (-> target (.getTreeItem) (.getValue))
+            ^File tgt-dir (to-folder (File. ^String (workspace/abs-path resource)))
+            move? (and (= (.getGestureSource e) tree-view)
+                       (= (.getTransferMode e) TransferMode/MOVE))
+            pairs (mapv (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) (.getFiles db))
+            moved (if move?
+                    (vec (mapcat (fn [[^File src ^File tgt]]
+                                   (find-files src tgt)) pairs))
+                    [])
+            workspace (workspace/workspace resource)]
+        (doseq [[^File src-file ^File tgt-file] pairs]
+          (if (= (.getTransferMode e) TransferMode/MOVE)
             (if (.isDirectory src-file)
-              (FileUtils/copyDirectory src-file tgt-file)
-              (FileUtils/copyFile src-file tgt-file))))
-        ; TODO - notify move instead of ordinary sync
-        (workspace/fs-sync (workspace/workspace resource))))
+             (FileUtils/moveDirectory src-file tgt-file)
+             (FileUtils/moveFile src-file tgt-file))
+            (if (.isDirectory src-file)
+             (FileUtils/copyDirectory src-file tgt-file)
+             (FileUtils/copyFile src-file tgt-file))))
+        (select-files! workspace tree-view (mapv second pairs))
+        (workspace/fs-sync workspace true moved)))
     (.setDropCompleted e true)
     (.consume e)))
 

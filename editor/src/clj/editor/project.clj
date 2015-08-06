@@ -55,7 +55,10 @@ ordinary paths."
                            :let [resource (g/node-value node-id :resource)
                                  load-fn (and resource (:load-fn (resource/resource-type resource)))]
                            :when load-fn]
-                       (load-fn project node-id (io/reader resource)))
+                       (try
+                         (load-fn project node-id (io/reader resource))
+                         (catch java.io.IOException e
+                           (g/mark-defective node-id (g/error {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))})))))
         new-nodes (g/tx-nodes-added (g/transact all-nodes-tx))]
     (when (not (empty? new-nodes))
       (recur project new-nodes))))
@@ -208,40 +211,58 @@ ordinary paths."
 (defn- remove-resources [project resources]
   (let [internal (filter loadable? resources)
         external (filter (complement loadable?) resources)]
-    (g/transact
-      (for [resource internal
-            :when resource
-            :let [node-id (get-resource-node project resource)]]
-        ; TODO - recreate a polluted node
-        (g/delete-node node-id)))
+    (doseq [resource internal
+            :let [resource-node (get-resource-node project resource)]
+            :when resource-node]
+      (let [current-outputs (outputs resource-node)
+            new-node (first (make-nodes project [resource]))
+            new-outputs (set (outputs new-node))
+            outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+        (g/transact
+          (concat
+            (g/mark-defective new-node (g/error {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/delete-node resource-node)
+            (for [[src-label [tgt-node tgt-label]] outputs-to-make]
+              (g/connect new-node src-label tgt-node tgt-label))))))
     (doseq [resource external
             :let [resource-node (get-resource-node project resource)]
             :when resource-node]
       (g/invalidate! (mapv #(do [resource-node (first %)]) (outputs resource-node))))))
 
+(defn- move-resources [project moved]
+  (g/transact
+    (for [[from to] moved
+          :let [resource-node (get-resource-node project from)]
+          :when resource-node]
+      (g/set-property resource-node :resource to))))
+
 (defn- handle-resource-changes [project changes]
-  (let [all (reduce into [] (vals changes))
-        reset-undo? (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))
+  (let [moved (:moved changes)
+        all (reduce into [] (vals (select-keys changes [:added :removed :changed])))
+        reset-undo? (or (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))
+                        (not (empty? moved)))
         unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
         to-reload (concat (:changed changes) (filter #(some? (get-resource-node project %)) (:added changes)))
         to-add (filter #(nil? (get-resource-node project %)) (:added changes))]
     (add-resources project to-add)
     (remove-resources project (:removed changes))
+    (move-resources project moved)
     (doseq [resource to-reload
             :let [resource-node (get-resource-node project resource)]
             :when resource-node]
       (let [current-outputs (outputs resource-node)]
         (if (loadable? resource)
-          (let [nodes (make-nodes project [resource])]
-            (load-nodes project nodes)
-            (let [new-node (first nodes)
-                  new-outputs (set (outputs new-node))
-                  outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
-              (g/transact
-                (concat
-                  (g/delete-node resource-node)
-                  (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-                    (g/connect new-node src-label tgt-node tgt-label))))))
+          (do
+            (let [nodes (make-nodes project [resource])]
+              (load-nodes project nodes)
+              (let [new-node (first nodes)
+                    new-outputs (set (outputs new-node))
+                    outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+                (g/transact
+                  (concat
+                    (g/delete-node resource-node)
+                    (for [[src-label [tgt-node tgt-label]] outputs-to-make]
+                      (g/connect new-node src-label tgt-node tgt-label)))))))
           (let [nid resource-node]
             (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
     (when reset-undo?

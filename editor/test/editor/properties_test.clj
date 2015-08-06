@@ -167,6 +167,7 @@
   (property b g/Num)
 
   (display-order [:a :b ["Linked" :linked-properties-cat] ["Overridden" :overridden-properties-cat]])
+
   (input linked-properties-input g/Any)
   (input user-properties-input g/Any))
 
