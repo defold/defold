@@ -171,7 +171,7 @@ public class Facebook implements Handler.Callback {
         }
         String action = data.getString(MSG_KEY_ACTION);
         if (action.equals(ACTION_LOGIN)) {
-            if (success) {
+            if (success && data.getString(MSG_KEY_USER) != null) {
                 JSONObject me;
                 try {
                     me = new JSONObject(data.getString(MSG_KEY_USER));

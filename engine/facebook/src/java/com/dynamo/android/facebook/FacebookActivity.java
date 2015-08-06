@@ -331,6 +331,9 @@ public class FacebookActivity implements PseudoActivity {
                 }
                 if (recipients != null) {
                     recipientsString = recipients[0];
+                    if (recipients.length > 1) {
+                        Log.d(TAG, "Facebook SDK for Android only supports one recipient ('to' field) for GameRequestDialog, only the first one will be used.");
+                    }
                 }
 
                 GameRequestContent.Builder content = new GameRequestContent.Builder()
