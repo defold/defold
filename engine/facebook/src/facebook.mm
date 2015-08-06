@@ -107,13 +107,12 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
         if (results != nil) {
             // fix result so it complies with JS result fields
             NSMutableDictionary* new_res = [NSMutableDictionary dictionaryWithDictionary:@{
-                @"to" : [[NSMutableDictionary alloc] init]
+                @"to" : [[NSMutableArray alloc] init]
             }];
 
-            int i = 0;
             for (NSString* key in results) {
                 if ([key hasPrefix:@"to"]) {
-                    [new_res[@"to"] setObject:results[key] forKey:[NSString stringWithFormat:@"%d", i++]];
+                    [new_res[@"to"] addObject:results[key]];
                 } else {
                     [new_res setObject:results[key] forKey:key];
                 }
@@ -172,6 +171,8 @@ static id LuaToObjC(lua_State* L, int index)
     } else if (lua_type(L, index) == LUA_TBOOLEAN) {
         r = [NSNumber numberWithBool:lua_toboolean(L, index)];
 
+    } else {
+        dmLogWarning("Unsupported value type '%d'", lua_type(L, index));
     }
 
     assert(top == lua_gettop(L));
@@ -652,7 +653,7 @@ static int Facebook_ShowDialog(lua_State* L)
 
         // comply with JS way of specifying recipients/to
         NSString* recipients = GetTableValue(L, 2, @[@"to"]);
-        if (recipients != nil) {
+        if (recipients != nil && [recipients respondsToSelector:@selector(componentsSeparatedByString:)]) {
             content.recipients = [recipients componentsSeparatedByString:@","];
         }
 
