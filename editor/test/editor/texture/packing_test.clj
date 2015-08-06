@@ -1,4 +1,4 @@
-(ns internal.packing-test
+(ns editor.texture.packing-test
   (:require [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
@@ -7,7 +7,7 @@
             [editor.geom :refer :all]
             [editor.image :refer :all]
             [editor.texture :refer :all]
-            [internal.texture.pack-max-rects :as itp :refer [max-rects-packing]]
+            [editor.texture.pack-max-rects :as itp :refer [max-rects-packing]]
             [schema.test :refer [validate-schemas]])
   (:import [editor.types Rect]))
 
