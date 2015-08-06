@@ -166,16 +166,13 @@
     (.setDisable text true)
     [text update-ui-fn]))
 
-(defn- create-properties-row [workspace ^GridPane grid key property row]
+(defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
   (let [label (Label. (properties/label property))
-        property-fn (fn []
-                      (let [properties (ui/user-data grid ::properties)]
-                          (get properties key)))
-        [control update-ui-fn] (create-property-control! (:edit-type property) workspace property-fn)
+        [control update-ui-fn] (create-property-control! (:edit-type property) workspace (fn [] (property-fn key)))
         reset-btn (doto (Button. "x")
                     (.setVisible (properties/overridden? property))
                     (ui/on-action! (fn [_]
-                                     (properties/clear-override! (property-fn))
+                                     (properties/clear-override! (property-fn key))
                                      (.requestFocus control))))]
     (update-ui-fn (properties/values property))
     (GridPane/setConstraints label 1 row)
@@ -188,22 +185,25 @@
            (.setVisible reset-btn (properties/overridden? property))
            (update-ui-fn (properties/values property)))]))
 
-(defn- create-properties [workspace grid properties]
+(defn- create-properties [workspace grid properties property-fn]
   ; TODO - add multi-selection support for properties view
-  (doall (map-indexed (fn [row [key property]] (create-properties-row workspace grid key property row)) properties)))
+  (doall (map-indexed (fn [row [key property]] (create-properties-row workspace grid key property row property-fn)) properties)))
 
-(defn- make-grid [parent workspace properties]
+(defn- make-grid [parent workspace properties property-fn]
   (let [grid (GridPane.)]
       (.setHgap grid 4)
       (.setVgap grid 6)
       (ui/add-child! parent grid)
-      (create-properties workspace grid properties)))
+      (create-properties workspace grid properties property-fn)))
 
 (defn- make-pane [parent workspace properties]
   (let [vbox (VBox. (double 10.0))]
       (.setPadding vbox (Insets. 10 10 10 10))
       (ui/user-data! vbox ::properties properties)
-      (let [display-order (:display-order properties)
+      (let [property-fn (fn [key]
+                          (let [properties (:properties (ui/user-data vbox ::properties))]
+                            (get properties key)))
+            display-order (:display-order properties)
             properties (:properties properties)
             generics [nil (mapv (fn [k] [k (get properties k)]) (filter (comp not properties/category?) display-order))]
             categories (mapv (fn [order]
@@ -218,7 +218,7 @@
                                                 (when category
                                                   (let [label (Label. category)]
                                                     (ui/add-child! vbox label)))
-                                                (make-grid vbox workspace properties)))]
+                                                (make-grid vbox workspace properties property-fn)))]
                              (recur (rest sections) (into result update-fns)))
                            result))]
         ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
