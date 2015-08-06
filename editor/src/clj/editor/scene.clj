@@ -45,6 +45,15 @@
 
 (def ^:dynamic *fps-debug* nil)
 
+(def substitute-scene
+  {:aabb (geom/null-aabb)
+   :renderable {:render-fn (fn [gl render-args renderables count]
+                             (let [pass (:pass render-args)
+                                   text-renderer (:text-renderer render-args)]
+                               (when (= pass pass/overlay)
+                                 (gl/overlay gl text-renderer "An error prevents rendering from happening." 12.0 -22.0 1.0 1.0))))
+                :passes [pass/overlay]}})
+
 ; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
 ; We flip in JavaFX instead
 (defn- read-to-buffered-image [^long w ^long h]
@@ -121,7 +130,7 @@
   [^TextRendererRef v ^java.io.Writer w]
   (.write w (str "<TextRendererRef@" (:text-renderer v) ">")))
 
-(g/defnk produce-drawable [_id ^Region viewport]
+(g/defnk produce-drawable [_node-id ^Region viewport]
   (when (vp-not-empty? viewport)
     (let [[w h]   (vp-dims viewport)
           profile (GLProfile/getDefault)
@@ -130,11 +139,11 @@
       (.setOnscreen caps false)
       (.setPBuffer caps true)
       (.setDoubleBuffered caps false)
-      (let [^GLOffscreenAutoDrawable drawable (g/node-value _id :gl-drawable)
+      (let [^GLOffscreenAutoDrawable drawable (g/node-value _node-id :gl-drawable)
             drawable (if drawable
                        (do (.setSize drawable w h) drawable)
                        (.createOffscreenAutoDrawable factory nil caps nil w h nil))]
-        (g/transact (g/set-property _id :gl-drawable drawable))
+        (g/transact (g/set-property _node-id :gl-drawable drawable))
         drawable))))
 
 (defn- make-current [^Region viewport ^GLAutoDrawable drawable]
@@ -350,7 +359,7 @@
   (property picking-rect  Rect)
 
   (input frame BufferedImage)
-  (input scene g/Any)
+  (input scene g/Any :substitute substitute-scene)
   (input input-handlers Runnable :array)
   (input selection g/Any)
   (input selected-tool-renderables g/Any)
@@ -358,7 +367,8 @@
   (output active-tool g/Keyword (g/fnk [active-tool] active-tool))
 
   (output scene g/Any (g/fnk [scene] scene))
-  (output image WritableImage :cached (g/fnk [^BufferedImage frame ^ImageView image-view] (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
+  (output image WritableImage :cached (g/fnk [^BufferedImage frame ^ImageView image-view]
+                                             (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb)))) ; TODO - base aabb on selection
   (output selection g/Any (g/fnk [selection] selection))
   (output picking-rect Rect (g/fnk [picking-rect] picking-rect))
@@ -466,7 +476,8 @@
                                 (when (and visible)
                                   (try
                                     (let [image (g/node-value view-id :image)]
-                                      (when (not= image (.getImage image-view)) (.setImage image-view image)))
+                                      (when (not= image (.getImage image-view))
+                                        (.setImage image-view image)))
                                     (catch Exception e
                                       (.setImage image-view nil)
                                       (.stop ^AnimationTimer this)))))))]

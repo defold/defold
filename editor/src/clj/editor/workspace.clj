@@ -63,9 +63,9 @@ ordinary paths."
   (let [children (if (.isFile file) [] (mapv #(create-resource-tree workspace %) (filter resource-filter (.listFiles file))))]
     (FileResource. workspace file children)))
 
-(g/defnk produce-resource-tree [_id ^String root]
-  (let [tree (create-resource-tree _id (File. root))]
-    (update-in tree [:children] concat (make-zip-tree _id (io/resource "builtins.zip")))))
+(g/defnk produce-resource-tree [_node-id ^String root]
+  (let [tree (create-resource-tree _node-id (File. root))]
+    (update-in tree [:children] concat (make-zip-tree _node-id (io/resource "builtins.zip")))))
 
 (g/defnk produce-resource-list [resource-tree]
   (tree-seq #(= :folder (source-type %)) :children resource-tree))
@@ -133,18 +133,25 @@ ordinary paths."
 
 (defn fs-sync
   ([workspace]
-    (fs-sync workspace true))
+    (fs-sync workspace true []))
   ([workspace notify-listeners?]
-  (let [watcher (swap! (g/node-value workspace :fs-watcher) fs-watch/watch)
-        changes (into {} (map (fn [[type files]] [type (map #(FileResource. workspace % []) files)]) (:changes watcher)))]
-    (when (or (not (empty? (:added changes))) (not (empty? (:removed changes))))
+    (fs-sync workspace notify-listeners? []))
+  ([workspace notify-listeners? moved-files]
+  (let [moved-resources (mapv (fn [pair] (mapv #(FileResource. workspace % []) pair)) moved-files)
+        watcher (swap! (g/node-value workspace :fs-watcher) fs-watch/watch)
+        changes (into {} (map (fn [[type files]] [type (mapv #(FileResource. workspace % []) files)]) (:changes watcher)))]
+    (when (or (not (empty? (:added changes)))
+              (not (empty? (:removed changes)))
+              (not (empty? moved-resources)))
       ; TODO - bug in graph when invalidating internal dependencies, need to be explicit for every output
       (g/invalidate! (mapv #(do [workspace %]) [:resource-tree :resource-list :resource-map])))
     (when notify-listeners?
-      (let [changes (into {} (map (fn [[type resources]]
-                                    [type (filter #(not (nil? (resource-type %))) resources)]) changes))]
+      (let [moved-set (reduce (fn [all [from to]] (conj all from to)) #{} moved-resources)
+            changes (into {} (map (fn [[type resources]]
+                                    [type (filter #(and (not (nil? (resource-type %)))
+                                                        (not (moved-set %))) resources)]) changes))]
         (doseq [listener @(g/node-value workspace :resource-listeners)]
-          (handle-changes listener changes)))))))
+          (handle-changes listener (assoc changes :moved moved-resources))))))))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))

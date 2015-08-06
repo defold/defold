@@ -114,7 +114,7 @@
         (assoc :path path)
         (update :children (fn [children] (mapv #(pathify path %) children)))))))
 
-(g/defnk update-tree-view [_id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
+(g/defnk update-tree-view [_node-id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
   (let [resource-set (set open-resources)
        root (get root-cache active-resource)
        new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
@@ -124,7 +124,7 @@
         (.setExpanded new-root true))
       (.setRoot tree-view new-root)
       (sync-selection tree-view new-root selection)
-      (g/transact (g/set-property _id :root-cache new-cache))
+      (g/transact (g/set-property _node-id :root-cache new-cache))
       tree-view)))
 
 (g/defnode OutlineView
@@ -132,10 +132,10 @@
   (property root-cache g/Any)
   (property selection-listener ListChangeListener)
 
-  (input active-outline g/Any)
-  (input active-resource (g/protocol workspace/Resource))
-  (input open-resources g/Any)
-  (input selection g/Any)
+  (input active-outline g/Any :substitute {})
+  (input active-resource (g/protocol workspace/Resource) :substitute nil)
+  (input open-resources g/Any :substitute [])
+  (input selection g/Any :substitute [])
 
   (output tree-view TreeView :cached update-tree-view))
 

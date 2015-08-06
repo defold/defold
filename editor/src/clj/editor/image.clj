@@ -5,6 +5,7 @@
             [editor.geom :refer [clamper]]
             [editor.project :as project]
             [editor.types :as types]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.pipeline.tex-gen :as tex-gen])
   (:import [editor.types Rect Image]
@@ -31,7 +32,14 @@
 (g/defnode ImageNode
   (inherits project/ResourceNode)
 
-  (output content BufferedImage :cached (g/fnk [resource] (ImageIO/read (io/input-stream resource))))
+  (output content BufferedImage :cached (g/fnk [resource] (try
+                                                            (if-let [img (ImageIO/read (io/input-stream resource))]
+                                                              img
+                                                              (g/error {:type :invalid-content
+                                                                        :message (format "The image '%s' could not be loaded." (resource/proj-path resource))}))
+                                                            (catch java.io.FileNotFoundException e
+                                                              (g/error {:type :file-not-found
+                                                                        :message (format "The image '%s' could not be found." (resource/proj-path resource))})))))
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics

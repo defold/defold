@@ -31,27 +31,27 @@
   (property scalar g/Str)
 
   (output uncached-value  String
-          (g/fnk [_id scalar]
-                 (tally _id 'produce-simple-value)
+          (g/fnk [_node-id scalar]
+                 (tally _node-id 'produce-simple-value)
                  scalar))
 
   (output expensive-value String :cached
-          (g/fnk [_id]
-                 (tally _id 'compute-expensive-value)
+          (g/fnk [_node-id]
+                 (tally _node-id 'compute-expensive-value)
                  "this took a long time to produce"))
 
   (output nickname String :cached
-          (g/fnk [_id first-name]
-                 (tally _id 'passthrough-first-name)
+          (g/fnk [_node-id first-name]
+                 (tally _node-id 'passthrough-first-name)
                  first-name))
 
   (output derived-value String :cached
-          (g/fnk [_id first-name last-name]
-                 (tally _id 'compute-derived-value)
+          (g/fnk [_node-id first-name last-name]
+                 (tally _node-id 'compute-derived-value)
                  (str first-name " " last-name)))
 
   (output another-value String :cached
-          (g/fnk [_id]
+          (g/fnk [_node-id]
                  "this is distinct from the other outputs")))
 
 (defn build-sample-project
