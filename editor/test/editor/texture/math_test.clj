@@ -1,9 +1,9 @@
-(ns internal.math-test
+(ns editor.texture.math-test
   (:require [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
-            [internal.texture.math :refer :all]))
+            [editor.texture.math :refer :all]))
 
 (defn is-power-of-two [x]
   (and (not= 0 x) (= 0 (bit-and x (dec x)))))
