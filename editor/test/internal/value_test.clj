@@ -23,6 +23,9 @@
      ~@body
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
+(defn- cached? [cache node-id label]
+  (contains? @cache [node-id label]))
+
 (g/defnode CacheTestNode
   (input first-name String)
   (input last-name  String)
@@ -52,7 +55,12 @@
 
   (output another-value String :cached
           (g/fnk [_node-id]
-                 "this is distinct from the other outputs")))
+                 "this is distinct from the other outputs"))
+
+  (output nil-value String :cached
+          (g/fnk [this]
+                 (tally this 'compute-nil-value)
+                 nil)))
 
 (defn build-sample-project
   [world]
@@ -62,7 +70,8 @@
                   [name1     [CacheTestNode :scalar "Jane"]
                    name2     [CacheTestNode :scalar "Doe"]
                    combiner  CacheTestNode
-                   expensive CacheTestNode]
+                   expensive CacheTestNode
+                   nil-val   CacheTestNode]
                   (g/connect name1 :uncached-value combiner :first-name)
                   (g/connect name2 :uncached-value combiner :last-name)
                   (g/connect name1 :uncached-value expensive :operand)))))
@@ -88,6 +97,15 @@
         (expect-no-call-when combiner 'compute-derived-value
                              (doseq [x (range 100)]
                                (g/node-value combiner :derived-value))))))
+
+  (testing "cached nil values are only computed once"
+    (with-clean-system
+      (let [[name1 name2 combiner expensive nil-value] (build-sample-project world)]
+        (is (nil? (g/node-value nil-value :nil-value)))
+        (expect-no-call-when nil-value 'compute-nil-value
+                             (doseq [x (range 100)]
+                               (g/node-value nil-value :nil-value)))
+        (is (cached? cache nil-value :nil-value)))))
 
   (testing "modifying inputs invalidates the cached value"
     (with-clean-system
@@ -156,12 +174,6 @@
                               (g/update-property node :int-prop inc)
                               (g/update-property node :int-prop inc)))]
       (is (= 4 (g/node-value node :int-prop))))))
-
-(defn- cache-peek [cache node-id label]
-  (get @cache [node-id label]))
-
-(defn- cached? [cache node-id label]
-  (not (nil? (cache-peek cache node-id label))))
 
 (g/defnode OutputChaining
   (property a-property g/Int (default 0))
