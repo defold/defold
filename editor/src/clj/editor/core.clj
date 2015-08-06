@@ -10,7 +10,12 @@
 ;; ---------------------------------------------------------------------------
 ;; Copy/paste support
 ;; ---------------------------------------------------------------------------
-(def ^:dynamic *serialization-handlers* {:read {} :write {}})
+(def ^:dynamic *serialization-handlers*
+  {:read  {"class"         (transit/read-handler
+                            (fn [rep] (java.lang.Class/forName ^String rep)))}
+   :write {java.lang.Class (transit/write-handler
+                            (constantly "class")
+                            (fn [v] (.getName v)))}})
 
 (defn register-read-handler!
   [tag handler]
