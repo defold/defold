@@ -343,18 +343,23 @@ ordinary paths."
 
 (defn select
   [project-id node-ids]
-    (concat
-     (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
-       (g/disconnect node-id label project-id :selected-node-ids))
-     (for [[node-id label] (g/sources-of project-id :selected-nodes)]
-       (g/disconnect node-id label project-id :selected-nodes))
-     (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
-       (g/disconnect node-id label project-id :selected-node-properties))
-     (for [node-id node-ids]
-       (concat
-        (g/connect node-id :_node-id    project-id :selected-node-ids)
-        (g/connect node-id :_node-id         project-id :selected-nodes)
-        (g/connect node-id :_properties project-id :selected-node-properties)))))
+    (let [nil-node-ids (filter nil? node-ids)
+          node-ids (if (not (empty? nil-node-ids))
+                     (filter some? node-ids)
+                     node-ids)]
+      (assert (empty? nil-node-ids) "Attempting to select nil values")
+      (concat
+        (for [[node-id label] (g/sources-of project-id :selected-node-ids)]
+          (g/disconnect node-id label project-id :selected-node-ids))
+        (for [[node-id label] (g/sources-of project-id :selected-nodes)]
+          (g/disconnect node-id label project-id :selected-nodes))
+        (for [[node-id label] (g/sources-of project-id :selected-node-properties)]
+          (g/disconnect node-id label project-id :selected-node-properties))
+        (for [node-id node-ids]
+          (concat
+            (g/connect node-id :_node-id    project-id :selected-node-ids)
+            (g/connect node-id :_node-id         project-id :selected-nodes)
+            (g/connect node-id :_properties project-id :selected-node-properties))))))
 
 (defn select!
   ([project node-ids]
