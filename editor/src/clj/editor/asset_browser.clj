@@ -303,7 +303,8 @@
 (g/defnk produce-tree-view [tree-view resource-tree]
   (let [selection (or (ui/user-data tree-view ::pending-selection) (workspace/selection tree-view))]
     (update-tree-view tree-view resource-tree selection)
-    (ui/user-data! tree-view ::pending-selection nil)))
+    (ui/user-data! tree-view ::pending-selection nil)
+    tree-view))
 
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)
