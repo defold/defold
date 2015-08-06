@@ -4,8 +4,8 @@
             [dynamo.graph :as g]
             [editor.image :refer [flood blank-image extrude-borders image-bounds composite]]
             [editor.types :as types]
-            [internal.texture.engine :refer [texture-engine-format-generate]]
-            [internal.texture.pack-max-rects :refer [max-rects-packing]])
+            [editor.texture.engine :refer [texture-engine-format-generate]]
+            [editor.texture.pack-max-rects :refer [max-rects-packing]])
   (:import [editor.types Rect Image TexturePacking EngineFormatTexture]
            [java.awt.image BufferedImage]))
 

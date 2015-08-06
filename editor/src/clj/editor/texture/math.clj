@@ -1,4 +1,4 @@
-(ns internal.texture.math
+(ns editor.texture.math
   (:require [dynamo.graph :as g]
             [schema.core :as s]))
 

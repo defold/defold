@@ -1,8 +1,8 @@
-(ns internal.texture.engine
+(ns editor.texture.engine
   (:require [editor.image :refer [image-pixels image-convert-type image-color-components]]
             [editor.types :refer [map->EngineFormatTexture]]
             [editor.buffers :refer [little-endian new-byte-buffer]]
-            [internal.texture.math :refer [closest-power-of-two]])
+            [editor.texture.math :refer [closest-power-of-two]])
   (:import [java.awt.image BufferedImage ColorModel]
            [java.nio ByteBuffer]
            [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat Graphics$TextureFormatAlternative$CompressionLevel]
