@@ -336,11 +336,16 @@ public class FacebookActivity implements PseudoActivity {
                 GameRequestContent.Builder content = new GameRequestContent.Builder()
                     .setTitle(dialogParams.getString("title", ""))
                     .setMessage(dialogParams.getString("message", ""))
-                    .setData(dialogParams.getString("data"))
-                    .setObjectId(dialogParams.getString("object_id"));
+                    .setData(dialogParams.getString("data"));
 
-                    int actionInt = Integer.parseInt(dialogParams.getString("action_type", "0"));
-                    content.setActionType(convertGameRequestAction(actionInt));
+                    if (dialogParams.getString("object_id") != null) {
+                        content.setObjectId(dialogParams.getString("object_id"));
+                    }
+
+                    if (dialogParams.getString("action_type") != null) {
+                        int actionInt = Integer.parseInt(dialogParams.getString("action_type", "0"));
+                        content.setActionType(convertGameRequestAction(actionInt));
+                    }
 
                     // recipients, filters and suggestions are mutually exclusive
                     int filters = Integer.parseInt(dialogParams.getString("filters", "-1"));
@@ -348,7 +353,7 @@ public class FacebookActivity implements PseudoActivity {
                         content.setTo(recipientsString);
                     } else if (filters != -1) {
                         content.setFilters(convertGameRequestFilters(filters));
-                    } else  {
+                    } else {
                         content.setSuggestions(suggestionsArray);
                     }
 

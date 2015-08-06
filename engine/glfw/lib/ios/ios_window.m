@@ -1016,7 +1016,6 @@ _GLFWwin g_Savewin;
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    printf("glfw main app delegate didFinishLaunchingWithOptions etc!\n");
 
     [self forceDeviceOrientation];
 
