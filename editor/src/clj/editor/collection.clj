@@ -337,8 +337,7 @@
                                             :rotation (math/vecmath->clj rotation)
                                             :scale3 (math/vecmath->clj scale)}))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc scene
-                                           :node-id _node-id
+                                     (assoc (assoc-deep scene :node-id _node-id)
                                            :transform transform
                                            :aabb (geom/aabb-transform (:aabb scene) transform)
                                            :renderable {:passes [pass/selection]})))
