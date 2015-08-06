@@ -354,7 +354,7 @@
 (defn- propagate-selection [change selection-fn]
   (when-not *programmatic-selection*
     (alter-var-root #'*paste-into-parent* (constantly false))
-    (when-let [changes (filter (comp not nil?) (and change (.getList change)))]
+    (when-let [changes (filter #(and (not (nil? %)) (item->node-id %)) (and change (.getList change)))]
       ; TODO - handle selection order
       (selection-fn (map item->node-id changes)))))
 

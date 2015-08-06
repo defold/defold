@@ -265,7 +265,7 @@
 
 (defn selection-roots [^TreeView tree-view path-fn id-fn]
   (let [selection (-> tree-view (.getSelectionModel) (.getSelectedItems))]
-    (let [items (into {} (map #(do [(path-fn %) %]) selection))
+    (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
           roots (loop [paths (keys items)
                        roots []]
                   (if-let [path (first paths)]
@@ -275,8 +275,8 @@
                                   roots)]
                       (recur (rest paths) roots))
                     roots))]
-    (vals (into {} (map #(let [item (items %)]
-                          [(id-fn item) item]) roots))))))
+      (vals (into {} (map #(let [item (items %)]
+                            [(id-fn item) item]) roots))))))
 
 (extend-type ListView
   workspace/SelectionProvider
