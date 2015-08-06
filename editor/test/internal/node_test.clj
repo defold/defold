@@ -11,10 +11,10 @@
 (def ^:dynamic *calls*)
 
 (defn tally [node fn-symbol]
-  (swap! *calls* update-in [(:_id node) fn-symbol] (fnil inc 0)))
+  (swap! *calls* update-in [(:_node-id node) fn-symbol] (fnil inc 0)))
 
 (defn get-tally [node fn-symbol]
-  (get-in @*calls* [(:_id node) fn-symbol] 0))
+  (get-in @*calls* [(:_node-id node) fn-symbol] 0))
 
 (g/defproperty StringWithDefault g/Str
   (default "o rly?"))
@@ -119,7 +119,7 @@
         (let [properties (g/node-value n1 :_properties)]
           (is (not (empty? (:properties properties))))
           (is (every? gt/property-type? (map :type (vals (:properties properties)))))
-          (is (empty? (filter (fn [k] (= :_id k)) (keys (:properties properties)))))
+          (is (empty? (filter (fn [k] (= :_node-id k)) (keys (:properties properties)))))
           (is (not (empty? (:display-order properties))))))))
 
   (testing "the _node-id output delivers the node's id."
