@@ -1,8 +1,8 @@
-(ns internal.texture.pack-max-rects
+(ns editor.texture.pack-max-rects
   (:require [dynamo.graph :as g]
             [editor.types :as types :refer [rect width height]]
             [editor.geom :refer [area split-rect]]
-            [internal.texture.math :refer [binary-search-start binary-search-current binary-search-next]]
+            [editor.texture.math :refer [binary-search-start binary-search-current binary-search-next]]
             [schema.core :as s])
   (:import [editor.types Rect Image TexturePacking]))
 
