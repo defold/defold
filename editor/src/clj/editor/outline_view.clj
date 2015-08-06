@@ -34,6 +34,7 @@
 (declare tree-item)
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
+(def ^:private ^:dynamic *paste-into-parent* false)
 
 ; TreeItem creator
 (defn- ^ObservableList list-children [parent]
@@ -184,6 +185,7 @@
 (handler/defhandler :copy :global
   (enabled? [selection] (< 0 (count selection)))
   (run [outline-view]
+       (alter-var-root #'*paste-into-parent* (constantly true))
        (let [tree-view (g/node-value outline-view :tree-view)
              item-iterators (root-iterators tree-view)
              project (project tree-view)
@@ -191,22 +193,30 @@
              data (outline/copy item-iterators)]
          (.setContent cb {(data-format-fn) data}))))
 
+(defn- paste-target-it [tree-view]
+  (let [item-iterators (root-iterators tree-view)]
+    (when (= 1 (count item-iterators))
+      (let [target-it (first item-iterators)]
+        (if *paste-into-parent*
+          (outline/parent target-it)
+          target-it)))))
+
 (handler/defhandler :paste :global
   (enabled? [selection outline-view]
             (let [cb (Clipboard/getSystemClipboard)
                   tree-view (g/node-value outline-view :tree-view)
-                  item-iterators (root-iterators tree-view)
+                  target-item-it (paste-target-it tree-view)
                   data-format (data-format-fn)]
-              (and (= 1 (count item-iterators))
+              (and target-item-it
                    (.hasContent cb data-format)
-                   (outline/paste? (project tree-view) (first item-iterators) (.getContent cb data-format)))))
+                   (outline/paste? (project tree-view) target-item-it (.getContent cb data-format)))))
   (run [outline-view]
        (let [tree-view (g/node-value outline-view :tree-view)
-             item-iterators (root-iterators tree-view)
+             target-item-it (paste-target-it tree-view)
              project (project tree-view)
              cb (Clipboard/getSystemClipboard)
              data-format (data-format-fn)]
-         (outline/paste! project (first item-iterators) (.getContent cb data-format)))))
+         (outline/paste! project target-item-it (.getContent cb data-format)))))
 
 (handler/defhandler :cut :global
   (enabled? [selection outline-view]
@@ -324,6 +334,7 @@
 
 (defn- propagate-selection [change selection-fn]
   (when-not *programmatic-selection*
+    (alter-var-root #'*paste-into-parent* (constantly false))
     (when-let [changes (filter (comp not nil?) (and change (.getList change)))]
       ; TODO - handle selection order
       (selection-fn (map item->node-id changes)))))
