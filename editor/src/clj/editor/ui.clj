@@ -11,7 +11,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
            [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TextField]
-           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent]
+           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
@@ -612,3 +612,6 @@ return value."
   (let [^EventHandler handler (event-handler e (run-fn))]
     (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler (into-array KeyValue []))]))
       (.play))))
+
+(defn drag-internal? [^DragEvent e]
+  (some? (.getGestureSource e)))

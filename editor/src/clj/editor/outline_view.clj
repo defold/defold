@@ -14,7 +14,7 @@
            [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList ListChangeListener]
            [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
+           [javafx.event Event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene.input Clipboard ClipboardContent DragEvent TransferMode DataFormat]
@@ -234,16 +234,29 @@
 (defn- selection [tree-view]
   (-> tree-view (.getSelectionModel) (.getSelectedItems)))
 
+(defn- dump-mouse-event [^MouseEvent e]
+  (prn "src" (.getSource e))
+  (prn "tgt" (.getTarget e)))
+
+(defn- dump-drag-event [^DragEvent e]
+  (prn "src" (.getSource e))
+  (prn "tgt" (.getTarget e))
+  (prn "ges-src" (.getGestureSource e))
+  (prn "ges-tgt" (.getGestureTarget e)))
+
 (defn- drag-detected [tree-view e]
   (let [item-iterators (root-iterators tree-view)
         project (project tree-view)]
     (when (outline/drag? project item-iterators)
-      (let [db (.startDragAndDrop (.getSource e) (into-array TransferMode [TransferMode/MOVE]))
+      (let [db (.startDragAndDrop (.getSource e) (into-array TransferMode TransferMode/COPY_OR_MOVE))
             data (outline/copy item-iterators)]
         (.setContent db {(data-format-fn) data})
         (.consume e)))))
 
-(defn- drag-done [tree-view e])
+(defn- drag-done [tree-view e]
+  ; Moving items to external places is not supported
+  ; Moving items internally is handled by drag-dropped
+  )
 
 (defn- target [^Node node]
   (when node
@@ -252,43 +265,51 @@
       (target (.getParent node)))))
 
 (defn- drag-over [tree-view ^DragEvent e]
-  (when-let [cell (target (.getTarget e))]
-    ; Auto scrolling
-    (let [view (.getTreeView cell)
-          view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
-          height (.getHeight (.getBoundsInLocal view))]
-      (when (< view-y 15)
-        (.scrollTo view (dec (.getIndex cell))))
-      (when (> view-y (- height 15))
-        (.scrollTo view (inc (.getIndex cell)))))
-    (let [db (.getDragboard e)]
-      (when (and (instance? TreeCell cell)
-                 (not (.isEmpty cell))
-                 (.hasContent db (data-format-fn)))
-        (let [item-iterators (root-iterators tree-view)
-              project (project tree-view)]
-          (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
-                               (.getContent db (data-format-fn)))
-            (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
-            (.consume e)))))))
+  (if (not (instance? TreeCell (.getTarget e)))
+    (when-let [parent (.getParent (.getTarget e))]
+      (Event/fireEvent parent (.copyFor e (.getSource e) parent)))
+    (let [^TreeCell cell (.getTarget e)]
+      ; Auto scrolling
+      (let [view (.getTreeView cell)
+            view-y (.getY (.sceneToLocal view (.getSceneX e) (.getSceneY e)))
+            height (.getHeight (.getBoundsInLocal view))]
+        (when (< view-y 15)
+          (.scrollTo view (dec (.getIndex cell))))
+        (when (> view-y (- height 15))
+          (.scrollTo view (inc (.getIndex cell)))))
+      (let [db (.getDragboard e)]
+        (when (and (instance? TreeCell cell)
+                   (not (.isEmpty cell))
+                   (.hasContent db (data-format-fn)))
+          (let [item-iterators (if (ui/drag-internal? e)
+                                 (root-iterators tree-view)
+                                 [])
+                project (project tree-view)]
+            (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
+                                 (.getContent db (data-format-fn)))
+              (let [modes (if (ui/drag-internal? e)
+                            [TransferMode/MOVE]
+                            [TransferMode/COPY])]
+                (.acceptTransferModes e (into-array TransferMode modes)))
+              (.consume e))))))))
 
 (defn- drag-dropped [tree-view ^DragEvent e]
-  (when-let [cell (target (.getTarget e))]
-    (let [db (.getDragboard e)]
-      (when (and (instance? TreeCell cell)
-                 (not (.isEmpty cell))
-                 (.hasContent db (data-format-fn)))
-        (let [item-iterators (root-iterators tree-view)
-              project (project tree-view)]
-          (when (outline/drop! project item-iterators (->iterator (.getTreeItem cell))
-                               (.getContent db (data-format-fn)))
-            (.setDropCompleted e true)
-            (.consume e)))))))
+  (let [^TreeCell cell (target (.getTarget e))
+        db (.getDragboard e)]
+    (let [item-iterators (if (ui/drag-internal? e)
+                           (root-iterators tree-view)
+                           [])
+          project (project tree-view)]
+      (when (outline/drop! project item-iterators (->iterator (.getTreeItem cell))
+                           (.getContent db (data-format-fn)))
+        (.setDropCompleted e true)
+        (.consume e)))))
 
 (defn- drag-entered [tree-view ^DragEvent e]
   (when-let [cell (target (.getTarget e))]
     (let [future (ui/->future 0.5 (fn []
-                                    (-> cell (.getTreeItem) (.setExpanded true))))]
+                                    (-> cell (.getTreeItem) (.setExpanded true))
+                                    (ui/user-data! cell :future-expand nil)))]
       (ui/user-data! cell :future-expand future))))
 
 (defn- drag-exited [tree-view ^DragEvent e]
@@ -307,11 +328,11 @@
       (.addListener selection-listener))
   (doto tree-view
     (.setOnDragDetected (ui/event-handler e (drag-detected tree-view e)))
-    (.setOnDragDone (ui/event-handler e (drag-done tree-view e))))
+    (.setOnDragDone (ui/event-handler e (drag-done tree-view e)))
+    (.setOnDragOver (ui/event-handler e (drag-over tree-view e)))
+    (.setOnDragDropped (ui/event-handler e (drag-dropped tree-view e))))
   (ui/register-context-menu tree-view ::outline-menu)
-  (let [over-handler (ui/event-handler e (drag-over tree-view e))
-        dropped-handler (ui/event-handler e (drag-dropped tree-view e))
-        drag-entered-handler (ui/event-handler e (drag-entered tree-view e))
+  (let [drag-entered-handler (ui/event-handler e (drag-entered tree-view e))
         drag-exited-handler (ui/event-handler e (drag-exited tree-view e))]
     (.setCellFactory tree-view (reify Callback (call ^TreeCell [this view]
                                                  (let [cell (proxy [TreeCell] []
@@ -327,8 +348,6 @@
                                                                       (proxy-super setText label)
                                                                       (proxy-super setGraphic (jfx/get-image-view icon 16)))))))]
                                                    (doto cell
-                                                     (.setOnDragOver over-handler)
-                                                     (.setOnDragDropped dropped-handler)
                                                      (.setOnDragEntered drag-entered-handler)
                                                      (.setOnDragExited drag-exited-handler))))))))
 
