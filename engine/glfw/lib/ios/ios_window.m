@@ -1015,8 +1015,8 @@ _GLFWwin g_Savewin;
     });
 }
 
-- (void)applicationDidFinishLaunching:(UIApplication *)application
-{
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+
     [self forceDeviceOrientation];
 
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
@@ -1048,6 +1048,17 @@ _GLFWwin g_Savewin;
     {
         g_StartupPhase = INIT2;
     }
+
+    BOOL handled = NO;
+
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(application:didFinishLaunchingWithOptions:)]) {
+            if ([g_AppDelegates[i] application:application didFinishLaunchingWithOptions:launchOptions])
+                handled = YES;
+        }
+    }
+
+    return handled;
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application
