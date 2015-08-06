@@ -83,11 +83,11 @@
     (let [[workspace project] (setup world)
           root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
       ; 1 go instance
-      (is (= 1 (child-count root)))
+      (is (= 2 (child-count root)))
       (copy! root [0])
       (paste! project root)
       ; 2 go instances
-      (is (= 2 (child-count root))))))
+      (is (= 3 (child-count root))))))
 
 (deftest copy-paste-game-object
   (with-clean-system
