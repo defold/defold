@@ -201,6 +201,10 @@
       (copy-file workspace "/tmp.atlas" atlas-path)
       (is (no-error? (g/node-value node-id :scene))))))
 
+(defn- image-label [atlas]
+  (let [outline (g/node-value atlas :outline)]
+    (:label (first (:children outline)))))
+
 (deftest refactoring
   (with-clean-system
     (let [[workspace project] (setup world)
@@ -208,6 +212,8 @@
           img-path "/test_img.png"
           new-img-path "/test_img2.png"]
       (add-img workspace img-path 64 64)
-      (is (no-error? (g/node-value node-id :scene)))
+      (is (.endsWith (image-label node-id) img-path))
       (move-file workspace img-path new-img-path)
-      (is (no-error? (g/node-value node-id :scene))))))
+      (is (.endsWith (image-label node-id) new-img-path))
+      (move-file workspace new-img-path img-path)
+      (is (.endsWith (image-label node-id) img-path)))))

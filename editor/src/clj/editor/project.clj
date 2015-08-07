@@ -44,6 +44,7 @@ ordinary paths."
               project-graph
               [new-resource [node-type :resource resource :project-id project]]
               (g/connect new-resource :_node-id project :nodes)
+              (g/connect new-resource :resource project :node-resources)
               (if ((g/output-labels node-type) :save-data)
                 (g/connect new-resource :save-data project :save-data)
                 []))
@@ -252,17 +253,16 @@ ordinary paths."
             :when resource-node]
       (let [current-outputs (outputs resource-node)]
         (if (loadable? resource)
-          (do
-            (let [nodes (make-nodes project [resource])]
-              (load-nodes project nodes)
-              (let [new-node (first nodes)
-                    new-outputs (set (outputs new-node))
-                    outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
-                (g/transact
-                  (concat
-                    (g/delete-node resource-node)
-                    (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-                      (g/connect new-node src-label tgt-node tgt-label)))))))
+          (let [nodes (make-nodes project [resource])]
+            (load-nodes project nodes)
+            (let [new-node (first nodes)
+                  new-outputs (set (outputs new-node))
+                  outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+              (g/transact
+                (concat
+                  (g/delete-node resource-node)
+                  (for [[src-label [tgt-node tgt-label]] outputs-to-make]
+                    (g/connect new-node src-label tgt-node tgt-label))))))
           (let [nid resource-node]
             (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
     (when reset-undo?
@@ -284,11 +284,12 @@ ordinary paths."
   (input resources g/Any)
   (input resource-types g/Any)
   (input save-data g/Any :array)
+  (input node-resources g/Any :array)
 
   (output selected-node-ids g/Any :cached (g/fnk [selected-node-ids] selected-node-ids))
   (output selected-nodes g/Any :cached (g/fnk [selected-nodes] selected-nodes))
   (output selected-node-properties g/Any :cached (g/fnk [selected-node-properties] selected-node-properties))
-  (output nodes-by-resource g/Any :cached (g/fnk [nodes] (into {} (map (fn [n] [(g/node-value n :resource) n]) nodes))))
+  (output nodes-by-resource g/Any :cached (g/fnk [node-resources nodes] (into {} (map (fn [n] [(g/node-value n :resource) n]) nodes))))
   (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data))))
 
 (defn get-resource-type [resource-node]
@@ -335,6 +336,7 @@ ordinary paths."
           (graph project)
           [new-resource [node-type :resource resource :project-id project]]
           (g/connect new-resource :_node-id project :nodes)
+          (g/connect new-resource :resource project :node-resources)
           (if ((g/output-labels node-type) :save-data)
             (g/connect new-resource :save-data project :save-data)
             [])
