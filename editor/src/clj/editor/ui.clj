@@ -295,13 +295,13 @@
   (let [main-scene (.getScene ^Stage @*main-stage*)
         initial-node (or (.getFocusOwner main-scene) (.getRoot main-scene))]
     (->>
-     (loop [^Node node initial-node
-            ctxs []]
-       (if-not node
-         ctxs
-         (recur (.getParent node) (conj ctxs (user-data node ::context)))))
-     (remove nil?)
-     (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
+      (loop [^Node node initial-node
+             ctxs []]
+        (if-not node
+          ctxs
+          (recur (.getParent node) (conj ctxs (user-data node ::context)))))
+      (remove nil?)
+      (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
 
 (defn extend-menu [id location menu]
   (swap! *menus* assoc id {:location location
@@ -399,11 +399,14 @@
 (defn- refresh-menubar [md command-contexts]
  (let [menu (realize-menu (:menu-id md))
        control ^MenuBar (:control md)]
-   (when-not (= menu (user-data control ::menu))
+   (when-not (and
+               (= menu (user-data control ::menu))
+               (= command-contexts (user-data control ::command-contexts)))
      (.clear (.getMenus control))
      ; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
      (.addAll (.getMenus control) (to-array (make-menu-items menu command-contexts)))
-     (user-data! control ::menu menu))))
+     (user-data! control ::menu menu)
+     (user-data! control ::command-contexts command-contexts))))
 
 (defn- refresh-menu-state [^Menu menu command-contexts]
   (doseq [m (.getItems menu)]
@@ -425,9 +428,11 @@
 (defn- refresh-toolbar [td command-contexts]
  (let [menu (realize-menu (:menu-id td))
        ^Pane control (:control td)]
-   (when-not (= menu (user-data control ::menu))
+   (when-not (and (= menu (user-data control ::menu))
+                  (= command-contexts (user-data control ::command-contexts)))
      (.clear (.getChildren control))
      (user-data! control ::menu menu)
+     (user-data! control ::command-contexts command-contexts)
      (doseq [menu-item menu
              :let [command (:command menu-item)
                    user-data (:user-data menu-item)]
