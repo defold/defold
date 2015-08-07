@@ -74,9 +74,10 @@ static void RunDialogResultCallback(lua_State*L, NSDictionary* result, NSError* 
     - (void)sharer:(id<FBSDKSharing>)sharer didCompleteWithResults :(NSDictionary *)results {
         if (results != nil) {
             // fix result so it complies with JS result fields
-            NSMutableDictionary* new_res = [NSMutableDictionary dictionaryWithDictionary:@{
-                @"post_id" : results[@"postId"]
-            }];
+            NSMutableDictionary* new_res = [NSMutableDictionary dictionary];
+            if (results[@"postId"]) {
+                [new_res setValue:results[@"postId"] forKey:@"post_id"];
+            }
             RunDialogResultCallback(g_Facebook.m_MainThread, new_res, 0);
         } else {
             RunDialogResultCallback(g_Facebook.m_MainThread, 0, 0);
