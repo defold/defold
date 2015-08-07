@@ -315,7 +315,9 @@
       (update :child-reqs (fn [reqs]
                             (mapv (fn [req] (update req :tx-attach-fn #(fn [self-id child-id]
                                                                          (% source child-id))))
-                                  reqs))))))
+                                  ; TODO - temp blocked because of risk for graph cycles
+                                  ; If it's dropped on another instance referencing the same collection, it blows up
+                                  (filter (fn [req] (not= CollectionInstanceNode (:node-type req))) reqs)))))))
 
 (g/defnode CollectionInstanceNode
   (inherits ScalableSceneNode)
