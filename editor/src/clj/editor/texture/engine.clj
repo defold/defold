@@ -12,17 +12,15 @@
 (set! *unchecked-math* true)
 
 ; Set up some compile-time aliases for those long Java constant names
-(doseq [[n v]
-        {'L8       TexcLibrary$PixelFormat/L8
-         'R8G8B8   TexcLibrary$PixelFormat/R8G8B8
-         'R8G8B8A8 TexcLibrary$PixelFormat/R8G8B8A8
+(def L8       TexcLibrary$PixelFormat/L8)
+(def R8G8B8   TexcLibrary$PixelFormat/R8G8B8)
+(def R8G8B8A8 TexcLibrary$PixelFormat/R8G8B8A8)
 
-         'TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
-         'TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB
-         'TEXTURE_FORMAT_RGBA      Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA
+(def TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE)
+(def TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB)
+(def TEXTURE_FORMAT_RGBA      Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA)
 
-         'SRGB     TexcLibrary$ColorSpace/SRGB}]
-  (eval `(def ~n ~v)))
+(def SRGB     TexcLibrary$ColorSpace/SRGB)
 
 (def default-formats
   [R8G8B8A8 TEXTURE_FORMAT_RGBA])
