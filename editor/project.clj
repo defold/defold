@@ -27,6 +27,7 @@
                      [commons-io/commons-io                       "2.4"]
                      [org.clojure/tools.nrepl                     "0.2.10" :exclusions [org.clojure/clojure]]
                      [cider/cider-nrepl                           "0.9.1" :exclusions [org.clojure/tools.nrepl]]
+                     [refactor-nrepl                              "1.1.0"]
                      [org.clojure/data.json                       "0.2.6"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.1.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.1.0"]
@@ -89,16 +90,15 @@
 
   :profiles          {:test        {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]}
                       :uberjar     {:main com.defold.editor.Start
-                                    :prep-tasks ["protobuf" "javac" "compile"]
-                                    :aot  [editor]}
+                                    :prep-tasks ["protobuf" "javac" "compile" ["run" "-m" " aot"]]
+                                    :aot  ^:replace []
+                                    :source-paths ["sidecar"]}
                       :repl        {:source-paths   ["dev"]
                                     :prep-tasks     ^:replace []
                                     :aot            ^:replace []
                                     :repl-options   {:init-ns user}}
                       :dev         {:dependencies   [[org.clojure/test.check   "0.7.0"]
                                                      [org.mockito/mockito-core "1.10.19"]
-                                                     [refactor-nrepl           "1.1.0"]
-                                                     [org.clojure/tools.nrepl  "0.2.10" :exclusions [org.clojure/clojure]]
                                                      [criterium "0.4.3"]
                                                      [ring "1.4.0-RC1"]]
                                     :repl-options   {:port 4001}
