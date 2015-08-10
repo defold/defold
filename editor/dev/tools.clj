@@ -77,13 +77,3 @@
 (defn get-value
   [gid nid label]
   (g/node-value (node gid nid) label))
-
-(defn protobuf-fields
-  [protobuf-msg-cls]
-  (for [fld (.getFields (java/invoke-no-arg-class-method protobuf-msg-cls "getDescriptor"))]
-    {:name (.getName fld)
-     :type (let [t (.getJavaType fld)]
-             (if (not= com.google.protobuf.Descriptors$FieldDescriptor$JavaType/MESSAGE t)
-               (str t)
-               (.. fld getMessageType getName)))
-     :resource? (.getExtension (.getOptions fld) com.dynamo.proto.DdfExtensions/resource)}))
