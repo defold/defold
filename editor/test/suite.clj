@@ -21,7 +21,8 @@
                        editor.handler-test
                        editor.image-test
                        editor.injection-test
-                       editor.math-test
+                       editor.texture.math-test
+                       editor.texture.packing-test
                        editor.project-test
                        editor.ui-test
                        integration.asset-browser-test
@@ -40,9 +41,7 @@
                        internal.dependency-test
                        internal.graph.graph-test
                        internal.graph.types-test
-                       internal.math-test
                        internal.node-test
-                       internal.packing-test
                        internal.paper-tape-test
                        internal.property-test
                        internal.system-test
