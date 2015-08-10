@@ -98,7 +98,7 @@
 
 (handler/defhandler :quit :global
   (enabled? [] true)
-  (run [] (prn "QUIT NOW!")))
+  (run [] (Platform/exit)))
 
 (handler/defhandler :new :global
   (enabled? [] true)
