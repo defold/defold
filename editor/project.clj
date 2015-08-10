@@ -104,4 +104,5 @@
                                     :repl-options   {:port 4001}
                                     :proto-paths    ["test/proto"]
                                     :main ^:skip-aot com.defold.editor.Start
+                                    :source-paths   ["sidecar"]
                                     :resource-paths ["test/resources"]}})
