@@ -57,6 +57,7 @@
     (compile n)))
 
 (defn -main [& args]
+  (defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))
   (let [order (compile-order srcdirs)]
     (println "Compiling in order " order)
     (compile-clj order))
