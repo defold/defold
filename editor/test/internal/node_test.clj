@@ -291,7 +291,7 @@
   (testing "the output has the same type as the property"
     (is (= g/Keyword
           (-> ProductionFunctionInputsNode g/transform-types :prop)
-          (-> ProductionFunctionInputsNode g/properties :prop :value-type)))))
+          (-> ProductionFunctionInputsNode g/declared-properties :prop :value-type)))))
 
 (g/defnode AKeywordNode
   (property prop g/Keyword))
@@ -371,13 +371,13 @@
 (deftest inheritance-merges-node-types
   (testing "properties"
     (with-clean-system
-      (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/properties)))
-      (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/properties)))
-      (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/properties :property-to-override   gt/property-default-value)))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/properties :property-to-override   gt/property-default-value)))
-      (is (= "a-default"         (-> (g/construct InheritsBasicNode) g/node-type g/properties :property-from-type     gt/property-default-value)))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/properties :property-from-multiple gt/property-default-value)))))
+      (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
+      (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
+      (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
+      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   gt/property-default-value)))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   gt/property-default-value)))
+      (is (= "a-default"         (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-type     gt/property-default-value)))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple gt/property-default-value)))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)
