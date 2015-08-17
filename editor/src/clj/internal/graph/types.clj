@@ -1,6 +1,5 @@
 (ns internal.graph.types
-  (:require [potemkin.namespaces :refer [import-vars]]
-            [schema.core :as s]))
+  (:require [schema.core :as s]))
 
 (defn pfnk?
   "True if the function has a schema. (I.e., it is a valid production function"
@@ -27,7 +26,7 @@
   (transforms             [this])
   (transform-types        [this])
   (internal-properties    [this])
-  (properties             [this])
+  (declared-properties    [this])
   (externs                [this])
   (declared-inputs        [this])
   (injectable-inputs      [this])
@@ -46,7 +45,7 @@
 
 (defn input-labels    [node-type] (-> node-type declared-inputs keys set))
 (defn output-labels   [node-type] (-> node-type declared-outputs))
-(defn property-labels [node-type] (-> node-type properties keys set))
+(defn property-labels [node-type] (-> node-type declared-properties keys set))
 
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")

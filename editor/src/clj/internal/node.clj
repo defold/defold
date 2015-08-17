@@ -90,11 +90,11 @@
      (merge-display-order order1 order2))))
 
 (defn- all-properties [node-type]
-  (merge (gt/properties node-type) (gt/internal-properties node-type)))
+  (merge (gt/declared-properties node-type) (gt/internal-properties node-type)))
 
 (defn- gather-property
   [id node-type self kwargs prop]
-  (let [property-type     (-> node-type gt/properties prop)
+  (let [property-type     (-> node-type gt/declared-properties prop)
         value             (get self prop)
         problems          (gt/property-validate property-type value)
         dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes property-type))]
@@ -113,7 +113,7 @@
   (let [kwargs         (dissoc kwargs :_node-id)
         self           (ig/node-by-id-at basis _node-id)
         node-type      (gt/node-type self)
-        property-names (-> node-type gt/properties keys)]
+        property-names (-> node-type gt/declared-properties keys)]
     {:properties (zipmap property-names (map (partial gather-property _node-id node-type self kwargs) property-names))
      :display-order (-> node-type gt/property-display-order)}))
 
@@ -121,7 +121,7 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-types property-passthroughs property-display-order]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties declared-properties externs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-types property-passthroughs property-display-order]
 
   gt/NodeType
   (supertypes            [_] supertypes)
@@ -132,7 +132,7 @@
   (transforms            [_] transforms)
   (transform-types       [_] transform-types)
   (internal-properties   [_] internal-properties)
-  (properties            [_] properties)
+  (declared-properties   [_] declared-properties)
   (externs               [_] externs)
   (declared-inputs       [_] inputs)
   (injectable-inputs     [_] injectable-inputs)
@@ -177,7 +177,7 @@
 
 (defn attach-properties-output
   [node-type-description]
-  (let [properties      (:properties node-type-description)
+  (let [properties      (:declared-properties node-type-description)
         argument-names  (properties-output-arguments properties)
         argument-schema (zipmap argument-names (repeat s/Any))]
     (attach-output node-type-description :_properties s/Any #{} #{}
@@ -189,9 +189,9 @@
 
 (defn verify-inputs-for-dynamics
   [node-type-description]
-  (doseq [property (:properties node-type-description)]
+  (doseq [property (:declared-properties node-type-description)]
     (let [args         (set (property-dynamics-arguments property))
-          missing-args (reduce set/difference args [(keyset (:inputs node-type-description)) (keyset (:properties node-type-description))])]
+          missing-args (reduce set/difference args [(keyset (:inputs node-type-description)) (keyset (:declared-properties node-type-description))])]
       (assert (empty? missing-args) (str "Node " (:name node-type-description) " must have inputs or properties for the label(s) "
                                          missing-args ", because they are needed by its property '" (name (first property)) "'."))))
   node-type-description)
@@ -257,7 +257,7 @@
       (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/declared-inputs))
       (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
       (update-in [:internal-properties]   combine-with merge      {} (from-supertypes description gt/internal-properties))
-      (update-in [:properties]            combine-with merge      {} (from-supertypes description gt/properties))
+      (update-in [:declared-properties]   combine-with merge      {} (from-supertypes description gt/declared-properties))
       (update-in [:externs]               combine-with set/union #{} (from-supertypes description gt/externs))
       (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
       (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
@@ -276,7 +276,7 @@
       verify-inputs-for-dynamics
       map->NodeTypeImpl))
 
-(def ^:private inputs-properties (juxt :inputs :properties))
+(def ^:private inputs-properties (juxt :inputs :declared-properties))
 
 (defn- assert-form-kind [kind-label required-kind label form]
   (assert (required-kind form) (str "defnode " label " requires a " kind-label " not a " (class form) " of " form)))
@@ -358,7 +358,7 @@
 (defn attach-property
   "Update the node type description with the given property."
   [description label property-type passthrough]
-  (let [prop-key (if (contains? internal-keys label) :internal-properties :properties)]
+  (let [prop-key (if (contains? internal-keys label) :internal-properties :declared-properties)]
     (-> description
         (update-in  [prop-key] assoc label property-type)
         (assoc-in [:property-types label] property-type)
@@ -495,7 +495,7 @@
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (util/map-vals gt/property-default-value (gt/properties node-type)))
+  (util/map-vals gt/property-default-value (gt/declared-properties node-type)))
 
 (defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
 (defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
