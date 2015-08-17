@@ -225,10 +225,7 @@
   (dynamic enabled (g/always false)))
 
 (deftest test-enablement
-  (is (true?  (gt/dynamic-value PropWithoutEnablement :enabled {})))
-  (is (true?  (gt/dynamic-value PropWithEnablementAlwaysTrue  :enabled {})))
-  (is (false?  (gt/dynamic-value PropWithEnablementAlwaysFalse :enabled {})))
-(is (thrown-with-msg?
+  (is (thrown-with-msg?
        clojure.lang.Compiler$CompilerException #"property dynamic requires a symbol"
        (eval '(dynamo.graph/defproperty BadProp schema.core/Num (dynamic (enabled non-existent-symbol)))))))
 
@@ -238,9 +235,6 @@
   (dynamic visible (g/fnk [an-input] (pos? an-input))))
 
 (deftest test-property-type-enablement
-  (is (true?  (gt/dynamic-value PropWithoutVisibility :visible {})))
-  (is (false? (gt/dynamic-value PropWithVisibilityFn :visible {:an-input 0})))
-  (is (true?  (gt/dynamic-value PropWithVisibilityFn :visible {:an-input 1})))
   (is (thrown-with-msg?
        clojure.lang.Compiler$CompilerException #"should be an fnk"
        (eval '(dynamo.graph/defproperty BadProp schema.core/Num (dynamic visible pos?))))))
