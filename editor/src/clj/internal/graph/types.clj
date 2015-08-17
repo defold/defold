@@ -89,8 +89,7 @@
 (def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
 
 (defprotocol Dynamics
-  (dynamic-attributes          [this] "Return a map from label to fnk")
-  (dynamic-value               [this k v] "Returns the value of the dynamic property key - if a fnk, then the result of applying v"))
+  (dynamic-attributes          [this] "Return a map from label to fnk"))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers

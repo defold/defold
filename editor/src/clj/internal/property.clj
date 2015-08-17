@@ -31,9 +31,7 @@
   (property-tags          [this]   tags)
 
   gt/Dynamics
-  (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic))
-  (dynamic-value          [this k v] (or (nil? (k dynamic))
-                                         (util/apply-if-fn (util/var-get-recursive (k dynamic)) v))))
+  (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic)))
 
 (defn- assert-form-kind [kind-label required-kind label form]
   (assert (required-kind form) (str "property " label " requires a " kind-label " not a " (class form) " of " form)))
