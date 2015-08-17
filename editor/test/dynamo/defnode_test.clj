@@ -229,7 +229,7 @@
 
   (testing "_node-id is an internal property"
     (is (= [:_node-id :_output-jammers] (keys (g/internal-properties SinglePropertyNode))))
-    (is (= [:a-property] (keys (g/properties SinglePropertyNode)))))
+    (is (= [:a-property] (keys (g/declared-properties SinglePropertyNode)))))
 
   (testing "two properties"
     (let [node (g/construct TwoPropertyNode)]

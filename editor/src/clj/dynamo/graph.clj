@@ -20,7 +20,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties declared-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
@@ -226,7 +226,7 @@
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
   (assert (::ctor node-type))
-  (let [args-without-properties (set/difference (util/key-set args) (externs node-type) (util/key-set (merge (internal-properties node-type) (properties node-type))))]
+  (let [args-without-properties (set/difference (util/key-set args) (externs node-type) (util/key-set (merge (internal-properties node-type) (declared-properties node-type))))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type))))
   ((::ctor node-type) args))
 
@@ -801,7 +801,7 @@
 
 (defn default-node-serializer
   [node]
-  (let [property-labels        (keys (-> node gt/node-type gt/properties))
+  (let [property-labels        (keys (-> node gt/node-type gt/declared-properties))
         all-node-properties    (select-keys node property-labels)
         properties-without-fns (util/filterm (comp not fn? val) all-node-properties)]
     {:node-type  (gt/node-type node)
