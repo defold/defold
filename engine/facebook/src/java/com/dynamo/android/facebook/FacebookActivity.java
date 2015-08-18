@@ -148,16 +148,18 @@ public class FacebookActivity implements PseudoActivity {
             AccessToken.getCurrentAccessToken(),
             new GraphRequest.GraphJSONObjectCallback() {
                 @Override
-                public void onCompleted(
-                       JSONObject object,
-                       GraphResponse response) {
-
+                public void onCompleted(JSONObject object, GraphResponse response) {
                    Bundle data = new Bundle();
-                   data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
-                   data.putString(Facebook.MSG_KEY_USER, object.toString());
-                   data.putString(Facebook.MSG_KEY_ACCESS_TOKEN, AccessToken.getCurrentAccessToken().getToken());
-                   data.putInt(Facebook.MSG_KEY_STATE, State.STATE_OPEN.getValue());
-
+                   if (response.getError() == null) {
+                       data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
+                       data.putString(Facebook.MSG_KEY_USER, object.toString());
+                       data.putString(Facebook.MSG_KEY_ACCESS_TOKEN, AccessToken.getCurrentAccessToken().getToken());
+                       data.putInt(Facebook.MSG_KEY_STATE, State.STATE_OPEN.getValue());
+                   } else {
+                       data.putBoolean(Facebook.MSG_KEY_SUCCESS, false);
+                       data.putInt(Facebook.MSG_KEY_STATE, State.STATE_CLOSED_LOGIN_FAILED.getValue());
+                       data.putString(Facebook.MSG_KEY_ERROR, response.getError().getErrorMessage());
+                   }
                    respond(Facebook.ACTION_LOGIN, data);
                 }
             });
