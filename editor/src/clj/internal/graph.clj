@@ -180,7 +180,6 @@
   [basis node-id-output-pair]
   (let [gather-node-dependencies-fn (fn [[id label]]
                                       (some-> (node-by-id-at basis id)
-                                              gt/node-type
                                               gt/input-dependencies
                                               (get label)
                                               (->> (mapv (partial vector id)))))

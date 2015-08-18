@@ -120,28 +120,28 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types declared-properties inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-passthroughs property-display-order]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types declared-properties inputs injectable-inputs cached-outputs declared-input-dependencies substitutes cardinalities property-passthroughs property-display-order]
 
   gt/NodeType
-  (supertypes            [_] supertypes)
-  (interfaces            [_] interfaces)
-  (protocols             [_] protocols)
-  (method-impls          [_] method-impls)
-  (triggers              [_] triggers)
-  (transforms            [_] transforms)
-  (transform-types       [_] transform-types)
-  (declared-properties   [_] declared-properties)
-  (declared-inputs       [_] inputs)
-  (injectable-inputs     [_] injectable-inputs)
-  (declared-outputs      [_] (set (keys transforms)))
-  (cached-outputs        [_] cached-outputs)
-  (input-dependencies    [_] input-dependencies)
-  (substitute-for        [_ input] (get substitutes input))
-  (input-type            [_ input] (get inputs input))
-  (input-cardinality     [_ input] (get cardinalities input))
-  (output-type           [_ output] (get transform-types output))
-  (property-passthrough? [_ output] (contains? property-passthroughs output))
-  (property-display-order [this] property-display-order))
+  (supertypes                  [_] supertypes)
+  (interfaces                  [_] interfaces)
+  (protocols                   [_] protocols)
+  (method-impls                [_] method-impls)
+  (triggers                    [_] triggers)
+  (transforms                  [_] transforms)
+  (transform-types             [_] transform-types)
+  (declared-properties         [_] declared-properties)
+  (declared-inputs             [_] inputs)
+  (injectable-inputs           [_] injectable-inputs)
+  (declared-outputs            [_] (set (keys transforms)))
+  (cached-outputs              [_] cached-outputs)
+  (declared-input-dependencies [_] declared-input-dependencies)
+  (substitute-for              [_ input] (get substitutes input))
+  (input-type                  [_ input] (get inputs input))
+  (input-cardinality           [_ input] (get cardinalities input))
+  (output-type                 [_ output] (get transform-types output))
+  (property-passthrough?       [_ output] (contains? property-passthroughs output))
+  (property-display-order      [this] property-display-order))
 
 (defmethod print-method NodeTypeImpl
   [^NodeTypeImpl v ^java.io.Writer w]
@@ -228,7 +228,7 @@
 
 (defn attach-input-dependencies
   [description]
-  (assoc description :input-dependencies (description->input-dependencies description)))
+  (assoc description :declared-input-dependencies (description->input-dependencies description)))
 
 (defn input-dependencies-non-transitive
   "Return a map from input to affected outputs, but without including
@@ -705,10 +705,11 @@
   `(do
      (defrecord ~record-name ~(state-vector node-type)
        gt/Node
-       (node-id        [this#]    (:_node-id this#))
-       (node-type      [_]        ~node-type-name)
-       (property-types [this]     (gt/public-properties ~node-type-name))
-       (produce-value  [~'this label# ~'evaluation-context]
+       (node-id            [this#] (:_node-id this#))
+       (node-type          [_]     ~node-type-name)
+       (property-types     [this]  (gt/public-properties ~node-type-name))
+       (input-dependencies [this]  (gt/declared-input-dependencies ~node-type-name))
+       (produce-value      [~'this label# ~'evaluation-context]
          (case label#
            ~@(mapcat (fn [an-output] [an-output (list (dollar-name node-type-name an-output) 'this 'evaluation-context)])
                      (keys (gt/transforms node-type)))
