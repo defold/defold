@@ -89,14 +89,11 @@
      (recur (merge-display-order order1 order2) (first more) (next more))
      (merge-display-order order1 order2))))
 
-(defn- all-properties [node-type]
-  (merge (gt/declared-properties node-type) (gt/internal-properties node-type)))
+(defn- all-properties [node-type] (gt/declared-properties node-type))
 
 (defn- gather-property
-  [id node-type self kwargs prop]
-  (let [property-type     (-> node-type gt/declared-properties prop)
-        value             (get self prop)
-        problems          (gt/property-validate property-type value)
+  [id node-type self kwargs property-type value]
+  (let [problems          (gt/property-validate property-type value)
         dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes property-type))]
     (merge dynamics
            {:node-id             id
@@ -113,15 +110,17 @@
   (let [kwargs         (dissoc kwargs :_node-id)
         self           (ig/node-by-id-at basis _node-id)
         node-type      (gt/node-type self)
-        property-names (-> node-type gt/declared-properties keys)]
-    {:properties (zipmap property-names (map (partial gather-property _node-id node-type self kwargs) property-names))
+        props          (gt/property-types self)
+        property-names (keys props)]
+    ; TODO - make this use the property getter fn
+    {:properties (zipmap property-names (map #(gather-property _node-id node-type self kwargs (get props %) (get self %)) (keys props)))
      :display-order (-> node-type gt/property-display-order)}))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties declared-properties externs inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-types property-passthroughs property-display-order]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types declared-properties inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-passthroughs property-display-order]
 
   gt/NodeType
   (supertypes            [_] supertypes)
@@ -131,9 +130,7 @@
   (triggers              [_] triggers)
   (transforms            [_] transforms)
   (transform-types       [_] transform-types)
-  (internal-properties   [_] internal-properties)
   (declared-properties   [_] declared-properties)
-  (externs               [_] externs)
   (declared-inputs       [_] inputs)
   (injectable-inputs     [_] injectable-inputs)
   (declared-outputs      [_] (set (keys transforms)))
@@ -143,7 +140,6 @@
   (input-type            [_ input] (get inputs input))
   (input-cardinality     [_ input] (get cardinalities input))
   (output-type           [_ output] (get transform-types output))
-  (property-type         [_ output] (get property-types output))
   (property-passthrough? [_ output] (contains? property-passthroughs output))
   (property-display-order [this] property-display-order))
 
@@ -177,7 +173,7 @@
 
 (defn attach-properties-output
   [node-type-description]
-  (let [properties      (:declared-properties node-type-description)
+  (let [properties      (filter (comp not :internal? val) (:declared-properties node-type-description))
         argument-names  (properties-output-arguments properties)
         argument-schema (zipmap argument-names (repeat s/Any))]
     (attach-output node-type-description :_properties s/Any #{} #{}
@@ -256,9 +252,8 @@
   (-> description
       (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/declared-inputs))
       (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
-      (update-in [:internal-properties]   combine-with merge      {} (from-supertypes description gt/internal-properties))
+
       (update-in [:declared-properties]   combine-with merge      {} (from-supertypes description gt/declared-properties))
-      (update-in [:externs]               combine-with set/union #{} (from-supertypes description gt/externs))
       (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
       (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
       (update-in [:cached-outputs]        combine-with set/union #{} (from-supertypes description gt/cached-outputs))
@@ -268,7 +263,6 @@
       (update-in [:triggers]              combine-with map-merge  {} (from-supertypes description gt/triggers))
       (update-in [:substitutes]           combine-with merge      {} (from-supertypes description :substitutes))
       (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
-      (update-in [:property-types]        combine-with merge      {} (from-supertypes description :property-types))
       (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
       resolve-display-order
       attach-properties-output
@@ -358,10 +352,9 @@
 (defn attach-property
   "Update the node type description with the given property."
   [description label property-type passthrough]
-  (let [prop-key (if (contains? internal-keys label) :internal-properties :declared-properties)]
+  (let [property-type (if (contains? internal-keys label) (assoc property-type :internal? true) property-type)]
     (-> description
-        (update-in  [prop-key] assoc label property-type)
-        (assoc-in [:property-types label] property-type)
+        (update    :declared-properties assoc label property-type)
         (update-in [:transforms] assoc-in [label] passthrough)
         (update-in [:transform-types] assoc label (:value-type property-type))
         (update-in [:property-passthroughs] #(conj (or % #{}) label))
@@ -373,9 +366,7 @@
   "Update the node type description with the given extern. It will be
   a property as well as an extern."
   [description label property-type passthrough]
-  (-> description
-      (attach-property label property-type passthrough)
-      (update :externs #(conj (or % #{}) label))))
+  (attach-property description label (assoc property-type :unjammable? true) passthrough))
 
 (defn attach-trigger
   "Update the node type description with the given trigger."
@@ -703,19 +694,20 @@
 
 (defn- state-vector
   [node-type]
-  (mapv (comp symbol name) (keys (all-properties node-type))))
+  (mapv (comp symbol name) (keys (gt/declared-properties node-type))))
 
 (defn- subtract-keys
   [m1 m2]
   (set/difference (set (keys m1)) (set (keys m2))))
 
-(defn- node-record-sexps
+(defn node-record-sexps
   [record-name node-type-name node-type]
   `(do
      (defrecord ~record-name ~(state-vector node-type)
        gt/Node
        (node-id        [this#]    (:_node-id this#))
        (node-type      [_]        ~node-type-name)
+       (property-types [this]     (gt/public-properties ~node-type-name))
        (produce-value  [~'this label# ~'evaluation-context]
          (case label#
            ~@(mapcat (fn [an-output] [an-output (list (dollar-name node-type-name an-output) 'this 'evaluation-context)])
@@ -751,7 +743,7 @@
         (str "#" '~node-type-name "{" (:_node-id ~node)
              ~@(interpose-every 3 ", "
                                 (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))])
-                                        (keys (all-properties node-type))))
+                                        (keys (gt/declared-properties node-type))))
              "}")))))
 
 (defn define-print-method

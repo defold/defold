@@ -128,6 +128,8 @@ into an arglist."
   [xrel ks]
   (with-meta (vec (map #(vals (select-keys % ks)) xrel)) (meta xrel)))
 
+(defn filter-vals [p m] (select-keys m (for [[k v] m :when (p v)] k)))
+
 (defn guard [f g]
   (fn [& args]
     (when (apply f args)

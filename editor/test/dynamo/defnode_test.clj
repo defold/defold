@@ -229,7 +229,7 @@
 
   (testing "_node-id is an internal property"
     (is (= [:_node-id :_output-jammers] (keys (g/internal-properties SinglePropertyNode))))
-    (is (= [:a-property] (keys (g/declared-properties SinglePropertyNode)))))
+    (is (= [:a-property] (keys (g/public-properties SinglePropertyNode)))))
 
   (testing "two properties"
     (let [node (g/construct TwoPropertyNode)]
@@ -361,13 +361,13 @@
       (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
 
   (testing "output dependencies include transforms and their inputs"
-    (is (= {:_node-id             #{:_node-id}
+    (is (= {:_node-id        #{:_node-id}
             :project         #{:integer-output}
             :string-input    #{:inline-string}
             :integer-input   #{:string-output :cached-output}
             :_output-jammers #{:_output-jammers}}
            (g/input-dependencies MultipleOutputNode)))
-    (is (= {:_node-id             #{:_node-id}
+    (is (= {:_node-id        #{:_node-id}
             :project         #{:integer-output}
             :string-input    #{:inline-string}
             :integer-input   #{:string-output :abstract-output :cached-output}
