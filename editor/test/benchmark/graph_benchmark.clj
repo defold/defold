@@ -142,7 +142,7 @@
           project-graph   (isys/graph @g/*the-system* (:project-graph r))
           affected-num    100
           chosen-node-ids (repeatedly affected-num (partial rand-nth (ig/node-ids project-graph)))
-          chosen-props    (mapv (fn [node-id]  (safe-rand-nth (vec (disj (set (keys (-> node-id g/node-type* gt/declared-properties))) :id)))) chosen-node-ids)]
+          chosen-props    (mapv (fn [node-id]  (safe-rand-nth (vec (disj (set (keys (-> node-id g/node-type* gt/public-properties))) :id)))) chosen-node-ids)]
       (str "Set Property on " affected-num " Nodes")
       (do-benchmark (str "Set Property on " affected-num " Nodes")
                     (mapv (fn [node property] (g/set-property node property nil)) chosen-node-ids chosen-props)))))

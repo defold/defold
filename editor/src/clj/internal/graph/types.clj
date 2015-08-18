@@ -1,5 +1,6 @@
 (ns internal.graph.types
-  (:require [schema.core :as s]))
+  (:require [dynamo.util :as util]
+            [schema.core :as s]))
 
 (defn pfnk?
   "True if the function has a schema. (I.e., it is a valid production function"
@@ -25,9 +26,7 @@
   (triggers               [this])
   (transforms             [this])
   (transform-types        [this])
-  (internal-properties    [this])
   (declared-properties    [this])
-  (externs                [this])
   (declared-inputs        [this])
   (injectable-inputs      [this])
   (declared-outputs       [this])
@@ -37,19 +36,23 @@
   (input-type             [this input])
   (input-cardinality      [this input])
   (output-type            [this output])
-  (property-type          [this output])
   (property-passthrough?  [this output])
   (property-display-order [this]))
 
 (defn node-type? [x] (satisfies? NodeType x))
 
-(defn input-labels    [node-type] (-> node-type declared-inputs keys set))
-(defn output-labels   [node-type] (-> node-type declared-outputs))
-(defn property-labels [node-type] (-> node-type declared-properties keys set))
+(defn input-labels        [node-type]          (-> node-type declared-inputs keys set))
+(defn output-labels       [node-type]          (-> node-type declared-outputs))
+(defn property-labels     [node-type]          (-> node-type declared-properties keys set))
+(defn internal-properties [node-type]          (->> node-type declared-properties (util/filter-vals :internal?)))
+(defn public-properties   [node-type]          (->> node-type declared-properties (util/filter-vals (comp not :internal?))))
+(defn externs             [node-type]          (->> node-type declared-properties (util/filter-vals :unjammable?)))
+(defn property-type       [node-type property] (-> node-type declared-properties (get property)))
 
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
   (node-type           [this]        "Return the node type that created this node.")
+  (property-types      [this]        "Return the combined map of compile-time and runtime properties")
   (produce-value       [this output evaluation-context] "Return the value of the named output"))
 
 (defn node? [v] (satisfies? Node v))
