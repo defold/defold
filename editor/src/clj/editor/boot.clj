@@ -20,6 +20,7 @@
             [editor.project :as project]
             [editor.properties-view :as properties-view]
             [editor.scene :as scene]
+            [editor.form-view :as form-view]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
             [editor.font :as font]
@@ -136,7 +137,8 @@
     (g/transact
       (concat
         (text/register-view-types workspace)
-        (scene/register-view-types workspace)))
+        (scene/register-view-types workspace)
+        (form-view/register-view-types workspace)))
     (g/transact
      (concat
       (collection/register-resource-types workspace)

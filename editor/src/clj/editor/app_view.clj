@@ -239,6 +239,7 @@
             opts       (assoc ((:id view-type) (:view-opts resource-type))
                               :app-view app-view
                               :project project
+                              :workspace workspace
                               :tab tab)
             view       (make-view-fn view-graph parent resource-node opts)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
