@@ -25,14 +25,14 @@ import android.util.Log;
 import com.android.vending.billing.IInAppBillingService;
 
 public class Iap implements Handler.Callback {
-	public static final String PARAM_PRODUCT = "product";
-	public static final String PARAM_MESSENGER = "com.defold.iap.messenger";
+    public static final String PARAM_PRODUCT = "product";
+    public static final String PARAM_MESSENGER = "com.defold.iap.messenger";
 
-	// NOTE: Also defined in iap_android.cpp
-	public static final int TRANS_STATE_PURCHASING = 0;
-	public static final int TRANS_STATE_PURCHASED = 1;
-	public static final int TRANS_STATE_FAILED = 2;
-	public static final int TRANS_STATE_RESTORED = 3;
+    // NOTE: Also defined in iap_android.cpp
+    public static final int TRANS_STATE_PURCHASING = 0;
+    public static final int TRANS_STATE_PURCHASED = 1;
+    public static final int TRANS_STATE_FAILED = 2;
+    public static final int TRANS_STATE_RESTORED = 3;
 
     public static final String RESPONSE_CODE = "RESPONSE_CODE";
     public static final String RESPONSE_GET_SKU_DETAILS_LIST = "DETAILS_LIST";
@@ -54,33 +54,34 @@ public class Iap implements Handler.Callback {
     public static final int BILLING_RESPONSE_RESULT_ITEM_NOT_OWNED = 8;
 
     public static enum Action {
-    	BUY,
-    	RESTORE,
+        BUY,
+        RESTORE,
+        PROCESS_PENDING_CONSUMABLES
     }
 
-	public static final String TAG = "iap";
+    public static final String TAG = "iap";
 
-	private Activity activity;
-	private Handler handler;
-	private Messenger messenger;
-	private ServiceConnection serviceConn;
-	private IInAppBillingService service;
+    private Activity activity;
+    private Handler handler;
+    private Messenger messenger;
+    private ServiceConnection serviceConn;
+    private IInAppBillingService service;
 
-	private SkuDetailsThread skuDetailsThread;
-	private BlockingQueue<SkuRequest> skuRequestQueue = new ArrayBlockingQueue<SkuRequest>(16);
+    private SkuDetailsThread skuDetailsThread;
+    private BlockingQueue<SkuRequest> skuRequestQueue = new ArrayBlockingQueue<SkuRequest>(16);
 
-	private IPurchaseListener purchaseListener;
-	private boolean initialized;
+    private IPurchaseListener purchaseListener;
+    private boolean initialized;
 
-	private static class SkuRequest {
-		private ArrayList<String> skuList;
-		private IListProductsListener listener;
+    private static class SkuRequest {
+        private ArrayList<String> skuList;
+        private IListProductsListener listener;
 
-		public SkuRequest(ArrayList<String> skuList, IListProductsListener listener) {
-			this.skuList = skuList;
-			this.listener = listener;
-		}
-	}
+        public SkuRequest(ArrayList<String> skuList, IListProductsListener listener) {
+            this.skuList = skuList;
+            this.listener = listener;
+        }
+    }
 
     private class SkuDetailsThread extends Thread {
         public boolean stop = false;
@@ -137,28 +138,28 @@ public class Iap implements Handler.Callback {
         }
     }
 
-	public Iap(Activity activity) {
-		this.activity = activity;
-	}
+    public Iap(Activity activity) {
+        this.activity = activity;
+    }
 
-	private void init() {
-		// NOTE: We must create Handler lazily as construction of
-		// handlers must be in the context of a "looper" on Android
+    private void init() {
+        // NOTE: We must create Handler lazily as construction of
+        // handlers must be in the context of a "looper" on Android
 
-		if (this.initialized)
-			return;
+        if (this.initialized)
+            return;
 
-		this.initialized = true;
-		this.handler = new Handler(this);
-		this.messenger = new Messenger(this.handler);
+        this.initialized = true;
+        this.handler = new Handler(this);
+        this.messenger = new Messenger(this.handler);
 
-		serviceConn = new ServiceConnection() {
+        serviceConn = new ServiceConnection() {
 
-			@Override
-			public void onServiceDisconnected(ComponentName name) {
-			    Log.v(TAG, "IAP disconnected");
-				service = null;
-			}
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                Log.v(TAG, "IAP disconnected");
+                service = null;
+            }
 
             @Override
             public void onServiceConnected(ComponentName name, IBinder binderService) {
@@ -169,16 +170,16 @@ public class Iap implements Handler.Callback {
             }
         };
 
-		Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
-		// Limit intent to vending package
-		serviceIntent.setPackage("com.android.vending");
+        Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
+        // Limit intent to vending package
+        serviceIntent.setPackage("com.android.vending");
         if (!activity.getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
             // service available to handle that Intent
             activity.bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
         } else {
             Log.e(TAG, "Billing service unavailable on device.");
         }
-	}
+    }
 
     public void stop() {
         this.activity.runOnUiThread(new Runnable() {
@@ -201,28 +202,28 @@ public class Iap implements Handler.Callback {
         });
     }
 
-	public void listItems(final String skus, final IListProductsListener listener) {
-		this.activity.runOnUiThread(new Runnable() {
+    public void listItems(final String skus, final IListProductsListener listener) {
+        this.activity.runOnUiThread(new Runnable() {
 
-			@Override
-			public void run() {
-				init();
+            @Override
+            public void run() {
+                init();
 
-				ArrayList<String> skuList = new ArrayList<String>();
-				for (String x : skus.split(",")) {
-					if (x.trim().length() > 0) {
-						skuList.add(x);
-					}
-				}
+                ArrayList<String> skuList = new ArrayList<String>();
+                for (String x : skus.split(",")) {
+                    if (x.trim().length() > 0) {
+                        skuList.add(x);
+                    }
+                }
 
-				try {
-					skuRequestQueue.put(new SkuRequest(skuList, listener));
-				} catch (InterruptedException e) {
-					Log.wtf(TAG, "Failed to add sku request", e);
-				}
-			}
-		});
-	}
+                try {
+                    skuRequestQueue.put(new SkuRequest(skuList, listener));
+                } catch (InterruptedException e) {
+                    Log.wtf(TAG, "Failed to add sku request", e);
+                }
+            }
+        });
+    }
 
     private static JSONObject convertProduct(String purchase) {
         try {
@@ -255,115 +256,129 @@ public class Iap implements Handler.Callback {
         return null;
     }
 
-	public void buy(final String product, final IPurchaseListener listener) {
-		this.activity.runOnUiThread(new Runnable() {
-			@Override
-			public void run() {
-				init();
-				Iap.this.purchaseListener = listener;
-				Intent intent = new Intent(activity, IapActivity.class);
-				intent.putExtra(PARAM_MESSENGER, messenger);
-				intent.putExtra(PARAM_PRODUCT, product);
-				intent.setAction(Action.BUY.toString());
-				activity.startActivity(intent);
-			}
-		});
-	}
+    public void buy(final String product, final IPurchaseListener listener) {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                init();
+                Iap.this.purchaseListener = listener;
+                Intent intent = new Intent(activity, IapActivity.class);
+                intent.putExtra(PARAM_MESSENGER, messenger);
+                intent.putExtra(PARAM_PRODUCT, product);
+                intent.setAction(Action.BUY.toString());
+                activity.startActivity(intent);
+            }
+        });
+    }
 
-	public void restore(final IPurchaseListener listener) {
-		this.activity.runOnUiThread(new Runnable() {
-			@Override
-			public void run() {
-				init();
-				Iap.this.purchaseListener = listener;
-				Intent intent = new Intent(activity, IapActivity.class);
-				intent.putExtra(PARAM_MESSENGER, messenger);
-				intent.setAction(Action.RESTORE.toString());
-				activity.startActivity(intent);
-			}
-		});
-	}
+    public void processPendingConsumables(final IPurchaseListener listener) {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                init();
+                Iap.this.purchaseListener = listener;
+                Intent intent = new Intent(activity, IapActivity.class);
+                intent.putExtra(PARAM_MESSENGER, messenger);
+                intent.setAction(Action.PROCESS_PENDING_CONSUMABLES.toString());
+                activity.startActivity(intent);
+            }
+        });
+    }
 
-	public static String toISO8601(final Date date) {
-		String formatted = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(date);
-		return formatted.substring(0, 22) + ":" + formatted.substring(22);
-	}
+    public void restore(final IPurchaseListener listener) {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                init();
+                Iap.this.purchaseListener = listener;
+                Intent intent = new Intent(activity, IapActivity.class);
+                intent.putExtra(PARAM_MESSENGER, messenger);
+                intent.setAction(Action.RESTORE.toString());
+                activity.startActivity(intent);
+            }
+        });
+    }
 
-	private static String convertPurchase(String purchase, String signature) {
-		try {
-			JSONObject p = new JSONObject(purchase);
-			p.put("ident", p.get("productId"));
-			p.put("state", TRANS_STATE_PURCHASED);
-			p.put("trans_ident", p.get("orderId"));
-			p.put("date", toISO8601(new Date(p.getLong("purchaseTime"))));
-			// Receipt is the complete json data
-			// http://robertomurray.co.uk/blog/2013/server-side-google-play-in-app-billing-receipt-validation-and-testing/
-			p.put("receipt", purchase);
-			p.put("signature", signature);
-			// TODO: How to simulate original_trans on iOS?
+    public static String toISO8601(final Date date) {
+        String formatted = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(date);
+        return formatted.substring(0, 22) + ":" + formatted.substring(22);
+    }
 
-			p.remove("packageName");
-			p.remove("orderId");
-			p.remove("productId");
-			p.remove("developerPayload");
-			p.remove("purchaseTime");
-			p.remove("purchaseState");
-			p.remove("purchaseToken");
+    private static String convertPurchase(String purchase, String signature) {
+        try {
+            JSONObject p = new JSONObject(purchase);
+            p.put("ident", p.get("productId"));
+            p.put("state", TRANS_STATE_PURCHASED);
+            p.put("trans_ident", p.get("orderId"));
+            p.put("date", toISO8601(new Date(p.getLong("purchaseTime"))));
+            // Receipt is the complete json data
+            // http://robertomurray.co.uk/blog/2013/server-side-google-play-in-app-billing-receipt-validation-and-testing/
+            p.put("receipt", purchase);
+            p.put("signature", signature);
+            // TODO: How to simulate original_trans on iOS?
 
-			return p.toString();
+            p.remove("packageName");
+            p.remove("orderId");
+            p.remove("productId");
+            p.remove("developerPayload");
+            p.remove("purchaseTime");
+            p.remove("purchaseState");
+            p.remove("purchaseToken");
 
-		} catch (JSONException e) {
-			Log.wtf(TAG, "Failed to convert purchase json", e);
-		}
+            return p.toString();
 
-		return null;
-	}
+        } catch (JSONException e) {
+            Log.wtf(TAG, "Failed to convert purchase json", e);
+        }
 
-	@Override
-	public boolean handleMessage(Message msg) {
-		Bundle bundle = msg.getData();
+        return null;
+    }
 
-		String actionString = bundle.getString("action");
-		if (actionString == null) {
-			return false;
-		}
+    @Override
+    public boolean handleMessage(Message msg) {
+        Bundle bundle = msg.getData();
 
-		if (purchaseListener == null) {
-			Log.wtf(TAG, "No purchase listener set");
-			return false;
-		}
+        String actionString = bundle.getString("action");
+        if (actionString == null) {
+            return false;
+        }
 
-		Action action = Action.valueOf(actionString);
+        if (purchaseListener == null) {
+            Log.wtf(TAG, "No purchase listener set");
+            return false;
+        }
 
-		if (action == Action.BUY) {
-			int responseCode = bundle.getInt(RESPONSE_CODE);
-			String purchaseData = bundle.getString(RESPONSE_INAPP_PURCHASE_DATA);
-			String dataSignature = bundle.getString(RESPONSE_INAPP_SIGNATURE);
+        Action action = Action.valueOf(actionString);
 
-			if (purchaseData != null && dataSignature != null) {
-				purchaseData = convertPurchase(purchaseData, dataSignature);
-			} else {
-				responseCode = BILLING_RESPONSE_RESULT_ERROR;
-				purchaseData = "";
-			}
+        if (action == Action.BUY) {
+            int responseCode = bundle.getInt(RESPONSE_CODE);
+            String purchaseData = bundle.getString(RESPONSE_INAPP_PURCHASE_DATA);
+            String dataSignature = bundle.getString(RESPONSE_INAPP_SIGNATURE);
 
-			purchaseListener.onPurchaseResult(responseCode, purchaseData);
-			this.purchaseListener = null;
-		} else if (action == Action.RESTORE) {
-			Bundle items = bundle.getBundle("items");
-			ArrayList<String> ownedSkus = items.getStringArrayList(RESPONSE_INAPP_ITEM_LIST);
-			ArrayList<String> purchaseDataList = items.getStringArrayList(RESPONSE_INAPP_PURCHASE_DATA_LIST);
-			ArrayList<String> signatureList = items.getStringArrayList(RESPONSE_INAPP_SIGNATURE_LIST);
-			for (int i = 0; i < ownedSkus.size(); ++i) {
-				int c = BILLING_RESPONSE_RESULT_OK;
-				String pd = convertPurchase(purchaseDataList.get(i), signatureList.get(i));
-				if (pd == null) {
-					pd = "";
-					c = BILLING_RESPONSE_RESULT_ERROR;
-				}
-				purchaseListener.onPurchaseResult(c, pd);
-			}
-		}
-		return true;
-	}
+            if (purchaseData != null && dataSignature != null) {
+                purchaseData = convertPurchase(purchaseData, dataSignature);
+            } else {
+                responseCode = BILLING_RESPONSE_RESULT_ERROR;
+                purchaseData = "";
+            }
+
+            purchaseListener.onPurchaseResult(responseCode, purchaseData);
+            this.purchaseListener = null;
+        } else if (action == Action.RESTORE) {
+            Bundle items = bundle.getBundle("items");
+            ArrayList<String> ownedSkus = items.getStringArrayList(RESPONSE_INAPP_ITEM_LIST);
+            ArrayList<String> purchaseDataList = items.getStringArrayList(RESPONSE_INAPP_PURCHASE_DATA_LIST);
+            ArrayList<String> signatureList = items.getStringArrayList(RESPONSE_INAPP_SIGNATURE_LIST);
+            for (int i = 0; i < ownedSkus.size(); ++i) {
+                int c = BILLING_RESPONSE_RESULT_OK;
+                String pd = convertPurchase(purchaseDataList.get(i), signatureList.get(i));
+                if (pd == null) {
+                    pd = "";
+                    c = BILLING_RESPONSE_RESULT_ERROR;
+                }
+                purchaseListener.onPurchaseResult(c, pd);
+            }
+        }
+        return true;
+    }
 }
