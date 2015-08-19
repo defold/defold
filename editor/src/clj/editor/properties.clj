@@ -98,7 +98,7 @@
 
 (defn- property-edit-type [property]
   (or (get property :edit-type)
-      {:type (g/property-value-type (:type property))}))
+      {:type (-> property :type :value-type)}))
 
 (def ^:private links #{:link :override})
 
