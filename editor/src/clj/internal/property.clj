@@ -21,17 +21,10 @@
         []
         validations))))
 
-(defrecord PropertyTypeImpl
-  [name value-type default validation tags dynamic]
-  gt/PropertyType
-  (property-value-type    [this]   value-type)
-  (property-default-value [this]   (some-> default util/var-get-recursive util/apply-if-fn))
-  (property-validate      [this v] (validation-problems value-type (map second validation) v))
-  (property-valid-value?  [this v] (empty? (validation-problems value-type (map second validation) v)))
-  (property-tags          [this]   tags)
-
-  gt/Dynamics
-  (dynamic-attributes     [this]   (util/map-vals util/var-get-recursive dynamic)))
+(defn property-validate      [p v] (validation-problems (:value-type p) (map second (:validation p)) v))
+(defn property-default-value [p]   (some-> (:default p) util/var-get-recursive util/apply-if-fn))
+(defn property-value-type    [p]   (:value-type p))
+(defn dynamic-attributes     [p]   (util/map-vals util/var-get-recursive (:dynamic p)))
 
 (defn- assert-form-kind [kind-label required-kind label form]
   (assert (required-kind form) (str "property " label " requires a " kind-label " not a " (class form) " of " form)))
@@ -80,15 +73,12 @@
            `(attach-dynamic ~(keyword kind) ~@remainder))
 
          :else
-         (assert false (str "invalid form within property type definition: " (pr-str form)))))
+         (assert false (str "invalid form within property definition: " (pr-str form)))))
 
 (defn attach-value-type
   [description value-type]
-  (if (gt/property-type? value-type)
-    (merge description value-type)
-    (do
-      (assert-schema "property" value-type)
-      (assoc description :value-type value-type))))
+  (assert-schema "property" value-type)
+  (assoc description :value-type value-type))
 
 (defn property-type-forms
   [name-str value-type body-forms]
@@ -109,11 +99,6 @@
              (str "Property " ~name-str " type " '~value-type " has a dynamic function that should be an fnk, but isn't. " (-> (:dynamic description#) vals first)))
      (assert (not (gt/protocol? ~value-type))
              (str "Property " ~name-str " type " '~value-type " looks like a protocol; try (dynamo.graph/protocol " '~value-type ") instead."))
-     (assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))
+     (assert (satisfies? s/Schema ~value-type)
              (str "Property " ~name-str " is declared with type " '~value-type " but that doesn't seem like a real value type"))
-     (map->PropertyTypeImpl description#)))
-
-(defn def-property-type-descriptor
-  [name-sym & body-forms]
-  (let [[name-sym [value-type & body-forms]] (ctm/name-with-attributes name-sym body-forms)]
-    `(def ~name-sym ~(property-type-descriptor (str name-sym) value-type body-forms))))
+     description#))

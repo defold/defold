@@ -93,8 +93,8 @@
 
 (defn- gather-property
   [id node-type self kwargs property-type value]
-  (let [problems          (gt/property-validate property-type value)
-        dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes property-type))]
+  (let [problems          (ip/property-validate property-type value)
+        dynamics          (util/map-vals #(% kwargs) (ip/dynamic-attributes property-type))]
     (merge dynamics
            {:node-id             id
             :value               value
@@ -164,7 +164,7 @@
 
 (defn- property-dynamics-arguments
   [[property-name property-definition]]
-  (mapcat attribute-fn-arguments (vals (gt/dynamic-attributes property-definition))))
+  (mapcat attribute-fn-arguments (vals (ip/dynamic-attributes property-definition))))
 
 (defn- properties-output-arguments
   [properties]
@@ -299,21 +299,19 @@
           (format "Input %s on node type %s looks like its type is a protocol. Wrap it with (dynamo.graph/protocol) instead" label (:name description)))
   (assert-schema "input" schema)
 
-  (let [property-schema (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)]
-    (cond->
-        (assoc-in description [:inputs label] property-schema)
+  (cond-> (assoc-in description [:inputs label] schema)
 
-      (some #{:inject} flags)
-      (update-in [:injectable-inputs] #(conj (or % #{}) label))
+    (some #{:inject} flags)
+    (update-in [:injectable-inputs] #(conj (or % #{}) label))
 
-      (:substitute options)
-      (update-in [:substitutes] assoc label (:substitute options))
+    (:substitute options)
+    (update-in [:substitutes] assoc label (:substitute options))
 
-      (not (some #{:array} flags))
-      (update-in [:cardinalities] assoc label :one)
+    (not (some #{:array} flags))
+    (update-in [:cardinalities] assoc label :one)
 
-      (some #{:array} flags)
-      (update-in [:cardinalities] assoc label :many))))
+    (some #{:array} flags)
+    (update-in [:cardinalities] assoc label :many)))
 
 (defn- abstract-function
   [label type]
@@ -486,7 +484,7 @@
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (util/map-vals gt/property-default-value (gt/declared-properties node-type)))
+  (util/map-vals ip/property-default-value (gt/declared-properties node-type)))
 
 (defn- has-multivalued-input?  [node-type input-label] (= :many (gt/input-cardinality node-type input-label)))
 (defn- has-singlevalued-input? [node-type input-label] (= :one (gt/input-cardinality node-type input-label)))
@@ -498,22 +496,17 @@
 (defn- property-overloads-output? [node-type argument output] (and (= output argument) (has-property? node-type argument)))
 (defn- unoverloaded-output? [node-type argument output] (and (not= output argument) (has-output? node-type argument)))
 
-(defn- property-schema
-  [node-type property]
-  (let [schema (gt/property-type node-type property)]
-    (if (satisfies? gt/PropertyType schema) (gt/property-value-type schema) schema)))
-
 (defn- dollar-name
   [node-type-name label]
   (symbol (str node-type-name "$" (name label))))
 
-(defn- deduce-argument-type
+(defn deduce-argument-type
   "Return the type of the node's input label (or property). Take care
   with :array inputs."
   [record-name node-type argument output]
   (cond
     (property-overloads-output? node-type argument output)
-    (s/maybe (property-schema node-type argument))
+    (s/maybe (gt/property-type node-type argument))
 
     (unoverloaded-output? node-type argument output)
     (s/maybe (gt/output-type node-type argument))
@@ -531,9 +524,9 @@
     record-name
 
     (has-property? node-type argument)
-    (s/maybe (property-schema node-type argument))))
+    (s/maybe (gt/property-type node-type argument))))
 
-(defn- collect-argument-schema
+(defn collect-argument-schema
   "Return a schema with the production function's input names mapped to the node's corresponding input type."
   [transform argument-schema record-name node-type]
   (persistent!
@@ -652,18 +645,20 @@
                                            ~(global-cache 'evaluation-context transform)
                                            ~(produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))
                                       (produce-value-forms transform output-multi? node-type-name argument-forms argument-schema epilogue))]]
-    `(defn ~funcname [~'this ~'evaluation-context]
-       (if-let [jammer# (get (:_output-jammers ~'this) ~transform)]
-         (jammer#)
-         ~(if property-passthrough?
-            `(get ~'this ~transform)
-            `(do
-               (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
-                       (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
-               (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
-                 ~(if (= transform :this)
-                    (gt/node-id ~'this)
-                    lookup))))))))
+    (do (when (and (= (str node-type-name) "ValuePrecedence") (= :position transform))
+         (println 'ValuePrecedence/position :derived-schema argument-schema))
+       `(defn ~funcname [~'this ~'evaluation-context]
+          (if-let [jammer# (get (:_output-jammers ~'this) ~transform)]
+            (jammer#)
+            ~(if property-passthrough?
+               `(get ~'this ~transform)
+               `(do
+                  (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
+                          (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
+                  (let [~'evaluation-context (update ~'evaluation-context :in-production conj [(gt/node-id ~'this) ~transform])]
+                    ~(if (= transform :this)
+                       (gt/node-id ~'this)
+                       lookup)))))))))
 
 
 (defn node-input-value-function-forms
