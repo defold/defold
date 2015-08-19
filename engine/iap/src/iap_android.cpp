@@ -97,6 +97,7 @@ struct IAP
     jmethodID            m_Stop;
     jmethodID            m_Buy;
     jmethodID            m_Restore;
+    jmethodID            m_ProcessPendingConsumables;
     int                  m_Pipefd[2];
 };
 
@@ -191,9 +192,11 @@ int IAP_SetListener(lua_State* L)
     lua_pushvalue(L, 1);
     int cb = luaL_ref(L, LUA_REGISTRYINDEX);
 
+    bool had_previous = false;
     if (iap->m_Listener.m_Callback != LUA_NOREF) {
         luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Callback);
         luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
+        had_previous = true;
     }
 
     iap->m_Listener.m_L = dmScript::GetMainThread(L);
@@ -202,6 +205,12 @@ int IAP_SetListener(lua_State* L)
     dmScript::GetInstance(L);
     iap->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
+    // On first set listener, trigger process old ones.
+    if (!had_previous) {
+        JNIEnv* env = Attach();
+        env->CallVoidMethod(g_IAP.m_IAP, g_IAP.m_ProcessPendingConsumables, g_IAP.m_IAPJNI);
+        Detach();
+    }
     return 0;
 }
 
@@ -496,6 +505,7 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
         g_IAP.m_Buy = env->GetMethodID(iap_class, "buy", "(Ljava/lang/String;Lcom/defold/iap/IPurchaseListener;)V");
         g_IAP.m_Restore = env->GetMethodID(iap_class, "restore", "(Lcom/defold/iap/IPurchaseListener;)V");
         g_IAP.m_Stop = env->GetMethodID(iap_class, "stop", "()V");
+        g_IAP.m_ProcessPendingConsumables = env->GetMethodID(iap_class, "processPendingConsumables", "(Lcom/defold/iap/IPurchaseListener;)V");
 
         jmethodID jni_constructor = env->GetMethodID(iap_class, "<init>", "(Landroid/app/Activity;)V");
         g_IAP.m_IAP = env->NewGlobalRef(env->NewObject(iap_class, jni_constructor, g_AndroidApp->activity->clazz));
