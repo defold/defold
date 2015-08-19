@@ -56,6 +56,7 @@ public class Iap implements Handler.Callback {
     public static enum Action {
         BUY,
         RESTORE,
+        PROCESS_PENDING_CONSUMABLES
     }
 
     public static final String TAG = "iap";
@@ -270,6 +271,20 @@ public class Iap implements Handler.Callback {
         });
     }
 
+    public void processPendingConsumables(final IPurchaseListener listener) {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                init();
+                Iap.this.purchaseListener = listener;
+                Intent intent = new Intent(activity, IapActivity.class);
+                intent.putExtra(PARAM_MESSENGER, messenger);
+                intent.setAction(Action.PROCESS_PENDING_CONSUMABLES.toString());
+                activity.startActivity(intent);
+            }
+        });
+    }
+
     public void restore(final IPurchaseListener listener) {
         this.activity.runOnUiThread(new Runnable() {
             @Override
@@ -367,6 +382,3 @@ public class Iap implements Handler.Callback {
         return true;
     }
 }
-
-
-
