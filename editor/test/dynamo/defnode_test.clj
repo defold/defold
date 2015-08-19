@@ -298,8 +298,6 @@
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
 
-(g/defproperty IntegerProperty g/Int (validate positive? (comp not neg?)))
-
 (g/defnode MultipleOutputNode
   (input integer-input g/Int)
   (input string-input g/Str)
@@ -402,31 +400,18 @@
 
 (defn- not-neg? [x] (not (neg? x)))
 
-(g/defproperty TypedProperty g/Int)
-(g/defproperty DerivedProperty TypedProperty)
-(g/defproperty DefaultProperty DerivedProperty
-  (default 0))
-(g/defproperty ValidatedProperty DefaultProperty
-  (validate must-be-positive not-neg?))
-
 (g/defnode NodeWithPropertyVariations
-  (property typed-external TypedProperty)
-  (property derived-external DerivedProperty)
-  (property default-external DefaultProperty)
-  (property validated-external ValidatedProperty)
-
   (property typed-internal g/Int)
-  (property derived-internal TypedProperty)
-  (property default-internal TypedProperty
+  (property default-internal g/Int
             (default 0))
-  (property validated-internal DefaultProperty
+  (property validated-internal g/Int
+            (default 0)
             (validate always-valid (fn [value] true)))
-  (property literally-disabled TypedProperty
+  (property literally-disabled g/Int
             (dynamic enabled (g/always false))))
 
 (g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
-
 
 ;;; TODO - Make some tests for the Derived Properties etc...
 
@@ -511,9 +496,6 @@
                  (eval '(dynamo.graph/defnode MissingAction
                           (trigger a-symbol :added)))))))
 
-(g/defproperty DynamicExternalProperty g/Num
-  (dynamic external-dynamic (g/fnk [an-input another-input] true)))
-
 (g/defnode PropertyDynamicsNode
   (input an-input       g/Num)
   (input another-input  g/Num)
@@ -521,7 +503,6 @@
   (input fourth-input   g/Num)
   (input fifth-input    g/Num)
 
-  (property external-property DynamicExternalProperty)
   (property internal-property g/Num
             (dynamic internal-dynamic (g/fnk [third-input] false)))
   (property internal-multiple g/Num
@@ -533,16 +514,17 @@
   (contains? (get (g/declared-input-dependencies node-type) input) :_properties))
 
 (deftest node-properties-depend-on-dynamic-inputs
-  (let [all-inputs [:an-input :another-input :third-input :fourth-input :fifth-input]]
-    (is (= true (every? #(affects-properties PropertyDynamicsNode %) all-inputs)))))
-
-(g/defproperty NeedsADifferentInput g/Num
-  (dynamic a-dynamic (g/fnk [input-node-doesnt-have] false)))
+  (are [y x] (= y (contains? (get (g/declared-input-dependencies PropertyDynamicsNode) x) :_properties))
+    true  :third-input
+    true  :fourth-input
+    true  :fifth-input
+    false :an-input
+    false :another-input))
 
 (deftest compile-error-using-property-with-missing-argument-for-dynamic
   (is (thrown? AssertionError
                (eval '(dynamo.graph/defnode BadDynamicArgument
-                        (property foo dynamo.defnode-test/NeedsADifferentInput))))))
+                        (property foo dynamo.graph/Any (dynamic a-dynamic (dynamo.graph/fnk [input-node-doesnt-have] false))))))))
 
 ;;; example taken from editor/collection.clj
 (def Vec3    [(g/one g/Num "x")

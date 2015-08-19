@@ -195,18 +195,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
-(defmacro defproperty [name value-type & body-forms]
-  "Defines a property that can later be referred to in a `defnode`
-
-   Example:
-
-      (defproperty StringWithDefault g/Str (default \"foo\"))
-
-      (defnode TestNode
-        (property a-prop StringWithDefault))"
-
-  (apply ip/def-property-type-descriptor name value-type body-forms))
-
 (declare become)
 
 (defn construct
@@ -254,8 +242,7 @@
   (property _symbol_ _property-type_ & _options_)
 
   Define a property with schema and, possibly, default value and
-  constraints.  Property type and options have the same syntax as for
-  `dynamo.graph/defproperty`.
+  constraints.
 
   (output _symbol_ _type_ (:cached)? _producer_)
 

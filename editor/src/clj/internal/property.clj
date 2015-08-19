@@ -87,7 +87,7 @@
   (if (gt/property-type? value-type)
     (merge description value-type)
     (do
-      (assert-schema "defproperty" value-type)
+      (assert-schema "property" value-type)
       (assoc description :value-type value-type))))
 
 (defn property-type-forms
