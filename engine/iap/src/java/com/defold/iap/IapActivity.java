@@ -26,6 +26,7 @@ import com.defold.iap.Iap.Action;
 
 public class IapActivity extends Activity {
 
+    private boolean hasPendingPurchases = false;
     private Messenger messenger;
     ServiceConnection serviceConn;
     IInAppBillingService service;
@@ -67,25 +68,13 @@ public class IapActivity extends Activity {
         try {
             Bundle buyIntentBundle = service.getBuyIntent(3, getPackageName(), product, "inapp", "");
             int response = getResponseCodeFromBundle(buyIntentBundle);
-
-            if (response == Iap.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED) {
-                // NOTE: This should never happen. All products should already have been consumed..
-                Log.e(Iap.TAG, String.format("Unexpected product %s in inventory. Consuming before purchase", product));
-                consumeProduct(product);
-                try {
-                    Thread.sleep(2000);
-
-                    buyIntentBundle = service.getBuyIntent(3, getPackageName(), product, "inapp", "");
-                    response = getResponseCodeFromBundle(buyIntentBundle);
-                } catch (InterruptedException e) {
-                    Log.wtf(Iap.TAG, "Failed to sleep", e);
-                }
-            }
-
             if (response == Iap.BILLING_RESPONSE_RESULT_OK) {
+                hasPendingPurchases = true;
                 PendingIntent pendingIntent = buyIntentBundle.getParcelable("BUY_INTENT");
                 startIntentSenderForResult(pendingIntent.getIntentSender(), 1001, new Intent(), Integer.valueOf(0), Integer.valueOf(0), Integer.valueOf(0));
-            }  else {
+            } else if (response == Iap.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED) {
+                sendBuyError(Iap.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED);
+            } else {
                 sendBuyError(response);
             }
 
@@ -98,13 +87,14 @@ public class IapActivity extends Activity {
         }
     }
 
-    private void consume(String purchaseData) {
+    private boolean consume(String purchaseData) {
         try {
             JSONObject pd = new JSONObject(purchaseData);
             String token = pd.getString("purchaseToken");
-
             int consumeResponse = service.consumePurchase(3, getPackageName(), token);
-            if (consumeResponse != Iap.BILLING_RESPONSE_RESULT_OK) {
+            if (consumeResponse == Iap.BILLING_RESPONSE_RESULT_OK) {
+                return true;
+            } else {
                 Log.e(Iap.TAG, String.format("Failed to consume purchase (%d)", consumeResponse));
             }
         } catch (RemoteException e) {
@@ -112,31 +102,51 @@ public class IapActivity extends Activity {
         } catch (JSONException e) {
             Log.e(Iap.TAG, "Failed to consume purchase", e);
         }
+        return false;
     }
 
-    private void consumeProduct(String product) {
-        int response = Iap.BILLING_RESPONSE_RESULT_ERROR;
-        Bundle bundle = new Bundle();
-        bundle.putString("action", Action.RESTORE.toString());
+    private boolean consumeAndSendMessage(String purchaseData, String signature)
+    {
+        if (!consume(purchaseData)) {
+            Log.e(Iap.TAG, "Failed to consume and send message");
+            return false;
+        }
 
+        Bundle bundle = new Bundle();
+        bundle.putString("action", Action.BUY.toString());
+        bundle.putInt(Iap.RESPONSE_CODE, Iap.BILLING_RESPONSE_RESULT_OK);
+        bundle.putString(Iap.RESPONSE_INAPP_PURCHASE_DATA, purchaseData);
+        bundle.putString(Iap.RESPONSE_INAPP_SIGNATURE, signature);
+
+        Message msg = new Message();
+        msg.setData(bundle);
+        try {
+            messenger.send(msg);
+            return true;
+        } catch (RemoteException e) {
+            Log.wtf(Iap.TAG, "Unable to send message", e);
+            return false;
+        }
+    }
+
+    // Make buy response codes for all consumables not yet processed.
+    private void processPendingConsumables() {
         try {
             Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
-            response = getResponseCodeFromBundle(items);
-
+            int response = getResponseCodeFromBundle(items);
             if (response == Iap.BILLING_RESPONSE_RESULT_OK) {
-                bundle.putBundle("items", items);
-
-                ArrayList<String> ownedSkus = items.getStringArrayList(Iap.RESPONSE_INAPP_PURCHASE_DATA_LIST);
-                for (String s : ownedSkus) {
-                    JSONObject pd = new JSONObject(s);
-                    if (product.equals(pd.getString("productId"))) {
-                        consume(s);
+                ArrayList<String> purchaseDataList = items.getStringArrayList(Iap.RESPONSE_INAPP_PURCHASE_DATA_LIST);
+                ArrayList<String> signatureList = items.getStringArrayList(Iap.RESPONSE_INAPP_SIGNATURE_LIST);
+                for (int i = 0; i < purchaseDataList.size(); ++i) {
+                    String purchaseData = purchaseDataList.get(i);
+                    String signature = signatureList.get(i);
+                    if (!consumeAndSendMessage(purchaseData, signature)) {
+                        // abort and retry some other time
+                        break;
                     }
                 }
             }
         } catch (RemoteException e) {
-            Log.e(Iap.TAG, "Failed to consume purchase", e);
-        } catch (JSONException e) {
             Log.e(Iap.TAG, "Failed to consume purchase", e);
         }
     }
@@ -194,6 +204,9 @@ public class IapActivity extends Activity {
                     buy(extras.getString(Iap.PARAM_PRODUCT));
                 } else if (action == Action.RESTORE) {
                     restore();
+                } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {
+                    processPendingConsumables();
+                    finish();
                 }
             }
         };
@@ -203,6 +216,14 @@ public class IapActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (hasPendingPurchases) {
+            // Not sure connectitno is up so need to check here.
+            if (service != null) {
+                processPendingConsumables();
+            }
+            hasPendingPurchases = false;
+        }
+
         super.onDestroy();
         if (serviceConn != null) {
             unbindService(serviceConn);
@@ -229,39 +250,37 @@ public class IapActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
-        Bundle bundle = new Bundle();
-        bundle.putString("action", Action.BUY.toString());
-
-        if (data == null) {
-            bundle.putInt(Iap.RESPONSE_CODE, Iap.BILLING_RESPONSE_RESULT_ERROR);
-            Log.e(Iap.TAG, "Null data in IAB activity result.");
-        } else {
+        Bundle bundle = null;
+        if (data != null) {
             int responseCode = getResponseCodeFromIntent(data);
             String purchaseData = data.getStringExtra(Iap.RESPONSE_INAPP_PURCHASE_DATA);
             String dataSignature = data.getStringExtra(Iap.RESPONSE_INAPP_SIGNATURE);
-            bundle.putInt(Iap.RESPONSE_CODE, responseCode);
-            bundle.putString(Iap.RESPONSE_INAPP_PURCHASE_DATA, purchaseData);
-            bundle.putString(Iap.RESPONSE_INAPP_SIGNATURE, dataSignature);
-
-            // We always consume products
-            if (purchaseData != null) {
-                // Can be null if the store isn't configured correctly
-                consume(purchaseData);
+            if (responseCode == Iap.BILLING_RESPONSE_RESULT_OK) {
+                 consumeAndSendMessage(purchaseData, dataSignature);
+            } else {
+                 bundle = new Bundle();
+                 bundle.putString("action", Action.BUY.toString());
+                 bundle.putInt(Iap.RESPONSE_CODE, responseCode);
+                 bundle.putString(Iap.RESPONSE_INAPP_PURCHASE_DATA, purchaseData);
+                 bundle.putString(Iap.RESPONSE_INAPP_SIGNATURE, dataSignature);
             }
+        } else {
+            bundle = new Bundle();
+            bundle.putString("action", Action.BUY.toString());
+            bundle.putInt(Iap.RESPONSE_CODE, Iap.BILLING_RESPONSE_RESULT_ERROR);
         }
 
-        Message msg = new Message();
-        msg.setData(bundle);
-        try {
-            messenger.send(msg);
-        } catch (RemoteException e) {
-            Log.wtf(Iap.TAG, "Unable to send message", e);
+        // Send message if generated above
+        if (bundle != null) {
+            Message msg = new Message();
+            msg.setData(bundle);
+            try {
+                messenger.send(msg);
+            } catch (RemoteException e) {
+                Log.wtf(Iap.TAG, "Unable to send message", e);
+            }
         }
 
         this.finish();
     }
 }
-
-
-
