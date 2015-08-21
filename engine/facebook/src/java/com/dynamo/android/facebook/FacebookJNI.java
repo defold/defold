@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.Iterator;
 import java.util.Collection;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 
 import android.app.Activity;
 import android.util.Log;
@@ -92,8 +93,25 @@ class FacebookJNI {
     private Activity activity;
 
     public FacebookJNI(Activity activity, String appId) {
-        this.facebook = new Facebook(activity, appId);
         this.activity = activity;
+
+        // initialize and wait
+        final CountDownLatch latch = new CountDownLatch(1);
+        final String _appId = appId;
+
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+               FacebookJNI.this.facebook = new Facebook(FacebookJNI.this.activity, _appId);
+                latch.countDown();
+            }
+        });
+
+        try {
+            latch.await();
+        } catch (InterruptedException ex) {
+
+        }
     }
 
     public void login(final long userData) {
@@ -117,7 +135,12 @@ class FacebookJNI {
     }
 
     public void logout() {
-        this.facebook.logout();
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                FacebookJNI.this.facebook.logout();
+            }
+        });
     }
 
     public void iterateMe(final long userData) {
