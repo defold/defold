@@ -1,6 +1,7 @@
 (ns editor.game-project
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
+            [clojure.edn :as edn]
             [dynamo.graph :as g]
             [editor.project :as project]
             [editor.workspace :as workspace])
@@ -17,8 +18,6 @@
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
 
-;;; parsing raw .properties/.project file to string maps & order info
-
 (defn- non-blank [vals]
   (remove s/blank? vals))
 
@@ -31,223 +30,179 @@
 (defn- resource-reader [resource-name]
   (io/reader (io/resource resource-name)))
 
+(defn- pushback-reader [reader]
+  (PushbackReader. reader))
+
 (defn- string-reader [content]
   (BufferedReader. (StringReader. content)))
 
 (defn- empty-parse-state []
-  {:current-category nil
-   :settings {}
-   :category-order nil
-   :setting-order {}})
+  {:current-category nil :settings nil})
 
-(defn- parse-category-line [{:keys [settings category-order] :as parse-state} line]
-  (when (.startsWith line "[")
-    (let [new-category (subs line 1 (dec (count line)))
-          new-category-order (conj category-order new-category)]
-      (assoc parse-state
-             :current-category new-category
-             :category-order new-category-order))))
+(defn- parse-category-line [{:keys [current-category settings] :as parse-state} line]
+  (when-let [[_ new-category] (re-find #"\[([^\]]*)\]" line)]
+    (assoc parse-state :current-category new-category)))
 
-(defn- parse-setting-line [{:keys [current-category settings setting-order] :as parse-state} line]
-  (let [sep (.indexOf line "=")]
-    (when (not= sep -1)
-      (let [setting-path (non-blank (s/split (s/trim (subs line 0 sep)) #"\."))
-            val (s/trim (subs line (inc sep)))]
-        (when-let [setting-key (first setting-path)]
-          (let [new-settings (assoc-in settings (cons current-category setting-path) val)
-                new-setting-order (if (some #{setting-key} (setting-order current-category))
-                                    setting-order
-                                    (update-in setting-order [current-category] conj setting-key))]
-            (assoc parse-state
-                   :settings new-settings
-                   :setting-order new-setting-order)))))))
+(defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
+  (when-let [[_ key val] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
+    (when-let [setting-path (seq (non-blank (s/split key #"\.")))]
+      (update parse-state :settings conj {:path (cons current-category setting-path) :value val}))))
 
-
-(defn- parse-state->info [{:keys [settings category-order setting-order]}]
-  {:settings settings
-   :category-order (distinct (reverse category-order))
-   :setting-order (into {} (for [[category settings] setting-order] [category (reverse settings)]))})
+(defn- parse-state->settings [{:keys [settings]}]
+  (vec (reverse settings)))
 
 (defn- parse-settings [reader]
-  (parse-state->info (reduce
-                      (fn [parse-state line]
-                        (or (parse-category-line parse-state line)
-                            (parse-setting-line parse-state line)
-                            parse-state))
-                      (empty-parse-state)
-                      (read-setting-lines reader))))
-
-
-(defn- order-category-settings [settings setting-order]
-  (remove nil?
-          (map (fn [setting]
-                 (when (contains? settings setting)
-                   {:setting setting :value (settings setting)}))
-               setting-order)))
-
-(defn- order-settings [settings category-order setting-order]
-  (remove nil?
-          (map (fn [category]
-                 (when-let [settings (seq (order-category-settings (get settings category) (get setting-order category)))]
-                   {:category category :settings settings}))
-               category-order)))
-
-;;; translating/sanitizing type field, discarding ill-formed meta settings
-
-(def ^:private type-map
-  {"resource" :resource
-   "string" String
-   "bool" g/Bool
-   "integer" g/Int
-   "number" g/Num})
+  (parse-state->settings (reduce
+                          (fn [parse-state line]
+                            (or (parse-category-line parse-state line)
+                                (parse-setting-line parse-state line)
+                                parse-state))
+                          (empty-parse-state)
+                          (read-setting-lines reader))))
 
 (defmulti parse-setting-value (fn [type _] type))
 
-(defmethod parse-setting-value String [_ raw]
+(defmethod parse-setting-value :string [_ raw]
   raw)
 
-(defmethod parse-setting-value g/Bool [_ raw]
+(defmethod parse-setting-value :boolean [_ raw]
   (try
     (Boolean/parseBoolean raw)
     (catch Throwable _
       (boolean (Integer/parseInt raw)))))
 
-(defmethod parse-setting-value g/Int [_ raw]
+(defmethod parse-setting-value :integer [_ raw]
   (Integer/parseInt raw))
 
-(defmethod parse-setting-value g/Num [_ raw]
+(defmethod parse-setting-value :number [_ raw]
   (Double/parseDouble raw))
 
 (defmethod parse-setting-value :resource [_ raw]
   raw)
 
-(defn- parse-setting-value-or-nil [type raw]
-  (try
-    (parse-setting-value type raw)
-    (catch Throwable _
-      nil)))
+(def ^:private meta-info (edn/read (pushback-reader (resource-reader "meta.edn"))))
 
-(defn- sanitize-meta-setting [[key value]]
-  (if (= key "help")
-    (when (string? value)
-      [key value])
-    (when (map? value)
-      (let [{:strs [type filter help default]} value]
-        (when-let [type (type-map type)]
-          (let [default (and default (parse-setting-value-or-nil type default))]
-            [key {:type type :filter filter :help help :default default}]))))))
+(defn- make-meta-settings-for-unknown [meta-settings settings]
+  (let [known-settings (set (map :path meta-settings))
+        unknown-settings (remove known-settings (map :path settings))]
+    (map (fn [setting-path] {:path setting-path :type :string :help "unknown setting"}) unknown-settings)))
 
-(defn- sanitize-meta-settings [raw-meta-settings]
-  (into {} (for [[category settings] raw-meta-settings]
-             [category (into {} (remove nil? (map sanitize-meta-setting settings)))])))
+(defn- complement-meta-info [meta-info settings]
+  (update meta-info :settings
+          #(concat % (make-meta-settings-for-unknown % settings))))
 
-(defn- sanitize-setting-value [meta-settings category [key value]]
-  (when-let [type (get-in meta-settings [category key :type])]
-    (let [parsed-value (parse-setting-value-or-nil type value)]
-      (when (not (nil? parsed-value))
-        [key parsed-value]))))
+(defn- sanitize-game-setting [meta-settings-map setting]
+  (when-let [{:keys [type]} (meta-settings-map (:path setting))]
+    (update setting :value #(parse-setting-value type %))))
 
-(defn- sanitize-settings [meta-settings raw-settings]
-  (into {} (for [[category settings] raw-settings]
-             [category (into {} (remove nil? (map (partial sanitize-setting-value meta-settings category) settings)))])))
-  
-;;; transforming to form data
+(defn- sanitize-game-settings [meta-settings settings]
+  (let [meta-settings-map (zipmap (map :path meta-settings) meta-settings)]
+    (vec (map (partial sanitize-game-setting meta-settings-map) settings))))
 
-(defn- make-form-field [{:keys [setting value]}]
-  (let [{:keys [type help default filter]} value]
-    (when (not= setting "help")
-      {:field setting
-       :help help
-       :type type
-       :filter filter
-       :default default})))
+(defn- make-form-field [setting]
+  (assoc setting :label (second (:path setting))))
 
-(defn- make-form-section [category]
-  (let [category-name (:category category)
-        all-settings (:settings category)
-        fields (remove nil? (map make-form-field all-settings))
-        [help-setting] (filter #(= (:setting %) "help") all-settings)
-        category-help (:value help-setting)]
-    {:section category-name
-     :help category-help
-     :title category-name
-     :fields fields}))
+(defn- make-form-section [category-name category-info settings]
+  {:section category-name
+   :title category-name
+   :help (:help category-info)
+   :fields (map make-form-field settings)})
 
-(defn- make-form-sections [meta-info]
-  (let [ordered (order-settings (:settings meta-info) (:category-order meta-info) (:setting-order meta-info))]
-    (map make-form-section ordered)))
+(defn- make-default-settings [meta-settings]
+  (keep (fn [meta-setting]
+          (let [default-value (:default meta-setting)]
+            (when (not (nil? default-value))
+              {:path (:path meta-setting) :value default-value})))
+        meta-settings))
 
-(defn- make-form-data [form-ctxt form-sections form-values]
-  {:ctxt form-ctxt
-   :sections form-sections
-   :values form-values})
+(defn- add-value-source [settings source]
+  (keep (fn [setting]
+          (when (contains? setting :value)
+            (update setting :value (fn [value] {:value value :source source}))))
+        settings))
 
-;;; meta settings
+(defn- make-form-values-map [meta-settings settings]
+  (let [explicit-values (add-value-source settings :explicit)
+        default-values (add-value-source (make-default-settings meta-settings) :default)
+        all-values (concat default-values explicit-values)]
+    (into {} (map (fn [item] [(:path item) (:value item)]) all-values))))
 
-(defonce ^:private standard-meta-info
-  (let [parsed (parse-settings (resource-reader "meta.properties"))]
-    (update-in parsed [:settings] sanitize-meta-settings)))
+(def ^:private setting-category (comp first :path))
 
-(defn- flat-settings [settings]
-  (remove (comp map? second)
-          (tree-seq
-           (comp map? second)
-           (fn [node]
-             (map (fn [child] [(conj (first node) (first child)) (second child)])
-                  (seq (second node))))
-           [[] settings])))
+(defn- make-form-data [form-ops meta-info settings]
+  (let [meta-settings (:settings meta-info)
+        meta-category-map (:categories meta-info)
+        categories (distinct (map setting-category meta-settings))
+        category-settings (group-by setting-category meta-settings)
+        sections (map #(make-form-section % (get-in meta-info [:categories %]) (category-settings %)) categories)
+        values (make-form-values-map meta-settings settings)]
+    {:form-ops form-ops :sections sections :values values}))
 
-(defn- extra-setting-meta-info []
-  {:type String
-   :help "unknown setting"
-   :default nil
-   :filter nil})
+(defn- category-order [settings]
+  (distinct (map setting-category settings)))
 
-(defn- create-extra-meta-info [standard-meta-info {:keys [settings category-order setting-order]}]
-  (let [meta-settings (reduce
-                       (fn [m [path _]]
-                         (assoc-in m path (extra-setting-meta-info)))
-                       {}
-                       (flat-settings settings))]
-    {:settings meta-settings
-     :category-order category-order
-     :setting-order setting-order}))
+(defn- category-grouped-settings [settings]
+  (group-by setting-category settings))
 
-(defn- merge-settings [settings default]
-  (merge-with merge default settings))
+(defn- setting->str [setting]
+  (let [key (s/join "." (rest (:path setting)))
+        val (str (:value setting))]
+    (str key " = " val)))
 
-(defn- distinct-concat [order default]
-  (distinct (concat order default)))
+(defn- category->lines [category settings]
+  (cons (str "[" category "]")
+        (map setting->str (filter #(contains? % :value) settings))))
 
-(defn- merge-category-order [order default]
-  (distinct-concat order default))
+(defn- settings->lines [settings]
+  (let [cat-order (category-order settings)
+        cat-grouped-settings (category-grouped-settings settings)]
+    (mapcat #(category->lines % (cat-grouped-settings %)) cat-order)))
 
-(defn- merge-setting-order [order default]
-  (merge-with distinct-concat order default))
+(defn- settings->str [settings]
+  (s/join "\n" (settings->lines settings)))
 
-(defn- merge-meta-info [original default]
-  {:settings (merge-settings (:settings original) (:settings default))
-   :category-order (merge-category-order (:category-order original) (:category-order default))
-   :setting-order (merge-setting-order (:setting-order original) (:setting-order default))})
+(defn- setting-index [settings path]
+  (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
 
-;;; accessing (meta-)settings
+(defn- set-setting [settings path value]
+  (if-let [index (setting-index settings path)]
+    (assoc-in settings [index :value] value)
+    (conj settings {:path path :value value})))
 
-(defn game-settings [resource-node]
-  (:settings (g/node-value resource-node :setting-info)))
+(defn- get-game-setting [settings path]
+  (when-let [index (setting-index settings path)]
+    (:value (nth settings index))))
 
-(defn game-meta-settings [resource-node]
-  (:settings (g/node-value resource-node :meta-info)))
+(defn- get-default-setting [meta-settings path]
+  (when-let [index (setting-index meta-settings path)]
+    (:default (nth meta-settings index))))
 
-(defn- setting [settings meta-settings category key]
-  (get-in settings [category key] (get-in meta-settings [category key :default])))
+(defn- get-game-setting-or-default [meta-settings settings path]
+  (or (get-game-setting settings path)
+      (get-default-setting meta-settings path)))
+
+(defn- clear-setting [settings path]
+  (if-let [index (setting-index settings path)]
+    (update settings index dissoc :value)))
+
+;;; accessing settings
+
+(defn- game-settings [resource-node]
+  (g/node-value resource-node :settings))
+
+(defn- game-meta-info [resource-node]
+  (g/node-value resource-node :meta-info))
 
 (defn get-setting [resource-node category key]
-  (setting (game-settings resource-node) (game-meta-settings resource-node) category key))
+  (get-game-setting (game-settings resource-node) [category key]))
+
+(defn get-default [resource-node category key]
+  (get-default-setting (:settings (game-meta-info resource-node)) [category key]))
 
 ;;; loading node
 
 (defn- root-resource [base-resource settings meta-settings category key]
-  (let [path (setting settings meta-settings category key)
+  (let [path (get-game-setting-or-default meta-settings settings [category key])
         ; TODO - hack for compiled files in game.project
         path (subs path 0 (dec (count path)))
         ; TODO - hack for inconsistencies in game.project paths
@@ -257,49 +212,42 @@
     (workspace/resolve-resource base-resource path)))
 
 (defn- load-game-project [project self input]
-  (let [raw-setting-info (parse-settings (string-reader (slurp input)))
-        effective-meta-info (merge-meta-info standard-meta-info (create-extra-meta-info standard-meta-info raw-setting-info))
-        sanitized-settings (sanitize-settings (:settings effective-meta-info) (:settings raw-setting-info))
-        setting-info (assoc raw-setting-info :settings sanitized-settings)
+  (let [raw-settings (parse-settings (string-reader (slurp input)))
+        effective-meta-info (complement-meta-info meta-info raw-settings)
+        sanitized-settings (sanitize-game-settings (:settings effective-meta-info) raw-settings)
         resource   (g/node-value self :resource)
         roots      (map (fn [[category field]] (root-resource resource sanitized-settings (:settings effective-meta-info) category field))
                         [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
                          ["bootstrap" "render"] ["display" "display_profiles"]])]
     (concat
-     (g/set-property self :setting-info setting-info :meta-info effective-meta-info)
+     (g/set-property self :settings sanitized-settings :meta-info effective-meta-info)
      (for [root roots]
        (project/connect-resource-node project root self [[:build-targets :dep-build-targets]])))))
 
-(defn- ordered-setting->string [{:keys [setting value]}]
-  (str setting " = " value))
-
-(defn- ordered-category->string [ordered-category]
-  (str "[" (:category ordered-category) "]"
-       "\n"
-       (s/join "\n" (map ordered-setting->string (:settings ordered-category)))))
-
-(defn- ordered-settings->string [ordered-settings]
-  (s/join "\n\n" (map ordered-category->string ordered-settings)))
-
-(defn- setting-info->string [setting-info]
-  (let [extra-meta-info (create-extra-meta-info standard-meta-info setting-info)
-        category-order (merge-category-order (:category-order extra-meta-info) (:category-order standard-meta-info))
-        setting-order (merge-setting-order (:setting-order extra-meta-info) (:setting-order standard-meta-info))]
-    (ordered-settings->string (order-settings (:settings setting-info) category-order setting-order))))
-  
-(g/defnk produce-save-data [resource setting-info]
-  {:resource resource :content (setting-info->string setting-info)})
+(g/defnk produce-save-data [resource settings]
+  {:resource resource :content (settings->str settings)})
 
 (defn- build-game-project [self basis resource dep-resources user-data]
   {:resource resource :content (.getBytes (:content user-data))})
 
-(g/defnk produce-form-data [_node-id meta-info setting-info]
-  (make-form-data [_node-id [:setting-info :settings]] (make-form-sections meta-info) (:settings setting-info)))
+(defn- set-form-op [{:keys [node-id]} path value]
+  (g/update-property! node-id :settings set-setting path value))
+
+(defn- clear-form-op [{:keys [node-id]} path]
+  (g/update-property! node-id :settings clear-setting path))
+
+(defn- make-form-ops [node-id]
+  {:user-data {:node-id node-id}
+   :set set-form-op
+   :clear clear-form-op})
+
+(g/defnk produce-form-data [_node-id meta-info settings]
+  (make-form-data (make-form-ops _node-id) meta-info settings))
 
 (g/defnode GameProjectNode
   (inherits project/ResourceNode)
 
-  (property setting-info g/Any (dynamic visible (g/always false)))
+  (property settings g/Any (dynamic visible (g/always false)))
   (property meta-info g/Any (dynamic visible (g/always false)))
   
   (output form-data g/Any :cached produce-form-data)
@@ -308,11 +256,11 @@
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached (g/fnk [_node-id resource setting-info dep-build-targets]
+  (output build-targets g/Any :cached (g/fnk [_node-id resource settings dep-build-targets]
                                              [{:node-id _node-id
                                                :resource (workspace/make-build-resource resource)
                                                :build-fn build-game-project
-                                               :user-data {:content (setting-info->string setting-info)}
+                                               :user-data {:content (settings->str settings)}
                                                :deps (vec (flatten dep-build-targets))}])))
 
 (defn register-resource-types [workspace]
