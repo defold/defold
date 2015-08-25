@@ -176,7 +176,7 @@
   (let [properties      (filter (comp not :internal? val) (:declared-properties node-type-description))
         argument-names  (properties-output-arguments properties)
         argument-schema (zipmap argument-names (repeat s/Any))]
-    (attach-output node-type-description :_properties s/Any #{} #{}
+    (attach-output node-type-description :_declared-properties s/Any #{} #{}
                    (s/schematize-fn (fn [args] (gather-properties args)) (s/=> s/Any argument-schema)))))
 
 (defn keyset
