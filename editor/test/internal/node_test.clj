@@ -113,7 +113,7 @@
         (is (= "bar"  foo-override))
         (let [properties (g/node-value n1 :_properties)]
           (is (not (empty? (:properties properties))))
-          (is (every? (comp not nil?) (map :type (vals (:properties properties)))))
+          (is (every? gt/property-type? (map :type (vals (:properties properties)))))
           (is (empty? (filter (fn [k] (= :_node-id k)) (keys (:properties properties)))))
           (is (not (empty? (:display-order properties))))))))
 
@@ -367,9 +367,9 @@
       (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
       (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   g/property-default-value)))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   g/property-default-value)))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple g/property-default-value)))))
+      (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   gt/property-default-value)))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   gt/property-default-value)))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple gt/property-default-value)))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)
