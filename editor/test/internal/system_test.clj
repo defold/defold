@@ -359,6 +359,7 @@
         (is (= (set (g/dependencies (g/now) [[source-a1 :source-label]]))
                #{[sink-a2   :loud]
                  [source-a1 :source-label]
+                 [source-a1 :_declared-properties]
                  [source-a1 :_properties]}))
 
         (is (= (set (g/dependencies (g/now) [[source-p1 :source-label]]))
@@ -366,6 +367,7 @@
                  [pipe-p1   :soft]
                  [sink-a1   :loud]
                  [source-p1 :source-label]
+                 [source-p1 :_declared-properties]
                  [source-p1 :_properties]}))))))
 
 (g/defnode ChainedLink
@@ -447,6 +449,7 @@
                  #{[sink-p1   :loud]
                    [pipe-p1   :soft]
                    [source-p1 :source-label]
+                   [source-p1 :_declared-properties]
                    [source-p1 :_properties]}))))))
 
   (testing "Nodes in a deleted graph are deleted"
@@ -493,6 +496,7 @@
           (is (= (set (g/dependencies (g/now) [[source-a1 :source-label]]))
                  #{[sink-a2   :loud]
                    [source-a1 :source-label]
+                   [source-a1 :_declared-properties]
                    [source-a1 :_properties]})))))))
 
 (deftest graph-values

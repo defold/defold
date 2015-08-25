@@ -89,7 +89,7 @@
     (let [deps (g/input-dependencies DependencyTestNode)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
-           :a-property         #{:depends-on-property :depends-on-several :a-property :_properties}
+           :a-property         #{:depends-on-property :depends-on-several :a-property :_properties :_declared-properties}
            :project            #{:depends-on-several})
       (is (not (contains? deps :this)))
       (is (not (contains? deps :g)))
@@ -167,10 +167,10 @@
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
-  (expect-modified SimpleTestNode #{:_properties :foo} (fn [node-id] (g/set-property    node-id :foo "two")))
-  (expect-modified SimpleTestNode #{:_properties :foo} (fn [node-id] (g/update-property node-id :foo str/reverse)))
-  (expect-modified SimpleTestNode #{}                       (fn [node-id] (g/set-property    node-id :foo "one")))
-  (expect-modified SimpleTestNode #{}                       (fn [node-id] (g/update-property node-id :foo identity))))
+  (expect-modified SimpleTestNode #{:_declared-properties :_properties :foo} (fn [node-id] (g/set-property    node-id :foo "two")))
+  (expect-modified SimpleTestNode #{:_declared-properties :_properties :foo} (fn [node-id] (g/update-property node-id :foo str/reverse)))
+  (expect-modified SimpleTestNode #{}                                        (fn [node-id] (g/set-property    node-id :foo "one")))
+  (expect-modified SimpleTestNode #{}                                        (fn [node-id] (g/update-property node-id :foo identity))))
 
 (deftest invalidating-visibility-properties
   (with-clean-system
@@ -180,7 +180,7 @@
       (let [tx-result     (g/transact (g/set-property snode :foo "hi"))
             vnode-results (filter #(= (first %) vnode) (:outputs-modified tx-result))
             modified      (into #{} (map second vnode-results))]
-        (is (= #{:_properties} modified))))))
+        (is (= #{:_declared-properties :_properties} modified))))))
 
 (deftest visibility-properties
   (with-clean-system
@@ -199,7 +199,7 @@
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
             enode-results (filter #(= (first %) enode) (:outputs-modified tx-result))
             modified      (into #{} (map second enode-results))]
-        (is (= #{:_properties} modified))))))
+        (is (= #{:_declared-properties :_properties} modified))))))
 
 (deftest enablement-properties
   (with-clean-system
