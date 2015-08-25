@@ -100,8 +100,7 @@
 
 (g/defnode AtlasAnimation
   (property id g/Str)
-  (property fps             g/Int (default 30)
-            (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
+  (property fps             types/NonNegativeInt (default 30))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
@@ -222,12 +221,9 @@
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
-  (property margin          g/Int (default 0)
-            (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
-  (property inner-padding   g/Int (default 0)
-            (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
-  (property extrude-borders g/Int (default 0)
-            (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
+  (property margin          types/NonNegativeInt (default 0))
+  (property inner-padding   types/NonNegativeInt (default 0))
+  (property extrude-borders types/NonNegativeInt (default 0))
 
   (input animations Animation :array)
   (input outline g/Any :array)
