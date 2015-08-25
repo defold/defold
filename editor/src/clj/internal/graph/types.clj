@@ -49,6 +49,8 @@
 (defn externs             [node-type]          (->> node-type declared-properties (util/filter-vals :unjammable?)))
 (defn property-type       [node-type property] (-> node-type declared-properties (get property)))
 
+(def NodeID s/Int)
+
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
   (node-type           [this]        "Return the node type that created this node.")
@@ -89,7 +91,12 @@
 
 (defn property-type? [x] (satisfies? PropertyType x))
 
-(def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
+(def Properties {:properties {s/Keyword {:node-id                              NodeID
+                                         (s/optional-key :validation-problems) [s/Any]
+                                         :value                                s/Any
+                                         :type                                 (s/protocol PropertyType)
+                                         s/Keyword                             s/Any}}
+                 (s/optional-key :display-order) [s/Keyword]})
 
 (defprotocol Dynamics
   (dynamic-attributes          [this] "Return a map from label to fnk"))
@@ -97,8 +104,6 @@
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
-
-(def NodeID s/Int)
 
 (def ^:const NID-BITS                                56)
 (def ^:const NID-MASK                  0xffffffffffffff)

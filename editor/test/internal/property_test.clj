@@ -1,10 +1,11 @@
 (ns internal.property-test
   (:require [clojure.test :refer :all]
-            [dynamo.graph :as g]
             [dynamo.util :as util]
             [editor.types :as types]
             [internal.graph.types :as gt]
-            [plumbing.fnk.pfnk :as pf])
+            [dynamo.graph :as g]
+            [plumbing.fnk.pfnk :as pf]
+            [support.test-support :refer [with-clean-system tx-nodes]])
   (:import [clojure.lang Compiler$CompilerException]))
 
 (defprotocol MyProtocol)
@@ -275,3 +276,30 @@
     [:id ["Transform" :rotation :scale] :path ["Foo" :scale] :cake] -> [[:id ["Transform" :rotation]] [["Transform" :scale] :path] [["Foo" :scale] :cake]]
     [:id :path ["Transform" :rotation :position :scale]]            -> [[:id :path ["Transform"]] [["Transform" :rotation :position :scale]]]
     [["Material" :specular :ambient] :position :rotation]           -> [[["Material" :specular :ambient]] [:specular :ambient] [:position :rotation]]))
+
+(g/defnode DonorNode
+  (property a-property g/Int (default 0)))
+
+(g/defnode AdoptorNode
+  (property own-property g/Int (default -1))
+
+  (input submitted-properties g/Properties)
+
+  (output _properties g/Properties
+          (g/fnk [_node-id _declared-properties submitted-properties]
+                 (->> submitted-properties
+                     (g/adopt-properties _node-id)
+                     (g/aggregate-properties _declared-properties)))))
+
+(deftest property-adoption
+  (with-clean-system
+    (let [[donor adoptor] (g/tx-nodes-added
+                           (g/transact
+                            (g/make-nodes world [donor DonorNode adoptor AdoptorNode]
+                                          (g/connect donor :_properties adoptor :submitted-properties))))
+          final-props     (g/node-value adoptor :_properties)]
+      (is (contains? (:properties final-props) :own-property))
+      (is (= adoptor (get-in final-props [:properties :own-property :node-id])))
+
+      (is (contains? (:properties final-props) :a-property))
+      (is (= adoptor (get-in final-props [:properties :a-property :node-id]))))))
