@@ -28,9 +28,7 @@
 
 (namespaces/import-vars [internal.graph.types IDisposable dispose disposable?])
 
-(namespaces/import-vars [internal.graph.types always PropertyType Properties])
-
-(namespaces/import-vars [internal.property property-validate property-default-value property-value-type dynamic-attributes])
+(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-validate property-valid-value? property-tags property-type? Properties])
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
 
