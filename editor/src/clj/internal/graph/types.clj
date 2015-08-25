@@ -47,7 +47,7 @@
 (defn internal-properties [node-type]          (->> node-type declared-properties (util/filter-vals :internal?)))
 (defn public-properties   [node-type]          (->> node-type declared-properties (util/filter-vals (comp not :internal?))))
 (defn externs             [node-type]          (->> node-type declared-properties (util/filter-vals :unjammable?)))
-(defn property-type       [node-type property] (-> node-type declared-properties (get property) :value-type))
+(defn property-type       [node-type property] (-> node-type declared-properties (get property)))
 
 (defprotocol Node
   (node-id             [this]        "Return an ID that can be used to get this node (or a future value of it).")
@@ -81,13 +81,19 @@
 
 (defn protocol? [x] (and (map? x) (contains? x :on-interface)))
 
-(def PropertyType {:name       String
-                   :value-type (s/protocol s/Schema)
-                   :default    s/Any
-                   :validation s/Any
-                   :dynamic    s/Any})
+(defprotocol PropertyType
+  (property-value-type         [this]   "Prismatic schema for property value type")
+  (property-default-value      [this])
+  (property-validate           [this v] "Returns a possibly-empty seq of messages.")
+  (property-valid-value?       [this v] "If valid, returns nil. If invalid, returns seq of Marker")
+  (property-tags               [this]))
 
-(def Properties {s/Keyword {:value s/Any :type PropertyType}})
+(defn property-type? [x] (satisfies? PropertyType x))
+
+(def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
+
+(defprotocol Dynamics
+  (dynamic-attributes          [this] "Return a map from label to fnk"))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
