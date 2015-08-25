@@ -256,10 +256,11 @@
 
   (testing "output dependencies include properties"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (= {:_node-id              #{:_node-id}
-              :another-property #{:_properties :another-property}
-              :a-property       #{:_properties :a-property}
-              :_output-jammers  #{:_output-jammers}}
+      (is (= {:_node-id             #{:_node-id}
+              :_declared-properties #{:_properties}
+              :another-property     #{:_declared-properties :_properties :another-property}
+              :a-property           #{:_declared-properties :_properties :a-property}
+              :_output-jammers      #{:_output-jammers}}
              (-> node g/node-type g/input-dependencies)))))
 
   (testing "do not allow a property to shadow an input of the same name"
@@ -270,7 +271,7 @@
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
-      (is (= {:a-property #{:_properties :a-property}}
+      (is (= {:a-property #{:_declared-properties :_properties :a-property}}
              (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
@@ -361,24 +362,27 @@
       (is (:cached-output (g/cached-outputs InheritedOutputNode)))))
 
   (testing "output dependencies include transforms and their inputs"
-    (is (= {:_node-id        #{:_node-id}
-            :project         #{:integer-output}
-            :string-input    #{:inline-string}
-            :integer-input   #{:string-output :cached-output}
-            :_output-jammers #{:_output-jammers}}
+    (is (= {:_node-id             #{:_node-id}
+            :project              #{:integer-output}
+            :string-input         #{:inline-string}
+            :integer-input        #{:string-output :cached-output}
+            :_declared-properties #{:_properties}
+            :_output-jammers      #{:_output-jammers}}
            (g/input-dependencies MultipleOutputNode)))
-    (is (= {:_node-id        #{:_node-id}
-            :project         #{:integer-output}
-            :string-input    #{:inline-string}
-            :integer-input   #{:string-output :abstract-output :cached-output}
-            :_output-jammers #{:_output-jammers}}
+    (is (= {:_node-id             #{:_node-id}
+            :project              #{:integer-output}
+            :string-input         #{:inline-string}
+            :integer-input        #{:string-output :abstract-output :cached-output}
+            :_declared-properties #{:_properties}
+            :_output-jammers      #{:_output-jammers}}
            (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
-    (is (= {:_node-id                #{:_node-id}
-            :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property}
-            :direct-calculation #{:indirect-calculation}
-            :_output-jammers    #{:_output-jammers}}
+    (is (= {:_node-id             #{:_node-id}
+            :a-property           #{:direct-calculation :indirect-calculation :_declared-properties :_properties :a-property}
+            :direct-calculation   #{:indirect-calculation}
+            :_declared-properties #{:_properties}
+            :_output-jammers      #{:_output-jammers}}
            (g/input-dependencies TwoLayerDependencyNode))))
 
   (testing "outputs defined without the type cause a compile error"
@@ -612,3 +616,19 @@
       [:overlay ["Material" :specular :ambient] :subtitle :description :position :rotation] DisplayGroupOrdering
       [:overlay ["Material" :specular :ambient] :subtitle :position :rotation] PartialDisplayOrder
       [["Transform" :scale :position :rotation] :color-red :color-green :color-blue :color-alpha] GroupingBySymbol)))
+
+(g/defnode PropertyAugmentNode
+  (property a-property g/Int (default 0))
+  (property b-property g/Str (default ""))
+
+  (output _properties g/Properties
+          (g/fnk [_declared-properties]
+                 (assoc _declared-properties :augmented true))))
+
+(deftest properties-can-be-altered
+  (with-clean-system
+    (let [[node] (tx-nodes (g/make-node world PropertyAugmentNode))
+          props  (g/node-value node :_properties)]
+      (is (contains? (:properties props) :a-property))
+      (is (contains? (:properties props) :b-property))
+      (is (= true (:augmented props))))))

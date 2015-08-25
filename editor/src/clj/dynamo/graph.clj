@@ -20,7 +20,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
@@ -190,6 +190,7 @@
 ;; ---------------------------------------------------------------------------
 (def node-intrinsics
   [(list 'extern '_node-id `s/Int)
+   (list 'output '_properties `dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
    (list 'extern '_output-jammers `{s/Keyword s/Any})])
 
 ;; ---------------------------------------------------------------------------
