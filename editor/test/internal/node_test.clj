@@ -86,7 +86,7 @@
 
 (deftest dependency-mapping
   (testing "node reports its own dependencies"
-    (let [deps (g/declared-input-dependencies DependencyTestNode)]
+    (let [deps (g/input-dependencies DependencyTestNode)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
            :a-property         #{:depends-on-property :depends-on-several :a-property :_properties}

@@ -112,7 +112,7 @@
 
 (defn- mark-activated
   [{:keys [basis] :as ctx} node-id input-label]
-  (let [dirty-deps (-> (ig/node-by-id-at basis node-id) gt/input-dependencies (get input-label))]
+  (let [dirty-deps (-> (ig/node-by-id-at basis node-id) gt/node-type gt/input-dependencies (get input-label))]
     (update-in ctx [:nodes-affected node-id] set/union dirty-deps)))
 
 (defn- activate-all-outputs

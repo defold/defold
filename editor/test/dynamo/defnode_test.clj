@@ -118,7 +118,7 @@
   SecondaryInterface)
 
 (g/defnode InheritedInterfaceNode
-  (inherits MarkerInterfaceNode))
+ (inherits MarkerInterfaceNode))
 
 (definterface OneMethodInterface
   (oneMethod [^Long x]))
@@ -209,8 +209,8 @@
   (property a-property g/Str))
 
 (g/defnode TwoPropertyNode
-  (property a-property g/Str (default "default value"))
-  (property another-property g/Int))
+ (property a-property g/Str (default "default value"))
+ (property another-property g/Int))
 
 (g/defnode InheritedPropertyNode
   (inherits TwoPropertyNode)
@@ -260,7 +260,7 @@
               :another-property #{:_properties :another-property}
               :a-property       #{:_properties :a-property}
               :_output-jammers  #{:_output-jammers}}
-             (g/input-dependencies node)))))
+             (-> node g/node-type g/input-dependencies)))))
 
   (testing "do not allow a property to shadow an input of the same name"
     (is (thrown? AssertionError
@@ -271,7 +271,7 @@
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
       (is (= {:a-property #{:_properties :a-property}}
-             (select-keys (g/input-dependencies node) [:a-property])))))
+             (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
     (is (thrown? Compiler$CompilerException
@@ -366,20 +366,20 @@
             :string-input    #{:inline-string}
             :integer-input   #{:string-output :cached-output}
             :_output-jammers #{:_output-jammers}}
-           (g/declared-input-dependencies MultipleOutputNode)))
+           (g/input-dependencies MultipleOutputNode)))
     (is (= {:_node-id        #{:_node-id}
             :project         #{:integer-output}
             :string-input    #{:inline-string}
             :integer-input   #{:string-output :abstract-output :cached-output}
             :_output-jammers #{:_output-jammers}}
-           (g/declared-input-dependencies InheritedOutputNode))))
+           (g/input-dependencies InheritedOutputNode))))
 
   (testing "output dependencies are the transitive closure of their inputs"
     (is (= {:_node-id                #{:_node-id}
             :a-property         #{:direct-calculation :indirect-calculation :_properties :a-property}
             :direct-calculation #{:indirect-calculation}
             :_output-jammers    #{:_output-jammers}}
-           (g/declared-input-dependencies TwoLayerDependencyNode))))
+           (g/input-dependencies TwoLayerDependencyNode))))
 
   (testing "outputs defined without the type cause a compile error"
     (is (not (nil? (eval '(dynamo.graph/defnode FooNode
@@ -418,7 +418,7 @@
   (property typed-internal g/Int)
   (property derived-internal TypedProperty)
   (property default-internal TypedProperty
-            (default 0))
+    (default 0))
   (property validated-internal DefaultProperty
             (validate always-valid (fn [value] true)))
   (property literally-disabled TypedProperty
@@ -495,11 +495,11 @@
 
   (testing "disallows unknown trigger kinds"
     (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
-                          (eval '(dynamo.graph/defnode NoSuchTriggerNode
-                                   (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))
+          (eval '(dynamo.graph/defnode NoSuchTriggerNode
+                   (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))
     (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
-                          (eval '(dynamo.graph/defnode NoSuchTriggerNode
-                                   (trigger nope :modified (fn [& _] :nope)))))))
+          (eval '(dynamo.graph/defnode NoSuchTriggerNode
+                   (trigger nope :modified (fn [& _] :nope)))))))
 
   (testing "triggers are named by symbols"
     (is (thrown? Compiler$CompilerException
@@ -530,11 +530,11 @@
 
 (defn affects-properties
   [node-type input]
-  (contains? (get (g/declared-input-dependencies node-type) input) :_properties))
+  (contains? (get (g/input-dependencies node-type) input) :_properties))
 
 (deftest node-properties-depend-on-dynamic-inputs
   (let [all-inputs [:an-input :another-input :third-input :fourth-input :fifth-input]]
-    (is (= true (every? #(affects-properties PropertyDynamicsNode %) all-inputs)))))
+   (is (= true (every? #(affects-properties PropertyDynamicsNode %) all-inputs)))))
 
 (g/defproperty NeedsADifferentInput g/Num
   (dynamic a-dynamic (g/fnk [input-node-doesnt-have] false)))
