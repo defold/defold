@@ -5,6 +5,7 @@
   (:import [clojure.lang Compiler]))
 
 (def test-namespaces '[dynamo.defnode-test
+                       dynamo.integration.dependencies
                        dynamo.integration.error-substitute-values
                        dynamo.integration.garbage-collection
                        dynamo.integration.graph-functions

@@ -679,6 +679,21 @@
    (get-in basis [:graphs graph-id k])))
 
 ;; ---------------------------------------------------------------------------
+;; Constructing property maps
+;; ---------------------------------------------------------------------------
+(defn adopt-properties
+  [node-id ps]
+  (update ps :properties #(util/map-vals (fn [prop] (assoc prop :node-id node-id)) %)))
+
+(defn aggregate-properties
+  [x & [y & ys]]
+  (if ys
+    (apply aggregate-properties (aggregate-properties x y) ys)
+    (-> x
+        (update :properties merge x (:properties y))
+        (update :display-order #(conj (or % []) (:display-order y))))))
+
+;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
 ;; ---------------------------------------------------------------------------
 (defn- arcs->tuples
