@@ -16,20 +16,25 @@
 (defn get-tally [node fn-symbol]
   (get-in @*calls* [(:_node-id node) fn-symbol] 0))
 
+(g/defproperty StringWithDefault g/Str
+  (default "o rly?"))
+
 (defn string-value [] "uff-da")
 
 (g/defnode WithDefaults
-  (property literal-default  g/Str (default "o rly?"))
-  (property indirect-default g/Str (default string-value))
-  (property var-default      g/Str (default #'string-value))
-  (property symbol-default   g/Str (default 'string-value)))
+  (property default-value                 StringWithDefault)
+  (property overridden-literal-value      StringWithDefault (default "ya rly."))
+  (property overridden-indirect           StringWithDefault (default string-value))
+  (property overridden-indirect-by-var    StringWithDefault (default #'string-value))
+  (property overridden-indirect-by-symbol StringWithDefault (default 'string-value)))
 
 (deftest node-property-defaults
   (are [expected property] (= expected (get (g/construct WithDefaults) property))
-    "o rly?"      :literal-default
-    "uff-da"      :indirect-default
-    "uff-da"      :var-default
-    'string-value :symbol-default))
+    "o rly?"      :default-value
+    "ya rly."     :overridden-literal-value
+    "uff-da"      :overridden-indirect
+    "uff-da"      :overridden-indirect-by-var
+    'string-value :overridden-indirect-by-symbol))
 
 (g/defnode SimpleTestNode
   (property foo g/Str (default "FOO!")))
@@ -347,6 +352,9 @@
   (property multi-valued-property [g/Keyword] (default [:basic]))
   (output basic-output g/Keyword :cached (g/fnk [] "hello")))
 
+(g/defproperty predefined-property-type g/Str
+  (default "a-default"))
+
 (g/defnode MultipleInheritance
   (property property-from-multiple g/Str (default "multiple")))
 
@@ -354,10 +362,9 @@
   (inherits BasicNode)
   (inherits MultipleInheritance)
   (input another-input g/Int :array)
-
   (property property-to-override g/Str (default "override"))
+  (property property-from-type predefined-property-type)
   (property multi-valued-property [g/Str] (default ["extra" "things"]))
-
   (output another-output g/Keyword (g/fnk [this & _] :keyword))
   (output another-cached-output g/Keyword :cached (g/fnk [this & _] :keyword)))
 
@@ -369,13 +376,14 @@
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (= nil                 (-> (g/construct BasicNode)         g/node-type g/declared-properties :property-to-override   gt/property-default-value)))
       (is (= "override"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-to-override   gt/property-default-value)))
+      (is (= "a-default"         (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-type     gt/property-default-value)))
       (is (= "multiple"          (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties :property-from-multiple gt/property-default-value)))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)
                 #{:string-property :property-to-override :multi-valued-property :basic-output}))
     (is (every? (-> (g/construct InheritsBasicNode) g/node-type g/output-labels)
-                #{:string-property :property-to-override :multi-valued-property :basic-output :another-cached-output})))
+                #{:string-property :property-to-override :multi-valued-property :basic-output :property-from-type :another-cached-output})))
 
   (testing "transform-types"
     (with-clean-system

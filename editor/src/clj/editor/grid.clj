@@ -162,8 +162,7 @@
   (input camera Camera)
   (property grid-color types/Color)
   (property auto-grid  g/Bool)
-  (property fixed-grid-size g/Int (default 0)
-            (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
+  (property fixed-grid-size types/NonNegativeInt (default 0))
 
   (output grids      g/Any :cached update-grids)
   (output renderable pass/RenderData  grid-renderable))
