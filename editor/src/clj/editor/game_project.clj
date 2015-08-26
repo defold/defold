@@ -91,10 +91,7 @@
   (update-in meta-info [:settings]
              (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
 
-(defn- load-meta-info []
-  (add-type-defaults (edn/read (pushback-reader (resource-reader "meta.edn")))))
-
-(def ^:private meta-info (load-meta-info))
+(def ^:private meta-info (add-type-defaults (edn/read (pushback-reader (resource-reader "meta.edn")))))
 
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))
@@ -210,6 +207,7 @@
                          ["bootstrap" "render"] ["display" "display_profiles"]])]
     (concat
      (g/set-property self :settings sanitized-settings :meta-info effective-meta-info)
+     (g/connect self :settings-map project :settings)
      (for [root roots]
        (project/connect-resource-node project root self [[:build-targets :dep-build-targets]])))))
 
@@ -239,6 +237,11 @@
    :set set-form-op
    :clear clear-form-op})
 
+(g/defnk produce-settings-map [meta-info settings]
+  (let [default-settings (make-default-settings (:settings meta-info))
+        all-settings (concat default-settings settings)]
+    (into {} (map (juxt :path :value) all-settings))))
+
 (g/defnk produce-form-data [_node-id meta-info settings]
   (make-form-data (make-form-ops _node-id) meta-info settings))
 
@@ -247,7 +250,8 @@
 
   (property settings g/Any (dynamic visible (g/always false)))
   (property meta-info g/Any (dynamic visible (g/always false)))
-  
+
+  (output settings-map g/Any :cached produce-settings-map)
   (output form-data g/Any :cached produce-form-data)
 
   (input dep-build-targets g/Any :array)
