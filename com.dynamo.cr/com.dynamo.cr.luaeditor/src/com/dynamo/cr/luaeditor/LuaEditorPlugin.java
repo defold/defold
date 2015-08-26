@@ -89,6 +89,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "json",
                 "msg",
                 "particlefx",
+                "push",
                 "render",
                 "sound",
                 "sprite",
