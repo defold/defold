@@ -80,7 +80,21 @@
 (defmethod parse-setting-value :resource [_ raw]
   raw)
 
-(def ^:private meta-info (edn/read (pushback-reader (resource-reader "meta.edn"))))
+(def ^:private type-defaults
+  {:string ""
+   :boolean false
+   :integer 0
+   :number 0.0
+   :resource ""})
+
+(defn- add-type-defaults [meta-info]
+  (update-in meta-info [:settings]
+             (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
+
+(defn- load-meta-info []
+  (add-type-defaults (edn/read (pushback-reader (resource-reader "meta.edn")))))
+
+(def ^:private meta-info (load-meta-info))
 
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))
@@ -91,13 +105,13 @@
   (update meta-info :settings
           #(concat % (make-meta-settings-for-unknown % settings))))
 
-(defn- sanitize-game-setting [meta-settings-map setting]
+(defn- sanitize-setting [meta-settings-map setting]
   (when-let [{:keys [type]} (meta-settings-map (:path setting))]
     (update setting :value #(parse-setting-value type %))))
 
-(defn- sanitize-game-settings [meta-settings settings]
+(defn- sanitize-settings [meta-settings settings]
   (let [meta-settings-map (zipmap (map :path meta-settings) meta-settings)]
-    (vec (map (partial sanitize-game-setting meta-settings-map) settings))))
+    (vec (map (partial sanitize-setting meta-settings-map) settings))))
 
 (defn- make-form-field [setting]
   (assoc setting :label (second (:path setting))))
@@ -109,10 +123,8 @@
    :fields (map make-form-field settings)})
 
 (defn- make-default-settings [meta-settings]
-  (keep (fn [meta-setting]
-          (let [default-value (:default meta-setting)]
-            (when (not (nil? default-value))
-              {:path (:path meta-setting) :value default-value})))
+  (map (fn [meta-setting]
+         {:path (:path meta-setting) :value (:default meta-setting)})
         meta-settings))
 
 (defn- add-value-source [settings source]
@@ -164,12 +176,7 @@
 (defn- setting-index [settings path]
   (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
 
-(defn- set-setting [settings path value]
-  (if-let [index (setting-index settings path)]
-    (assoc-in settings [index :value] value)
-    (conj settings {:path path :value value})))
-
-(defn- get-game-setting [settings path]
+(defn- get-setting [settings path]
   (when-let [index (setting-index settings path)]
     (:value (nth settings index))))
 
@@ -177,32 +184,14 @@
   (when-let [index (setting-index meta-settings path)]
     (:default (nth meta-settings index))))
 
-(defn- get-game-setting-or-default [meta-settings settings path]
-  (or (get-game-setting settings path)
+(defn- get-setting-or-default [meta-settings settings path]
+  (or (get-setting settings path)
       (get-default-setting meta-settings path)))
-
-(defn- clear-setting [settings path]
-  (if-let [index (setting-index settings path)]
-    (update settings index dissoc :value)))
-
-;;; accessing settings
-
-(defn- game-settings [resource-node]
-  (g/node-value resource-node :settings))
-
-(defn- game-meta-info [resource-node]
-  (g/node-value resource-node :meta-info))
-
-(defn get-setting [resource-node category key]
-  (get-game-setting (game-settings resource-node) [category key]))
-
-(defn get-default [resource-node category key]
-  (get-default-setting (:settings (game-meta-info resource-node)) [category key]))
 
 ;;; loading node
 
 (defn- root-resource [base-resource settings meta-settings category key]
-  (let [path (get-game-setting-or-default meta-settings settings [category key])
+  (let [path (get-setting-or-default meta-settings settings [category key])
         ; TODO - hack for compiled files in game.project
         path (subs path 0 (dec (count path)))
         ; TODO - hack for inconsistencies in game.project paths
@@ -214,7 +203,7 @@
 (defn- load-game-project [project self input]
   (let [raw-settings (parse-settings (string-reader (slurp input)))
         effective-meta-info (complement-meta-info meta-info raw-settings)
-        sanitized-settings (sanitize-game-settings (:settings effective-meta-info) raw-settings)
+        sanitized-settings (sanitize-settings (:settings effective-meta-info) raw-settings)
         resource   (g/node-value self :resource)
         roots      (map (fn [[category field]] (root-resource resource sanitized-settings (:settings effective-meta-info) category field))
                         [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
@@ -230,8 +219,17 @@
 (defn- build-game-project [self basis resource dep-resources user-data]
   {:resource resource :content (.getBytes (:content user-data))})
 
+(defn- set-setting [settings path value]
+  (if-let [index (setting-index settings path)]
+    (assoc-in settings [index :value] value)
+    (conj settings {:path path :value value})))
+
 (defn- set-form-op [{:keys [node-id]} path value]
   (g/update-property! node-id :settings set-setting path value))
+
+(defn- clear-setting [settings path]
+  (when-let [index (setting-index settings path)]
+    (update settings index dissoc :value)))
 
 (defn- clear-form-op [{:keys [node-id]} path]
   (g/update-property! node-id :settings clear-setting path))
