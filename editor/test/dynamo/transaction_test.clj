@@ -395,6 +395,70 @@
                               (g/delete-node inner)
                               (g/delete-node outer))))))))))
 
+(defn- exists? [node-id] (not (nil? (g/node-by-id (g/now) node-id))))
+
+(g/defnode CascadingContainer
+  (property a-property g/Str (default ""))
+  (input attachments g/Any :cascade-delete))
+
+(deftest cascading-delete
+  (testing "delete container, one cascade connected by one output"
+    (with-clean-system
+      (let [[container resource] (tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
+        (g/transact
+         (g/connect resource :b container :attachments))
+        (is (= :ok (:status (g/transact (g/delete-node container)))))
+        (is (not (exists? container)))
+        (is (not (exists? resource))))))
+
+  (testing "delete container, one cascade connected by multiple outputs"
+    (with-clean-system
+      (let [[container resource] (tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
+        (g/transact
+         [(g/connect resource :b container :attachments)
+          (g/connect resource :c container :attachments)])
+        (is (= :ok (:status (g/transact (g/delete-node container)))))
+        (is (not (exists? container)))
+        (is (not (exists? resource))))))
+
+  (testing "delete container, one cascade connected by a property"
+    (with-clean-system
+      (let [[container resource] (tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
+        (g/transact
+         (g/connect resource :d container :attachments))
+        (is (= :ok (:status (g/transact (g/delete-node container)))))
+        (is (not (exists? container)))
+        (is (not (exists? resource))))))
+
+  (testing "delete container, two cascades"
+    (with-clean-system
+      (let [[container resource1 resource2] (tx-nodes (g/make-node world CascadingContainer)
+                                                      (g/make-node world Resource)
+                                                      (g/make-node world Resource))]
+        (g/transact
+         [(g/connect resource1 :d container :attachments)
+          (g/connect resource2 :d container :attachments)])
+        (is (= :ok (:status (g/transact (g/delete-node container)))))
+        (is (not (exists? container)))
+        (is (not (exists? resource1)))
+        (is (not (exists? resource2))))))
+
+  (testing "delete container, daisy chain of deletes"
+    (with-clean-system
+      (let [[container middle1 middle2 resource] (tx-nodes (g/make-node world CascadingContainer)
+                                                           (g/make-node world CascadingContainer)
+                                                           (g/make-node world CascadingContainer)
+                                                           (g/make-node world Resource))]
+        (g/transact
+         [(g/connect resource  :d          middle2   :attachments)
+          (g/connect middle2   :a-property middle1   :attachments)
+          (g/connect middle1   :a-property container :attachments)])
+        (is (= :ok (:status (g/transact (g/delete-node container)))))
+        (is (not (exists? container)))
+        (is (not (exists? middle1)))
+        (is (not (exists? middle2)))
+        (is (not (exists? resource)))))))
+
 (g/defnode MyNode
   (property a-property g/Str))
 

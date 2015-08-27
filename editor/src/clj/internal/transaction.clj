@@ -203,9 +203,8 @@
              :basis           basis-after))
     ctx))
 
-(defmethod perform :delete-node
-  [{:keys [basis nodes-deleted nodes-added triggers-to-fire] :as ctx}
-   {:keys [node-id]}]
+(defn- delete-single
+  [{:keys [basis nodes-deleted nodes-added triggers-to-fire] :as ctx} node-id]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [all-labels         (set/union (-> node gt/node-type gt/input-labels) (-> node gt/node-type gt/output-labels))
           ctx                (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in)) ctx (-> node gt/node-type gt/input-labels))
@@ -218,6 +217,17 @@
              :nodes-added      (removev #(= node-id %) nodes-added)
              :triggers-to-fire (update triggers-to-fire node-id assoc :deleted [])))
     ctx))
+
+(defn- cascade-delete-sources
+  [basis node-id]
+  (for [input         (gt/cascade-deletes (gt/node-type (ig/node-by-id-at basis node-id)))
+        [source-id _] (gt/sources basis node-id input)]
+    source-id))
+
+(defmethod perform :delete-node
+  [ctx {:keys [node-id]}]
+  (let [to-delete (ig/pre-traverse (:basis ctx) [node-id] cascade-delete-sources)]
+    (reduce delete-single ctx to-delete)))
 
 (defn- assert-has-property-label
   [node label]
