@@ -73,6 +73,9 @@
   (input multiple-scalar-values     g/Str :array)
   (input multiple-collection-values [g/Str] :array))
 
+(g/defnode CascadingInputNode
+  (input component g/Str :cascade-delete))
+
 (deftest nodes-can-have-inputs
   (testing "inputs must be defined with symbols"
     (is (thrown? Compiler$CompilerException
@@ -104,7 +107,11 @@
 
   (testing "inputs can declare their cardinality"
     (is (= :many (g/input-cardinality CardinalityInputNode :multiple-scalar-values)))
-    (is (= :many (g/input-cardinality CardinalityInputNode :multiple-collection-values)))))
+    (is (= :many (g/input-cardinality CardinalityInputNode :multiple-collection-values))))
+
+  (testing "inputs can declare a cascade-delete flag"
+    (is (= #{}           (g/cascade-deletes CardinalityInputNode)))
+    (is (= #{:component} (g/cascade-deletes CascadingInputNode)))))
 
 
 (definterface MarkerInterface)

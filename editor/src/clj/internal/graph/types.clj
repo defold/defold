@@ -35,6 +35,7 @@
   (substitute-for         [this input])
   (input-type             [this input])
   (input-cardinality      [this input])
+  (cascade-deletes        [this])
   (output-type            [this output])
   (property-passthrough?  [this output])
   (property-display-order [this]))

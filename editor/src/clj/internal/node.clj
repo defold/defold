@@ -120,7 +120,7 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types declared-properties inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities property-passthroughs property-display-order]
+    [name supertypes interfaces protocols method-impls triggers transforms transform-types declared-properties inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes property-passthroughs property-display-order]
 
   gt/NodeType
   (supertypes            [_] supertypes)
@@ -139,6 +139,7 @@
   (substitute-for        [_ input] (get substitutes input))
   (input-type            [_ input] (get inputs input))
   (input-cardinality     [_ input] (get cardinalities input))
+  (cascade-deletes       [_]        cascade-deletes)
   (output-type           [_ output] (get transform-types output))
   (property-passthrough? [_ output] (contains? property-passthroughs output))
   (property-display-order [this] property-display-order))
@@ -263,6 +264,7 @@
       (update-in [:triggers]              combine-with map-merge  {} (from-supertypes description gt/triggers))
       (update-in [:substitutes]           combine-with merge      {} (from-supertypes description :substitutes))
       (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
+      (update-in [:cascade-deletes]       combine-with set/union #{} (from-supertypes description :cascade-deletes))
       (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
       resolve-display-order
       attach-properties-output
@@ -303,17 +305,20 @@
     (cond->
         (assoc-in description [:inputs label] property-schema)
 
+      (some #{:cascade-delete} flags)
+      (update :cascade-deletes #(conj (or % #{}) label))
+
       (some #{:inject} flags)
-      (update-in [:injectable-inputs] #(conj (or % #{}) label))
+      (update :injectable-inputs #(conj (or % #{}) label))
 
       (:substitute options)
-      (update-in [:substitutes] assoc label (:substitute options))
+      (update :substitutes assoc label (:substitute options))
 
       (not (some #{:array} flags))
-      (update-in [:cardinalities] assoc label :one)
+      (update :cardinalities assoc label :one)
 
       (some #{:array} flags)
-      (update-in [:cardinalities] assoc label :many))))
+      (update :cardinalities assoc label :many))))
 
 (defn- abstract-function
   [label type]
@@ -417,7 +422,7 @@
     (symbol (str ns) (str name))))
 
 (def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections})
-(def ^:private input-flags   #{:inject :array})
+(def ^:private input-flags   #{:inject :array :cascade-delete})
 (def ^:private input-options #{:substitute})
 
 (def ^:private output-flags   #{:cached :abstract})
