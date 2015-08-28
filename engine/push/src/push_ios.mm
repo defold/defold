@@ -454,7 +454,7 @@ int Push_SetBadgeCount(lua_State* L)
  *          right button of the alert or the value of the unlock slider, where the value replaces 
  *          "unlock" in "slide to unlock" text. (string)</td></tr>
  *   <tr><td><code>badge_number</code></td><td>(iOS only). The numeric value of the icon badge. (number)</td></tr>
- *   <tr><td><code>priority/code></td><td>(Android only). The priority is a hint to the device UI about how the notification 
+ *   <tr><td><code>priority</code></td><td>(Android only). The priority is a hint to the device UI about how the notification 
             should be displayed. There are five priority levels, from -2 to 2 where -1 is the lowest priority
             and 2 the highest. Unless specified, a default priority level of 2 is used. (number)</td></tr>
  * </table>
