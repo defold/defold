@@ -51,7 +51,7 @@
     (and type-compatible? names-compatible?)))
 
 (defn injection-candidates
-  [basis in-nodes out-nodes]
+  [basis out-nodes in-nodes]
   (into #{}
      (filter #(compatible? basis %)
         (for [in-node   in-nodes
@@ -60,29 +60,22 @@
               out-label (keys (->> out-node (g/node-type* basis) g/transform-types))]
             [out-node out-label in-node in-label]))))
 
-(defn inject-new-nodes
-  "Implementation function that performs dependency injection for nodes.
-This function should not be called directly."
-  [transaction basis self label kind inputs-affected]
-  (when (inputs-affected :nodes)
-    (let [nodes-before-txn         (into #{self}
-                                         (if-let [original-self (g/node-by-id (:original-basis transaction) self)]
-                                           (g/node-value (:original-basis transaction) original-self :nodes)
-                                           []))
-          nodes-after-txn          (g/node-value basis self :nodes)
-          new-nodes-in-scope       (remove nodes-before-txn nodes-after-txn)
-          out-from-new-connections (injection-candidates basis nodes-before-txn new-nodes-in-scope)
-          in-to-new-connections    (injection-candidates basis new-nodes-in-scope nodes-before-txn)
-          between-new-nodes        (injection-candidates basis new-nodes-in-scope new-nodes-in-scope)
-          candidates               (set/union out-from-new-connections in-to-new-connections between-new-nodes)
-          candidates               (remove
-                                    (fn [[out out-label in in-label]]
-                                      (or
-                                       (= out in)
-                                       (g/connected? (g/transaction-basis transaction) out out-label in in-label)))
-                                    candidates)]
-      (for [[out out-label in in-label] candidates]
-        (g/connect out out-label in in-label)))))
+(defn inject-dependencies
+  "Examine the suppliers and consumers to see if any there are any
+  connections to make from outputs to compatible, injectable
+  inputs. Both suppliers and consumers must be collections.
+  Returns a seq of transaction steps."
+  [suppliers consumers]
+  (assert (seq suppliers))
+  (assert (seq consumers))
+  (let [basis           (g/now)
+        new-connections (remove
+                         (fn [[out out-label in in-label]]
+                           (or
+                            (= out in)
+                            (g/connected? basis out out-label in in-label)))
+                         (injection-candidates basis suppliers consumers))]
+    (map #(apply g/connect %) new-connections)))
 
 ;; ---------------------------------------------------------------------------
 ;; Bootstrapping the core node types
@@ -94,9 +87,7 @@ When a node is added to a Scope, the node's :_node-id output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."
-  (input nodes g/Any :array :cascade-delete)
-
-  (trigger dependency-injection :input-connections #'inject-new-nodes))
+  (input nodes g/Any :array :cascade-delete))
 
 (defn scope [node-id]
   (let [[_ _ scope _] (first
