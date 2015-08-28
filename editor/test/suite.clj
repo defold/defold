@@ -16,20 +16,32 @@
                        dynamo.transaction-test
                        dynamo.util-test
                        editor.buffers-test
+                       editor.camera-test
+                       editor.diff-view-test
+                       editor.fs-watch-test
                        editor.geom-test
+                       editor.git-test
                        editor.gl.translate-test
                        editor.gl.vertex-test
                        editor.handler-test
                        editor.image-test
                        editor.injection-test
+                       editor.math-test
+                       editor.pipeline.tex-gen-test
+                       editor.prefs-test
+                       editor.project-test
+                       editor.properties-test
+                       editor.protobuf-test
                        editor.texture.math-test
                        editor.texture.packing-test
                        editor.project-test
                        editor.ui-test
+                       editor.updater-test
                        integration.asset-browser-test
                        integration.benchmark-test
                        integration.build-test
                        integration.collection-test
+                       integration.outline-test
                        integration.reload-test
                        integration.save-test
                        integration.scene-test
