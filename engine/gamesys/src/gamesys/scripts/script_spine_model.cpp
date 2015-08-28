@@ -146,6 +146,7 @@ namespace dmGameSystem
     /*# retrieve the game object corresponding to a spine model skeleton bone
      * The returned game object can be used for parenting and transform queries.
      * This function has complexity O(n), where n is the number of bones in the spine model skeleton.
+     * Game objects corresponding to a spine model skeleton bone can not be individually deleted.
      * Only available from .script files.
      *
      * @name spine.get_go
@@ -207,10 +208,15 @@ namespace dmGameSystem
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmhash_t instance_id = component->m_NodeIds[bone_index];
-        if (instance_id == 0x0)
+        dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
+        if (instance == 0x0)
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
+        }
+        dmhash_t instance_id = dmGameObject::GetIdentifier(instance);
+        if (instance_id == 0x0)
+        {
+            return luaL_error(L, "game object contains no identifier for the bone '%s'", lua_tostring(L, 2));
         }
         dmScript::PushHash(L, instance_id);
 
@@ -218,11 +224,169 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# set the target position of an IK constraint object
+     * Only available from .script files.
+     *
+     * @name spine.set_ik_target_position
+     * @param url the spine model containing the object (url)
+     * @param ik_constraint_id id of the corresponding IK constraint object (string|hash)
+     * @param position (vec3)
+     * @examples
+     * <p>
+     * The following example assumes that the spine model has id "spinemodel".
+     * <p>
+     * How to set the target IK position of the right_hand_constraint constraint object of the player object
+     * </p>
+     * <pre>
+     * function init(self)
+     *     spine.set_ik_target_position("player#spinemodel", "right_hand_constraint", vmath.vector3(1,2,3), 1.0)
+     * end
+     * </pre>
+     */
+    int SpineComp_SetIKTargetPosition(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        SpineModelWorld* world = 0;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
+        SpineModelComponent* component = world->m_Components.Get(user_data);
+
+        dmhash_t ik_constraint_id;
+        if (lua_isstring(L, 2))
+        {
+            ik_constraint_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            ik_constraint_id = dmScript::CheckHash(L, 2);
+        }
+        else
+        {
+            return luaL_error(L, "ik_constraint_id must be either a hash or a string");
+        }
+
+        Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 3);
+
+        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        uint32_t ik_count = skeleton->m_Iks.m_Count;
+        uint32_t ik_index = ~0u;
+        for (uint32_t i = 0; i < ik_count; ++i)
+        {
+            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
+            {
+                ik_index = i;
+                break;
+            }
+        }
+        if (ik_index == ~0u)
+        {
+            return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
+        }
+
+        dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
+        ik_target.m_Mix = 1.0f;
+        ik_target.m_InstanceId = 0;
+        ik_target.m_Position = *position;
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# set the IK constraint object target position to follow position of a game object
+     * Only available from .script files.
+     *
+     * @name spine.set_ik_target
+     * @param url the spine model containing the object (url)
+     * @param ik_constraint_id id of the corresponding IK constraint object (string|hash)
+     * @param target_url target game object (url)
+     * @examples
+     * <p>
+     * The following example assumes that the spine model has id "spinemodel".
+     * <p>
+     * How to set the target IK position of the right_hand_constraint constraint object of the player object
+     * to follow the position of game object with url "some_game_object"
+     * </p>
+     * <pre>
+     * function init(self)
+     *     spine.set_ik_target("player#spinemodel", "right_hand_constraint", "some_game_object", 1.0)
+     * end
+     * </pre>
+     */
+    int SpineComp_SetIKTarget(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        SpineModelWorld* world = 0;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
+        SpineModelComponent* component = world->m_Components.Get(user_data);
+
+        dmhash_t ik_constraint_id;
+        if (lua_isstring(L, 2))
+        {
+            ik_constraint_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            ik_constraint_id = dmScript::CheckHash(L, 2);
+        }
+        else
+        {
+            return luaL_error(L, "ik_constraint_id must be either a hash or a string");
+        }
+
+        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        uint32_t ik_count = skeleton->m_Iks.m_Count;
+        uint32_t ik_index = ~0u;
+        for (uint32_t i = 0; i < ik_count; ++i)
+        {
+            if (skeleton->m_Iks[i].m_Id == ik_constraint_id)
+            {
+                ik_index = i;
+                break;
+            }
+        }
+        if (ik_index == ~0u)
+        {
+            return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
+        }
+
+        dmMessage::URL sender;
+        dmScript::GetURL(L, &sender);
+        dmMessage::URL target;
+        dmScript::ResolveURL(L, 3, &target, &sender);
+        if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
+        {
+            luaL_error(L, "go.animate can only animate instances within the same collection.");
+        }
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+        if (target_instance == 0)
+            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+
+
+        dmGameSystem::IKTarget& ik_target = component->m_IKTargets[ik_index];
+        ik_target.m_Mix = 1.0f;
+        ik_target.m_InstanceId = target.m_Path;
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     static const luaL_reg SPINE_COMP_FUNCTIONS[] =
     {
             {"play",    SpineComp_Play},
             {"cancel",  SpineComp_Cancel},
             {"get_go",  SpineComp_GetGO},
+            {"set_ik_target_position", SpineComp_SetIKTargetPosition},
+            {"set_ik_target", SpineComp_SetIKTarget},
             {0, 0}
     };
 
