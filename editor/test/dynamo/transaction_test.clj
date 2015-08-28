@@ -26,7 +26,7 @@
   (testing "two connected nodes"
     (with-clean-system
       (let [[id1 id2] (tx-nodes (g/make-node world Resource)
-                                            (g/make-node world Downstream))
+                                (g/make-node world Downstream))
             after                 (:basis (g/transact (it/connect id1 :b id2 :consumer)))]
         (is (= [id1 :b]        (first (g/sources after id2 :consumer))))
         (is (= [id2 :consumer] (first (g/targets after id1 :b)))))))
@@ -34,7 +34,7 @@
   (testing "disconnect two singly-connected nodes"
     (with-clean-system
       (let [[id1 id2] (tx-nodes (g/make-node world Resource)
-                                            (g/make-node world Downstream))
+                                (g/make-node world Downstream))
             tx-result             (g/transact (it/connect    id1 :b id2 :consumer))
             tx-result             (g/transact (it/disconnect id1 :b id2 :consumer))
             after                 (:basis tx-result)]
@@ -60,6 +60,16 @@
           (is (empty?    (g/targets      after resource1 :b)))
           (is (contains? (:nodes-deleted tx-result) resource2))
           (is (empty?    (:nodes-added   tx-result)))))))
+
+  (testing "node deletion in same transaction"
+    (with-clean-system
+      (let [tx-result (g/transact
+                       (g/make-nodes world
+                                     [resource Resource]
+                                     (g/delete-node resource)))
+            [node]    (g/tx-nodes-added tx-result)]
+        (is (= :ok (:status tx-result)))
+        (is (nil?  node)))))
 
   (testing "node transformation"
     (with-clean-system
@@ -362,18 +372,8 @@
         (yield)
         (is (= cached-value (cache-peek system node-id :additional-output)))))))
 
-;; This case is taken from editor.core/Scope.
-;; Code is copied here to avoid inverted dependencies
-(defn dispose-nodes
-  [transaction basis self label kind]
-  (when (g/is-deleted? transaction self)
-    (for [node-to-delete (g/node-value basis self :nodes)]
-      (g/delete-node (g/node-id node-to-delete)))))
-
 (g/defnode Container
-  (input nodes g/Any :array)
-
-  (trigger garbage-collection :deleted #'dispose-nodes))
+  (input nodes g/Any :array :cascade-delete))
 
 (deftest double-deletion-is-safe
   (testing "delete scope first"

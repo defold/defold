@@ -85,18 +85,6 @@ This function should not be called directly."
         (g/connect out out-label in in-label)))))
 
 ;; ---------------------------------------------------------------------------
-;; Cascading delete
-;; ---------------------------------------------------------------------------
-
-(defn dispose-nodes
-  "Trigger to dispose nodes from a scope when the scope is
-  destroyed. This should not be called directly."
-  [transaction graph self label kind]
-  (when (g/is-deleted? transaction self)
-    (for [node-to-delete (g/node-value self :nodes)]
-      (g/delete-node node-to-delete))))
-
-;; ---------------------------------------------------------------------------
 ;; Bootstrapping the core node types
 ;; ---------------------------------------------------------------------------
 
@@ -106,10 +94,9 @@ When a node is added to a Scope, the node's :_node-id output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."
-  (input nodes g/Any :array)
+  (input nodes g/Any :array :cascade-delete)
 
-  (trigger dependency-injection :input-connections #'inject-new-nodes)
-  (trigger garbage-collection   :deleted           #'dispose-nodes))
+  (trigger dependency-injection :input-connections #'inject-new-nodes))
 
 (defn scope [node-id]
   (let [[_ _ scope _] (first
