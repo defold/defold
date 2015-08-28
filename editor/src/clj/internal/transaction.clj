@@ -226,7 +226,8 @@
 
 (defmethod perform :delete-node
   [ctx {:keys [node-id]}]
-  (let [to-delete (ig/pre-traverse (:basis ctx) [node-id] cascade-delete-sources)]
+  (let [basis-to-use (if (contains? (set (:nodes-added ctx)) node-id) (:basis ctx) (:original-basis ctx))
+        to-delete    (ig/pre-traverse basis-to-use [node-id] cascade-delete-sources)]
     (reduce delete-single ctx to-delete)))
 
 (defn- assert-has-property-label
