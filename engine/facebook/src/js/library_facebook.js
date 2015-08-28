@@ -6,7 +6,7 @@ var LibraryFacebook = {
         dmFacebookInitialize: function(app_id) {
             // We assume that the Facebook javascript SDK is loaded by now.
             // This should be done via a script tag (synchronously) in the html page:
-            // <script type="text/javascript" src="http://connect.facebook.net/en_US/sdk.js"></script>
+            // <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
             // This script tag MUST be located before the engine (game) js script tag.
             try {
                 FB.init({
