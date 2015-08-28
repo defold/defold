@@ -858,11 +858,11 @@ namespace dmGameSystem
         }
     }
 
-    static inline dmTransform::Transform GetLocalPoseTransform(const dmArray<SpineBone>& bind_pose, const dmArray<dmTransform::Transform>& pose, dmTransform::Transform transform, const uint32_t index) {
+    static inline dmTransform::Transform GetPoseTransform(const dmArray<SpineBone>& bind_pose, const dmArray<dmTransform::Transform>& pose, dmTransform::Transform transform, const uint32_t index) {
         if(bind_pose[index].m_ParentIndex == INVALID_BONE_INDEX)
             return transform;
         transform = dmTransform::Mul(pose[bind_pose[index].m_ParentIndex], transform);
-        return GetLocalPoseTransform(bind_pose, pose, transform, bind_pose[index].m_ParentIndex);
+        return GetPoseTransform(bind_pose, pose, transform, bind_pose[index].m_ParentIndex);
     }
 
     static inline float ToEulerZ(const dmTransform::Transform& t)
@@ -1012,13 +1012,13 @@ namespace dmGameSystem
                     dmGameSystemDDF::IK* ik = &skeleton->m_Iks[i];
 
                     // transform local space hiearchy for pose
-                    dmTransform::Transform parent_t = GetLocalPoseTransform(bind_pose, pose, pose[ik->m_Parent], ik->m_Parent);
+                    dmTransform::Transform parent_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Parent], ik->m_Parent);
                     dmTransform::Transform parent_t_local = parent_t;
-                    dmTransform::Transform target_t = GetLocalPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
+                    dmTransform::Transform target_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
                     const uint32_t parent_parent_index = skeleton->m_Bones[ik->m_Parent].m_Parent;
                     if(parent_parent_index != INVALID_BONE_INDEX)
                     {
-                        dmTransform::Transform parent_parent_t = dmTransform::Inv(GetLocalPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
+                        dmTransform::Transform parent_parent_t = dmTransform::Inv(GetPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
                         parent_t = dmTransform::Mul(parent_parent_t, parent_t);
                         target_t = dmTransform::Mul(parent_parent_t, target_t);
                     }
@@ -1054,10 +1054,7 @@ namespace dmGameSystem
                         dmTransform::Transform t = parent_t_local;
                         t = dmTransform::Mul((dmTransform::Mul(dmGameObject::GetWorldTransform(component->m_Instance), component->m_Transform)), t);
                         user_target_position -=  t.GetTranslation();
-                        Quat rotation = dmGameObject::GetWorldRotation(component->m_Instance) * component->m_Transform.GetRotation();
-                        rotation.setX(-rotation.getX());
-                        rotation.setY(-rotation.getY());
-                        rotation.setZ(-rotation.getZ());
+                        Quat rotation = dmTransform::conj(dmGameObject::GetWorldRotation(component->m_Instance) * component->m_Transform.GetRotation());
                         user_target_position = dmTransform::mulPerElem(dmTransform::rotate(rotation, user_target_position), dmGameObject::GetWorldScale(component->m_Instance));
 
                         // blend default target pose and target pose
