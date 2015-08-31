@@ -30,13 +30,13 @@
      {}
      all-arcs-filtered)))
 
-(defn empty-graph
-  []
-  {:nodes      {}
-   :sarcs      {}
-   :successors {}
-   :tarcs      {}
-   :tx-id      0})
+() (defn empty-graph
+     []
+     {:nodes      {}
+      :sarcs      {}
+      :successors {}
+      :tarcs      {}
+      :tx-id      0})
 
 (defn node-ids    [g] (keys (:nodes g)))
 (defn node-values [g] (vals (:nodes g)))
@@ -58,10 +58,6 @@
   (if-let [node (get-in g [:nodes n])]
     (assoc-in g [:nodes n] (apply f node args))
     g))
-
-(defn replace-node
-  [g n r]
-  (assoc-in g [:nodes n] r))
 
 (defn connect-source
   [g source source-label target target-label]
@@ -270,17 +266,10 @@
 
   (replace-node
     [this node-id new-node]
-    (let [gid   (gt/node-id->graph-id node-id)
-          graph (replace-node (node-id->graph graphs node-id) node-id (assoc new-node :_node-id node-id))
-          node  (node graph node-id)]
-      [(update this :graphs assoc gid graph) node]))
-
-  (update-property
-    [this node-id property f args]
-    (let [gid   (gt/node-id->graph-id node-id)
-          graph (apply transform-node (node-id->graph graphs node-id) node-id update-in [property] f args)
-          node  (node graph node-id)]
-      [(update this :graphs assoc gid graph) node]))
+    (let [gid      (gt/node-id->graph-id node-id)
+          new-node (assoc new-node :_node-id node-id)
+          graph    (assoc-in (get graphs gid) [:nodes node-id] new-node)]
+      [(update this :graphs assoc gid graph) new-node]))
 
   (connect
     [this src-id src-label tgt-id tgt-label]

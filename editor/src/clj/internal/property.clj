@@ -1,11 +1,20 @@
 (ns internal.property
-  (:require [clojure.tools.macro :as ctm]
-            [clojure.core.match :refer [match]]
+  (:require [clojure.core.match :refer [match]]
+            [clojure.tools.macro :as ctm]
             [dynamo.util :as util]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [schema.core :as s]))
 
 (def ^:private default-validation-fn (constantly true))
+
+(defn property-default-getter
+  [basis node property]
+  (get node property))
+
+(defn property-default-setter
+  [basis node property value]
+  (first (gt/replace-node basis (gt/node-id node) (assoc node property value))))
 
 (defn- validation-problems
   [value-type validations value]
@@ -59,6 +68,14 @@
   [description kind evaluation]
   (assoc-in description [:dynamic kind] evaluation))
 
+(defn attach-setter
+  [description evaluation]
+  (assoc description :setter evaluation))
+
+(defn attach-getter
+  [description evaluation]
+  (assoc description :getter evaluation))
+
 (defn- property-form [form]
   (match [form]
          [(['default default] :seq)]
@@ -78,6 +95,12 @@
          (do
            (assert-symbol "dynamic" kind)
            `(attach-dynamic ~(keyword kind) ~@remainder))
+
+         [(['set & remainder] :seq)]
+         `(attach-setter ~@remainder)
+
+         [(['get & remainder] :seq)]
+         `(attach-getter ~@remainder)
 
          :else
          (assert false (str "invalid form within property type definition: " (pr-str form)))))

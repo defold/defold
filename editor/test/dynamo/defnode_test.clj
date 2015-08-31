@@ -1,8 +1,9 @@
 (ns dynamo.defnode-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [tx-nodes with-clean-system]]
-            [internal.node :as in])
+            [internal.graph.types :as gt]
+            [internal.node :as in]
+            [support.test-support :refer [tx-nodes with-clean-system]])
   (:import clojure.lang.Compiler$CompilerException))
 
 (defn substitute-value-fn [& _] "substitute value")
@@ -227,6 +228,11 @@
   (input foo g/Any)
   (property a-property g/Str (dynamic visible (g/fnk [foo] true))))
 
+(g/defnode SetterFnPropertyNode
+  (property self-incrementing g/Int
+            (set (fn [basis this property new-value]
+                   (g/property-default-setter basis this property (inc new-value))))))
+
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode)]
@@ -269,6 +275,22 @@
               :a-property           #{:_declared-properties :_properties :a-property}
               :_output-jammers      #{:_output-jammers}}
              (-> node g/node-type g/input-dependencies)))))
+
+  (testing "setter functions are only invoked when the node gets added to the graph"
+    (with-clean-system
+      (let [standalone (g/construct SetterFnPropertyNode :self-incrementing 0)]
+        (is (= 0 (:self-incrementing standalone)))
+
+        (let [ingraph-id (first
+                          (g/tx-nodes-added
+                           (g/transact
+                            (g/make-node world SetterFnPropertyNode :self-incrementing 0))))]
+          (is (= 1 (g/node-value ingraph-id :self-incrementing)))
+
+          (g/transact
+           (g/set-property ingraph-id :self-incrementing 10))
+
+          (is (= 11 (g/node-value ingraph-id :self-incrementing)))))))
 
   (testing "do not allow a property to shadow an input of the same name"
     (is (thrown? AssertionError
