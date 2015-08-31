@@ -16,6 +16,7 @@ import ConfigParser
 
 # Keep this version in sync with project.clj
 JOGL_VERSION = "2.0.2"
+JNA_VERSION = "4.1.0"
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-linux': 'linux-i586',
@@ -30,6 +31,12 @@ platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
                       'x86_64-darwin': 'darwin',
                       'x86-win32': 'win32',
                       'x86_64-win32': 'x86_64-win32'}
+
+platform_to_legacy_java = {'x86_64-linux': 'x86_64-linux',
+                           'x86-linux': 'linux',
+                           'x86_64-darwin': 'x86_64-darwin',
+                           'x86-win32': 'win32',
+                           'x86_64-win32': 'x86_64-win32'}
 
 platform_to_jogl = {'x86_64-linux': 'linux-amd64',
                     'x86-linux': 'linux-i586',
@@ -119,11 +126,43 @@ def bundle_natives(in_jar_name, out_jar_name):
             add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/jogl/jogl-all/%s/jogl-all-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
             add_native_libs(platform, os.path.expanduser("~/.m2/repository/org/jogamp/gluegen/gluegen-rt/%s/gluegen-rt-%s-natives-%s.jar" % (JOGL_VERSION, JOGL_VERSION, jogl_platform)), out_jar)
 
-            with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
-                for zi in in_jar.infolist():
-                    if not (zi.filename.endswith('.so') or zi.filename.endswith('.dll') or zi.filename.endswith('.jnilib')):
-                        d = in_jar.read(zi)
-                        out_jar.writestr(zi, d)
+        with zipfile.ZipFile(os.path.expanduser("~/.m2/repository/net/java/dev/jna/jna/%s/jna-%s.jar" % (JNA_VERSION, JNA_VERSION)), 'r') as in_jar:
+            for jna_p, p, lib in [("darwin", "x86_64-darwin", "libjnidispatch.jnilib"),
+                                  ("win32-x86", "x86-win32", "jnidispatch.dll"),
+                                  ("linux-x86", "x86-linux", "libjnidispatch.so")]:
+                d = in_jar.read('com/sun/jna/%s/%s' % (jna_p, lib))
+                n = 'lib/%s/%s' % (p, lib)
+                print "adding", n
+                out_jar.writestr(n, d)
+
+        sha1 = git_sha1()
+
+        artifacts = {'x86_64-darwin' : {'exes' : ['dmengine', 'dmengine_release'],
+                                        'libs' : ['libparticle_shared.dylib', 'libtexc_shared.dylib'] },
+                     'x86-win32' : {'exes' : ['dmengine.exe', 'dmengine_release.exe'],
+                                    'libs' : ['particle_shared.dll', 'texc_shared.dll'] },
+                     'x86-linux' : {'exes' : ['dmengine', 'dmengine_release'],
+                                    'libs' : ['libparticle_shared.so', 'libtexc_shared.so'] }}
+
+        base_url = 'http://d.defold.com/archive/%s/engine' % (sha1)
+        for p in artifacts.keys():
+            for l in artifacts[p]['libs']:
+                url = '%s/%s/%s' % (base_url, platform_to_legacy_java[p], l)
+                path = download(url, use_cache = False)
+                out_jar.write(path, 'lib/%s/%s' % (p, l))
+                os.unlink(path)
+
+            for e in artifacts[p]['exes']:
+                url = '%s/%s/%s' % (base_url, platform_to_legacy_java[p], e)
+                path = download(url, use_cache = False)
+                out_jar.write(path, 'libexec/%s/%s' % (p, e))
+                os.unlink(path)
+
+        with zipfile.ZipFile(in_jar_name, 'r') as in_jar:
+            for zi in in_jar.infolist():
+                if not (zi.filename.endswith('.so') or zi.filename.endswith('.dll') or zi.filename.endswith('.jnilib')):
+                    d = in_jar.read(zi)
+                    out_jar.writestr(zi, d)
 
 def git_sha1(ref = None):
     args = 'git log --pretty=%H -n1'.split()
