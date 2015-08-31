@@ -8,6 +8,7 @@
 
 (def ^:private default-validation-fn (constantly true))
 
+;; TODO - stop being redundant with the property argument to these.
 (defn property-default-getter
   [basis node property]
   (get node property))
@@ -15,6 +16,21 @@
 (defn property-default-setter
   [basis node property value]
   (first (gt/replace-node basis (gt/node-id node) (assoc node property value))))
+
+(defn invoke-getter
+  [basis node property]
+  (when node
+    (let [getter (get-in (gt/property-types node) [property :getter] property-default-getter)]
+      (getter basis node property))))
+
+(defn invoke-setter
+  [basis node property new-value]
+  (let [setter (get-in (gt/property-types node) [property :setter] property-default-setter)]
+    (if-let [new-basis (setter basis node property new-value)]
+      new-basis
+      (do
+        (println "WARNING: setter for " property " on " (gt/node-type node) " returned nil. It should return an updated basis.")
+        basis))))
 
 (defn- validation-problems
   [value-type validations value]

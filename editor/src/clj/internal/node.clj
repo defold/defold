@@ -91,15 +91,15 @@
 
 (defn- all-properties [node-type] (gt/declared-properties node-type))
 
-(defn- gather-property
-  [id node-type self kwargs property-type value]
-  (let [problems          (gt/property-validate property-type value)
-        dynamics          (util/map-vals #(% kwargs) (gt/dynamic-attributes property-type))]
-    (merge dynamics
-           {:node-id             id
-            :value               value
-            :type                property-type
-            :validation-problems problems})))
+(defn- gather-dynamics
+  [{:keys [type] :as prop-snap} kwargs]
+  (merge
+   (util/map-vals #(% kwargs) (gt/dynamic-attributes type))
+   prop-snap))
+
+(defn- gather-validation-problems
+  [{:keys [type value] :as prop-snap}]
+  (assoc prop-snap :validation-problems (gt/property-validate type value)))
 
 (defn- gather-properties
   "Production function that delivers the definition and value for all
@@ -107,14 +107,20 @@
   output on a node. You should not call it directly. Instead,
   call `(g/node-value _n_ :_properties)`"
   [{:keys [_node-id basis] :as kwargs}]
-  (let [kwargs         (dissoc kwargs :_node-id)
-        self           (ig/node-by-id-at basis _node-id)
-        node-type      (gt/node-type self)
-        props          (gt/property-types self)
-        property-names (keys props)]
-    ; TODO - make this use the property getter fn
-    {:properties (zipmap property-names (map #(gather-property _node-id node-type self kwargs (get props %) (get self %)) (keys props)))
-     :display-order (-> node-type gt/property-display-order)}))
+  (let [kwargs (dissoc kwargs :_node-id)
+        self   (ig/node-by-id-at basis _node-id)]
+    {:properties (persistent!
+                  (reduce-kv
+                   (fn [m property property-type]
+                     (assoc! m property
+                             (-> {:type    property-type
+                                  :node-id _node-id
+                                  :value   (ip/invoke-getter basis self property)}
+                                 (gather-dynamics kwargs)
+                                 (gather-validation-problems))))
+                   (transient {})
+                   (gt/property-types self)))
+     :display-order (-> self gt/node-type gt/property-display-order)}))
 
 ;; ---------------------------------------------------------------------------
 ;; Definition handling
@@ -176,7 +182,7 @@
   [node-type-description]
   (let [properties      (filter (comp not :internal? val) (:declared-properties node-type-description))
         argument-names  (properties-output-arguments properties)
-        argument-schema (zipmap argument-names (repeat s/Any))]
+        argument-schema (zipmap argument-names (repeat s/Any)) ]
     (attach-output node-type-description :_declared-properties s/Any #{} #{}
                    (s/schematize-fn (fn [args] (gather-properties args)) (s/=> s/Any argument-schema)))))
 
@@ -613,7 +619,7 @@
     'this
 
     (has-property? node-type argument)
-    `(get ~'this ~argument)))
+    `(ip/invoke-getter (:basis ~'evaluation-context) ~'this ~argument)))
 
 (defn produce-value-forms [transform output-multi? node-type-name argument-forms argument-schema epilogue]
   `(let [pfn-input# ~argument-forms
@@ -661,7 +667,7 @@
        (if-let [jammer# (get (:_output-jammers ~'this) ~transform)]
          (jammer#)
          ~(if property-passthrough?
-            `(get ~'this ~transform)
+            `(ip/invoke-getter (:basis ~'evaluation-context) ~'this ~transform)
             `(do
                (assert (every? #(not= % [(gt/node-id ~'this) ~transform]) (:in-production ~'evaluation-context))
                        (format "Cycle Detected on node type %s and output %s" (:name ~node-type-name) ~transform))
