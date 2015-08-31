@@ -115,7 +115,7 @@
   (trigger copy-self :property-touched
            (fn [txn basis self label kind afflicted]
              (when true
-               (it/set-property self :sink (g/node-value basis self :source))))))
+               (it/update-property self :sink (fn [_] (g/node-value basis self :source)) [])))))
 
 (g/defnode NameCollision
   (property tracking g/Any)

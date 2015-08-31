@@ -2,9 +2,10 @@
   "Internal functions that implement the transactional behavior."
   (:require [clojure.set :as set]
             [clojure.string :as str]
-            [dynamo.util :refer [removev map-vals]]
+            [dynamo.util :as util]
             [internal.graph :as ig]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt]
+            [internal.property :as ip]))
 
 ;; ---------------------------------------------------------------------------
 ;; Configuration parameters
@@ -55,10 +56,6 @@
     :property pr
     :fn       f
     :args     args}])
-
-(defn set-property
-  [node-id pr v]
-  (update-property node-id pr (constantly v) []))
 
 (defn update-graph
   [gid f args]
@@ -141,18 +138,6 @@
   such as [[connect]] and [[update-property]]."
   (fn [ctx m] (:type m)))
 
-(defmethod perform :create-node
-  [{:keys [basis triggers-to-fire nodes-affected world-ref nodes-added successors-changed] :as ctx}
-   {:keys [node]}]
-  (let [[basis-after full-node] (gt/add-node basis node)
-        node-id                 (gt/node-id full-node)
-        all-outputs             (-> full-node gt/node-type gt/output-labels)]
-    (assoc ctx
-           :basis              basis-after
-           :nodes-added        (conj nodes-added node-id)
-           :triggers-to-fire   (update triggers-to-fire node-id assoc :added [])
-           :successors-changed (into successors-changed (map (fn [label] [node-id label]) all-outputs))
-           :nodes-affected     (merge-with set/union nodes-affected {node-id all-outputs}))))
 
 (defn- disconnect-inputs
   [ctx target-node target-label]
@@ -214,7 +199,7 @@
       (assoc ctx
              :basis            basis
              :nodes-deleted    (assoc nodes-deleted node-id node)
-             :nodes-added      (removev #(= node-id %) nodes-added)
+             :nodes-added      (util/removev #(= node-id %) nodes-added)
              :triggers-to-fire (update triggers-to-fire node-id assoc :deleted [])))
     ctx))
 
@@ -235,20 +220,58 @@
   (assert (contains? node label)
           (format "Attemping to use property %s from %s, but it does not exist" label (:name (gt/node-type node)))))
 
+(defn- invoke-getter
+  [basis node property]
+  (when node
+    (let [getter (get-in (gt/property-types node) [property :getter] ip/property-default-getter)]
+      (getter basis node property))))
+
+;; TODO - this is really the default setter. Make this look up the
+;; attached setter and call it.
+;; TODO - this knows too much about node's internals. move the guts to internal.node
+(defn- invoke-setter
+  [basis node property new-value]
+  (let [setter (get-in (gt/property-types node) [property :setter] ip/property-default-setter)]
+    (if-let [new-basis (setter basis node property new-value)]
+      new-basis
+      (do
+        (println "WARNING: setter for " property " on " (gt/node-type node) " returned nil. It should return an updated basis.")
+        basis))))
+
+(defn apply-defaults
+  [basis node]
+  (letfn [(use-setter [basis prop] (if-let [v (get node prop)]
+                                          (invoke-setter basis node prop v)
+                                          basis))]
+    (reduce use-setter basis (util/key-set (gt/property-types node)))))
+
+(defmethod perform :create-node
+  [{:keys [basis triggers-to-fire nodes-affected world-ref nodes-added successors-changed] :as ctx}
+   {:keys [node]}]
+  (let [[basis-after full-node] (gt/add-node basis node)
+        node-id                 (gt/node-id full-node)
+        all-outputs             (-> full-node gt/node-type gt/output-labels)]
+    (assoc ctx
+           :basis              (apply-defaults basis-after full-node)
+           :nodes-added        (conj nodes-added node-id)
+           :triggers-to-fire   (update triggers-to-fire node-id assoc :added [])
+           :successors-changed (into successors-changed (map (fn [label] [node-id label]) all-outputs))
+           :nodes-affected     (merge-with set/union nodes-affected {node-id all-outputs}))))
+
+
 (defmethod perform :update-property
   [{:keys [basis triggers-to-fire properties-modified] :as ctx}
    {:keys [node-id property fn args]}]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [_                  (assert-has-property-label node property)
-          old-value          (get node property)
-          [basis-after node] (gt/update-property basis node-id property fn args)
-          new-value          (get node property)]
+          old-value          (invoke-getter basis node property)
+          new-value          (apply fn old-value args)]
       (if (= old-value new-value)
         ctx
         (-> ctx
             (mark-activated node-id property)
             (assoc
-             :basis               basis-after
+             :basis               (invoke-setter basis node property new-value)
              :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] conj property)
              :properties-modified (update-in properties-modified [node-id] conj property)))))
     ctx))
@@ -395,7 +418,7 @@
 
 (defn map-vals-bargs
   [m f]
-  (map-vals f m))
+  (util/map-vals f m))
 
 (defn- apply-tx-label
   [{:keys [basis label sequence-label] :as ctx}]
