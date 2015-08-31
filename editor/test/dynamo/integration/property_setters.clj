@@ -18,7 +18,8 @@
             (set (fn [basis this prop value]
                    (gt/connect basis value :contents (g/node-id this) :source))))
 
-  (output transformed g/Str (g/fnk [source] (and source (.toUpperCase source)))))
+  (output transformed g/Str (g/fnk [source] (and source (.toUpperCase source))))
+  (output upstream    g/Int (g/fnk [reference] reference)))
 
 (deftest fronting-a-connection-via-a-property
   (ts/with-clean-system
@@ -33,4 +34,8 @@
       (g/set-property! user :reference provider)
 
       (is (= 1 (count (gt/sources (g/now) user :source))))
-      (is (= [provider :contents] (first (gt/sources (g/now) user :source)))))))
+      (is (= [provider :contents] (first (gt/sources (g/now) user :source))))
+
+      (is (= provider (g/node-value user :reference)))
+      (is (= provider (get-in (g/node-value user :_properties) [:properties :reference :value])))
+      (is (= provider (g/node-value user :upstream))))))
