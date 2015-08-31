@@ -160,17 +160,13 @@
         val (str (:value setting))]
     (str key " = " val)))
 
-(defn- category->lines [category settings]
-  (cons (str "[" category "]")
-        (map setting->str settings)))
-
-(defn- settings->lines [settings]
-  (let [cat-order (category-order settings)
-        cat-grouped-settings (category-grouped-settings settings)]
-    (mapcat #(category->lines % (cat-grouped-settings %)) cat-order)))
+(defn- category->str [category settings]
+  (s/join "\n" (cons (str "[" category "]") (map setting->str settings))))
 
 (defn- settings->str [settings]
-  (s/join "\n" (settings->lines settings)))
+  (let [cat-order (category-order settings)
+        cat-grouped-settings (category-grouped-settings settings)]
+      (s/join "\n\n" (map #(category->str % (cat-grouped-settings %)) cat-order))))
 
 (defn- setting-index [settings path]
   (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
