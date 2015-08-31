@@ -128,10 +128,9 @@
         meta-settings))
 
 (defn- add-value-source [settings source]
-  (keep (fn [setting]
-          (when (contains? setting :value)
-            (update setting :value (fn [value] {:value value :source source}))))
-        settings))
+  (map (fn [setting]
+         (update setting :value (fn [value] {:value value :source source})))
+       settings))
 
 (defn- make-form-values-map [meta-settings settings]
   (let [explicit-values (add-value-source settings :explicit)
@@ -163,7 +162,7 @@
 
 (defn- category->lines [category settings]
   (cons (str "[" category "]")
-        (map setting->str (filter #(contains? % :value) settings))))
+        (map setting->str settings)))
 
 (defn- settings->lines [settings]
   (let [cat-order (category-order settings)
@@ -232,8 +231,11 @@
        (g/mark-defective self (g/error {:type :invalid-content :message (.getMessage e)}))))
    (g/connect self :settings-map proxy :settings-map)))
 
+(defn- settings-with-value [settings]
+  (filter #(contains? % :value) settings))
+
 (g/defnk produce-save-data [resource settings]
-  {:resource resource :content (settings->str settings)})
+  {:resource resource :content (settings->str (settings-with-value settings))})
 
 (defn- build-game-project [self basis resource dep-resources user-data]
   {:resource resource :content (.getBytes (:content user-data))})
@@ -260,11 +262,11 @@
 
 (g/defnk produce-settings-map [meta-info settings]
   (let [default-settings (make-default-settings (:settings meta-info))
-        all-settings (concat default-settings settings)]
+        all-settings (concat default-settings (settings-with-value settings))]
     (make-settings-map all-settings)))
 
 (g/defnk produce-form-data [_node-id meta-info settings]
-  (make-form-data (make-form-ops _node-id) meta-info settings))
+  (make-form-data (make-form-ops _node-id) meta-info (settings-with-value settings)))
 
 (g/defnode GameProjectNode
   (inherits project/ResourceNode)
@@ -283,7 +285,7 @@
                                              [{:node-id _node-id
                                                :resource (workspace/make-build-resource resource)
                                                :build-fn build-game-project
-                                               :user-data {:content (settings->str settings)}
+                                               :user-data {:content (settings->str (settings-with-value settings))}
                                                :deps (vec (flatten dep-build-targets))}])))
 
 (defn register-resource-types [workspace]
