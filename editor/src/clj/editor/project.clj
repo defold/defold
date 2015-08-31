@@ -11,7 +11,9 @@ ordinary paths."
             ; TODO - HACK
             [internal.graph.types :as gt])
   (:import [java.io File]
-           [java.nio.file FileSystem FileSystems PathMatcher]))
+           [java.nio.file FileSystem FileSystems PathMatcher]
+           [java.lang Process ProcessBuilder]
+           [com.defold.editor Platform]))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -137,6 +139,22 @@ ordinary paths."
 
 (defn clear-fs-build-cache [project]
   (reset! (g/node-value project :fs-build-cache) {}))
+
+(defn- launch-engine [build-path]
+  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
+        path (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
+        pb (ProcessBuilder. (into-array String [path]))]
+    (.redirectErrorStream pb true)
+    (.directory pb (io/file build-path))
+    (let [p (.start pb)
+          is (.getInputStream p)
+          buf (byte-array 1024)]
+      (loop []
+        (let [n (.read is buf)]
+          (when (> n -1)
+            (print (String. buf 0 n))
+            (flush)
+            (recur)))))))
 
 (defn build-and-write [project node]
   (clear-build-cache project)
@@ -311,8 +329,10 @@ ordinary paths."
 (handler/defhandler :build :global
     (enabled? [] true)
     (run [project] (let [workspace (g/node-value project :workspace)
-                         game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))]
-                     (build-and-write project game-project))))
+                         game-project (get-resource-node project (workspace/file-resource workspace "/game.project"))
+                         build-path (workspace/build-path (g/node-value project :workspace))]
+                     (build-and-write project game-project)
+                     (launch-engine build-path))))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
