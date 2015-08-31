@@ -188,7 +188,7 @@
   (property repainter AnimationTimer)
   (property workspace g/Any)
   (property prev-form ScrollPane)
-  (input form-data g/Any)
+  (input form-data g/Any :substitute {})
   (output form ScrollPane :cached produce-update-form))
 
 (defn- do-make-form-view [graph ^Parent parent resource-node opts]
