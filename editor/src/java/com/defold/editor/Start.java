@@ -17,14 +17,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import javafx.application.Application;
-import javafx.stage.Stage;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.defold.editor.Updater.UpdateInfo;
-import com.defold.libs.Libs;
+import com.defold.libs.NativeArtifacts;
+
+import javafx.application.Application;
+import javafx.stage.Stage;
 
 
 public class Start extends Application {
@@ -146,7 +146,7 @@ public class Start extends Application {
 
         Future<?> extractFuture = threadPool.submit(() -> {
             try {
-                Libs.extractNativeLibs();
+                NativeArtifacts.extractNatives();
             } catch (Exception e) {
                 logger.error("failed to extract native libs", e);
             }
