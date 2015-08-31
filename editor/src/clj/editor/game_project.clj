@@ -48,6 +48,9 @@
     (when-let [setting-path (seq (non-blank (s/split key #"\.")))]
       (update parse-state :settings conj {:path (cons current-category setting-path) :value val}))))
 
+(defn- parse-error [line]
+  (throw (Exception. (format "Invalid game.project line: %s" line))))
+
 (defn- parse-state->settings [{:keys [settings]}]
   (vec (reverse settings)))
 
@@ -56,7 +59,7 @@
                           (fn [parse-state line]
                             (or (parse-category-line parse-state line)
                                 (parse-setting-line parse-state line)
-                                parse-state))
+                                (parse-error line)))
                           (empty-parse-state)
                           (read-setting-lines reader))))
 
@@ -197,19 +200,37 @@
                (str "/" path))]
     (workspace/resolve-resource base-resource path)))
 
+(defn- make-settings-map [settings]
+  (into {} (map (juxt :path :value) settings)))
+
+(def ^:private settings-map-substitute (make-settings-map (make-default-settings (:settings meta-info))))
+
+(g/defnode GameProjectSettingsProxy
+  (input settings-map g/Any :substitute settings-map-substitute)
+  (output settings-map g/Any :cached (g/fnk [settings-map] settings-map)))
+
 (defn- load-game-project [project self input]
-  (let [raw-settings (parse-settings (string-reader (slurp input)))
-        effective-meta-info (complement-meta-info meta-info raw-settings)
-        sanitized-settings (sanitize-settings (:settings effective-meta-info) raw-settings)
-        resource   (g/node-value self :resource)
-        roots      (map (fn [[category field]] (root-resource resource sanitized-settings (:settings effective-meta-info) category field))
-                        [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
-                         ["bootstrap" "render"] ["display" "display_profiles"]])]
-    (concat
-     (g/set-property self :settings sanitized-settings :meta-info effective-meta-info)
-     (g/connect self :settings-map project :settings)
-     (for [root roots]
-       (project/connect-resource-node project root self [[:build-targets :dep-build-targets]])))))
+  (g/make-nodes
+   (g/node-id->graph-id self)
+   [proxy [GameProjectSettingsProxy]]
+   (g/connect proxy :settings-map project :settings)
+   (g/connect proxy :_node-id self :nodes)
+   (try
+     (let [raw-settings (parse-settings (string-reader (slurp input)))
+           effective-meta-info (complement-meta-info meta-info raw-settings)
+           sanitized-settings (sanitize-settings (:settings effective-meta-info) raw-settings)
+           resource   (g/node-value self :resource)
+           roots      (map (fn [[category field]] (root-resource resource sanitized-settings (:settings effective-meta-info) category field))
+                           [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
+                            ["bootstrap" "render"] ["display" "display_profiles"]])]
+       (concat
+        (g/set-property self :settings sanitized-settings :meta-info effective-meta-info)
+        (for [root roots]
+          (project/connect-resource-node project root self [[:build-targets :dep-build-targets]]))))
+     (catch java.lang.Exception e
+       (println (.getMessage e))
+       (g/mark-defective self (g/error {:type :invalid-content :message (.getMessage e)}))))
+   (g/connect self :settings-map proxy :settings-map)))
 
 (g/defnk produce-save-data [resource settings]
   {:resource resource :content (settings->str settings)})
@@ -240,7 +261,7 @@
 (g/defnk produce-settings-map [meta-info settings]
   (let [default-settings (make-default-settings (:settings meta-info))
         all-settings (concat default-settings settings)]
-    (into {} (map (juxt :path :value) all-settings))))
+    (make-settings-map all-settings)))
 
 (g/defnk produce-form-data [_node-id meta-info settings]
   (make-form-data (make-form-ops _node-id) meta-info settings))
