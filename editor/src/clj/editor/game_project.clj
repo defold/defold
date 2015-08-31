@@ -5,16 +5,7 @@
             [dynamo.graph :as g]
             [editor.project :as project]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$PrototypeDesc  GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc$Builder]
-           [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader StringReader BufferedReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+  (:import [java.io PushbackReader StringReader BufferedReader]))
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
 
