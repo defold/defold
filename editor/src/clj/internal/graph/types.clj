@@ -69,7 +69,6 @@
   (add-node         [this value]                 "returns [basis real-value]")
   (delete-node      [this node-id]               "returns [basis node]")
   (replace-node     [this node-id value]         "returns [basis node]")
-  (update-property  [this node-id label f args]  "returns [basis new-node]")
   (connect          [this src-id src-label tgt-id tgt-label])
   (disconnect       [this src-id src-label tgt-id tgt-label])
   (connected?       [this src-id src-label tgt-id tgt-label])
