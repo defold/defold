@@ -220,28 +220,10 @@
   (assert (contains? node label)
           (format "Attemping to use property %s from %s, but it does not exist" label (:name (gt/node-type node)))))
 
-(defn- invoke-getter
-  [basis node property]
-  (when node
-    (let [getter (get-in (gt/property-types node) [property :getter] ip/property-default-getter)]
-      (getter basis node property))))
-
-;; TODO - this is really the default setter. Make this look up the
-;; attached setter and call it.
-;; TODO - this knows too much about node's internals. move the guts to internal.node
-(defn- invoke-setter
-  [basis node property new-value]
-  (let [setter (get-in (gt/property-types node) [property :setter] ip/property-default-setter)]
-    (if-let [new-basis (setter basis node property new-value)]
-      new-basis
-      (do
-        (println "WARNING: setter for " property " on " (gt/node-type node) " returned nil. It should return an updated basis.")
-        basis))))
-
 (defn apply-defaults
   [basis node]
   (letfn [(use-setter [basis prop] (if-let [v (get node prop)]
-                                          (invoke-setter basis node prop v)
+                                          (ip/invoke-setter basis node prop v)
                                           basis))]
     (reduce use-setter basis (util/key-set (gt/property-types node)))))
 
@@ -264,14 +246,14 @@
    {:keys [node-id property fn args]}]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [_                  (assert-has-property-label node property)
-          old-value          (invoke-getter basis node property)
+          old-value          (ip/invoke-getter basis node property)
           new-value          (apply fn old-value args)]
       (if (= old-value new-value)
         ctx
         (-> ctx
             (mark-activated node-id property)
             (assoc
-             :basis               (invoke-setter basis node property new-value)
+             :basis               (ip/invoke-setter basis node property new-value)
              :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] conj property)
              :properties-modified (update-in properties-modified [node-id] conj property)))))
     ctx))
