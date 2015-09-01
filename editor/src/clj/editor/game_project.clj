@@ -54,7 +54,7 @@
                           (empty-parse-state)
                           (read-setting-lines reader))))
 
-(defmulti parse-setting-value (fn [type _] type))
+(defmulti parse-setting-value (fn [type ^String raw] type))
 
 (defmethod parse-setting-value :string [_ raw]
   raw)
@@ -63,7 +63,7 @@
   (try
     (Boolean/parseBoolean raw)
     (catch Throwable _
-      (boolean (Integer/parseInt raw)))))
+      (not= 0 (Integer/parseInt raw)))))
 
 (defmethod parse-setting-value :integer [_ raw]
   (Integer/parseInt raw))
@@ -224,7 +224,8 @@
   {:resource resource :content (settings->str (settings-with-value settings))})
 
 (defn- build-game-project [self basis resource dep-resources user-data]
-  {:resource resource :content (.getBytes (:content user-data))})
+  (let [^String user-data-content (:content user-data)]
+    {:resource resource :content (.getBytes user-data-content)}))
 
 (defn- set-setting [settings path value]
   (if-let [index (setting-index settings path)]
