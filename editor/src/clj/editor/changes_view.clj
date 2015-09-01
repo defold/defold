@@ -9,7 +9,7 @@
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [javafx.scene Parent]
-           [javafx.scene.control SelectionMode]
+           [javafx.scene.control SelectionMode ListView]
            [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.storage.file FileRepositoryBuilder]))
 
@@ -38,12 +38,12 @@
 
 (handler/defhandler :diff :asset-browser
   (enabled? [selection] (= 1 (count selection)))
-  (run [selection git list-view]
+  (run [selection ^Git git list-view]
        (let [status (first selection)
              old-name (or (:old-path status) (:new-path status) )
              new-name (or (:new-path status) (:old-path status) )
              work-tree (.getWorkTree (.getRepository git))
-             old (String. (git/show-file git old-name))
+             old (String. ^bytes (git/show-file git old-name))
              new (slurp (io/file work-tree new-name))]
          (diff-view/make-diff-viewer old-name old new-name new))))
 
@@ -57,7 +57,7 @@
    [this basis event]
    (let [{:keys [^Parent parent git workspace]} event
          refresh                      (.lookup parent "#changes-refresh")
-         list-view                    (.lookup parent "#changes")]
+         ^ListView list-view          (.lookup parent "#changes")]
      (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
      ; TODO: Should we really include both git and list-view in the context. Have to think about this
      (ui/context! list-view :asset-browser {:git git :list-view list-view :workspace workspace} list-view)

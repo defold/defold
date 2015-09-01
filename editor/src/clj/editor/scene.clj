@@ -54,10 +54,16 @@
                                  (gl/overlay gl text-renderer "An error prevents rendering from happening." 12.0 -22.0 1.0 1.0))))
                 :passes [pass/overlay]}})
 
+; Avoid recreating the image each frame
+(def ^:private cached-buf-img-ref (atom nil))
+
 ; Replacement for Screenshot/readToBufferedImage but without expensive y-axis flip.
 ; We flip in JavaFX instead
 (defn- read-to-buffered-image [^long w ^long h]
-  (let [image (BufferedImage. w h BufferedImage/TYPE_3BYTE_BGR)
+  (let [^BufferedImage image (let [^BufferedImage image @cached-buf-img-ref]
+                               (when (or (nil? image) (not= (.getWidth image) w) (not= (.getHeight image) h))
+                                 (reset! cached-buf-img-ref (BufferedImage. w h BufferedImage/TYPE_3BYTE_BGR)))
+                               @cached-buf-img-ref)
         glc (GLContext/getCurrent)
         gl (.getGL glc)
         psm (GLPixelStorageModes.)]

@@ -290,7 +290,7 @@
                                       :children child-scenes
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))})))
 
-(defn- flatten-instance-data [data base-id base-transform all-child-ids]
+(defn- flatten-instance-data [data base-id ^Matrix4d base-transform all-child-ids]
   (let [{:keys [resource instance-msg ^Matrix4d transform]} data
         is-child? (contains? all-child-ids (:id instance-msg))
         instance-msg {:id (str base-id (:id instance-msg))

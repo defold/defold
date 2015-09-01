@@ -37,9 +37,10 @@
 ; Protobuf version as json
 (defn rget [client path entity-class]
   (let [server-url (prefs/get-prefs (:prefs client) "server-url" "http://cr.defold.com")
-        resource (.resource (:client client) (URI. server-url))]
+        resource (.resource ^Client (:client client) (URI. server-url))]
     (-> resource
       (.path path)
+      ; TODO - fix reflection warnings
       (.accept (into-array MediaType [ProtobufProviders/APPLICATION_XPROTOBUF_TYPE]))
       (.get entity-class)
       (protobuf/pb->map))))

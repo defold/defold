@@ -12,14 +12,14 @@
            [com.jogamp.opengl.util.awt Screenshot]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList ListChangeListener]
+           [javafx.collections FXCollections ObservableList ListChangeListener ListChangeListener$Change]
            [javafx.embed.swing SwingFXUtils]
            [javafx.event Event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene.input Clipboard ClipboardContent DragEvent TransferMode DataFormat]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeView TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar SelectionMode]
+           [javafx.scene.control Button Cell ColorPicker Label TextField TitledPane TextArea TreeView TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -30,6 +30,8 @@
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+
+(set! *warn-on-reflection* true)
 
 (declare tree-item)
 
@@ -60,9 +62,9 @@
             (reset! cached true)
             (.setAll children (list-children parent)))
           children))
-      (outline/value [this]
+      (outline/value [^TreeItem this]
         (.getValue this))
-      (outline/parent [this]
+      (outline/parent [^TreeItem this]
         (.getParent this)))))
 
 (defrecord TreeItemIterator [^TreeItem tree-item]
@@ -90,13 +92,13 @@
   new-root)
 
 (defn- auto-expand [items selected-ids]
-  (reduce #(or %1 %2) false (map (fn [item] (let [id (item->node-id item)
+  (reduce #(or %1 %2) false (map (fn [^TreeItem item] (let [id (item->node-id item)
                                                   selected (boolean (selected-ids id))
                                                   expanded (auto-expand (.getChildren item) selected-ids)]
                                               (when expanded (.setExpanded item expanded))
                                               selected)) items)))
 
-(defn- sync-selection [^TreeView tree-view root selection]
+(defn- sync-selection [^TreeView tree-view ^TreeItem root selection]
   (when (and root (not (empty? selection)))
     (let [selected-ids (set selection)]
       (auto-expand (.getChildren root) selected-ids)
@@ -118,7 +120,7 @@
 (g/defnk update-tree-view [_node-id ^TreeView tree-view root-cache active-resource active-outline open-resources selection selection-listener]
   (let [resource-set (set open-resources)
        root (get root-cache active-resource)
-       new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
+       ^TreeItem new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
        new-cache (assoc (map-filter (fn [[resource _]] (contains? resource-set resource)) root-cache) active-resource new-root)]
     (binding [*programmatic-selection* true]
       (when new-root
@@ -172,15 +174,13 @@
 (defn- root-iterators [^TreeView tree-view]
   (mapv ->iterator (ui/selection-roots tree-view item->path item->id)))
 
-(defn- project [tree-view]
+(defn- project [^TreeView tree-view]
   (project/get-project (:node-id (.getValue (.getRoot tree-view)))))
 
 (def data-format-fn (fn []
-                      (let [json "application/json"
-                            text "text/plain"]
+                      (let [json "application/json"]
                         (or (DataFormat/lookupMimeType json)
-                            (DataFormat/lookupMimeType text)
-                            (DataFormat. (into-array String [json text]))))))
+                            (DataFormat. (into-array String [json]))))))
 
 (handler/defhandler :copy :global
   (enabled? [selection] (< 0 (count selection)))
@@ -231,7 +231,7 @@
              data-format (data-format-fn)]
          (.setContent cb {data-format (outline/cut! item-iterators)}))))
 
-(defn- selection [tree-view]
+(defn- selection [^TreeView tree-view]
   (-> tree-view (.getSelectionModel) (.getSelectedItems)))
 
 (defn- dump-mouse-event [^MouseEvent e]
@@ -244,11 +244,11 @@
   (prn "ges-src" (.getGestureSource e))
   (prn "ges-tgt" (.getGestureTarget e)))
 
-(defn- drag-detected [tree-view e]
+(defn- drag-detected [tree-view ^MouseEvent e]
   (let [item-iterators (root-iterators tree-view)
         project (project tree-view)]
     (when (outline/drag? project item-iterators)
-      (let [db (.startDragAndDrop (.getSource e) (into-array TransferMode TransferMode/COPY_OR_MOVE))
+      (let [db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode TransferMode/COPY_OR_MOVE))
             data (outline/copy item-iterators)]
         (.setContent db {(data-format-fn) data})
         (.consume e)))))
@@ -266,7 +266,7 @@
 
 (defn- drag-over [tree-view ^DragEvent e]
   (if (not (instance? TreeCell (.getTarget e)))
-    (when-let [parent (.getParent (.getTarget e))]
+    (when-let [parent (.getParent ^Node (.getTarget e))]
       (Event/fireEvent parent (.copyFor e (.getSource e) parent)))
     (let [^TreeCell cell (.getTarget e)]
       ; Auto scrolling
@@ -306,7 +306,7 @@
         (.consume e)))))
 
 (defn- drag-entered [tree-view ^DragEvent e]
-  (when-let [cell (target (.getTarget e))]
+  (when-let [^TreeCell cell (target (.getTarget e))]
     (let [future (ui/->future 0.5 (fn []
                                     (-> cell (.getTreeItem) (.setExpanded true))
                                     (ui/user-data! cell :future-expand nil)))]
@@ -338,6 +338,8 @@
                                                  (let [cell (proxy [TreeCell] []
                                                               (updateItem [item empty]
                                                                 (let [this ^TreeCell this]
+                                                                  ; TODO - fix reflection warning here
+                                                                  ; Is it because updateItem is protected in Cell?
                                                                   (proxy-super updateItem item empty)
                                                                   (if empty
                                                                     (do
@@ -351,7 +353,7 @@
                                                      (.setOnDragEntered drag-entered-handler)
                                                      (.setOnDragExited drag-exited-handler))))))))
 
-(defn- propagate-selection [change selection-fn]
+(defn- propagate-selection [^ListChangeListener$Change change selection-fn]
   (when-not *programmatic-selection*
     (alter-var-root #'*paste-into-parent* (constantly false))
     (when-let [changes (filter #(and (not (nil? %)) (item->node-id %)) (and change (.getList change)))]
