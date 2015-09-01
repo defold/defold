@@ -38,11 +38,23 @@ message Bone
     required dmMath.Quat rotation = 4;
     required dmMath.Vector3 scale = 5;
     optional bool inherit_scale = 6 [default = true];
+    optional float length = 7;
+}
+
+message IK
+{
+    required uint64 id = 1;
+    required uint32 parent = 2;
+    required uint32 child = 3;
+    required uint32 target = 4;
+    optional bool positive = 5 [default = true];
+    optional float mix = 6 [default = 1.0];
 }
 
 message Skeleton
 {
     repeated Bone bones = 1;
+    repeated IK iks = 2;
 }
 
 message AnimationTrack
@@ -150,13 +162,13 @@ message SpinePlayAnimation
  *  <li>go.PLAYBACK_ONCE_PINGPONG</li>
  * </ul>
  * </p>
- * 
+ *
  * @message
  * @name spine_animation_done
  * @param animation_id the id of the completed animation (hash)
  * @param playback the playback mode of the completed animation (constant)
  * @examples
- *  
+ *
  * <pre>
  * function on_message(self, message_id, message, sender)
  *   if message_id == hash("spine_animation_done") then
@@ -191,7 +203,7 @@ message SpineCancelAnimation
  * @param event_id the id of the event (hash)
  * @param animation_id the id of the animation (hash)
  * @param t the time of the event in seconds, relative to the start of the animation (number)
- * @param blend_weight the blend weight (between 0.0-1.0) of the current animation at time t (number) 
+ * @param blend_weight the blend weight (between 0.0-1.0) of the current animation at time t (number)
  * @param integer user defined integer value for the event (number)
  * @param float user defined floating point value for the event (number)
  * @param string user defined string value for the event (hash)
@@ -205,7 +217,7 @@ message SpineCancelAnimation
  *   if message_id == hash("spine_event") then
  *     -- Receiving animation event from Spine. Play footsteps.
  *     if message.event_id == hash("footstep") and message.integer == 0 then
- *       msg.post("#sound_footstep_right", "play_sound")     
+ *       msg.post("#sound_footstep_right", "play_sound")
  *     elseif message.event_id == hash("footstep") and message.integer == 1 then
  *       msg.post("#sound_footstep_left", "play_sound")
  *   end

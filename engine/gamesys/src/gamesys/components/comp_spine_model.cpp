@@ -12,6 +12,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <gameobject/gameobject_ddf.h>
@@ -34,6 +35,8 @@ namespace dmGameSystem
 
     static const dmhash_t PROP_SKIN = dmHashString64("skin");
     static const dmhash_t PROP_ANIMATION = dmHashString64("animation");
+
+    static const uint32_t INVALID_BONE_INDEX = 0xffff;
 
     static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
     static void DestroyComponent(SpineModelWorld* world, uint32_t index);
@@ -226,8 +229,8 @@ namespace dmGameSystem
         {
             component->m_Pose[i].SetIdentity();
         }
-        component->m_NodeIds.SetCapacity(bone_count);
-        component->m_NodeIds.SetSize(bone_count);
+        component->m_NodeInstances.SetCapacity(bone_count);
+        component->m_NodeInstances.SetSize(bone_count);
         if (bone_count > world->m_ScratchInstances.Capacity()) {
             world->m_ScratchInstances.SetCapacity(bone_count);
         }
@@ -236,7 +239,7 @@ namespace dmGameSystem
         {
             dmGameObject::HInstance inst = dmGameObject::New(collection, 0x0);
             if (inst == 0x0) {
-                component->m_NodeIds.SetSize(i);
+                component->m_NodeInstances.SetSize(i);
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
             }
 
@@ -244,7 +247,7 @@ namespace dmGameSystem
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
             if (dmGameObject::RESULT_OK != result) {
                 dmGameObject::Delete(collection, inst);
-                component->m_NodeIds.SetSize(i);
+                component->m_NodeInstances.SetSize(i);
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
             }
 
@@ -257,7 +260,7 @@ namespace dmGameSystem
             dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
             dmGameObject::SetRotation(inst, transform.GetRotation());
             dmGameObject::SetScale(inst, transform.GetScale());
-            component->m_NodeIds[i] = id;
+            component->m_NodeInstances[i] = inst;
             world->m_ScratchInstances.Push(inst);
         }
         // Set parents in reverse to account for child-prepending
@@ -272,6 +275,11 @@ namespace dmGameSystem
             }
             dmGameObject::SetParent(inst, parent);
         }
+
+        component->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
+        component->m_IKTargets.SetSize(skeleton->m_Iks.m_Count);
+        memset(component->m_IKTargets.Begin(), 0x0, component->m_IKTargets.Size()*sizeof(IKTarget));
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -330,7 +338,8 @@ namespace dmGameSystem
         DestroyPose(component);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_Pose.SetCapacity(0);
-        component->m_NodeIds.SetCapacity(0);
+        component->m_NodeInstances.SetCapacity(0);
+        component->m_IKTargets.SetCapacity(0);
         component->m_MeshProperties.SetCapacity(0);
         delete component;
         world->m_Components.Free(index, true);
@@ -849,6 +858,70 @@ namespace dmGameSystem
         }
     }
 
+    static inline dmTransform::Transform GetPoseTransform(const dmArray<SpineBone>& bind_pose, const dmArray<dmTransform::Transform>& pose, dmTransform::Transform transform, const uint32_t index) {
+        if(bind_pose[index].m_ParentIndex == INVALID_BONE_INDEX)
+            return transform;
+        transform = dmTransform::Mul(pose[bind_pose[index].m_ParentIndex], transform);
+        return GetPoseTransform(bind_pose, pose, transform, bind_pose[index].m_ParentIndex);
+    }
+
+    static inline float ToEulerZ(const dmTransform::Transform& t)
+    {
+        Vectormath::Aos::Quat q(t.GetRotation());
+        return dmVMath::QuatToEuler(q.getZ(), q.getY(), q.getX(), q.getW()).getZ() * (M_PI/180.0f);
+    }
+
+    static void ApplyOneBoneIKConstraint(const dmGameSystemDDF::IK* ik, const dmArray<SpineBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const float mix)
+    {
+        if (mix == 0.0f)
+            return;
+        const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
+        dmTransform::Transform& parent_t = pose[ik->m_Parent];
+        float parentRotation = ToEulerZ(parent_bt);
+        // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
+        float rotationIK = atan2(target_wp.getY() - parent_wp.getY(), target_wp.getX() - parent_wp.getX());
+        parentRotation = parentRotation + (rotationIK - parentRotation) * mix;
+        parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
+    }
+
+    // Based on http://www.ryanjuckett.com/programming/analytic-two-bone-ik-in-2d/
+    static void ApplyTwoBoneIKConstraint(const dmGameSystemDDF::IK* ik, const dmArray<SpineBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const float mix)
+    {
+        if (mix == 0.0f)
+            return;
+        const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
+        const dmTransform::Transform& child_bt = bind_pose[ik->m_Child].m_LocalToParent;
+        dmTransform::Transform& parent_t = pose[ik->m_Parent];
+        dmTransform::Transform& child_t = pose[ik->m_Child];
+        float childRotation = ToEulerZ(child_bt), parentRotation = ToEulerZ(parent_bt);
+
+        // recalc target position to local (relative parent)
+        const Vector3 target(target_wp.getX() - parent_wp.getX(), target_wp.getY() - parent_wp.getY(), 0.0f);
+        const Vector3 child_p = child_bt.GetTranslation();
+        const float childX = child_p.getX(), childY = child_p.getY();
+        const float offset = atan2(childY, childX);
+        const float len1 = (float)sqrt(childX * childX + childY * childY);
+        const float len2 = bind_pose[ik->m_Child].m_Length;
+
+        // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
+        const float cosDenom = 2.0f * len1 * len2;
+        if (cosDenom < 0.0001f) {
+            childRotation = childRotation + ((float)atan2(target.getY(), target.getX()) - parentRotation - childRotation) * mix;
+            child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
+            return;
+        }
+        float cosValue = (target.getX() * target.getX() + target.getY() * target.getY() - len1 * len1 - len2 * len2) / cosDenom;
+        cosValue = fmax(-1.0f, fmin(1.0f, cosValue));
+        const float childAngle = (float)acos(cosValue) * (ik->m_Positive ? 1.0f : -1.0f);
+        const float adjacent = len1 + len2 * cosValue;
+        const float opposite = len2 * sin(childAngle);
+        const float parentAngle = (float)atan2(target.getY() * adjacent - target.getX() * opposite, target.getX() * adjacent + target.getY() * opposite);
+        parentRotation = ((parentAngle - offset) - parentRotation) * mix;
+        childRotation = ((childAngle + offset) - childRotation) * mix;
+        parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
+        child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
+    }
+
     static void Animate(SpineModelWorld* world, float dt)
     {
         DM_PROFILE(SpineModel, "Animate");
@@ -862,7 +935,7 @@ namespace dmGameSystem
                 continue;
 
             dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
-            dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
+            const dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
             dmArray<dmTransform::Transform>& pose = component->m_Pose;
             // Reset pose
             uint32_t bone_count = pose.Size();
@@ -929,10 +1002,77 @@ namespace dmGameSystem
                 t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
             }
 
+            if (skeleton->m_Iks.m_Count > 0) {
+                DM_PROFILE(SpineModel, "IK");
+                const uint32_t count = skeleton->m_Iks.m_Count;
+                dmArray<IKTarget>& ik_targets = component->m_IKTargets;
+
+
+                for (int32_t i = 0; i < count; ++i) {
+                    dmGameSystemDDF::IK* ik = &skeleton->m_Iks[i];
+
+                    // transform local space hiearchy for pose
+                    dmTransform::Transform parent_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Parent], ik->m_Parent);
+                    dmTransform::Transform parent_t_local = parent_t;
+                    dmTransform::Transform target_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
+                    const uint32_t parent_parent_index = skeleton->m_Bones[ik->m_Parent].m_Parent;
+                    if(parent_parent_index != INVALID_BONE_INDEX)
+                    {
+                        dmTransform::Transform parent_parent_t = dmTransform::Inv(GetPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
+                        parent_t = dmTransform::Mul(parent_parent_t, parent_t);
+                        target_t = dmTransform::Mul(parent_parent_t, target_t);
+                    }
+                    Vector3 parent_position = parent_t.GetTranslation();
+                    Vector3 target_position = target_t.GetTranslation();
+
+                    const float target_mix = ik_targets[i].m_Mix;
+                    if(target_mix != 0.0f)
+                    {
+                        // get custom target position either from go or vector position
+                        Vector3 user_target_position = target_position;
+                        const dmhash_t target_instance_id = ik_targets[i].m_InstanceId;
+                        if(target_instance_id == 0)
+                        {
+                            user_target_position = ik_targets[i].m_Position;
+                        }
+                        else
+                        {
+                            dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), target_instance_id);
+                            if(target_instance == 0x0)
+                            {
+                                // instance have been removed, disable animation
+                                ik_targets[i].m_InstanceId = 0;
+                                ik_targets[i].m_Mix = 0.0f;
+                            }
+                            else
+                            {
+                                user_target_position = (Vector3)dmGameObject::GetWorldPosition(target_instance);
+                            }
+                        }
+
+                        // transform local pose of parent bone into worldspace, since we can only rely on worldspace coordinates for target
+                        dmTransform::Transform t = parent_t_local;
+                        t = dmTransform::Mul((dmTransform::Mul(dmGameObject::GetWorldTransform(component->m_Instance), component->m_Transform)), t);
+                        user_target_position -=  t.GetTranslation();
+                        Quat rotation = dmTransform::conj(dmGameObject::GetWorldRotation(component->m_Instance) * component->m_Transform.GetRotation());
+                        user_target_position = dmTransform::mulPerElem(dmTransform::rotate(rotation, user_target_position), dmGameObject::GetWorldScale(component->m_Instance));
+
+                        // blend default target pose and target pose
+                        target_position = target_mix == 1.0f ? user_target_position : dmTransform::lerp(target_mix, target_position, user_target_position);
+                    }
+
+                    if(ik->m_Child == ik->m_Parent)
+                        ApplyOneBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik->m_Mix);
+                    else
+                        ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik->m_Mix);
+                }
+            }
+
             // Include component transform in the GO instance reflecting the root bone
             dmTransform::Transform root_t = pose[0];
             pose[0] = dmTransform::Mul(component->m_Transform, root_t);
-            dmGameObject::SetBoneTransforms(component->m_Instance, pose.Begin(), pose.Size());
+            dmGameObject::HInstance first_bone_go = component->m_NodeInstances[0];
+            dmGameObject::SetBoneTransforms(first_bone_go, pose.Begin(), pose.Size());
             pose[0] = root_t;
             for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
