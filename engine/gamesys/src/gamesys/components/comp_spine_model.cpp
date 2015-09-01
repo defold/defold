@@ -911,7 +911,7 @@ namespace dmGameSystem
             return;
         }
         float cosValue = (target.getX() * target.getX() + target.getY() * target.getY() - len1 * len1 - len2 * len2) / cosDenom;
-        cosValue = fmax(-1.0f, fmin(1.0f, cosValue));
+        cosValue = dmMath::Max(-1.0f, dmMath::Min(1.0f, cosValue));
         const float childAngle = (float)acos(cosValue) * (ik->m_Positive ? 1.0f : -1.0f);
         const float adjacent = len1 + len2 * cosValue;
         const float opposite = len2 * sin(childAngle);
