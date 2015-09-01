@@ -34,6 +34,7 @@ namespace dmGameSystem
                 }
                 bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
                 bind_bone->m_ParentIndex = bone->m_Parent;
+                bind_bone->m_Length = bone->m_Length;
             }
         }
         return result;
@@ -60,7 +61,7 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_DDF_ERROR;
         }
-        
+
         dmResource::PreloadHint(hint_info, spine_scene->m_TextureSet);
 
         *preload_data = spine_scene;

@@ -1670,6 +1670,11 @@ namespace dmGameObject
         instance->m_Bone = bone;
     }
 
+    bool IsBone(HInstance instance)
+    {
+        return instance->m_Bone;
+    }
+
     static uint32_t DoSetBoneTransforms(HCollection collection, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
     {
         if (transform_count == 0)
@@ -1696,9 +1701,10 @@ namespace dmGameObject
         return count;
     }
 
-    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count) {
-        HCollection collection = parent->m_Collection;
-        return DoSetBoneTransforms(collection, parent->m_FirstChildIndex, transforms, transform_count);
+    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform* transforms, uint32_t transform_count)
+    {
+        HCollection collection = instance->m_Collection;
+        return DoSetBoneTransforms(collection, instance->m_Index, transforms, transform_count);
     }
 
     static void DoDeleteBones(HCollection collection, uint16_t first_index) {

@@ -19,6 +19,8 @@ namespace dmGameSystem
         dmTransform::Transform m_ModelToLocal;
         /// Index of parent bone, NOTE root bone has itself as parent
         uint32_t m_ParentIndex;
+        /// Length of the bone
+        float m_Length;
     };
 
     struct SpineSceneResource
