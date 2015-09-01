@@ -601,9 +601,9 @@ TEST_F(HierarchyTest, TestHierarchyNonUniformScale)
     dmGameObject::SetScale(parent, scale);
     dmGameObject::SetPosition(child, Point3(7.0f, 8.0f, 9.0f));
     dmGameObject::SetParent(child, parent);
-    
+
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    
+
     dmTransform::Transform world = dmGameObject::GetWorldTransform(child);
     ASSERT_EQ(world.GetScale().getX(), scale.getX());
     ASSERT_EQ(world.GetScale().getY(), scale.getY());
@@ -677,7 +677,7 @@ TEST_F(HierarchyTest, TestHierarchyBonesOrder)
         dmGameObject::SetParent(instances[index], parent);
     }
 
-    ASSERT_EQ(instance_count, SetBoneTransforms(root, transforms, instance_count));
+    ASSERT_EQ(instance_count, SetBoneTransforms(instances[0], transforms, instance_count));
 
     for (uint32_t i = 0; i < instance_count; ++i)
     {
@@ -725,7 +725,7 @@ TEST_F(HierarchyTest, TestHierarchyBonesMulti)
 
     ASSERT_NEAR(1.0f, world.GetTranslation().getX(), EPSILON);
 
-    ASSERT_EQ(2, SetBoneTransforms(root, t, 2));
+    ASSERT_EQ(2, SetBoneTransforms(p1, t, 2));
 
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
