@@ -239,7 +239,7 @@ namespace dmGameSystem
      * </p>
      * <pre>
      * function init(self)
-     *     spine.set_ik_target_position("player#spinemodel", "right_hand_constraint", vmath.vector3(1,2,3), 1.0)
+     *     spine.set_ik_target_position("player#spinemodel", "right_hand_constraint", vmath.vector3(1,2,3))
      * end
      * </pre>
      */
@@ -312,7 +312,7 @@ namespace dmGameSystem
      * </p>
      * <pre>
      * function init(self)
-     *     spine.set_ik_target("player#spinemodel", "right_hand_constraint", "some_game_object", 1.0)
+     *     spine.set_ik_target("player#spinemodel", "right_hand_constraint", "some_game_object")
      * end
      * </pre>
      */
