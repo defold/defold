@@ -20,7 +20,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls triggers transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
@@ -140,7 +140,7 @@
   (when *tps-debug*
     (send-off tps-counter tick (System/nanoTime)))
   (let [basis     (ig/multigraph-basis (util/map-vals deref (is/graphs @*the-system*)))
-        tx-result (it/transact* (it/new-transaction-context basis txs))]
+        tx-result (it/transact* (it/new-transaction-context basis) txs)]
     (when (= :ok (:status tx-result))
       (dosync
        (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
@@ -289,44 +289,6 @@
 
   This will produce a record `AtlasCompiler`. `defnode` merges the
   behaviors appropriately.
-
-
-  A trigger may be invoked during transaction execution, when a node of
-  the type is touched by the transaction. _symbol_ is a label for the
-  trigger. Triggers are inherited, colliding labels are overwritten by
-  the descendant.
-
-  (trigger _symbol_ _type_ _action_)
-
-  _type_ is a keyword, one of:
-
-    :added             - The node was added in this transaction.
-    :input-connections - One or more inputs to the node were connected to or disconnected from
-    :property-touched  - One or more properties on the node were changed.
-    :deleted           - The node was deleted in this transaction.
-
-  For :added and :deleted triggers, _action_ is a function of five
-  arguments:
-
-    1. The current transaction context.
-    2. The new graph as it has been modified during the transaction
-    3. The node ID
-    4. The label, as a keyword
-    5. The trigger type
-
-  The :input-connections and :property-touched triggers each have an
-  additional argument, which is a collection of
-  labels. For :input-connections, those are the inputs that were
-  affected. For :property-touched, those are the properties that were
-  modified.
-
-  The trigger returns a collection of additional transaction
-  steps. These effects will be applied within the current transaction.
-
-  It is allowed for a trigger to cause changes that activate more
-  triggers, up to a limit.  Triggers should not be used for timed
-  actions or automatic counters. So they will only cascade until the
-  limit `internal.transaction/maximum-retrigger-count` is reached.
 
     A node may also implement protocols or interfaces, using a syntax
   identical to `deftype` or `defrecord`. A node may implement any

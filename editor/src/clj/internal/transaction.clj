@@ -22,7 +22,7 @@
 (defn- new-txid [] (.getAndIncrement next-txid))
 
 (defmacro txerrstr [ctx & rest]
-  `(str (:txid ~ctx) ":" (:txpass ~ctx) " " ~@(interpose " " rest)))
+  `(str (:txid ~ctx) " " ~@(interpose " " rest)))
 
 (defn nid [n] (if (number? n) n (if (gt/node? n) (gt/node-id n) (if (map? n) (:_node-id n) n))))
 
@@ -189,7 +189,7 @@
     ctx))
 
 (defn- delete-single
-  [{:keys [basis nodes-deleted nodes-added triggers-to-fire] :as ctx} node-id]
+  [{:keys [basis nodes-deleted nodes-added] :as ctx} node-id]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [all-labels         (set/union (-> node gt/node-type gt/input-labels) (-> node gt/node-type gt/output-labels))
           ctx                (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in)) ctx (-> node gt/node-type gt/input-labels))
@@ -199,8 +199,7 @@
       (assoc ctx
              :basis            basis
              :nodes-deleted    (assoc nodes-deleted node-id node)
-             :nodes-added      (util/removev #(= node-id %) nodes-added)
-             :triggers-to-fire (update triggers-to-fire node-id assoc :deleted [])))
+             :nodes-added      (util/removev #(= node-id %) nodes-added)))
     ctx))
 
 (defn- cascade-delete-sources
@@ -228,7 +227,7 @@
     (reduce use-setter basis (util/key-set (gt/property-types node)))))
 
 (defmethod perform :create-node
-  [{:keys [basis triggers-to-fire nodes-affected world-ref nodes-added successors-changed] :as ctx}
+  [{:keys [basis nodes-affected world-ref nodes-added successors-changed] :as ctx}
    {:keys [node]}]
   (let [[basis-after full-node] (gt/add-node basis node)
         node-id                 (gt/node-id full-node)
@@ -236,13 +235,12 @@
     (assoc ctx
            :basis              (apply-defaults basis-after full-node)
            :nodes-added        (conj nodes-added node-id)
-           :triggers-to-fire   (update triggers-to-fire node-id assoc :added [])
            :successors-changed (into successors-changed (map (fn [label] [node-id label]) all-outputs))
            :nodes-affected     (merge-with set/union nodes-affected {node-id all-outputs}))))
 
 
 (defmethod perform :update-property
-  [{:keys [basis triggers-to-fire properties-modified] :as ctx}
+  [{:keys [basis properties-modified] :as ctx}
    {:keys [node-id property fn args]}]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (let [_                  (assert-has-property-label node property)
@@ -254,12 +252,11 @@
             (mark-activated node-id property)
             (assoc
              :basis               (ip/invoke-setter basis node property new-value)
-             :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] conj property)
              :properties-modified (update-in properties-modified [node-id] conj property)))))
     ctx))
 
 (defmethod perform :connect
-  [{:keys [basis triggers-to-fire graphs-modified successors-changed] :as ctx}
+  [{:keys [basis graphs-modified successors-changed] :as ctx}
    {:keys [source-id source-label target-id target-label] :as tx-data}]
   (if-let [source (ig/node-by-id-at basis source-id)] ; nil if source node was deleted in this transaction
    (if-let [target (ig/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
@@ -267,13 +264,12 @@
          (mark-activated target-id target-label)
          (assoc
           :basis              (gt/connect basis source-id source-label target-id target-label)
-          :triggers-to-fire   (update-in triggers-to-fire [target-id :input-connections] conj target-label)
           :successors-changed (conj successors-changed [source-id source-label])))
      ctx)
    ctx))
 
 (defmethod perform :disconnect
-  [{:keys [basis triggers-to-fire graphs-modified successors-changed] :as ctx}
+  [{:keys [basis graphs-modified successors-changed] :as ctx}
    {:keys [source-id source-label target-id target-label]}]
   (if-let [source (ig/node-by-id-at basis source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (ig/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
@@ -281,7 +277,6 @@
           (mark-activated target-id target-label)
           (assoc
            :basis              (gt/disconnect basis source-id source-label target-id target-label)
-           :triggers-to-fire   (update-in triggers-to-fire [target-id :input-connections] conj target-label)
            :successors-changed (conj successors-changed [source-id source-label])))
       ctx)
     ctx))
@@ -306,7 +301,6 @@
     (assoc ctx :nodes-affected (merge-with set/union nodes-affected {node-id (-> node gt/node-type gt/output-labels)}))
     ctx))
 
-
 (defn- apply-tx
   [ctx actions]
   (loop [ctx     ctx
@@ -330,41 +324,6 @@
     (ig/node-by-id-at basis node-id)
     (get nodes-deleted node-id)))
 
-(defn- trigger-activations
-  [{:keys [triggers-to-fire] :as ctx}]
-  (for [[node-id m] triggers-to-fire
-        [kind args] m
-        :let [node (last-seen-node ctx node-id)]
-        :when node
-        [l tr] (-> node gt/node-type gt/triggers (get kind) seq)]
-    (if (empty? args)
-      [tr node-id l kind]
-      [tr node-id l kind (set args)])))
-
-(defn- invoke-trigger
-  [csub [tr & args]]
-  (apply tr csub (:basis csub) args))
-
-(defn- debug-invoke-trigger
-  [csub [tr & args :as trvec]]
-  (println (txerrstr csub "invoking" tr "on" (gt/node-id (first args)) "with" (rest args)))
-  (println (txerrstr csub "nodes triggered" (:nodes-affected csub)))
-  (println (txerrstr csub (select-keys csub [:basis :nodes-added :nodes-deleted :outputs-modified :properties-modified])))
-  (invoke-trigger csub trvec))
-
-(def ^:private fire-trigger (if *tx-debug* debug-invoke-trigger invoke-trigger))
-
-(defn- process-triggers
-  [ctx]
-  (when *tx-debug*
-    (println (txerrstr ctx "triggers to fire: " (:triggers-to-fire ctx)))
-    (println (txerrstr ctx "trigger activations: " (pr-str (trigger-activations ctx)))))
-  (update-in ctx [:pending]
-             into (remove empty?
-                          (mapv
-                           #(fire-trigger ctx %)
-                           (trigger-activations ctx)))))
-
 (defn- mark-outputs-modified
   [{:keys [nodes-affected] :as ctx}]
   (update-in ctx [:outputs-modified] #(set/union % (pairs nodes-affected))))
@@ -372,31 +331,6 @@
 (defn- mark-nodes-modified
   [{:keys [nodes-affected properties-affected] :as ctx}]
   (update ctx :nodes-modified #(set/union % (keys nodes-affected) (keys properties-affected))))
-
-(defn- one-transaction-pass
-  [ctx actions]
-  (when *tx-debug*
-    (println (txerrstr ctx "actions this pass " actions)))
-  (-> (update-in ctx [:txpass] inc)
-    (assoc :triggers-to-fire {})
-    (assoc :nodes-affected {})
-    (apply-tx actions)
-    mark-outputs-modified
-    mark-nodes-modified
-    process-triggers
-    (dissoc :triggers-to-fire)
-    (dissoc :nodes-affected)))
-
-(defn- exhaust-actions-and-triggers
-  ([ctx]
-   (exhaust-actions-and-triggers ctx maximum-retrigger-count))
-  ([{[current-action & pending-actions] :pending :as ctx} retrigger-count]
-   (assert (< 0 retrigger-count) (txerrstr ctx "Maximum number of trigger executions reached; probable infinite recursion."))
-   (if (empty? current-action)
-     ctx
-     (recur
-      (one-transaction-pass (assoc ctx :pending pending-actions) current-action)
-      (dec retrigger-count)))))
 
 (defn map-vals-bargs
   [m f]
@@ -419,20 +353,18 @@
              :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified)))))
 
 (defn new-transaction-context
-  [basis actions]
+  [basis]
   {:basis               basis
    :original-basis      basis
+   :nodes-affected      {}
    :nodes-added         []
    :nodes-modified      #{}
    :nodes-deleted       {}
    :graphs-modified     #{}
    :properties-modified {}
    :successors-changed  #{}
-   :pending             [actions]
    :completed           []
-   :tx-id               (new-txid)
-   :txpass              0})
-
+   :tx-id               (new-txid)})
 
 (defn update-successors*
   [basis changes]
@@ -454,9 +386,13 @@
   (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
 
 (defn transact*
-  [ctx]
+  [ctx actions]
+  (when *tx-debug*
+    (println (txerrstr ctx "actions" actions)))
   (-> ctx
-      exhaust-actions-and-triggers
+      (apply-tx actions)
+      mark-outputs-modified
+      mark-nodes-modified
       update-successors
       trace-dependencies
       apply-tx-label
