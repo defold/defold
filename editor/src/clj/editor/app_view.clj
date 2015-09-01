@@ -12,7 +12,6 @@
            [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
            [java.awt Desktop]
-           [javafx.animation AnimationTimer]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList ListChangeListener]
@@ -36,7 +35,6 @@
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
-  (property refresh-timer AnimationTimer)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
 
@@ -44,10 +42,7 @@
 
   (output active-outline g/Any :cached (g/fnk [outline] outline))
   (output active-resource (g/protocol workspace/Resource) (g/fnk [^TabPane tab-pane] (when-let [^Tab tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))] (:resource (.getUserData tab)))))
-  (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
-
-  (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (ui/timer-stop! (g/node-value self :refresh-timer)))))
+  (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane)))))
 
 (defn- invalidate [node label]
   (g/invalidate! [[node label]]))
@@ -220,9 +215,7 @@
                                         (let [auto-pulls (g/node-value app-view :auto-pulls)]
                                           (doseq [[node label] auto-pulls]
                                             (g/node-value node label)))))]
-      (g/transact
-        (concat
-          (g/set-property app-view :refresh-timer refresh-timer)))
+      (ui/timer-stop-on-close! stage refresh-timer)
       (ui/timer-start! refresh-timer))
     app-view))
 
@@ -242,7 +235,12 @@
                               :tab tab)
             view       (make-view-fn view-graph parent resource-node opts)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
-        (.setOnClosed tab (ui/event-handler event (g/delete-graph! view-graph)))
+        (let [close-handler (.getOnClosed tab)]
+          (.setOnClosed tab (ui/event-handler
+                             event
+                             (g/delete-graph! view-graph)
+                             (when close-handler
+                               (.handle close-handler event)))))
         (.select (.getSelectionModel tab-pane) tab)
         (project/select! project [resource-node]))
       (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))
