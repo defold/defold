@@ -107,7 +107,12 @@
 
 (defmacro event-handler [event & body]
   `(reify EventHandler
-     (handle [this ~event]
+     (handle [~'this ~event]
+       ~@body)))
+
+(defmacro change-listener [observable old-val new-val & body]
+  `(reify ChangeListener
+     (changed [~'this ~observable ~old-val ~new-val]
        ~@body)))
 
 (defn scene [^Node node]
@@ -522,11 +527,6 @@
      (Platform/runLater
       (bound-fn [] (do ~@body)))))
 
-(defn make-animation-timer
-  [f & args]
-  (proxy [AnimationTimer] []
-    (handle [now] (apply f now args))))
-
 (defn run-wait
   [f]
   (let [result (promise)]
@@ -628,14 +628,32 @@ return value."
               (handle [now]
                 (let [delta (- now @last)]
                   (when (> delta interval)
-                    (tick-fn (* delta 1e-9))
-                    (reset! last (- now (- delta interval)))))))}))
+                    (try
+                      (tick-fn (* delta 1e-9))
+                      (reset! last (- now (- delta interval)))
+                      (catch Exception e
+                        (.stop ^AnimationTimer this)
+                        (throw e)))))))}))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
 
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
+
+(defn timer-stop-on-close!
+  "Closeable must have an onCloseRequest property. There is no common
+  superclass or interface in JavaFX for that property. If the
+  `closeable` argument must be type hinted before this call to avoid
+  reflection warnings."
+  [closeable timer]
+  (let [existing-handler (.getOnCloseRequest closeable)]
+    (.setOnCloseRequest
+     closeable
+     (event-handler this
+                    (timer-stop! timer)
+                    (when existing-handler
+                      (.handle existing-handler this))))))
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))

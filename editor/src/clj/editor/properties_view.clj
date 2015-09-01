@@ -13,7 +13,6 @@
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
            [com.jogamp.opengl.util.awt Screenshot]
-           [javafx.animation AnimationTimer]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList]
@@ -253,26 +252,18 @@
 
 (g/defnode PropertiesView
   (property parent-view Parent)
-  (property repainter AnimationTimer)
   (property workspace g/Any)
   (property prev-pane Pane)
 
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties] (update-pane parent-view _node-id workspace selected-node-properties)))
-
-  (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (g/node-value self :repainter))
-                                     nil)))
+  (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties] (update-pane parent-view _node-id workspace selected-node-properties))))
 
 (defn make-properties-view [workspace project view-graph parent]
-  (let [view-id   (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
-        repainter (proxy [AnimationTimer] []
-                    (handle [now]
-                      (g/node-value view-id :pane)))]
-    (g/transact
-      (concat
-        (g/set-property view-id :repainter repainter)
-        (g/connect project :selected-node-properties view-id :selected-node-properties)))
-    (.start repainter)
+  (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
+        stage         (.. parent getScene getWindow)
+        refresh-timer (ui/->timer 1 (fn [now] (g/node-value view-id :pane)))]
+    (g/connect! project :selected-node-properties view-id :selected-node-properties)
+    (ui/timer-stop-on-close! stage refresh-timer)
+    (ui/timer-start! refresh-timer)
     view-id))
