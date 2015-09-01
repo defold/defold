@@ -9,12 +9,9 @@
            [javafx.scene.text Text]
            [javafx.geometry Insets]
            [javafx.scene.layout Pane GridPane HBox VBox]
-           [javafx.scene.control ScrollPane TextArea Label TextField CheckBox Button Tooltip]))
+           [javafx.scene.control ScrollPane TextArea Label TextField CheckBox Button]))
 
 (defmulti create-field-control (fn [workspace field-info setter] (:type field-info)))
-
-(defn- tooltip! [ctrl tip]
-  (.setTooltip ctrl (Tooltip. tip)))
 
 (defmethod create-field-control :string [_ field-info setter]
   (let [text (TextField.)
@@ -22,7 +19,7 @@
                        (ui/text! text (str value)))]
     (ui/on-action! text (fn [_]
                           (setter (ui/text text))))
-    (tooltip! text (:help field-info))
+    (ui/tooltip! text (:help field-info))
     [text update-ui-fn]))
 
 (defn- to-int [str]
@@ -38,7 +35,7 @@
     (ui/on-action! text (fn [_]
                           (when-let [v (to-int (ui/text text))]
                             (setter v))))
-    (tooltip! text (:help field-info))
+    (ui/tooltip! text (:help field-info))
     [text update-ui-fn]))
 
 (defn- to-number [str]
@@ -54,7 +51,7 @@
     (ui/on-action! text (fn [_]
                           (when-let [v (to-number (ui/text text))]
                             (setter v))))
-    (tooltip! text (:help field-info))
+    (ui/tooltip! text (:help field-info))
     [text update-ui-fn]))
 
 (defmethod create-field-control :boolean [_ field-info setter]
@@ -67,7 +64,7 @@
                            (.setSelected value))))]
     (ui/on-action! check (fn [_]
                            (setter (.isSelected check))))
-    (tooltip! check (:help field-info))
+    (ui/tooltip! check (:help field-info))
     [check update-ui-fn]))
 
 (defmethod create-field-control :resource [workspace field-info setter]
@@ -85,7 +82,7 @@
                                                    (workspace/file-resource workspace path))]
                                   (setter (and resource (workspace/proj-path resource))))))
     (ui/children! hbox [text button])
-    (tooltip! text (:help field-info))
+    (ui/tooltip! text (:help field-info))
     [hbox update-ui-fn]))
 
 (defmethod create-field-control :default [_ field-info _]
@@ -139,7 +136,7 @@
     (update-fields updaters (:values form-data))
     form))
 
-(defn- add-grid-row [grid row row-data]
+(defn- add-grid-row [^GridPane grid row row-data]
   (let [{:keys [ctrls col-spans]} row-data]
     (reduce (fn [col [ctrl col-span]]
               (GridPane/setConstraints ctrl col row)

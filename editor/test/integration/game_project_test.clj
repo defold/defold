@@ -10,7 +10,7 @@
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))
 
-(def ^:dynamic *project-path*)
+(def ^:dynamic ^String *project-path*)
 
 (defn- create-test-project []
   (alter-var-root #'*project-path* (fn [_] (-> (Files/createTempDirectory "foo" (into-array FileAttribute []))
@@ -32,7 +32,7 @@
     (when (not (.exists parent))
       (.mkdirs parent))))
 
-(defn- write-file [name content]
+(defn- write-file [^String name content]
   (let [f (File. (File. *project-path*) name)]
     (mkdirs f)
     (if (not (.exists f))
@@ -41,7 +41,7 @@
     (spit f content)))
 
 (defn- copy-file [name new-name]
-  (let [[f new-f] (mapv #(File. (File. *project-path*) %) [name new-name])]
+  (let [[^File f ^File new-f] (mapv (fn [^String file-name] (File. (File. *project-path*) file-name) [name new-name]))]
     (FileUtils/copyFile f new-f)))
 
 (defn- error? [type v]
