@@ -12,7 +12,6 @@
            [editor.types Camera AABB Region Rect]
            [java.awt Font]
            [java.awt.image BufferedImage]
-           [javafx.animation AnimationTimer]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList]

@@ -3,8 +3,8 @@
             [dynamo.graph :as g]
             [dynamo.util :as util]
             [editor.background :as background]
-            [editor.colors :as colors]
             [editor.camera :as c]
+            [editor.colors :as colors]
             [editor.core :as core]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -14,6 +14,7 @@
             [editor.project :as project]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.render.pass :as pass]
             [service.log :as log])
@@ -361,7 +362,6 @@
 
   (property image-view ImageView)
   (property viewport Region (default (types/->Region 0 0 0 0)))
-  (property repainter AnimationTimer)
   (property picking-rect  Rect)
 
   (input frame BufferedImage)
@@ -379,9 +379,6 @@
   (output selection g/Any (g/fnk [selection] selection))
   (output picking-rect Rect (g/fnk [picking-rect] picking-rect))
 
-  (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (g/node-value self :repainter))
-                                     nil))
   g/IDisposable
   (g/dispose [self]
            (prn "Disposing SceneEditor")
@@ -439,31 +436,33 @@
         (aset-long fps-counts 0 0)))
     fps-counts))
 
-(defn- make-scene-view [scene-graph ^Parent parent opts]
+(defn- make-scene-view [scene-graph ^Pane parent opts]
   (let [image-view (ImageView.)]
     (.add (.getChildren ^Pane parent) image-view)
     (let [view-id (g/make-node! scene-graph SceneView :image-view image-view)]
-      (let [node-id view-id
-            tool-user-data (atom [])
-            event-handler (reify EventHandler (handle [this e]
-                                                (let [action (augment-action view-id (i/action-from-jfx e))
-                                                      x (:x action)
-                                                      y (:y action)
-                                                      pos [x y 0.0]
-                                                      picking-rect (calc-picking-rect pos pos)]
-                                                  ; Only look for tool selection when the mouse is moving with no button pressed
-                                                  (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
-                                                    (reset! tool-user-data (g/node-value view-id :selected-tool-renderables)))
-                                                  (g/transact (g/set-property view-id :picking-rect picking-rect))
-                                                  (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data))))
-            change-listener (reify ChangeListener (changed [this observable old-val new-val]
-                                                    (Platform/runLater
-                                                     (fn []
-                                                       (let [bb ^BoundingBox (.getBoundsInParent (.getParent parent))
-                                                             w (- (.getMaxX bb) (.getMinX bb))
-                                                             h (- (.getMaxY bb) (.getMinY bb))]
-                                                         (flip-y (g/node-value view-id :image-view) h)
-                                                         (g/transact (g/set-property view-id :viewport (types/->Region 0 w 0 h))))))))]
+      (let [node-id         view-id
+            tool-user-data  (atom [])
+            event-handler   (ui/event-handler
+                             e
+                             (let [action       (augment-action view-id (i/action-from-jfx e))
+                                   x            (:x action)
+                                   y            (:y action)
+                                   pos          [x y 0.0]
+                                   picking-rect (calc-picking-rect pos pos)]
+                                        ; Only look for tool selection when the mouse is moving with no button pressed
+                               (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
+                                 (reset! tool-user-data (g/node-value view-id :selected-tool-renderables)))
+                               (g/transact (g/set-property view-id :picking-rect picking-rect))
+                               (dispatch-input (g/sources-of view-id :input-handlers) action @tool-user-data)))
+            change-listener (ui/change-listener
+                             observable old-val new-val
+                             (Platform/runLater
+                              (fn []
+                                (let [bb ^BoundingBox (.getBoundsInParent (.getParent parent))
+                                      w (- (.getMaxX bb) (.getMinX bb))
+                                      h (- (.getMaxY bb) (.getMinY bb))]
+                                  (flip-y (g/node-value view-id :image-view) h)
+                                  (g/transact (g/set-property view-id :viewport (types/->Region 0 w 0 h)))))))]
         (.setOnMousePressed parent event-handler)
         (.setOnMouseReleased parent event-handler)
         (.setOnMouseClicked parent event-handler)
@@ -472,23 +471,23 @@
         (.setOnScroll parent event-handler)
         (.addListener (.boundsInParentProperty (.getParent parent)) change-listener)
 
-        (let [fps-counter (when *fps-debug* (agent (long-array 3 0)))
-              ^Tab tab    (:tab opts)
-              repainter   (proxy [AnimationTimer] []
-                            (handle [now]
-                              (when *fps-debug* (send-off fps-counter tick now))
-                              (let [image-view ^ImageView (g/node-value view-id :image-view)
-                                    visible               (.isSelected tab)]
-                                (when (and visible)
-                                  (try
-                                    (let [image (g/node-value view-id :image)]
-                                      (when (not= image (.getImage image-view))
-                                        (.setImage image-view image)))
-                                    (catch Exception e
-                                      (.setImage image-view nil)
-                                      (.stop ^AnimationTimer this)))))))]
-          (g/transact (g/set-property view-id :repainter repainter))
-          (.start repainter)))
+        (let [fps-counter   (when *fps-debug* (agent (long-array 3 0)))
+              ^Tab tab      (:tab opts)
+              repainter     (ui/->timer 1
+                              (fn [now]
+                                (when *fps-debug* (send-off fps-counter tick now))
+                                (let [image-view ^ImageView (g/node-value view-id :image-view)
+                                      visible               (.isSelected tab)]
+                                  (when (and visible)
+                                    (try
+                                      (let [image (g/node-value view-id :image)]
+                                        (when (not= image (.getImage image-view))
+                                          (.setImage image-view image)))
+                                      (catch Exception e
+                                        (.setImage image-view nil)
+                                        (throw e)))))))]
+          (ui/timer-stop-on-close! tab repainter)
+          (ui/timer-start! repainter)))
       view-id)))
 
 
