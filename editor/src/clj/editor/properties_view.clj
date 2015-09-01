@@ -168,7 +168,7 @@
 
 (defn- create-properties-row [workspace ^GridPane grid key property row property-fn]
   (let [label (Label. (properties/label property))
-        [control update-ui-fn] (create-property-control! (:edit-type property) workspace (fn [] (property-fn key)))
+        [^Node control update-ui-fn] (create-property-control! (:edit-type property) workspace (fn [] (property-fn key)))
         reset-btn (doto (Button. "x")
                     (.setVisible (properties/overridden? property))
                     (ui/on-action! (fn [_]

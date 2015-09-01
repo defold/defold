@@ -224,6 +224,7 @@
                                                        (proxy [ListCell] []
                                                          (updateItem [file empty]
                                                            (let [this ^ListCell this]
+                                                             ; TODO - fix reflection warning
                                                              (proxy-super updateItem file empty)
                                                              (if (or empty (nil? file))
                                                                (proxy-super setText nil)

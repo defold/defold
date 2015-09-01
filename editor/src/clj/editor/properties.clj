@@ -31,7 +31,7 @@
 (defn- parse-num [s]
   (num (Double/parseDouble s)))
 
-(defn- tokenize! [tokenizer parse-fn]
+(defn- tokenize! [^StringTokenizer tokenizer parse-fn]
   (-> tokenizer (.nextToken) (.trim) (parse-fn)))
 
 (defn- parse-vec [s count]

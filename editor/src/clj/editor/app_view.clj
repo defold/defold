@@ -47,7 +47,7 @@
   (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane))))
 
   (trigger stop-animation :deleted (fn [tx graph self label trigger]
-                                     (.stop ^AnimationTimer (g/node-value self :refresh-timer)))))
+                                     (ui/timer-stop! (g/node-value self :refresh-timer)))))
 
 (defn- invalidate [node label]
   (g/invalidate! [[node label]]))
@@ -115,11 +115,12 @@
 
 (handler/defhandler :close :global
   (enabled? [] true)
-  (run [app-view] (when-let [tab (-> (g/node-value app-view :tab-pane) (.getSelectionModel) (.getSelectedItem))]
-                    (.remove (.getTabs (g/node-value app-view :tab-pane)) tab)
-                    ; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
-                    ; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
-                    (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))))
+  (run [app-view] (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+                    (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+                      (.remove (.getTabs tab-pane) tab)
+                      ; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
+                      ; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
+                      (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))))))
 
 (defn make-about-dialog []
   (let [root ^Parent (FXMLLoader/load (io/resource "about.fxml"))
@@ -214,17 +215,15 @@
 
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
-    (let [refresh-timer (proxy [AnimationTimer] []
-                          (handle [now]
-                            ; TODO: Not invoke this function every frame...
-                            (ui/refresh (.getScene stage))
-                            (let [auto-pulls (g/node-value app-view :auto-pulls)]
-                             (doseq [[node label] auto-pulls]
-                               (g/node-value node label)))))]
+    (let [refresh-timer (ui/->timer 2 (fn [dt]
+                                        (ui/refresh (.getScene stage))
+                                        (let [auto-pulls (g/node-value app-view :auto-pulls)]
+                                          (doseq [[node label] auto-pulls]
+                                            (g/node-value node label)))))]
       (g/transact
         (concat
           (g/set-property app-view :refresh-timer refresh-timer)))
-      (.start refresh-timer))
+      (ui/timer-start! refresh-timer))
     app-view))
 
 (defn open-resource [app-view workspace project resource]

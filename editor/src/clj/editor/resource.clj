@@ -48,7 +48,7 @@
 (core/register-read-handler!
  "file-resource"
  (transit/read-handler
-  (fn [{:keys [workspace file children]}]
+  (fn [{:keys [workspace ^String file children]}]
     (FileResource. workspace (File. file) children))))
 
 (core/register-write-handler!
@@ -57,7 +57,7 @@
   (constantly "file-resource")
   (fn [^FileResource r]
     {:workspace (:workspace r)
-     :file      (.getPath (:file r))
+     :file      (.getPath ^File (:file r))
      :children  (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]

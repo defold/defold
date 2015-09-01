@@ -222,6 +222,7 @@
     (updateItem [object empty]
       (let [this ^ListCell this
             render-data (and object (render-fn object))]
+        ; TODO - fix reflection warning
         (proxy-super updateItem (and object (:text render-data)) empty)
         (let [name (or (and (not empty) (:text render-data)) nil)]
           (proxy-super setText name))
@@ -615,8 +616,26 @@ return value."
 
 (defn ->future [delay run-fn]
   (let [^EventHandler handler (event-handler e (run-fn))]
+    ; TODO - fix reflection ctor warning
     (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler (into-array KeyValue []))]))
       (.play))))
+
+(defn ->timer [fps tick-fn]
+  (let [last (atom (System/nanoTime))
+        interval (long (* 1e9 (/ 1 (double fps))))]
+    {:last last
+     :timer (proxy [AnimationTimer] []
+              (handle [now]
+                (let [delta (- now @last)]
+                  (when (> delta interval)
+                    (tick-fn (* delta 1e-9))
+                    (reset! last (- now (- delta interval)))))))}))
+
+(defn timer-start! [timer]
+  (.start ^AnimationTimer (:timer timer)))
+
+(defn timer-stop! [timer]
+  (.stop ^AnimationTimer (:timer timer)))
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
