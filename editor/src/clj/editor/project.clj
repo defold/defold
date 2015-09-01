@@ -123,7 +123,7 @@ ordinary paths."
 (defn- prune-fs [files-on-disk built-files]
   (let [files-on-disk (reverse files-on-disk)
         built (set built-files)]
-    (doseq [file files-on-disk
+    (doseq [^File file files-on-disk
             :let [dir? (.isDirectory file)
                   empty? (= 0 (count (.listFiles file)))
                   keep? (or (and dir? (not empty?)) (contains? built file))]]
@@ -143,6 +143,7 @@ ordinary paths."
 (defn- launch-engine [build-path]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
+        ; TODO - fix reflection warnings
         pb (ProcessBuilder. (into-array String [path]))]
     (.redirectErrorStream pb true)
     (.directory pb (io/file build-path))
@@ -162,12 +163,12 @@ ordinary paths."
   (let [files-on-disk (file-seq (io/file (workspace/build-path (g/node-value project :workspace))))
         build-results (build project node)
         fs-build-cache (g/node-value project :fs-build-cache)]
-    (prune-fs files-on-disk (map #(File. (workspace/abs-path (:resource %))) build-results))
+    (prune-fs files-on-disk (map #(File. ^String (workspace/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
     (doseq [result build-results
             :let [{:keys [resource content key]} result
                   abs-path (workspace/abs-path resource)
-                  mtime (let [f (File. abs-path)]
+                  mtime (let [f (File. ^String abs-path)]
                           (if (.exists f)
                             (.lastModified f)
                             0))
@@ -182,7 +183,7 @@ ordinary paths."
           ; Write bytes
           (with-open [out (io/output-stream resource)]
             (.write out ^bytes content))
-          (let [f (File. abs-path)]
+          (let [f (File. ^String abs-path)]
             (swap! fs-build-cache assoc resource [key (.lastModified f)])))))))
 
 (handler/defhandler :undo :global

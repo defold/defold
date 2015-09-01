@@ -164,7 +164,7 @@
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
   ([r g b a]      `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0) a])))
 
-(defmacro gl-color       [gl c]     `(.glColor4f ~gl (nth ~c 0) (nth ~c 1) (nth ~c 2) (nth ~c 3)))
+(defmacro gl-color       [gl c]     `(.glColor4d ~gl ^double (nth ~c 0) ^double (nth ~c 1) ^double (nth ~c 2) ^double (nth ~c 3)))
 (defmacro gl-color-3f    [gl r g b]     `(.glColor3f ~gl ~r ~g ~b))
 (defmacro gl-color-4d    [gl r g b a]   `(.glColor4d ~gl ~r ~g ~b ~a))
 (defmacro gl-color-3dv+a [gl dv alpha]  `(gl-color-4d ~gl (first ~dv) (second ~dv) (nth ~dv 2) ~alpha))

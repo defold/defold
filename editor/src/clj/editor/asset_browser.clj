@@ -407,6 +407,7 @@
                                                  (let [cell (proxy [TreeCell] []
                                                             (updateItem [resource empty]
                                                               (let [this ^TreeCell this]
+                                                                ; TODO - fix reflection warning
                                                                 (proxy-super updateItem resource empty)
                                                                    (let [name (or (and (not empty) (not (nil? resource)) (workspace/resource-name resource)) nil)]
                                                                      (proxy-super setText name))

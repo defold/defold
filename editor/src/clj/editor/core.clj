@@ -15,6 +15,7 @@
                             (fn [rep] (java.lang.Class/forName ^String rep)))}
    :write {java.lang.Class (transit/write-handler
                             (constantly "class")
+                            ; TODO - fix reflection warning
                             (fn [v] (.getName v)))}})
 
 (defn register-read-handler!

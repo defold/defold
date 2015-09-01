@@ -3,6 +3,8 @@
            [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d
             Tuple3d Tuple4d]))
 
+(set! *warn-on-reflection* true)
+
 (def epsilon 0.000001)
 (def epsilon-sq (* epsilon epsilon))
 
@@ -110,7 +112,7 @@
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
 
 (defn inv-transform
-  ([^Point3d position ^Quat4d rotation p]
+  ([^Point3d position ^Quat4d rotation ^Point3d p]
     (let [q (doto (Quat4d. rotation) (.conjugate))]
       (.sub p position)
       (rotate q p)))
@@ -125,7 +127,7 @@
         axis (doto (Vector3d.) (.cross unit-from unit-to) (.scale recip-cos-half))]
       (doto (Quat4d. (.x axis) (.y axis) (.z axis) (* 0.5 cos-half))))))
 
-(defn unit-axis [dimension-index] ^Vector3d
+(defn unit-axis [^long dimension-index] ^Vector3d
   (case dimension-index
     0 (Vector3d. 1 0 0)
     1 (Vector3d. 0 1 0)
@@ -139,12 +141,12 @@
         mat3 (Matrix3d.)
         _ (.getRotationScale mat mat3)
         scale (double-array 3)]
-    (doseq [col (range 3)]
+    (doseq [^long col (range 3)]
       (.getColumn mat3 col tmp)
       (let [s (.length tmp)
-            axis (if (> s epsilon)
-                   (doto tmp (.scale (/ 1.0 s)))
-                   (unit-axis col))]
+            ^Vector3d axis (if (> s epsilon)
+                             (doto tmp (.scale (/ 1.0 s)))
+                             (unit-axis col))]
         (aset scale col s)
         (.setColumn mat3 col axis))
       (.set out-rotation mat3)
