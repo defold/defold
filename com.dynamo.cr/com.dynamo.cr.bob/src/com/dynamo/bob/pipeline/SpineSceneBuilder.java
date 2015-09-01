@@ -39,6 +39,7 @@ import com.dynamo.spine.proto.Spine.AnimationTrack;
 import com.dynamo.spine.proto.Spine.Bone;
 import com.dynamo.spine.proto.Spine.EventKey;
 import com.dynamo.spine.proto.Spine.EventTrack;
+import com.dynamo.spine.proto.Spine.IK;
 import com.dynamo.spine.proto.Spine.Mesh;
 import com.dynamo.spine.proto.Spine.MeshAnimationTrack;
 import com.dynamo.spine.proto.Spine.MeshEntry;
@@ -240,7 +241,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         return index;
     }
 
-    private static List<Integer> toDDF(List<SpineScene.Bone> bones, Skeleton.Builder skeletonBuilder) {
+    private static List<Integer> toDDF(List<SpineScene.Bone> bones, List<SpineScene.IK> iks, Skeleton.Builder skeletonBuilder) {
         // Order bones strictly breadth-first
         Map<SpineScene.Bone, List<SpineScene.Bone>> children = new HashMap<SpineScene.Bone, List<SpineScene.Bone>>();
         for (SpineScene.Bone bone : bones) {
@@ -276,7 +277,22 @@ public class SpineSceneBuilder extends Builder<Void> {
             boneBuilder.setRotation(MathUtil.vecmathToDDF(bone.localT.rotation));
             boneBuilder.setScale(MathUtil.vecmathToDDF(bone.localT.scale));
             boneBuilder.setInheritScale(bone.inheritScale);
+            boneBuilder.setLength((float)bone.length);
             skeletonBuilder.addBones(boneBuilder);
+        }
+        for (SpineScene.IK ik : iks) {
+            IK.Builder ikBuilder = IK.newBuilder();
+            ikBuilder.setId(MurmurHash.hash64(ik.name));
+            if (ik.parent != null) {
+                ikBuilder.setParent(ik.parent.index);
+            } else {
+                ikBuilder.setParent(ik.child.index);
+            }
+            ikBuilder.setChild(ik.child.index);
+            ikBuilder.setTarget(ik.target.index);
+            ikBuilder.setPositive(ik.positive);
+            ikBuilder.setMix(ik.mix);
+            skeletonBuilder.addIks(ikBuilder);
         }
         return indexRemap;
     }
@@ -522,7 +538,7 @@ public class SpineSceneBuilder extends Builder<Void> {
     private static void toDDF(SpineScene scene, Spine.SpineScene.Builder b, double sampleRate) {
         // Skeleton
         Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-        List<Integer> boneIndexRemap = toDDF(scene.bones, skeletonBuilder);
+        List<Integer> boneIndexRemap = toDDF(scene.bones, scene.iks, skeletonBuilder);
         b.setSkeleton(skeletonBuilder);
         // MeshSet
         MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
