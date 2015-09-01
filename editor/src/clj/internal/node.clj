@@ -126,14 +126,13 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls triggers transforms transform-types declared-properties inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes property-passthroughs property-display-order]
+    [name supertypes interfaces protocols method-impls transforms transform-types declared-properties inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes property-passthroughs property-display-order]
 
   gt/NodeType
   (supertypes            [_] supertypes)
   (interfaces            [_] interfaces)
   (protocols             [_] protocols)
   (method-impls          [_] method-impls)
-  (triggers              [_] triggers)
   (transforms            [_] transforms)
   (transform-types       [_] transform-types)
   (declared-properties   [_] declared-properties)
@@ -267,7 +266,6 @@
       (update-in [:interfaces]            combine-with set/union #{} (from-supertypes description gt/interfaces))
       (update-in [:protocols]             combine-with set/union #{} (from-supertypes description gt/protocols))
       (update-in [:method-impls]          combine-with merge      {} (from-supertypes description gt/method-impls))
-      (update-in [:triggers]              combine-with map-merge  {} (from-supertypes description gt/triggers))
       (update-in [:substitutes]           combine-with merge      {} (from-supertypes description :substitutes))
       (update-in [:cardinalities]         combine-with merge      {} (from-supertypes description :cardinalities))
       (update-in [:cascade-deletes]       combine-with set/union #{} (from-supertypes description :cascade-deletes))
@@ -379,14 +377,6 @@
   [description label property-type passthrough]
   (attach-property description label (assoc property-type :unjammable? true) passthrough))
 
-(defn attach-trigger
-  "Update the node type description with the given trigger."
-  [description label kinds action]
-  (reduce
-   (fn [description kind] (assoc-in description [:triggers kind label] action))
-   description
-   kinds))
-
 (defn attach-interface
   "Update the node type description with the given interface."
   [description interface]
@@ -427,7 +417,6 @@
   (let [{:keys [ns name]} (meta (resolve s))]
     (symbol (str ns) (str name))))
 
-(def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections})
 (def ^:private input-flags   #{:inject :array :cascade-delete})
 (def ^:private input-options #{:substitute})
 
@@ -466,15 +455,6 @@
 
          [(['display-order ordering] :seq)]
          `(assoc :display-order-decl ~ordering)
-
-         [(['trigger label & rest] :seq)]
-         (do
-           (assert-symbol "trigger" label)
-           (let [kinds (vec (take-while keyword? rest))
-                action (drop-while keyword? rest)]
-             (assert (every? valid-trigger-kinds kinds) (apply str "Invalid trigger kind. Valid trigger kinds are: " (interpose ", " valid-trigger-kinds)))
-             (assert (not (empty? action)) "Trigger must have an action")
-            `(attach-trigger ~(keyword label) ~kinds ~@action)))
 
          ;; Interface or protocol function
          [([nm [& argvec] & remainder] :seq)]
