@@ -500,7 +500,8 @@
   (property atlas (g/protocol workspace/Resource))
   (property sample-rate g/Num)
 
-  (trigger reconnect :property-touched #'reconnect)
+  ;; TODO - replace with use of property setter/getter
+  #_(trigger reconnect :property-touched #'reconnect)
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)

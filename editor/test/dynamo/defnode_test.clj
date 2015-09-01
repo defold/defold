@@ -494,56 +494,6 @@
         (is (= 42         (:c-property node-after-mutation)))
         (is (instance? MarkerInterface node-after-mutation))))))
 
-(g/defnode BaseTriggerNode
-  (trigger added-trigger        :added             (fn [& _] nil))
-  (trigger multiway-trigger     :added :deleted    (fn [& _] nil))
-  (trigger on-delete            :deleted           (fn [& _] nil))
-  (trigger on-property-touched  :property-touched  (fn [& _] nil))
-  (trigger on-input-connections :input-connections (fn [& _] nil)))
-
-(g/defnode InheritedTriggerNode
-  (inherits BaseTriggerNode)
-
-  (trigger extra-added      :added           (fn [& _] nil))
-  (trigger on-delete        :deleted         (fn [& _] :override)))
-
-(deftest nodes-can-have-triggers
-  (testing "basic trigger definition"
-    (is (fn? (get-in (g/triggers BaseTriggerNode) [:added :added-trigger])))
-    (is (fn? (get-in (g/triggers BaseTriggerNode) [:added :multiway-trigger])))
-    (is (fn? (get-in (g/triggers BaseTriggerNode) [:deleted :multiway-trigger])))
-    (is (fn? (get-in (g/triggers BaseTriggerNode) [:deleted :on-delete])))
-    (is (fn? (get-in (g/triggers BaseTriggerNode) [:property-touched :on-property-touched])))
-    (is (fn? (get-in (g/triggers BaseTriggerNode) [:input-connections :on-input-connections]))))
-
-  (testing "triggers are inherited"
-    (is (fn? (get-in (g/triggers InheritedTriggerNode) [:added :added-trigger])))
-    (is (fn? (get-in (g/triggers InheritedTriggerNode) [:added :multiway-trigger])))
-    (is (fn? (get-in (g/triggers InheritedTriggerNode) [:added :extra-added])))
-    (is (fn? (get-in (g/triggers InheritedTriggerNode) [:deleted :multiway-trigger]))))
-
-  (testing "inherited triggers can be overridden"
-    (is (fn? (get-in (g/triggers InheritedTriggerNode) [:deleted :on-delete])))
-    (is (= :override ((get-in (g/triggers InheritedTriggerNode) [:deleted :on-delete])))))
-
-  (testing "disallows unknown trigger kinds"
-    (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
-          (eval '(dynamo.graph/defnode NoSuchTriggerNode
-                   (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))
-    (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
-          (eval '(dynamo.graph/defnode NoSuchTriggerNode
-                   (trigger nope :modified (fn [& _] :nope)))))))
-
-  (testing "triggers are named by symbols"
-    (is (thrown? Compiler$CompilerException
-                 (eval '(dynamo.graph/defnode BadTriggerName
-                          (trigger :not-a-symbol :added (fn [& _] :ok)))))))
-
-  (testing "triggers have actions"
-    (is (thrown? Compiler$CompilerException
-                 (eval '(dynamo.graph/defnode MissingAction
-                          (trigger a-symbol :added)))))))
-
 (g/defproperty DynamicExternalProperty g/Num
   (dynamic external-dynamic (g/fnk [an-input another-input] true)))
 
