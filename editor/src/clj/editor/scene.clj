@@ -219,6 +219,7 @@
         (batch-render gl render-args (get renderables pass) false :batch-key))
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image w h)]
+        (gl/prune-object-caches! gl)
         (.release context)
         buf-image))))
 
@@ -485,6 +486,8 @@
                                       (when (not= image (.getImage image-view))
                                         (.setImage image-view image)))
                                     (catch Exception e
+                                      ; TODO - surface this error differently
+                                      (prn "exc" e)
                                       (.setImage image-view nil)
                                       (.stop ^AnimationTimer this)))))))]
           (g/transact (g/set-property view-id :repainter repainter))

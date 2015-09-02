@@ -88,7 +88,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.buffers :refer [bbuf->string]]
           [editor.geom :as geom]
           [editor.gl :as gl]
-          [editor.gl.protocols :refer [GlBind GlEnable]]
+          [editor.gl.protocols :refer [GlBind]]
           [editor.types :as types]
           [editor.workspace :as workspace]
           [editor.project :as project])
@@ -369,51 +369,44 @@ This must be submitted to the driver for compilation before you can use it. See
   (when (not= 0 shader)
     (.glDeleteShader gl shader)))
 
-(defrecord ShaderLifecycle [verts frags context-local-data]
+(defrecord ShaderLifecycle [request-id verts frags]
   GlBind
   (bind [this gl]
-    (when-not (get @context-local-data gl)
-      (let [vs     (make-vertex-shader gl verts)
-           fs      (make-fragment-shader gl frags)
-           program (make-program gl vs fs)]
-       (delete-shader gl vs)
-       (delete-shader gl fs)
-       (swap! context-local-data assoc gl {:program program}))))
+    (let [program (gl/request-object! gl ::shader request-id [verts frags])]
+      (.glUseProgram ^GL2 gl program))
+    #_(when-not (get @context-local-data gl)
+       (let [vs     (make-vertex-shader gl verts)
+            fs      (make-fragment-shader gl frags)
+            program (make-program gl vs fs)]
+        (delete-shader gl vs)
+        (delete-shader gl fs)
+        (swap! context-local-data assoc gl {:program program}))))
 
   (unbind [this gl]
-    (when-let [program (get-in @context-local-data [gl :program])]
-      (delete-shader gl program)
-      (swap! @context-local-data dissoc gl)))
-
-  GlEnable
-  (enable [this gl]
-    (when-let [program (get-in @context-local-data [gl :program])]
-      (.glUseProgram ^GL2 gl program)))
-
-  (disable [this gl]
     (.glUseProgram ^GL2 gl 0))
 
   ShaderVariables
   (get-attrib-location [this gl name]
-    (when-let [program (get-in @context-local-data [gl :program])]
+    (when-let [program (gl/request-object! gl ::shader request-id [verts frags])]
       (gl/gl-get-attrib-location ^GL2 gl program name)))
 
   (set-uniform [this gl name val]
-    (when-let [program (get-in @context-local-data [gl :program])]
+    (when-let [program (gl/request-object! gl ::shader request-id [verts frags])]
       (let [loc (.glGetUniformLocation ^GL2 gl program name)]
         (set-uniform-at-index gl program loc val)))))
 
 (defn make-shader
   "Ready a shader program for use by compiling and linking it. Takes a collection
 of GLSL strings and returns an object that satisfies GlBind and GlEnable."
-  [verts frags]
-  (->ShaderLifecycle verts frags (atom {})))
+  [request-id verts frags]
+  (->ShaderLifecycle request-id verts frags))
 
 (defn load-shaders
   "Load a shader from files. Takes a PathManipulation that can be used to
 locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEnable."
-  [sdef]
+  [request-id sdef]
   (make-shader
+    request-id
     (slurp (types/replace-extension sdef "vp"))
     (slurp (types/replace-extension sdef "fp"))))
 
@@ -474,3 +467,21 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
 (defn register-resource-types [workspace]
   (for [def shader-defs]
     (register workspace def)))
+
+(defn- make-shader-program [^GL2 gl [verts frags]]
+  (let [vs     (make-vertex-shader gl verts)
+        fs      (make-fragment-shader gl frags)
+        program (make-program gl vs fs)]
+    (delete-shader gl vs)
+    (delete-shader gl fs)
+    program))
+
+(defn- update-shader-program [^GL2 gl program data]
+  (delete-shader gl program)
+  (make-shader-program gl data))
+
+(defn- destroy-shader-programs [^GL2 gl programs]
+  (doseq [program programs]
+    (delete-shader gl program)))
+
+(gl/register-object-cache! ::shader make-shader-program update-shader-program destroy-shader-programs)
