@@ -79,6 +79,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "collection_proxy",
                 "collection_factory",
                 "collision_object",
+                "crash",
                 "engine",
                 "factory",
                 "go",

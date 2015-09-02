@@ -427,7 +427,7 @@ class Configuration(object):
 
         eclipse = '--eclipse' if self.eclipse else ''
 
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
+        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render gameobject gui sound gamesys tools record iap push adtruth facebook crash engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
