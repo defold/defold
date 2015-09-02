@@ -23,7 +23,7 @@ using the `use-with` function. This returns a binding suitable for use in
 the `do-gl` macro from `editor.gl`."
   (:require [clojure.string :as str]
             [editor.gl :as gl]
-            [editor.gl.protocols :refer [GlBind GlEnable]]
+            [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
             [dynamo.graph :as g]
             [editor.buffers :as b])
@@ -415,41 +415,18 @@ the `do-gl` macro from `editor.gl`."
           :when (not= l -1)]
     (gl/gl-disable-vertex-attrib-array gl l)))
 
-(defrecord VertexBufferShaderLink [^PersistentVertexBuffer vertex-buffer shader context-local-data]
+(defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
   GlBind
   (bind [this gl]
-    (when-not (get @context-local-data gl)
-      (let [buffer-name (first (gl/gl-gen-buffers gl 1))]
-        (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)
-        (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit ^ByteBuffer (.buffer vertex-buffer)) (.buffer vertex-buffer) GL2/GL_STATIC_DRAW)
-        (let [attributes  (:attributes (.layout vertex-buffer))
-              attrib-locs (vertex-locate-attribs gl shader attributes)]
-          (vertex-attrib-pointers gl shader attributes)
-        (swap! context-local-data assoc gl {:buffer-name buffer-name
-                                            :attrib-locs attrib-locs})))))
+    (let [vbo (gl/request-object! gl ::vbo request-id vertex-buffer)]
+      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER vbo)
+      (let [attributes  (:attributes (.layout vertex-buffer))
+            attrib-locs (vertex-locate-attribs gl shader attributes)]
+        (vertex-attrib-pointers gl shader attributes)
+        (vertex-enable-attribs gl attrib-locs))))
 
   (unbind [this gl]
-    (when-let [{:keys [buffer-name attrib-locs]} (get @context-local-data gl)]
-      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)
-      (when (not= 0 buffer-name)
-        (gl/gl-delete-buffers ^GL2 gl buffer-name))
-      (swap! context-local-data dissoc gl)))
-
-  GlEnable
-  (enable [this gl]
-    (when-let [{:keys [buffer-name attrib-locs]} (get @context-local-data gl)]
-      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)
-      (vertex-attrib-pointers gl shader (:attributes (.layout vertex-buffer)))
-      (vertex-enable-attribs gl attrib-locs))
-    )
-
-  (disable [this gl]
-    (when-let [{:keys [buffer-name attrib-locs]} (get @context-local-data gl)]
-      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
-
-  g/IDisposable
-  (g/dispose [this]
-    (println :VertexBufferShaderLink.dispose)))
+    (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
 
 (defn use-with
   "Prepare a vertex buffer to be used in rendering by binding its attributes to
@@ -462,5 +439,22 @@ the `do-gl` macro from `editor.gl`."
 
   This function returns an object that satisfies editor.gl.protocols/GlEnable,
   editor.gl.protocols/GlDisable."
-  [^PersistentVertexBuffer vertex-buffer shader]
-  (->VertexBufferShaderLink vertex-buffer shader (atom {})))
+  ([^PersistentVertexBuffer vertex-buffer shader]
+    (->VertexBufferShaderLink (gensym) vertex-buffer shader))
+  ([request-id ^PersistentVertexBuffer vertex-buffer shader]
+    (->VertexBufferShaderLink request-id vertex-buffer shader)))
+
+(defn- update-vbo [^GL2 gl vbo data]
+  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
+  (let [^PersistentVertexBuffer vertex-buffer data]
+    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit ^ByteBuffer (.buffer vertex-buffer)) (.buffer vertex-buffer) GL2/GL_STATIC_DRAW))
+  vbo)
+
+(defn- make-vbo [^GL2 gl data]
+  (let [vbo (first (gl/gl-gen-buffers gl 1))]
+    (update-vbo gl vbo data)))
+
+(defn- destroy-vbos [^GL2 gl vbos]
+  (apply gl/gl-delete-buffers gl vbos))
+
+(gl/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)

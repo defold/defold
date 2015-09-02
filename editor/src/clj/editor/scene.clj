@@ -220,6 +220,7 @@
         (batch-render gl render-args (get renderables pass) false :batch-key))
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image w h)]
+        (gl/prune-object-caches! gl)
         (.release context)
         buf-image))))
 
@@ -473,8 +474,8 @@
 
         (let [fps-counter   (when *fps-debug* (agent (long-array 3 0)))
               ^Tab tab      (:tab opts)
-              repainter     (ui/->timer 1
-                              (fn [now]
+              repainter     (ui/->timer
+                              (fn [now] ; TODO - not now, this is a dt
                                 (when *fps-debug* (send-off fps-counter tick now))
                                 (let [image-view ^ImageView (g/node-value view-id :image-view)
                                       visible               (.isSelected tab)]

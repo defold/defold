@@ -623,20 +623,26 @@ return value."
     (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler (into-array KeyValue []))]))
       (.play))))
 
-(defn ->timer [fps tick-fn]
-  (let [last (atom (System/nanoTime))
-        interval (long (* 1e9 (/ 1 (double fps))))]
-    {:last last
-     :timer (proxy [AnimationTimer] []
-              (handle [now]
-                (let [delta (- now @last)]
-                  (when (> delta interval)
-                    (try
-                      (tick-fn (* delta 1e-9))
-                      (reset! last (- now (- delta interval)))
-                      (catch Exception e
-                        (.stop ^AnimationTimer this)
-                        (throw e)))))))}))
+(defn ->timer
+  ([tick-fn]
+    (->timer nil tick-fn))
+  ([fps tick-fn]
+    (let [last (atom (System/nanoTime))
+          interval (when fps
+                     (long (* 1e9 (/ 1 (double fps)))))]
+      {:last last
+       :timer (proxy [AnimationTimer] []
+                (handle [now]
+                  (let [delta (- now @last)]
+                    (when (or (nil? interval) (> delta interval))
+                      (try
+                        (tick-fn (* delta 1e-9))
+                        (reset! last (- now (if interval
+                                              (- delta interval)
+                                              0)))
+                        (catch Exception e
+                          (.stop ^AnimationTimer this)
+                          (throw e)))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -645,17 +651,21 @@ return value."
   (.stop ^AnimationTimer (:timer timer)))
 
 (defn timer-stop-on-close!
+  ; TODO - solve this similar to (defprotocol Text ... above?
   "Closeable must have an onCloseRequest property. There is no common
   superclass or interface in JavaFX for that property. If the
   `closeable` argument must be type hinted before this call to avoid
   reflection warnings."
   [closeable timer]
+  ; TODO - reflection
   (let [existing-handler (.getOnCloseRequest closeable)]
+    ; TODO - reflection
     (.setOnCloseRequest
      closeable
      (event-handler this
                     (timer-stop! timer)
                     (when existing-handler
+                      ; TODO - reflection
                       (.handle existing-handler this))))))
 
 (defn drag-internal? [^DragEvent e]
