@@ -32,8 +32,12 @@
     (when (not (.exists parent))
       (.mkdirs parent))))
 
+(defn- ^File file-in-project
+  [name]
+  (File. (File. *project-path*) ^String name))
+
 (defn- write-file [^String name content]
-  (let [f (File. (File. *project-path*) name)]
+  (let [f (file-in-project name)]
     (mkdirs f)
     (if (not (.exists f))
       (.createNewFile f)
@@ -41,8 +45,9 @@
     (spit f content)))
 
 (defn- copy-file [name new-name]
-  (let [[^File f ^File new-f] (mapv (fn [^String file-name] (File. (File. *project-path*) file-name) [name new-name]))]
-    (FileUtils/copyFile f new-f)))
+  (FileUtils/copyFile
+   (file-in-project name)
+   (file-in-project new-name)))
 
 (defn- error? [type v]
   (and (g/error? v) (= type (get-in v [:reason :type]))))
@@ -96,6 +101,3 @@
               gpn-settings-map (g/node-value gpn :settings-map)]
           (is (= "Side-scroller" (title settings)))
           (is (no-error? gpn-settings-map)))))))
-
-
-
