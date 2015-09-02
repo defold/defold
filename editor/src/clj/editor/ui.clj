@@ -10,7 +10,7 @@
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TextField]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TextField Tooltip]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
@@ -138,6 +138,9 @@
 
 (defn title! [^Stage window t]
   (.setTitle window t))
+
+(defn tooltip! [^Control ctrl tip]
+  (.setTooltip ctrl (Tooltip. tip)))
 
 (defn show! [^Stage stage]
   (.show stage))

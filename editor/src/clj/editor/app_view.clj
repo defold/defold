@@ -190,9 +190,13 @@
   workspace/SelectionProvider
   (selection [this] []))
 
+(defn- make-title
+  ([] "Defold Editor 2.0")
+  ([project-title] (str (make-title) " - " project-title)))
+
 (defn make-app-view [view-graph project-graph project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane prefs]
   (.setUseSystemMenuBar menu-bar true)
-  (.setTitle stage "Defold Editor 2.0!")
+  (.setTitle stage (make-title))
   (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
     (-> tab-pane
       (.getSelectionModel)
@@ -212,6 +216,11 @@
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
     (let [refresh-timer (ui/->timer 2 (fn [dt]
                                         (ui/refresh (.getScene stage))
+                                        (let [settings (g/node-value project :settings)
+                                              project-title (settings ["project" "title"])
+                                              new-title (make-title project-title)]
+                                          (when (not= (.getTitle stage) new-title)
+                                            (.setTitle stage new-title)))
                                         (let [auto-pulls (g/node-value app-view :auto-pulls)]
                                           (doseq [[node label] auto-pulls]
                                             (g/node-value node label)))))]
@@ -232,6 +241,7 @@
             opts       (assoc ((:id view-type) (:view-opts resource-type))
                               :app-view app-view
                               :project project
+                              :workspace workspace
                               :tab tab)
             view       (make-view-fn view-graph parent resource-node opts)]
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
