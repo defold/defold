@@ -1,7 +1,7 @@
 (ns editor.gl.texture
   "Functions for creating and using textures"
   (:require [editor.image :as img :refer [placeholder-image]]
-            [editor.gl.protocols :refer [GlBind GlEnable]]
+            [editor.gl.protocols :refer [GlBind]]
             [editor.gl :as gl]
             [dynamo.graph :as g])
   (:import [java.awt.image BufferedImage]
@@ -33,41 +33,6 @@
    :wrap-t       GL2/GL_TEXTURE_WRAP_T
    :wrap-r       GL2/GL_TEXTURE_WRAP_R})
 
-(defonce gl-texture-state (atom {}))
-
-(defn context-local-data
-  [gl key]
-  (get-in @gl-texture-state [gl key]))
-
-(defn set-context-local-data
-  [gl key data]
-  (swap! gl-texture-state assoc-in [gl key] data))
-
-(defn context-local-data-forget
-  [gl key]
-  (swap! gl-texture-state dissoc [gl key]))
-
-(defn texture-occurrences
-  [tex]
-  (for [[gl asgns]    (dissoc @gl-texture-state :local)
-        [u t :as asgn] asgns
-        :when (= t tex)]
-    [gl asgn]))
-
-(defn unload-texture
-  [this]
-  (swap! gl-texture-state
-    #(reduce-kv
-       (fn [state gl-context tex]
-         (if (identical? tex this)
-           (dissoc state gl-context)
-           state))
-       % %)))
-
-(defn unload-all
-  [gl]
-  (swap! gl-texture-state dissoc gl))
-
 (defn- apply-params
   [gl ^Texture texture params]
   (doseq [[p v] params]
@@ -77,38 +42,19 @@
         (.setTexParameteri texture gl p v)
         (println "WARNING: ignoring unknown texture parameter " p)))))
 
-(defrecord TextureLifecycle [unit params ^BufferedImage img]
+(defrecord TextureLifecycle [request-id cache-id unit params img-data]
   GlBind
   (bind [this gl]
-    (when-not (context-local-data gl this)
+    (let [^Texture texture (gl/request-object! gl cache-id request-id img-data)]
       (.glActiveTexture ^GL2 gl unit)
-      (let [texture ^Texture (AWTTextureIO/newTexture (GLProfile/getGL2GL3) img true)]
-        (apply-params gl texture params)
-        (.enable texture gl)
-        (.bind texture gl)
-        (set-context-local-data gl this texture))))
-
+      (apply-params gl texture params)
+      (.enable texture gl)
+      (.bind texture gl)))
+  
   (unbind [this gl]
-    (when-let [texture ^Texture (context-local-data gl this)]
-      (.destroy texture gl)
-      (context-local-data-forget gl this)))
-
-  GlEnable
-  (enable [this gl]
-    (when-let [texture ^Texture (context-local-data gl this)]
-      (gl/gl-active-texture ^GL gl unit)
-      (.bind texture gl)
-      (.enable texture gl)))
-
-  (disable [this gl]
-    (when-let [texture ^Texture (context-local-data gl this)]
+    (let [^Texture texture (gl/request-object! gl cache-id request-id img-data)]
       (.disable texture gl))
-    (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0))
-
-  g/IDisposable
-  (g/dispose [this]
-    (println "TextureLifecycle.dispose " img)
-    (unload-texture this)))
+    (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0)))
 
 (def
   ^{:doc "If you do not supply parameters to `image-texture`, these will be used as defaults."}
@@ -120,7 +66,7 @@
 
 (defn image-texture
   "Create an image texture from a BufferedImage. The returned value
-supports GlBind, GlEnable, and IDisposable. You can use it in do-gl and with-enabled.
+supports GlBind, GlEnable, and IDisposable. You can use it in do-gl and with-gl-bindings.
 
 If supplied, the params argument must be a map of parameter name to value. Parameter names
 can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents from
@@ -130,52 +76,12 @@ If you supply parameters, then those parameters are used. If you do not supply p
 then defaults in `default-image-texture-params` are used.
 
 If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEXTURE0."
-  ([img]
-   (image-texture GL/GL_TEXTURE0 default-image-texture-params img))
-  ([img params]
-   (image-texture GL/GL_TEXTURE0 params img))
-  ([unit params ^BufferedImage img]
-    (->TextureLifecycle unit params (or img (:contents placeholder-image)))))
-
-(defrecord CubemapTexture [unit params ^BufferedImage right ^BufferedImage left ^BufferedImage top ^BufferedImage bottom ^BufferedImage front ^BufferedImage back]
-  GlBind
-  (bind [this gl]
-    (when-not (context-local-data gl this)
-      (let [texture ^Texture (TextureIO/newTexture GL/GL_TEXTURE_CUBE_MAP)]
-        (doseq [[img target]
-                [[right  GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X]
-                 [left   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_X]
-                 [top    GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Y]
-                 [bottom GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Y]
-                 [front  GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Z]
-                 [back   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Z]]]
-          (.updateImage texture gl ^TextureData (AWTTextureIO/newTextureData (GLProfile/getGL2GL3) img false) target))
-        (apply-params gl texture params)
-        (.enable texture gl)
-        (.bind texture gl)
-        (set-context-local-data gl this texture))))
-
-  (unbind [this gl]
-    (when-let [texture ^Texture (context-local-data gl this)]
-      (.destroy texture gl)
-      (context-local-data-forget gl this)))
-
-  GlEnable
-  (enable [this gl]
-    (when-let [texture ^Texture (context-local-data gl this)]
-      (gl/gl-active-texture ^GL gl unit)
-      (.bind texture gl)
-      (.enable texture gl)))
-
-  (disable [this gl]
-    (when-let [texture ^Texture (context-local-data gl this)]
-      (.disable texture gl))
-    (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0))
-
-  g/IDisposable
-  (g/dispose [this]
-    (println "CubemapTexture.dispose")
-    (unload-texture this)))
+  ([request-id img]
+   (image-texture request-id GL/GL_TEXTURE0 default-image-texture-params img))
+  ([request-id img params]
+   (image-texture request-id GL/GL_TEXTURE0 params img))
+  ([request-id unit params ^BufferedImage img]
+    (->TextureLifecycle request-id ::texture unit params (or img (:contents placeholder-image)))))
 
 (def default-cubemap-texture-params
   ^{:doc "If you do not supply parameters to `image-cubemap-texture`, these will be used as defaults."}
@@ -199,7 +105,7 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
 
 (defn image-cubemap-texture
   "Create an cubemap texture from six BufferedImages. The returned value
-supports GlBind, GlEnable, and IDisposable. You can use it in do-gl and with-enabled.
+supports GlBind, GlEnable, and IDisposable. You can use it in do-gl and with-gl-bindings.
 
 If supplied, the params argument must be a map of parameter name to value. Parameter names
 can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents from
@@ -209,9 +115,41 @@ If you supply parameters, then those parameters are used. If you do not supply p
 then defaults in `default-cubemap-texture-params` are used.
 
 If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEXTURE0"
-  ([right left top bottom front back]
-   (image-cubemap-texture GL/GL_TEXTURE0 default-cubemap-texture-params right left top bottom front back))
-  ([params right left top bottom front back]
-   (image-cubemap-texture GL/GL_TEXTURE0 params right left top bottom front back))
-  ([unit params right left top bottom front back]
-   (apply ->CubemapTexture unit params (map #(safe-texture %) [right left top bottom front back]))))
+  ([request-id right left top bottom front back]
+   (image-cubemap-texture request-id GL/GL_TEXTURE0 default-cubemap-texture-params right left top bottom front back))
+  ([request-id params right left top bottom front back]
+   (image-cubemap-texture request-id GL/GL_TEXTURE0 params right left top bottom front back))
+  ([request-id unit params right left top bottom front back]
+   (->TextureLifecycle request-id ::cubemap-texture unit params (map #(safe-texture %) [right left top bottom front back]))))
+
+(defn- make-texture [^GL2 gl ^BufferedImage img]
+  (AWTTextureIO/newTexture (GLProfile/getGL2GL3) img true))
+
+(defn- update-texture [^GL2 gl ^Texture texture ^BufferedImage img]
+  (.updateImage texture gl ^TextureData (AWTTextureIO/newTextureData (GLProfile/getGL2GL3) img true))
+  texture)
+
+(defn- destroy-textures [^GL2 gl textures]
+  (doseq [^Texture texture textures]
+    (.destroy texture gl)))
+
+(gl/register-object-cache! ::texture make-texture update-texture destroy-textures)
+
+(def ^:private cubemap-targets
+  [GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X
+   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_X
+   GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Y
+   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
+   GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Z
+   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Z])
+
+(defn- update-cubemap-texture [^GL2 gl ^Texture texture imgs]
+  (doseq [[img target] (mapv vector imgs cubemap-targets)]
+    (.updateImage texture gl ^TextureData (AWTTextureIO/newTextureData (GLProfile/getGL2GL3) img false) target))
+  texture)
+
+(defn- make-cubemap-texture [^GL2 gl imgs]
+  (let [^Texture texture (TextureIO/newTexture GL/GL_TEXTURE_CUBE_MAP)]
+    (update-cubemap-texture gl texture imgs)))
+
+(gl/register-object-cache! ::cubemap-texture make-cubemap-texture update-cubemap-texture destroy-textures)
