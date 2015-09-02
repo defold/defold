@@ -107,7 +107,7 @@ def default_flags(self):
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
                                       '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
-                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions',
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
                                       '-I%s' % stl,
