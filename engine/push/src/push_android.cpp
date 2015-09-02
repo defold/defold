@@ -334,9 +334,19 @@ static void NotificationToLua(lua_State* L, ScheduledNotification notification)
 int Push_GetScheduled(lua_State* L)
 {
     int get_id = luaL_checkinteger(L, 1);
+    uint64_t cur_time = dmTime::GetTime();
+
     for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
+
+        // filter out and remove notifications that have elapsed
+        if (sn.timestamp <= cur_time)
+        {
+            RemoveNotification(sn.id);
+            i--;
+            continue;
+        }
 
         if (sn.id == get_id)
         {
@@ -349,10 +359,21 @@ int Push_GetScheduled(lua_State* L)
 
 int Push_GetAllScheduled(lua_State* L)
 {
+    uint64_t cur_time = dmTime::GetTime();
+
     lua_createtable(L, 0, 0);
     for (int i = 0; i < g_Push.m_ScheduledNotifications.Size(); ++i)
     {
         ScheduledNotification sn = g_Push.m_ScheduledNotifications[i];
+
+        // filter out and remove notifications that have elapsed
+        if (sn.timestamp <= cur_time)
+        {
+            RemoveNotification(sn.id);
+            i--;
+            continue;
+        }
+
         lua_pushnumber(L, sn.id);
         NotificationToLua(L, sn);
         lua_settable(L, -3);
