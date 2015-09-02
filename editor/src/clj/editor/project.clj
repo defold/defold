@@ -142,9 +142,8 @@ ordinary paths."
 
 (defn- launch-engine [build-path]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
-        ; TODO - fix reflection warnings
-        pb (ProcessBuilder. (into-array String [path]))]
+        path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
+        pb     (ProcessBuilder. ^java.util.List (list path))]
     (.redirectErrorStream pb true)
     (.directory pb (io/file build-path))
     (let [p (.start pb)

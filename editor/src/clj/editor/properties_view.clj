@@ -21,7 +21,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]

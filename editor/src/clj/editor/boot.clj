@@ -46,8 +46,8 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button Control ColorPicker Label ListCell ListView TextField
-            TitledPane TextArea TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button Control ColorPicker Label ListView TextField
+            TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority VBox]
@@ -56,7 +56,8 @@
            [javafx.util Callback]
            [java.io File]
            [java.nio.file Paths]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
+           [com.defold.control ListCell TreeCell]))
 
 (defn- setup-console [^VBox root]
   (let [^TextArea node (.lookup root "#console")]
@@ -226,7 +227,6 @@
                                                        (proxy [ListCell] []
                                                          (updateItem [file empty]
                                                            (let [this ^ListCell this]
-                                                             ; TODO - fix reflection warning
                                                              (proxy-super updateItem file empty)
                                                              (if (or empty (nil? file))
                                                                (proxy-super setText nil)
