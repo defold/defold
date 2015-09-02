@@ -89,7 +89,7 @@
   (output save-data g/Any        :cached produce-save-data)
   (output texture-set-data g/Any :cached produce-texture-set-data)
   (output build-targets g/Any    :cached produce-build-targets)
-  (output gpu-texture g/Any      :cached (g/fnk [texture-set-data] (texture/image-texture (:image texture-set-data))))
+  (output gpu-texture g/Any      :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output anim-data g/Any        :cached produce-anim-data))
 
 (defn- load-tile-source [project self input]
