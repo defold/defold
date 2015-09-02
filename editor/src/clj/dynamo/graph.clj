@@ -759,15 +759,11 @@
 
 (defn- connecting-arcs
   [basis nodes]
-  (let [included?           (set nodes)
-        endpoints-included? (fn [^Arc a]
-                              (and (included? (.source a))
-                                   (included? (.target a))))]
-    (reduce (fn [merged arcs]
-              (into merged (filter endpoints-included? arcs)))
-            #{}
-            [(mapcat #(gt/arcs-by-tail basis %) nodes)
-             (mapcat #(gt/arcs-by-head basis %) nodes)])))
+  (reduce (fn [merged arcs]
+            (into merged (filter (partial ig/arc-endpoints-p (into #{} nodes)) arcs)))
+          #{}
+          [(mapcat #(gt/arcs-by-tail basis %) nodes)
+           (mapcat #(gt/arcs-by-head basis %) nodes)]))
 
 (defn- predecessors
   [basis node-id]
