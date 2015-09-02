@@ -53,13 +53,14 @@
   (defn void main []
     (setq vec3 camToV (normalize (- vWorld cameraPosition)))
     (setq vec3 refl (reflect camToV vNormal))
-      (setq gl_FragColor (textureCube envMap refl))))
+    (setq gl_FragColor (textureCube envMap refl))))
 
-(def cubemap-shader (shader/make-shader pos-norm-vert pos-norm-frag))
+; TODO - macro of this
+(def cubemap-shader (shader/make-shader ::cubemap-shader pos-norm-vert pos-norm-frag))
 
 (defn render-cubemap
   [^GL2 gl camera gpu-texture vertex-binding]
-  (gl/with-enabled gl [gpu-texture cubemap-shader vertex-binding]
+  (gl/with-gl-bindings gl [gpu-texture cubemap-shader vertex-binding]
     (shader/set-uniform cubemap-shader gl "world" geom/Identity4d)
     (shader/set-uniform cubemap-shader gl "cameraPosition" (types/position camera))
     (shader/set-uniform cubemap-shader gl "envMap" 0)
@@ -69,8 +70,8 @@
     (gl/gl-disable gl GL/GL_CULL_FACE)))
 
 (g/defnk produce-gpu-texture
-  [right-img left-img top-img bottom-img front-img back-img]
-  (apply texture/image-cubemap-texture [right-img left-img top-img bottom-img front-img back-img]))
+  [_node-id right-img left-img top-img bottom-img front-img back-img]
+  (apply texture/image-cubemap-texture _node-id [right-img left-img top-img bottom-img front-img back-img]))
 
 (g/defnk produce-save-data [resource right left top bottom front back]
   {:resource resource

@@ -44,13 +44,14 @@
     (setq gl_FragColor (texture2D texture var_texcoord0.xy))
     #_(setq gl_FragColor (vec4 1 1 1 1))))
 
-(def platformer-shader (shader/make-shader pos-uv-vert pos-uv-frag))
+; TODO - macro of this
+(def platformer-shader (shader/make-shader ::platformer-shader pos-uv-vert pos-uv-frag))
 
 (defn render-platformer
   [^GL2 gl base-texture vertex-buffer]
   (let [vcount (count vertex-buffer)
         vertex-binding (vtx/use-with vertex-buffer platformer-shader)]
-    (gl/with-enabled gl [base-texture platformer-shader vertex-binding]
+    (gl/with-gl-bindings gl [base-texture platformer-shader vertex-binding]
       (shader/set-uniform platformer-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
 
@@ -160,12 +161,13 @@
 
   (input base-texture-img BufferedImage)
 
-  (output base-texture-tex g/Any  :cached (g/fnk [base-texture-img] (texture/image-texture
-                                                                     base-texture-img
-                                                                     {:min-filter gl/linear-mipmap-linear
-                                                                      :mag-filter gl/linear
-                                                                      :wrap-s     gl/repeat
-                                                                      :wrap-t     gl/repeat})))
+  (output base-texture-tex g/Any  :cached (g/fnk [_node-id base-texture-img] (texture/image-texture
+                                                                              _node-id
+                                                                              base-texture-img
+                                                                              {:min-filter gl/linear-mipmap-linear
+                                                                               :mag-filter gl/linear
+                                                                               :wrap-s     gl/repeat
+                                                                               :wrap-t     gl/repeat})))
   (output aabb          AABB  :cached (g/fnk [control-points] (reduce (fn [aabb cp] (geom/aabb-incorporate aabb (:x cp) (:y cp) 0)) (geom/null-aabb) control-points)))
   (output save-data     g/Any :cached produce-save-data)
   (output scene         g/Any :cached produce-scene))

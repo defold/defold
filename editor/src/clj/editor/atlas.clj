@@ -56,11 +56,12 @@
   (defn void main []
     (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
 
-(def atlas-shader (shader/make-shader pos-uv-vert pos-uv-frag))
+; TODO - macro of this
+(def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag))
 
 (defn render-texture-set
   [gl vertex-binding gpu-texture]
-  (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
+  (gl/with-gl-bindings gl [gpu-texture atlas-shader vertex-binding]
     (shader/set-uniform atlas-shader gl "texture" 0)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
 
@@ -232,7 +233,7 @@
 
   (output images           [Image]        :cached (g/fnk [animations] (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
   (output aabb             AABB           (g/fnk [texture-set-data] (let [^BufferedImage img (:image texture-set-data)] (types/->AABB (Point3d. 0 0 0) (Point3d. (.getWidth img) (.getHeight img) 0)))))
-  (output gpu-texture      g/Any          :cached (g/fnk [texture-set-data] (texture/image-texture (:image texture-set-data))))
+  (output gpu-texture      g/Any          :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
   (output texture-set-data g/Any          :cached produce-texture-set-data)
   (output anim-data        g/Any          :cached produce-anim-data)
   (output outline          g/Any          :cached (g/fnk [_node-id outline] {:node-id _node-id :label "Atlas" :children outline :icon atlas-icon}))
