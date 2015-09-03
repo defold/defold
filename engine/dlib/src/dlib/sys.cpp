@@ -135,6 +135,38 @@ namespace dmSys
             return NativeToResult(errno);
     }
 
+#if defined(__ANDROID__)
+
+    void SetNetworkConnectivityHost(const char* host) { }
+
+    NetworkConnectivity GetNetworkConnectivity()
+    {
+        ANativeActivity* activity = g_AndroidApp->activity;
+        JNIEnv* env = 0;
+        activity->vm->AttachCurrentThread( &env, 0);
+
+        jclass def_activity_class = env->GetObjectClass(activity->clazz);
+        jmethodID get_connectivity_method = env->GetMethodID(def_activity_class, "getConnectivity", "()I");
+        NetworkConnectivity ret;
+        int reti = (int)env->CallIntMethod(g_AndroidApp->activity->clazz, get_connectivity_method);
+        ret = (NetworkConnectivity)reti;
+
+        activity->vm->DetachCurrentThread();
+
+        return ret;
+    }
+
+#elif !defined(__MACH__) // OS X and iOS implementations in sys_cocoa.mm
+
+    void SetNetworkConnectivityHost(const char* host) { }
+
+    NetworkConnectivity GetNetworkConnectivity()
+    {
+        return NETWORK_CONNECTED;
+    }
+
+#endif
+
 #if defined(__MACH__)
 
 #if !defined(__arm__) && !defined(__arm64__)
@@ -276,28 +308,6 @@ namespace dmSys
         return RESULT_OK;
     }
 
-    void SetNetworkConnectivityHost(const char* host)
-    {
-
-    }
-
-    NetworkConnectivity GetNetworkConnectivity()
-    {
-
-        ANativeActivity* activity = g_AndroidApp->activity;
-        JNIEnv* env = 0;
-        activity->vm->AttachCurrentThread( &env, 0);
-
-        jclass def_activity_class = env->GetObjectClass(activity->clazz);
-        jmethodID get_connectivity_method = env->GetMethodID(def_activity_class, "getConnectivity", "()I");
-        NetworkConnectivity ret;
-        int reti = (int)env->CallIntMethod(g_AndroidApp->activity->clazz, get_connectivity_method);
-        ret = (NetworkConnectivity)reti;
-
-        activity->vm->DetachCurrentThread();
-
-        return ret;
-    }
 
 #elif defined(__EMSCRIPTEN__)
 
