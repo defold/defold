@@ -71,9 +71,10 @@ namespace dmGameObject
             world->m_AnimMap.SetSize(MAX_CAPACITY);
             world->m_AnimMapIndexPool.SetCapacity(MAX_CAPACITY);
             // This is fetched from res_collection.cpp (ResCollectionCreate)
-            const uint32_t instance_count = 1024;
-            world->m_InstanceToIndex.SetCapacity(instance_count/3, instance_count);
-            world->m_ListenerInstanceToIndex.SetCapacity(instance_count/3, instance_count);
+            const int32_t instance_count = params.m_MaxInstances;
+            const uint32_t table_count = dmMath::Max(1, instance_count/3);
+            world->m_InstanceToIndex.SetCapacity(table_count, instance_count);
+            world->m_ListenerInstanceToIndex.SetCapacity(table_count, instance_count);
             world->m_InUpdate = 0;
             return CREATE_RESULT_OK;
         }

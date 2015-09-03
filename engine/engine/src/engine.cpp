@@ -531,6 +531,8 @@ namespace dmEngine
             ++deviceIndex;
         }
 
+        dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
+
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = 1024; // TODO: Should be configurable
