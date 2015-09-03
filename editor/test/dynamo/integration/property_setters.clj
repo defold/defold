@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [dynamo.integration.property-setters :refer :all]
-            [internal.graph.types :as gt]
             [support.test-support :as ts]))
 
 (g/defnode ResourceNode
@@ -14,9 +13,9 @@
 
   (property reference g/Int
             (get (fn [basis this prop]
-                   (ffirst (gt/sources basis (g/node-id this) :source))))
+                   (ffirst (g/basis-sources basis (g/node-id this) :source))))
             (set (fn [basis this prop value]
-                   (gt/connect basis value :contents (g/node-id this) :source))))
+                   (g/basis-connect basis value :contents (g/node-id this) :source))))
 
   (output transformed g/Str (g/fnk [source] (and source (.toUpperCase source))))
   (output upstream    g/Int (g/fnk [reference] reference)))
@@ -28,13 +27,13 @@
                             (g/make-nodes world
                                           [provider [ResourceNode :path "/images/something.png"]
                                            user     ResourceUser])))]
-      (is (= [] (gt/sources (g/now) user :source)))
+      (is (= [] (g/basis-sources (g/now) user :source)))
       (is (instance? Long provider))
 
       (g/set-property! user :reference provider)
 
-      (is (= 1 (count (gt/sources (g/now) user :source))))
-      (is (= [provider :contents] (first (gt/sources (g/now) user :source))))
+      (is (= 1 (count (g/basis-sources (g/now) user :source))))
+      (is (= [provider :contents] (first (g/basis-sources (g/now) user :source))))
 
       (is (= provider (g/node-value user :reference)))
       (is (= provider (get-in (g/node-value user :_properties) [:properties :reference :value])))

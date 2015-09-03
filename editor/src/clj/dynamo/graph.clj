@@ -20,7 +20,7 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id node-by-property sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
@@ -697,6 +697,14 @@
   ([basis node-id label]
    (gt/sources basis node-id label)))
 
+(defn find-node
+  "Looks up nodes with a property that matches the given value. Exact
+  equality is used. At present, this does a linear scan of all
+  nodes. Future enhancements may offer indexing for faster access of
+  some properties."
+  [basis property-label expected-value]
+  (gt/node-by-property basis property-label expected-value))
+
 (defn invalidate!
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as pairs of [node-id label]
@@ -715,6 +723,52 @@
         all-types  (into #{node-ty} supertypes)]
     (all-types type)))
 
+;; ---------------------------------------------------------------------------
+;; Support for property getters & setters
+;; ---------------------------------------------------------------------------
+(defn basis-sources
+  "For use in property get or set clauses.
+
+  Looks up the sources that feed into a node or a node's input.
+
+  `[basis node-id]` - Returns a seq of `[node-id output]` pairs that feed
+  into any input of the given node.
+
+  `[basis node-id input]` - Returns a seq of `[node-id output]` pairs that
+  feed into the specified input of the given node.)"
+  ([basis node-id]       (gt/sources basis node-id))
+  ([basis node-id input] (gt/sources basis node-id input)))
+
+(defn basis-targets
+  "For use in property get or set clauses.
+
+  Looks up the targets that use a node or a node's output.
+
+  `[basis node-id]` - Returns a seq of `[node-id output]` pairs that consume
+   any output of the given node.
+
+  `[basis node-id input]` - Returns a seq of `[node-id output]` pairs that
+   consume the specified output of the given node."
+  ([basis node-id]        (gt/targets basis node-id))
+  ([basis node-id output] (gt/targets basis node-id output)))
+
+(defn basis-connect
+  "For use in property get or set clauses. If you are not writing a
+  get or set clause, you probably want dynamo.graph/connect, which
+  returns a transaction step instead.
+
+  Returns a new basis with the specified connection added."
+  [basis source-node-id source-label target-node-id target-label]
+  (gt/connect basis source-node-id source-label target-node-id target-label))
+
+(defn basis-disconnect
+  "For use in property get or set clauses. If you are not writing a
+  get or set clause, you probably want dynamo.graph/di qsconnect,
+  which returns a transaction step instead.
+
+  Returns a new basis with the specific connection removed."
+  [basis source-node-id source-label target-node-id target-label]
+  (gt/disconnect basis source-node-id source-label target-node-id target-label))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
