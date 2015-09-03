@@ -19,6 +19,7 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
     conf.check_tool('java')
     conf.sub_config('src')
+    conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
 
     conf.env.append_value('CPPPATH', "default/src")
 
