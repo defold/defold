@@ -183,6 +183,8 @@ namespace dmGameObject
 
         // All collections. Protected by m_Mutex
         dmArray<HCollection>        m_Collections;
+        // Default capacity of collections
+        uint32_t                    m_DefaultCollectionCapacity;
 
         Register();
         ~Register();
