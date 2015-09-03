@@ -26,13 +26,17 @@ namespace dmSys
 
     static void ReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void* info)
     {
-        if ((flags & kSCNetworkFlagsReachable) != 0 && (flags & kSCNetworkFlagsConnectionRequired) == 0) {
+        if ((flags & kSCNetworkFlagsReachable) != 0 && (flags & kSCNetworkFlagsConnectionRequired) == 0)
+        {
             g_NetworkConnectivity = NETWORK_CONNECTED;
 
-            if ((flags & kSCNetworkReachabilityFlagsIsWWAN) != 0) {
+            if ((flags & kSCNetworkReachabilityFlagsIsWWAN) != 0)
+            {
                 g_NetworkConnectivity = NETWORK_CONNECTED_CELLULAR;
             }
-        } else {
+        }
+        else
+        {
             g_NetworkConnectivity = NETWORK_DISCONNECTED;
         }
     }
@@ -41,7 +45,8 @@ namespace dmSys
     {
         assert(host != 0);
 
-        if (reachability_ref) {
+        if (reachability_ref)
+        {
             SCNetworkReachabilityUnscheduleFromRunLoop(reachability_ref, [[NSRunLoop currentRunLoop] getCFRunLoop], kCFRunLoopCommonModes);
         }
         reachability_ref = SCNetworkReachabilityCreateWithName(NULL, host);
@@ -53,11 +58,15 @@ namespace dmSys
         }
 
         SCNetworkReachabilityContext context = {0, (void*) 0, NULL, NULL, NULL};
-        if(!SCNetworkReachabilitySetCallback(reachability_ref, dmSys::ReachabilityCallback, &context)) {
+        if(!SCNetworkReachabilitySetCallback(reachability_ref, dmSys::ReachabilityCallback, &context))
+        {
+            dmLogError("Could not set reachability callback.");
             return;
         }
 
-        if(!SCNetworkReachabilityScheduleWithRunLoop(reachability_ref, [[NSRunLoop currentRunLoop] getCFRunLoop], kCFRunLoopCommonModes)) {
+        if(!SCNetworkReachabilityScheduleWithRunLoop(reachability_ref, [[NSRunLoop currentRunLoop] getCFRunLoop], kCFRunLoopCommonModes))
+        {
+            dmLogError("Could not schedule reachability callback.");
             return;
         }
     }
@@ -156,8 +165,10 @@ namespace dmSys
 
     NetworkConnectivity GetNetworkConnectivity()
     {
-        if (reachability_ref == 0) {
-            SetNetworkConnectivityHost("www.google.com");
+        if (!reachability_ref)
+        {
+            dmLogError("No connectivity host set, required on iOS.");
+            return dmSys::NETWORK_DISCONNECTED;
         }
         return g_NetworkConnectivity;
     }
