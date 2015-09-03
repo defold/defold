@@ -11,6 +11,7 @@
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
 #import <AdSupport/AdSupport.h>
+#import <SystemConfiguration/SystemConfiguration.h>
 #else
 #import <AppKit/NSWorkspace.h>
 #import <Foundation/NSLocale.h>
@@ -19,10 +20,52 @@
 namespace dmSys
 {
 #if defined(__arm__) || defined(__arm64__)
+
+    static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
+    static SCNetworkReachabilityRef reachability_ref = 0;
+
+    static void ReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void* info)
+    {
+        if ((flags & kSCNetworkFlagsReachable) != 0 && (flags & kSCNetworkFlagsConnectionRequired) == 0) {
+            g_NetworkConnectivity = NETWORK_CONNECTED;
+
+            if ((flags & kSCNetworkReachabilityFlagsIsWWAN) != 0) {
+                g_NetworkConnectivity = NETWORK_CONNECTED_CELLULAR;
+            }
+        } else {
+            g_NetworkConnectivity = NETWORK_DISCONNECTED;
+        }
+    }
+
+    void SetNetworkConnectivityHost(const char* host)
+    {
+        assert(host != 0);
+
+        if (reachability_ref) {
+            SCNetworkReachabilityUnscheduleFromRunLoop(reachability_ref, [[NSRunLoop currentRunLoop] getCFRunLoop], kCFRunLoopCommonModes);
+        }
+        reachability_ref = SCNetworkReachabilityCreateWithName(NULL, host);
+
+        SCNetworkConnectionFlags flags;
+        if (SCNetworkReachabilityGetFlags(reachability_ref, &flags))
+        {
+            dmSys::ReachabilityCallback(reachability_ref, flags, 0);
+        }
+
+        SCNetworkReachabilityContext context = {0, (void*) 0, NULL, NULL, NULL};
+        if(!SCNetworkReachabilitySetCallback(reachability_ref, dmSys::ReachabilityCallback, &context)) {
+            return;
+        }
+
+        if(!SCNetworkReachabilityScheduleWithRunLoop(reachability_ref, [[NSRunLoop currentRunLoop] getCFRunLoop], kCFRunLoopCommonModes)) {
+            return;
+        }
+    }
+
     // Only on iOS for now. No autorelease pool etc setup on OSX in dlib
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-    	assert(path_len > 0);
+        assert(path_len > 0);
         NSFileManager* shared_fm = [NSFileManager defaultManager];
         NSArray* urls = [shared_fm URLsForDirectory:NSApplicationSupportDirectory
                                           inDomains:NSUserDomainMask];
@@ -54,7 +97,7 @@ namespace dmSys
         }
         else
         {
-        	dmLogError("Unable to locate NSApplicationSupportDirectory");
+            dmLogError("Unable to locate NSApplicationSupportDirectory");
             return RESULT_UNKNOWN;
         }
     }
@@ -111,6 +154,14 @@ namespace dmSys
         dmStrlCpy(info->m_DeviceLanguage, [device_language UTF8String], sizeof(info->m_DeviceLanguage));
     }
 
+    NetworkConnectivity GetNetworkConnectivity()
+    {
+        if (reachability_ref == 0) {
+            SetNetworkConnectivityHost("www.google.com");
+        }
+        return g_NetworkConnectivity;
+    }
+
 #else
 
     void GetSystemInfo(SystemInfo* info)
@@ -155,6 +206,15 @@ namespace dmSys
         }
     }
 
+    void SetNetworkConnectivityHost(const char* host)
+    {
+
+    }
+
+    NetworkConnectivity GetNetworkConnectivity()
+    {
+        return NETWORK_CONNECTED;
+    }
+
 #endif
 }
-

@@ -5,6 +5,8 @@ import android.app.NativeActivity;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.view.KeyEvent;
@@ -14,6 +16,16 @@ import com.google.android.gms.ads.identifier.AdvertisingIdClient;
 import com.google.android.gms.common.*;
 
 public class DefoldActivity extends NativeActivity {
+
+    // Must match values from sys.h
+    private enum NetworkConnectivity {
+        NETWORK_DISCONNECTED       (0),
+        NETWORK_CONNECTED          (1),
+        NETWORK_CONNECTED_CELLULAR (2);
+        private final int value;
+        private NetworkConnectivity(int value) { this.value = value; };
+        public int getValue() { return this.value; };
+    }
 
     private InputMethodManager imm = null;
 
@@ -103,6 +115,23 @@ public class DefoldActivity extends NativeActivity {
         {
             return m_GotAdInfo;
         }
+    }
+
+    public int getConnectivity() {
+
+        ConnectivityManager connectivity_manager = (ConnectivityManager)DefoldActivity.this.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo active_network = connectivity_manager.getActiveNetworkInfo();
+
+        if (active_network != null) {
+            if (active_network.isConnected()) {
+                if (ConnectivityManager.TYPE_MOBILE == active_network.getType()) {
+                    return NetworkConnectivity.NETWORK_CONNECTED_CELLULAR.getValue();
+                }
+                return NetworkConnectivity.NETWORK_CONNECTED.getValue();
+            }
+        }
+
+        return NetworkConnectivity.NETWORK_DISCONNECTED.getValue();
     }
 
     /**
