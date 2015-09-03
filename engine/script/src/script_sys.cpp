@@ -434,6 +434,43 @@ namespace dmScript
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# set host to check for network connectivity against
+     * @examples
+     * <pre>
+     *  sys.set_connectivity_host("www.google.com")
+     * </pre>
+     * @name sys.set_connectivity_host
+     * @param host hostname to check against
+     */
+    static int Sys_SetConnectivityHost(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmSys::SetNetworkConnectivityHost( luaL_checkstring(L, 1) );
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# get current network connectivity status
+     * @examples
+     * <p>
+     * Check if we are connected through a cellular connection
+     * </p>
+     * <pre>
+     *  if (sys.NETWORK_CONNECTED_CELLULAR == sys.get_connectivity()) then
+     *      print("Connected via cellular, avoid downloading big files!")
+     *  end
+     * </pre>
+     * @name sys.get_connectivity
+     * @return sys.NETWORK_DISCONNECTED if no network connection is found, sys.NETWORK_CONNECTED_CELLULAR if connected through mobile cellular, otherwise sys.NETWORK_CONNECTED
+     */
+    static int Sys_GetConnectivity(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        lua_pushnumber(L, dmSys::GetNetworkConnectivity());
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -449,6 +486,8 @@ namespace dmScript
         {"get_sys_info", Sys_GetSysInfo},
         {"get_ifaddrs", Sys_GetIfaddrs},
         {"set_error_handler", Sys_SetErrorHandler},
+        {"set_connectivity_host", Sys_SetConnectivityHost},
+        {"get_connectivity", Sys_GetConnectivity},
         {0, 0}
     };
 
@@ -458,6 +497,17 @@ namespace dmScript
 
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         luaL_register(L, LIB_NAME, ScriptSys_methods);
+
+#define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); \
+        lua_setfield(L, -2, #name);\
+
+        SETCONSTANT(NETWORK_CONNECTED, dmSys::NETWORK_CONNECTED);
+        SETCONSTANT(NETWORK_CONNECTED_CELLULAR, dmSys::NETWORK_CONNECTED_CELLULAR);
+        SETCONSTANT(NETWORK_DISCONNECTED, dmSys::NETWORK_DISCONNECTED);
+
+#undef SETCONSTANT
+
         lua_pop(L, 2);
 
         assert(top == lua_gettop(L));
