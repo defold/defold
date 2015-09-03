@@ -28,7 +28,7 @@ protected:
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
 
         dmResource::Result e;
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0);
@@ -60,7 +60,7 @@ protected:
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
     }
-    
+
     // dmResource::Get API but with preloader instead
     dmResource::Result PreloaderGet(dmResource::HFactory factory, const char *ref, void** resource)
     {
@@ -286,14 +286,14 @@ TEST_F(CollectionTest, CollectionFail)
     {
         // NOTE: Coll is local and not collection in CollectionTest
         dmGameObject::HCollection coll;
-        dmResource::Result r; 
+        dmResource::Result r;
 
         // Test both with normal loading and preloading
         if (i < 10)
             r = dmResource::Get(m_Factory, "/failing_sub.collectionc", (void**) &coll);
         else
             r = PreloaderGet(m_Factory, "/failing_sub.collectionc", (void**) &coll);
-            
+
         ASSERT_NE(dmResource::RESULT_OK, r);
         dmGameObject::PostUpdate(m_Register);
     }
@@ -327,12 +327,12 @@ TEST_F(CollectionTest, CollectionInCollection)
         // NOTE: Coll is local and not collection in CollectionTest
         dmGameObject::HCollection coll;
         dmResource::Result r;
-        
+
         if (i < 10)
             r = dmResource::Get(m_Factory, "/root1.collectionc", (void**) &coll);
         else
             r = PreloaderGet(m_Factory, "/root1.collectionc", (void**) &coll);
-        
+
         ASSERT_EQ(dmResource::RESULT_OK, r);
         ASSERT_NE((void*) 0, coll);
 
@@ -425,6 +425,51 @@ TEST_F(CollectionTest, DefaultValues)
 
     dmGameObject::PostUpdate(m_Register);
 }
+
+TEST_F(CollectionTest, CollectionCapacity)
+{
+    for (int i = 0; i < 2; ++i)
+    {
+        dmGameObject::HCollection coll;
+        dmResource::Result r;
+        if (i < 1)
+            r = dmResource::Get(m_Factory, "/test.collectionc", (void**) &coll);
+        else
+            r = PreloaderGet(m_Factory, "/test.collectionc", (void**) &coll);
+        ASSERT_EQ(dmResource::RESULT_OK, r);
+        ASSERT_NE((void*) 0, coll);
+
+        dmhash_t go01ident = dmHashString64("/go1");
+        dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
+        ASSERT_NE((void*) 0, go01);
+        dmhash_t go02ident = dmHashString64("/go2");
+        dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
+        ASSERT_NE((void*) 0, go02);
+
+        dmGameObject::Init(coll);
+        dmGameObject::Update(coll, &m_UpdateContext);
+        ASSERT_NE(go01, go02);
+
+        dmResource::Release(m_Factory, (void*) coll);
+        dmGameObject::PostUpdate(m_Register);
+    }
+
+    dmGameObject::SetCollectionDefaultCapacity(m_Register, 1);
+    for (int i = 0; i < 2; ++i)
+    {
+        dmGameObject::HCollection coll;
+        dmResource::Result r;
+        if (i < 1)
+            r = dmResource::Get(m_Factory, "/test.collectionc", (void**) &coll);
+        else
+            r = PreloaderGet(m_Factory, "/test.collectionc", (void**) &coll);
+        ASSERT_NE(dmResource::RESULT_OK, r);
+        ASSERT_EQ((void*) 0, coll);
+
+        dmGameObject::PostUpdate(m_Register);
+    }
+}
+
 
 TEST_F(CollectionTest, CreateCallback)
 {
