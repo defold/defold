@@ -671,10 +671,10 @@ return value."
   (let [existing-handler (on-close-request closeable)]
     (on-close-request!
      closeable
-     (event-handler this
-                    (timer-stop! timer)
-                    (when existing-handler
-                      (.handle ^EventHandler existing-handler this))))))
+     (fn [event]
+       (timer-stop! timer)
+       (when existing-handler
+         (.handle ^EventHandler existing-handler event))))))
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
