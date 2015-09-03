@@ -33,7 +33,7 @@
      {}
      all-arcs-filtered)))
 
-() (defn empty-graph
+(defn empty-graph
      []
      {:nodes      {}
       :sarcs      {}
