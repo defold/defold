@@ -97,7 +97,7 @@ namespace dmGameObject
         }
 
         dmTransform::Transform m_Transform;
-        
+
         // Shadowed rotation expressed in euler coordinates
         Vector3 m_EulerRotation;
         // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
@@ -148,7 +148,7 @@ namespace dmGameObject
         //             A theory was that the bug has something todo with bitfields.
         //             This dummy float breaks up the bitfield in smaller continous parts (<64bits?)...
         //             Remove when mozilla has fixed this properly...
-        //			   The bug is tracked as http://llvm.org/bugs/show_bug.cgi?id=19800
+        //             The bug is tracked as http://llvm.org/bugs/show_bug.cgi?id=19800
         float m_llvm_pad;
 #endif
 
@@ -183,6 +183,8 @@ namespace dmGameObject
 
         // All collections. Protected by m_Mutex
         dmArray<HCollection>        m_Collections;
+        // Default capacity of collections
+        uint32_t                    m_DefaultCollectionCapacity;
 
         Register();
         ~Register();
@@ -215,6 +217,7 @@ namespace dmGameObject
             m_InUpdate = 0;
             m_ToBeDeleted = 0;
             m_ScaleAlongZ = 0;
+            m_DirtyTransforms = 1;
 
             m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
             m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
@@ -296,11 +299,13 @@ namespace dmGameObject
         uint32_t                 m_ToBeDeleted : 1;
         // If the game object dynamically created in this collection should have the Z component of the position affected by scale
         uint32_t                 m_ScaleAlongZ : 1;
+        uint32_t                 m_DirtyTransforms : 1;
     };
 
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
 
     HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name);
+    void ReleaseIdentifier(HCollection collection, HInstance instance);
     void UndoNewInstance(HCollection collection, HInstance instance);
     bool CreateComponents(HCollection collection, HInstance instance);
     void UpdateTransforms(HCollection collection);

@@ -178,7 +178,7 @@ static void computeIconifiedState()
     //
     // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
     // Iconified unless opened, active and resumed (not paused)
-    _glfwWin.iconified = !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused);
+    _glfwWin.iconified = !(_glfwWin.opened && _glfwWin.active && !_glfwWin.paused && _glfwWin.hasSurface);
 }
 
 static void handleCommand(struct android_app* app, int32_t cmd) {
@@ -191,6 +191,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         if (_glfwWin.opened)
         {
             create_gl_surface(&_glfwWin);
+            _glfwWin.hasSurface = 1;
         }
         _glfwWin.opened = 1;
         computeIconifiedState();
@@ -206,6 +207,8 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             g_appLaunchInterrupted = 1;
         }
         destroy_gl_surface(&_glfwWin);
+        _glfwWin.hasSurface = 0;
+        computeIconifiedState();
         break;
     case APP_CMD_GAINED_FOCUS:
         _glfwWin.active = 1;
@@ -243,6 +246,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
         final_gl(&_glfwWin);
+        computeIconifiedState();
         break;
     }
 }
@@ -468,8 +472,11 @@ void _glfwPreMain(struct android_app* state)
     state->onInputEvent = handleInput;
 
     _glfwWin.opened = 0;
+    _glfwWin.hasSurface = 0;
+
     // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
-    while (_glfwWin.opened == 0)
+    int java_startup_complete = 0;
+    while (_glfwWin.opened == 0 || !java_startup_complete)
     {
         int ident;
         int events;
@@ -481,6 +488,18 @@ void _glfwPreMain(struct android_app* state)
             if (source != NULL) {
                 source->process(state, source);
             }
+        }
+
+        if (!java_startup_complete)
+        {
+            // Defold activity has isStartupDone which reports if good or not to start engine.
+            JNIEnv* env = g_AndroidApp->activity->env;
+            JavaVM* vm = g_AndroidApp->activity->vm;
+            (*vm)->AttachCurrentThread(vm, &env, NULL);
+            jclass def_activity_class = (*env)->GetObjectClass(env, g_AndroidApp->activity->clazz);
+            jmethodID is_startup_complete = (*env)->GetMethodID(env, def_activity_class, "isStartupDone", "()Z");
+            java_startup_complete = (*env)->CallBooleanMethod(env, g_AndroidApp->activity->clazz, is_startup_complete);
+            (*vm)->DetachCurrentThread(vm);
         }
     }
 
@@ -541,7 +560,7 @@ int _glfwPlatformInit( void )
     _glfwWin.context = EGL_NO_CONTEXT;
     _glfwWin.surface = EGL_NO_SURFACE;
     _glfwWin.iconified = 1;
-    _glfwWin.paused = 1;
+    _glfwWin.paused = 0;
     _glfwWin.app = g_AndroidApp;
 
     int result = pipe(_glfwWin.m_Pipefd);

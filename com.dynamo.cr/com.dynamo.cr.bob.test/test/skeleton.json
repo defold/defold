@@ -10,6 +10,15 @@
 	{ "name": "bone_animated_child_2", "parent": "bone_animated_child" },
 	{ "name": "bone_noscale_child_2", "parent": "bone_noscale_child" }
 ],
+"ik": [
+    {
+        "name": "constraint_test",
+        "bones": [ "bone_animated", "bone_animated_child" ],
+        "target": "bone_animated_child_2",
+        "bendPositive": false,
+        "mix": 0.5
+    }
+],
 "slots": [
 	{ "name": "slot_skin", "bone": "root", "attachment": "ph_root" },
 	{ "name": "slot_root_region", "bone": "root", "attachment": "test_sprite" },

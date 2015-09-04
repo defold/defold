@@ -42,13 +42,13 @@ namespace dmScript
      * @examples
      * <p>
      * Basic HTTP-GET request. The callback receives a table with the response
-     * in the fields status, payload (the data) and headers (a table).
+     * in the fields status, the response (the data) and headers (a table).
      * </p>
      * <pre>
      * local function http_result(self, id, response)
      *     print(response.status)
-     *     print(response.payload)
-     *     print(response.headers)
+     *     print(response.response)
+     *     pprint(response.headers)
      * end
      * function example(self)
      *     http.request("http://www.google.com", "GET", http_result)
@@ -82,15 +82,20 @@ namespace dmScript
                 while (lua_next(L, -2)) {
                     const char* attr = lua_tostring(L, -2);
                     const char* val = lua_tostring(L, -1);
-                    uint32_t left = h.Capacity() - h.Size();
-                    uint32_t required = strlen(attr) + strlen(val) + 2;
-                    if (left < required) {
-                        h.OffsetCapacity(dmMath::Max(required, 1024U));
+                    if (attr && val) {
+                        uint32_t left = h.Capacity() - h.Size();
+                        uint32_t required = strlen(attr) + strlen(val) + 2;
+                        if (left < required) {
+                            h.OffsetCapacity(dmMath::Max(required, 1024U));
+                        }
+                        h.PushArray(attr, strlen(attr));
+                        h.Push(':');
+                        h.PushArray(val, strlen(val));
+                        h.Push('\n');
+                    } else {
+                        // luaL_error would be nice but that would evade call to 'h' destructor
+                        dmLogWarning("Ignoring non-string data passed as http request header data");
                     }
-                    h.PushArray(attr, strlen(attr));
-                    h.Push(':');
-                    h.PushArray(val, strlen(val));
-                    h.Push('\n');
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);

@@ -15,8 +15,8 @@ def build(bld):
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
-    additional_libs = []
-    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav']
+    additional_libs = ['CRASH']
+    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
     if 'js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
@@ -28,7 +28,9 @@ def build(bld):
 
     mobile_service_symbols = ['IAPExt', 'PushExt', 'AdTruthExt']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
-        additional_libs.append('FACEBOOK')
+        additional_libs.append('FBSDKCORE')
+        additional_libs.append('FBSDKLOGIN')
+        additional_libs.append('FBSDKSHARE')
         additional_libs.append('SQLLITE')
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
@@ -48,8 +50,8 @@ def build(bld):
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
-    activities=[('com.facebook.LoginActivity', ''), ('com.defold.iap.IapActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar"')]
-    extra_packages = 'com.facebook.android:com.google.android.gms'
+    activities=[('com.facebook.FacebookActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar" android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation" android:label="dmengine"'), ('com.defold.iap.IapActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar"')]
+    extra_packages = 'com.facebook:com.google.android.gms'
 
     android_jar_paths = ['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
               '%s/ext/share/java/google-play-services.jar' % (dynamo_home),
@@ -64,10 +66,10 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s X %s' % (sound_lib, additional_libs),
+        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
-        includes = '../build ../proto .',
+        includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',
         proto_gen_py = True,
@@ -85,10 +87,10 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s X %s' % (sound_lib, additional_libs),
+        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI TRACKING CRASH %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
-        includes = '../build ../proto .',
+        includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX DM_RELEASE=1',
         proto_gen_py = True,
@@ -107,9 +109,9 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB DMGLFW X',
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE GUI TRACKING CRASH SOUND_NULL DLIB DMGLFW X',
         uselib_local = 'engine',
-        includes = '../build ../proto .',
+        includes = '../build ../proto . ..',
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_headless',

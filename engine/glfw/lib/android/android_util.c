@@ -233,6 +233,7 @@ void create_gl_surface(_GLFWwin* win)
         }
 
         win->surface = surface;
+        win->hasSurface = 1;
 
         win->width = w;
         win->height = h;

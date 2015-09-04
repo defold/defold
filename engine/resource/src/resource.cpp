@@ -613,7 +613,6 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
         return RESULT_OUT_OF_RESOURCES;
     }
 
-
     const char* ext = strrchr(name, '.');
     if (ext)
     {
@@ -667,9 +666,17 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
 
         if (create_error == RESULT_OK)
         {
-            InsertResource(factory, name, canonical_path_hash, &tmp_resource);
-            *resource = tmp_resource.m_Resource;
-            return RESULT_OK;
+            Result insert_error = InsertResource(factory, name, canonical_path_hash, &tmp_resource);
+            if (insert_error == RESULT_OK)
+            {
+                *resource = tmp_resource.m_Resource;
+                return RESULT_OK;
+            }
+            else
+            {
+                resource_type->m_DestroyFunction(factory, resource_type->m_Context, &tmp_resource);
+                return insert_error;
+            }
         }
         else
         {
@@ -743,6 +750,7 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
 {
     if (factory->m_Resources->Full())
     {
+        dmLogError("The max number of resources (%d) has been passed, tweak \"%s\" in the config file.", factory->m_Resources->Capacity(), MAX_RESOURCES_KEY);
         return RESULT_OUT_OF_RESOURCES;
     }
 

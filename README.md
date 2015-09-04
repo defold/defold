@@ -156,8 +156,7 @@ Note: When running the editor and building a Defold project you must first go to
         $ sudo apt-get install -f
 
 ### Troubleshooting
-If you run the editor and get the following error while launching:
-
+#### If you run the editor and get the following error while launching:
 ```
 1) Error injecting constructor, java.net.SocketException: Can't assign requested address
   at com.dynamo.upnp.SSDP.<init>(SSDP.java:62)
@@ -184,18 +183,27 @@ Caused by: java.net.SocketException: Can't assign requested address
 ```
 
 And the editor starts with:
-
 ```
 Plug-in com.dynamo.cr.target was unable to load class com.dynamo.cr.target.TargetContributionFactory.
 An error occurred while automatically activating bundle com.dynamo.cr.target (23).
 ```
 
 Then add the following to the VM args in your Run Configuration:
-
 ```
 -Djava.net.preferIPv4Stack=true
 ```
 
+#### When running `test_cr` on OS X and you get errors like:
+```
+...
+com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
+[ERROR] return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
+[ERROR] ^^^^
+[ERROR] The method getX() is undefined for the type Point3d
+...
+```
+
+This means that the wrong `vecmath.jar` library is used and you probably have a copy located in `/System/Library/Java/Extensions` or `/System/Library/Java/Extensions`. Move `vecmath.jar` somewhere else while running `test_cr`.
 
 Licenses
 --------

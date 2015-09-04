@@ -7,6 +7,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/configfile.h>
+#include <dlib/json.h>
 #include <resource/resource.h>
 #include <ddf/ddf.h>
 
@@ -100,7 +101,13 @@ namespace dmScript
      * Register the script libraries into the supplied script context.
      * @param context script context
      */
-    void Initialize(HContext m_Context);
+    void Initialize(HContext context);
+
+    /**
+     * Updates the extensions initalized in this script context.
+     * @param context script contetx
+     */
+    void UpdateExtensions(HContext context);
 
     /**
      * Finalize script libraries
@@ -127,8 +134,16 @@ namespace dmScript
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data);
 
-    void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
+    /**
+     * Push DDF message to Lua stack
+     * @param L Lua state
+     * @param descriptor Field descriptor
+     * @param pointers_are_offets if pointers are offsets
+     * @param data DDF data
+     */
+    void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
+    void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
     /**
      * Serialize a table to a buffer
@@ -188,11 +203,11 @@ namespace dmScript
     void PushVector(lua_State* L, dmVMath::FloatVector* v);
 
     /**
-	 * Check if the value in the supplied index on the lua stack is a Vector.
-	 * @param L Lua state
-	 * @param index Index of the value
-	 * @return The FloatVector value
-	 */
+     * Check if the value in the supplied index on the lua stack is a Vector.
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The FloatVector value
+     */
     dmVMath::FloatVector* CheckVector(lua_State* L, int index);
 
     /**
@@ -445,6 +460,15 @@ namespace dmScript
      * Wraps luaL_loadbuffer but takes dmLuaDDF::LuaSource instead of buffer directly.
      */
     int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source);
+
+    /**
+     * Convert a JSON document to Lua table.
+     * @param L lua state
+     * @param doc JSON document
+     * @param index index of JSON node
+     * @return index of next JSON node to handle
+     */
+    int JsonToLua(lua_State*L, dmJson::Document* doc, int index);
 }
 
 #endif // DM_SCRIPT_H

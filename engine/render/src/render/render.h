@@ -111,6 +111,7 @@ namespace dmRender
     {
         RenderObject();
         void Init();
+        void ClearConstants();
 
         static const uint32_t MAX_TEXTURE_COUNT = 32;
         static const uint32_t MAX_CONSTANT_COUNT = 4;
@@ -163,6 +164,7 @@ namespace dmRender
     };
 
     typedef uint8_t HRenderListDispatch;
+    static const uint8_t RENDERLIST_INVALID_DISPATCH = 0xff;
 
     struct RenderListEntry
     {

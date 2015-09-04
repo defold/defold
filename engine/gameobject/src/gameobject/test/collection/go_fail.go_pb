@@ -1,0 +1,4 @@
+components {
+  id: "fail"
+  component: "/a.a"
+}

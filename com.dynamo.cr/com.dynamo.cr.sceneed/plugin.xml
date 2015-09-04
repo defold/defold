@@ -92,6 +92,10 @@
             id="com.dynamo.cr.sceneed.ui.commands.showGrid"
             name="Grid">
       </command>
+      <command
+            id="com.dynamo.cr.sceneed.ui.commands.addQuaternary"
+            name="Add">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">

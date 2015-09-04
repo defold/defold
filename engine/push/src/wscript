@@ -6,6 +6,7 @@ def configure(conf):
 
 def build(bld):
     embed_source = ''
+
     source = []
 
     if re.match('arm.*?darwin', bld.env.PLATFORM):
@@ -38,4 +39,16 @@ def build(bld):
                             includes = '.',
                             source = source,
                             target = 'pushext')
+
+    bld.new_task_gen(source = 'push_ios.mm',
+                     target = 'push_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+
+    bld.new_task_gen(source = 'push_ios.mm',
+                     target = 'push_doc.json',
+                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'push_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'push_doc.json')
 
