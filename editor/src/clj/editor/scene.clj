@@ -40,7 +40,8 @@
            [java.nio IntBuffer ByteBuffer ByteOrder]
            [javax.media.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [javax.media.opengl.glu GLU]
-           [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]))
+           [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
+           [sun.awt.image IntegerComponentRaster]))
 
 (set! *warn-on-reflection* true)
 
@@ -69,7 +70,7 @@
         gl (.getGL glc)
         psm (GLPixelStorageModes.)]
    (.setPackAlignment psm gl 1)
-   (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage (.getRaster image))))
+   (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
    (.restore psm gl)
    image))
 
