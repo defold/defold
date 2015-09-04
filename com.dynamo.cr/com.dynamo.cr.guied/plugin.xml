@@ -16,6 +16,9 @@
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.pieNode">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.templateNode">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.guied.core.nodes.pieNode"
@@ -29,6 +32,9 @@
          </reference-node-type>
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.textNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.templateNode">
          </reference-node-type>
       </node-type>
       <node-type
@@ -50,6 +56,25 @@
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.textNode">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.templateNode">
+         </reference-node-type>
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.guied.core.nodes.templateNode"
+            node="com.dynamo.cr.guied.core.TemplateNode">
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.boxNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.textNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.pieNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.templateNode">
+         </reference-node-type>
       </node-type>
       <node-type
             display-group="Gui"
@@ -63,6 +88,9 @@
          </reference-node-type>
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.textNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.templateNode">
          </reference-node-type>
       </node-type>
       <node-type
@@ -162,6 +190,25 @@
                   </reference>
                </or>
             </visibleWhen>
+         </command>
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.addQuaternary"
+               label="Add Template"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
          </command>         <command
                commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference"
                label="Add Texture"
@@ -245,6 +292,11 @@
             <command
                   commandId="com.dynamo.cr.sceneed.ui.commands.addTertiary"
                   label="Add Pie Node"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addQuaternary"
+                  label="Add Template Node"
                   style="push">
             </command>
             <command
@@ -437,6 +489,32 @@
             </count>
          </with>
       </definition>
+      <definition
+            id="com.dynamo.cr.guied.core.definitions.templateChildNodeSelected">
+         <with
+               variable="selection">
+            <test
+                  property="com.dynamo.cr.guied.selection.isTemplateNodeChild">
+            </test>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+         <with
+               variable="selection">
+            <or>
+               <iterate
+                     operator="or">
+                  <instanceof
+                        value="com.dynamo.cr.guied.core.TemplateNode">
+                  </instanceof>
+               </iterate>
+               <test
+                     property="com.dynamo.cr.guied.selection.isTemplateNodeChild">
+               </test>
+            </or>
+         </with>
+      </definition>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -459,6 +537,11 @@
                         definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+                  </reference>
+               </not>
             </and>
          </activeWhen>
       </handler>
@@ -481,6 +564,11 @@
                         definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+                  </reference>
+               </not>
             </and>
          </activeWhen>
       </handler>
@@ -503,6 +591,38 @@
                         definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+                  </reference>
+               </not>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.AddTemplateNodeHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addQuaternary">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
+                  </reference>
+               </or>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+                  </reference>
+               </not>
             </and>
          </activeWhen>
       </handler>
@@ -667,6 +787,11 @@
                            definitionId="com.dynamo.cr.guied.core.definitions.layoutsNodeSelected">
                      </reference>
                   </not>
+                  <not>
+                     <reference
+                           definitionId="com.dynamo.cr.guied.core.definitions.templateChildNodeSelected">
+                     </reference>
+                  </not>
                </and>
             </with>
          </enabledWhen>
@@ -695,6 +820,11 @@
                   <reference
                         definitionId="com.dynamo.cr.guied.core.definitions.layoutNodeSelected">
                   </reference></not>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateChildNodeSelected">
+                  </reference>
+               </not>
             </and>
          </enabledWhen>
       </handler>
@@ -723,6 +853,11 @@
                         definitionId="com.dynamo.cr.guied.core.definitions.layoutNodeSelected">
                   </reference>
                </not>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateChildNodeSelected">
+                  </reference>
+               </not>
             </and>
          </enabledWhen>
       </handler>
@@ -749,6 +884,11 @@
                <not>
                   <reference
                         definitionId="com.dynamo.cr.guied.core.definitions.layoutNodeSelected">
+                  </reference>
+               </not>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateChildNodeSelected">
                   </reference>
                </not>
             </and>
@@ -802,7 +942,7 @@
             name="Gui"
             proto-message-class="com.dynamo.gui.proto.Gui$SceneDesc"
             resource-refactor-participant-class="com.dynamo.cr.guied.refactoring.GuiSceneRefactorParticipant"
-            template-data="script: &apos;&apos;"
+            template-data="script: &apos;&apos; adjust_reference: ADJUST_REFERENCE_PARENT"
             type-class="component">
          <references>
             <reference-type-class
@@ -814,6 +954,9 @@
             <reference-type-class
                   type-class="gui_script">
             </reference-type-class>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.guied.resourcetypes.gui">
+            </reference-resource-type>
          </references>
       </resource-type>
    </extension>
@@ -824,6 +967,13 @@
             id="com.dynamo.cr.guied.propertyTesters.selection"
             namespace="com.dynamo.cr.guied.selection"
             properties="defaultlayout"
+            type="org.eclipse.jface.viewers.IStructuredSelection">
+      </propertyTester>
+      <propertyTester
+            class="com.dynamo.cr.guied.core.propertytesters.GuiSelectionPropertyTester"
+            id="com.dynamo.cr.guied.propertyTesters.selection"
+            namespace="com.dynamo.cr.guied.selection"
+            properties="isTemplateNodeChild"
             type="org.eclipse.jface.viewers.IStructuredSelection">
       </propertyTester>
    </extension>

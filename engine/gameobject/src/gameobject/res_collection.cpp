@@ -54,9 +54,8 @@ namespace dmGameObject
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmMutex::Lock(regist->m_Mutex);
 
-        // TODO: How to configure 1024. In collection?
-        // The size is also used in comp_anim.cpp (AnimWorld::m_InstanceToIndex)
-        HCollection collection = NewCollection(collection_desc->m_Name, factory, regist, 1024);
+        uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
+        HCollection collection = NewCollection(collection_desc->m_Name, factory, regist, collection_capacity);
         if (collection == 0)
         {
             dmMutex::Unlock(regist->m_Mutex);
@@ -65,6 +64,7 @@ namespace dmGameObject
         }
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
 
+        uint32_t created_instances = 0;
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
@@ -107,17 +107,19 @@ namespace dmGameObject
                 {
                     dmLogError("Unable to set identifier %s. Name clash?", instance_desc.m_Id);
                 }
+
+                created_instances++;
             }
             else
             {
                 dmLogError("Could not instantiate game object from prototype %s.", instance_desc.m_Prototype);
                 res = dmResource::RESULT_FORMAT_ERROR; // TODO: Could be out-of-resources as well..
-                goto bail;
+                break;
             }
         }
 
         // Setup hierarchy
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        for (uint32_t i = 0; i < created_instances; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
@@ -145,7 +147,7 @@ namespace dmGameObject
         dmGameObject::UpdateTransforms(collection);
 
         // Create components and set properties
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        for (uint32_t i = 0; i < created_instances; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
@@ -200,6 +202,7 @@ namespace dmGameObject
                         ++component_instance_data_index;
                 }
             } else {
+                dmGameObject::ReleaseIdentifier(collection, instance);
                 dmGameObject::UndoNewInstance(collection, instance);
                 res = dmResource::RESULT_FORMAT_ERROR;
             }

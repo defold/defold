@@ -45,6 +45,16 @@ namespace dmSys
     };
 
     /**
+     * Network connectivity
+     */
+    enum NetworkConnectivity
+    {
+        NETWORK_DISCONNECTED       = 0,
+        NETWORK_CONNECTED          = 1,
+        NETWORK_CONNECTED_CELLULAR = 2
+    };
+
+    /**
      * System information
      */
     struct SystemInfo
@@ -177,6 +187,19 @@ namespace dmSys
      * @return RESULT_OK on success
      */
     Result OpenURL(const char* url);
+
+
+    /**
+     * Set host to check for connectivity against.
+     * @param host host to check against
+     */
+    void SetNetworkConnectivityHost(const char* host);
+
+    /**
+     * Get current network connectivity status
+     * @return NETWORK_DISCONNECTED if no network connection is found, NETWORK_CONNECTED_CELLULAR if the only network connection is through mobile cellular, otherwise NETWORK_CONNECTED.
+     */
+    NetworkConnectivity GetNetworkConnectivity();
 
     /**
      * Causes message events to be dispatched, on platforms that require it (currently only node/headless)

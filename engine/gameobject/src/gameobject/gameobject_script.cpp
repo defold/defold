@@ -616,12 +616,12 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the 3d scale factor of the instance
+    /*# gets the 3D scale factor of the instance
      * The scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
      *
      * @name go.get_scale_vector
      * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
-     * @return scale factor (vector)
+     * @return scale factor (vector3)
      * @examples
      * <p>Get the scale of the instance the script is attached to:</p>
      * <pre>
@@ -691,23 +691,23 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# sets the uniform scale factor of the instance
+    /*# sets the scale factor of the instance
      * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
      *
      * NOTE! Physics are currently not affected when setting scale from this function.
      *
      * @name go.set_scale
-     * @param scale vector or uniform scale factor, must be greater than 0 (number)
+     * @param scale vector or uniform scale factor, must be greater than 0 (number|vector3)
      * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
      * @examples
      * <p>Set the scale of the instance the script is attached to:</p>
      * <pre>
-     * local s = ...
+     * local s = vmath.vector3(2.0, 1.0, 1.0)
      * go.set_scale(s)
      * </pre>
      * <p>Set the scale of another instance "x":</p>
      * <pre>
-     * local s = ...
+     * local s = 1.2
      * go.set_scale(s, "x")
      * </pre>
      */
@@ -1175,6 +1175,10 @@ namespace dmGameObject
             dmLogWarning("go.delete() invoked with nil and self will be deleted");
         }
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
+        if(dmGameObject::IsBone(instance))
+        {
+            return luaL_error(L, "Can not delete subinstances of spine components. '%s'", (const char*)dmHashReverse64(dmGameObject::GetIdentifier(instance), 0x0));
+        }
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance);
         return 0;
@@ -1232,6 +1236,10 @@ namespace dmGameObject
             Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
             if (todelete)
             {
+                if(dmGameObject::IsBone(todelete))
+                {
+                    return luaL_error(L, "Can not delete subinstances of spine components. '%s'", (const char*)dmHashReverse64(dmGameObject::GetIdentifier(todelete), 0x0));
+                }
                 dmGameObject::HCollection collection = todelete->m_Collection;
                 dmGameObject::Delete(collection, todelete);
             }

@@ -110,9 +110,16 @@ public class ScaleManipulator extends TransformManipulator<Vector3d> {
 
     @Override
     protected void applyTransform(List<Node> selection, List<Vector3d> originalLocalTransforms) {
-        double distX = this.xManipulator.getDistance();
-        double distY = this.yManipulator.getDistance();
-        double distZ = this.zManipulator.getDistance();
+        double distX = 0, distY = 0, distZ = 0;
+        if (getController().isManipulatorSelected(this.xManipulator)) {
+            distX = this.xManipulator.getDistance();
+        }
+        if (getController().isManipulatorSelected(this.yManipulator)) {
+            distY = this.yManipulator.getDistance();
+        }
+        if (getController().isManipulatorSelected(this.zManipulator)) {
+            distZ = this.zManipulator.getDistance();
+        }
         double factor = 0.025;
         int n = selection.size();
         for (int i = 0; i < n; ++i) {

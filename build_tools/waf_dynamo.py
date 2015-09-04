@@ -62,7 +62,7 @@ def default_flags(self):
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
@@ -107,7 +107,7 @@ def default_flags(self):
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
                                       '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
-                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions',
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
                                       '-I%s' % stl,
@@ -489,6 +489,10 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <uses-sdk android:minSdkVersion="9" />
     <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
 
+        <!-- For Local Notifications -->
+        <receiver android:name="com.defold.push.LocalNotificationReceiver" >
+        </receiver>
+
         <!-- For GCM (push) -->
         <meta-data
             android:name="com.google.android.gms.version"
@@ -507,6 +511,18 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
             </intent-filter>
         </activity>
         <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.NoDisplay">
+        </activity>
+
+        <!-- For Local Notifications -->
+        <activity android:name="com.defold.push.LocalPushDispatchActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+                <action android:name="com.defold.push.FORWARD" />
+                <category android:name="com.defold.push" />
+            </intent-filter>
         </activity>
 
         <!-- For GCM (push) -->
@@ -540,6 +556,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- For GCM (push) -->
     <!-- NOTE: Package name from actual app here! -->

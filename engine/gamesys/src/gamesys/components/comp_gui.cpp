@@ -237,6 +237,11 @@ namespace dmGameSystem
                 dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
             break;
 
+            case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
+                dmLogError("Template nodes are not supported in run-time '%s', result: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::RESULT_INVAL_ERROR);
+                result = false;
+            break;
+
             default:
             break;
         }
@@ -301,6 +306,7 @@ namespace dmGameSystem
         bool result = true;
 
         dmGui::SetMaterial(scene, scene_resource->m_Material);
+        dmGui::SetSceneAdjustReference(scene, (dmGui::AdjustReference)scene_desc->m_AdjustReference);
 
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {

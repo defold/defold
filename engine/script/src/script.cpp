@@ -177,6 +177,28 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
+    void UpdateExtensions(HContext context)
+    {
+        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+        uint32_t i = 0;
+        while (ed) {
+            if (ed->Update)
+            {
+                dmExtension::Params p;
+                p.m_ConfigFile = context->m_ConfigFile;
+                p.m_L = context->m_LuaState;
+                if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
+                    dmExtension::Result r = ed->Update(&p);
+                    if (r != dmExtension::RESULT_OK) {
+                        dmLogError("Failed to update extension: %s", ed->m_Name);
+                    }
+                }
+            }
+            ++i;
+            ed = ed->m_Next;
+        }
+    }
+
     void Finalize(HContext context)
     {
         lua_State* L = context->m_LuaState;

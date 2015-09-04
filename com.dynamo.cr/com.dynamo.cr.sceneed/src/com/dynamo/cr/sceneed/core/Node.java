@@ -44,7 +44,7 @@ public abstract class Node implements IAdaptable, Serializable {
     public enum Flags {
         TRANSFORMABLE,
         SCALABLE,
- COMPONENT_SCALABLE, LOCKED,
+        LOCKED,
         NO_INHERIT_ROTATION,
         NO_INHERIT_SCALE,
         INVISIBLE
@@ -263,7 +263,7 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public Vector3d getScale() {
-        return this.scale;
+        return new Vector3d(this.scale);
     }
 
     public static void eulerToQuat(Tuple3d euler, Quat4d quat) {
@@ -464,7 +464,7 @@ public abstract class Node implements IAdaptable, Serializable {
 
     }
 
-    protected final void clearChildren() {
+    public final void clearChildren() {
         List<Node> oldChildren = new ArrayList<Node>(this.children);
         this.children.clear();
         for (Node child : oldChildren) {

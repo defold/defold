@@ -194,7 +194,7 @@ namespace dmHttpServer
         {
             req->m_Request.m_ContentLength = strtol(value, 0, 10);
         }
-        else if (dmStrCaseCmp(key, "Connection") == 0 && dmStrCaseCmp(key, "close") == 0)
+        else if (dmStrCaseCmp(key, "Connection") == 0 && dmStrCaseCmp(value, "close") == 0)
         {
             req->m_CloseConnection = 1;
         }

@@ -5,12 +5,16 @@
 #include <extension/extension.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/array.h>
+#include <dlib/mutex.h>
 #include <script/script.h>
 
 #include <pthread.h>
 #include <unistd.h>
 
 #include <android_native_app_glue.h>
+
+#include "facebook.h"
 
 #define LIB_NAME "facebook"
 
@@ -21,27 +25,6 @@ extern struct android_app* g_AndroidApp;
 #define CMD_REQUEST_PUBLISH 3
 #define CMD_DIALOG_COMPLETE 4
 
-// Must match iOS for now
-enum State
-{
-    STATE_CREATED = 0,
-    STATE_CREATED_TOKEN_LOADED = 1,
-    STATE_CREATED_OPENING = 2,
-    STATE_OPEN = 1 | (1 << 9),
-    STATE_OPEN_TOKEN_EXTENDED = 2 | (1 << 9),
-    STATE_CLOSED_LOGIN_FAILED = 1 | (1 << 8),
-    STATE_CLOSED = 2 | (1 << 8)
-};
-
-// Must match iOS for now
-enum Audience
-{
-    AUDIENCE_NONE = 0,
-    AUDIENCE_ONLYME = 10,
-    AUDIENCE_FRIENDS = 20,
-    AUDIENCE_EVERYONE = 30
-};
-
 struct Command
 {
     Command()
@@ -51,7 +34,7 @@ struct Command
     uint8_t m_Type;
     uint16_t m_State;
     lua_State* m_L;
-    const char* m_Url;
+    const char* m_Results;
     const char* m_Error;
 };
 
@@ -75,7 +58,10 @@ struct Facebook
     jmethodID m_ShowDialog;
     int m_Callback;
     int m_Self;
-    int m_Pipefd[2];
+    int m_RefCount;
+
+    dmMutex::Mutex m_Mutex;
+    dmArray<Command> m_CmdQueue;
 };
 
 Facebook g_Facebook;
@@ -124,6 +110,7 @@ static void RunStateCallback(Command* cmd)
         PushError(L, error);
 
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
+        (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -158,8 +145,10 @@ static void RunCallback(Command* cmd)
         PushError(L, error);
 
         int ret = dmScript::PCall(L, 2, LUA_MULTRET);
+        (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        g_Facebook.m_Callback = LUA_NOREF;
     } else {
         dmLogError("No callback set");
     }
@@ -189,69 +178,40 @@ static void RunDialogResultCallback(Command* cmd)
             return;
         }
 
-        lua_createtable(L, 0, 1);
-        lua_pushliteral(L, "url");
-        if (cmd->m_Url) {
-            lua_pushstring(L, cmd->m_Url);
+        // dialog results are sent as a JSON string from Java
+        if (cmd->m_Results) {
+            dmJson::Document doc;
+            dmJson::Result r = dmJson::Parse((const char*) cmd->m_Results, &doc);
+            if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
+                dmScript::JsonToLua(L, &doc, 0);
+            } else {
+                dmLogError("Failed to parse dialog JSON result (%d)", r);
+                lua_pushnil(L);
+            }
         } else {
             lua_pushnil(L);
         }
-        lua_rawset(L, -3);
 
         PushError(L, error);
 
         int ret = dmScript::PCall(L, 3, LUA_MULTRET);
+        (void)ret;
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
+        g_Facebook.m_Callback = LUA_NOREF;
     } else {
         dmLogError("No callback set");
     }
 }
 
-static int LooperCallback(int fd, int events, void* data)
+void QueueCommand(Command* cmd)
 {
-    Facebook* fb = (Facebook*)data;
-    (void)fb;
-    Command cmd;
-    if (read(g_Facebook.m_Pipefd[0], &cmd, sizeof(Command)) == sizeof(Command))
+    dmMutex::ScopedLock lk(g_Facebook.m_Mutex);
+    if (g_Facebook.m_CmdQueue.Full())
     {
-        switch (cmd.m_Type)
-        {
-        case CMD_LOGIN:
-            RunStateCallback(&cmd);
-            break;
-        case CMD_REQUEST_READ:
-        case CMD_REQUEST_PUBLISH:
-            RunCallback(&cmd);
-            break;
-        case CMD_DIALOG_COMPLETE:
-            RunDialogResultCallback(&cmd);
-            break;
-        }
-        if (cmd.m_Url != 0x0)
-        {
-            free((void*)cmd.m_Url);
-            cmd.m_Url = 0x0;
-        }
-        if (cmd.m_Error != 0x0)
-        {
-            free((void*)cmd.m_Error);
-            cmd.m_Error = 0x0;
-        }
+        g_Facebook.m_CmdQueue.OffsetCapacity(8);
     }
-    else
-    {
-        dmLogFatal("read error in looper callback");
-    }
-    return 1;
-}
-
-void PostToCallback(Command* cmd)
-{
-    if (write(g_Facebook.m_Pipefd[1], cmd, sizeof(Command)) != sizeof(Command))
-    {
-        dmLogError("Failed to write command");
-    }
+    g_Facebook.m_CmdQueue.Push(*cmd);
 }
 
 const char* StrDup(JNIEnv* env, jstring s)
@@ -281,7 +241,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLogin
     cmd.m_State = (int)state;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
-    PostToCallback(&cmd);
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestRead
@@ -291,7 +251,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestRea
     cmd.m_Type = CMD_REQUEST_READ;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
-    PostToCallback(&cmd);
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPublish
@@ -301,18 +261,18 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPub
     cmd.m_Type = CMD_REQUEST_PUBLISH;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
     cmd.m_Error = StrDup(env, error);
-    PostToCallback(&cmd);
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComplete
-  (JNIEnv *env, jobject, jlong userData, jstring url, jstring error)
+  (JNIEnv *env, jobject, jlong userData, jstring results, jstring error)
 {
     Command cmd;
     cmd.m_Type = CMD_DIALOG_COMPLETE;
     cmd.m_L = dmScript::GetMainThread((lua_State*)userData);
-    cmd.m_Url = StrDup(env, url);
+    cmd.m_Results = StrDup(env, results);
     cmd.m_Error = StrDup(env, error);
-    PostToCallback(&cmd);
+    QueueCommand(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIterateMeEntry
@@ -484,7 +444,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     JNIEnv* env = Attach();
 
     jstring str_permissions = env->NewStringUTF(permissions);
-    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestReadPermissions, (jlong)L, (jint)audience, str_permissions);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_RequestPublishPermissions , (jlong)L, (jint)audience, str_permissions);
     env->DeleteLocalRef(str_permissions);
 
     Detach();
@@ -609,17 +569,8 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
     if (g_Facebook.m_FB == NULL)
     {
-        int result = pipe(g_Facebook.m_Pipefd);
-        if (result != 0)
-        {
-            dmLogFatal("Could not open pipe for communication: %d", result);
-        }
-
-        result = ALooper_addFd(g_AndroidApp->looper, g_Facebook.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &g_Facebook);
-        if (result != 1)
-        {
-            dmLogFatal("Could not add file descriptor to looper: %d", result);
-        }
+        g_Facebook.m_Mutex = dmMutex::New();
+        g_Facebook.m_CmdQueue.SetCapacity(8);
 
         JNIEnv* env = Attach();
 
@@ -653,25 +604,40 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         Detach();
     }
 
+    g_Facebook.m_RefCount++;
+    g_Facebook.m_Callback = LUA_NOREF;
+
     lua_State* L = params->m_L;
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, Facebook_methods);
 
-#define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) name); \
+#define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); \
         lua_setfield(L, -2, #name);\
 
-    SETCONSTANT(STATE_CREATED);
-    SETCONSTANT(STATE_CREATED_TOKEN_LOADED);
-    SETCONSTANT(STATE_CREATED_OPENING);
-    SETCONSTANT(STATE_OPEN);
-    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED);
-    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED);
-    SETCONSTANT(STATE_CLOSED);
-    SETCONSTANT(AUDIENCE_NONE)
-    SETCONSTANT(AUDIENCE_ONLYME)
-    SETCONSTANT(AUDIENCE_FRIENDS)
-    SETCONSTANT(AUDIENCE_EVERYONE)
+    SETCONSTANT(STATE_CREATED,              dmFacebook::STATE_CREATED);
+    SETCONSTANT(STATE_CREATED_TOKEN_LOADED, dmFacebook::STATE_CREATED_TOKEN_LOADED);
+    SETCONSTANT(STATE_CREATED_OPENING,      dmFacebook::STATE_CREATED_OPENING);
+    SETCONSTANT(STATE_OPEN,                 dmFacebook::STATE_OPEN);
+    SETCONSTANT(STATE_OPEN_TOKEN_EXTENDED,  dmFacebook::STATE_OPEN_TOKEN_EXTENDED);
+    SETCONSTANT(STATE_CLOSED,               dmFacebook::STATE_CLOSED);
+    SETCONSTANT(STATE_CLOSED_LOGIN_FAILED,  dmFacebook::STATE_CLOSED_LOGIN_FAILED);
+
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_NONE,   dmFacebook::GAMEREQUEST_ACTIONTYPE_NONE);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_SEND,   dmFacebook::GAMEREQUEST_ACTIONTYPE_SEND);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_ASKFOR, dmFacebook::GAMEREQUEST_ACTIONTYPE_ASKFOR);
+    SETCONSTANT(GAMEREQUEST_ACTIONTYPE_TURN,   dmFacebook::GAMEREQUEST_ACTIONTYPE_TURN);
+
+    SETCONSTANT(GAMEREQUEST_FILTER_NONE,        dmFacebook::GAMEREQUEST_FILTER_NONE);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPUSERS,    dmFacebook::GAMEREQUEST_FILTER_APPUSERS);
+    SETCONSTANT(GAMEREQUEST_FILTER_APPNONUSERS, dmFacebook::GAMEREQUEST_FILTER_APPNONUSERS);
+
+    SETCONSTANT(AUDIENCE_NONE,     dmFacebook::AUDIENCE_NONE);
+    SETCONSTANT(AUDIENCE_ONLYME,   dmFacebook::AUDIENCE_ONLYME);
+    SETCONSTANT(AUDIENCE_FRIENDS,  dmFacebook::AUDIENCE_FRIENDS);
+    SETCONSTANT(AUDIENCE_EVERYONE, dmFacebook::AUDIENCE_EVERYONE);
+
+#undef SETCONSTANT
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
@@ -679,27 +645,62 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
+dmExtension::Result UpdateFacebook(dmExtension::Params* params)
 {
-    if (g_Facebook.m_FB != NULL)
     {
-        JNIEnv* env = Attach();
-        env->DeleteGlobalRef(g_Facebook.m_FB);
-        Detach();
-        g_Facebook.m_FB = NULL;
-
-        int result = ALooper_removeFd(g_AndroidApp->looper, g_Facebook.m_Pipefd[0]);
-        if (result != 1)
+        dmMutex::ScopedLock lk(g_Facebook.m_Mutex);
+        for (uint32_t i=0;i!=g_Facebook.m_CmdQueue.Size();i++)
         {
-            dmLogFatal("Could not remove fd from looper: %d", result);
+            Command& cmd = g_Facebook.m_CmdQueue[i];
+            if (cmd.m_L != params->m_L)
+                continue;
+
+            switch (cmd.m_Type)
+            {
+                case CMD_LOGIN:
+                    RunStateCallback(&cmd);
+                    break;
+                case CMD_REQUEST_READ:
+                case CMD_REQUEST_PUBLISH:
+                    RunCallback(&cmd);
+                    break;
+                case CMD_DIALOG_COMPLETE:
+                    RunDialogResultCallback(&cmd);
+                    break;
+            }
+            if (cmd.m_Results != 0x0)
+            {
+                free((void*)cmd.m_Results);
+                cmd.m_Results = 0x0;
+            }
+            if (cmd.m_Error != 0x0)
+            {
+                free((void*)cmd.m_Error);
+                cmd.m_Error = 0x0;
+            }
+
+            g_Facebook.m_CmdQueue.EraseSwap(i--);
         }
-
-        close(g_Facebook.m_Pipefd[0]);
-        close(g_Facebook.m_Pipefd[1]);
-
-        g_Facebook = Facebook();
     }
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(FacebookExt, "Facebook", 0, 0, InitializeFacebook, FinalizeFacebook)
+dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
+{
+    if (g_Facebook.m_FB != NULL)
+    {
+        if (--g_Facebook.m_RefCount == 0)
+        {
+            JNIEnv* env = Attach();
+            env->DeleteGlobalRef(g_Facebook.m_FB);
+            Detach();
+            g_Facebook.m_FB = NULL;
+            dmMutex::Delete(g_Facebook.m_Mutex);
+            memset(&g_Facebook, 0x00, sizeof(Facebook));
+        }
+    }
+
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(FacebookExt, "Facebook", 0, 0, InitializeFacebook, UpdateFacebook, FinalizeFacebook)

@@ -1,0 +1,17 @@
+#! /usr/bin/env python
+import os, re
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    tracking = bld.new_task_gen(features = 'cxx cstaticlib ddf cc',
+                                includes = ['.'],
+                                proto_gen_py = True,
+                                proto_gen_cc = True,
+                                protoc_includes = '../proto',
+                                target = 'plcrash',
+                                source = bld.path.ant_glob('*.cpp') + ' ' + bld.path.ant_glob('*.c') + ' PLCrashSignalHandler.mm PLCrashReporter.m PLCrashLogWriter.m PLCrashProcessInfo.m PLCrashHostInfo.m PLCrashLogWriter.m')
+ 
+    tracking.source = tracking.source + ' PLCrashReportSystemInfo.m PLCrashReporterConfig.m CrashReporter.m PLCrashMachExceptionServer.m'

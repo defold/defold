@@ -1995,26 +1995,6 @@ bail:
         render_script_instance->m_Materials.Clear();
     }
 
-    void RelocateMessageStrings(const dmDDF::Descriptor* descriptor, char* buffer, char* data_start)
-    {
-        for (uint8_t i = 0; i < descriptor->m_FieldCount; ++i)
-        {
-            dmDDF::FieldDescriptor* field = &descriptor->m_Fields[i];
-            uint32_t field_type = field->m_Type;
-            switch (field_type)
-            {
-                case dmDDF::TYPE_MESSAGE:
-                    RelocateMessageStrings(field->m_MessageDescriptor, buffer + field->m_Offset, data_start);
-                    break;
-                case dmDDF::TYPE_STRING:
-                    *((uintptr_t*)&buffer[field->m_Offset]) = (uintptr_t)data_start + *((uintptr_t*)(buffer + field->m_Offset));
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
@@ -2042,12 +2022,9 @@ bail:
                 if (message->m_Descriptor != 0)
                 {
                     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
-                    // adjust char ptrs to global mem space
-                    char* data = (char*)message->m_Data;
-                    RelocateMessageStrings(descriptor, data, data);
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
-                    dmScript::PushDDF(L, descriptor, (const char*)message->m_Data);
+                    dmScript::PushDDF(L, descriptor, (const char*)message->m_Data, true);
                 }
                 else if (message->m_DataSize > 0)
                 {

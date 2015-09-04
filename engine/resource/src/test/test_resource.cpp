@@ -210,8 +210,6 @@ dmResource::Result ResourceContainerPreload(dmResource::HFactory factory, dmReso
                                                  const char* filename)
 {
     (void) factory;
-    GetResourceTest* self = (GetResourceTest*) context;
-
     TestResource::ResourceContainerDesc* resource_container_desc;
     dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
     if (e != dmDDF::RESULT_OK)
@@ -556,15 +554,14 @@ TEST_P(GetResourceTest, PreloadGetParallell)
 {
     // Race preloaders against eachother with the same Factory
     for (uint32_t i=0;i<5;i++)
-    {        
+    {
         const uint32_t n = 16;
         dmResource::HPreloader pr[n];
         for (uint32_t j=0;j<n;j++)
         {
             pr[j] = dmResource::NewPreloader(m_Factory, m_ResourceName);
         }
-            
-        dmResource::Result r;
+
         for (uint32_t j=0;j<30;j++)
         {
             bool done = true;
@@ -583,7 +580,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
                 break;
             }
         }
-        
+
         TestResourceContainer* resource = 0;
         dmResource::Result e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource);
         ASSERT_EQ(dmResource::RESULT_OK, e);
@@ -592,7 +589,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
         e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         ASSERT_EQ((uint32_t) (n+1), descriptor.m_ReferenceCount);
-    
+
         for (uint32_t j=0;j<n;j++)
         {
             dmResource::DeletePreloader(pr[j]);
@@ -687,6 +684,7 @@ dmResource::Result RecreateResourceRecreate(dmResource::HFactory factory,
         return dmResource::RESULT_OUT_OF_MEMORY;
     }
 }
+
 
 TEST(dmResource, InvalidHost)
 {
@@ -1085,6 +1083,41 @@ TEST(OverflowTest, OverflowTest)
 
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
+}
+
+TEST_P(GetResourceTest, OverflowTestRecursive)
+{
+    // Needs to be GetResourceTest or cannot use ResourceContainer resource here which is needed for the test.
+    const char* test_dir = "build/default/src/test";
+    for (uint32_t max=0;max<5;max++)
+    {
+        // recreate with new settings
+        dmResource::DeleteFactory(m_Factory);
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = max;
+        m_Factory = dmResource::NewFactory(&params, test_dir);
+        ASSERT_NE((void*) 0, m_Factory);
+
+        dmResource::Result e;
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &RecreateResourceCreate, &RecreateResourceDestroy, &RecreateResourceRecreate);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, &ResourceContainerDestroy, 0);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+
+        int* resource;
+        dmResource::Result fr = dmResource::Get(m_Factory, "/test.cont", (void**) &resource);
+
+        // test.cont contains 2 children so anything less than 3 means it must fail
+        if (max < 3)
+        {
+            ASSERT_EQ(dmResource::RESULT_OUT_OF_RESOURCES, fr);
+        }
+        else
+        {
+            ASSERT_EQ(dmResource::RESULT_OK, fr);
+            dmResource::Release(m_Factory, resource);
+        }
+    }
 }
 
 int main(int argc, char **argv)

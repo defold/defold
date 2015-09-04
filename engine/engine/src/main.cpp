@@ -4,13 +4,17 @@
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <graphics/glfw/glfw.h>
+#include <crash/crash.h>
+
 #include "engine.h"
+#include "engine_version.h"
 
 int main(int argc, char *argv[])
 {
 #if DM_RELEASE
     dLib::SetDebugMode(false);
 #endif
+    dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
     dmMemProfile::Initialize();
@@ -24,6 +28,7 @@ int main(int argc, char *argv[])
         dmLogError("Could not initialize glfw.");
         return 0x0;
     }
+
 
     int exit_code = dmEngine::Launch(argc, argv, 0, 0, 0);
 

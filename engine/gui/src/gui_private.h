@@ -93,6 +93,7 @@ namespace dmGui
         Vector4     m_Properties[PROPERTY_COUNT];
         Vector4     m_ResetPointProperties[PROPERTY_COUNT];
         Matrix4     m_LocalTransform;
+        Vector4     m_LocalAdjustScale;
         uint32_t    m_ResetPointState;
 
         uint32_t m_PerimeterVertices;
@@ -232,6 +233,7 @@ namespace dmGui
         dmArray<dmhash_t>       m_Layouts;
         dmArray<void*>          m_LayoutsNodeDescs;
         dmhash_t                m_LayoutId;
+        AdjustReference         m_AdjustReference;
         dmArray<dmhash_t>       m_DeletedDynamicTextures;
         void*                   m_DefaultFont;
         void*                   m_UserData;
@@ -263,15 +265,16 @@ namespace dmGui
      * @param flags CalculateNodeTransformFlags enumerated behaviour flags
      * @param out_transform out-parameter to write the calculated transform to
      */
-    void CalculateNodeTransform(HScene scene, InternalNode* node, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform);
+    void CalculateNodeTransform(HScene scene, InternalNode* node, const CalculateNodeTransformFlags flags, Matrix4& out_transform);
 
-    /** calculates the reference scale for a scene
+    /** calculates the reference scale for a node
      * The reference scale is defined as scaling from the predefined screen space to the actual screen space.
      *
-     * @param scene scene for which to calculate the reference scale
+     * @param scene scene for which the node exists in
+     * @param node node for which the reference scale should be calculated
      * @return a scaling vector (ref_scale, ref_scale, 1, 1)
      */
-    Vector4 CalculateReferenceScale(HScene scene);
+    Vector4 CalculateReferenceScale(HScene scene, InternalNode* node);
 
     HNode GetNodeHandle(InternalNode* node);
 }

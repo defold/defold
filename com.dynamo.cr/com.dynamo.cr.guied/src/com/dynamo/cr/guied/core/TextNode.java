@@ -224,16 +224,24 @@ public class TextNode extends GuiNode {
         }
     }
 
+    private String findFontByName(List<Node> fontNodes) {
+        for (Node n : fontNodes) {
+            FontNode fontNode = (FontNode) n;
+            if (fontNode.getId().equals(this.font)) {
+                return fontNode.getFont();
+            }
+        }
+        return null;
+    }
+
     private void updateFont() {
         if (!this.font.isEmpty() && getModel() != null) {
             GuiSceneNode scene = getScene();
-            List<Node> fontNodes = scene.getFontsNode().getChildren();
-            String fontPath = null;
-            for (Node n : fontNodes) {
-                FontNode fontNode = (FontNode) n;
-                if (fontNode.getId().equals(this.font)) {
-                    fontPath = fontNode.getFont();
-                    break;
+            String fontPath = this.findFontByName(scene.getFontsNode().getChildren());
+            if(fontPath == null) {
+                TemplateNode parentTemplate = this.getParentTemplateNode();
+                if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
+                    fontPath = this.findFontByName(parentTemplate.getTemplateScene().getFontsNode().getChildren());
                 }
             }
             if (fontPath != null) {
@@ -257,6 +265,9 @@ public class TextNode extends GuiNode {
     @Override
     public Image getIcon() {
         if(GuiNodeStateBuilder.isStateSet(this)) {
+            if(isTemplateNodeChild()) {
+                return Activator.getDefault().getImageRegistry().get(Activator.TEXT_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID);
+            }
             return Activator.getDefault().getImageRegistry().get(Activator.TEXT_NODE_OVERRIDDEN_IMAGE_ID);
         }
         return Activator.getDefault().getImageRegistry().get(Activator.TEXT_NODE_IMAGE_ID);

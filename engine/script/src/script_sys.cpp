@@ -278,12 +278,14 @@ namespace dmScript
     }
 
     /*# get system information
-     * returns a table with the following members:
+     * <p>
+     * Returns a table with the following members:
      * device_model, system_name, system_version, language, territory, gmt_offset (minutes), device_ident, ad_ident and ad_tracking_enabled.
-     * model is currently only available on iOS and Android.
-     * language is in ISO-639 format (two characters) and territory in
-     * ISO-3166 format (two characters)
-     * device_ident is "identifierForVendor" on iOS, "android_id" on Android and empty string on all other platforms
+     * </p>
+     * <p><code>device_model</code> is currently only available on iOS and Android.</p>
+     * <p><code>language</code> is in ISO-639 format (two characters) and <code>territory</code> in ISO-3166 format (two characters).</p>
+     * <p><code>device_ident</code> is "identifierForVendor" and <code>ad_ident</code> is "advertisingIdentifier" on iOS</p>
+     * <p><code>device_ident</code> is "android_id" and <code>ad_ident</code> is advertising ID provided by Google Play on Android.</p>
      *
      * @name sys.get_sys_info
      * @return table with system information
@@ -432,6 +434,43 @@ namespace dmScript
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# set host to check for network connectivity against
+     * @examples
+     * <pre>
+     *  sys.set_connectivity_host("www.google.com")
+     * </pre>
+     * @name sys.set_connectivity_host
+     * @param host hostname to check against
+     */
+    static int Sys_SetConnectivityHost(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmSys::SetNetworkConnectivityHost( luaL_checkstring(L, 1) );
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# get current network connectivity status
+     * @examples
+     * <p>
+     * Check if we are connected through a cellular connection
+     * </p>
+     * <pre>
+     *  if (sys.NETWORK_CONNECTED_CELLULAR == sys.get_connectivity()) then
+     *      print("Connected via cellular, avoid downloading big files!")
+     *  end
+     * </pre>
+     * @name sys.get_connectivity
+     * @return sys.NETWORK_DISCONNECTED if no network connection is found, sys.NETWORK_CONNECTED_CELLULAR if connected through mobile cellular, otherwise sys.NETWORK_CONNECTED
+     */
+    static int Sys_GetConnectivity(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        lua_pushnumber(L, dmSys::GetNetworkConnectivity());
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -447,6 +486,8 @@ namespace dmScript
         {"get_sys_info", Sys_GetSysInfo},
         {"get_ifaddrs", Sys_GetIfaddrs},
         {"set_error_handler", Sys_SetErrorHandler},
+        {"set_connectivity_host", Sys_SetConnectivityHost},
+        {"get_connectivity", Sys_GetConnectivity},
         {0, 0}
     };
 
@@ -456,6 +497,17 @@ namespace dmScript
 
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         luaL_register(L, LIB_NAME, ScriptSys_methods);
+
+#define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); \
+        lua_setfield(L, -2, #name);\
+
+        SETCONSTANT(NETWORK_CONNECTED, dmSys::NETWORK_CONNECTED);
+        SETCONSTANT(NETWORK_CONNECTED_CELLULAR, dmSys::NETWORK_CONNECTED_CELLULAR);
+        SETCONSTANT(NETWORK_DISCONNECTED, dmSys::NETWORK_DISCONNECTED);
+
+#undef SETCONSTANT
+
         lua_pop(L, 2);
 
         assert(top == lua_gettop(L));
