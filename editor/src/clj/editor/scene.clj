@@ -23,7 +23,7 @@
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Camera AABB Region Rect]
            [java.awt Font]
-           [java.awt.image BufferedImage DataBufferByte]
+           [java.awt.image BufferedImage DataBufferByte DataBufferInt]
            [javafx.animation AnimationTimer]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -63,13 +63,13 @@
 (defn- read-to-buffered-image [^long w ^long h]
   (let [^BufferedImage image (let [^BufferedImage image @cached-buf-img-ref]
                                (when (or (nil? image) (not= (.getWidth image) w) (not= (.getHeight image) h))
-                                 (reset! cached-buf-img-ref (BufferedImage. w h BufferedImage/TYPE_3BYTE_BGR)))
+                                 (reset! cached-buf-img-ref (BufferedImage. w h BufferedImage/TYPE_INT_ARGB)))
                                @cached-buf-img-ref)
         glc (GLContext/getCurrent)
         gl (.getGL glc)
         psm (GLPixelStorageModes.)]
    (.setPackAlignment psm gl 1)
-   (.glReadPixels gl 0 0 w h GL2GL3/GL_BGR GL/GL_UNSIGNED_BYTE (ByteBuffer/wrap (.getData ^DataBufferByte (.getDataBuffer (.getRaster image)))))
+   (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage (.getRaster image))))
    (.restore psm gl)
    image))
 
