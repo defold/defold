@@ -24,8 +24,6 @@
 (defmacro txerrstr [ctx & rest]
   `(str (:txid ~ctx) " " ~@(interpose " " rest)))
 
-(defn nid [n] (if (number? n) n (if (gt/node? n) (gt/node-id n) (if (map? n) (:_node-id n) n))))
-
 ;; ---------------------------------------------------------------------------
 ;; Building transactions
 ;; ---------------------------------------------------------------------------
@@ -142,12 +140,12 @@
 (defn- disconnect-inputs
   [ctx target-node target-label]
   (loop [ctx     ctx
-         sources (gt/sources (:basis ctx) (nid target-node) target-label)]
+         sources (gt/sources (:basis ctx) target-node target-label)]
     (if-let [source (first sources)]
       (recur (perform ctx {:type         :disconnect
-                           :source-id    (nid (first source))
+                           :source-id    (first source)
                            :source-label (second source)
-                           :target-id    (nid target-node)
+                           :target-id    target-node
                            :target-label target-label})
              (next sources))
       ctx)))
@@ -155,12 +153,12 @@
 (defn- disconnect-outputs
   [ctx source-node source-label]
   (loop [ctx ctx
-         targets     (gt/targets (:basis ctx) (nid source-node) source-label)]
+         targets     (gt/targets (:basis ctx) source-node source-label)]
     (if-let [target (first targets)]
       (recur (perform ctx {:type         :disconnect
-                           :source-id    (nid source-node)
+                           :source-id    source-node
                            :source-label source-label
-                           :target-id    (nid (first target))
+                           :target-id    (first target)
                            :target-label (second target)})
              (next targets))
       ctx)))
