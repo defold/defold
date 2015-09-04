@@ -1,21 +1,23 @@
 (ns editor.ui
   (:require [clojure.java.io :as io]
+            [dynamo.util :as util]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [javafx.application Platform]
-           [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
+  (:import [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
+           [javafx.application Platform]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TextField Tooltip]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TextField Tooltip]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
-           [javafx.util Callback Duration]))
+           [javafx.util Callback Duration]
+           [com.defold.control ListCell]))
 
 ;; These two lines initialize JavaFX and OpenGL when we're generating
 ;; API docs
@@ -228,7 +230,7 @@
 (defn- make-list-cell [render-fn]
   (proxy [ListCell] []
     (updateItem [object empty]
-      (let [this ^ListCell this
+      (let [^ListCell this this
             render-data (and object (render-fn object))]
         ; TODO - fix reflection warning
         (proxy-super updateItem (and object (:text render-data)) empty)
@@ -618,9 +620,10 @@ return value."
   (cancel [this] (.stop this)))
 
 (defn ->future [delay run-fn]
-  (let [^EventHandler handler (event-handler e (run-fn))]
+  (let [^EventHandler handler (event-handler e (run-fn))
+        ^"[Ljavafx.animation.KeyValue;" values (into-array KeyValue [])]
     ; TODO - fix reflection ctor warning
-    (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler (into-array KeyValue []))]))
+    (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler values)]))
       (.play))))
 
 (defn ->timer
@@ -650,23 +653,28 @@ return value."
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
 
+(defprotocol Closeable
+  (on-close-request [this])
+  (on-close-request! [this f]))
+
+(extend-protocol Closeable
+  javafx.scene.control.Tab
+  (on-close-request [this] (.getOnCloseRequest this))
+  (on-close-request! [this f] (.setOnCloseRequest this (event-handler e (f e))))
+
+  javafx.stage.Stage
+  (on-close-request [this] (.getOnCloseRequest this))
+  (on-close-request! [this f] (.setOnCloseRequest this (event-handler e (f e)))))
+
 (defn timer-stop-on-close!
-  ; TODO - solve this similar to (defprotocol Text ... above?
-  "Closeable must have an onCloseRequest property. There is no common
-  superclass or interface in JavaFX for that property. If the
-  `closeable` argument must be type hinted before this call to avoid
-  reflection warnings."
   [closeable timer]
-  ; TODO - reflection
-  (let [existing-handler (.getOnCloseRequest closeable)]
-    ; TODO - reflection
-    (.setOnCloseRequest
+  (let [existing-handler (on-close-request closeable)]
+    (on-close-request!
      closeable
-     (event-handler this
-                    (timer-stop! timer)
-                    (when existing-handler
-                      ; TODO - reflection
-                      (.handle existing-handler this))))))
+     (fn [event]
+       (timer-stop! timer)
+       (when existing-handler
+         (.handle ^EventHandler existing-handler event))))))
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))

@@ -405,17 +405,7 @@
         (g/delete-node! source)
         (is (= nil (g/node-value sink :loud)))))))
 
-(defn bump-counter
-  [transaction basis self & _]
-  (swap! (g/node-value (:original-basis transaction) self :counter) inc)
-  [])
-
-(g/defnode CountOnDelete
-  (property counter Integer (default 0))
-  (input upstream Integer)
-  (output downstream Integer (g/fnk [upstream] (inc upstream)))
-
-  (trigger deletion :deleted #'bump-counter))
+(g/defnode CountOnDelete)
 
 (deftest graph-deletion
   (testing "Deleting a view (non-history) graph"
@@ -454,17 +444,14 @@
 
   (testing "Nodes in a deleted graph are deleted"
     (ts/with-clean-system
-      (let [ctr       (atom 0)
-            pgraph-id (g/make-graph! :history true)]
+      (let [pgraph-id (g/make-graph! :history true)]
         (let [nodes (ts/tx-nodes
                      (for [n (range 100)]
-                       (g/make-node pgraph-id CountOnDelete :counter ctr)))]
-          (g/transact
-           (for [[n1 n2] (partition 2 1 nodes)]
-             (g/connect n1 :downstream n2 :upstream)))
+                       (g/make-node pgraph-id CountOnDelete)))]
+
           (g/delete-graph! pgraph-id)
 
-          (is (= 100 @ctr))))))
+          (is (every? nil? (map g/node-by-id nodes)))))))
 
   (testing "Deleting a graph with history"
     (ts/with-clean-system

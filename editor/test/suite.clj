@@ -43,6 +43,7 @@
                        integration.benchmark-test
                        integration.build-test
                        integration.collection-test
+                       integration.game-project-test
                        integration.outline-test
                        integration.reload-test
                        integration.save-test
@@ -67,8 +68,8 @@
 
 (def builtin-basedir (io/file "../com.dynamo.cr/com.dynamo.cr.builtins"))
 
-(defn file?      [f]   (.isFile f))
-(defn extension? [f e] (.endsWith (.getName f) e))
+(defn file?      [f]   (.isFile ^java.io.File f))
+(defn extension? [f e] (.endsWith (.getName ^java.io.File f) e))
 (defn source?    [f]   (and (file? f) (extension? f ".clj")))
 
 (defn clojure-sources [dir]

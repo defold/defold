@@ -15,6 +15,9 @@
   [source target source-label target-label]
   `(ArcBase. ~source ~target ~source-label ~target-label))
 
+(defn arc-endpoints-p [p arc]
+  (and (p (.source ^ArcBase arc)) (p (.target ^ArcBase arc))))
+
 (defn- conjv
   [coll x]
   (conj (or coll []) x))
@@ -30,7 +33,7 @@
      {}
      all-arcs-filtered)))
 
-() (defn empty-graph
+(defn empty-graph
      []
      {:nodes      {}
       :sarcs      {}

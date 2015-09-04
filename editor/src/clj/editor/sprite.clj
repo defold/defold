@@ -253,7 +253,8 @@
                                    :options (zipmap (map first options)
                                                     (map (comp :display-name second) options))}))))
 
-  (trigger reconnect :property-touched #'reconnect)
+  ;; TODO - replace with use of property setter
+  #_(trigger reconnect :property-touched #'reconnect)
 
   (input anim-data g/Any)
   (input gpu-texture g/Any)
