@@ -21,7 +21,7 @@
            [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.input DragEvent TransferMode MouseEvent]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeCell TreeView Menu MenuItem SeparatorMenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
+           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeView Menu MenuItem SeparatorMenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent KeyCombination ContextMenuEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -32,7 +32,8 @@
            [java.nio.file Path Paths Files attribute.FileAttribute]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [org.apache.commons.io FileUtils FilenameUtils IOUtils]))
+           [org.apache.commons.io FileUtils FilenameUtils IOUtils]
+           [com.defold.control TreeCell]))
 
 (set! *warn-on-reflection* true)
 

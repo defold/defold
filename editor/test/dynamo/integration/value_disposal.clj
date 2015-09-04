@@ -50,3 +50,25 @@
         (g/dispose-pending!)
         (is (= 2 @dispose-counter))
         (is (= "baz" (:v (g/node-value node-id :my-output))))))))
+
+(g/defnode CachedPassthroughNode
+  (input an-input g/Any)
+  (output cached-output g/Any :cached (g/fnk [an-input] an-input)))
+
+(deftest value-cached-in-multiple-outputs
+  (testing "disposable values are only disposed once"
+    (reset! dispose-counter 0)
+    (with-clean-system
+      (let [[source sink] (tx-nodes (g/make-node world SimpleCachedDisposableNode)
+                                    (g/make-node world CachedPassthroughNode))]
+        (g/connect! source :my-output sink :an-input)
+
+        (g/node-value sink :cached-output)
+
+        (g/invalidate! [[source :my-output]])
+
+        (g/dispose-pending!)
+
+        ;; TODO - this test demonstrates current behavior. The desired
+        ;; behavior would be (= @dispose-counter 1)
+        (is (= @dispose-counter 2))))))

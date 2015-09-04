@@ -23,7 +23,6 @@
   (interfaces             [this])
   (protocols              [this])
   (method-impls           [this])
-  (triggers               [this])
   (transforms             [this])
   (transform-types        [this])
   (declared-properties    [this])
