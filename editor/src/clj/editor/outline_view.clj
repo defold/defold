@@ -19,7 +19,7 @@
            [javafx.geometry Insets]
            [javafx.scene.input Clipboard ClipboardContent DragEvent TransferMode DataFormat]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button Cell ColorPicker Label TextField TitledPane TextArea TreeView TreeItem TreeCell Menu MenuItem MenuBar Tab ProgressBar SelectionMode]
+           [javafx.scene.control Button Cell ColorPicker Label TextField TitledPane TextArea TreeView TreeItem Menu MenuItem MenuBar Tab ProgressBar SelectionMode]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -29,7 +29,8 @@
            [java.io File]
            [java.nio.file Paths]
            [java.util.prefs Preferences]
-           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+           [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
+           [com.defold.control TreeCell]))
 
 (set! *warn-on-reflection* true)
 
@@ -338,8 +339,6 @@
                                                  (let [cell (proxy [TreeCell] []
                                                               (updateItem [item empty]
                                                                 (let [this ^TreeCell this]
-                                                                  ; TODO - fix reflection warning here
-                                                                  ; Is it because updateItem is protected in Cell?
                                                                   (proxy-super updateItem item empty)
                                                                   (if empty
                                                                     (do
