@@ -42,6 +42,7 @@
                      [org.eclipse.jgit/org.eclipse.jgit           "4.0.0.201505050340-m2"]
 
                      [javax/vecmath                               "1.5.2"]
+                     ; Keep jna version in sync with bundle.py. See JNA_VERSION
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
                      ;; Temporarily removed upnp (not used and not installed by default).
