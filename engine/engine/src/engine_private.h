@@ -23,6 +23,8 @@
 
 #include <record/record.h>
 
+#include <tracking/tracking.h>
+
 #include "engine_service.h"
 #include "engine_ddf.h"
 
@@ -123,12 +125,14 @@ namespace dmEngine
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
         dmRender::HDisplayProfiles                  m_DisplayProfiles;
+        dmTracking::HContext                        m_TrackingContext;
 
         dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 
         Stats                                       m_Stats;
 
         bool                                        m_UseVariableDt;
+        bool                                        m_WasIconified;
         uint64_t                                    m_PreviousFrameTime;
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;

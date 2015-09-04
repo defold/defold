@@ -260,6 +260,21 @@ namespace dmMessage
         return false;
     }
 
+    bool HasMessages(HSocket socket)
+    {
+        uint16_t id;
+        MessageSocket*s = GetSocketInternal(socket, id);
+        dmMutex::Lock(s->m_Mutex);
+        bool has_messages = false;
+        if (s->m_Header)
+        {
+            has_messages = true;
+        }
+        dmMutex::Unlock(s->m_Mutex);
+
+        return has_messages;
+    }
+
     void ResetURL(const URL& url)
     {
         memset((void*)&url, 0, sizeof(URL));

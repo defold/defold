@@ -90,6 +90,8 @@ namespace dmLoadQueue
                 GetCanonicalPath(queue->m_Factory, current->m_Name, canonical_path);
 
                 uint32_t size;
+
+                current->m_Buffer.SetSize(0);
                 result.m_LoadResult = DoLoadResource(queue->m_Factory, canonical_path, current->m_Name, &size, &current->m_Buffer);
                 result.m_PreloadResult = dmResource::RESULT_PENDING;
                 result.m_PreloadData = 0;

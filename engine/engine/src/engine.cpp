@@ -21,6 +21,8 @@
 #include <render/render.h>
 #include <render/render_ddf.h>
 #include <particle/particle.h>
+#include <tracking/tracking.h>
+#include <tracking/tracking_ddf.h>
 
 #include "engine_service.h"
 #include "engine_version.h"
@@ -131,8 +133,10 @@ namespace dmEngine
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
     , m_DisplayProfiles(0x0)
+    , m_TrackingContext(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
+    , m_WasIconified(true)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -202,6 +206,12 @@ namespace dmEngine
 
         if (engine->m_GuiContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
+
+        if (engine->m_TrackingContext)
+        {
+            dmTracking::Finalize(engine->m_TrackingContext);
+            dmTracking::Delete(engine->m_TrackingContext);
+        }
 
         if (engine->m_SharedScriptContext) {
             dmScript::Finalize(engine->m_SharedScriptContext);
@@ -521,6 +531,13 @@ namespace dmEngine
             ++deviceIndex;
         }
 
+        dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
+        if(go_result != dmGameObject::RESULT_OK)
+        {
+            dmLogFatal("Failed to set max instance count for collections (%d)", go_result);
+            return false;
+        }
+
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = 1024; // TODO: Should be configurable
@@ -635,7 +652,6 @@ namespace dmEngine
         engine->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
 
         dmResource::Result fact_result;
-        dmGameObject::Result res;
         dmGameSystem::ScriptLibContext script_lib_context;
 
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext, &engine->m_ModuleContext);
@@ -648,8 +664,8 @@ namespace dmEngine
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext) != dmGameObject::RESULT_OK)
             goto bail;
 
-        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext);
-        if (res != dmGameObject::RESULT_OK)
+        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext);
+        if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
         if (!LoadBootstrapContent(engine, engine->m_Config))
@@ -682,6 +698,16 @@ namespace dmEngine
             script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
+        }
+
+        engine->m_TrackingContext = dmTracking::New(engine->m_Config);
+        if (engine->m_TrackingContext)
+        {
+            dmTracking::Start(engine->m_TrackingContext, "Defold", dmEngineVersion::VERSION);
+        }
+        else
+        {
+            dmLogWarning("Failed to create tracking context");
         }
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
@@ -802,6 +828,12 @@ bail:
 
         if (engine->m_Alive)
         {
+            if (engine->m_TrackingContext)
+            {
+                DM_PROFILE(Engine, "Tracking")
+                dmTracking::Update(engine->m_TrackingContext, dt);
+            }
+
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
                 // NOTE: Polling the event queue is crucial on iOS for life-cycle management
@@ -810,10 +842,28 @@ bail:
                 dmTime::Sleep(1000 * 100);
                 // Update time again after the sleep to avoid big leaps after iconified.
                 // In practice, it makes the delta time 1/freq even though we slept for long
+
                 time = dmTime::GetTime();
-                engine->m_PreviousFrameTime = time - fixed_dt * 1000000;
-                dt = fixed_dt;
+                uint64_t i_dt = fixed_dt * 1000000;
+                if (i_dt > time) {
+                    engine->m_PreviousFrameTime = 0;
+                } else {
+                    engine->m_PreviousFrameTime = time - i_dt;
+                }
+
+                engine->m_WasIconified = true;
                 return;
+            }
+            else
+            {
+                if (engine->m_WasIconified)
+                {
+                    if (engine->m_TrackingContext)
+                    {
+                        dmTracking::PostSimpleEvent(engine->m_TrackingContext, "@Invoke");
+                    }
+                    engine->m_WasIconified = false;
+                }
             }
 
             dmProfile::HProfile profile = dmProfile::Begin();
@@ -843,6 +893,22 @@ bail:
                         // crash the application
                         dmProfile::Release(profile);
                         return;
+                    }
+
+
+                    /* Extension updates */
+                    if (engine->m_SharedScriptContext) {
+                        dmScript::UpdateExtensions(engine->m_SharedScriptContext);
+                    } else {
+                        if (engine->m_GOScriptContext) {
+                            dmScript::UpdateExtensions(engine->m_GOScriptContext);
+                        }
+                        if (engine->m_RenderScriptContext) {
+                            dmScript::UpdateExtensions(engine->m_RenderScriptContext);
+                        }
+                        if (engine->m_GuiScriptContext) {
+                            dmScript::UpdateExtensions(engine->m_GuiScriptContext);
+                        }
                     }
 
                     dmSound::Update();

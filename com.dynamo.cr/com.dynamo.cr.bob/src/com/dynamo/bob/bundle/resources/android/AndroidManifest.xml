@@ -13,10 +13,19 @@
         android:icon="@drawable/icon"
         {{/has-icons?}}
         android:label="{{project.title}}" android:hasCode="true" android:debuggable="false">
+
+        <!-- For Local Notifications -->
+        <receiver android:name="com.defold.push.LocalNotificationReceiver" >
+        </receiver>
+
         <!-- For GCM (push) -->
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
+
+        <!-- For Facebook -->
+        <meta-data android:name="com.facebook.sdk.ApplicationName"
+            android:value="{{project.title}}" />
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="{{project.title}}"
@@ -32,8 +41,22 @@
             </intent-filter>
         </activity>
         <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.NoDisplay" />
-        <activity android:name="com.facebook.LoginActivity" />
+        <activity android:name="com.facebook.FacebookActivity"
+          android:theme="@android:style/Theme.Translucent.NoTitleBar"
+          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+          android:label="{{project.title}}" />
         <activity android:name="com.defold.iap.IapActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:label="IAP"></activity>
+
+        <!-- For Local Notifications -->
+        <activity android:name="com.defold.push.LocalPushDispatchActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:launchMode="singleTask"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+                <action android:name="com.defold.push.FORWARD" />
+                <category android:name="com.defold.push" />
+            </intent-filter>
+        </activity>
 
         <!-- For GCM (push) -->
         <activity android:name="com.defold.push.PushDispatchActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar">
@@ -66,6 +89,7 @@
     <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- For GCM (push) -->
     <!-- NOTE: Package name from actual app here! -->

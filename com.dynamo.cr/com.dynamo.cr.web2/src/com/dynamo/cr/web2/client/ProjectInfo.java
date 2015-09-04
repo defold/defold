@@ -50,4 +50,8 @@ public class ProjectInfo extends BaseResponse {
         return this.iOSExecutableUrl;
     }-*/;
 
+    public final native String getTrackingId() /*-{
+        return this.trackingId;
+    }-*/;
+
 }

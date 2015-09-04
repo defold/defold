@@ -39,6 +39,8 @@ extern uint32_t BUG352_LUA_SIZE;
  *
  * Render
  *
+ * Adjust reference
+ *
  */
 
 #define MAX_NODES 64U
@@ -2208,7 +2210,7 @@ TEST_F(dmGuiTest, Anchoring)
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene, 0);
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
@@ -2245,7 +2247,7 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene, 0);
 
     const char* s = "function init(self)\n"
                     "    assert (1024 == gui.get_width())\n"
@@ -2312,7 +2314,11 @@ TEST_F(dmGuiTest, AdjustMode)
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene);
+    // Verify that if we haven't specifically set adjust reference we should get
+    // the legacy/old behaviour -> scene resolution should be adjust reference.
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_LEGACY, dmGui::GetSceneAdjustReference(m_Scene));
+
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene, 0);
     float min_ref_scale = dmMath::Min(ref_scale.getX(), ref_scale.getY());
     float max_ref_scale = dmMath::Max(ref_scale.getX(), ref_scale.getY());
 
@@ -3412,6 +3418,358 @@ TEST_F(dmGuiTest, NewDeleteScene)
     dmGui::DeleteScene(scene2);
 
     ASSERT_EQ(1u, m_Context->m_Scenes.Size());
+}
+
+TEST_F(dmGuiTest, AdjustReference)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    uint32_t physical_width = 200;
+    uint32_t physical_height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_LEGACY, dmGui::GetSceneAdjustReference(m_Scene));
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
+
+    // create nodes
+    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level0, "node_level0");
+    dmGui::SetNodePivot(m_Scene, node_level0, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_level0, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_level0, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level0, dmGui::ADJUST_MODE_STRETCH);
+
+    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level1, "node_level1");
+    dmGui::SetNodePivot(m_Scene, node_level1, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_level1, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_level1, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level1, dmGui::ADJUST_MODE_FIT);
+
+    dmGui::SetNodeParent(m_Scene, node_level1, node_level0);
+
+    // update
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
+
+
+    /*
+        before resize:
+        a----------------------+
+        |                      |
+        |  b---------------+   |
+        |  |[c]  <-80->    |   |
+        |10+---------------+   |
+        | 10                   |
+        +----------------------+
+
+        after resize:
+        a---------------------------------------------+
+        |                                             |
+        |    b----------------------------------+     |
+        |    |[c]           <-160->             |     |
+        | 20 +----------------------------------+     |
+        |   10                                        |
+        +---------------------------------------------+
+
+
+        a: window (ADJUST_REFERENCE_PARENT)
+        b: node_level_0 (ADJUST_MOD_STRETCH)
+        c: node_level_1 (parent: b, ADJUST_MODE_FIT)
+
+        => node c should not resize or offset inside b
+
+     */
+
+
+    Point3 node_level0_p = m_NodeTextToRenderedPosition["node_level0"];
+    Point3 node_level1_p = m_NodeTextToRenderedPosition["node_level1"];
+    Vector3 node_level0_s = m_NodeTextToRenderedSize["node_level0"];
+    Vector3 node_level1_s = m_NodeTextToRenderedSize["node_level1"];
+
+    ASSERT_EQ( 20, node_level0_p.getX());
+    ASSERT_EQ( 10, node_level0_p.getY());
+
+    ASSERT_EQ(160, node_level0_s.getX());
+    ASSERT_EQ( 30, node_level0_s.getY());
+
+    ASSERT_EQ( 10, node_level1_s.getX());
+    ASSERT_EQ( 10, node_level1_s.getY());
+
+    ASSERT_EQ( 40, node_level1_p.getX());
+    ASSERT_EQ( 20, node_level1_p.getY());
+
+    // clean up
+    dmGui::DeleteNode(m_Scene, node_level1);
+    dmGui::DeleteNode(m_Scene, node_level0);
+
+}
+
+TEST_F(dmGuiTest, AdjustReferenceMultiLevel)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    uint32_t physical_width = 200;
+    uint32_t physical_height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_LEGACY, dmGui::GetSceneAdjustReference(m_Scene));
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
+
+    // create nodes
+    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level0, "node_level0");
+    dmGui::SetNodePivot(m_Scene, node_level0, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_level0, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_level0, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level0, dmGui::ADJUST_MODE_STRETCH);
+
+    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level1, "node_level1");
+    dmGui::SetNodePivot(m_Scene, node_level1, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_level1, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_level1, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level1, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeParent(m_Scene, node_level1, node_level0);
+
+    dmGui::HNode node_level2 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level2, "node_level2");
+    dmGui::SetNodePivot(m_Scene, node_level2, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_level2, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_level2, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level2, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeParent(m_Scene, node_level2, node_level1);
+
+    // update
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
+
+    Point3 node_level0_p = m_NodeTextToRenderedPosition["node_level0"];
+    Point3 node_level1_p = m_NodeTextToRenderedPosition["node_level1"];
+    Point3 node_level2_p = m_NodeTextToRenderedPosition["node_level2"];
+    Vector3 node_level0_s = m_NodeTextToRenderedSize["node_level0"];
+    Vector3 node_level1_s = m_NodeTextToRenderedSize["node_level1"];
+    Vector3 node_level2_s = m_NodeTextToRenderedSize["node_level2"];
+
+    ASSERT_EQ(  0, node_level0_p.getX());
+    ASSERT_EQ(  0, node_level0_p.getY());
+
+    ASSERT_EQ(200, node_level0_s.getX());
+    ASSERT_EQ( 50, node_level0_s.getY());
+
+    ASSERT_EQ( 20, node_level1_p.getX());
+    ASSERT_EQ( 10, node_level1_p.getY());
+
+    ASSERT_EQ(160, node_level1_s.getX());
+    ASSERT_EQ( 30, node_level1_s.getY());
+
+    ASSERT_EQ( 10, node_level2_s.getX());
+    ASSERT_EQ( 10, node_level2_s.getY());
+
+    ASSERT_EQ( 40, node_level2_p.getX());
+    ASSERT_EQ( 20, node_level2_p.getY());
+
+    // clean up
+    dmGui::DeleteNode(m_Scene, node_level2);
+    dmGui::DeleteNode(m_Scene, node_level1);
+    dmGui::DeleteNode(m_Scene, node_level0);
+
+}
+
+TEST_F(dmGuiTest, AdjustReferenceOffset)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    uint32_t physical_width = 10;
+    uint32_t physical_height = 50;
+
+    dmGui::SetDefaultResolution(m_Context, width, height);
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_LEGACY, dmGui::GetSceneAdjustReference(m_Scene));
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
+
+    // create nodes
+    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(50.0f, 25.0f, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level0, "node_level0");
+    dmGui::SetNodePivot(m_Scene, node_level0, dmGui::PIVOT_CENTER);
+    dmGui::SetNodeXAnchor(m_Scene, node_level0, dmGui::XANCHOR_NONE);
+    dmGui::SetNodeYAnchor(m_Scene, node_level0, dmGui::YANCHOR_NONE);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level0, dmGui::ADJUST_MODE_STRETCH);
+
+    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(50, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level1, "node_level1");
+    dmGui::SetNodePivot(m_Scene, node_level1, dmGui::PIVOT_CENTER);
+    dmGui::SetNodeXAnchor(m_Scene, node_level1, dmGui::XANCHOR_NONE);
+    dmGui::SetNodeYAnchor(m_Scene, node_level1, dmGui::YANCHOR_NONE);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level1, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeParent(m_Scene, node_level1, node_level0);
+
+    dmGui::HNode node_level2 = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level2, "node_level2");
+    dmGui::SetNodePivot(m_Scene, node_level2, dmGui::PIVOT_CENTER);
+    dmGui::SetNodeXAnchor(m_Scene, node_level2, dmGui::XANCHOR_NONE);
+    dmGui::SetNodeYAnchor(m_Scene, node_level2, dmGui::YANCHOR_NONE);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level2, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeParent(m_Scene, node_level2, node_level1);
+
+    // update
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
+
+    // get render positions and sizes
+    Point3 node_level0_p = m_NodeTextToRenderedPosition["node_level0"];
+    Point3 node_level1_p = m_NodeTextToRenderedPosition["node_level1"];
+    Point3 node_level2_p = m_NodeTextToRenderedPosition["node_level2"];
+    Vector3 node_level0_s = m_NodeTextToRenderedSize["node_level0"];
+    Vector3 node_level1_s = m_NodeTextToRenderedSize["node_level1"];
+    Vector3 node_level2_s = m_NodeTextToRenderedSize["node_level2"];
+
+    Vector4 screen_origo = Vector4(5.0f, 25.0f, 0.0f, 0.0f);
+
+    // validate
+    ASSERT_EQ( screen_origo.getX(), node_level0_p.getX() + node_level0_s.getX() / 2.0f);
+    ASSERT_EQ( screen_origo.getY(), node_level0_p.getY() + node_level0_s.getY() / 2.0f);
+
+    ASSERT_EQ( 10.0f, node_level0_s.getX());
+    ASSERT_EQ( 50.0f, node_level0_s.getY());
+
+    ASSERT_EQ( screen_origo.getX(), node_level1_p.getX() + node_level1_s.getX() / 2.0f);
+    ASSERT_EQ( screen_origo.getY(), node_level1_p.getY() + node_level1_s.getY() / 2.0f);
+
+    ASSERT_EQ( 5.0f, node_level1_s.getX());
+    ASSERT_EQ( 5.0f, node_level1_s.getY());
+
+    ASSERT_EQ( screen_origo.getX(), node_level2_p.getX() + node_level2_s.getX() / 2.0f);
+    ASSERT_EQ( screen_origo.getY(), node_level2_p.getY() + node_level2_s.getY() / 2.0f);
+
+    ASSERT_EQ( 1.0f, node_level2_s.getX());
+    ASSERT_EQ( 1.0f, node_level2_s.getY());
+
+    // clean up
+    dmGui::DeleteNode(m_Scene, node_level2);
+    dmGui::DeleteNode(m_Scene, node_level1);
+    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::ClearFonts(m_Scene);
+
+}
+
+TEST_F(dmGuiTest, AdjustReferenceAnchoring)
+{
+    uint32_t width = 1024;
+    uint32_t height = 768;
+
+    uint32_t physical_width = 640;
+    uint32_t physical_height = 320;
+
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene, 0);
+
+    dmGui::HNode root_node = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0), Vector3(1024, 768, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, root_node, "root_node");
+    dmGui::SetNodePivot(m_Scene, root_node, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, root_node, dmGui::XANCHOR_NONE);
+    dmGui::SetNodeYAnchor(m_Scene, root_node, dmGui::YANCHOR_NONE);
+    dmGui::SetNodeAdjustMode(m_Scene, root_node, dmGui::ADJUST_MODE_STRETCH);
+
+    const char* n1_name = "n1";
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, n1, n1_name);
+    dmGui::SetNodeXAnchor(m_Scene, n1, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeParent(m_Scene, n1, root_node);
+
+    const char* n2_name = "n2";
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10.0f, height - 10.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, n2, n2_name);
+    dmGui::SetNodeXAnchor(m_Scene, n2, dmGui::XANCHOR_RIGHT);
+    dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_TOP);
+    dmGui::SetNodeParent(m_Scene, n2, root_node);
+
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
+
+    Point3 pos1 = m_NodeTextToRenderedPosition[n1_name] + m_NodeTextToRenderedSize[n1_name] * 0.5f;
+    const float EPSILON = 0.0001f;
+    ASSERT_NEAR(10 * ref_scale.getX(), pos1.getX(), EPSILON);
+    ASSERT_NEAR(10 * ref_scale.getY(), pos1.getY(), EPSILON);
+
+    Point3 pos2 = m_NodeTextToRenderedPosition[n2_name] + m_NodeTextToRenderedSize[n2_name] * 0.5f;
+    ASSERT_NEAR(physical_width - 10 * ref_scale.getX(), pos2.getX(), EPSILON);
+    ASSERT_NEAR(physical_height - 10 * ref_scale.getY(), pos2.getY(), EPSILON);
+}
+
+TEST_F(dmGuiTest, AdjustReferenceScaled)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    uint32_t physical_width = 200;
+    uint32_t physical_height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_LEGACY, dmGui::GetSceneAdjustReference(m_Scene));
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+    ASSERT_EQ(dmGui::ADJUST_REFERENCE_PARENT, dmGui::GetSceneAdjustReference(m_Scene));
+
+    // create nodes
+    dmGui::HNode node_level0 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(80, 30, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level0, "node_level0");
+    dmGui::SetNodePivot(m_Scene, node_level0, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_level0, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_level0, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level0, dmGui::ADJUST_MODE_STRETCH);
+
+    dmGui::HNode node_level1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeText(m_Scene, node_level1, "node_level1");
+    dmGui::SetNodePivot(m_Scene, node_level1, dmGui::PIVOT_SW);
+    dmGui::SetNodeXAnchor(m_Scene, node_level1, dmGui::XANCHOR_LEFT);
+    dmGui::SetNodeYAnchor(m_Scene, node_level1, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeAdjustMode(m_Scene, node_level1, dmGui::ADJUST_MODE_FIT);
+
+    dmGui::SetNodeParent(m_Scene, node_level1, node_level0);
+
+    // We scale node_level0 (root node) to half of its height.
+    // => This means that the child (node_level1) will also be half in height,
+    //    still obeying the adjust mode related scaling of the parent.
+    dmGui::SetNodeProperty(m_Scene, node_level0, dmGui::PROPERTY_SCALE, Vector4(1.0f, 0.5f, 1.0f, 1.0f));
+
+    // update
+    dmGui::RenderScene(m_Scene, &RenderNodes, this);
+
+    Point3 node_level0_p = m_NodeTextToRenderedPosition["node_level0"];
+    Point3 node_level1_p = m_NodeTextToRenderedPosition["node_level1"];
+    Vector3 node_level0_s = m_NodeTextToRenderedSize["node_level0"];
+    Vector3 node_level1_s = m_NodeTextToRenderedSize["node_level1"];
+
+    ASSERT_EQ( 20, node_level0_p.getX());
+    ASSERT_EQ( 10, node_level0_p.getY());
+
+    ASSERT_EQ(160, node_level0_s.getX());
+    ASSERT_EQ( 15, node_level0_s.getY());
+
+    ASSERT_EQ( 40, node_level1_p.getX());
+    ASSERT_EQ( 15, node_level1_p.getY());
+
+    ASSERT_EQ( 10, node_level1_s.getX());
+    ASSERT_EQ(  5, node_level1_s.getY());
+
+    // clean up
+    dmGui::DeleteNode(m_Scene, node_level1);
+    dmGui::DeleteNode(m_Scene, node_level0);
+
 }
 
 int main(int argc, char **argv)

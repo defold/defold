@@ -14,6 +14,7 @@ message NodeDesc
         TYPE_BOX  = 0 [(displayName) = "Box"];
         TYPE_TEXT = 1 [(displayName) = "Text"];
         TYPE_PIE  = 2 [(displayName) = "Pie"];
+        TYPE_TEMPLATE  = 3 [(displayName) = "Template"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -112,10 +113,19 @@ message NodeDesc
     optional float shadow_alpha       = 32 [default = 1.0];
 
     repeated uint32 overridden_fields = 33;
+
+    optional string     template              = 34 [(resource)=true];
+    optional bool       template_node_child   = 35;
 }
 
 message SceneDesc
 {
+    enum AdjustReference
+    {
+        ADJUST_REFERENCE_LEGACY = 0 [(displayName) = "Root (Deprecated)"];
+        ADJUST_REFERENCE_PARENT = 1 [(displayName) = "Per Node"];
+    };
+
     message FontDesc
     {
         required string name    = 1;
@@ -147,6 +157,8 @@ message SceneDesc
     optional string      material                = 8 [(resource)=true, default="/builtins/materials/gui.material"];
 
     repeated LayoutDesc  layouts                 = 9;
+
+    optional AdjustReference adjust_reference    = 10 [default = ADJUST_REFERENCE_LEGACY];
 }
 
 /*# reports a layout change
@@ -154,13 +166,13 @@ message SceneDesc
  * This message is broadcast to every GUI component when a layout change has been initiated
  * on device.
  * </p>
- * 
+ *
  * @message
  * @name layout_changed
  * @param id the id of the layout the engine is changing to (hash)
  * @param previous_id the id of the layout the engine is changing from (hash)
  * @examples
- * 
+ *
  * <pre>
  * function on_message(self, message_id, message, sender)
  *    if message_id == hash("layout_changed") and message.id == hash("Landscape") then

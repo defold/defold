@@ -810,7 +810,7 @@ namespace dmPhysics
     Vectormath::Aos::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
         float ang_vel = ((b2Body*)collision_object)->GetAngularVelocity();
-        return Vectormath::Aos::Vector3(0.0f, 0.0f, ang_vel * context->m_InvScale);
+        return Vectormath::Aos::Vector3(0.0f, 0.0f, ang_vel);
     }
 
     bool IsEnabled2D(HCollisionObject2D collision_object)

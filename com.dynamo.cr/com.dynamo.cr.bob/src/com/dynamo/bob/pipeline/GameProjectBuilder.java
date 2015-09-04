@@ -6,6 +6,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -260,11 +261,17 @@ public class GameProjectBuilder extends Builder<Void> {
             try {
                 Method newBuilder = klass.getDeclaredMethod("newBuilder");
                 builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
-                builder.mergeFrom(resource.output().getContent());
+                final byte[] content = resource.output().getContent();
+                if(content == null) {
+                	throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
+                }
+                builder.mergeFrom(content);
                 Object message = builder.build();
                 findResources(project, (Message) message, resources);
 
-            } catch (Exception e) {
+            } catch(CompileExceptionError e) {
+                throw e;
+            } catch(Exception e) {
                 throw new RuntimeException(e);
             }
         } else {
@@ -300,8 +307,12 @@ public class GameProjectBuilder extends Builder<Void> {
         for (String s : custom_resources) {
             s = s.trim();
             if (s.length() > 0) {
-                IResource r = project.getResource(s);
-                resources.add(r.output().getAbsPath());
+                ArrayList<String> paths = new ArrayList<String>();
+                project.findResourcePaths(s, paths);
+                for (String path : paths) {
+                    IResource r = project.getResource(path);
+                    resources.add(r.output().getAbsPath());
+                }
             }
         }
 
