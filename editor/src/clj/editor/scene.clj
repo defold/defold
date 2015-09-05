@@ -93,16 +93,16 @@
   (let [[w h] (vp-dims viewport)]
     (and (> w 0) (> h 0))))
 
-(defn z-distance [camera viewport obj]
-  (let [p (->> (Point3d.)
-            (geom/world-space obj)
-            (c/camera-project camera viewport))]
+(defn z-distance [camera viewport renderable ^Point3d tmp-p3d]
+  (let [^Matrix4d t (or (:world-transform renderable) geom/Identity4d)
+        _ (.transform t tmp-p3d)
+        p (c/camera-project camera viewport tmp-p3d)]
     (long (* Integer/MAX_VALUE (.z p)))))
 
-(defn render-key [camera viewport obj]
+(defn render-key [camera viewport renderable tmp-p3d]
   (- Long/MAX_VALUE
-     (+ (z-distance camera viewport obj)
-        (bit-shift-left (:index obj 0) INDEX_SHIFT))))
+     (+ (z-distance camera viewport renderable tmp-p3d)
+        (bit-shift-left (:index renderable 0) INDEX_SHIFT))))
 
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
@@ -203,7 +203,7 @@
       (persistent! batches))))
 
 (defn- render-sort [renderables camera viewport]
-  (sort-by #(render-key camera viewport %) renderables))
+  (sort-by :render-key renderables))
 
 (g/defnk produce-frame [^Region viewport ^GLAutoDrawable drawable camera ^TextRendererRef text-renderer renderables tool-renderables]
   (when-let [^GLContext context (make-current viewport drawable)]
@@ -301,26 +301,33 @@
 (g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:selection-data %)]}) tool-selection)))
 
-(defn flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables]
+(defn flatten-scene [scene selection-set ^Matrix4d world-transform out-renderables out-selected-renderables camera viewport tmp-p3d]
  (let [renderable (:renderable scene)
-       trans-tmpl ^Matrix4d (or (:transform scene) geom/Identity4d)
-       transform (Matrix4d. ^Matrix4d trans-tmpl)
-       world-transform (doto (Matrix4d. world-transform) (.mul transform))
+       ^Matrix4d trans (or (:transform scene) geom/Identity4d)
+       world-transform (doto (Matrix4d. world-transform) (.mul trans))
        selected (contains? selection-set (:node-id scene))
-       new-renderable (assoc (dissoc scene :renderable) :render-fn (:render-fn renderable) :world-transform world-transform :selected selected :user-data (:user-data renderable) :batch-key (:batch-key renderable))]
+       new-renderable (-> scene
+                        (dissoc :renderable)
+                        (assoc :render-fn (:render-fn renderable)
+                               :world-transform world-transform
+                               :selected selected
+                               :user-data (:user-data renderable)
+                               :batch-key (:batch-key renderable))
+                        (assoc :render-key (render-key camera viewport renderable tmp-p3d)))]
    (doseq [pass (:passes renderable)]
      (conj! (get out-renderables pass) new-renderable)
      (when (and selected (types/selection? pass))
        (conj! out-selected-renderables new-renderable)))
    (doseq [child-scene (:children scene)]
-     (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables))))
+     (flatten-scene child-scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d))))
 
 (defn produce-render-data [scene selection aux-renderables camera viewport]
   (let [selection-set (set selection)
         out-renderables (into {} (map #(do [% (transient [])]) pass/all-passes))
         out-selected-renderables (transient [])
         world-transform (doto (Matrix4d.) (.setIdentity))
-        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables)
+        tmp-p3d (Point3d.)
+        render-data (flatten-scene scene selection-set world-transform out-renderables out-selected-renderables camera viewport tmp-p3d)
         out-renderables (merge-with (fn [renderables extras] (doseq [extra extras] (conj! renderables extra)) renderables) out-renderables (apply merge-with concat aux-renderables))
         out-renderables (into {} (map (fn [[pass renderables]] [pass (vec (render-sort (persistent! renderables) camera viewport))]) out-renderables))
         out-selected-renderables (persistent! out-selected-renderables)]
