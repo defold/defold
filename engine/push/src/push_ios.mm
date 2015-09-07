@@ -255,17 +255,57 @@ static void RunListener(NSDictionary *userdata, bool local)
 @end
 
 /*# Register for push notifications
+ * Send a request for push notifications. Note that the notifications table parameter 
+ * is iOS only and will be ignored on Android.
  *
  * @name push.register
+ * @param notifications the types of notifications to listen to. (iOS only) (table)
+ * @param callback register callback function (function)
+ *
  * @examples
  * <p>
- * Convert device-token to string
+ * Register for push notifications on iOS. Note that the token needs to be converted on this platform.
  * </p>
  * <pre>
- * -- NOTE: %02x to pad byte with leading zero
- * local s = ""
- *     for i = 1,#token do
- *         s = s .. string.format("%02x", string.byte(token, i))
+ * local function push_listener(self, payload, origin)
+ *      -- The payload arrives here.
+ * end
+ *
+ * function init(self)
+ *      local alerts = {push.NOTIFICATION_BADGE, push.NOTIFICATION_SOUND, push.NOTIFICATION_ALERT}
+ *      push.register(alerts, function (self, token, error)
+ *      if token then
+ *           -- NOTE: %02x to pad byte with leading zero
+ *           local token_string = ""
+ *           for i = 1,#token do
+ *               token_string = token_string .. string.format("%02x", string.byte(token, i)) 
+ *           end
+ *           print(token_string)
+ *           push.set_listener(push_listener)
+ *      else
+ *           -- Push registration failed.
+ *           print(error.error)
+ *      end
+ * end
+ * </pre>
+ *
+ * <p>
+ * Register for push notifications on Android.
+ * </p>
+ * <pre>
+ * local function push_listener(self, payload, origin)
+ *      -- The payload arrives here.
+ * end
+ *
+ * function init(self)
+ *      push.register(nil, function (self, token, error)
+ *      if token then
+ *           print(token)
+ *           push.set_listener(push_listener)
+ *      else
+ *           -- Push registration failed.
+ *           print(error.error)
+ *      end
  * end
  * </pre>
  */
@@ -332,8 +372,35 @@ int Push_Register(lua_State* L)
  *
  * The listener callback has the following signature: function(self, payload, origin) where payload is a table
  * with the push payload.
+ *
  * @name push.set_listener
- * @param listener listener function
+ * @param listener listener callback function (function)
+ *
+ * @examples
+ * <p>
+ * Set the push notification listener.
+ * </p>
+ * <pre>
+ * local function push_listener(self, payload, origin)
+ *      -- The payload arrives here.
+ *      pprint(payload)
+ *      if origin == push.ORIGIN_LOCAL then
+ *          -- This was a local push
+ *          ...
+ *      end
+ *
+ *      if origin == push.ORIGIN_REMOTE then
+ *          -- This was a remote push
+ *          ...
+ *      end
+ * end
+ *
+ * local init(self)
+ *      ...
+ *      -- Assuming that push.register() has been successfully called earlier
+ *      push.set_listener(push_listener)
+ * end
+ *
  */
 int Push_SetListener(lua_State* L)
 {
@@ -363,10 +430,11 @@ int Push_SetListener(lua_State* L)
 
 /*# set badge icon count
  *
- * Set the badge count for application icon on iOS.
- * NOTE: Only available on iOS
+ * Set the badge count for application icon.
+ * NOTE: This function is only available on iOS.
+ *
  * @name push.set_badge_count
- * @param count badge count
+ * @param count badge count (number)
  */
 int Push_SetBadgeCount(lua_State* L)
 {
@@ -375,18 +443,43 @@ int Push_SetBadgeCount(lua_State* L)
     return 0;
 }
 
-
-
 /*# Schedule a local push notification to be triggered at a specific time in the future
  *
+ * Notification settings is a platform specific table of data that can contain the following fields:
+ * 
+ * <table>
+ *   <th>Field</th>
+ *   <th>Description</th>
+ *   <tr><td><code>action</code></td><td>(iOS only). The alert action string to be used as the title of the 
+ *          right button of the alert or the value of the unlock slider, where the value replaces 
+ *          "unlock" in "slide to unlock" text. (string)</td></tr>
+ *   <tr><td><code>badge_number</code></td><td>(iOS only). The numeric value of the icon badge. (number)</td></tr>
+ *   <tr><td><code>priority</code></td><td>(Android only). The priority is a hint to the device UI about how the notification 
+            should be displayed. There are five priority levels, from -2 to 2 where -1 is the lowest priority
+            and 2 the highest. Unless specified, a default priority level of 2 is used. (number)</td></tr>
+ * </table>
+ * 
  * @name push.schedule
- * @param time Number of seconds, into the future until the notification should be triggered
- * @param title Localized title to be displayed to the user if the application is not running.
- * @param alert Localized body message of the notification to be displayed to the user if the application is not running.
- * @param payload JSON string to be passed to the registered listener function
- * @param notification_settings Table with notification and platform specific data
- * @return id Unique id that can be used to cancel the notification
- * @return err Error string if something went wrong, otherwise nil
+ * @param time number of seconds into the future until the notification should be triggered (number)
+ * @param title localized title to be displayed to the user if the application is not running (string)
+ * @param alert localized body message of the notification to be displayed to the user if the application is not running (string)
+ * @param payload JSON string to be passed to the registered listener function (string)
+ * @param notification_settings table with notification and platform specific data (table)
+ * @return id unique id that can be used to cancel or inspect the notification (number)
+ * @return err error string if something went wrong, otherwise nil (string)
+ * @examples
+ * <p>
+ * This example demonstrates how to schedule a local notification.
+ * </p>
+ * <pre>
+ * -- Schedule a local push in 3 seconds
+ * local payload = '{ "data" : { "field" : "Some value", "field2" : "Other value" } }'
+ * id, err = push.schedule(3, "Update!", "There are new stuff in the app", payload, { action = "check it out" })
+ * if err then
+ *      -- Something went wrong
+ *      ...
+ * end
+ * </pre>
  */
 int Push_Schedule(lua_State* L)
 {
@@ -481,6 +574,14 @@ int Push_Schedule(lua_State* L)
     return 1;
 }
 
+/*# Cancel a scheduled local push notification
+ *
+ * Use this function to cancel a previously scheduled local push notification. The 
+ * notification is identified by a numeric id as returned by +push.schedule()+.
+ * 
+ * @name push.cancel
+ * @param id the numeric id of the local push notification (number)
+ */
 int Push_Cancel(lua_State* L)
 {
     int cancel_id = luaL_checkinteger(L, 1);
@@ -531,6 +632,15 @@ static void NotificationToLua(lua_State* L, UILocalNotification* notification)
     lua_settable(L, -3);
 }
 
+/*# Retrieve data on a scheduled local push notification
+ *
+ * Returns a table with all data associated with a specified local push notification.
+ * The notification is identified by a numeric id as returned by +push.schedule()+.
+ * 
+ * @name push.get_scheduled
+ * @param id the numeric id of the local push notification (number)
+ * @return data table with all data associated with the notification (table)
+ */
 int Push_GetScheduled(lua_State* L)
 {
     int get_id = luaL_checkinteger(L, 1);
@@ -546,6 +656,16 @@ int Push_GetScheduled(lua_State* L)
     return 0;
 }
 
+/*# Retrieve data on all scheduled local push notifications
+ *
+ * Returns a table with all data associated with all scheduled local push notifications.
+ * The table contains key, value pairs where the key is the push notification id and the
+ * value is a table with the notification data, corresponding to the data given by
+ * push.get_scheduled(id).
+ * 
+ * @name push.get_all_scheduled
+ * @return data table with all data associated with all scheduled notifications (table)
+ */
 int Push_GetAllScheduled(lua_State* L)
 {
     lua_createtable(L, 0, 0);
@@ -561,7 +681,6 @@ int Push_GetAllScheduled(lua_State* L)
 
     return 1;
 }
-
 
 static const luaL_reg Push_methods[] =
 {
@@ -593,6 +712,18 @@ static const luaL_reg Push_methods[] =
 /*# alert notification type
  *
  * @name push.NOTIFICATION_ALERT
+ * @variable
+ */
+
+/*# local push origin
+ *
+ * @name push.ORIGIN_LOCAL
+ * @variable
+ */
+
+/*# remote push origin
+ *
+ * @name push.ORIGIN_REMOTE
  * @variable
  */
 

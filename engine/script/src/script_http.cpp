@@ -42,13 +42,13 @@ namespace dmScript
      * @examples
      * <p>
      * Basic HTTP-GET request. The callback receives a table with the response
-     * in the fields status, payload (the data) and headers (a table).
+     * in the fields status, the response (the data) and headers (a table).
      * </p>
      * <pre>
      * local function http_result(self, id, response)
      *     print(response.status)
-     *     print(response.payload)
-     *     print(response.headers)
+     *     print(response.response)
+     *     pprint(response.headers)
      * end
      * function example(self)
      *     http.request("http://www.google.com", "GET", http_result)

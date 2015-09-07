@@ -211,7 +211,26 @@ public class IapActivity extends Activity {
             }
         };
 
-        bindService(new Intent("com.android.vending.billing.InAppBillingService.BIND"), serviceConn, Context.BIND_AUTO_CREATE);
+        Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
+        serviceIntent.setPackage("com.android.vending");
+        if (!getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
+            // service available to handle that Intent
+            bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
+        } else {
+            // Service will never be connected; just send unavailability message
+            serviceConn = null;
+            Bundle bundle = new Bundle();
+            bundle.putString("action", intent.getAction());
+            bundle.putInt(Iap.RESPONSE_CODE, Iap.BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE);
+            Message msg = new Message();
+            msg.setData(bundle);
+            try {
+                messenger.send(msg);
+            } catch (RemoteException e) {
+                Log.wtf(Iap.TAG, "Unable to send message", e);
+            }
+            this.finish();
+        }
     }
 
     @Override

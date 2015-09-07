@@ -29,6 +29,7 @@
 
 namespace dmGameObject
 {
+    const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 5;
@@ -127,6 +128,7 @@ namespace dmGameObject
     Register::Register()
     {
         m_ComponentTypeCount = 0;
+        m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_Mutex = dmMutex::New();
     }
 
@@ -148,6 +150,19 @@ namespace dmGameObject
     HRegister NewRegister()
     {
         return new Register();
+    }
+
+    Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
+    {
+        if(capacity >= INVALID_INSTANCE_INDEX-1)
+            return RESULT_INVALID_OPERATION;
+        regist->m_DefaultCollectionCapacity = capacity;
+        return RESULT_OK;
+    }
+
+    uint32_t GetCollectionDefaultCapacity(HRegister regist)
+    {
+        return regist->m_DefaultCollectionCapacity;
     }
 
     void DoDeleteCollection(HCollection collection);
@@ -182,6 +197,7 @@ namespace dmGameObject
                 ComponentNewWorldParams params;
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
+                params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
@@ -1670,6 +1686,11 @@ namespace dmGameObject
         instance->m_Bone = bone;
     }
 
+    bool IsBone(HInstance instance)
+    {
+        return instance->m_Bone;
+    }
+
     static uint32_t DoSetBoneTransforms(HCollection collection, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
     {
         if (transform_count == 0)
@@ -1696,9 +1717,10 @@ namespace dmGameObject
         return count;
     }
 
-    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count) {
-        HCollection collection = parent->m_Collection;
-        return DoSetBoneTransforms(collection, parent->m_FirstChildIndex, transforms, transform_count);
+    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform* transforms, uint32_t transform_count)
+    {
+        HCollection collection = instance->m_Collection;
+        return DoSetBoneTransforms(collection, instance->m_Index, transforms, transform_count);
     }
 
     static void DoDeleteBones(HCollection collection, uint16_t first_index) {

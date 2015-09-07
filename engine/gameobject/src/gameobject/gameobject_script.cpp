@@ -1175,6 +1175,10 @@ namespace dmGameObject
             dmLogWarning("go.delete() invoked with nil and self will be deleted");
         }
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
+        if(dmGameObject::IsBone(instance))
+        {
+            return luaL_error(L, "Can not delete subinstances of spine components. '%s'", (const char*)dmHashReverse64(dmGameObject::GetIdentifier(instance), 0x0));
+        }
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance);
         return 0;
@@ -1232,6 +1236,10 @@ namespace dmGameObject
             Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
             if (todelete)
             {
+                if(dmGameObject::IsBone(todelete))
+                {
+                    return luaL_error(L, "Can not delete subinstances of spine components. '%s'", (const char*)dmHashReverse64(dmGameObject::GetIdentifier(todelete), 0x0));
+                }
                 dmGameObject::HCollection collection = todelete->m_Collection;
                 dmGameObject::Delete(collection, todelete);
             }
