@@ -69,7 +69,7 @@ message DrawLine
  * <pre>
  * function on_message(self, message_id, message) 
  *     -- check for the message
- *     if message.id == hash("window_resized") then
+ *     if message_id == hash("window_resized") then
  *         -- the window was resized.
  *     end
  * end

@@ -22,6 +22,12 @@ namespace dmGameObject
 {
     using namespace Vectormath::Aos;
 
+    /// Default max instances in collection
+    const uint32_t DEFAULT_MAX_COLLECTION_CAPACITY = 1024;
+
+    /// Config key to use for tweaking maximum number of instances in a collection
+    extern const char* COLLECTION_MAX_INSTANCES_KEY;
+
     /// Instance handle
     typedef struct Instance* HInstance;
 
@@ -237,6 +243,8 @@ namespace dmGameObject
         void* m_Context;
         /// Component index that can be used later with GetWorld()
         uint8_t m_ComponentIndex;
+        /// Max component game object instance count (if applicable)
+        uint32_t m_MaxInstances;
         /// Out-parameter of the pointer in which to store the created world
         void** m_World;
     };
@@ -633,9 +641,25 @@ namespace dmGameObject
 
     /**
      * Create a new component type register
+     * @param regist Register
      * @return Register handle
      */
     HRegister NewRegister();
+
+    /**
+     * Set default capacity of collections in this register. This does not affect existing collections.
+     * @param regist Register
+     * @param capacity Default capacity of collections in this register (0-32766).
+     * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
+     */
+    Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
+
+    /**
+     * Get default capacity of collections in this register.
+     * @param regist Register
+     * @return Default capacity
+     */
+    uint32_t GetCollectionDefaultCapacity(HRegister regist);
 
     /**
      * Delete a component type register
@@ -883,14 +907,21 @@ namespace dmGameObject
     void SetBone(HInstance instance, bool bone);
 
     /**
-     * Set the local transforms recursively of all instances flagged as bones under the given parent instance.
+     * Check whether the instance is flagged as a bone.
+     * @param instance Instance
+     * @return True if flagged as a bone
+     */
+    bool IsBone(HInstance instance);
+
+    /**
+     * Set the local transforms recursively of all instances flagged as bones, starting with component with id.
      * The order of the transforms is depth-first.
-     * @param parent Parent instance of the hierarchy to set
+     * @param instance First Instance of the hierarchy to set
      * @param transforms Array of transforms to set depth-first for the bone instances
      * @param transform_count Size of the transforms array
      * @return Number of instances found
      */
-    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count);
+    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform* transforms, uint32_t transform_count);
 
     /**
      * Recursively delete all instances flagged as bones under the given parent instance.

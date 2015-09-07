@@ -33,6 +33,12 @@ namespace dmGameSystem
         bool m_Visible;
     };
 
+    struct IKTarget {
+        float m_Mix;
+        dmhash_t m_InstanceId;
+        Vector3 m_Position;
+    };
+
     struct SpineModelComponent
     {
         SpinePlayer                 m_Players[2];
@@ -46,10 +52,12 @@ namespace dmGameSystem
         dmArray<Vector4>            m_PrevRenderConstants;
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
-        /// Nodes corresponding to the bones
-        dmArray<dmhash_t> m_NodeIds;
+        /// Node instances corresponding to the bones
+        dmArray<dmGameObject::HInstance> m_NodeInstances;
         /// Animated mesh properties
         dmArray<MeshProperties>     m_MeshProperties;
+        // User IK constraint targets
+        dmArray<IKTarget>           m_IKTargets;
         /// Currently used mesh
         dmGameSystemDDF::MeshEntry* m_MeshEntry;
         dmhash_t                    m_Skin;

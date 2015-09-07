@@ -436,6 +436,31 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Lua API
+// 
+
+ /*# initiate a Facebook login
+ *
+ * This function opens a Facebook login dialog allowing the user to log into Facebook
+ * with his/her account. This performs a login requesting read permission for:
+ * <ul>
+ *   <li><code>"public_profile"</code></li>
+ *   <li><code>"email"</code></li>
+ *   <li><code>"user_friends"</code></li>
+ * </ul>
+ * The actual permission that the user grants can be retrieved with <code>facebook.permissions()</code>.
+ *
+ * @name login
+ * @param callback callback function with parameters (self, status, error), when the login attempt is done. (function)
+ * @examples
+ * <pre>
+ * facebook.login(function (self, status, error)       
+ *     if error or status ~= facebook.STATE_OPEN then
+ *         print("Facebook log in error: " .. status)
+ *         return
+ *     end
+ * end)
+ * </pre>
+ */
 int Facebook_Login(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -488,6 +513,13 @@ int Facebook_Login(lua_State* L)
     return 0;
 }
 
+ /*# logout from Facebook
+ *
+ * Logout from Facebook.
+ *
+ * @name logout
+ *
+ */
 int Facebook_Logout(lua_State* L)
 {
     [g_Facebook.m_Login logOut];
@@ -496,6 +528,31 @@ int Facebook_Logout(lua_State* L)
     return 0;
 }
 
+/*# logs the user in with the requested read permissions
+ *
+ * Log in the user on Facebook with the specified read permissions. Check the permissions the user
+ * actually granted with <code>facebook.permissions()</code>.
+ *
+ * @name request_read_permissions
+ * @param permissions a table with the requested permission strings (table)
+ * The following strings are valid permission identifiers and are requested by default on login:
+ * <ul>
+ *   <li><code>"public_profile"</code></li>
+ *   <li><code>"email"</code></li>
+ *   <li><code>"user_friends"</code></li>
+ * </ul>
+ * A comprehensive list of permissions can be found at https://developers.facebook.com/docs/facebook-login/permissions/v2.4
+ * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
+ * @examples
+ * <pre>
+ * facebook.request_read_permissions({ "user_friends", "email" }, function (self, error)
+ *     if error then
+ *         -- Something bad happened
+ *         return
+ *     end
+ * end)
+ * </pre> 
+ */
 int Facebook_RequestReadPermissions(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -520,6 +577,32 @@ int Facebook_RequestReadPermissions(lua_State* L)
     assert(top == lua_gettop(L));
     return 0;
 }
+
+/*# logs the user in with the requested publish permissions
+ *
+ *  Log in the user on Facebook with the specified publish permissions. Check the permissions the user
+ *  actually granted with <code>facebook.permissions()</code>.
+ *
+ * @name request_publish_permissions
+ * @param permissions a table with the requested permissions (table)
+ * @param audience (constant|number)
+ * <ul>
+ *     <li>facebook.AUDIENCE_NONE</li>
+ *     <li>facebook.AUDIENCE_ONLYME</li>
+ *     <li>facebook.AUDIENCE_FRIENDS</li>
+ *     <li>facebook.AUDIENCE_EVERYONE</li>
+ * </ul>
+ * @param callback callback function with parameters (self, error) that is called when the permission request dialog is closed. (function)
+ * @examples
+ * <pre>
+ * facebook.request_publish_permissions({ "user_friends", "email" }, function (self, error)
+ *     if error then
+ *         -- Something bad happened
+ *         return
+ *     end
+ * end)
+ * </pre> 
+ */
 
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
@@ -548,6 +631,12 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     return 0;
 }
 
+/*# get the current Facebook access token
+ * 
+ * @name access_token
+ * @return the access token (string)
+ */
+
 int Facebook_AccessToken(lua_State* L)
 {
     const char* token = [[[FBSDKAccessToken currentAccessToken] tokenString] UTF8String];
@@ -555,6 +644,22 @@ int Facebook_AccessToken(lua_State* L)
     return 1;
 }
 
+/*# get the currently granted permissions
+ *
+ * This function returns a table with all the currently granted permission strings.
+ *
+ * @name permissions
+ * @return the permissions (table)
+ * @examples
+ * <pre>
+ * for _,permission in ipairs(facebook.permissions()) do
+ *     if permission == "user_likes" then
+ *         -- "user_likes" granted...
+ *         break
+ *     end
+ * end
+ * </pre>
+ */
 int Facebook_Permissions(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -573,6 +678,28 @@ int Facebook_Permissions(lua_State* L)
     return 1;
 }
 
+/*# return a table with "me" user data
+ *
+ * This function returns a table of user data as requested from the Facebook Graph API
+ * "me" path. The user data is fetched during facebook.login().
+ *
+ * The table contains the following fields:
+ * 
+ * <ul>
+ *   <li><code>"name"</code></li>
+ *   <li><code>"last_name"</code></li>
+ *   <li><code>"first_name"</code></li>
+ *   <li><code>"id"</code></li>
+ *   <li><code>"email"</code></li>
+ *   <li><code>"link"</code></li>
+ *   <li><code>"gender"</code></li>
+ *   <li><code>"locale"</code></li>
+ *   <li><code>"updated_time"</code></li>
+ * </ul>
+ *
+ * @name me
+ * @return table with user data fields (table)
+ */
 int Facebook_Me(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -595,16 +722,63 @@ int Facebook_Me(lua_State* L)
     return 1;
 }
 
-
-
 /*# show facebook web dialog
- *  Note that for certain dialogs, e.g. apprequests, both "title" and "message" are mandatory. If not
- *  specified a generic error will be presented in the dialog. See https://developers.facebook.com/docs/dialogs for more
- *  information about parameters.
+ *
+ * Display a Facebook web dialog of the type specified in the <code>dialog</code> parameter.
+ * The <code>param</code> table should be set up according to the requirements of each dialog
+ * type. Note that some parameters are mandatory. Below is the list of available dialogs and 
+ * where to find Facebook's developer documentation on parameters and response data.
+ *
+ * <code>apprequest</code>
+ *
+ * Shows a Game Request dialog. Game Requests allows players to invite their friends to play a 
+ * game. Available parameters:
+ * 
+ * <ul>
+ *   <li><code>title</code> (string)</li>
+ *   <li><code>message</code> (string)</li>
+ *   <li><code>action_type</code> (number)</li>
+ *   <li><code>filters</code> (number)</li>
+ *   <li><code>data</code> (string)</li>
+ *   <li><code>object_id</code> (string)</li>
+ *   <li><code>suggestions</code> (table)</li>
+ *   <li><code>to</code> (string)</li>
+ * </ul>
+ * 
+ * Details for each parameter: https://developers.facebook.com/docs/games/requests/v2.4#params
+ *
+ * <code>feed</code>
+ *
+ * The Feed Dialog allows people to publish individual stories to their timeline. 
+ * 
+ * <ul>
+ *   <li><code>caption</code> (string)</li>
+ *   <li><code>description</code> (string)</li>
+ *   <li><code>picture</code> (string)</li>
+ *   <li><code>link</code> (string)</li>
+ *   <li><code>people_ids</code> (table)</li>
+ *   <li><code>place_id</code> (string)</li>
+ *   <li><code>ref</code> (string)</li>
+ * </ul>
+ * 
+ * Details for each parameter: https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params
+ *
+ * <code>appinvite</code>
+ *
+ * The App Invite dialog is available only on iOS and Android. Note that the <code>url</code> parameter
+ * corresponds to the appLinkURL (iOS) and setAppLinkUrl (Android) properties.
+ *
+ * <ul>
+ *   <li><code>url</code> (string)</li>
+ *   <li><code>preview_image</code> (string)</li>
+ * </ul>
+ * 
+ * Details for each parameter: https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/
+ * 
  * @name show_dialog
- * @param dialog dialog to show, "feed", "apprequests", etc
- * @param param table with dialog parameters, "title", "message", etc
- * @param callback function called, with parameters (self, result, error), when the dialog is closed. Result is table with an url-field set.
+ * @param dialog dialog to show. "apprequest", "feed" or "appinvite" (string)
+ * @param param table with dialog parameters (table)
+ * @param callback callback function with parameters (self, result, error) that is called when the dialog is closed. Result is table with an url-field set. (function)
  */
 static int Facebook_ShowDialog(lua_State* L)
 {
@@ -685,6 +859,84 @@ static const luaL_reg Facebook_methods[] =
     {"show_dialog", Facebook_ShowDialog},
     {0, 0}
 };
+
+/*# The Facebook login session is open
+ *
+ * @name facebook.STATE_OPEN
+ * @variable
+ */
+
+/*# The Facebook login session has closed because login failed
+ *
+ * @name facebook.STATE_CLOSED_LOGIN_FAILED
+ * @variable
+ */
+
+/*# Game Request action type "none" for "apprequest" dialog
+ *
+ * @name facebook.GAMEREQUEST_ACTIONTYPE_NONE
+ * @variable
+ */
+
+/*# Game Request action type "send" for "apprequest" dialog
+ *
+ * @name facebook.GAMEREQUEST_ACTIONTYPE_SEND
+ * @variable
+ */
+
+/*# Game Request action type "askfor" for "apprequest" dialog
+ *
+ * @name facebook.GAMEREQUEST_ACTIONTYPE_ASKFOR
+ * @variable
+ */
+
+/*# Game Request action type "turn" for "apprequest" dialog
+ *
+ * @name facebook.GAMEREQUEST_ACTIONTYPE_TURN
+ * @variable
+ */
+
+/*# Gamerequest filter type "none" for "apprequest" dialog
+ *
+ * @name facebook.GAMEREQUEST_FILTER_NONE
+ * @variable
+ */
+
+/*# Gamerequest filter type "app_users" for "apprequest" dialog
+ *
+ * @name facebook.GAMEREQUEST_FILTER_APPUSERS
+ * @variable
+ */
+
+/*# Gamerequest filter type "app_non_users" for "apprequest" dialog
+ *
+ * @name facebook.GAMEREQUEST_FILTER_APPNONUSERS
+ * @variable
+ */
+
+/*# Publish permission to reach no audience.
+ *
+ * @name facebook.AUDIENCE_NONE
+ * @variable
+ */
+
+/*# Publish permission to reach only me (private to current user).
+ *
+ * @name facebook.AUDIENCE_ONLYME
+ * @variable
+ */
+
+/*# Publish permission to reach user friends.
+ *
+ * @name facebook.AUDIENCE_FRIENDS
+ * @variable
+ */
+
+/*# Publish permission to reach everyone.
+ *
+ * @name facebook.AUDIENCE_EVERYONE
+ * @variable
+ */
 
 dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 {

@@ -1,0 +1,27 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+from waf_dynamo import new_copy_task
+
+new_copy_task('luascript', '.lua', '.luac')
+
+def build(bld):
+    libs = 'SCRIPT GTEST EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
+    test_crash = bld.new_task_gen(features = 'cxx cprogram test',
+                                     includes = '..',
+                                     uselib = libs,
+                                     uselib_local = 'crashext',
+                                     target = 'test_crash',
+                                     source = 'test_crash.cpp')
+
+    test_crash.install_path = None
+
+    test_script_crash = bld.new_task_gen(features = 'cxx cprogram test',
+                                     includes = '..',
+                                     uselib = libs,
+                                     uselib_local = 'crashext',
+                                     target = 'test_script_crash',
+                                     exported_symbols = 'CrashExt',
+                                     source = 'test_script_crash.cpp test_crash.lua')
+
+    test_script_crash.install_path = None
+

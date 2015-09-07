@@ -1,0 +1,31 @@
+#include <stdlib.h>
+#include <gtest/gtest.h>
+#include <dlib/log.h>
+#include <dlib/time.h>
+
+#include "../crash.h"
+
+class dmCrashTest : public ::testing::Test
+{
+    public:
+        virtual void SetUp()
+        {
+            dmCrash::Init();
+        }
+
+        virtual void TearDown()
+        {
+        
+        }
+};
+
+TEST_F(dmCrashTest, Initialize)
+{
+
+}
+
+int main(int argc, char **argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
