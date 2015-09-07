@@ -133,13 +133,23 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(100.0, trackStepped.getPositions((keyCount - 1) * 3), EPSILON);
     }
 
+    private void assertIK(Skeleton skeleton) {
+        assertEquals(1, skeleton.getIksCount());
+        Spine.IK ik = skeleton.getIks(0);
+        assertEquals(1, ik.getParent());
+        assertEquals(2, ik.getChild());
+        assertEquals(3, ik.getTarget());
+        assertEquals(false, ik.getPositive());
+        assertEquals(0.5, ik.getMix(), EPSILON);
+    }
+
     @Test
     public void testSpineScene() throws Exception {
         addImage("/test.png", 16, 16);
         StringBuilder src = new StringBuilder();
         src.append("images { image:  \"/test.png\" }");
         build("/skeleton_atlas.atlas", src.toString());
-        
+
         src = new StringBuilder();
         src.append("spine_json: \"/skeleton.json\"");
         src.append(" atlas: \"/skeleton_atlas.atlas\"");
@@ -149,5 +159,6 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertSkeleton(scene.getSkeleton());
         assertMeshSet(scene.getMeshSet());
         assertAnimSet(scene.getAnimationSet());
+        assertIK(scene.getSkeleton());
     }
 }

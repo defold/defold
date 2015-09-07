@@ -128,7 +128,7 @@ var Module = {
         hasIndexedDB : function() {
           var has = false;
 
-          has |= typeof(window.IndexedDB) !== 'undefined'
+          has |= typeof(window.indexedDB) !== 'undefined'
             || typeof(window.webkitIndexedDB) !== 'undefined'
             || typeof(window.mozIndexedDB) !== 'undefined'
             || typeof(window.msIndexedDB) !== 'undefined'

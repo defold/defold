@@ -1,0 +1,56 @@
+#! /usr/bin/env python
+import os, re
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    load_addrs = 'load_addrs_null.cpp'
+    sig_handler = 'backtrace_null.cpp'
+    file_handler = 'file_null.cpp'
+
+    if 'android' in bld.env['PLATFORM']:
+        sig_handler = 'backtrace_android.cpp'
+        load_addrs = 'load_addrs_proc_smap.cpp'
+        file_handler = 'file_posix.cpp'
+    elif 'linux' in bld.env['PLATFORM']:
+        sig_handler = 'backtrace_execinfo.cpp'
+        load_addrs = 'load_addrs_proc_smap.cpp'
+        file_handler = 'file_posix.cpp'
+    elif not ('js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']):
+            file_handler = 'file_posix.cpp'
+            sig_handler = 'backtrace_execinfo.cpp'
+
+    if 'darwin' in bld.env['PLATFORM']:
+        load_addrs = 'load_addrs_mach.cpp'
+        
+    if 'win32' in bld.env['PLATFORM']:
+        load_addrs = 'load_addrs_win32.cpp'
+        sig_handler = 'backtrace_win32.cpp'
+        file_handler = 'file_win32.cpp'
+
+    crash = bld.new_task_gen(features = 'cxx cstaticlib',
+                                includes = ['.', '../proto'],
+                                proto_gen_py = True,
+                                proto_gen_cc = True,
+                                protoc_includes = '../proto',
+                                target = 'crashext')
+
+    crash.source = 'crash.cpp extension.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
+
+    bld.add_subdirs('test')
+    bld.install_files('${PREFIX}/include/crash', 'crash.h')
+
+    bld.new_task_gen(source = 'extension.cpp',
+                     target = 'crash_doc.json',
+                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+
+    bld.new_task_gen(source = 'extension.cpp',
+                     target = 'crash_doc.sdoc',
+                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+
+    bld.install_files('${PREFIX}/share/doc', 'crash_doc.sdoc')
+    bld.install_files('${PREFIX}/share/doc', 'crash_doc.json')
+
+

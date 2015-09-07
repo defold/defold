@@ -255,21 +255,59 @@ public class FacebookActivity implements PseudoActivity {
 
     private void actionShowDialog( final Bundle extras ) {
 
-        if (AccessToken.getCurrentAccessToken() != null) {
+        String dialogType = extras.getString(Facebook.INTENT_EXTRA_DIALOGTYPE);
+        Bundle dialogParams = extras.getBundle(Facebook.INTENT_EXTRA_DIALOGPARAMS);
 
-            String dialogType = extras.getString(Facebook.INTENT_EXTRA_DIALOGTYPE);
-            Bundle dialogParams = extras.getBundle(Facebook.INTENT_EXTRA_DIALOGPARAMS);
+        if (dialogType.equals("appinvite")) {
 
-            if (dialogType.equals("feed")) {
+            AppInviteDialog appInviteDialog = new AppInviteDialog(parent);
+            AppInviteContent content = new AppInviteContent.Builder()
+                .setApplinkUrl(dialogParams.getString("url", ""))
+                .setPreviewImageUrl(dialogParams.getString("preview_image_url", ""))
+                .build();
 
-                ShareDialog shareDialog = new ShareDialog(parent);
-                ShareLinkContent.Builder content = new ShareLinkContent.Builder()
-                    .setContentUrl(Uri.parse(dialogParams.getString("link", "")))
-                    .setContentTitle(dialogParams.getString("caption", ""))
-                    .setImageUrl(Uri.parse(dialogParams.getString("picture", "")))
-                    .setContentDescription(dialogParams.getString("description", ""))
-                    .setPlaceId(dialogParams.getString("place_id", ""))
-                    .setRef(dialogParams.getString("ref", ""));
+            appInviteDialog.registerCallback(callbackManager, new DefaultDialogCallback<AppInviteDialog.Result>() {
+
+                @Override
+                public void onSuccess(AppInviteDialog.Result result) {
+                    Bundle data = new Bundle();
+                    data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
+                    data.putBundle(Facebook.MSG_KEY_DIALOG_RESULT, result.getData());
+                    respond(Facebook.ACTION_SHOW_DIALOG, data);
+                }
+
+            });
+
+            // canShow false when browser/app not available.
+            if (appInviteDialog.canShow()) {
+                appInviteDialog.show(parent, content);
+            } else {
+                Bundle data = new Bundle();
+                data.putString(Facebook.MSG_KEY_ERROR, "Dialog not available");
+                respond(Facebook.ACTION_SHOW_DIALOG, data);
+            }
+
+        } else {
+
+            // All dialogs that require login
+            if (AccessToken.getCurrentAccessToken() == null) {
+
+                Bundle data = new Bundle();
+                data.putString(Facebook.MSG_KEY_ERROR, "User is not logged in");
+                respond(Facebook.ACTION_SHOW_DIALOG, data);
+
+            } else {
+
+                if (dialogType.equals("feed")) {
+
+                    ShareDialog shareDialog = new ShareDialog(parent);
+                    ShareLinkContent.Builder content = new ShareLinkContent.Builder()
+                        .setContentUrl(Uri.parse(dialogParams.getString("link", "")))
+                        .setContentTitle(dialogParams.getString("caption", ""))
+                        .setImageUrl(Uri.parse(dialogParams.getString("picture", "")))
+                        .setContentDescription(dialogParams.getString("description", ""))
+                        .setPlaceId(dialogParams.getString("place_id", ""))
+                        .setRef(dialogParams.getString("ref", ""));
 
                     if (dialogParams.getStringArray("people_ids") != null) {
                         content.setPeopleIds(Arrays.asList(dialogParams.getStringArray("people_ids")));
@@ -291,57 +329,36 @@ public class FacebookActivity implements PseudoActivity {
 
                     shareDialog.show(parent, content.build());
 
-            } else if (dialogType.equals("appinvite")) {
+                } else if (dialogType.equals("apprequests")) {
 
-                AppInviteDialog appInviteDialog = new AppInviteDialog(parent);
-                AppInviteContent content = new AppInviteContent.Builder()
-                    .setApplinkUrl(dialogParams.getString("url", ""))
-                    .setPreviewImageUrl(dialogParams.getString("preview_image_url", ""))
-                    .build();
+                    GameRequestDialog appInviteDialog = new GameRequestDialog(parent);
 
-                    appInviteDialog.registerCallback(callbackManager, new DefaultDialogCallback<AppInviteDialog.Result>() {
-
-                        @Override
-                        public void onSuccess(AppInviteDialog.Result result) {
-                            Bundle data = new Bundle();
-                            data.putBoolean(Facebook.MSG_KEY_SUCCESS, true);
-                            data.putBundle(Facebook.MSG_KEY_DIALOG_RESULT, result.getData());
-                            respond(Facebook.ACTION_SHOW_DIALOG, data);
-                        }
-
-                    });
-                    appInviteDialog.show(parent, content);
-
-            } else if (dialogType.equals("apprequests")) {
-
-                GameRequestDialog appInviteDialog = new GameRequestDialog(parent);
-
-                ArrayList<String> suggestionsArray = new ArrayList<String>();
-                String[] suggestions = dialogParams.getStringArray("suggestions");
-                if (suggestions != null) {
-                    suggestionsArray.addAll(Arrays.asList(suggestions));
-                }
-
-                // comply with JS way of specifying recipients/to
-                String recipientsString = null;
-                String[] recipients = null;
-                // FB SDK is weird, special case on Android, recipients/to
-                // can only be one person. We pick the first one in the list,
-                // if multiple are supplied...
-                if (dialogParams.getString("to") != null) {
-                    recipients = dialogParams.getString("to").split(",");
-                }
-                if (recipients != null) {
-                    recipientsString = recipients[0];
-                    if (recipients.length > 1) {
-                        Log.d(TAG, "Facebook SDK for Android only supports one recipient ('to' field) for GameRequestDialog, only the first one will be used.");
+                    ArrayList<String> suggestionsArray = new ArrayList<String>();
+                    String[] suggestions = dialogParams.getStringArray("suggestions");
+                    if (suggestions != null) {
+                        suggestionsArray.addAll(Arrays.asList(suggestions));
                     }
-                }
 
-                GameRequestContent.Builder content = new GameRequestContent.Builder()
-                    .setTitle(dialogParams.getString("title", ""))
-                    .setMessage(dialogParams.getString("message", ""))
-                    .setData(dialogParams.getString("data"));
+                    // comply with JS way of specifying recipients/to
+                    String recipientsString = null;
+                    String[] recipients = null;
+                    // FB SDK is weird, special case on Android, recipients/to
+                    // can only be one person. We pick the first one in the list,
+                    // if multiple are supplied...
+                    if (dialogParams.getString("to") != null) {
+                        recipients = dialogParams.getString("to").split(",");
+                    }
+                    if (recipients != null) {
+                        recipientsString = recipients[0];
+                        if (recipients.length > 1) {
+                            Log.d(TAG, "Facebook SDK for Android only supports one recipient ('to' field) for GameRequestDialog, only the first one will be used.");
+                        }
+                    }
+
+                    GameRequestContent.Builder content = new GameRequestContent.Builder()
+                        .setTitle(dialogParams.getString("title", ""))
+                        .setMessage(dialogParams.getString("message", ""))
+                        .setData(dialogParams.getString("data"));
 
                     if (dialogParams.getString("object_id") != null) {
                         content.setObjectId(dialogParams.getString("object_id"));
@@ -377,18 +394,15 @@ public class FacebookActivity implements PseudoActivity {
                         }
 
                     });
+
                     appInviteDialog.show(parent, content.build());
 
-            } else {
-                Bundle data = new Bundle();
-                data.putString(Facebook.MSG_KEY_ERROR, "Unknown dialog type");
-                respond(Facebook.ACTION_SHOW_DIALOG, data);
+                } else {
+                    Bundle data = new Bundle();
+                    data.putString(Facebook.MSG_KEY_ERROR, "Unknown dialog type");
+                    respond(Facebook.ACTION_SHOW_DIALOG, data);
+                }
             }
-
-        } else {
-            Bundle data = new Bundle();
-            data.putString(Facebook.MSG_KEY_ERROR, "User is not logged in");
-            respond(Facebook.ACTION_SHOW_DIALOG, data);
         }
 
     }

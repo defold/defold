@@ -342,112 +342,137 @@ namespace dmProfile
         g_IsInitialized = false;
     }
 
-    static void CalculateScopeProfile(Profile* profile)
+    static void CalculateScopeProfileThread(Profile* profile, const uint32_t* key, uint8_t* value)
     {
-        uint32_t n_samples = profile->m_Samples.Size();
-        uint32_t n_scopes = g_Scopes.Size();
+        const uint32_t n_scopes = g_Scopes.Size();
+        const uint32_t n_samples = profile->m_Samples.Size();
+        const uint32_t thread_id = *key;
 
-        for (uint32_t thread_id = 0; thread_id < g_ThreadCount; ++thread_id)
+        for (uint32_t i = 0; i < n_scopes; ++i)
         {
-            for (uint32_t i = 0; i < n_scopes; ++i)
+            g_Scopes[i].m_Internal = 0;
+        }
+
+        g_DummyScope.m_Internal = 0;
+
+        for (uint32_t i = 0; i < n_samples; ++i)
+        {
+            Sample* sample = &profile->m_Samples[i];
+
+            if (g_StringTable.Get((uintptr_t) sample->m_Name) == 0)
             {
-                g_Scopes[i].m_Internal = 0;
-            }
-            g_DummyScope.m_Internal = 0;
-
-            for (uint32_t i = 0; i < n_samples; ++i)
-            {
-                Sample* sample = &profile->m_Samples[i];
-
-                if (g_StringTable.Get((uintptr_t) sample->m_Name) == 0)
+                if (g_StringTable.Full())
                 {
-                    if (g_StringTable.Full())
-                    {
-                        dmLogWarning("String table full in profiler");
-                    }
-                    else
-                    {
-                        g_StringTable.Put((uintptr_t) sample->m_Name, sample->m_Name);
-                    }
-                }
-
-                // Does this sample belong to current thread?
-                if (sample->m_ThreadId != thread_id)
-                    continue;
-
-                Scope* scope = sample->m_Scope;
-
-                if (scope->m_Internal == 0)
-                {
-                    // First sample for this scope found
-                    scope->m_Internal = sample;
+                    dmLogWarning("String table full in profiler");
                 }
                 else
                 {
-                    // Check if sample is overlapping the last sample
-                    // If overlapping ignore the sample. We are only interested in the
-                    // total time spent in top scope
-                    Sample* last_sample = (Sample*) scope->m_Internal;
-                    uint32_t end_last = last_sample->m_Start + last_sample->m_Elapsed;
-                    if (sample->m_Start >= last_sample->m_Start && sample->m_Start < end_last)
-                    {
-                        // New simple within, ignore
-                    }
-                    else
-                    {
-                        // Close the last scope and set new sample to current
-                        ScopeData* scope_data = &profile->m_ScopesData[scope->m_Index];
-                        scope_data->m_Elapsed += last_sample->m_Elapsed;
-                        scope_data->m_Count++;
-                        scope->m_Internal = sample;
-                    }
+                    g_StringTable.Put((uintptr_t) sample->m_Name, sample->m_Name);
                 }
             }
 
-            // Close non-closed scopes
-            for (uint32_t i = 0; i < n_scopes; ++i)
-            {
-                Scope* scope = &g_Scopes[i];
-                if (scope->m_Internal != 0)
-                {
-                    Sample* last_sample = (Sample*) scope->m_Internal;
-                    // Does this sample belong to current thread?
-                    if (last_sample->m_ThreadId != thread_id)
-                        continue;
+            // Does this sample belong to current thread?
+            if (sample->m_ThreadId != thread_id)
+                continue;
 
+            Scope* scope = sample->m_Scope;
+
+            if (scope->m_Internal == 0)
+            {
+                // First sample for this scope found
+                scope->m_Internal = sample;
+            }
+            else
+            {
+                // Check if sample is overlapping the last sample
+                // If overlapping ignore the sample. We are only interested in the
+                // total time spent in top scope
+                Sample* last_sample = (Sample*) scope->m_Internal;
+                uint32_t end_last = last_sample->m_Start + last_sample->m_Elapsed;
+                if (sample->m_Start >= last_sample->m_Start && sample->m_Start < end_last)
+                {
+                    // New simple within, ignore
+                }
+                else
+                {
+                    // Close the last scope and set new sample to current
                     ScopeData* scope_data = &profile->m_ScopesData[scope->m_Index];
                     scope_data->m_Elapsed += last_sample->m_Elapsed;
                     scope_data->m_Count++;
-                    scope->m_Internal = 0;
-                }
-            }
-
-
-            // Frame-time is defined as the maximum scope in frame 0, ie main frame
-            if (thread_id == 0)
-            {
-                if (g_Scopes.Size() > 0)
-                {
-                    float millisPerTick = (float)(1000.0 / g_TicksPerSecond);
-                    g_FrameTime = profile->m_ScopesData[0].m_Elapsed * millisPerTick;
-                    for (uint32_t i = 1; i < g_Scopes.Size(); ++i)
-                    {
-                        float time = profile->m_ScopesData[i].m_Elapsed * millisPerTick;
-                        g_FrameTime = dmMath::Select(g_FrameTime - time, g_FrameTime, time);
-                    }
-                    ++g_MaxFrameTimeCounter;
-                    if (g_MaxFrameTimeCounter > 60 || g_FrameTime > g_MaxFrameTime)
-                    {
-                        g_MaxFrameTimeCounter = 0;
-                        g_MaxFrameTime = g_FrameTime;
-                    }
-                }
-                else
-                {
-                    g_FrameTime = 0.0f;
+                    scope->m_Internal = sample;
                 }
             }
         }
+
+        // Close non-closed scopes
+        for (uint32_t i = 0; i < n_scopes; ++i)
+        {
+            Scope* scope = &g_Scopes[i];
+            if (scope->m_Internal != 0)
+            {
+                Sample* last_sample = (Sample*) scope->m_Internal;
+                // Does this sample belong to current thread?
+                if (last_sample->m_ThreadId != thread_id)
+                    continue;
+
+                ScopeData* scope_data = &profile->m_ScopesData[scope->m_Index];
+                scope_data->m_Elapsed += last_sample->m_Elapsed;
+                scope_data->m_Count++;
+                scope->m_Internal = 0;
+            }
+        }
+
+        // Frame-time is defined as the maximum scope in frame 0, ie main frame
+        if (thread_id == 0)
+        {
+            if (g_Scopes.Size() > 0)
+            {
+                float millisPerTick = (float)(1000.0 / g_TicksPerSecond);
+                g_FrameTime = profile->m_ScopesData[0].m_Elapsed * millisPerTick;
+                for (uint32_t i = 1; i < g_Scopes.Size(); ++i)
+                {
+                    float time = profile->m_ScopesData[i].m_Elapsed * millisPerTick;
+                    g_FrameTime = dmMath::Select(g_FrameTime - time, g_FrameTime, time);
+                }
+                ++g_MaxFrameTimeCounter;
+                if (g_MaxFrameTimeCounter > 60 || g_FrameTime > g_MaxFrameTime)
+                {
+                    g_MaxFrameTimeCounter = 0;
+                    g_MaxFrameTime = g_FrameTime;
+                }
+            }
+            else
+            {
+                g_FrameTime = 0.0f;
+            }
+        }
+    }
+
+    static void CalculateScopeProfile(Profile* profile)
+    {
+        // First pass is to determine count of active threads
+        const uint32_t table_size = 16;
+        const uint32_t capacity = 64;
+        typedef dmHashTable<uint32_t, uint8_t> ActiveThreadsT;
+        char hash_buf[table_size * sizeof(uint32_t) + capacity * sizeof(ActiveThreadsT::Entry)];
+
+        ActiveThreadsT active_threads(hash_buf, table_size, capacity);
+        const uint32_t n_samples = profile->m_Samples.Size();
+        for (uint32_t i = 0; i < n_samples; ++i)
+        {
+            Sample* sample = &profile->m_Samples[i];
+            if (!active_threads.Get(sample->m_ThreadId))
+            {
+                if (active_threads.Full())
+                {
+                    dmLogError("Thread set exceeded in profiler!");
+                    break;
+                }
+                active_threads.Put(sample->m_ThreadId, 1);
+            }
+        }
+
+        active_threads.Iterate(&CalculateScopeProfileThread, profile);
     }
 
     HProfile Begin()
@@ -461,6 +486,7 @@ namespace dmProfile
         dmSpinlock::Lock(&g_ProfileLock);
 
         CalculateScopeProfile(g_ActiveProfile);
+
         Profile* ret = g_ActiveProfile;
         ret->m_ScopeCount = g_Scopes.Size();
         ret->m_CounterCount = g_Counters.Size();

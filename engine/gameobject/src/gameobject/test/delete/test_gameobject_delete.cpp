@@ -201,6 +201,23 @@ TEST_F(DeleteTest, TestScriptDelete)
     ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
 }
 
+TEST_F(DeleteTest, TestScriptDeleteAll)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_1");
+    ASSERT_NE((void*)0, (void*)instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
+    ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+}
+
 TEST_F(DeleteTest, TestScriptDeleteOther)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_other.goc");
@@ -213,6 +230,39 @@ TEST_F(DeleteTest, TestScriptDeleteOther)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+}
+
+TEST_F(DeleteTest, TestScriptDeleteBone)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_other.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetBone(instance, "test_id");
+    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+}
+
+TEST_F(DeleteTest, TestScriptDeleteAllBone)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_1");
+    ASSERT_NE((void*)0, (void*)instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetBone(instance, "test_id_2");
+    ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteNonExistent)

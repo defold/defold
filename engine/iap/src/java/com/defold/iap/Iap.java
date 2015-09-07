@@ -177,6 +177,7 @@ public class Iap implements Handler.Callback {
             // service available to handle that Intent
             activity.bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
         } else {
+            serviceConn = null;
             Log.e(TAG, "Billing service unavailable on device.");
         }
     }
@@ -209,17 +210,21 @@ public class Iap implements Handler.Callback {
             public void run() {
                 init();
 
-                ArrayList<String> skuList = new ArrayList<String>();
-                for (String x : skus.split(",")) {
-                    if (x.trim().length() > 0) {
-                        skuList.add(x);
+                if (serviceConn != null) {
+                    ArrayList<String> skuList = new ArrayList<String>();
+                    for (String x : skus.split(",")) {
+                        if (x.trim().length() > 0) {
+                            skuList.add(x);
+                        }
                     }
-                }
 
-                try {
-                    skuRequestQueue.put(new SkuRequest(skuList, listener));
-                } catch (InterruptedException e) {
-                    Log.wtf(TAG, "Failed to add sku request", e);
+                    try {
+                        skuRequestQueue.put(new SkuRequest(skuList, listener));
+                    } catch (InterruptedException e) {
+                        Log.wtf(TAG, "Failed to add sku request", e);
+                    }
+                } else {
+                    listener.onProductsResult(BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE, null);
                 }
             }
         });
