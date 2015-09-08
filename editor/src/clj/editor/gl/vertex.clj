@@ -25,6 +25,7 @@ the `do-gl` macro from `editor.gl`."
             [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
+            [editor.scene-cache :as scene-cache]
             [dynamo.graph :as g]
             [editor.buffers :as b])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
@@ -34,30 +35,62 @@ the `do-gl` macro from `editor.gl`."
            [java.util.concurrent.atomic AtomicLong AtomicBoolean]
            [javax.media.opengl GL GL2]))
 
+(defn put-byte   [^ByteBuffer bb position v] (.put       bb position v))
+(defn put-short  [^ByteBuffer bb position v] (.putShort  bb position v))
+(defn put-int    [^ByteBuffer bb position v] (.putInt    bb position v))
+(defn put-float  [^ByteBuffer bb position v] (.putFloat  bb position v))
+(defn put-double [^ByteBuffer bb position v] (.putDouble bb position v))
+(defn put-ubyte  [^ByteBuffer bb position v] (.put       bb position (.byteValue  (bit-and v 0xff))))
+(defn put-ushort [^ByteBuffer bb position v] (.putShort  bb position (.shortValue (bit-and v 0xffff))))
+(defn put-uint   [^ByteBuffer bb position v] (.putInt    bb position (.intValue   (bit-and v 0xffffffff))))
+
+
+(defn get-byte   [^ByteBuffer bb position]   (.get       bb position))
+(defn get-short  [^ByteBuffer bb position]   (.getShort  bb position))
+(defn get-int    [^ByteBuffer bb position]   (.getInt    bb position))
+(defn get-float  [^ByteBuffer bb position]   (.getFloat  bb position))
+(defn get-double [^ByteBuffer bb position]   (.getDouble bb position))
+(defn get-ubyte  [^ByteBuffer bb position]   (bit-and 0xff       (short (.get bb position))))
+(defn get-ushort [^ByteBuffer bb position]   (bit-and 0xffff     (long  (.getShort bb position))))
+(defn get-uint   [^ByteBuffer bb position]   (bit-and 0xffffffff (int   (.getInt bb position))))
+
+
 (def type-sizes
-  {'byte   Buffers/SIZEOF_BYTE
+  {'ubyte  Buffers/SIZEOF_BYTE
+   'byte   Buffers/SIZEOF_BYTE
+   'ushort Buffers/SIZEOF_SHORT
    'short  Buffers/SIZEOF_SHORT
+   'uint   Buffers/SIZEOF_INT
    'int    Buffers/SIZEOF_INT
    'float  Buffers/SIZEOF_FLOAT
    'double Buffers/SIZEOF_DOUBLE})
 
 (def type-setters
-  {'byte   'put
-   'short  'putShort
-   'int    'putInt
-   'float  'putFloat
-   'double 'putDouble})
+  {'byte   put-byte
+   'ubyte  put-ubyte
+   'short  put-short
+   'ushort put-ushort
+   'int    put-int
+   'uint   put-uint
+   'float  put-float
+   'double put-double})
 
 (def type-getters
-  {'byte   'get
-   'short  'getShort
-   'int    'getInt
-   'float  'getFloat
-   'double 'getDouble})
+  {'byte   get-byte
+   'ubyte  get-ubyte
+   'short  get-short
+   'ushort get-ushort
+   'int    get-int
+   'uint   get-uint
+   'float  get-float
+   'double get-double})
 
 (def gl-types
-  {'byte    GL/GL_BYTE
+  {'ubyte   GL/GL_UNSIGNED_BYTE
+   'byte    GL/GL_BYTE
+   'ushort  GL/GL_UNSIGNED_SHORT
    'short   GL/GL_SHORT
+   'uint    GL/GL_UNSIGNED_INT
    'int     GL2/GL_INT
    'float   GL/GL_FLOAT
    'double  GL2/GL_DOUBLE})
@@ -125,7 +158,7 @@ the `do-gl` macro from `editor.gl`."
   (case packing
     :interleaved (attribute-offsets attributes)
     :chunked     (map + (chunk-component-starts capacity attributes)
-                        (chunk-component-offsets attributes))))
+                      (chunk-component-offsets attributes))))
 
 (defn- indexers
   [prefix vsteps]
@@ -146,7 +179,7 @@ the `do-gl` macro from `editor.gl`."
     `(fn [~'slices ~'idx [~@names]]
        (let ~(into [] (apply concat (vals multiplications)))
          ~@(map (fn [i nm setter refer]
-                 (list '. (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) setter refer nm))
+                 (list setter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) refer nm))
                (range (count names)) names setters references)))))
 
 (defn- make-vertex-getter
@@ -158,7 +191,7 @@ the `do-gl` macro from `editor.gl`."
     `(fn [~'slices ~'idx]
        (let ~(into [] (apply concat (vals multiplications)))
          [~@(map (fn [i getter refer]
-                   (list '. (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) getter (list `int refer)))
+                   (list getter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) (list `int refer)))
                  (range (count getters)) getters references)]))))
 
 (declare new-persistent-vertex-buffer)
@@ -274,6 +307,25 @@ the `do-gl` macro from `editor.gl`."
                            (.position transient-vertex-buffer)
                            (.set-fn   transient-vertex-buffer)
                            (.get-fn   transient-vertex-buffer)))
+
+(defn- not-allowed
+  [_ _]
+  (assert false "Vertex overlay buffers cannot be accessed by index."))
+
+(defn vertex-overlay
+  "Use a vertex layout together with an existing ByteBuffer. Returns a vertex buffer suitable
+   for the `use-with` function.
+
+   This will assume the ByteBuffer is an integer multiple of the vertex size."
+  [layout ^ByteBuffer buffer]
+  (assert layout)
+  (assert (= 0 (mod (.limit buffer) (:vertex-size layout))))
+  (let [^ByteBuffer buffer (.duplicate buffer)
+        limit         (.limit buffer)
+        count         (mod limit (:vertex-size layout))
+        buffer-starts (buffer-starts limit layout)
+        slices        (b/slice buffer (map min (repeat limit) buffer-starts))]
+    (->PersistentVertexBuffer layout count buffer slices (AtomicLong. count) not-allowed not-allowed)))
 
 (defn new-transient-vertex-buffer
   ([^PersistentVertexBuffer persistent-vertex-buffer]
@@ -415,10 +467,21 @@ the `do-gl` macro from `editor.gl`."
           :when (not= l -1)]
     (gl/gl-disable-vertex-attrib-array gl l)))
 
+(def ^:private access-type-map
+  {[:static :draw] GL2/GL_STATIC_DRAW
+   [:dynamic :draw] GL2/GL_DYNAMIC_DRAW
+   [:stream :draw] GL2/GL_STREAM_DRAW
+   [:static :read] GL2/GL_STATIC_READ
+   [:dynamic :read] GL2/GL_DYNAMIC_READ
+   [:stream :read] GL2/GL_STREAM_READ
+   [:static :copy] GL2/GL_STATIC_COPY
+   [:dynamic :copy] GL2/GL_DYNAMIC_COPY
+   [:stream :copy] GL2/GL_STREAM_COPY})
+
 (defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
   GlBind
   (bind [this gl]
-    (let [vbo (gl/request-object! gl ::vbo request-id vertex-buffer)]
+    (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
       (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER vbo)
       (let [attributes  (:attributes (.layout vertex-buffer))
             attrib-locs (vertex-locate-attribs gl shader attributes)]
@@ -439,10 +502,8 @@ the `do-gl` macro from `editor.gl`."
 
   This function returns an object that satisfies editor.gl.protocols/GlEnable,
   editor.gl.protocols/GlDisable."
-  ([^PersistentVertexBuffer vertex-buffer shader]
-    (->VertexBufferShaderLink (gensym) vertex-buffer shader))
-  ([request-id ^PersistentVertexBuffer vertex-buffer shader]
-    (->VertexBufferShaderLink request-id vertex-buffer shader)))
+  [request-id ^PersistentVertexBuffer vertex-buffer shader]
+  (->VertexBufferShaderLink request-id vertex-buffer shader))
 
 (defn- update-vbo [^GL2 gl vbo data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
@@ -457,4 +518,4 @@ the `do-gl` macro from `editor.gl`."
 (defn- destroy-vbos [^GL2 gl vbos]
   (apply gl/gl-delete-buffers gl vbos))
 
-(gl/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)
+(scene-cache/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)

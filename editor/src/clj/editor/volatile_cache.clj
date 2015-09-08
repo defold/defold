@@ -1,4 +1,4 @@
-(ns editor.gl.volatile-cache
+(ns editor.volatile-cache
   (:require [clojure.core.cache :as cache]))
 
 (cache/defcache VolatileCache [cache accessed]

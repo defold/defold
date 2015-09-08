@@ -133,7 +133,7 @@ public class ParticleLibrary {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("x", "y", "z");
+            return Arrays.asList("x", "y", "z", "pad");
         }
     }
 

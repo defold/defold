@@ -31,7 +31,8 @@
   selection      true  true
   manipulator-selection      false true
   icon           false false
-  icon-selection true false)
+  icon-selection true false
+  overlay-selection false false)
 
 (def RenderData {(g/optional-key background)            g/Any
                  (g/optional-key opaque)                g/Any
@@ -40,6 +41,7 @@
                  (g/optional-key outline)               g/Any
                  (g/optional-key manipulator)           g/Any
                  (g/optional-key overlay)               g/Any
+                 (g/optional-key overlay-selection)     g/Any
                  (g/optional-key selection)             g/Any
                  (g/optional-key manipulator-selection) g/Any
                  (g/optional-key icon)                  g/Any
@@ -147,6 +149,20 @@
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl overlay
+  [_ ^GL2 gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)
+    (.glDisable GL/GL_SCISSOR_TEST)
+    (.glDisable GL/GL_STENCIL_TEST)
+    (.glStencilMask 0xFF)
+    (.glColorMask true true true true)
+    (.glDisable GL2/GL_LINE_STIPPLE)))
+
+(defmethod prepare-gl overlay-selection
   [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
