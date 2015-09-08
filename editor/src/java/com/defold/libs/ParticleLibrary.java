@@ -1,11 +1,15 @@
 package com.defold.libs;
 
+import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
 import java.util.List;
 
 import javax.vecmath.Matrix4d;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
@@ -14,8 +18,15 @@ import com.sun.jna.Structure;
 import com.sun.jna.ptr.IntByReference;
 
 public class ParticleLibrary {
+    private static Logger logger = LoggerFactory.getLogger(ParticleLibrary.class);
+
     static {
-        Native.register("particle_shared");
+        try {
+            NativeArtifacts.extractNatives();
+            Native.register("particle_shared");
+        } catch (IOException e) {
+            logger.error("Failed to extract/register particle_shared", e);
+        }
     }
 
     public interface RenderInstanceCallback extends Callback {
