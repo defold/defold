@@ -19,6 +19,7 @@
             [editor.prefs :as prefs]
             [editor.project :as project]
             [editor.properties-view :as properties-view]
+            [editor.scene-selection :as scene-selection]
             [editor.scene :as scene]
             [editor.form-view :as form-view]
             [editor.sprite :as sprite]
@@ -32,6 +33,8 @@
             [editor.spine :as spine]
             [editor.json :as json]
             [editor.mesh :as mesh]
+            [editor.particlefx :as particlefx]
+            [editor.particlefx-tools :as particlefx-tools]
             [editor.text :as text]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
@@ -159,7 +162,8 @@
       (sound/register-resource-types workspace)
       (spine/register-resource-types workspace)
       (json/register-resource-types workspace)
-      (mesh/register-resource-types workspace)))
+      (mesh/register-resource-types workspace)
+      (particlefx/register-resource-types workspace)))
     workspace))
 
 (defn open-project

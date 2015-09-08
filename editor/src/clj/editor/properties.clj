@@ -1,12 +1,56 @@
 (ns editor.properties
   (:require [clojure.set :as set]
+            [cognitect.transit :as transit]
             [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
             [editor.types :as t]
             [editor.math :as math]
-            [editor.protobuf :as protobuf])
+            [editor.protobuf :as protobuf]
+            [editor.core :as core])
   (:import [java.util StringTokenizer]
            [javax.vecmath Quat4d]))
+
+(defprotocol Sampler
+  (sample [this]))
+
+(defrecord Curve [points]
+  Sampler
+  (sample [this] (:y (first points))))
+
+(defrecord CurveSpread [points spread]
+  Sampler
+  (sample [this] (:y (first points))))
+
+(core/register-read-handler!
+ "curve"
+ (transit/read-handler
+  (fn [{:keys [points]}]
+    (Curve. points))))
+
+(core/register-write-handler!
+ Curve
+ (transit/write-handler
+  (constantly "curve")
+  (fn [^Curve c]
+    {:points (:points c)})))
+
+(core/register-read-handler!
+ "curve-spread"
+ (transit/read-handler
+  (fn [{:keys [points spread]}]
+    (CurveSpread. points spread))))
+
+(core/register-write-handler!
+ CurveSpread
+ (transit/write-handler
+  (constantly "curve-spread")
+  (fn [^CurveSpread c]
+    {:points (:points c)
+     :spread (:spread c)})))
+
+(def default-curve (map->Curve {:points [{:x 0 :y 0 :t-x 1 :t-y 0}]}))
+
+(def default-curve-spread (map->CurveSpread {:points [{:x 0 :y 0 :t-x 1 :t-y 0}] :spread 0}))
 
 (def go-prop-type->clj-type {:property-type-number g/Num
                              :property-type-hash String
@@ -195,7 +239,8 @@
                                   (let [prop {:key k
                                               :node-ids (mapv :node-id v)
                                               :values (mapv :value v)
-                                              :edit-type (property-edit-type (first v))}
+                                              :edit-type (property-edit-type (first v))
+                                              :label (:label (first v))}
                                         default-vals (mapv :default-value (filter #(contains? % :default-value) v))
                                         prop (if (empty? default-vals) prop (assoc prop :default-values default-vals))]
                                     [k prop]))
@@ -217,12 +262,13 @@
 
 (defn label
   [property]
-  (let [k (:key property)
-        k (if (vector? k) (last k) k)]
-    (-> k
-      name
-      camel/->Camel_Snake_Case_String
-      (clojure.string/replace "_" " "))))
+  (or (:label property)
+      (let [k (:key property)
+           k (if (vector? k) (last k) k)]
+       (-> k
+         name
+         camel/->Camel_Snake_Case_String
+         (clojure.string/replace "_" " ")))))
 
 (defn set-values! [property values]
   (g/transact

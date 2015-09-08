@@ -133,13 +133,13 @@
                :pb-class Tile$TileGrid
                :resource-fields [:tile-set :material]
                :tags #{:component}}
-              {:ext "particlefx"
-               :label "Particle FX"
-               :icon "icons/32/Icons_17-ParticleFX.png"
-               :pb-class Particle$ParticleFX
-               :resource-fields [[:emitters :tile-source] [:emitters :material]]
-               :tags #{:component}
-               :transform-fn particle-fx-transform}
+              #_{:ext "particlefx"
+                :label "Particle FX"
+                :icon "icons/32/Icons_17-ParticleFX.png"
+                :pb-class Particle$ParticleFX
+                :resource-fields [[:emitters :tile-source] [:emitters :material]]
+                :tags #{:component}
+                :transform-fn particle-fx-transform}
               {:ext "sound"
                :label "Sound"
                :icon "icons/32/Icons_26-AT-Sound.png"

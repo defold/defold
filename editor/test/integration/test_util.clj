@@ -9,6 +9,7 @@
             [editor.platformer :as platformer]
             [editor.project :as project]
             [editor.scene :as scene]
+            [editor.scene-selection :as scene-selection]
             [editor.sprite :as sprite]
             [editor.switcher :as switcher]
             [editor.font :as font]
@@ -19,6 +20,7 @@
             [editor.tile-source :as tile-source]
             [editor.sound :as sound]
             [editor.spine :as spine]
+            [editor.particlefx :as particlefx]
             [editor.json :as json]
             [editor.mesh :as mesh])
   (:import [java.io File]
@@ -53,7 +55,8 @@
         (sound/register-resource-types workspace)
         (spine/register-resource-types workspace)
         (json/register-resource-types workspace)
-        (mesh/register-resource-types workspace)))
+        (mesh/register-resource-types workspace)
+        (particlefx/register-resource-types workspace)))
       workspace)))
 
 (defn setup-project!

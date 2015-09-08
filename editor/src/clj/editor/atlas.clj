@@ -14,6 +14,7 @@
             [editor.workspace :as workspace]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
+            [editor.scene :as scene]
             [internal.render.pass :as pass])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -35,8 +36,8 @@
 (def image-icon "icons/32/Icons_25-AT-Image.png")
 
 (defn render-overlay
-  [^GL2 gl ^TextRenderer text-renderer width height]
-  (gl/overlay gl text-renderer (format "Size: %dx%d" width height) 12.0 -22.0 1.0 1.0))
+  [^GL2 gl width height]
+  (scene/overlay-text gl (format "Size: %dx%d" width height) 12.0 -22.0))
 
 (vtx/defvertex texture-vtx
   (vec4 position)
@@ -174,18 +175,17 @@
            (conj! [x0 y0 0 1 0 1])))))
 
 (g/defnk produce-scene
-  [texture-set-data aabb gpu-texture]
+  [_node-id texture-set-data aabb gpu-texture]
   (let [^BufferedImage img (:image texture-set-data)
         width (.getWidth img)
         height (.getHeight img)
         vertex-buffer (gen-renderable-vertex-buffer width height)
-        vertex-binding (vtx/use-with vertex-buffer atlas-shader)]
+        vertex-binding (vtx/use-with _node-id vertex-buffer atlas-shader)]
     {:aabb aabb
      :renderable {:render-fn (fn [gl render-args renderables count]
-                               (let [pass (:pass render-args)
-                                     text-renderer (:text-renderer render-args)]
+                               (let [pass (:pass render-args)]
                                  (cond
-                                   (= pass pass/overlay)     (render-overlay gl text-renderer width height)
+                                   (= pass pass/overlay)     (render-overlay gl width height)
                                    (= pass pass/transparent) (render-texture-set gl vertex-binding gpu-texture))))
                   :passes [pass/overlay pass/transparent]}}))
 

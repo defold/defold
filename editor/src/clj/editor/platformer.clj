@@ -50,7 +50,7 @@
 (defn render-platformer
   [^GL2 gl base-texture vertex-buffer]
   (let [vcount (count vertex-buffer)
-        vertex-binding (vtx/use-with vertex-buffer platformer-shader)]
+        vertex-binding (vtx/use-with ::platformer vertex-buffer platformer-shader)]
     (gl/with-gl-bindings gl [base-texture platformer-shader vertex-binding]
       (shader/set-uniform platformer-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))

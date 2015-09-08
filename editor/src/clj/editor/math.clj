@@ -8,6 +8,9 @@
 (def epsilon 0.000001)
 (def epsilon-sq (* epsilon epsilon))
 
+(def pi Math/PI)
+(def half-pi (* 0.5 pi))
+(def two-pi (* 2.0 pi))
 (def recip-180 (/ 1.0 180.0))
 (def recip-pi (/ 1.0 Math/PI))
 

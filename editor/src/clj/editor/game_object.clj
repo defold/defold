@@ -83,6 +83,7 @@
 
   (display-order [:id :path scene/SceneNode])
 
+  (input source-id g/NodeID)
   (input source-properties g/Any)
   (input user-properties g/Any)
   (input project-id g/NodeID)
@@ -98,10 +99,11 @@
                                              (gen-embed-ddf id position rotation save-data)
                                              (gen-ref-ddf id position rotation properties (:properties user-properties) save-data))))
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc scene
-                                            :node-id _node-id
-                                            :transform transform
-                                            :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))
+                                     (-> scene
+                                       (assoc :node-id _node-id
+                                              :transform transform
+                                              :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
+                                       (update :node-path (partial cons _node-id)))))
   (output build-targets g/Any :cached (g/fnk [_node-id project-id build-targets ddf-message transform]
                                              (if-let [target (first build-targets)]
                                                (let [target (wrap-if-raw-sound _node-id project-id target)]
@@ -220,6 +222,7 @@
                     (project/connect-resource-node project
                                                    source-resource comp-node
                                                    [[:outline :outline]
+                                                    [:_node-id :source-id]
                                                     [:user-properties :user-properties]
                                                     [:save-data :save-data]
                                                     [:scene :scene]
@@ -257,6 +260,7 @@
       (g/make-nodes (g/node-id->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
                      source-node [(:node-type resource-type) :resource resource :project-id project]]
+                    (g/connect source-node :_node-id      comp-node :source-id)
                     (g/connect source-node :_properties   comp-node :source-properties)
                     (g/connect source-node :outline       comp-node :outline)
                     (g/connect source-node :save-data     comp-node :save-data)

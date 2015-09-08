@@ -114,7 +114,7 @@
       (gl/gl-push-matrix gl
         (gl/gl-mult-matrix-4d gl world-transform)
         (doseq [[mode vertex-buffer vertex-count] vertex-buffers
-                :let [vertex-binding (vtx/use-with [mode vertex-count] vertex-buffer shader)
+                :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
                       color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
                 :when (> vertex-count 0)]
           (gl/with-gl-bindings gl [shader vertex-binding]
