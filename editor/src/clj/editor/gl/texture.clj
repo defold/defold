@@ -3,6 +3,7 @@
   (:require [editor.image :as img :refer [placeholder-image]]
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl :as gl]
+            [editor.scene-cache :as scene-cache]
             [dynamo.graph :as g])
   (:import [java.awt.image BufferedImage]
            [java.nio IntBuffer]
@@ -45,14 +46,14 @@
 (defrecord TextureLifecycle [request-id cache-id unit params img-data]
   GlBind
   (bind [this gl]
-    (let [^Texture texture (gl/request-object! gl cache-id request-id img-data)]
+    (let [^Texture texture (scene-cache/request-object! cache-id request-id gl img-data)]
       (.glActiveTexture ^GL2 gl unit)
       (apply-params gl texture params)
       (.enable texture gl)
       (.bind texture gl)))
   
   (unbind [this gl]
-    (let [^Texture texture (gl/request-object! gl cache-id request-id img-data)]
+    (let [^Texture texture (scene-cache/request-object! cache-id request-id gl img-data)]
       (.disable texture gl))
     (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0)))
 
@@ -133,7 +134,7 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
   (doseq [^Texture texture textures]
     (.destroy texture gl)))
 
-(gl/register-object-cache! ::texture make-texture update-texture destroy-textures)
+(scene-cache/register-object-cache! ::texture make-texture update-texture destroy-textures)
 
 (def ^:private cubemap-targets
   [GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X
@@ -152,4 +153,4 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
   (let [^Texture texture (TextureIO/newTexture GL/GL_TEXTURE_CUBE_MAP)]
     (update-cubemap-texture gl texture imgs)))
 
-(gl/register-object-cache! ::cubemap-texture make-cubemap-texture update-cubemap-texture destroy-textures)
+(scene-cache/register-object-cache! ::cubemap-texture make-cubemap-texture update-cubemap-texture destroy-textures)

@@ -1,9 +1,7 @@
 (ns editor.gl
   "Expose some GL functions and constants with Clojure-ish flavor"
   (:refer-clojure :exclude [repeat])
-  (:require [clojure.core.cache :as cache]
-            [editor.gl.protocols :as p]
-            [editor.gl.volatile-cache :as vcache])
+  (:require [editor.gl.protocols :as p])
   (:import [java.awt Font]
            [java.util WeakHashMap]
            [java.nio IntBuffer]
@@ -259,39 +257,3 @@
             (+ ptr 3 name-count)
             (conj names name))))
       names)))
-
-(def object-caches (atom {}))
-
-(defn register-object-cache! [cache-id make-fn update-fn destroy-batch-fn]
-  (swap! object-caches conj [cache-id {:caches {} :make-fn make-fn :update-fn update-fn :destroy-batch-fn destroy-batch-fn}]))
-
-(defn request-object! [^GL2 gl cache-id request-id data]
-  (let [cache-meta (get @object-caches cache-id)
-        make-fn (:make-fn cache-meta)
-        cache (or (get-in cache-meta [:caches gl])
-                  (vcache/volatile-cache-factory {}))
-        new-cache (if (cache/has? cache request-id)
-                    (let [[object old-data] (cache/lookup cache request-id)]
-                      (if (not= data old-data)
-                        (let [update-fn (:update-fn cache-meta)]
-                          (cache/miss cache request-id [(update-fn gl object data) data]))
-                        (cache/hit cache request-id)))
-                    (cache/miss cache request-id [(make-fn gl data) data]))]
-    (swap! object-caches update-in [cache-id :caches] assoc gl new-cache)
-    (first (cache/lookup new-cache request-id))))
-
-(defn prune [caches ^GL2 gl]
-  (into {} (map (fn [[cache-id meta]]
-                  (let [destroy-batch-fn (:destroy-batch-fn meta)]
-                    [cache-id (update-in meta [:caches gl] (fn [cache]
-                                                             (when cache
-                                                               (let [pruned-cache (vcache/prune cache)
-                                                                     dead-entries (filter (fn [[request-id _]] (not (contains? pruned-cache request-id))) cache)
-                                                                     dead-objects (mapv (fn [[_ [object]]] object) dead-entries)]
-                                                                 (when (not (empty? dead-objects))
-                                                                   (destroy-batch-fn gl dead-objects))
-                                                                 pruned-cache))))]))
-                caches)))
-
-(defn prune-object-caches! [^GL2 gl]
-  (swap! object-caches prune gl))

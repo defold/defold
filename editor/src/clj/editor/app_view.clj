@@ -40,9 +40,15 @@
 
   (input outline g/Any)
 
+  (output active-tab Tab (g/fnk [^TabPane tab-pane] (-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any :cached (g/fnk [outline] outline))
-  (output active-resource (g/protocol workspace/Resource) (g/fnk [^TabPane tab-pane] (when-let [^Tab tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))] (:resource (.getUserData tab)))))
-  (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (:resource (.getUserData tab))) (.getTabs tab-pane)))))
+  (output active-resource (g/protocol workspace/Resource) (g/fnk [^Tab active-tab]
+                                                                 (when active-tab
+                                                                   (ui/user-data active-tab ::resource))))
+  (output active-view g/NodeID (g/fnk [^Tab active-tab]
+                                      (when active-tab
+                                        (ui/user-data active-tab ::view))))
+  (output open-resources g/Any (g/fnk [^TabPane tab-pane] (map (fn [^Tab tab] (ui/user-data tab ::resource)) (.getTabs tab-pane)))))
 
 (defn- invalidate [node label]
   (g/invalidate! [[node label]]))
@@ -61,7 +67,7 @@
 (defn- on-selected-tab-changed [app-view resource-node]
   (g/transact
     (replace-connection resource-node :outline app-view :outline))
-  (invalidate app-view :active-resource))
+  (invalidate app-view :active-tab))
 
 (defn- on-tabs-changed [app-view]
   (invalidate app-view :open-resources))
@@ -204,7 +210,7 @@
       (.addListener
         (reify ChangeListener
           (changed [this observable old-val new-val]
-            (on-selected-tab-changed app-view (when new-val (.getUserData ^Tab new-val)))))))
+            (on-selected-tab-changed app-view (when new-val (ui/user-data ^Tab new-val ::resource-node)))))))
     (-> tab-pane
       (.getTabs)
       (.addListener
@@ -235,7 +241,10 @@
       (let [resource-node (project/get-resource-node project resource)
             ^TabPane tab-pane   (g/node-value app-view :tab-pane)
             parent     (AnchorPane.)
-            tab        (doto (Tab. (workspace/resource-name resource)) (.setContent parent) (.setUserData resource-node))
+            tab        (doto (Tab. (workspace/resource-name resource))
+                         (.setContent parent)
+                         (ui/user-data! ::resource resource)
+                         (ui/user-data! ::resource-node resource-node))
             tabs       (doto (.getTabs tab-pane) (.add tab))
             view-graph (g/make-graph! :history false :volatility 2)
             opts       (assoc ((:id view-type) (:view-opts resource-type))
@@ -244,6 +253,7 @@
                               :workspace workspace
                               :tab tab)
             view       (make-view-fn view-graph parent resource-node opts)]
+        (ui/user-data! tab ::view view)
         (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/cog.png") 16))
         (let [close-handler (.getOnClosed tab)]
           (.setOnClosed tab (ui/event-handler

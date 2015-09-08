@@ -91,7 +91,8 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.gl.protocols :refer [GlBind]]
           [editor.types :as types]
           [editor.workspace :as workspace]
-          [editor.project :as project])
+          [editor.project :as project]
+          [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
          [javax.media.opengl GL GL2 GLContext]
          [javax.vecmath Matrix4d Vector4f Point3d]))
@@ -372,26 +373,19 @@ This must be submitted to the driver for compilation before you can use it. See
 (defrecord ShaderLifecycle [request-id verts frags]
   GlBind
   (bind [this gl]
-    (let [program (gl/request-object! gl ::shader request-id [verts frags])]
-      (.glUseProgram ^GL2 gl program))
-    #_(when-not (get @context-local-data gl)
-       (let [vs     (make-vertex-shader gl verts)
-            fs      (make-fragment-shader gl frags)
-            program (make-program gl vs fs)]
-        (delete-shader gl vs)
-        (delete-shader gl fs)
-        (swap! context-local-data assoc gl {:program program}))))
+    (let [program (scene-cache/request-object! ::shader request-id gl [verts frags])]
+      (.glUseProgram ^GL2 gl program)))
 
   (unbind [this gl]
     (.glUseProgram ^GL2 gl 0))
 
   ShaderVariables
   (get-attrib-location [this gl name]
-    (when-let [program (gl/request-object! gl ::shader request-id [verts frags])]
+    (when-let [program (scene-cache/request-object! ::shader request-id gl [verts frags])]
       (gl/gl-get-attrib-location ^GL2 gl program name)))
 
   (set-uniform [this gl name val]
-    (when-let [program (gl/request-object! gl ::shader request-id [verts frags])]
+    (when-let [program (scene-cache/request-object! ::shader request-id gl [verts frags])]
       (let [loc (.glGetUniformLocation ^GL2 gl program name)]
         (set-uniform-at-index gl program loc val)))))
 
@@ -484,4 +478,4 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (doseq [program programs]
     (delete-shader gl program)))
 
-(gl/register-object-cache! ::shader make-shader-program update-shader-program destroy-shader-programs)
+(scene-cache/register-object-cache! ::shader make-shader-program update-shader-program destroy-shader-programs)

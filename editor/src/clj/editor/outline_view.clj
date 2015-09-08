@@ -150,6 +150,9 @@
                  {:label "Add From File"
                   :icon "icons/plus.png"
                   :command :add-from-file}
+                 {:label "Add Secondary"
+                  :icon "icons/plus.png"
+                  :command :add-secondary}
                  {:label "Add Secondary From File"
                   :icon "icons/plus.png"
                   :command :add-secondary-from-file}

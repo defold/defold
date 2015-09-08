@@ -11,6 +11,7 @@
             [editor.project :as project]
             [editor.types :as types]
             [editor.workspace :as workspace]
+            [editor.scene :as scene]
             [internal.render.pass :as pass])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -112,18 +113,9 @@
 
 ; Rendering
 
-(defn render-text
-  [ctx ^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float zloc ^Float scale]
-  (gl/gl-push-matrix gl
-    (.glScaled gl 1 -1 1)
-    (.setColor text-renderer 1 1 1 1)
-    (.begin3DRendering text-renderer)
-    (.draw3D text-renderer chars xloc yloc zloc scale)
-    (.end3DRendering text-renderer)))
-
-(defn render-palette [ctx ^GL2 gl text-renderer gpu-texture vertex-binding layout]
+(defn render-palette [ctx ^GL2 gl gpu-texture vertex-binding layout]
   (doseq [group layout]
-    (render-text ctx gl text-renderer (:name group) (- (:x group) palette-cell-size-half) (+ (* 0.25 group-spacing) (- palette-cell-size-half (:y group))) 0 1))
+    (scene/overlay-text gl (:name group) (- (:x group) palette-cell-size-half) (+ (* 0.25 group-spacing) (- palette-cell-size-half (:y group)))))
   (let [cell-count (reduce (fn [v0 v1] (+ v0 (count (:cells v1)))) 0 layout)]
    (gl/with-gl-bindings gl [gpu-texture shader vertex-binding]
     (shader/set-uniform shader gl "texture" 0)
@@ -191,10 +183,10 @@
 (g/defnk produce-controller-renderable
   [this level gpu-texture palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
   {pass/overlay [{:world-transform geom/Identity4d
-                  :render-fn (fn [ctx gl glu text-renderer]
-                               (render-palette ctx gl text-renderer gpu-texture palette-vertex-binding palette-layout))}]
+                  :render-fn (fn [ctx gl glu]
+                               (render-palette ctx gl gpu-texture palette-vertex-binding palette-layout))}]
    pass/transparent [{:world-transform geom/Identity4d
-                   :render-fn (fn [ctx gl glu text-renderer]
+                   :render-fn (fn [ctx gl glu]
                                 (render-level gl level gpu-texture level-vertex-binding level-layout))}]})
 
 (defn- hit? [cell pos cell-size-half]
@@ -259,7 +251,7 @@
 (g/defnk produce-scene
    [_node-id aabb level gpu-texture anim-data]
    (let [level-layout (layout-level level)
-         level-vertex-binding (vtx/use-with (gen-level-vertex-buffer anim-data level-layout cell-size-half) shader)]
+         level-vertex-binding (vtx/use-with ::switcher (gen-level-vertex-buffer anim-data level-layout cell-size-half) shader)]
      {:id _node-id
       :aabb aabb
       :renderable {:render-fn (fn [gl render-args renderables count] (render-level gl level gpu-texture level-vertex-binding level-layout))

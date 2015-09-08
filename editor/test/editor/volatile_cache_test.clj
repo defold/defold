@@ -1,7 +1,7 @@
-(ns editor.gl.volatile-cache-test
+(ns editor.volatile-cache-test
   (:require [clojure.test :refer :all]
             [clojure.core.cache :as cache]
-            [editor.gl.volatile-cache :as volatile-cache]))
+            [editor.volatile-cache :as volatile-cache]))
 
 (defn- encache [c k v]
   (cache/miss c k v))

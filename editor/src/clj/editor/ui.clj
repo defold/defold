@@ -11,13 +11,12 @@
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar TextField Tooltip]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
-           [javafx.util Callback Duration]
-           [com.defold.control ListCell]))
+           [javafx.util Callback Duration]))
 
 ;; These two lines initialize JavaFX and OpenGL when we're generating
 ;; API docs
@@ -171,6 +170,11 @@
   (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
 
 (extend-type MenuItem
+  HasUserData
+  (user-data [this key] (get (.getUserData this) key))
+  (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
+
+(extend-type Tab
   HasUserData
   (user-data [this key] (get (.getUserData this) key))
   (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
@@ -675,6 +679,22 @@ return value."
        (timer-stop! timer)
        (when existing-handler
          (.handle ^EventHandler existing-handler event))))))
+
+(defprotocol CloseHandler
+  (on-close [this fn]))
+
+(extend-type Tab
+  CloseHandler
+  (on-close [this fn]
+    (let [existing-handler (.getOnClosed this)]
+      ; TODO - reflection
+      (.setOnClosed
+        this
+        (event-handler e
+                       (fn e)
+                       (when existing-handler
+                         ; TODO - reflection
+                         (.handle existing-handler e)))))))
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))

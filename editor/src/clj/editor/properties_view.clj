@@ -32,7 +32,8 @@
            [java.nio.file Paths]
            [java.util.prefs Preferences]
            [javax.media.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [com.google.protobuf ProtocolMessageEnum]))
+           [com.google.protobuf ProtocolMessageEnum]
+           [editor.properties CurveSpread Curve]))
 
 (defn- to-int [s]
   (try
@@ -110,10 +111,44 @@
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec3 [_ _ property-fn]
-  (create-multi-textfield! ["x" "y" "z"] property-fn))
+  (create-multi-textfield! ["X" "Y" "Z"] property-fn))
 
 (defmethod create-property-control! types/Vec4 [_ _ property-fn]
-  (create-multi-textfield! ["x" "y" "z" "w"] property-fn))
+  (create-multi-textfield! ["X" "Y" "Z" "W"] property-fn))
+
+(defn- create-multi-keyed-textfield! [fields property-fn]
+  (let [text-fields (mapv (fn [_] (TextField.)) fields)
+        box (doto (HBox.)
+              (.setAlignment (Pos/BASELINE_LEFT)))
+        update-ui-fn (fn [values]
+                       (doseq [[t v] (map (fn [f t] [t (str (properties/unify-values (map #(get-in % (:path f)) values)))]) fields text-fields)]
+                         (ui/text! t v)))]
+    (.setSpacing box 6)
+    (doseq [[t f] (map (fn [f t]
+                         [t (fn [_] (let [v (to-double (.getText ^TextField t))
+                                          current-vals (properties/values (property-fn))]
+                                      (if v
+                                        (properties/set-values! (property-fn) (mapv #(assoc-in % (:path f) v) current-vals))
+                                        (update-ui-fn current-vals))))])
+                       fields text-fields)]
+      (ui/on-action! ^TextField t f))
+    (doseq [[t f] (map vector text-fields fields)
+            :let [children (if (:label f)
+                             [(Label. (:label f)) t]
+                             [t])]]
+      (HBox/setHgrow ^TextField t Priority/SOMETIMES)
+      (.setPrefWidth ^TextField t 60)
+      (-> (.getChildren box)
+        (.addAll children)))
+    [box update-ui-fn]))
+
+(defmethod create-property-control! CurveSpread [_ _ property-fn]
+  (let [fields [{:label "Value" :path [:points 0 :y]} {:label "Spread" :path [:spread]}]]
+    (create-multi-keyed-textfield! fields property-fn)))
+
+(defmethod create-property-control! Curve [_ _ property-fn]
+  (let [fields [{:path [:points 0 :y]}]]
+    (create-multi-keyed-textfield! fields property-fn)))
 
 #_(defmethod create-property-control! types/Color [_ _ on-new-value]
    (let [color-picker (ColorPicker.)
