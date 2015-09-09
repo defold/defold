@@ -553,15 +553,17 @@
                             (fn [dt]
                               (when (.isSelected tab)
                                 (when *fps-debug* (send-off fps-counter tick dt))
-                                (let [updatables (g/node-value view-id :active-updatables)
-                                      context {:dt (if (= (g/node-value view-id :play-mode) :playing) dt 0)}]
-                                  (doseq [updatable updatables
-                                          :let [node-path (:node-path updatable)
-                                                context (assoc context
-                                                               :world-transform (:world-transform updatable))]]
-                                    ((get-in updatable [:updatable :update-fn]) context))
-                                  (when (not (empty? updatables))
-                                    (g/invalidate! (g/sources-of view-id :frame))))
+                                ; Fixed dt for deterministic playback
+                                (let [dt 1/60]
+                                  (let [updatables (g/node-value view-id :active-updatables)
+                                        context {:dt (if (= (g/node-value view-id :play-mode) :playing) dt 0)}]
+                                    (doseq [updatable updatables
+                                            :let [node-path (:node-path updatable)
+                                                  context (assoc context
+                                                                 :world-transform (:world-transform updatable))]]
+                                      ((get-in updatable [:updatable :update-fn]) context))
+                                    (when (not (empty? updatables))
+                                      (g/invalidate! (g/sources-of view-id :frame)))))
                                 (scene-cache/prune-object-caches! nil)
                                 (try
                                   (let [image-view ^ImageView (g/node-value view-id :image-view)
