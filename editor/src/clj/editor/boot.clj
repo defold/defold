@@ -34,7 +34,6 @@
             [editor.json :as json]
             [editor.mesh :as mesh]
             [editor.particlefx :as particlefx]
-            [editor.particlefx-tools :as particlefx-tools]
             [editor.text :as text]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
