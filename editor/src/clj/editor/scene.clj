@@ -82,7 +82,7 @@
 (defn- read-to-buffered-image [^long w ^long h]
   (let [^BufferedImage image (let [^BufferedImage image @cached-buf-img-ref]
                                (when (or (nil? image) (not= (.getWidth image) w) (not= (.getHeight image) h))
-                                 (reset! cached-buf-img-ref (BufferedImage. w h BufferedImage/TYPE_INT_ARGB)))
+                                 (reset! cached-buf-img-ref (BufferedImage. w h BufferedImage/TYPE_INT_ARGB_PRE)))
                                @cached-buf-img-ref)
         glc (GLContext/getCurrent)
         gl (.getGL glc)
