@@ -1,39 +1,11 @@
 (ns editor.protobuf-forms
   (:require [editor.protobuf :as protobuf]
             [clojure.string :as str]
-            [editor.protobuf-forms :as protobuf-forms]
-            [dynamo.graph :as g]
-            [editor.geom :as geom]
-            [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.project :as project]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.math :as math]
-            [editor.pipeline.font-gen :as font-gen]
-            [internal.render.pass :as pass])
+            [dynamo.graph :as g])
   (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
            [com.dynamo.render.proto Render$RenderPrototypeDesc Material$MaterialDesc Material$MaterialDesc$ConstantType]
-           [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
-            GameSystem$CollectionProxyDesc GameSystem$LightDesc]
-           [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
-           [com.dynamo.camera.proto Camera$CameraDesc]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
-           [com.dynamo.gui.proto Gui$SceneDesc]
-           [com.dynamo.tile.proto Tile$TileGrid]
-           [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.sound.proto Sound$SoundDesc]
            [com.dynamo.render.proto Render$DisplayProfiles]
-           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.media.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]))
+           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]))
 
 (defn- set-form-op [{:keys [node-id]} path value]
   (g/update-property! node-id :pb assoc-in path value))
