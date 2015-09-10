@@ -835,7 +835,10 @@ namespace dmGameSystem
             }
             if (track->m_Positive.m_Count > 0)
             {
-                anim.m_Positive = track->m_Positive[sample];
+                if (blend_weight >= 0.5f)
+                {
+                    anim.m_Positive = track->m_Positive[sample];
+                }
             }
         }
 
