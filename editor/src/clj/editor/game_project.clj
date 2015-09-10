@@ -4,6 +4,7 @@
             [clojure.edn :as edn]
             [dynamo.graph :as g]
             [editor.project :as project]
+            [camel-snake-kebab :as camel]
             [editor.workspace :as workspace])
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
@@ -104,12 +105,17 @@
   (let [meta-settings-map (zipmap (map :path meta-settings) meta-settings)]
     (vec (map (partial sanitize-setting meta-settings-map) settings))))
 
+(defn- label [key]
+  (-> key
+      name
+      camel/->Camel_Snake_Case_String
+      (s/replace "_" " ")))
+
 (defn- make-form-field [setting]
-  (assoc setting :label (second (:path setting))))
+  (assoc setting :label (label (second (:path setting)))))
 
 (defn- make-form-section [category-name category-info settings]
-  {:section category-name
-   :title category-name
+  {:title category-name
    :help (:help category-info)
    :fields (map make-form-field settings)})
 
