@@ -36,6 +36,7 @@ import com.dynamo.bob.util.SpineScene.UVTransformProvider;
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.AnimationSet;
 import com.dynamo.spine.proto.Spine.AnimationTrack;
+import com.dynamo.spine.proto.Spine.IKAnimationTrack;
 import com.dynamo.spine.proto.Spine.Bone;
 import com.dynamo.spine.proto.Spine.EventKey;
 import com.dynamo.spine.proto.Spine.EventTrack;
@@ -72,6 +73,14 @@ public class SpineSceneBuilder extends Builder<Void> {
         protected AnimationTrack.Builder builder;
 
         public AbstractPropertyBuilder(AnimationTrack.Builder builder) {
+            this.builder = builder;
+        }
+    }
+
+    private static abstract class AbstractIKPropertyBuilder<T> implements PropertyBuilder<T, SpineScene.IKAnimationKey> {
+        protected IKAnimationTrack.Builder builder;
+
+        public AbstractIKPropertyBuilder(IKAnimationTrack.Builder builder) {
             this.builder = builder;
         }
     }
@@ -148,6 +157,48 @@ public class SpineSceneBuilder extends Builder<Void> {
         public Vector3d toComposite(SpineScene.AnimationKey key) {
             float[] v = key.value;
             return new Vector3d(v[0], v[1], 1.0);
+        }
+    }
+
+    private static class IKMixBuilder extends AbstractIKPropertyBuilder<Float> {
+        public IKMixBuilder(IKAnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Float value) {
+            builder.addMix(value);
+        }
+
+        @Override
+        public void add(double v) {
+            builder.addMix((float)v);
+        }
+
+        @Override
+        public Float toComposite(SpineScene.IKAnimationKey key) {
+            return new Float(key.mix);
+        }
+    }
+
+    private static class IKPositiveBuilder extends AbstractIKPropertyBuilder<Boolean> {
+        public IKPositiveBuilder(IKAnimationTrack.Builder builder) {
+            super(builder);
+        }
+
+        @Override
+        public void addComposite(Boolean value) {
+            builder.addPositive(value);
+        }
+
+        @Override
+        public void add(double v) {
+            throw new RuntimeException("Not supported");
+        }
+
+        @Override
+        public Boolean toComposite(SpineScene.IKAnimationKey key) {
+            return new Boolean(key.positive);
         }
     }
 
@@ -440,6 +491,13 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
+    private static void toDDF(SpineScene.IKAnimationTrack track, IKAnimationTrack.Builder iKanimTrackBuilder, double duration, double sampleRate, double spf) {
+        IKMixBuilder mixBuilder = new IKMixBuilder(iKanimTrackBuilder);
+        sampleTrack(track, mixBuilder, track.ik.mix, duration, sampleRate, spf, false);
+        IKPositiveBuilder positiveBuilder = new IKPositiveBuilder(iKanimTrackBuilder);
+        sampleTrack(track, positiveBuilder, track.ik.positive, duration, sampleRate, spf, false);
+    }
+
     private static void toDDF(SpineScene.Slot slot, SpineScene.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf, String meshName) {
         switch (track.property) {
         case ATTACHMENT:
@@ -497,6 +555,33 @@ public class SpineSceneBuilder extends Builder<Void> {
                 animBuilder.addTracks(builder);
             }
         }
+
+        if (!animation.iKTracks.isEmpty()) {
+            List<IKAnimationTrack.Builder> builders = new ArrayList<IKAnimationTrack.Builder>();
+            IKAnimationTrack.Builder animTrackBuilder = IKAnimationTrack.newBuilder();
+            SpineScene.IKAnimationTrack firstTrack = animation.iKTracks.get(0);
+            animTrackBuilder.setIkIndex(firstTrack.ik.index);
+            for (SpineScene.IKAnimationTrack track : animation.iKTracks) {
+                if (animTrackBuilder.getIkIndex() != track.ik.index) {
+                    builders.add(animTrackBuilder);
+                    animTrackBuilder = IKAnimationTrack.newBuilder();
+                    animTrackBuilder.setIkIndex(track.ik.index);
+                }
+                toDDF(track, animTrackBuilder, animation.duration, sampleRate, spf);
+            }
+            builders.add(animTrackBuilder);
+            // Compiled ik tracks must be in ik index order
+            Collections.sort(builders, new Comparator<IKAnimationTrack.Builder>() {
+                @Override
+                public int compare(IKAnimationTrack.Builder o1, IKAnimationTrack.Builder o2) {
+                    return o1.getIkIndex() - o2.getIkIndex();
+                }
+            });
+            for (IKAnimationTrack.Builder builder : builders) {
+                animBuilder.addIkTracks(builder);
+            }
+        }
+
         if (!animation.slotTracks.isEmpty()) {
             for (Map.Entry<Long, Map<String, List<MeshIndex>>> skinEntry : slotIndices.entrySet()) {
                 long skinId = skinEntry.getKey();

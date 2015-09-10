@@ -33,6 +33,11 @@ namespace dmGameSystem
         bool m_Visible;
     };
 
+    struct IKAnimation {
+        float m_Mix;
+        bool m_Positive;
+    };
+
     struct IKTarget {
         float m_Mix;
         dmhash_t m_InstanceId;
@@ -52,6 +57,8 @@ namespace dmGameSystem
         dmArray<Vector4>            m_PrevRenderConstants;
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
+        /// Animated IK
+        dmArray<IKAnimation>        m_IKAnimation;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         /// Animated mesh properties

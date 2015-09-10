@@ -280,6 +280,9 @@ namespace dmGameSystem
         component->m_IKTargets.SetSize(skeleton->m_Iks.m_Count);
         memset(component->m_IKTargets.Begin(), 0x0, component->m_IKTargets.Size()*sizeof(IKTarget));
 
+        component->m_IKAnimation.SetCapacity(skeleton->m_Iks.m_Count);
+        component->m_IKAnimation.SetSize(skeleton->m_Iks.m_Count);
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -787,7 +790,7 @@ namespace dmGameSystem
         }
     }
 
-    static void ApplyAnimation(SpinePlayer* player, dmArray<dmTransform::Transform>& pose, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t skin_id, bool draw_order)
+    static void ApplyAnimation(SpinePlayer* player, dmArray<dmTransform::Transform>& pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t skin_id, bool draw_order)
     {
         dmGameSystemDDF::SpineAnimation* animation = player->m_Animation;
         if (animation == 0x0)
@@ -819,6 +822,26 @@ namespace dmGameSystem
                 transform.SetScale(lerp(blend_weight, transform.GetScale(), SampleVec3(sample, fraction, track->m_Scale.m_Data)));
             }
         }
+
+        track_count = animation->m_IkTracks.m_Count;
+        for (uint32_t ti = 0; ti < track_count; ++ti)
+        {
+            dmGameSystemDDF::IKAnimationTrack* track = &animation->m_IkTracks[ti];
+            uint32_t ik_index = track->m_IkIndex;
+            IKAnimation& anim = ik_animation[ik_index];
+            if (track->m_Mix.m_Count > 0)
+            {
+                anim.m_Mix = dmMath::LinearBezier(blend_weight, anim.m_Mix, dmMath::LinearBezier(fraction, track->m_Mix.m_Data[sample], track->m_Mix.m_Data[sample+1]));
+            }
+            if (track->m_Positive.m_Count > 0)
+            {
+                if (blend_weight >= 0.5f)
+                {
+                    anim.m_Positive = track->m_Positive[sample];
+                }
+            }
+        }
+
         track_count = animation->m_MeshTracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti) {
             dmGameSystemDDF::MeshAnimationTrack* track = &animation->m_MeshTracks[ti];
@@ -885,7 +908,7 @@ namespace dmGameSystem
     }
 
     // Based on http://www.ryanjuckett.com/programming/analytic-two-bone-ik-in-2d/
-    static void ApplyTwoBoneIKConstraint(const dmGameSystemDDF::IK* ik, const dmArray<SpineBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const float mix)
+    static void ApplyTwoBoneIKConstraint(const dmGameSystemDDF::IK* ik, const dmArray<SpineBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const bool bend_positive, const float mix)
     {
         if (mix == 0.0f)
             return;
@@ -912,7 +935,7 @@ namespace dmGameSystem
         }
         float cosValue = (target.getX() * target.getX() + target.getY() * target.getY() - len1 * len1 - len2 * len2) / cosDenom;
         cosValue = dmMath::Max(-1.0f, dmMath::Min(1.0f, cosValue));
-        const float childAngle = (float)acos(cosValue) * (ik->m_Positive ? 1.0f : -1.0f);
+        const float childAngle = (float)acos(cosValue) * (bend_positive ? 1.0f : -1.0f);
         const float adjacent = len1 + len2 * cosValue;
         const float opposite = len2 * sin(childAngle);
         const float parentAngle = (float)atan2(target.getY() * adjacent - target.getX() * opposite, target.getX() * adjacent + target.getY() * opposite);
@@ -944,6 +967,15 @@ namespace dmGameSystem
                 pose[bi].SetIdentity();
             }
             dmArray<MeshProperties>& properties = component->m_MeshProperties;
+            // Reset IK animation
+            dmArray<IKAnimation>& ik_animation = component->m_IKAnimation;
+            uint32_t ik_animation_count = ik_animation.Size();
+            for (uint32_t ii = 0; ii < ik_animation_count; ++ii)
+            {
+                dmGameSystemDDF::IK* ik = &skeleton->m_Iks[ii];
+                ik_animation[ii].m_Mix = ik->m_Mix;
+                ik_animation[ii].m_Positive = ik->m_Positive;
+            }
 
             UpdateBlend(component, dt);
 
@@ -968,7 +1000,7 @@ namespace dmGameSystem
                     } else {
                         draw_order = fade_rate < 0.5f;
                     }
-                    ApplyAnimation(p, pose, properties, alpha, component->m_Skin, draw_order);
+                    ApplyAnimation(p, pose, ik_animation, properties, alpha, component->m_Skin, draw_order);
                     if (player == p)
                     {
                         alpha = 1.0f - fade_rate;
@@ -982,7 +1014,7 @@ namespace dmGameSystem
             else
             {
                 UpdatePlayer(component, player, dt, &component->m_Listener, 1.0f);
-                ApplyAnimation(player, pose, properties, 1.0f, component->m_Skin, true);
+                ApplyAnimation(player, pose, ik_animation, properties, 1.0f, component->m_Skin, true);
             }
 
             for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -1062,9 +1094,9 @@ namespace dmGameSystem
                     }
 
                     if(ik->m_Child == ik->m_Parent)
-                        ApplyOneBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik->m_Mix);
+                        ApplyOneBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Mix);
                     else
-                        ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik->m_Mix);
+                        ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Positive, ik_animation[i].m_Mix);
                 }
             }
 

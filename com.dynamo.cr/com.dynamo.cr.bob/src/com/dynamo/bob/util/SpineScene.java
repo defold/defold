@@ -126,6 +126,7 @@ public class SpineScene {
         public Bone target = null;
         public boolean positive = true;
         public float mix = 1.0f;
+        public int index = -1;
     }
 
     public static class Mesh {
@@ -181,6 +182,15 @@ public class SpineScene {
         public Property property;
     }
 
+    public static class IKAnimationKey extends AnimationKey {
+        public float mix;
+        public boolean positive;
+    }
+
+    public static class IKAnimationTrack extends AbstractAnimationTrack<IKAnimationKey> {
+        public IK ik;
+    }
+
     public static class SlotAnimationKey extends AnimationKey {
         public String attachment;
         public int orderOffset;
@@ -217,6 +227,7 @@ public class SpineScene {
         public String name;
         public float duration;
         public List<AnimationTrack> tracks = new ArrayList<AnimationTrack>();
+        public List<IKAnimationTrack> iKTracks = new ArrayList<IKAnimationTrack>();
         public List<SlotAnimationTrack> slotTracks = new ArrayList<SlotAnimationTrack>();
         public List<EventTrack> eventTracks = new ArrayList<EventTrack>();
     }
@@ -224,6 +235,7 @@ public class SpineScene {
     public List<Bone> bones = new ArrayList<Bone>();
     public List<IK> iks = new ArrayList<IK>();
     public Map<String, Bone> nameToBones = new HashMap<String, Bone>();
+    public Map<String, IK> nameToIKs = new HashMap<String, IK>();
     public List<Mesh> meshes = new ArrayList<Mesh>();
     public Map<String, List<Mesh>> skins = new HashMap<String, List<Mesh>>();
     public Map<String, Animation> animations = new HashMap<String, Animation>();
@@ -236,6 +248,14 @@ public class SpineScene {
 
     public Bone getBone(int index) {
         return bones.get(index);
+    }
+
+    public IK getIK(String name) {
+        return nameToIKs.get(name);
+    }
+
+    public IK getIK(int index) {
+        return iks.get(index);
     }
 
     public Slot getSlot(String name) {
@@ -291,6 +311,7 @@ public class SpineScene {
     private void loadIK(JsonNode ikNode) throws LoadException {
         IK ik = new IK();
         ik.name = JsonUtil.get(ikNode, "name", "unnamed");
+        ik.index = this.iks.size();
         Iterator<JsonNode> bonesIt = ikNode.get("bones").getElements();
         if (bonesIt.hasNext()) {
             String childBone = bonesIt.next().asText();
@@ -310,6 +331,7 @@ public class SpineScene {
         ik.positive = JsonUtil.get(ikNode, "bendPositive", true);
         ik.mix = JsonUtil.get(ikNode, "mix", 1.0f);
         iks.add(ik);
+        this.nameToIKs.put(ik.name, ik);
     }
 
     private void loadRegion(JsonNode attNode, Mesh mesh, Bone bone) {
@@ -490,6 +512,32 @@ public class SpineScene {
         }
     }
 
+    private void loadIKTrack(JsonNode propNode, IKAnimationTrack track) {
+        Iterator<JsonNode> keyIt = propNode.getElements();
+        while (keyIt.hasNext()) {
+            JsonNode keyNode =  keyIt.next();
+            IKAnimationKey key = new IKAnimationKey();
+            key.t = (float)keyNode.get("time").asDouble();
+            key.mix = (float)JsonUtil.get(keyNode, "mix", 1.0f);
+            key.positive = JsonUtil.get(keyNode, "bendPositive", true);
+            if (keyNode.has("curve")) {
+                JsonNode curveNode = keyNode.get("curve");
+                if (curveNode.isArray()) {
+                    AnimationCurve curve = new AnimationCurve();
+                    Iterator<JsonNode> curveIt = curveNode.getElements();
+                    curve.x0 = (float)curveIt.next().asDouble();
+                    curve.y0 = (float)curveIt.next().asDouble();
+                    curve.x1 = (float)curveIt.next().asDouble();
+                    curve.y1 = (float)curveIt.next().asDouble();
+                    key.curve = curve;
+                } else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
+                    key.stepped = true;
+                }
+            }
+            track.keys.add(key);
+        }
+    }
+
     private void loadSlotTrack(JsonNode propNode, SlotAnimationTrack track) {
         Iterator<JsonNode> keyIt = propNode.getElements();
         while (keyIt.hasNext()) {
@@ -552,6 +600,21 @@ public class SpineScene {
                 }
             }
         }
+
+        JsonNode iKsNode = animNode.get("ik");
+        if (iKsNode != null) {
+            Iterator<Map.Entry<String, JsonNode>> animIkIt = iKsNode.getFields();
+            while (animIkIt.hasNext()) {
+                Map.Entry<String, JsonNode> iKEntry = animIkIt.next();
+                String iKName = iKEntry.getKey();
+                JsonNode iKNode = iKEntry.getValue();
+                IKAnimationTrack track = new IKAnimationTrack();
+                track.ik = getIK(iKName);
+                loadIKTrack(iKNode, track);
+                animation.iKTracks.add(track);
+            }
+        }
+
         JsonNode slotsNode = animNode.get("slots");
         if (slotsNode != null) {
             Iterator<Map.Entry<String, JsonNode>> animSlotIt = slotsNode.getFields();
@@ -647,6 +710,11 @@ public class SpineScene {
             }
         }
         for (AnimationTrack track : animation.tracks) {
+            for (AnimationKey key : track.keys) {
+                duration = Math.max(duration, key.t);
+            }
+        }
+        for (IKAnimationTrack track : animation.iKTracks) {
             for (AnimationKey key : track.keys) {
                 duration = Math.max(duration, key.t);
             }
