@@ -9,8 +9,10 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.math :as math]
+            [editor.colors :as colors]
             [internal.render.pass :as pass])
   (:import [com.dynamo.gui.proto Gui$SceneDesc]
+           [editor.types AABB]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
@@ -20,6 +22,56 @@
              :pb-class Gui$SceneDesc
              :resource-fields [:script :material [:fonts :font] [:textures :texture]]
              :tags #{:component}})
+
+; Line shader
+
+(vtx/defvertex color-vtx
+  (vec3 position)
+  (vec4 color))
+
+(shader/defshader line-vertex-shader
+  (attribute vec4 position)
+  (attribute vec4 color)
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_color color)))
+
+(shader/defshader line-fragment-shader
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_FragColor var_color)))
+
+(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+
+(def color (scene/select-color pass/outline false [1.0 1.0 1.0]))
+(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
+
+(defn- ->vb [vs vcount color]
+  (let [vb (->color-vtx vcount)]
+    (doseq [v vs]
+      (conj! vb (into v color)))
+    (persistent! vb)))
+
+(defn render-lines [^GL2 gl render-args renderables rcount]
+  (doseq [renderable renderables
+          :let [vs (get-in renderable [:user-data :geom-data] [])
+                vcount (count vs)]
+          :when (> vcount 0)]
+    (let [world-transform (:world-transform renderable)
+          color colors/defold-white
+          #_vs #_(transf-p world-transform vs)
+          vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
+      (gl/with-gl-bindings gl [line-shader vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount)))))
+
+(g/defnk produce-scene [scene-dims aabb]
+  (let [w (:width scene-dims)
+        h (:height scene-dims)]
+    {:aabb aabb
+     :renderable {:render-fn render-lines
+                  :passes [pass/transparent]
+                  :user-data {:geom-data [[0 0 0] [w 0 0] [w 0 0] [w h 0] [w h 0] [0 h 0] [0 h 0] [0 0 0]]}}}))
 
 (g/defnk produce-save-data [resource pb]
   (let [def pb-def]
@@ -61,11 +113,17 @@
   (property def g/Any (dynamic visible (g/always false)))
 
   (input dep-build-targets g/Any :array)
+  (input project-settings g/Any)
 
+  (output aabb AABB (g/fnk [] (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/always {}))
-  (output outline g/Any :cached (g/fnk [_node-id def] {:node-id _node-id :label (:label def) :icon (:icon def)})))
+  (output scene g/Any :cached produce-scene)
+  (output outline g/Any :cached (g/fnk [_node-id def] {:node-id _node-id :label (:label def) :icon (:icon def)}))
+  (output scene-dims g/Any :cached (g/fnk [project-settings]
+                                          (let [w (get project-settings ["display" "width"])
+                                                h (get project-settings ["display" "height"])]
+                                            {:width w :height h}))))
 
 (defn- connect-build-targets [self project path]
   (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
@@ -78,6 +136,7 @@
     (concat
      (g/set-property self :pb pb)
      (g/set-property self :def def)
+     (g/connect project :settings self :project-settings)
      (for [res (:resource-fields def)]
        (if (vector? res)
          (for [v (get pb (first res))]
@@ -97,7 +156,9 @@
                                      :load-fn load-gui-scene
                                      :icon (:icon def)
                                      :tags (:tags def)
-                                     :template (:template def)))))
+                                     :template (:template def)
+                                     :view-types [:scene]
+                                     :view-opts {:scene {:grid true}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
