@@ -57,6 +57,7 @@ extern "C" void dmSysPumpMessageQueue();
 
 namespace dmSys
 {
+    EngineInfo g_EngineInfo;
 
     #define DM_SYS_NATIVE_TO_RESULT_CASE(x) case E##x: return RESULT_##x
 
@@ -649,6 +650,19 @@ namespace dmSys
         FillTimeZone(info);
     }
 #endif
+
+    void GetEngineInfo(EngineInfo* info)
+    {
+        *info = g_EngineInfo;
+    }
+
+    void SetEngineInfo(EngineInfoParam& info)
+    {
+        size_t copied = dmStrlCpy(g_EngineInfo.m_Version, info.m_Version, sizeof(g_EngineInfo.m_Version));
+        assert(copied < sizeof(g_EngineInfo.m_Version));
+        copied = dmStrlCpy(g_EngineInfo.m_VersionSHA1, info.m_VersionSHA1, sizeof(g_EngineInfo.m_VersionSHA1));
+        assert(copied < sizeof(g_EngineInfo.m_VersionSHA1));
+      }
 
 #ifdef __ANDROID__
     const char* FixAndroidResourcePath(const char* path)
