@@ -5,6 +5,7 @@
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace])
   (:import [javafx.animation AnimationTimer]
+           [java.util Collection]
            [javafx.scene Parent Group]
            [javafx.scene.text Text]
            [javafx.scene.input KeyCode KeyEvent ContextMenuEvent]
@@ -15,7 +16,7 @@
            [javafx.beans.value ChangeListener]
            [javafx.beans.binding Bindings]
            [javafx.scene.layout Pane GridPane HBox VBox Priority]
-           [javafx.scene.control Control ListView ListCell TableView TableColumn TableColumn$CellDataFeatures TableCell ScrollPane TextArea Label TextField ChoiceBox CheckBox Button Tooltip ContextMenu Menu MenuItem]))
+           [javafx.scene.control Control Cell ListView ListView$EditEvent ListCell TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent TableCell ScrollPane TextArea Label TextField ChoiceBox CheckBox Button Tooltip ContextMenu Menu MenuItem]))
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
@@ -183,12 +184,12 @@
       (ui/tooltip! tf help))
     (doseq [[tf label] (map vector text-fields labels)]
       (HBox/setHgrow tf Priority/SOMETIMES)
-      (.setPrefWidth tf 60)
+      (.setPrefWidth ^TextField tf 60)
       (doto (.getChildren box)
         (.add (Label. label))
         (.add tf)))
     [box {:update update-fn
-          :edit #(doto (first text-fields) (.requestFocus) (.selectAll))}]))
+          :edit #(doto ^TextField (first text-fields) (.requestFocus) (.selectAll))}]))
 
 (defmethod create-field-control :vec4 [field-info field-ops _]
   (create-multi-text-field-control ["x" "y" "z" "w"] field-info field-ops))
@@ -207,11 +208,11 @@
 (defn- kill-border [column-info]
   (some #{(:type column-info)} '(:string :integer :number)))
 
-(defn- create-cell-field-control [cell column-info ctxt]
+(defn- create-cell-field-control [^Cell cell column-info ctxt]
   (let [field-ops {:set (fn [_ value] (.commitEdit cell value))
                    :cancel #(.cancelEdit cell)
                    }
-        [control api] (create-field-control column-info field-ops ctxt)] ; column-info ~ field-info
+        [^Control control api] (create-field-control column-info field-ops ctxt)] ; column-info ~ field-info
     (.setMinWidth control (- (.getWidth cell) (* 2 (.getGraphicTextGap cell))))
     (when (kill-border column-info)
       (ui/add-style! control "inline-editor"))
@@ -224,36 +225,39 @@
             get-value-string (get-value-string-fn column-info)
             tc (proxy [TableCell] []
                  (startEdit []
-                   (when (not (.isEmpty this))
-                     (proxy-super startEdit)
-                     (reset! ctrl-data (create-cell-field-control this column-info ctxt))
-                     ((:update (second @ctrl-data)) (.getItem this))
-                     (ui/add-style! this "editing-cell")
-                     (.setText this nil)
-                     (.setGraphic this (first @ctrl-data))
-                     (when-let [start-edit (:edit (second @ctrl-data))]
-                       (ui/run-later
-                        (start-edit)))))
+                   (let [this ^TableCell this]
+                     (when (not (.isEmpty this))
+                       (proxy-super startEdit)
+                       (reset! ctrl-data (create-cell-field-control this column-info ctxt))
+                       ((:update (second @ctrl-data)) (.getItem this))
+                       (ui/add-style! this "editing-cell")
+                       (.setText this nil)
+                       (.setGraphic this (first @ctrl-data))
+                       (when-let [start-edit (:edit (second @ctrl-data))]
+                         (ui/run-later
+                          (start-edit))))))
                  (cancelEdit []
-                   (proxy-super cancelEdit)
-                   (ui/remove-style! this "editing-cell")
-                   (.setText this (get-value-string (.getItem this)))
-                   (.setGraphic this nil))
+                   (let [this ^TableCell this]
+                     (proxy-super cancelEdit)
+                     (ui/remove-style! this "editing-cell")
+                     (.setText this (get-value-string (.getItem this)))
+                     (.setGraphic this nil)))
                  (updateItem [item empty]
-                   (proxy-super updateItem item empty)
-                   (if empty
-                     (do (.setText this nil)
-                         (.setGraphic this nil))
-                     (do (if (.isEditing this)
-                           (do
-                             (when @ctrl-data
-                               ((:update (second @ctrl-data)) (.getItem this)))
-                             (.setText this nil)
-                             (.setGraphic this (first @ctrl-data)))
-                           (do
-                             (ui/remove-style! this "editing-cell")
-                             (.setText this (get-value-string (.getItem this)))
-                             (.setGraphic this nil)))))))]
+                   (let [this ^TableCell this]
+                     (proxy-super updateItem item empty)
+                     (if empty
+                       (do (.setText this nil)
+                           (.setGraphic this nil))
+                       (do (if (.isEditing this)
+                             (do
+                               (when @ctrl-data
+                                 ((:update (second @ctrl-data)) (.getItem this)))
+                               (.setText this nil)
+                               (.setGraphic this (first @ctrl-data)))
+                             (do
+                               (ui/remove-style! this "editing-cell")
+                               (.setText this (get-value-string (.getItem this)))
+                               (.setGraphic this nil))))))))]
         (doto tc
           (.setAlignment (value-alignment column-info)))
           ))))
@@ -261,7 +265,7 @@
 (defn- create-cell-value-factory [column-info]
   (reify Callback
     (call [this p]
-      (ReadOnlyObjectWrapper. (((comp last :path) column-info) (.getValue p))))))
+      (ReadOnlyObjectWrapper. (((comp last :path) column-info) (.getValue ^TableColumn$CellDataFeatures p))))))
 
 (defn- create-table-column [column-info cell-setter ctxt]
   (let [table-column (TableColumn. (:label column-info))]
@@ -269,9 +273,10 @@
     (.setCellFactory table-column (create-table-cell-factory column-info ctxt))
     (.setOnEditCommit table-column
                       (ui/event-handler event
-                                        (cell-setter (-> event .getTablePosition .getRow)
-                                                     (:path column-info)
-                                                     (.getNewValue event))))
+                                        (let [event ^TableColumn$CellEditEvent event]
+                                          (cell-setter (-> event .getTablePosition .getRow)
+                                                       (:path column-info)
+                                                       (.getNewValue event)))))
     table-column))
 
 (defn- menu-item [label action]
@@ -285,10 +290,11 @@
 (defn- remove-table-row [table-data row]
   (remove-vec-index table-data row))
 
-(defn- set-context-menu! [ctrl item-descs]
+(defn- set-context-menu! [^Control ctrl item-descs]
   (.addEventHandler ctrl ContextMenuEvent/CONTEXT_MENU_REQUESTED
                     (ui/event-handler event
-                                      (when-not (.isConsumed event)
+                                      (let [event ^ContextMenuEvent event]
+                                        (when-not (.isConsumed event)
                                           (let [cm (ContextMenu.)]
                                             (.addAll (.getItems cm)
                                                      (to-array
@@ -299,7 +305,7 @@
                                                                  item-descs))))
                                             (.setImpl_showRelativeToWindow cm true)
                                             (.show cm ctrl (.getScreenX event) (.getScreenY event))
-                                            (.consume event))))))
+                                            (.consume event)))))))
                     
 
 (defmethod create-field-control :table [field-info {:keys [set cancel] :as field-ops} ctxt]
@@ -308,7 +314,7 @@
         content (atom nil)
         update-fn (fn [value]
                     (reset! content (if (seq value) value []))
-                    (.setAll (.getItems table) @content))
+                    (.setAll (.getItems table) ^Collection @content))
         cell-setter (fn [row path val]
                       (swap! content
                              assoc-in (cons row path) val)
@@ -332,7 +338,7 @@
 
     (.setEditable table true)
     (.setAll (.getColumns table)
-             (map (fn [column-info] (create-table-column column-info cell-setter ctxt)) (:columns field-info)))
+             ^Collection (map (fn [column-info] (create-table-column column-info cell-setter ctxt)) (:columns field-info)))
 
     (set-context-menu! table [["Add" on-add-row (constantly default-row)]
                               ["Remove" on-remove-row selected-row]])
@@ -346,30 +352,33 @@
         (let [ctrl-data (atom nil)]
           (proxy [ListCell] []
             (startEdit []
-              (when (not (.isEmpty this))
-                (proxy-super startEdit)
-                (reset! ctrl-data (create-cell-field-control this element-info ctxt))
-                ((:update (second @ctrl-data)) (.getItem this))
-                (ui/add-style! this "editing-cell")
-                (.setText this nil)
-                (.setGraphic this (first @ctrl-data))
-                (when-let [start-edit (:edit (second @ctrl-data))]
-                  (ui/run-later
-                   (start-edit)))))
+              (let [this ^ListCell this]
+                (when (not (.isEmpty this))
+                  (proxy-super startEdit)
+                  (reset! ctrl-data (create-cell-field-control this element-info ctxt))
+                  ((:update (second @ctrl-data)) (.getItem this))
+                  (ui/add-style! this "editing-cell")
+                  (.setText this nil)
+                  (.setGraphic this (first @ctrl-data))
+                  (when-let [start-edit (:edit (second @ctrl-data))]
+                    (ui/run-later
+                     (start-edit))))))
             (cancelEdit []
-              (proxy-super cancelEdit)
-              (ui/remove-style! this "editing-cell")
-              (.setText this (get-value-string (.getItem this)))
-              (.setGraphic this nil))
+              (let [this ^ListCell this]
+                (proxy-super cancelEdit)
+                (ui/remove-style! this "editing-cell")
+                (.setText this (get-value-string (.getItem this)))
+                (.setGraphic this nil)))
             (updateItem [item empty]
-              (proxy-super updateItem item empty)
-              (if empty
-                (do (.setText this nil)
-                    (.setGraphic this nil))
-                (do
-                  (ui/remove-style! this "editing-cell")
-                  (.setText this (get-value-string item))
-                  (.setGraphic this nil))))))))))
+              (let [this ^ListCell this]
+                (proxy-super updateItem item empty)
+                (if empty
+                  (do (.setText this nil)
+                      (.setGraphic this nil))
+                  (do
+                    (ui/remove-style! this "editing-cell")
+                    (.setText this (get-value-string item))
+                    (.setGraphic this nil)))))))))))
   
 (defn- nil->neg1 [index]
   (if (nil? index)
@@ -381,26 +390,26 @@
     nil
     index))
 
-(defn- get-selected-index [list-view]
+(defn- get-selected-index [^ListView list-view]
   (let [ix (-> list-view (.getSelectionModel) (.getSelectedIndex))]
     (neg1->nil ix)))
 
-(defn- select-index [list-view index]
+(defn- select-index [^ListView list-view index]
   (if index
     (-> list-view (.getSelectionModel) (.selectIndices index nil))
     (-> list-view (.getSelectionModel) (.clearSelection))))
 
-(defn- get-focused-index [list-view]
+(defn- get-focused-index [^ListView list-view]
   (let [ix (-> list-view (.getFocusModel) (.getFocusedIndex))]
     (neg1->nil ix)))
 
-(defn- focus-index [list-view index]
+(defn- focus-index [^ListView list-view index]
   (-> list-view (.getFocusModel) (.focus (nil->neg1 index))))
 
 (defn- remove-list-row [list-data row]
   (remove-vec-index list-data row))
 
-(defn- create-fixed-cell-size-list-view []
+(defn- create-fixed-cell-size-list-view ^ListView []
   (let [list-view (ListView.)]
     (.setFixedCellSize list-view 25)
     (.bind (.prefHeightProperty list-view)
@@ -427,15 +436,16 @@
                     (reset! content (if (seq value) value []))
                     (let [old-selected (get-selected-index list-view)
                           old-focus (get-focused-index list-view)]
-                      (.setAll (.getItems list-view) @content)
+                      (.setAll (.getItems list-view) ^Collection @content)
                       (select-index list-view old-selected)
                       (focus-index list-view old-focus)))]
 
     (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt))
     (.setOnEditCommit list-view
                       (ui/event-handler event
-                                        (set-row (.getIndex event)
-                                                 (.getNewValue event))))
+                                        (let [event ^ListView$EditEvent event]
+                                          (set-row (.getIndex event)
+                                                   (.getNewValue event)))))
     (.setEditable list-view true)
 
     (set-context-menu! list-view [["Add" on-add-row (constantly default-row)]
@@ -479,7 +489,7 @@
                                    (let [old-selected (get-selected-index list-view)
                                          old-focus (get-focused-index list-view)]
                                      (reset! internal-select-change true)
-                                     (.setAll (.getItems list-view) panel-keys)
+                                     (.setAll (.getItems list-view) ^Collection panel-keys)
                                      (reset! internal-select-change false)
 
                                      (select-index list-view old-selected)
@@ -522,8 +532,9 @@
 
     (.setOnEditCommit list-view
                       (ui/event-handler event
-                                        (set-panel-key (.getIndex event)
-                                                       (.getNewValue event))))
+                                        (let [event ^ListView$EditEvent event]
+                                          (set-panel-key (.getIndex event)
+                                                         (.getNewValue event)))))
 
 
     (.setEditable list-view true)
