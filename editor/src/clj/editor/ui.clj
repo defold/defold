@@ -122,6 +122,15 @@
 (defn add-style! [^Node node ^String class]
   (.add (.getStyleClass node) class))
 
+(defn remove-style! [^Node node ^String class]
+  (.remove (.getStyleClass node) class))
+
+(defn reload-root-styles! []
+  (when-let [scene (.getScene ^Stage (main-stage))]
+    (let [root ^Parent (.getRoot scene)
+          styles (seq (.getStylesheets root))]
+      (.setAll (.getStylesheets root) (into (list) styles)))))
+
 (defn visible! [^Node node v]
   (.setVisible node v))
 
@@ -141,7 +150,7 @@
   (.setTitle window t))
 
 (defn tooltip! [^Control ctrl tip]
-  (.setTooltip ctrl (Tooltip. tip)))
+  (.setTooltip ctrl (when tip (Tooltip. tip))))
 
 (defn show! [^Stage stage]
   (.show stage))
@@ -154,7 +163,15 @@
 
 (defn on-double! [^Node node fn]
   (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
-                                        (fn e)))))
+                                              (fn e)))))
+
+(defn on-key! [^Node node key-fn]
+  (.setOnKeyPressed node (event-handler e (key-fn (.getCode e)))))
+
+(defn on-focus! [^Node node focus-fn]
+  (observe (.focusedProperty node)
+           (fn [observable old-val got-focus]
+             (focus-fn got-focus))))
 
 (defprotocol Text
   (text [this])
