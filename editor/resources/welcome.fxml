@@ -45,6 +45,6 @@
             <Insets />
          </opaqueInsets>
       </GridPane>
-      <ListView id="recent-projects" focusTraversable="false" prefHeight="200.0" prefWidth="200.0" style="-fx-font-size: 12;" HBox.hgrow="ALWAYS" />
+      <ListView id="recent-projects" focusTraversable="false" prefHeight="200.0" prefWidth="200.0" style="-fx-font-size: 12;" HBox.hgrow="ALWAYS" styleClass="flat-list-view" />
    </children>
 </HBox>
