@@ -81,6 +81,18 @@ TEST(dmSys, GetSystemInfo)
     dmLogInfo("Device identifier: '%d'", info.m_DeviceIdentifier);
 }
 
+TEST(dmSys, EngineInfo)
+{
+    dmSys::EngineInfoParam engine_info;
+    engine_info.m_Version = "1.2.1";
+    engine_info.m_VersionSHA1 = "hellothere";
+    dmSys::SetEngineInfo(engine_info);
+    dmSys::EngineInfo info;
+    dmSys::GetEngineInfo(&info);
+    ASSERT_STREQ(engine_info.m_Version, info.m_Version);
+    ASSERT_STREQ(engine_info.m_VersionSHA1, info.m_VersionSHA1);
+}
+
 TEST(dmSys, LoadResource)
 {
     char buffer[1024 * 100];
