@@ -11,6 +11,7 @@ There's there different functions in this namespace
 (:require [clojure.java.io :as io]
           [clojure.set :as set]
           [editor.prefs :as prefs]
+          [camel-snake-kebab :as camel]
           [editor.ui :as ui])
 (:import [javafx.scene.control ProgressBar]
          [org.eclipse.jgit.api Git]
@@ -67,7 +68,8 @@ There's there different functions in this namespace
      :removed (.getRemoved s)
      :uncommited-changes (.getUncommittedChanges s)
      :untracked (.getUntracked s)
-     :untracked-folders (.getUntrackedFolders s)}))
+     :untracked-folders (.getUntrackedFolders s)
+     :conflicting-stage-state (apply hash-map (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)]) (.getConflictingStageState s)))}))
 
 (defn simple-status [^Git git]
   (let [s (status git)
@@ -125,16 +127,35 @@ There's there different functions in this namespace
       (when (contains? (:untracked s) f)
         (io/delete-file (str (.getWorkTree (.getRepository git)) "/" f))))))
 
+(defn delete-branch [git name]
+  (-> (.branchDelete git)
+      (.setBranchNames (into-array String [name]))
+      (.call)))
+
+(defn checkout-branch [git name create]
+  (-> (.checkout git)
+      (.setCreateBranch create)
+      (.setName name)
+      (.call)))
+
+(defn stash [git]
+  (-> (.stashCreate git)
+      (.setIncludeUntracked true)
+      (.call)))
+
+(defn branch-name [git]
+  (-> git .getRepository .getBranch))
+
 (defn autostage [^Git git]
   (let [s (status git)]
     (doseq [f (:modified s)]
-     (-> git (.add) (.addFilepattern f) (.call)))
+      (-> git (.add) (.addFilepattern f) (.call)))
 
     (doseq [f (:untracked s)]
       (-> git (.add) (.addFilepattern f) (.call)))
 
     (doseq [f (:missing s)]
-     (-> git (.rm) (.addFilepattern f) (.call)))))
+      (-> git (.rm) (.addFilepattern f) (.call)))))
 
 (defn credentials [prefs]
   (let [email (prefs/get-prefs prefs "email" nil)
