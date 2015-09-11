@@ -1,6 +1,8 @@
 #ifndef DM_SYS_H
 #define DM_SYS_H
 
+#include <string.h>
+
 namespace dmSys
 {
     /**
@@ -84,6 +86,31 @@ namespace dmSys
     };
 
     /**
+     * Engine information
+     */
+    struct EngineInfo
+    {
+        EngineInfo()
+        {
+            memset(this, 0, sizeof(EngineInfo));
+        }
+
+        /// Engine version, e.g. 1.2.1
+        char m_Version[32];
+        /// Engine version hash string
+        char m_VersionSHA1[256];
+    };
+
+    /**
+     * SetEngineInfo function parameters
+     */
+    struct EngineInfoParam
+    {
+        const char* m_Version;
+        const char* m_VersionSHA1;
+    };
+
+    /**
      * Create directory.
      * @param path path to directory to create
      * @param mode initial unix file permissions. ignored on some platforms
@@ -151,6 +178,18 @@ namespace dmSys
      * @param info input data
      */
     void GetSystemInfo(SystemInfo* info);
+
+    /**
+     * Get engine information
+     * @param info input data
+     */
+    void GetEngineInfo(EngineInfo* info);
+
+    /**
+     * Set engine information
+     * @param param engine info parameters
+     */
+    void SetEngineInfo(EngineInfoParam& param);
 
     /**
      * Check if a resource exists. That path supplied should
