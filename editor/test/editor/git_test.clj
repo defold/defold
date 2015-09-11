@@ -12,8 +12,11 @@
     (io/make-parents f)
     (spit f content)))
 
+(defn- temp-dir []
+  (.toFile (Files/createTempDirectory "foo" (into-array FileAttribute []))))
+
 (defn- new-git []
-  (let [f (.toFile (Files/createTempDirectory "foo" (into-array FileAttribute [])))
+  (let [f (temp-dir)
         git (-> (Git/init) (.setDirectory f) (.call))]
     ; We must have a HEAD in general
     (create-file git "/dummy" "")
@@ -21,11 +24,20 @@
     (-> git (.commit) (.setMessage "message") (.call))
     git))
 
+(defn- clone [git]
+  (-> (Git/cloneRepository)
+      (.setURI (.getAbsolutePath (.getWorkTree (.getRepository git))))
+      (.setDirectory (io/file (temp-dir)))
+      (.call)))
+
 (defn- delete-git [git]
   (FileUtils/deleteDirectory (.getWorkTree (.getRepository git))))
 
 (defn delete-file [git file]
   (io/delete-file (str (.getWorkTree (.getRepository git)) "/" file)))
+
+(defn slurp-file [git file]
+  (slurp (str (.getWorkTree (.getRepository git)) "/" file)))
 
 (defn- add-src [git]
   (-> git (.add) (.addFilepattern "src") (.call)))
@@ -259,3 +271,69 @@
     (is (= #{} (all-files (git/status git))))
     (delete-git git)))
 
+(deftest merge-test
+  ; merge conflict
+  (let [remote-git (new-git)]
+    (create-file remote-git "/src/main.cpp" "void main() {}")
+    (commit-src remote-git)
+    (let [git (clone remote-git)]
+      (create-file remote-git "/src/main.cpp" "void main1() {}")
+      (create-file git "/src/main.cpp" "void main2() {}")
+      (commit-src remote-git)
+      (commit-src git)
+
+      (println "!!!" git)
+      (println
+       (-> (.pull git)
+           (.call)
+           (.getMergeResult)
+           (.getMergeStatus)
+           (str)
+           ))
+
+      #_(println "->"
+       (-> (.pull git)
+           (.call)
+           (.getMergeResult)
+           (.getCheckoutConflicts)
+           #_(.getConflicts)
+           ))
+
+      (println "A" (slurp-file git "src/main.cpp"))
+
+      (-> (.checkout git)
+          (.addPath "src/main.cpp")
+          (.setStage org.eclipse.jgit.api.CheckoutCommand$Stage/BASE)
+          (.call)
+          )
+
+      (println "B" (slurp-file git "src/main.cpp"))
+
+
+
+      #_(println "status a" (:conflicting (git/status git)))
+      #_(commit-src git)
+      #_(println "status b" (:conflicting (git/status git)))
+      #_(println "status b" (git/status git))
+      #_(println "status" (-> (.status git)
+                            (.call)
+                            (.getConflictingStageState)))
+
+
+      (println git)
+      ;(delete-git git)
+      )
+
+    #_(is (= #{"src/main.cpp"} (:untracked (git/status remote-git))))
+    #_(git/revert remote-git ["src/main.cpp"])
+    #_(is (= #{} (all-files (git/status remote-git))))
+    (delete-git remote-git)))
+
+
+
+(clojure.test/test-vars [#'editor.git-test/merge-test])
+
+;(println (keyword (.toLowerCase (str org.eclipse.jgit.api.MergeResult$MergeStatus/CONFLICTING))))
+
+
+;(run-tests)
