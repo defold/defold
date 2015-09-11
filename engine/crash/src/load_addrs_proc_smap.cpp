@@ -75,7 +75,6 @@ namespace dmCrash
                 line[addr_break] = 0;
                 state->m_ModuleAddr[count] = (void*)strtoull(line, 0, 16);
                 dmStrlCpy(state->m_ModuleName[count], &line[name_start], AppState::MODULE_NAME_SIZE);
-                dmLogWarning("Module [%s] at %p", &line[name_start], state->m_ModuleAddr[count]);
                 ++count;
             }
         }
