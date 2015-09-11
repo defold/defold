@@ -68,6 +68,13 @@ message AnimationTrack
     repeated float scale = 4;
 }
 
+message IKAnimationTrack
+{
+    required uint32 ik_index = 1;
+    repeated float mix = 2;
+    repeated bool positive = 3;
+}
+
 message MeshAnimationTrack
 {
     required uint32 mesh_index = 1;
@@ -102,6 +109,7 @@ message SpineAnimation
     repeated AnimationTrack tracks = 4;
     repeated EventTrack event_tracks = 5;
     repeated MeshAnimationTrack mesh_tracks = 6;
+    repeated IKAnimationTrack ik_tracks = 7;
 }
 
 message AnimationSet
