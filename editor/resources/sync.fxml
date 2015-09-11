@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.text.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.*?>
+<?import javafx.scene.control.*?>
+<?import java.lang.*?>
+<?import javafx.scene.layout.*?>
+
+
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="600.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/8.0.40" xmlns:fx="http://javafx.com/fxml/1">
+   <bottom>
+      <HBox BorderPane.alignment="CENTER">
+         <children>
+            <Pane HBox.hgrow="ALWAYS" />
+         </children>
+      </HBox>
+   </bottom>
+   <padding>
+      <Insets bottom="16.0" left="16.0" right="16.0" top="16.0" />
+   </padding>
+   <top>
+      <Label text="Synchronize Project" BorderPane.alignment="CENTER">
+         <font>
+            <Font size="18.0" />
+         </font>
+      </Label>
+   </top>
+   <center>
+      <StackPane BorderPane.alignment="CENTER">
+         <children>
+            <VBox prefHeight="200.0" prefWidth="100.0">
+               <children>
+                  <Label id="changed-files" text="Changed Files" />
+                  <ListView id="changed" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+                  <Label text="Files to Commit">
+                     <padding>
+                        <Insets top="16.0" />
+                     </padding>
+                  </Label>
+                  <ListView id="staged" prefHeight="200.0" prefWidth="200.0" />
+                  <Label text="Commit Message">
+                     <padding>
+                        <Insets top="16.0" />
+                     </padding>
+                  </Label>
+                  <TextArea prefHeight="200.0" prefWidth="200.0" />
+               </children>
+            </VBox>
+            <VBox prefHeight="200.0" prefWidth="100.0" visible="false">
+               <children>
+                  <Label text="Conflicting" />
+                  <ListView id="conflicting" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+                  <Label text="Resolved">
+                     <padding>
+                        <Insets top="16.0" />
+                     </padding>
+                  </Label>
+                  <ListView prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+               </children>
+            </VBox>
+         </children>
+      </StackPane>
+   </center>
+</BorderPane>
