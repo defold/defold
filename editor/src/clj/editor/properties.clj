@@ -311,3 +311,9 @@
         (let [key (:key property)]
           (for [node-id (:node-ids property)]
             (g/update-property node-id (first key) dissoc-in (rest key))))))))
+
+(defn ->pb-choicebox [cls]
+  (let [options (protobuf/enum-values cls)]
+    {:type :choicebox
+     :options (zipmap (map first options)
+                      (map (comp :display-name second) options))}))
