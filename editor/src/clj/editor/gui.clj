@@ -10,8 +10,11 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.colors :as colors]
-            [internal.render.pass :as pass])
-  (:import [com.dynamo.gui.proto Gui$SceneDesc]
+            [internal.render.pass :as pass]
+            [editor.types :as types]
+            [editor.resource :as resource]
+            [editor.properties :as properties])
+  (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference]
            [editor.types AABB]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.vecmath Matrix4d Point3d Quat4d]))
@@ -109,13 +112,21 @@
 (g/defnode GuiSceneNode
   (inherits project/ResourceNode)
 
+  (property script (g/protocol resource/Resource))
+  (property material (g/protocol resource/Resource))
+  (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))
 
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
 
-  (output aabb AABB (g/fnk [] (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
+  (output aabb AABB (g/fnk [scene-dims]
+                           (let [w (:width scene-dims)
+                                 h (:height scene-dims)]
+                             (-> (geom/null-aabb)
+                               (geom/aabb-incorporate 0 0 0)
+                               (geom/aabb-incorporate w h 0)))))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
@@ -131,18 +142,22 @@
 
 (defn load-gui-scene [project self input]
   (let [def pb-def
-        pb (protobuf/read-text (:pb-class def) input)
-        resource (g/node-value self :resource)]
+        scene (protobuf/read-text (:pb-class def) input)
+        resource (g/node-value self :resource)
+        workspace (project/workspace project)]
     (concat
-     (g/set-property self :pb pb)
-     (g/set-property self :def def)
-     (g/connect project :settings self :project-settings)
-     (for [res (:resource-fields def)]
-       (if (vector? res)
-         (for [v (get pb (first res))]
-           (let [path (if (second res) (get v (second res)) v)]
-             (connect-build-targets self project path)))
-         (connect-build-targets self project (get pb res)))))))
+      (g/set-property self :script (workspace/resolve-resource resource (:script scene)))
+      (g/set-property self :material (workspace/resolve-resource resource (:material scene)))
+      (g/set-property self :adjust-reference (:adjust-reference scene))
+      (g/set-property self :pb scene)
+      (g/set-property self :def def)
+      (g/connect project :settings self :project-settings)
+      (for [res (:resource-fields def)]
+        (if (vector? res)
+          (for [v (get scene (first res))]
+            (let [path (if (second res) (get v (second res)) v)]
+              (connect-build-targets self project path)))
+          (connect-build-targets self project (get scene res)))))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
