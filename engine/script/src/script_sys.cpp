@@ -13,7 +13,6 @@
 #include <direct.h>
 #endif
 
-#include <engine/engine.h>
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
 #include <dlib/log.h>
