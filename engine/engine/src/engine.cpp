@@ -357,6 +357,11 @@ namespace dmEngine
     */
     bool Init(HEngine engine, int argc, char *argv[])
     {
+        dmSys::EngineInfoParam engine_info;
+        engine_info.m_Version = dmEngineVersion::VERSION;
+        engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
+        dmSys::SetEngineInfo(engine_info);
+
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
         if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
