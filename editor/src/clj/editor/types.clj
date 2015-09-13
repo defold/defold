@@ -55,6 +55,9 @@
 
 (def Color   [g/Num])
 
+(def Vec2    [(g/one g/Num "x")
+              (g/one g/Num "y")])
+
 (def Vec3    [(g/one g/Num "x")
               (g/one g/Num "y")
               (g/one g/Num "z")])
