@@ -98,15 +98,17 @@
 (defn- v3->v4 [v3]
   (conj v3 1.0))
 
-(g/defnk produce-node-msg [type _declared-properties]
+(g/defnk produce-node-msg [type parent _declared-properties]
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor}
         v3-fields [:position :rotation :scale :size]
         props (:properties _declared-properties)
-        msg (-> (into {:type type} (map (fn [[k v]] [k (:value v)])
-                                        (filter (fn [[k v]] (and (get v :visible true)
-                                                                 (not (contains? (set (keys pb-renames)) k))))
-                                                props)))
+        msg (-> (into {:parent parent
+                       :type type}
+                      (map (fn [[k v]] [k (:value v)])
+                           (filter (fn [[k v]] (and (get v :visible true)
+                                                    (not (contains? (set (keys pb-renames)) k))))
+                                   props)))
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
         msg (reduce (fn [msg k] (update msg k v3->v4)) msg v3-fields)]
     msg))
@@ -175,6 +177,7 @@
   (display-order [:id scene/ScalableSceneNode])
 
   (input node-outlines g/Any :array)
+  (input parent g/Str)
   (input layers [g/Str])
   (input textures [g/Str])
   (input fonts [g/Str])
@@ -234,6 +237,7 @@
                   :nodes nodes})))
 
 (g/defnode NodesNode
+  (property id g/Str (default "") (dynamic visible (g/always false)))
   (input node-outlines g/Any :array)
   (output nodes-outline g/Any (g/fnk [_node-id node-outlines]
                                      {:node-id _node-id
@@ -395,6 +399,7 @@
 
 (defn- attach-gui-node [self parent gui-node type]
   (concat
+    (g/connect parent :id gui-node :parent)
     (g/connect gui-node :_node-id self :nodes)
     (g/connect gui-node :outline parent :node-outlines)
     (g/connect gui-node :pb-msg self :node-msgs)
