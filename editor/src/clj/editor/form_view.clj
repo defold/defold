@@ -455,11 +455,14 @@
 (declare create-section-grid-rows)
 (declare add-grid-rows)
 (declare update-fields)
-(declare wipe-fields)
+
+(defn- wipe-fields [updaters]
+  (doseq [[_ updater] updaters]
+    (updater nil)))
 
 (defn- build-form-values [field-value-map]
   (reduce-kv (fn [m k v]
-               (assoc m [k] {:value v :source :explicit}))
+               (assoc m [k] v))
              {}
              field-value-map))
 
@@ -563,11 +566,14 @@
         reset-btn (doto (Button. "x")
                     (ui/on-action! (fn [_] (clear path))))
         [control api] (create-field-control field-info field-ops ctxt)
-        update-ui-fn (fn [annotated-value]
-                       ((:update api) (:value annotated-value))
-                       (.setVisible reset-btn (and (not (nil? clear))
-                                                   (form/has-explicit-default field-info)
-                                                   (not= (:source annotated-value) :default))))]
+        update-ui-fn (fn [{:keys [value source]}]
+                       (let [value (condp = source
+                                         :explicit value
+                                         :default (form/field-default field-info)
+                                         nil)]
+                         ((:update api) value))
+                       (.setVisible reset-btn (and (boolean (:optional field-info))
+                                                   (= source :explicit))))]
     (GridPane/setValignment label (field-label-valign field-info))
     (GridPane/setHalignment label HPos/RIGHT)
     {:ctrls [label control reset-btn] :col-spans [1 1 1] :update-ui-fn [path update-ui-fn]}))
@@ -596,11 +602,10 @@
   (doseq [[path val] field-values]
     (let [updater (updaters path)]
       (assert updater (format "missing updater for %s" path))
-      (updater val))))
-
-(defn- wipe-fields [updaters]
-  (doseq [[_ updater] updaters]
-    (updater nil)))
+      (updater {:value val :source :explicit})))
+  (let [defaulted-paths (clojure.set/difference (set (keys updaters)) (set (keys field-values)))]
+    (doseq [path defaulted-paths]
+      ((updaters path) {:source :default}))))
 
 (defn update-form [form form-data]
   (let [updaters (ui/user-data form ::update-ui-fns)]
