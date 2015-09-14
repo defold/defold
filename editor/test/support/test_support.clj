@@ -1,8 +1,5 @@
 (ns support.test-support
   (:require [dynamo.graph :as g]
-            [internal.async :as ia]
-            [internal.system :as is]
-            [internal.system :as is]
             [internal.system :as is]))
 
 (defmacro with-clean-system
