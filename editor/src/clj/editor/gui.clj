@@ -14,7 +14,9 @@
             [internal.render.pass :as pass]
             [editor.types :as types]
             [editor.resource :as resource]
-            [editor.properties :as properties])
+            [editor.properties :as properties]
+            [editor.handler :as handler]
+            [editor.ui :as ui])
   (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds]
            [editor.types AABB]
@@ -112,6 +114,7 @@
 (g/defnode GuiNode
   (inherits scene/ScalableSceneNode)
 
+  (property index g/Int (dynamic visible (g/always false)))
   (property type g/Keyword (dynamic visible (g/always false)))
 
   (property id g/Str)
@@ -175,15 +178,16 @@
   (input layers [g/Str])
   (input textures [g/Str])
   (input fonts [g/Str])
-  (output outline g/Any (g/fnk [_node-id id node-outlines type]
+  (output outline g/Any (g/fnk [_node-id id index node-outlines type]
                                {:node-id _node-id
                                 :label id
+                                :index index
                                 :icon (case type
                                         :type-box box-icon
                                         :type-text text-icon
                                         :type-pie pie-icon
                                         :type-template template-icon)
-                                :children node-outlines}))
+                                :children (sort-by :index node-outlines)}))
   (output pb-msg g/Any produce-node-msg))
 
 (g/defnode TextureNode
@@ -235,7 +239,7 @@
                                      {:node-id _node-id
                                       :label "Nodes"
                                       :icon virtual-icon
-                                      :children node-outlines})))
+                                      :children (sort-by :index node-outlines)})))
 
 (g/defnode FontsNode
   (input font-outlines g/Any :array)
@@ -455,9 +459,11 @@
                     (g/connect nodes-node :nodes-outline self :nodes-outline)
                     (loop [node-descs (:nodes scene)
                            id->node {}
-                           all-tx-data []]
+                           all-tx-data []
+                           index 0]
                       (if-let [node-desc (first node-descs)]
                         (let [tx-data (g/make-nodes graph-id [gui-node [GuiNode
+                                                                        :index index
                                                                         :type (:type node-desc)
                                                                         :id (:id node-desc)
                                                                         :position (v4->v3 (:position node-desc))
@@ -492,7 +498,7 @@
                                                     (let [parent (if (empty? (:parent node-desc)) nodes-node (id->node (:parent node-desc)))]
                                                       (attach-gui-node self parent gui-node (:type node-desc))))
                               node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
-                          (recur (rest node-descs) (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data)))
+                          (recur (rest node-descs) (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc index)))
                         all-tx-data)))
       (g/make-nodes graph-id [fonts-node FontsNode]
                     (g/set-property self :fonts-node fonts-node)
@@ -548,3 +554,46 @@
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
+
+(defn- outline-parent [child]
+  (first (filter some? (map (fn [[_ output target input]]
+                              (when (= output :outline) [target input]))
+                            (g/outputs child)))))
+
+(defn- outline-move! [outline node-id offset]
+  (let [outline (sort-by :index outline)
+        new-order (sort-by second (map-indexed (fn [i entry]
+                                                 (let [nid (:node-id entry)
+                                                       new-index (+ (* 2 i) (if (= node-id nid) (* offset 3) 0))]
+                                                   [nid new-index]))
+                                               outline))
+        packed-order (map-indexed (fn [i v] [(first v) i]) new-order)]
+    (g/transact
+      (for [[node-id index] packed-order]
+        (g/set-property node-id :index index)))))
+
+(handler/defhandler :move-up :global
+  (enabled? [selection] (and (= 1 (count selection))
+                             (let [selected (first selection)]
+                               (g/node-instance? GuiNode selected))))
+  (run [selection] (let [selected (first selection)
+                         [target input] (outline-parent selected)]
+                     (outline-move! (g/node-value target input) selected -1))))
+
+(handler/defhandler :move-down :global
+  (enabled? [selection] (and (= 1 (count selection))
+                             (let [selected (first selection)]
+                               (g/node-instance? GuiNode selected))))
+  (run [selection] (let [selected (first selection)
+                         [target input] (outline-parent selected)]
+                     (outline-move! (g/node-value target input) selected 1))))
+
+(ui/extend-menu ::menubar :editor.app-view/edit
+                [{:label "Gui"
+                  :id ::gui
+                  :children [{:label "Move Up"
+                              :acc "Alt+UP"
+                              :command :move-up}
+                             {:label "Move Down"
+                              :acc "Alt+DOWN"
+                              :command :move-down}]}])

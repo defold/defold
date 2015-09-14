@@ -220,18 +220,22 @@
 
     (ui/register-toolbar (.getScene stage) "#toolbar" ::toolbar)
     (ui/register-menubar (.getScene stage) "#menu-bar" ::menubar)
-    (let [refresh-timer (ui/->timer 2 (fn [dt]
-                                        (ui/refresh (.getScene stage))
-                                        (let [settings (g/node-value project :settings)
-                                              project-title (settings ["project" "title"])
-                                              new-title (make-title project-title)]
-                                          (when (not= (.getTitle stage) new-title)
-                                            (.setTitle stage new-title)))
-                                        (let [auto-pulls (g/node-value app-view :auto-pulls)]
-                                          (doseq [[node label] auto-pulls]
-                                            (g/node-value node label)))))]
-      (ui/timer-stop-on-close! stage refresh-timer)
-      (ui/timer-start! refresh-timer))
+    (let [ui-refresh-timer (ui/->timer 2 (fn [dt]
+                                           (ui/refresh (.getScene stage))
+                                           (let [settings (g/node-value project :settings)
+                                                 project-title (settings ["project" "title"])
+                                                 new-title (make-title project-title)]
+                                             (when (not= (.getTitle stage) new-title)
+                                               (.setTitle stage new-title)))))
+          auto-refresh-timer (ui/->timer 10 (fn [dt]
+                                              (let [auto-pulls (g/node-value app-view :auto-pulls)]
+                                                (doseq [[node label] auto-pulls]
+                                                  (g/node-value node label)))))]
+      (ui/on-close-request! stage (fn [_]
+                                    (ui/timer-stop! ui-refresh-timer)
+                                    (ui/timer-stop! auto-refresh-timer)))
+      (ui/timer-start! ui-refresh-timer)
+      (ui/timer-start! auto-refresh-timer))
     app-view))
 
 (defn open-resource [app-view workspace project resource]
