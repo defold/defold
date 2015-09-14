@@ -7,6 +7,24 @@
            [com.dynamo.render.proto Render$DisplayProfiles]
            [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]))
 
+
+(defn- dissoc-in
+  "Dissociates an entry from a nested associative structure returning a new
+  nested structure. keys is a sequence of keys. Any empty maps that result
+  will not be present in the new structure."
+  [m [k & ks :as keys]]
+  (if ks
+    (if-let [nextmap (get m k)]
+      (let [newmap (dissoc-in nextmap ks)]
+        (if (empty? newmap)
+          (dissoc m k)
+          (assoc m k newmap)))
+      m)
+    (dissoc m k)))
+
+(defn- clear-form-op [{:keys [node-id]} path]
+  (g/update-property! node-id :pb dissoc-in path))
+
 (defn- set-form-op [{:keys [node-id]} path value]
   (g/update-property! node-id :pb assoc-in path value))
 
@@ -21,7 +39,14 @@
 (defn- default-form-ops [node-id]
   {:form-ops {:user-data {:node-id node-id}
               :set set-form-op
-              :clear nil}})
+              :clear clear-form-op}})
+
+(defn- make-values [pb keys]
+  (into {} (map #(do [[%] (pb %)]) keys)))
+
+(defn- form-values [form-data pb]
+  (let [keys (map (comp first :path) (mapcat :fields (:sections form-data)))]
+    (make-values pb keys)))
 
 (defmulti protobuf-form-data (fn [node-id pb def] (:pb-class def)))
 
@@ -37,7 +62,7 @@
         {:path [:name]
          :label "Name"
          :type :string
-         :default "cakes"}
+         :default "New Material"}
         {:path [:vertex-program]
          :label "Vertex Program"
          :type :resource :filter "vp"}
@@ -59,18 +84,11 @@
         {:path [:tags]
          :label "Tags"
          :type :list
-         :element {:type :string :default "new tag"}
+         :element {:type :string :default "New Tag"}
          }
         ]
        }
       ]
-     :values
-     {[:name] {:value (get pb :name) :source :explicit}
-      [:vertex-program] {:value (get pb :vertex-program) :source :explicit}
-      [:fragment-program] {:value (get pb :fragment-program) :source :explicit}
-      [:tags] {:value (get pb :tags) :source :explicit}
-      [:vertex-constants] {:value (get pb :vertex-constants) :source :explicit}
-      }
      }))
 
 (defmethod protobuf-form-data Input$InputBinding [node-id pb def]
@@ -155,14 +173,6 @@
        ]
        }
       ]
-     :values
-     {
-      [:key-trigger] {:value (get pb :key-trigger) :source :explicit}
-      [:mouse-trigger] {:value (get pb :mouse-trigger) :source :explicit}
-      [:gamepad-trigger] {:value (get pb :gamepad-trigger) :source :explicit}
-      [:touch-trigger] {:value (get pb :touch-trigger) :source :explicit}
-      [:text-trigger] {:value (get pb :text-trigger) :source :explicit}
-      }
      }))
 
 (defn- gamepad-pb->form-pb [pb]
@@ -282,10 +292,6 @@
         ]
        }
       ]
-     :values
-     {
-      [:driver] {:value ((gamepad-pb->form-pb pb) :driver) :source :explicit}
-      }
      }))
 
 (defmethod protobuf-form-data Render$DisplayProfiles [node-id pb def]
@@ -340,10 +346,6 @@
       ]
      }
     ]
-   :values
-   {
-    [:profiles] {:value (pb :profiles) :source :explicit}
-    }
    })
 
 (defmethod protobuf-form-data Graphics$TextureProfiles [node-id pb def]
@@ -446,7 +448,8 @@
                        :path [:max-texture-size]
                        :type :integer
                        :label "Max texture size"
-                       ;;todo actually optional
+                       :default 0
+                       :optional true
                        }
                       ]
                      }
@@ -461,11 +464,6 @@
             ]
            }
           ]
-         :values
-         {
-          [:path-settings] {:value (pb :path-settings) :source :explicit}
-          [:profiles] {:value (pb :profiles) :source :explicit}
-          }
          }))
 
 (defmethod protobuf-form-data Render$RenderPrototypeDesc [node-id pb def]
@@ -492,17 +490,12 @@
       ]
      }
     ]
-   :values
-   {
-    [:script] {:value (pb :script) :source :explicit}
-    [:materials] {:value (pb :materials) :source :explicit}
-    }
    })
 
 (defn produce-form-data [node-id pb def]
-  (merge (default-form-ops node-id)
-         (protobuf-form-data node-id pb def)))
-
-
-
+  (let [form-data (merge (default-form-ops node-id)
+                         (protobuf-form-data node-id pb def))]
+    (if (contains? form-data :values)
+      form-data
+      (assoc form-data :values (form-values form-data pb)))))
 

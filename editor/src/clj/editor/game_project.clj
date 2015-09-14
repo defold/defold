@@ -138,7 +138,9 @@
       (s/replace "_" " ")))
 
 (defn- make-form-field [setting]
-  (assoc setting :label (label (second (:path setting)))))
+  (assoc setting
+         :label (label (second (:path setting)))
+         :optional true))
 
 (defn- make-form-section [category-name category-info settings]
   {:title category-name
@@ -150,17 +152,9 @@
          {:path (:path meta-setting) :value (:default meta-setting)})
         meta-settings))
 
-(defn- add-value-source [settings source]
-  (map (fn [setting]
-         (update setting :value (fn [value] {:value value :source source})))
-       settings))
-
-(defn- make-form-values-map [meta-settings settings]
-  (let [explicit-values (add-value-source settings :explicit)
-        default-values (add-value-source (make-default-settings meta-settings) :default)
-        all-values (concat default-values explicit-values)]
-    (into {} (map (fn [item] [(:path item) (:value item)]) all-values))))
-
+(defn- make-form-values-map [settings]
+  (into {} (map (juxt :path :value) settings)))
+  
 (def ^:private setting-category (comp first :path))
 
 (defn- make-form-data [form-ops meta-info settings]
@@ -169,7 +163,7 @@
         categories (distinct (map setting-category meta-settings))
         category-settings (group-by setting-category meta-settings)
         sections (map #(make-form-section % (get-in meta-info [:categories %]) (category-settings %)) categories)
-        values (make-form-values-map meta-settings settings)]
+        values (make-form-values-map settings)]
     {:form-ops form-ops :sections sections :values values}))
 
 (defn- category-order [settings]
