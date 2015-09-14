@@ -64,7 +64,7 @@
    :filter "display_profiles",
    :help
    "file reference of the display profiles to use for the application",
-   :default "/builtins/render/default.display_profilesc",
+   :default "/builtins/render/default.display_profiles",
    :path ["display" "display_profiles"]}
   {:type :boolean,
    :filter nil,
@@ -144,13 +144,13 @@
    :filter "collection",
    :help
    "file reference of the collection to use for starting the application, /logic/main.collectionc by default",
-   :default "/logic/main.collectionc",
+   :default "/logic/main.collection",
    :path ["bootstrap" "main_collection"]}
   {:type :resource,
    :filter "render",
    :help
    "which render file to use, which defines the render pipeline, /builtins/render/default.renderc by default",
-   :default "/builtins/render/default.renderc",
+   :default "/builtins/render/default.render",
    :path ["bootstrap" "render"]}
   {:type :string,
    :filter nil,
@@ -235,13 +235,13 @@
    :filter "gamepads",
    :help
    "file reference of the gamepads config file, which maps gamepad signals to OS, /builtins/input/default.gamepadsc by default",
-   :default "/builtins/input/default.gamepadsc",
+   :default "/builtins/input/default.gamepads",
    :path ["input" "gamepads"]}
   {:type :resource,
    :filter "input_binding",
    :help
    "file reference of the input config file, which maps HW inputs to actions, /input/game.input_bindingc by default",
-   :default "/input/game.input_bindingc",
+   :default "/input/game.input_binding",
    :path ["input" "game_binding"]}
   {:type :integer,
    :filter nil,
@@ -265,95 +265,113 @@
    :default 128,
    :path ["factory" "max_count"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "retina iPhone 5 and 6 bundle icon file (.png)",
    :default nil,
    :path ["ios" "app_icon_120x120"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPhone6 plus icon file (.png)",
    :default nil,
    :path ["ios" "app_icon_180x180"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPad icon file (.png)",
    :default nil,
    :path ["ios" "app_icon_76x76"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "retina iPad icon file (.png)",
    :default nil,
    :path ["ios" "app_icon_152x152"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help
    "iPhone/iPod touch icon file (.png) [required for iOS 6.1 and earlier]",
    :default nil,
    :path ["ios" "app_icon_57x57"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help
    "retina iPhone/iPod touch bundle icon file (.png) [required for iOS 6.1 and earlier]",
    :default nil,
    :path ["ios" "app_icon_114x114"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPad icon file (.png) [required for iOS 6.1 and earlier]",
    :default nil,
    :path ["ios" "app_icon_72x72"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help
    "retina iPad bundle icon file (.png) [required for iOS 6.1 and earlier]",
    :default nil,
    :path ["ios" "app_icon_144x144"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPhone launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_320x480"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "retina iPhone launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_640x960"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPhone 5 launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_640x1136"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPhone 6 launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_750x1334"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPad portrait launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_768x1024"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "retina iPad portrait launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_1536x2048"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPad landscape launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_1024x768"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPhone 6 plus portrait launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_1242x2208"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "iPhone 6 plus landscape launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_2208x1242"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "retina iPad landscape launch image (.png)",
    :default nil,
    :path ["ios" "launch_image_2048x1536"]}
@@ -368,37 +386,44 @@
    :default "example.unnamed",
    :path ["ios" "bundle_identifier"]}
   {:type :resource,
-   :filter nil,
+   :filter "plist",
+   :preserve-extension true
    :help "custom Info.plist template file",
    :default nil,
    :path ["ios" "infoplist"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "Android ldpi icon file (.png)",
    :default nil,
    :path ["android" "app_icon_36x36"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "Android mdpi icon file (.png)",
    :default nil,
    :path ["android" "app_icon_48x48"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "Android hdpi icon file (.png)",
    :default nil,
    :path ["android" "app_icon_72x72"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "Android xhdpi icon file (.png)",
    :default nil,
    :path ["android" "app_icon_96x96"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "Android xxhdpi icon file (.png)",
    :default nil,
    :path ["android" "app_icon_144x144"]}
   {:type :resource,
-   :filter nil,
+   :filter "png",
+   :preserve-extension true
    :help "Android xxxhdpi icon file (.png)",
    :default nil,
    :path ["android" "app_icon_192x192"]}
@@ -418,17 +443,20 @@
    :default "",
    :path ["android" "gcm_sender_id"]}
   {:type :resource,
-   :filter nil,
+   :filter "xml",
+   :preserve-extension true
    :help "custom AndroidManifest.xml template file",
    :default nil,
    :path ["android" "manifest"]}
   {:type :resource,
-   :filter nil,
+   :filter "icns",
+   :preserve-extension true
    :help "bundle icon file (.icns)",
    :default "",
    :path ["osx" "app_icon"]}
   {:type :resource,
-   :filter nil,
+   :filter "plist",
+   :preserve-extension true
    :help "custom Info.plist template file",
    :default nil,
    :path ["osx" "infoplist"]}
@@ -438,7 +466,8 @@
    :default "example.unnamed",
    :path ["osx" "bundle_identifier"]}
   {:type :resource,
-   :filter nil,
+   :filter "ico",
+   :preserve-extension true
    :help "executable icon file (.ico)",
    :default "",
    :path ["windows" "app_icon"]}
@@ -459,17 +488,20 @@
    :default nil,
    :path ["html5" "include_dev_tool"]}
   {:type :resource,
-   :filter nil,
+   :filter "html",
+   :preserve-extension true
    :help "html shell for canvas",
    :default nil,
    :path ["html5" "htmlfile"]}
   {:type :resource,
-   :filter nil,
+   :filter "css",
+   :preserve-extension true
    :help "css detail for html shell",
    :default nil,
    :path ["html5" "cssfile"]}
   {:type :resource,
    :filter nil,
+   :preserve-extension true
    :help "custom html splash screen image",
    :default nil,
    :path ["html5" "splash_image"]}
