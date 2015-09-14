@@ -304,26 +304,26 @@
     (set-orthographic (camera-fov-from-aabb camera viewport aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
-(defn reframe-camera-tx [id camera viewport aabb]
+(defn reframe-camera-tx [id local-camera viewport aabb]
   (if aabb
-    (let [camera (camera-orthographic-frame-aabb camera viewport aabb)]
+    (let [local-camera (camera-orthographic-frame-aabb local-camera viewport aabb)]
       (g/transact
        (concat
-        (g/set-property id :camera camera)
+        (g/set-property id :local-camera local-camera)
         (g/set-property id :reframe false)))
-      camera)
-    camera))
+      local-camera)
+    local-camera))
 
-(g/defnk produce-camera [_node-id camera viewport reframe aabb]
+(g/defnk produce-camera [_node-id local-camera viewport reframe aabb]
   (let [w (- (:right viewport) (:left viewport))
        h (- (:bottom viewport) (:top viewport))]
    (if (and (> w 0) (> h 0))
-     (let [camera (if reframe
-                    (reframe-camera-tx _node-id camera viewport aabb)
-                    camera)
+     (let [scene-camera (if reframe
+                    (reframe-camera-tx _node-id local-camera viewport aabb)
+                    local-camera)
            aspect (/ (double w) h)]
-       (set-orthographic camera (:fov camera) aspect -100000 100000))
-     camera)))
+       (set-orthographic scene-camera (:fov scene-camera) aspect -100000 100000))
+     local-camera)))
 
 (defn handle-input [self action user-data]
   (let [viewport          (g/node-value self :viewport)
@@ -332,7 +332,7 @@
     (case (:type action)
       :scroll (if (contains? movements-enabled :dolly)
                 (let [dy (:delta-y action)]
-                  (g/transact (g/update-property self :camera dolly (* -0.002 dy)))
+                  (g/transact (g/update-property self :local-camera dolly (* -0.002 dy)))
                   nil)
                 action)
       :mouse-pressed (let [movement (get movements-enabled (camera-movement action) :idle)]
@@ -353,9 +353,9 @@
                        (do
                          (g/transact
                            (case movement
-                             :dolly  (g/update-property self :camera dolly (* -0.002 (- y last-y)))
-                             :track  (g/update-property self :camera track viewport last-x last-y x y)
-                             :tumble (g/update-property self :camera tumble last-x last-y x y)
+                             :dolly  (g/update-property self :local-camera dolly (* -0.002 (- y last-y)))
+                             :track  (g/update-property self :local-camera track viewport last-x last-y x y)
+                             :tumble (g/update-property self :local-camera tumble last-x last-y x y)
                              nil))
                          (swap! ui-state assoc
                                 :last-x x
@@ -365,8 +365,8 @@
       action)))
 
 (g/defnode CameraController
-  (property name g/Keyword (default :camera))
-  (property camera Camera)
+  (property name g/Keyword (default :local-camera))
+  (property local-camera Camera)
   (property reframe g/Bool)
   (property ui-state g/Any (default (constantly (atom {:movement :idle}))))
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))

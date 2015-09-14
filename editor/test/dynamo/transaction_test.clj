@@ -18,6 +18,8 @@
 (g/defnode Downstream
   (input consumer g/Keyword))
 
+(defn safe+ [x y] (int (or (and x (+ x y)) y)))
+
 (deftest low-level-transactions
   (testing "one node"
     (with-clean-system
@@ -44,8 +46,8 @@
 
   (testing "simple update"
     (with-clean-system
-      (let [[resource] (tx-nodes (g/make-node world Resource :marker 0))
-            tx-result  (g/transact (it/update-property resource :marker (fnil + 0) [42]))]
+      (let [[resource] (tx-nodes (g/make-node world Resource :marker (int 0)))
+            tx-result  (g/transact (it/update-property resource :marker safe+ [42]))]
         (is (= :ok (:status tx-result)))
         (is (= 42 (g/node-value resource :marker))))))
 

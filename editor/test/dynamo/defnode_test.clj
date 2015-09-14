@@ -229,9 +229,24 @@
   (property a-property g/Str (dynamic visible (g/fnk [foo] true))))
 
 (g/defnode SetterFnPropertyNode
+  (property underneath g/Int)
   (property self-incrementing g/Int
-            (set (fn [basis this property new-value]
-                   (g/property-default-setter basis this property (inc new-value))))))
+            (value (g/fnk [underneath] underneath))
+            (set (fn [basis this new-value]
+                   (g/set-property (g/node-id this) :underneath (or (and new-value (inc new-value)) 0))))))
+
+(g/defnode GetterFnPropertyNode
+  (property reports-higher g/Int
+            (value (g/fnk [this]
+                          (inc (or (get this :int-val) 0))))))
+
+(g/defnode ComplexGetterFnPropertyNode
+  (input a g/Any)
+  (input b g/Any)
+  (input c g/Any)
+
+  (property weirdo g/Any
+            (value (g/fnk [this a b c] [this a b c]))))
 
 (deftest nodes-can-include-properties
   (testing "a single property"
@@ -276,6 +291,22 @@
               :_output-jammers      #{:_output-jammers}}
              (-> node g/node-type g/input-dependencies)))))
 
+  (testing "property value functions' dependencies are reported"
+    (is (= {:_node-id             #{:_node-id}
+            :_declared-properties #{:_properties}
+            :_output-jammers      #{:_output-jammers}
+            :reports-higher       #{:_declared-properties :_properties}}
+           (g/input-dependencies GetterFnPropertyNode)))
+
+    (is (= {:_node-id             #{:_node-id}
+            :_declared-properties #{:_properties}
+            :_output-jammers      #{:_output-jammers}
+            :weirdo               #{:_declared-properties :_properties}
+            :a                    #{:weirdo :_declared-properties :_properties}
+            :b                    #{:weirdo :_declared-properties :_properties}
+            :c                    #{:weirdo :_declared-properties :_properties}}
+           (g/input-dependencies ComplexGetterFnPropertyNode))))
+
   (testing "setter functions are only invoked when the node gets added to the graph"
     (with-clean-system
       (let [standalone (g/construct SetterFnPropertyNode :self-incrementing 0)]
@@ -291,6 +322,13 @@
            (g/set-property ingraph-id :self-incrementing 10))
 
           (is (= 11 (g/node-value ingraph-id :self-incrementing)))))))
+
+  (testing "getter functions are invoked when supplying values"
+    (with-clean-system
+      (let [[getter-node] (g/tx-nodes-added
+                           (g/transact
+                            (g/make-node world GetterFnPropertyNode :reports-higher 0)))]
+        (is (= 1 (g/node-value getter-node :reports-higher))))))
 
   (testing "do not allow a property to shadow an input of the same name"
     (is (thrown? AssertionError
