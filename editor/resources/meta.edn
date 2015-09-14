@@ -171,9 +171,10 @@
    :default 10000.0,
    :path ["graphics" "max_debug_vertices"]}
   {:type :resource,
-   :filter nil,
+   :filter "texture_profiles",
    :help
    "specify which texture profiles (format, mipmaps and max textures size) to use for which resource path",
+   :preserve-extension true
    :default "/builtins/graphics/default.texture_profiles",
    :path ["graphics" "texture_profiles"]}
   {:type :number,

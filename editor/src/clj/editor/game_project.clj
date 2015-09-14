@@ -86,7 +86,7 @@
   (update-in meta-info [:settings]
              (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
 
-(def ^:private meta-info (add-type-defaults (edn/read (pushback-reader (resource-reader "meta.edn")))))
+(def ^:private basic-meta-info (add-type-defaults (edn/read (pushback-reader (resource-reader "meta.edn")))))
 
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))
@@ -97,13 +97,46 @@
   (update meta-info :settings
           #(concat % (make-meta-settings-for-unknown % settings))))
 
-(defn- sanitize-setting [meta-settings-map setting]
-  (when-let [{:keys [type]} (meta-settings-map (:path setting))]
-    (update setting :value #(parse-setting-value type %))))
+(defn- make-meta-settings-map [meta-settings]
+  (zipmap (map :path meta-settings) meta-settings))
+
+(defn- trim-trailing-c [value]
+  (if (= (last value) \c)
+    (subs value 0 (dec (count value)))
+    value))
+
+(defn- with-leading-slash [value]
+  (if (.startsWith value "/")
+    value
+    (str "/" value)))
+
+(defn- sanitize-value [{:keys [type preserve-extension]} value]
+  (if (and (= type :resource) (not preserve-extension))
+    (->> value
+         (trim-trailing-c)
+         #_(with-leading-slash))
+    value))
+
+(defn- sanitize-setting [meta-settings-map {:keys [path] :as setting}]
+  (when-let [{:keys [type] :as meta-setting} (meta-settings-map path)]
+    (update setting :value
+            #(do (->> %
+                     (parse-setting-value type)
+                     (sanitize-value meta-setting))))))
 
 (defn- sanitize-settings [meta-settings settings]
-  (let [meta-settings-map (zipmap (map :path meta-settings) meta-settings)]
-    (vec (map (partial sanitize-setting meta-settings-map) settings))))
+  (vec (map (partial sanitize-setting (make-meta-settings-map meta-settings)) settings)))
+
+(defn- patch-resource-c [{:keys [type preserve-extension]} {:keys [value] :as setting}]
+  (if (and (= type :resource)
+           (not (s/blank? value))
+           (not preserve-extension))
+    (update setting :value #(str % "c"))
+    setting))
+
+(defn- patch-settings [meta-settings settings]
+  (let [meta-settings-map (make-meta-settings-map meta-settings)]
+    (map #(patch-resource-c (meta-settings-map (:path %)) %) settings)))
 
 (defn- label [key]
   (-> key
@@ -163,7 +196,7 @@
 (defn- settings->str [settings]
   (let [cat-order (category-order settings)
         cat-grouped-settings (category-grouped-settings settings)]
-      (s/join "\n\n" (map #(category->str % (cat-grouped-settings %)) cat-order))))
+    (s/join "\n\n" (map #(category->str % (cat-grouped-settings %)) cat-order))))
 
 (defn- setting-index [settings path]
   (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
@@ -183,19 +216,13 @@
 ;;; loading node
 
 (defn- root-resource [base-resource settings meta-settings category key]
-  (let [path (get-setting-or-default meta-settings settings [category key])
-        ; TODO - hack for compiled files in game.project
-        path (subs path 0 (dec (count path)))
-        ; TODO - hack for inconsistencies in game.project paths
-        path (if (.startsWith path "/")
-               path
-               (str "/" path))]
+  (let [path (get-setting-or-default meta-settings settings [category key])]
     (workspace/resolve-resource base-resource path)))
 
 (defn- make-settings-map [settings]
   (into {} (map (juxt :path :value) settings)))
 
-(def ^:private settings-map-substitute (make-settings-map (make-default-settings (:settings meta-info))))
+(def ^:private settings-map-substitute (make-settings-map (make-default-settings (:settings basic-meta-info))))
 
 (g/defnode GameProjectSettingsProxy
   (input settings-map g/Any :substitute settings-map-substitute)
@@ -209,14 +236,15 @@
    (g/connect proxy :_node-id self :nodes)
    (try
      (let [raw-settings (parse-settings (string-reader (slurp input)))
-           effective-meta-info (complement-meta-info meta-info raw-settings)
-           sanitized-settings (sanitize-settings (:settings effective-meta-info) raw-settings)
+           meta-info (complement-meta-info basic-meta-info raw-settings)
+           meta-settings (:settings meta-info)
+           settings (sanitize-settings meta-settings raw-settings)
            resource   (g/node-value self :resource)
-           roots      (map (fn [[category field]] (root-resource resource sanitized-settings (:settings effective-meta-info) category field))
+           roots      (map (fn [[category field]] (root-resource resource settings meta-settings category field))
                            [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
                             ["bootstrap" "render"] ["display" "display_profiles"]])]
        (concat
-        (g/set-property self :settings sanitized-settings :meta-info effective-meta-info)
+        (g/set-property self :settings settings :meta-info meta-info)
         (for [root roots]
           (project/connect-resource-node project root self [[:build-targets :dep-build-targets]]))))
      (catch java.lang.Exception e
@@ -226,8 +254,8 @@
 (defn- settings-with-value [settings]
   (filter #(contains? % :value) settings))
 
-(g/defnk produce-save-data [resource settings]
-  {:resource resource :content (settings->str (settings-with-value settings))})
+(g/defnk produce-save-data [resource settings meta-info]
+  {:resource resource :content (settings->str (patch-settings (:settings meta-info) (settings-with-value settings)))})
 
 (defn- build-game-project [self basis resource dep-resources user-data]
   (let [^String user-data-content (:content user-data)]
@@ -274,11 +302,11 @@
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached (g/fnk [_node-id resource settings dep-build-targets]
+  (output build-targets g/Any :cached (g/fnk [_node-id resource settings meta-info dep-build-targets]
                                              [{:node-id _node-id
                                                :resource (workspace/make-build-resource resource)
                                                :build-fn build-game-project
-                                               :user-data {:content (settings->str (settings-with-value settings))}
+                                               :user-data {:content (settings->str (patch-settings (:settings meta-info) (settings-with-value settings)))}
                                                :deps (vec (flatten dep-build-targets))}])))
 
 (defn register-resource-types [workspace]
