@@ -105,16 +105,9 @@
     (subs value 0 (dec (count value)))
     value))
 
-(defn- with-leading-slash [value]
-  (if (.startsWith value "/")
-    value
-    (str "/" value)))
-
 (defn- sanitize-value [{:keys [type preserve-extension]} value]
   (if (and (= type :resource) (not preserve-extension))
-    (->> value
-         (trim-trailing-c)
-         #_(with-leading-slash))
+    (trim-trailing-c value)
     value))
 
 (defn- sanitize-setting [meta-settings-map {:keys [path] :as setting}]
