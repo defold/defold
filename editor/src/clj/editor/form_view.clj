@@ -129,15 +129,16 @@
         update-fn (fn [value] (ui/text! text value))]
     (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
                                     (set path (workspace/proj-path resource)))))
-    (ui/on-action! text (fn [_] (let [rpath (ui/text text)
-                                      resource (or (workspace/find-resource workspace rpath)
-                                                   (workspace/file-resource workspace rpath))]
-                                  (set path (and resource (workspace/proj-path resource))))))
+    (ui/on-action! text (fn [_] (let [rpath (workspace/to-absolute-path (ui/text text))
+                                      resource (workspace/resolve-workspace-resource workspace rpath)]
+                                  (when-let [resource-path (and resource (workspace/proj-path resource))]
+                                    (set path resource-path)
+                                    (update-fn resource-path)))))
     (ui/on-key! text (fn [key]
                        (when (= key KeyCode/ESCAPE)
                          (cancel))))
     
-    (ui/children! hbox [text button])
+    (ui/children! hbox [ text button])
     (ui/tooltip! text help)
     [hbox {:update update-fn
            :edit #(ui/request-focus! text)}]))
