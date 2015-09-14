@@ -128,9 +128,7 @@
         text (TextField.)
         update-fn (fn [value] (ui/text! text value))]
     (ui/on-action! button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace {:ext (when filter [filter])}))]
-                                    (let [rpath (workspace/proj-path resource)
-                                          rpathc (and rpath (str rpath "c"))]
-                                      (set path rpathc)))))
+                                    (set path (workspace/proj-path resource)))))
     (ui/on-action! text (fn [_] (let [rpath (ui/text text)
                                       resource (or (workspace/find-resource workspace rpath)
                                                    (workspace/file-resource workspace rpath))]
