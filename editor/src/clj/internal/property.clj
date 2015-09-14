@@ -4,33 +4,19 @@
             [dynamo.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [plumbing.core :refer [fnk]]
             [schema.core :as s]))
 
 (def ^:private default-validation-fn (constantly true))
 
 ;; TODO - stop being redundant with the property argument to these.
-(defn property-default-getter
-  [basis node property]
-  (get node property))
+(defn- default-getter
+  [property]
+  (eval `(fnk [~'this ~(symbol (name property))] (get ~'this ~property))))
 
 (defn property-default-setter
   [basis node property value]
   (first (gt/replace-node basis (gt/node-id node) (assoc node property value))))
-
-(defn invoke-getter
-  [basis node property]
-  (when node
-    (let [getter (get-in (gt/property-types node) [property :getter] property-default-getter)]
-      (getter basis node property))))
-
-(defn invoke-setter
-  [basis node property new-value]
-  (let [setter (get-in (gt/property-types node) [property :setter] property-default-setter)]
-    (if-let [new-basis (setter basis node property new-value)]
-      new-basis
-      (do
-        (println "WARNING: setter for " property " on " (gt/node-type node) " returned nil. It should return an updated basis.")
-        basis))))
 
 (defn- validation-problems
   [value-type validations value]
@@ -88,10 +74,6 @@
   [description evaluation]
   (assoc description :setter evaluation))
 
-(defn attach-getter
-  [description evaluation]
-  (assoc description :getter evaluation))
-
 (defn- property-form [form]
   (match [form]
          [(['default default] :seq)]
@@ -115,8 +97,8 @@
          [(['set & remainder] :seq)]
          `(attach-setter ~@remainder)
 
-         [(['get & remainder] :seq)]
-         `(attach-getter ~@remainder)
+         [(['value & remainder] :seq)]
+         `(attach-dynamic :internal.property/value ~@remainder)
 
          :else
          (assert false (str "invalid form within property type definition: " (pr-str form)))))
@@ -129,30 +111,36 @@
       (assert-schema "defproperty" value-type)
       (assoc description :value-type value-type))))
 
+(defn kernel [name-kw]
+  {:name (name name-kw)})
+
+(defn getter-for [property] (get-in property [:dynamic :internal.property/value]))
+(defn setter-for [property] (get property :setter))
+
+(defn attach-default-getter
+  [description name-kw]
+  (assoc-in description [:dynamic :internal.property/value] (default-getter name-kw)))
+
 (defn property-type-forms
-  [name-str value-type body-forms]
-  (concat [`-> {:name name-str}
-           `(attach-value-type ~value-type)]
+  [name-kw value-type body-forms]
+  (concat [`-> `(kernel ~name-kw)
+           `(attach-value-type ~value-type)
+           `(attach-default-getter ~name-kw)]
           (map property-form body-forms)))
 
-(defn merge-props [props new-props]
-  (let [merged (merge-with merge  (:dynamic props)    (:dynamic new-props))
-        joined (merge-with concat (:validation props) (:validation new-props))
-        tagged {:tags (into (vec (:tags new-props)) (:tags props))}]
-    (merge props new-props merged joined tagged)))
-
 (defn property-type-descriptor
-  [name-str value-type body-forms]
-  `(let [description# ~(property-type-forms name-str value-type body-forms)]
-     (assert (or (nil? (:dynamic description#)) (gt/pfnk? (-> (:dynamic description#) vals first)))
-             (str "Property " ~name-str " type " '~value-type " has a dynamic function that should be an fnk, but isn't. " (-> (:dynamic description#) vals first)))
-     (assert (not (gt/protocol? ~value-type))
-             (str "Property " ~name-str " type " '~value-type " looks like a protocol; try (dynamo.graph/protocol " '~value-type ") instead."))
-     (assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))
-             (str "Property " ~name-str " is declared with type " '~value-type " but that doesn't seem like a real value type"))
-     (map->PropertyTypeImpl description#)))
+  [name-kw value-type body-forms]
+  (let [name-str (name name-kw)]
+    `(let [description# ~(property-type-forms name-kw value-type body-forms)]
+       (assert (or (nil? (:dynamic description#)) (every? gt/pfnk? (vals (:dynamic description#))))
+               (str "Property " ~name-str " type " '~value-type " has a dynamic function that should be an fnk, but isn't. " (-> (:dynamic description#) vals first)))
+       (assert (not (gt/protocol? ~value-type))
+               (str "Property " ~name-str " type " '~value-type " looks like a protocol; try (dynamo.graph/protocol " '~value-type ") instead."))
+       (assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))
+               (str "Property " ~name-str " is declared with type " '~value-type " but that doesn't seem like a real value type"))
+       (map->PropertyTypeImpl description#))))
 
 (defn def-property-type-descriptor
   [name-sym & body-forms]
   (let [[name-sym [value-type & body-forms]] (ctm/name-with-attributes name-sym body-forms)]
-    `(def ~name-sym ~(property-type-descriptor (str name-sym) value-type body-forms))))
+    `(def ~name-sym ~(property-type-descriptor (keyword name-sym) value-type body-forms))))

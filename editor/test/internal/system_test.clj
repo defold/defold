@@ -9,7 +9,7 @@
 
 (g/defnode Root
   (property where g/Str)
-  (property touched g/Int))
+  (property touched Number))
 
 (defn graphs        []    (is/graphs        @g/*the-system*))
 (defn graph         [gid] (is/graph         @g/*the-system* gid))
