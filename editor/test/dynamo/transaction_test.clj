@@ -156,17 +156,6 @@
         (is (some #{[person output]} outputs-modified))))))
 
 
-(g/defnode DisposableNode
-  g/IDisposable
-  (dispose [this] true))
-
-(deftest nodes-are-disposed-after-deletion
-  (with-clean-system
-    (let [[disposable] (tx-nodes (g/make-node world DisposableNode))
-          tx-result    (g/transact (g/delete-node disposable))]
-      (yield)
-      (is (= disposable (g/node-id (first (take-waiting-deleted-to-dispose system))))))))
-
 (g/defnode CachedOutputInvalidation
   (property a-property String (default "a-string"))
 
@@ -203,23 +192,6 @@
         (g/transact (g/delete-node node-id))
         (is (nil? (cache-peek system node-id :cached-output)))))))
 
-(defrecord DisposableValue [disposed?]
-  g/IDisposable
-  (dispose [this]
-    (deliver disposed? true)))
-
-(g/defnode DisposableCachedValueNode
-  (property a-property g/Str)
-
-  (output cached-output g/IDisposable :cached (fnk [a-property] (->DisposableValue (promise)))))
-
-(deftest cached-values-are-disposed-when-invalidated
-  (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world DisposableCachedValueNode :a-property "a-value"))
-          value1 (g/node-value node :cached-output)
-          tx-result (g/transact [(it/update-property node :a-property (constantly "this should trigger disposal") [])])]
-      (is (= [value1] (take-waiting-cache-to-dispose system))))))
-
 (g/defnode OriginalNode
   (output original-output g/Str :cached (fnk [] "original-output-value")))
 
@@ -228,7 +200,7 @@
   (output additional-output g/Str :cached (fnk [] "new-output-added")))
 
 (deftest become-interacts-with-caching
-  (testing "newly uncacheable values are disposed"
+  (testing "newly uncacheable values are evicted"
     (with-clean-system
       (let [[node-id]      (tx-nodes (g/make-node world OriginalNode))
             expected-value (g/node-value node-id :original-output)]

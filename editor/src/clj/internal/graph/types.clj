@@ -137,11 +137,3 @@
     (instance? ErrorValue x) x
     (vector? x)              (some error? x)
     :else                    nil))
-
-;; ---------------------------------------------------------------------------
-;; Destructors
-;; ---------------------------------------------------------------------------
-(defprotocol IDisposable
-  (dispose [this] "Clean up a value, including thread-jumping as needed"))
-
-(defn disposable? [x] (satisfies? IDisposable x))

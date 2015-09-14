@@ -5,7 +5,6 @@
             [cognitect.transit :as transit]
             [dynamo.util :as util]
             [internal.cache :as c]
-            [internal.disposal :as dispose]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
@@ -25,8 +24,6 @@
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
-
-(namespaces/import-vars [internal.graph.types IDisposable dispose disposable?])
 
 (namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-validate property-valid-value? property-tags property-type? Properties])
 
@@ -144,9 +141,7 @@
     (when (= :ok (:status tx-result))
       (dosync
        (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
-       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result)))
-      (doseq [d (vals (:nodes-deleted tx-result))]
-        (is/dispose! @*the-system* d)))
+       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -930,11 +925,6 @@
   "Set up the initial system including graphs, caches, and dispoal queues"
   [config]
   (reset! *the-system* (is/make-system config)))
-
-(defn dispose-pending!
-  "Empties the dispoal queues of all values"
-  []
-  (dispose/dispose-pending *the-system*))
 
 (defn- make-graph
   [& {:as options}]
