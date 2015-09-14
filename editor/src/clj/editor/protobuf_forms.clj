@@ -479,6 +479,7 @@
       {
        :path [:script]
        :type :resource
+       :filter "render_script"
        :label "Script"
        }
       {
