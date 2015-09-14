@@ -300,7 +300,7 @@
 (defn make-properties-view [workspace project view-graph parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         stage         (.. parent getScene getWindow)
-        refresh-timer (ui/->timer 1 (fn [now] (g/node-value view-id :pane)))]
+        refresh-timer (ui/->timer 10 (fn [now] (g/node-value view-id :pane)))]
     (g/connect! project :selected-node-properties view-id :selected-node-properties)
     (ui/timer-stop-on-close! stage refresh-timer)
     (ui/timer-start! refresh-timer)
