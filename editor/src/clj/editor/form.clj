@@ -20,20 +20,16 @@
    :vec4 [0.0 0.0 0.0 0.0]
    :2panel []})
 
-(defn has-explicit-default [field-info]
-  (contains? field-info :default))
-
 (defn field-default [field-info]
-  (if (has-explicit-default field-info)
-    (:default field-info)
-    (type-defaults (:type field-info))))
+  (get field-info :default (type-defaults (:type field-info))))
 
 (defn field-defaults [fields]
-  (when (every? #(not (nil? (field-default %))) fields)
-    (reduce (fn [val field]
-              (assoc-in val (:path field) (field-default field)))
-            {}
-            fields)))
+  (let [required-fields (remove :optional fields)]
+    (when (every? #(not (nil? (field-default %))) required-fields)
+      (reduce (fn [val field]
+                (assoc-in val (:path field) (field-default field)))
+              {}
+              required-fields))))
 
 (defn section-defaults [section]
   (field-defaults (:fields section)))
@@ -42,10 +38,10 @@
   (field-defaults (:columns table-field-info)))
 
 (defn form-defaults [form]
-  (let [s-defaults (section-defaults (:sections form))]
-    (when-not (some nil? s-defaults)
+  (let [sections-defaults (map section-defaults (:sections form))]
+    (when-not (some nil? sections-defaults)
       (reduce merge
               {}
-              (map section-defaults (:sections form))))))
+              sections-defaults))))
 
 
