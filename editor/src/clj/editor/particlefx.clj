@@ -317,7 +317,7 @@
 (g/defnode ModifierNode
   (inherits scene/SceneNode)
 
-  (property type g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ModifierType))))
+  (property type g/Keyword (dynamic visible (g/always false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
