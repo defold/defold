@@ -65,8 +65,8 @@
 (def color (scene/select-color pass/outline false [1.0 1.0 1.0]))
 (def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
 
-(defn- ->vb [vs vcount color]
-  (let [vb (->color-vtx vcount)]
+(defn- ->vb-tex [vs vcount color]
+  (let [vb (->texture-vtx vcount)]
     (doseq [v vs]
       (conj! vb (into v color)))
     (persistent! vb)))
@@ -82,6 +82,30 @@
           vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
       (gl/with-gl-bindings gl [line-shader vertex-binding]
         (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount)))))
+
+(defn render-tris [^GL2 gl render-args renderables rcount]
+  (doseq [renderable renderables
+          :let [vs (get-in renderable [:user-data :geom-data] [])
+                vcount (count vs)]
+          :when (> vcount 0)]
+    (let [world-transform (:world-transform renderable)
+          color colors/defold-white
+          #_vs #_(transf-p world-transform vs)
+          vertex-binding (vtx/use-with ::tris (->vb vs vcount color) line-shader)]
+      (gl/with-gl-bindings gl [line-shader vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))
+
+(g/defnk produce-node-scene [type aabb size]
+  (let [geom-data (if (= :type-box type)
+                    (let [[w h _] size
+                          vs [[0 0 0] [w 0 0] [w h 0] [0 h 0]]]
+                      (mapv (partial nth vs) [0 1 3 3 1 2]))
+                    [])]
+    {:aabb aabb
+     :renderable {:render-fn render-tris
+                  :passes [pass/transparent]
+                  :user-data {:geom-data geom-data
+                              :uv-data uv-data}}}))
 
 (defn- proj-path [resource]
   (if resource
@@ -112,6 +136,17 @@
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
         msg (reduce (fn [msg k] (update msg k v3->v4)) msg v3-fields)]
     msg))
+
+(defn- pivot-offset [pivot size]
+  (let [xs (case pivot
+             (:pivot-e :pivot-ne :pivot-se) 0
+             (:pivot-center :pivot-n :pivot-s) -0.5
+             (:pivot-w :pivot-nw :pivot-sw) -1.0)
+        ys (case pivot
+             (:pivot-ne :pivot-n :pivot-nw) 0
+             (:pivot-e :pivot-center :pivot-w) -0.5
+             (:pivot-se :pivot-s :pivot-sw) -1.0)]
+    (mapv * size [xs ys 0])))
 
 (g/defnode GuiNode
   (inherits scene/ScalableSceneNode)
@@ -191,7 +226,14 @@
                                         :type-pie pie-icon
                                         :type-template template-icon)
                                 :children (sort-by :index node-outlines)}))
-  (output pb-msg g/Any produce-node-msg))
+  (output pb-msg g/Any produce-node-msg)
+  (output aabb g/Any (g/fnk [pivot size] (let [offset-fn (partial mapv + (pivot-offset pivot size))
+                                               [min-x min-y _] (offset-fn [0 0 0])
+                                               [max-x max-y _] (offset-fn size)]
+                                           (-> (geom/null-aabb)
+                                             (geom/aabb-incorporate min-x min-y 0)
+                                             (geom/aabb-incorporate max-x max-y 0)))))
+  (output scene g/Any produce-node-scene))
 
 (g/defnode TextureNode
   (property name g/Str)
