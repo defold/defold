@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.shape.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import java.lang.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+   <children>
+      <AnchorPane>
+         <children>
+            <HBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+               <children>
+                  <Label id="left-file" maxWidth="1.7976931348623157E308" text="Left file" HBox.hgrow="ALWAYS" />
+                  <Pane prefWidth="40.0" />
+                  <Label id="right-file" maxWidth="1.7976931348623157E308" text="Right file" HBox.hgrow="ALWAYS" />
+               </children>
+            </HBox>
+         </children>
+      </AnchorPane>
+      <ScrollPane fitToWidth="true" hbarPolicy="NEVER" prefHeight="768.0" prefWidth="1024.0" VBox.vgrow="ALWAYS">
+         <content>
+            <AnchorPane>
+               <children>
+                  <HBox id="foo" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                     <children>
+                        <AnchorPane prefWidth="300.0" HBox.hgrow="ALWAYS">
+                           <children>
+                              <Pane id="left" minHeight="300.0" minWidth="300.0" prefWidth="300.0" style="-fx-background-color: white;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                           </children>
+                        </AnchorPane>
+                        <VBox>
+                           <children>
+                              <AnchorPane VBox.vgrow="ALWAYS">
+                                 <children>
+                                    <Pane id="markers" maxWidth="40.0" minWidth="40.0" prefWidth="40.0" style="-fx-background-color: #cccccc;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                 </children>
+                              </AnchorPane>
+                           </children>
+                        </VBox>
+                        <AnchorPane prefWidth="300.0" HBox.hgrow="ALWAYS">
+                           <children>
+                              <Pane id="right" minHeight="300.0" minWidth="300.0" prefWidth="300.0" style="-fx-background-color: white;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                           </children>
+                        </AnchorPane>
+                     </children>
+                  </HBox>
+               </children>
+            </AnchorPane>
+         </content>
+      </ScrollPane>
+      <ScrollBar id="hscroll" />
+   </children>
+</VBox>

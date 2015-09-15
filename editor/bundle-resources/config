@@ -1,0 +1,5 @@
+[launcher]
+java = packages/jre/bin/java
+jar = packages/defold-2.0.0.jar
+main = com.defold.editor.Start
+debug = 1

@@ -336,6 +336,34 @@ namespace dmScript
         return 1;
     }
 
+    /*# get engine information
+     * <p>
+     * Returns a table with the following members:
+     * version, engine_sha1.
+     * </p>
+     *
+     * @name sys.get_engine_info
+     * @return table with engine information
+     */
+    int Sys_GetEngineInfo(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmSys::EngineInfo info;
+        dmSys::GetEngineInfo(&info);
+
+        lua_newtable(L);
+        lua_pushliteral(L, "version");
+        lua_pushstring(L, info.m_Version);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "version_sha1");
+        lua_pushstring(L, info.m_VersionSHA1);
+        lua_rawset(L, -3);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# enumerate network cards
      * returns an array of tables with the following members:
      * name, address (ip-string), mac (hardware address, colon separated string), up (bool), running (bool). NOTE: ip and mac might be nil if not available
@@ -484,6 +512,7 @@ namespace dmScript
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},
+        {"get_engine_info", Sys_GetEngineInfo},
         {"get_ifaddrs", Sys_GetIfaddrs},
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},

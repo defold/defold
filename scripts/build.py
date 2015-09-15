@@ -208,6 +208,8 @@ class Configuration(object):
         with open(tmp, 'wb') as f:
             self._log('Downloading %s %d%%' % (name, 0))
             x = urllib.urlopen(url)
+            if x.code != 200:
+                return None
             file_len = int(x.headers.get('Content-Length', 0))
             buf = x.read(1024 * 1024)
             n = 0
@@ -382,7 +384,7 @@ class Configuration(object):
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
 
-        for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
+        for n in ['dmengine', 'dmengine_release', 'dmengine_headless', 'launcher']:
             engine = join(bin_dir, exe_prefix + n + exe_ext)
             self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
             if self.target_platform == 'js-web':
@@ -592,6 +594,35 @@ instructions.configure=\
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
+
+    def build_editor2(self):
+        cwd = join(self.defold_root, 'editor')
+        self.exec_env_command(['./scripts/install_jars'], cwd = cwd)
+        self.exec_env_command(['./scripts/lein', 'clean'], cwd = cwd)
+        self.exec_env_command(['./scripts/lein', 'protobuf'], cwd = cwd)
+        self.exec_env_command(['./scripts/lein', 'builtins'], cwd = cwd)
+        self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
+        # TODO: Version
+        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86-linux', '--platform=x86-win32', '--version=2.0.0'], cwd = cwd)
+
+    def archive_editor2(self):
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'editor2')
+        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.zip')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+        host = bucket.get_website_endpoint()
+
+        release_sha1 = self._git_sha1()
+
+        self._log('Uploading update.json')
+        key = bucket.new_key('editor2/update.json')
+        key.content_type = 'application/json'
+        key.set_contents_from_string(json.dumps({'url': 'http://%(host)s/editor2/%(sha1)s/editor2' % {'host': host, 'sha1': release_sha1}}))
 
     def bump(self):
         sha1 = self._git_sha1()

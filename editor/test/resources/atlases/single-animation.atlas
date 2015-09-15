@@ -1,0 +1,18 @@
+animations {
+  id: "anim1"
+  images {
+    image: "/images/frame-01.png"
+  }
+  images {
+    image: "/images/frame-02.png"
+  }
+  images {
+    image: "/images/frame-03.png"
+  }
+  playback: PLAYBACK_LOOP_PINGPONG
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 1
+}
+margin: 0
+extrude_borders: 0

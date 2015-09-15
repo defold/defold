@@ -1,0 +1,9 @@
+collision_shape: "/tilegrid/test.tilegrid"
+type: COLLISION_OBJECT_TYPE_KINEMATIC
+mass: 0.0
+friction: 0.0
+restitution: 1.0
+group: "2"
+mask: "1"
+mask: "4"
+mask: "16"

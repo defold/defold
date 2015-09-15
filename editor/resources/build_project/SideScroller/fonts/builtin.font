@@ -1,0 +1,5 @@
+font: "/builtins/fonts/vera_mo_bd.ttf"
+material: "/builtins/fonts/font.material"
+size: 40
+outline_alpha: 1.0
+outline_width: 2.0
