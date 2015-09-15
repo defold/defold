@@ -355,8 +355,18 @@ Defold Orange       #fd6623             Guides etc
     -fx-padding: 0 5 0 5;
 }
 */
-/* TODO: Hack. Should be only for .list-view in .title-pane etc */
-.list-view {
+
+.flat-list-view {
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+.titled-pane .list-view {
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+#tool-tabs .list-view {
     -fx-background-insets: 0;
     -fx-border-width: 0;
 }
@@ -374,7 +384,7 @@ Defold Orange       #fd6623             Guides etc
 .scroll-bar:vertical {
 
     -fx-border-width: 0;
-}1
+}
 
 
 /* Remove extra border */
@@ -591,4 +601,23 @@ Defold Orange       #fd6623             Guides etc
 .diff-box {
     -fx-fill: #cccccc55;
     -fx-stroke: #000000;
+}
+
+/* forms */
+
+.form .section-label {
+    -fx-font-size: 16pt;
+    -fx-underline: true;
+}
+
+.form .help-line {
+    -fx-text-fill: #bebebe;
+}
+
+.form .inline-editor {
+    -fx-border-width: 0;
+}
+
+.form .editing-cell {
+    -fx-padding: 0;
 }
