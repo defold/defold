@@ -292,6 +292,7 @@
         ]
        }
       ]
+     :values (make-values (gamepad-pb->form-pb pb) [:driver])
      }))
 
 (defmethod protobuf-form-data Render$DisplayProfiles [node-id pb def]
