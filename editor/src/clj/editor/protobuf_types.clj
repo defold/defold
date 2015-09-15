@@ -22,9 +22,7 @@
            [com.dynamo.camera.proto Camera$CameraDesc]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
-           [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.tile.proto Tile$TileGrid]
-           [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
            [com.dynamo.render.proto Render$DisplayProfiles]
@@ -35,28 +33,6 @@
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d]))
-
-(defn particle-fx-transform [pb]
-  (let [xform (fn [v]
-                (let [p (doto (Point3d.) (math/clj->vecmath (:position v)))
-                      r (doto (Quat4d.) (math/clj->vecmath (:rotation v)))]
-                  [p r]))
-        global-modifiers (:modifiers pb)
-        new-emitters (mapv (fn [emitter]
-                             (let [[ep er] (xform emitter)]
-                               (update-in emitter [:modifiers] concat
-                                          (mapv (fn [modifier]
-                                                  (let [[mp mr] (xform modifier)]
-                                                    (math/inv-transform ep er mp)
-                                                    (math/inv-transform er mr)
-                                                    (assoc modifier
-                                                           :position (math/vecmath->clj mp)
-                                                           :rotation (math/vecmath->clj mr))))
-                                                global-modifiers))))
-                           (:emitters pb))]
-    (-> pb
-      (assoc :emitters new-emitters)
-      (dissoc :modifiers))))
 
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
@@ -126,12 +102,6 @@
                ; TODO - missing icon
                :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
                :pb-class Physics$ConvexShape}
-              {:ext "gui"
-               :label "Gui"
-               :icon "icons/32/Icons_38-GUI.png"
-               :pb-class Gui$SceneDesc
-               :resource-fields [:script :material [:fonts :font] [:textures :texture]]
-               :tags #{:component}}
               {:ext ["tilemap" "tilegrid"]
                :build-ext "tilegridc"
                :label "Tile Map"
@@ -139,13 +109,6 @@
                :pb-class Tile$TileGrid
                :resource-fields [:tile-set :material]
                :tags #{:component}}
-              #_{:ext "particlefx"
-                :label "Particle FX"
-                :icon "icons/32/Icons_17-ParticleFX.png"
-                :pb-class Particle$ParticleFX
-                :resource-fields [[:emitters :tile-source] [:emitters :material]]
-                :tags #{:component}
-                :transform-fn particle-fx-transform}
               {:ext "sound"
                :label "Sound"
                :icon "icons/32/Icons_26-AT-Sound.png"

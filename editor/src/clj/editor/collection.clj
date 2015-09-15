@@ -53,35 +53,6 @@
       (assoc new-scene :children (map #(assoc-deep % keyword new-value) (:children scene)))
       new-scene)))
 
-(g/defnk produce-transform [^Vector3d position ^Quat4d rotation ^Vector3d scale]
-  (let [transform (Matrix4d. rotation position 1.0)
-        s [(.x scale) (.y scale) (.z scale)]
-        col (Vector4d.)]
-    (doseq [^Integer i (range 3)
-            :let [s (nth s i)]]
-      (.getColumn transform i col)
-      (.scale col s)
-      (.setColumn transform i col))
-    transform))
-
-(g/defnode ScalableSceneNode
-  (inherits scene/SceneNode)
-
-  (property scale types/Vec3 (default [1 1 1]))
-
-  (display-order [scene/SceneNode :scale])
-
-  (output scale Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
-  (output transform Matrix4d :cached produce-transform)
-
-  scene-tools/Scalable
-  (scene-tools/scale [self delta] (let [s (Vector3d. (double-array (:scale self)))
-                                        ^Vector3d d delta]
-                                    (.setX s (* (.x s) (.x d)))
-                                    (.setY s (* (.y s) (.y d)))
-                                    (.setZ s (* (.z s) (.z d)))
-                                    (g/set-property (g/node-id self) :scale [(.x s) (.y s) (.z s)]))))
-
 (defn- outline-sort-by-fn [v]
   [(:name (g/node-type* (:node-id v))) (:label v)])
 
@@ -146,7 +117,7 @@
                                                  (attach-coll-embedded-go coll-id child-id)))}]})))
 
 (g/defnode GameObjectInstanceNode
-  (inherits ScalableSceneNode)
+  (inherits scene/ScalableSceneNode)
   (inherits InstanceNode)
 
   (property path g/Str (dynamic visible (g/fnk [embedded] (not embedded))))
@@ -320,7 +291,7 @@
                                   (filter (fn [req] (not= CollectionInstanceNode (:node-type req))) reqs)))))))
 
 (g/defnode CollectionInstanceNode
-  (inherits ScalableSceneNode)
+  (inherits scene/ScalableSceneNode)
   (inherits InstanceNode)
 
   (property path g/Str)
