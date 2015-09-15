@@ -107,8 +107,8 @@
     (is (= m new-m))))
 
 (deftest enum-values
-  (let [expected {:enum-val0 {:display-name "Enum Val0"}
-                  :enum-val1 {:display-name "Enum Val1"}}
+  (let [expected (list [:enum-val0 {:display-name "Enum Val0"}]
+                       [:enum-val1 {:display-name "Enum Val1"}])
         values (protobuf/enum-values TestDdf$NestedMessages$NestedEnum$Enum)]
     (is (= values expected))))
 
