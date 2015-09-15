@@ -35,10 +35,10 @@
   (output content BufferedImage :cached (g/fnk [resource] (try
                                                             (if-let [img (ImageIO/read (io/input-stream resource))]
                                                               img
-                                                              (g/error {:type :invalid-content
+                                                              (g/severe {:type :invalid-content
                                                                         :message (format "The image '%s' could not be loaded." (resource/proj-path resource))}))
                                                             (catch java.io.FileNotFoundException e
-                                                              (g/error {:type :file-not-found
+                                                              (g/severe {:type :file-not-found
                                                                         :message (format "The image '%s' could not be found." (resource/proj-path resource))})))))
   (output build-targets g/Any :cached produce-build-targets))
 

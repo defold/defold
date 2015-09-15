@@ -6,6 +6,7 @@
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.graph.error-values :as ie]
             [internal.property :as ip]
             [plumbing.core :as pc]
             [plumbing.fnk.pfnk :as pf]
@@ -26,15 +27,17 @@
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [^IBasis basis cache node-or-node-id label]
-  (let [node               (ig/node-by-id-at basis (if (gt/node? node-or-node-id) (gt/node-id node-or-node-id) node-or-node-id))
+  [^IBasis node-or-node-id label {:keys [cache basis] :as options}]
+  (let [caching?           (and (not (:no-cache options)) cache)
+        cache              (when caching? cache)
+        node               (ig/node-by-id-at basis (if (gt/node? node-or-node-id) (gt/node-id node-or-node-id) node-or-node-id))
         evaluation-context {:local    (atom {})
-                            :snapshot (if cache (c/cache-snapshot cache) {})
+                            :snapshot (if caching? (c/cache-snapshot cache) {})
                             :hits     (atom [])
                             :basis    basis
                             :in-production []}
         result             (and node (gt/produce-value node label evaluation-context))]
-    (when (and node cache)
+    (when (and node caching?)
       (let [local             @(:local evaluation-context)
             local-for-encache (for [[node-id vmap] local
                                     [output val] vmap]
@@ -557,7 +560,7 @@
   (if (gt/substitute-for node-type input)
     `(let [inputs#  ~(input-value-forms input)
            sub#     (gt/substitute-for ~node-type-name ~input)]
-       (map #(if (gt/error? %) (util/apply-if-fn sub#) %) inputs#))
+       (map #(if (ie/error? %) (util/apply-if-fn sub#) %) inputs#))
     (input-value-forms input)))
 
 (defn- lookup-singlevalued-input
@@ -567,7 +570,7 @@
            no-input?#  (empty? inputs#)
            input#      (first inputs#)
            sub#        (gt/substitute-for ~node-type-name ~input)]
-       (if (or no-input?# (gt/error? input#))
+       (if (or no-input?# (ie/error? input#))
          (util/apply-if-fn sub#)
          input#))
     `(first ~(input-value-forms input))))
@@ -605,7 +608,7 @@
 (defn produce-value-forms [transform output-multi? node-type-name argument-forms argument-schema epilogue]
   `(let [pfn-input# ~argument-forms
          schema#    ~argument-schema]
-     (if-let [~'error (some gt/error? (vals pfn-input#))]
+     (if-let [~'error (some ie/error? (vals pfn-input#))]
        ~(if output-multi? `[~'error] 'error)
        (if-let [validation-error# (s/check schema# pfn-input#)]
          (do

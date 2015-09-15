@@ -124,19 +124,6 @@
 
 (defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
 
-;; ---------------------------------------------------------------------------
-;; The Error type
-;; ---------------------------------------------------------------------------
-(defrecord ErrorValue [reason])
-
-(defn error [reason] (->ErrorValue reason))
-
-(defn error?
-  [x]
-  (cond
-    (instance? ErrorValue x) x
-    (vector? x)              (some error? x)
-    :else                    nil))
 
 ;; ---------------------------------------------------------------------------
 ;; Destructors

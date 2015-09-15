@@ -11,6 +11,7 @@
                        dynamo.integration.garbage-collection
                        dynamo.integration.graph-functions
                        dynamo.integration.node-become
+                       dynamo.integration.node-value-options
                        dynamo.integration.property-setters
                        dynamo.integration.schema-validation
                        dynamo.integration.value-disposal

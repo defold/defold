@@ -5,6 +5,7 @@
             [dynamo.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.graph.error-values :as ie]
             [internal.node :as in]
             [internal.property :as ip]))
 
@@ -258,7 +259,7 @@
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
     (do
       (assert-has-property-label node property)
-      (let [old-value (in/node-value basis nil node-id property)
+      (let [old-value (in/node-value node-id property {:basis basis :cache nil})
             new-value (apply fn old-value args)]
        (if (= old-value new-value)
          ctx

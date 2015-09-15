@@ -8,6 +8,7 @@
             [internal.disposal :as dispose]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.graph.error-values :as ie]
             [internal.node :as in]
             [internal.property :as ip]
             [internal.system :as is]
@@ -20,7 +21,9 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+
+(namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL info warning severe fatal error? info? warning? severe? fatal? most-serious error-aggregate worse-than])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
@@ -619,14 +622,14 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (in/node-value (now) (cache) node-id label))
-  ([basis node-id label]
-   (in/node-value basis (cache) node-id label))
-  ([basis cache node-id label]
-   (when (instance? Node node-id)
-     (try (throw (ex-info "Pass node IDs instead of node objects!" {}))
-          (catch Exception e (.printStackTrace e))))
-   (in/node-value basis cache node-id label)))
+   (in/node-value node-id label {:cache (cache) :basis (now)}))
+  ([node-id label options]
+   (let [options (cond-> options
+                   (not (:cache options))
+                   (assoc :cache (cache))
+                   (not (:basis options))
+                   (assoc :basis (now)))]
+     (in/node-value node-id label options))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
