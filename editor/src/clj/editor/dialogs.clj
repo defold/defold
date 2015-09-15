@@ -212,7 +212,8 @@
                                        (let [code (.getCode ^KeyEvent event)]
                                          (condp = code
                                            KeyCode/ENTER (close true)
-                                           KeyCode/ESCAPE (close false)))))
+                                           KeyCode/ESCAPE (close false)
+                                           false))))
 
     (.initModality stage Modality/WINDOW_MODAL)
     (.setScene stage scene)
