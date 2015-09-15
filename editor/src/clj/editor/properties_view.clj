@@ -150,14 +150,17 @@
   (let [fields [{:path [:points 0 :y]}]]
     (create-multi-keyed-textfield! fields property-fn)))
 
-#_(defmethod create-property-control! types/Color [_ _ on-new-value]
-   (let [color-picker (ColorPicker.)
-         refresher (fn [val _] (.setValue color-picker (Color. (nth val 0) (nth val 1) (nth val 2) (nth val 3))))
-         handler (ui/event-handler event
-                                   (let [^Color c (.getValue color-picker)]
-                                     (on-new-value [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)] refresher)))]
-     (.setOnAction color-picker handler)
-     [color-picker refresher]))
+(defmethod create-property-control! types/Color [_ _ property-fn]
+ (let [color-picker (ColorPicker.)
+       update-ui-fn (fn [values] (let [v (properties/unify-values values)]
+                                   (if (nil? v)
+                                     (.setValue color-picker nil)
+                                     (let [[r g b a] v]
+                                       (.setValue color-picker (Color. r g b a))))))]
+   (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
+                                             v [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
+                                         (properties/set-values! (property-fn) (repeat v)))))
+   [color-picker update-ui-fn]))
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
 
@@ -297,7 +300,7 @@
 (defn make-properties-view [workspace project view-graph parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         stage         (.. parent getScene getWindow)
-        refresh-timer (ui/->timer 1 (fn [now] (g/node-value view-id :pane)))]
+        refresh-timer (ui/->timer 10 (fn [now] (g/node-value view-id :pane)))]
     (g/connect! project :selected-node-properties view-id :selected-node-properties)
     (ui/timer-stop-on-close! stage refresh-timer)
     (ui/timer-start! refresh-timer)
