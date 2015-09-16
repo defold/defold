@@ -51,7 +51,7 @@
       (apply-params gl texture params)
       (.enable texture gl)
       (.bind texture gl)))
-  
+
   (unbind [this gl]
     (let [^Texture texture (scene-cache/request-object! cache-id request-id gl img-data)]
       (.disable texture gl))
@@ -67,7 +67,7 @@
 
 (defn image-texture
   "Create an image texture from a BufferedImage. The returned value
-supports GlBind, GlEnable, and IDisposable. You can use it in do-gl and with-gl-bindings.
+supports GlBind and GlEnable. You can use it in do-gl and with-gl-bindings.
 
 If supplied, the params argument must be a map of parameter name to value. Parameter names
 can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents from
@@ -106,7 +106,7 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
 
 (defn image-cubemap-texture
   "Create an cubemap texture from six BufferedImages. The returned value
-supports GlBind, GlEnable, and IDisposable. You can use it in do-gl and with-gl-bindings.
+supports GlBind and GlEnable. You can use it in do-gl and with-gl-bindings.
 
 If supplied, the params argument must be a map of parameter name to value. Parameter names
 can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents from
