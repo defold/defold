@@ -13,7 +13,6 @@
                        dynamo.integration.node-become
                        dynamo.integration.property-setters
                        dynamo.integration.schema-validation
-                       dynamo.integration.value-disposal
                        dynamo.integration.visibility-enablement
                        dynamo.transaction-test
                        dynamo.util-test
