@@ -315,3 +315,55 @@
                         long-idx [long-i (inc long-i)]]
                     (make-vertex (lat-angle (/ lat-idx lats)) (long-angle (/ long-idx longs))))]
                 (map #(nth vertices %) [0 1 2 1 3 2]))))
+
+; Procedural geometry
+
+(defn- transl
+  ([delta]
+    (map (partial apply transl delta)))
+  ([delta ps]
+    (let [res (mapv (fn [p] (mapv + delta p)) ps)]
+      res)))
+
+(defn- scale
+  ([factor]
+    (map (partial apply scale factor)))
+  ([factor ps]
+    (mapv (fn [p] (mapv * factor p)) ps)))
+
+(defn- rotate
+  ([euler]
+    (map (partial apply rotate euler)))
+  ([euler ps]
+    (let [q (math/euler->quat euler)
+          tmp-v (Vector3d.)]
+      (let [res (mapv (fn [[^double x ^double y ^double z]]
+                    (.set tmp-v x y z)
+                    (let [v (math/rotate q tmp-v)]
+                      [(.x v) (.y v) (.z v)])) ps)]
+        res))))
+
+(defn- transf-p
+  [^Matrix4d m4d ps]
+  (let [p (Point3d.)]
+    (let [res (mapv (fn [[^double x ^double y ^double z]]
+                      (.set p x y z)
+                      (.transform m4d p)
+                      [(.x p) (.y p) (.z p)]) ps)]
+      res)))
+
+(defn chain [n f ps]
+  (loop [i n
+         v ps
+         result ps]
+    (if (> i 0)
+      (let [v' (f v)]
+        (recur (dec i) v' (into result v')))
+      result)))
+
+(def empty-geom [])
+(def origin-geom [[0 0 0]])
+
+(defn circling [segments ps]
+  (let [angle (/ 360 segments)]
+    (chain (dec segments) (partial rotate [0 0 angle]) ps)))
