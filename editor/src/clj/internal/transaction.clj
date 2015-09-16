@@ -5,6 +5,7 @@
             [dynamo.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.node :as in]
             [internal.property :as ip]))
 
 ;; ---------------------------------------------------------------------------
@@ -22,7 +23,7 @@
 (defn- new-txid [] (.getAndIncrement next-txid))
 
 (defmacro txerrstr [ctx & rest]
-  `(str (:txid ~ctx) " " ~@(interpose " " rest)))
+  `(str (:txid ~ctx) ": " ~@(interpose " " rest)))
 
 ;; ---------------------------------------------------------------------------
 ;; Building transactions
@@ -108,12 +109,12 @@
 (defn- mark-activated
   [{:keys [basis] :as ctx} node-id input-label]
   (let [dirty-deps (-> (ig/node-by-id-at basis node-id) gt/node-type gt/input-dependencies (get input-label))]
-    (update-in ctx [:nodes-affected node-id] set/union dirty-deps)))
+    (update-in ctx [:nodes-affected node-id] into dirty-deps)))
 
 (defn- activate-all-outputs
   [{:keys [basis] :as ctx} node-id node]
   (let [all-labels  (-> node gt/node-type gt/output-labels)
-        ctx         (update-in ctx [:nodes-affected node-id] set/union all-labels)
+        ctx         (update-in ctx [:nodes-affected node-id] into all-labels)
         all-targets (into #{[node-id nil]} (mapcat #(gt/targets basis node-id %) all-labels))]
     (reduce
      (fn [ctx [target-id target-label]]
@@ -217,12 +218,26 @@
   (assert (contains? node label)
           (format "Attemping to use property %s from %s, but it does not exist" label (:name (gt/node-type node)))))
 
+(declare apply-tx)
+
+(defn- invoke-setter
+  [{:keys [basis properties-modified] :as ctx} node-id node property new-value]
+  (let [ctx (mark-activated ctx node-id property)]
+    (if-let [setter-fn (in/setter-for node property)]
+      (apply-tx ctx (setter-fn basis node new-value))
+      (-> ctx
+          (mark-activated node-id property)
+          (assoc
+           :basis               (ip/property-default-setter basis node property new-value)
+           :properties-modified (update-in properties-modified [node-id] conj property))))))
+
 (defn apply-defaults
-  [basis node]
-  (letfn [(use-setter [basis prop] (if-let [v (get node prop)]
-                                          (ip/invoke-setter basis node prop v)
-                                          basis))]
-    (reduce use-setter basis (util/key-set (gt/property-types node)))))
+  [{:keys [basis] :as ctx} node]
+  (let [node-id (gt/node-id node)]
+    (letfn [(use-setter [ctx prop] (if-let [v (get node prop)]
+                                     (invoke-setter ctx node-id node prop v)
+                                     ctx))]
+      (reduce use-setter ctx (util/key-set (gt/property-types node))))))
 
 (defmethod perform :create-node
   [{:keys [basis nodes-affected world-ref nodes-added successors-changed] :as ctx}
@@ -230,27 +245,24 @@
   (let [[basis-after full-node] (gt/add-node basis node)
         node-id                 (gt/node-id full-node)
         all-outputs             (-> full-node gt/node-type gt/output-labels)]
-    (assoc ctx
-           :basis              (apply-defaults basis-after full-node)
-           :nodes-added        (conj nodes-added node-id)
-           :successors-changed (into successors-changed (map (fn [label] [node-id label]) all-outputs))
-           :nodes-affected     (merge-with set/union nodes-affected {node-id all-outputs}))))
-
+    (-> ctx
+        (assoc :basis basis-after)
+        (apply-defaults node)
+        (assoc :nodes-added        (conj nodes-added node-id)
+               :successors-changed (into successors-changed (map (fn [label] [node-id label]) all-outputs))
+               :nodes-affected     (merge-with set/union nodes-affected {node-id all-outputs})))))
 
 (defmethod perform :update-property
   [{:keys [basis properties-modified] :as ctx}
    {:keys [node-id property fn args]}]
   (if-let [node (ig/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-    (let [_                  (assert-has-property-label node property)
-          old-value          (ip/invoke-getter basis node property)
-          new-value          (apply fn old-value args)]
-      (if (= old-value new-value)
-        ctx
-        (-> ctx
-            (mark-activated node-id property)
-            (assoc
-             :basis               (ip/invoke-setter basis node property new-value)
-             :properties-modified (update-in properties-modified [node-id] conj property)))))
+    (do
+      (assert-has-property-label node property)
+      (let [old-value (in/node-value basis nil node-id property)
+            new-value (apply fn old-value args)]
+       (if (= old-value new-value)
+         ctx
+         (invoke-setter ctx node-id node property new-value))))
     ctx))
 
 (defmethod perform :connect
@@ -362,7 +374,7 @@
    :properties-modified {}
    :successors-changed  #{}
    :completed           []
-   :tx-id               (new-txid)})
+   :txid                (new-txid)})
 
 (defn update-successors*
   [basis changes]
@@ -386,7 +398,7 @@
 (defn transact*
   [ctx actions]
   (when *tx-debug*
-    (println (txerrstr ctx "actions" actions)))
+    (println (txerrstr ctx "actions" (seq actions))))
   (-> ctx
       (apply-tx actions)
       mark-outputs-modified
