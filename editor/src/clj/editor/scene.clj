@@ -620,7 +620,7 @@
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
                    background background/Gradient
-                   camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
+                   camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
                    grid       grid/Grid
                    tool-controller scene-tools/ToolController]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor
