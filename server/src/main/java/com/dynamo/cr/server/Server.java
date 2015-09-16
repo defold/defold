@@ -260,8 +260,8 @@ public class Server {
         }
 
         bootStrapUsers();
-        migrateNewsSubscriptions();
-        updateRegistrationDate();
+        //migrateNewsSubscriptions();
+        //updateRegistrationDate();
 
         baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
 
