@@ -64,10 +64,7 @@
      (ui/register-context-menu list-view ::changes-menu)
      (ui/cell-factory! list-view status-render)
      (ui/on-action! refresh (fn [_] (refresh! git list-view)))
-     (refresh! git list-view)))
-
-  g/IDisposable
-  (dispose [this]))
+     (refresh! git list-view))))
 
 (defn make-changes-view [view-graph workspace parent]
   (let [view-id (g/make-node! view-graph ChangesView :parent-view parent)

@@ -74,10 +74,7 @@
    [this basis event]
    (let [btn (Button.)]
      (ui/text! btn "Curve Editor WIP!")
-     (.add (.getChildren ^VBox (:parent event)) btn)))
-
-  g/IDisposable
-  (dispose [this]))
+     (.add (.getChildren ^VBox (:parent event)) btn))))
 
 (def ^:dynamic *workspace-graph*)
 (def ^:dynamic *project-graph*)
@@ -99,10 +96,7 @@
 
     (let [close-handler (ui/event-handler event
                           (g/transact
-                            (g/delete-node project))
-                          (g/dispose-pending!))
-          dispose-handler (ui/event-handler event (g/dispose-pending!))]
-      (.addEventFilter stage MouseEvent/MOUSE_MOVED dispose-handler)
+                            (g/delete-node project)))]
       (.setOnCloseRequest stage close-handler))
     (setup-console root)
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")

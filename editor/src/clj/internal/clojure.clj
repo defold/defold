@@ -15,11 +15,7 @@
   (and (.isFile f)
        (.endsWith (.getName f) ".clj")))
 
-(defrecord UnloadableNamespace [ns-decl]
-  g/IDisposable
-  (dispose [this]
-    (when (list? ns-decl)
-      (remove-ns (second ns-decl)))))
+(defrecord UnloadableNamespace [ns-decl])
 
 (defn compile-source-node
   [node project path]
