@@ -1,19 +1,24 @@
 [project]
 title = Arkanoid
+
 [bootstrap]
 render = logic/default.renderc
 main_collection = logic/main.collectionc
+
 [sound]
 gain = 1
+
 [input]
 game_binding = input/game.input_bindingc
 gamepads = input/default.gamepadsc
 repeat_delay = 0.5
 repeat_interval = 0.2
 debug = 0
+
 [display]
 width = 960
 height = 640
+
 [spectator_camera]
 fov = 0.6
 linear_speed = 10.0
@@ -22,13 +27,17 @@ linear_retard = 0.1
 angular_speed = 1.2
 angular_boost = 2.0
 angular_retard = 0.2
+
 [physics]
 type = 3D
 debug = 1
 gravity_y = 0
+
 [resource]
-uri=build/default
+uri = build/default
+
 [particle_system]
 max_emitter_count = 16
 max_particle_count = 512
 debug = 0
+
