@@ -218,4 +218,4 @@
   (let [context (:context sim)]
     (doseq [instance (:instances sim)]
       (ParticleLibrary/Particle_ReloadInstance context instance true)))
-  sim)
+  (assoc sim :emitter-count (count (:emitters prototype-msg))))
