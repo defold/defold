@@ -409,13 +409,14 @@
                                              (when frame (SwingFXUtils/toFXImage frame (.getImage image-view)))))
   (output aabb AABB :cached (g/fnk [scene] (:aabb scene (geom/null-aabb)))) ; TODO - base aabb on selection
   (output selection g/Any (g/fnk [selection] selection))
-  (output picking-rect Rect (g/fnk [picking-rect] picking-rect))
+  (output picking-rect Rect (g/fnk [picking-rect] picking-rect)))
 
-  g/IDisposable
-  (g/dispose [self]
-             (when-let [^GLAutoDrawable drawable (:gl-drawable self)]
-               (scene-cache/drop-context! (.getGL drawable) false)
-               (.destroy drawable))))
+(defn scene-view-dispose [node-id]
+  (when-let [scene (g/node-by-id node-id)]
+    (when-let [^GLAutoDrawable drawable (g/node-value node-id :gl-drawable)]
+      (scene-cache/drop-context! (.getGL drawable) false)
+      (.destroy drawable)
+      (g/set-property! node-id :gl-drawable nil))))
 
 (def ^Integer min-pick-size 10)
 
@@ -576,6 +577,7 @@
         (ui/on-close tab
                      (fn [e]
                        (ui/timer-stop! repainter)
+                       (scene-view-dispose view-id)
                        (scene-cache/drop-context! nil true)))
         (ui/timer-start! repainter))
       view-id)))
@@ -620,7 +622,7 @@
     (g/make-nodes view-graph
                   [renderer   SceneRenderer
                    background background/Gradient
-                   camera     [c/CameraController :camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
+                   camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic)) :reframe true]
                    grid       grid/Grid
                    tool-controller scene-tools/ToolController]
                   (g/update-property camera  :movements-enabled disj :tumble) ; TODO - pass in to constructor

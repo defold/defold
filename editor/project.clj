@@ -9,7 +9,6 @@
 
   :dependencies     [[org.clojure/clojure                         "1.8.0-alpha2"]
                      [org.clojure/core.cache                      "0.6.4"]
-                     [org.clojure/core.async                      "0.1.346.0-17112a-alpha"]
                      [org.clojure/core.match                      "0.2.2"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]

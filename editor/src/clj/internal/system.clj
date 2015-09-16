@@ -1,6 +1,5 @@
 (ns internal.system
-  (:require [clojure.core.async :as a]
-            [dynamo.util :as util]
+  (:require [dynamo.util :as util]
             [dynamo.util :refer [map-vals]]
             [internal.cache :as c]
             [internal.graph :as ig]
@@ -128,24 +127,13 @@
 (defn basis          [s]     (ig/multigraph-basis (map-vals deref (graphs s))))
 
 
-(defn- make-new-queue []
-  (a/chan (a/dropping-buffer maximum-disposal-backlog)))
-
-(defn- make-cache-disposal-queue
-  [{queue :cache-disposal-queue :or {queue (make-new-queue)}}]
-  queue)
-
-(defn- make-deleted-disposal-queue
-  [{queue :deleted-disposal-queue :or {queue (make-new-queue)}}]
-  queue)
-
 (defn- make-initial-graph
   [{graph :initial-graph :or {graph (assoc (ig/empty-graph) :_gid 0)}}]
   graph)
 
 (defn- make-cache
-  [{cache-size :cache-size :or {cache-size maximum-cached-items}} disposal-queue]
-  (c/cache-subsystem cache-size disposal-queue))
+  [{cache-size :cache-size :or {cache-size maximum-cached-items}}]
+  (c/cache-subsystem cache-size))
 
 (defn next-available-gid
   [s]
@@ -183,17 +171,9 @@
 
 (defn make-system
   [configuration]
-  (let [cache-disposal-queue (make-cache-disposal-queue configuration)
-        deleted-disposal-queue (make-deleted-disposal-queue configuration)
-        initial-graph  (make-initial-graph configuration)
-        cache          (make-cache configuration cache-disposal-queue)]
-    (-> {:cache-disposal-queue cache-disposal-queue
-         :deleted-disposal-queue deleted-disposal-queue
-         :graphs         {}
+  (let [initial-graph  (make-initial-graph configuration)
+        cache          (make-cache configuration)]
+    (-> {:graphs         {}
          :id-generators  {}
          :cache          cache}
         (attach-graph initial-graph))))
-
-(defn dispose!
-  [sys node]
-  (a/>!! (deleted-disposal-queue sys) node))
