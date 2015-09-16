@@ -260,8 +260,6 @@ public class Server {
         }
 
         bootStrapUsers();
-        //migrateNewsSubscriptions();
-        //updateRegistrationDate();
 
         baseUri = String.format("http://0.0.0.0:%d/", this.configuration.getServicePort());
 
@@ -373,62 +371,6 @@ public class Server {
         }
         em.getTransaction().commit();
         em.close();
-    }
-
-    private void migrateNewsSubscriptions() {
-        /*
-         * Migrate existing users, prospects and invited users to news-letter
-         * This can be removed after first deployment
-         */
-
-        EntityManager em = emf.createEntityManager();
-        em.getTransaction().begin();
-
-        List<Prospect> prospects = em.createQuery("select p from Prospect p", Prospect.class).getResultList();
-        for (Prospect prospect : prospects) {
-            ModelUtil.subscribeToNewsLetter(em, prospect.getEmail(), "", "");
-        }
-
-        List<Invitation> invitations = em.createQuery("select i from Invitation i", Invitation.class).getResultList();
-        for (Invitation invitation : invitations) {
-            ModelUtil.subscribeToNewsLetter(em, invitation.getEmail(), "", "");
-        }
-
-        List<User> users = em.createQuery("select u from User u", User.class).getResultList();
-        for (User user : users) {
-            ModelUtil.subscribeToNewsLetter(em, user.getEmail(), user.getFirstName(), user.getLastName());
-        }
-
-        em.getTransaction().commit();
-        em.close();
-    }
-
-    private void updateRegistrationDate() {
-        /*
-         * Set registration date to min of all creation date
-         * of all projects.
-         * This method can be removed after first run as it's
-         * only required to set sensible registration dates.
-         * The database is updated to have current date as registration date
-         * for all users
-         */
-
-        EntityManager em = emf.createEntityManager();
-        em.getTransaction().begin();
-
-        List<User> users = em.createQuery("select u from User u", User.class).getResultList();
-        for (User user : users) {
-            DateTime minDate = new DateTime(user.getRegistrationDate());
-            for (Project project : user.getProjects()) {
-                DateTime d = new DateTime(project.getCreated());
-                if (d.isBefore(minDate)) {
-                    minDate = d;
-                }
-            }
-            user.setRegistrationDate(minDate.toDate());
-        }
-
-        em.getTransaction().commit();
     }
 
     public void stop() {
