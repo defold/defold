@@ -581,7 +581,7 @@
 
   Example:
 
-  `(transact (mark-defective node-id (g/error \"Resource Not Found\")))`"
+  `(transact (mark-defective node-id (g/severe \"Resource Not Found\")))`"
   [node-id defective-value]
   (let [node-type (node-type* node-id)
         outputs   (keys (gt/transforms node-type))
@@ -599,7 +599,7 @@
 
   Example:
 
-  `(mark-defective! node-id (g/error \"Resource Not Found\"))`"
+  `(mark-defective! node-id (g/severe \"Resource Not Found\"))`"
   [node-id defective-value]
   (transact (mark-defective node-id defective-value)))
 
@@ -622,8 +622,8 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (in/node-value node-id label {:cache (cache) :basis (now)}))
-  ([node-id label options]
+   (node-value node-id label :cache (cache) :basis (now)))
+  ([node-id label & {:as options}]
    (let [options (cond-> options
                    (not (:cache options))
                    (assoc :cache (cache))

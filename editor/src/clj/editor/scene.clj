@@ -66,7 +66,7 @@
               (apply hash-map))]
     `(swap! *controllers* assoc ~qname {:fns ~fns})))
 
-(def substitute-scene
+(defn substitute-scene [_]
   {:aabb (geom/null-aabb)
    :renderable {:render-fn (fn [gl render-args renderables count]
                              (let [pass (:pass render-args)]

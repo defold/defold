@@ -50,7 +50,7 @@
    (file-in-project new-name)))
 
 (defn- error? [type v]
-  (and (g/error? v) (= type (get-in v [:reason :type]))))
+  (and (g/error? v) (= type (get-in v [:user-data :type]))))
 
 (defn- no-error? [v]
   (not (g/error? v)))

@@ -152,10 +152,10 @@
       (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:overridden #(g/error "jammed")}))
+        (g/transact (g/set-property source :_output-jammers {:overridden #(g/severe "jammed")}))
 
-        (is (gt/error? (g/node-value source :overridden)))
-        (is (= "jammed" (:reason (g/node-value source :overridden))))))))
+        (is (g/error? (g/node-value source :overridden)))
+        (is (= "jammed" (:user-data (g/node-value source :overridden))))))))
 
 
 (defn- expect-modified

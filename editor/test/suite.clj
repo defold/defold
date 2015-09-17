@@ -58,11 +58,11 @@
                        internal.dependency-test
                        internal.graph.graph-test
                        internal.graph.types-test
+                       internal.graph.error-values-test
                        internal.node-test
                        internal.paper-tape-test
                        internal.property-test
                        internal.system-test
-                       internal.type-test
                        internal.value-test
                        potemkin.imports-test
                        potemkin.namespaces-test])

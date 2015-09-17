@@ -15,19 +15,19 @@
   (is (fatal?   (error-aggregate [(info "info") (info "another") (fatal "third")]))))
 
 (deftest severity-ordering
-  (is (worse-than (info    "") (warning "")))
-  (is (worse-than (info    "") (severe  "")))
-  (is (worse-than (info    "") (fatal   "")))
-  (is (worse-than (warning "") (severe  "")))
-  (is (worse-than (warning "") (fatal   "")))
-  (is (worse-than (severe  "") (fatal   "")))
+  (is (worse-than INFO    (warning "")))
+  (is (worse-than INFO    (severe  "")))
+  (is (worse-than INFO    (fatal   "")))
+  (is (worse-than WARNING (severe  "")))
+  (is (worse-than WARNING (fatal   "")))
+  (is (worse-than SEVERE  (fatal   "")))
 
-  (is (not (worse-than (warning "") (info    ""))))
-  (is (not (worse-than (severe  "") (info    ""))))
-  (is (not (worse-than (fatal   "") (info    ""))))
-  (is (not (worse-than (severe  "") (warning ""))))
-  (is (not (worse-than (fatal   "") (warning ""))))
-  (is (not (worse-than (fatal   "") (severe  "")))))
+  (is (not (worse-than WARNING (info    ""))))
+  (is (not (worse-than SEVERE  (info    ""))))
+  (is (not (worse-than FATAL   (info    ""))))
+  (is (not (worse-than SEVERE  (warning ""))))
+  (is (not (worse-than FATAL   (warning ""))))
+  (is (not (worse-than FATAL   (severe  "")))))
 
 (deftest checking-errorness
   (is (error? (info    "")))

@@ -1,6 +1,7 @@
 (ns dynamo.integration.node-value-options
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph.error-values :as ie]
             [support.test-support :as ts]))
 
 ;;; ----------------------------------------
@@ -23,7 +24,7 @@
 (defn- cached? [cache node label]
   (contains? @cache [node label]))
 
-(defn- touch [node label] (g/node-value node label {:no-cache true}))
+(defn- touch [node label] (g/node-value node label :no-cache true))
 
 (defn- test-node [world] (first (ts/tx-nodes (g/make-node world CacheTestNode))))
 (defn- connected-test-nodes
@@ -50,31 +51,115 @@
 
 
 ;;; ----------------------------------------
-;;; :ignore-property-errors
+;;; :ignore-errors
 
-(g/defnode PropertyNode
-  (property pos-int g/Int
-            (validate positive? (g/fnk [pos-int] (pos? pos-int))))
+(g/defnode ConstantNode
+  (property constant g/Any))
 
-  (output   int-user g/Int
-            (g/fnk [pos-int] (Math/log pos-int))))
+(g/defnode ReceiverNode
+  (input single g/Any)
+  (input array  g/Any :array)
 
-(defn- property-test-node
-  [world]
-  (first
-   (ts/tx-nodes
-    (g/make-node world PropertyNode))))
+  (output single-output g/Any (g/fnk [single] single))
+  (output array-output  [g/Any] (g/fnk [array] array)))
 
-(deftest node-value-allows-ignore-property-error-option
-  (testing ":ignore-property-error works directly"
+(defn error-test-nodes [world const]
+  (ts/tx-nodes
+   (g/make-nodes world [sender [ConstantNode :constant const]
+                        receiver ReceiverNode]
+                 (g/connect sender :constant receiver :single))))
+
+(defn error-test-nodes-multiple [world & consts]
+  (let [receiver (first (ts/tx-nodes (g/make-node world ReceiverNode)))]
+    (doseq [const consts]
+      (let [cnode (first (ts/tx-nodes (g/make-node world ConstantNode :constant const)))]
+        (g/connect! cnode :constant receiver :array)))
+    receiver))
+
+(defn ignored-single? [error-level ignore-level]
+  (ts/with-clean-system
+    (let [[_ receiver]   (error-test-nodes world (assoc (ie/error-value error-level nil) :value 88))
+          value-returned (g/node-value receiver :single-output :ignore-errors ignore-level)]
+      (not (ie/error? value-returned)))))
+
+(defn ignored-multiple? [error-level ignore-level]
+  (ts/with-clean-system
+    (let [receiver       (error-test-nodes-multiple world (assoc (ie/error-value error-level nil) :value 10101))
+          value-returned (g/node-value receiver :array-output :ignore-errors ignore-level)]
+      (not (ie/error? value-returned)))))
+
+(deftest node-value-allows-ignore-errors-option
+  (testing "errors at or less than the ignore level are indeed ignored"
+    (are [error-level ignore-level] (ignored-single? error-level ignore-level)
+      g/INFO    g/INFO
+      g/INFO    g/WARNING
+      g/INFO    g/SEVERE
+      g/INFO    g/FATAL
+
+      g/WARNING g/WARNING
+      g/WARNING g/SEVERE
+      g/WARNING g/FATAL
+
+      g/SEVERE  g/SEVERE
+      g/SEVERE  g/FATAL
+
+      g/FATAL   g/FATAL))
+
+  (testing "errors in an array output at or less than the ignore level are indeed ignored"
+    (are [error-level ignore-level] (ignored-multiple? error-level ignore-level)
+      g/INFO    g/INFO
+      g/INFO    g/WARNING
+      g/INFO    g/SEVERE
+      g/INFO    g/FATAL
+
+      g/WARNING g/WARNING
+      g/WARNING g/SEVERE
+      g/WARNING g/FATAL
+
+      g/SEVERE  g/SEVERE
+      g/SEVERE  g/FATAL
+
+      g/FATAL   g/FATAL))
+
+  (testing "errors worse than the ignore level are not ignored"
+    (are [error-level ignore-level] (not (ignored-single? error-level ignore-level))
+      g/WARNING g/INFO
+
+      g/SEVERE  g/INFO
+      g/SEVERE  g/WARNING
+
+      g/FATAL   g/INFO
+      g/FATAL   g/WARNING
+      g/FATAL   g/SEVERE))
+
+  (testing "errors in an array output worse than the ignore level are not ignored"
+    (are [error-level ignore-level] (not (ignored-multiple? error-level ignore-level))
+      g/WARNING g/INFO
+
+      g/SEVERE  g/INFO
+      g/SEVERE  g/WARNING
+
+      g/FATAL   g/INFO
+      g/FATAL   g/WARNING
+      g/FATAL   g/SEVERE)))
+
+(defn info [value] (assoc (ie/info    "message not used") :value value))
+(defn warn [value] (assoc (ie/warning "message not used") :value value))
+
+(deftest production-function-uses-contained-value
+  (comment (testing "single-valued output"
+     (ts/with-clean-system
+       (let [[_ receiver] (error-test-nodes world (warn 88))]
+         (is (= 88 (g/node-value receiver :single-output :ignore-errors g/FATAL)))
+         (is (= 88 (g/node-value receiver :single-output :ignore-errors g/SEVERE)))
+         (is (= 88 (g/node-value receiver :single-output :ignore-errors g/WARNING)))
+         (is (g/error? (g/node-value receiver :single-output :ignore-errors g/INFO)))))))
+
+  (testing "multi-valued output"
     (ts/with-clean-system
-      (let [node (property-test-node world)]
-        (g/set-property! node :pos-int -5)
-        (is (= -5 (g/node-value node :pos-int)))
-        (is (not (empty? (-> (g/node-value node :_properties) :properties :pos-int :validation-problems)))))))
-
-  (testing "invalid properties may be consumed when :ignore-property-error is true"
-    (ts/with-clean-system
-      (let [node (property-test-node world)]
-        (g/set-property! node :pos-int -5)
-        (is (.isNaN (g/node-value node :int-user)))))))
+      (let [receiver (error-test-nodes-multiple world 1 2 3 (warn 4) (info 5))]
+        (is (= [1 2 3 4 5] (g/node-value receiver :array-output :ignore-errors g/FATAL)))
+        (is (= [1 2 3 4 5] (g/node-value receiver :array-output :ignore-errors g/SEVERE)))
+        (is (= [1 2 3 4 5] (g/node-value receiver :array-output :ignore-errors g/WARNING)))
+        (is (g/error? (g/node-value receiver :array-output :ignore-errors g/INFO)))
+        (is (= g/WARNING (:severity (g/node-value receiver :array-output :ignore-errors g/INFO))))))))
