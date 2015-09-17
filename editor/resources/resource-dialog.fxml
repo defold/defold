@@ -13,7 +13,7 @@
    <children>
       <Label text="Select item (* to match any string) " />
       <TextField id="search" />
-      <ListView id="resources" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+      <ListView id="resources" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" styleClass="flat-list-view"/>
       <Label id="path" />
     <HBox maxHeight="-Infinity" maxWidth="+Infinity" minHeight="-Infinity" minWidth="-Infinity">
       <children>

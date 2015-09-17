@@ -1,5 +1,6 @@
 (ns editor.protobuf-types
   (:require [editor.protobuf :as protobuf]
+            [editor.protobuf-forms :as protobuf-forms]
             [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -13,6 +14,7 @@
             [internal.render.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
            [com.dynamo.render.proto Render$RenderPrototypeDesc Material$MaterialDesc]
+           [com.dynamo.graphics.proto Graphics$TextureProfiles]
            [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
             GameSystem$CollectionProxyDesc GameSystem$LightDesc]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
@@ -59,16 +61,19 @@
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
                :pb-class Input$InputBinding
-               :label "Input Binding"}
+               :label "Input Binding"
+               :view-types [:form-view]}
               {:ext "render"
                :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$RenderPrototypeDesc
                :resource-fields [:script]
+               :view-types [:form-view]
                :label "Render"}
               {:ext "material"
                :icon "icons/32/Icons_31-Material.png"
                :pb-class Material$MaterialDesc
                :resource-fields [:vertex-program :fragment-program]
+               :view-types [:form-view]
                :label "Material"}
               {:ext "factory"
                :label "Factory"
@@ -103,7 +108,8 @@
               {:ext "gamepads"
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
-               :pb-class Input$GamepadMaps}
+               :pb-class Input$GamepadMaps
+               :view-types [:form-view]}
               {:ext "camera"
                :label "Camera"
                :icon "icons/32/Icons_20-Camera.png"
@@ -152,8 +158,14 @@
                :pb-class Spine$SpineModelDesc
                :resource-fields [:spine-scene :material]
                :tags #{:component}}
+              {:ext "texture_profiles"
+               :label "Texture Profiles"
+               :view-types [:form-view]
+               :pb-class Graphics$TextureProfiles
+               }
               {:ext "display_profiles"
                :label "Display Profiles"
+               :view-types [:form-view]
                ; TODO - missing icon
                :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$DisplayProfiles}])
@@ -189,11 +201,16 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
+(g/defnk produce-form-data [_node-id pb def]
+  (protobuf-forms/produce-form-data _node-id pb def))
+
 (g/defnode ProtobufNode
   (inherits project/ResourceNode)
 
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))
+
+  (output form-data g/Any :cached produce-form-data)
 
   (input dep-build-targets g/Any :array)
 
@@ -230,6 +247,7 @@
                                      :node-type ProtobufNode
                                      :load-fn (fn [project self input] (load-pb project self input def))
                                      :icon (:icon def)
+                                     :view-types (:view-types def)
                                      :tags (:tags def)
                                      :template (:template def)))))
 

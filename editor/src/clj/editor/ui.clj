@@ -122,6 +122,15 @@
 (defn add-style! [^Node node ^String class]
   (.add (.getStyleClass node) class))
 
+(defn remove-style! [^Node node ^String class]
+  (.remove (.getStyleClass node) class))
+
+(defn reload-root-styles! []
+  (when-let [scene (.getScene ^Stage (main-stage))]
+    (let [root ^Parent (.getRoot scene)
+          styles (seq (.getStylesheets root))]
+      (.setAll (.getStylesheets root) (into (list) styles)))))
+
 (defn visible! [^Node node v]
   (.setVisible node v))
 
@@ -141,7 +150,7 @@
   (.setTitle window t))
 
 (defn tooltip! [^Control ctrl tip]
-  (.setTooltip ctrl (Tooltip. tip)))
+  (.setTooltip ctrl (when tip (Tooltip. tip))))
 
 (defn show! [^Stage stage]
   (.show stage))
@@ -154,7 +163,15 @@
 
 (defn on-double! [^Node node fn]
   (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
-                                        (fn e)))))
+                                              (fn e)))))
+
+(defn on-key! [^Node node key-fn]
+  (.setOnKeyPressed node (event-handler e (key-fn (.getCode e)))))
+
+(defn on-focus! [^Node node focus-fn]
+  (observe (.focusedProperty node)
+           (fn [observable old-val got-focus]
+             (focus-fn got-focus))))
 
 (defprotocol Text
   (text [this])
@@ -319,12 +336,11 @@
       (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
 
 (defn extend-menu [id location menu]
-  (swap! *menus* assoc id {:location location
-                           :menu menu}))
+  (swap! *menus* update id concat (list {:location location :menu menu})))
 
 (defn- collect-menu-extensions []
   (->>
-    (vals @*menus*)
+    (flatten (vals @*menus*))
     (filter :location)
     (reduce (fn [acc x] (update-in acc [(:location x)] concat (:menu x))) {})))
 
@@ -336,8 +352,10 @@
      (mapcat (fn [x] (concat [x] (get exts (:id x)))))))
 
 (defn- realize-menu [id]
-  (let [exts (collect-menu-extensions)]
-    (do-realize-menu (:menu (get @*menus* id)) exts)))
+  (let [exts (collect-menu-extensions)
+        ;; *menus* is a map from id to a list of extensions, extension with location nil effectively root menu
+        menu (:menu (first (filter (comp nil? :location) (get @*menus* id))))]
+    (do-realize-menu menu exts)))
 
 (defn- make-desc [control menu-id]
   {:control control

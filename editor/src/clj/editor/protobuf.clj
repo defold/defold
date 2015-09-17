@@ -159,7 +159,7 @@
 (defn field-set? [m key]
   (not (identical? (get m key) (get-in (meta m) [:proto-defaults key]))))
 
-(defn- desc->cls [^Descriptors$FieldDescriptor desc val]
+(defn desc->cls [^Descriptors$FieldDescriptor desc val]
  (if (.isRepeated desc)
    Iterable
    (let [java-type (.getJavaType desc)]
@@ -304,8 +304,10 @@
 (defn enum-values [^java.lang.Class cls]
   (let [values-method (.getMethod cls "values" (into-array Class []))
         value-descs (map #(.getValueDescriptor ^ProtocolMessageEnum %) (.invoke values-method nil (object-array 0)))]
-    (zipmap (map #(pb-enum->val ^Descriptors$EnumValueDescriptor %) value-descs)
-            (map #(do {:display-name (-> ^Descriptors$EnumValueDescriptor % (.getOptions) (.getExtension DdfExtensions/displayName))}) value-descs))))
+    (map (fn [value-desc]
+            [(pb-enum->val ^Descriptors$EnumValueDescriptor value-desc)
+             {:display-name (-> ^Descriptors$EnumValueDescriptor value-desc (.getOptions) (.getExtension DdfExtensions/displayName))}])
+          value-descs)))
 
 (defn hash64 [v]
   (MurmurHash/hash64 v))

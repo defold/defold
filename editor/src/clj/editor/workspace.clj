@@ -125,11 +125,23 @@ ordinary paths."
    (find-resource workspace path)
    (file-resource workspace path)))
 
+(defn- absolute-path [path]
+  (.startsWith path "/"))
+
+(defn to-absolute-path
+  ([rel-path] (to-absolute-path "" rel-path))
+  ([base rel-path]
+   (if (absolute-path rel-path)
+     rel-path
+     (str base "/" rel-path))))
+
 (defn resolve-resource [base-resource path]
-    ; TODO handle relative paths
-  (when (not (empty? path))
-    (when-let [workspace (:workspace base-resource)]
-      (resolve-workspace-resource workspace path))))
+  (when-not (empty? path)
+    (let [path (if (absolute-path path)
+                 path
+                 (to-absolute-path (str (.getParent (File. (resource/proj-path base-resource)))) path))]
+      (when-let [workspace (:workspace base-resource)]
+        (resolve-workspace-resource workspace path)))))
 
 (defn fs-sync
   ([workspace]

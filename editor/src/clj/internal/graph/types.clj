@@ -123,12 +123,3 @@
   (bit-and node-id NID-MASK))
 
 (defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
-
-
-;; ---------------------------------------------------------------------------
-;; Destructors
-;; ---------------------------------------------------------------------------
-(defprotocol IDisposable
-  (dispose [this] "Clean up a value, including thread-jumping as needed"))
-
-(defn disposable? [x] (satisfies? IDisposable x))
