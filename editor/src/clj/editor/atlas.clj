@@ -101,8 +101,13 @@
    :images img-ddf})
 
 (g/defnode AtlasAnimation
-  (property id g/Str)
-  (property fps             types/NonNegativeInt (default 30))
+  (property id  g/Str)
+  (property fps g/Int
+            (default 30)
+            (validate
+             (g/fnk [fps]
+                    (when (neg? fps)
+                      (g/error-info "FPS must be greater than or equal to zero")))))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
@@ -222,9 +227,24 @@
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
-  (property margin          types/NonNegativeInt (default 0))
-  (property inner-padding   types/NonNegativeInt (default 0))
-  (property extrude-borders types/NonNegativeInt (default 0))
+  (property margin g/Int
+            (default 0)
+            (validate
+             (g/fnk [margin]
+                    (when (neg? margin)
+                      (g/error-info "Margin must be greater than or equal to zero")))))
+  (property inner-padding g/Int
+            (default 0)
+            (validate
+             (g/fnk [inner-padding]
+                    (when (neg? inner-padding)
+                      (g/error-info "Inner padding must be greater than or equal to zero")))))
+  (property extrude-borders g/Int
+            (default 0)
+            (validate
+               (g/fnk [extrude-borders]
+                      (when (neg? extrude-borders)
+                        (g/error-info "Extrude borders must be greater than or equal to zero")))))
 
   (input animations Animation :array)
   (input outline g/Any :array)

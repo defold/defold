@@ -143,8 +143,8 @@
       g/FATAL   g/WARNING
       g/FATAL   g/SEVERE)))
 
-(defn info [value] (assoc (ie/info    "message not used") :value value))
-(defn warn [value] (assoc (ie/warning "message not used") :value value))
+(defn info [value] (assoc (ie/error-info    "message not used") :value value))
+(defn warn [value] (assoc (ie/error-warning "message not used") :value value))
 
 (deftest production-function-uses-contained-value
   (comment (testing "single-valued output"

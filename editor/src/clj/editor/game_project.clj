@@ -141,7 +141,7 @@
 
 (defn- make-form-values-map [settings]
   (into {} (map (juxt :path :value) settings)))
-  
+
 (def ^:private setting-category (comp first :path))
 
 (defn- make-form-data [form-ops meta-info settings]
@@ -227,7 +227,7 @@
         (for [root roots]
           (project/connect-resource-node project root self [[:build-targets :dep-build-targets]]))))
      (catch java.lang.Exception e
-       (g/mark-defective self (g/fatal {:type :invalid-content :message (.getMessage e)}))))
+       (g/mark-defective self (g/error-fatal {:type :invalid-content :message (.getMessage e)}))))
    (g/connect self :settings-map proxy :settings-map)))
 
 (defn- settings-with-value [settings]

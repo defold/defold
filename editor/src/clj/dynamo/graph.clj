@@ -22,13 +22,13 @@
 
 (namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
 
-(namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL info warning severe fatal error? info? warning? severe? fatal? most-serious error-aggregate worse-than])
+(namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
-(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-validate property-valid-value? property-tags property-type? Properties])
+(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-tags property-type? Properties])
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
 

@@ -152,7 +152,7 @@
       (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:overridden #(g/severe "jammed")}))
+        (g/transact (g/set-property source :_output-jammers {:overridden #(g/error-severe "jammed")}))
 
         (is (g/error? (g/node-value source :overridden)))
         (is (= "jammed" (:user-data (g/node-value source :overridden))))))))
@@ -403,13 +403,15 @@
 (g/defnode PropertyValidationNode
   (property even-number g/Int
     (default 0)
-    (validate must-be-even :message "only even numbers are allowed" even?)))
+    (validate (g/fnk [even-number]
+                     (when (not (even? even-number))
+                       (g/error-warning "only even numbers are allowed"))))))
 
 (deftest validation-errors-delivered-in-properties-output
   (with-clean-system
     (let [[node]     (tx-nodes (g/make-node world PropertyValidationNode :even-number 1))
           properties (g/node-value node :_properties)]
-      (is (= ["only even numbers are allowed"] (some-> properties :properties :even-number :validation-problems))))))
+      (is (g/error? (some-> properties :properties :even-number :value))))))
 
 (g/defnk pass-through [i] i)
 

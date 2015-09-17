@@ -61,7 +61,7 @@ ordinary paths."
                        (try
                          (load-fn project node-id (io/reader resource))
                          (catch java.io.IOException e
-                           (g/mark-defective node-id (g/fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))})))))
+                           (g/mark-defective node-id (g/error-fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))})))))
         new-nodes (g/tx-nodes-added (g/transact all-nodes-tx))]
     (when (not (empty? new-nodes))
       (recur project new-nodes))))
@@ -236,7 +236,7 @@ ordinary paths."
             outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
         (g/transact
           (concat
-            (g/mark-defective new-node (g/fatal {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/mark-defective new-node (g/error-fatal {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))

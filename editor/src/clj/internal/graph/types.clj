@@ -84,8 +84,6 @@
 (defprotocol PropertyType
   (property-value-type         [this]   "Prismatic schema for property value type")
   (property-default-value      [this])
-  (property-validate           [this v] "Returns a possibly-empty seq of messages.")
-  (property-valid-value?       [this v] "If valid, returns nil. If invalid, returns seq of Marker")
   (property-tags               [this]))
 
 (defn property-type? [x] (satisfies? PropertyType x))

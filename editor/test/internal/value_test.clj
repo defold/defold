@@ -294,7 +294,7 @@
 
 (g/defnode ConstantNode
   (output nil-output        g/Any  (g/fnk [] nil))
-  (output scalar-with-error g/Any  (g/fnk [] (g/fatal :scalar)))
+  (output scalar-with-error g/Any  (g/fnk [] (g/error-fatal :scalar)))
   (output scalar            g/Any  (g/fnk [] 1))
   (output everything        g/Any  (g/fnk [] 42)))
 
@@ -305,6 +305,7 @@
                                      (g/make-node world ConstantNode))]
      (when connected?
        (g/transact (g/connect const source-label receiver label)))
+     (def sv-val (g/node-value receiver label))
      (g/node-value receiver label))))
 
 (deftest error-value-replacement
@@ -372,12 +373,12 @@
          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value node1 :combined))))))))
 
 (g/defnode ConstantPropertyNode
-  (property a-property g/Any
-            (value (g/fnk [] 5))))
+  (property a-property g/Any))
 
 (deftest error-values-are-not-wrapped-from-properties
   (with-clean-system
-    (let [[node]      (tx-nodes (g/make-node world ConstantPropertyNode :a-property (g/fatal "bad things")))
+    (let [[node]      (tx-nodes (g/make-node world ConstantPropertyNode))
+          _           (g/mark-defective! node (g/error-fatal "bad"))
           error-value (g/node-value node :a-property)]
       (is (g/error?      error-value))
       (is (empty?        (:causes   error-value)))
@@ -397,9 +398,10 @@
     (with-clean-system
       (let [[sender receiver] (tx-nodes
                                (g/make-nodes world
-                                             [sender [ConstantPropertyNode :a-property (g/fatal "bad")]
+                                             [sender   ConstantPropertyNode
                                               receiver ErrorReceiverNode]
                                              (g/connect sender :a-property receiver :single)))
+            _                 (g/mark-defective! sender (g/error-fatal "Bad news, my friend."))
             error-value       (g/node-value receiver :single-output)]
         (is (g/error? error-value))
         (is (= 1 (count       (:causes  error-value))))
@@ -419,27 +421,24 @@
       (let [[sender1 sender2 sender3 receiver] (tx-nodes
                                                 (g/make-nodes world
                                                               [sender1 [ConstantPropertyNode :a-property 1]
-                                                               sender2 [ConstantPropertyNode :a-property (g/fatal "bad")]
+                                                               sender2 [ConstantPropertyNode :a-property 2]
                                                                sender3 [ConstantPropertyNode :a-property 3]
                                                                receiver ErrorReceiverNode]
                                                               (g/connect sender1 :a-property receiver :multi)
                                                               (g/connect sender2 :a-property receiver :multi)
                                                               (g/connect sender3 :a-property receiver :multi)))
+            _                                  (g/mark-defective! sender2 (g/error-fatal "Bad things have happened"))
             error-value                        (g/node-value receiver :multi-output)]
         (is (g/error? error-value))
         (is (= 1 (count       (:causes  error-value))))
         (is (= receiver       (:_node-id error-value)))
         (is (= :multi-output  (:_label   error-value)))
         (is (= g/FATAL        (:severity error-value)))
-        (println 'multi :error error-value)
+
 
         (let [cause (first (:causes error-value))]
-          (println 'multi :cause cause)
           (is (g/error? cause))
           (is (empty?        (:causes   cause)))
           (is (= sender2     (:_node-id cause)))
           (is (= :a-property (:_label   cause)))
           (is (= g/FATAL     (:severity cause))))))))
-
-(error-values-are-aggregated)
-(error-values-are-not-wrapped-from-properties)

@@ -86,13 +86,13 @@
         (is (= [nil] (g/node-value atnode2 :passthrough)))))))
 
 (g/defnode ErrorOutputNode
-  (output my-output g/Str (g/always (g/severe "I am an error!"))))
+  (output my-output g/Str (g/always (g/error-severe "I am an error!"))))
 
 (defn thrown-for-reason?
   [node output reason]
   (let [error (:error (try (g/node-value node output)
                            (catch Exception e (ex-data e))))]
-    (and (g/severe? error)
+    (and (g/error-severe? error)
          (= reason (:reason error)))))
 
 (deftest test-producing-vals-with-errors
@@ -134,7 +134,7 @@
   (output passthrough g/Str (g/fnk [my-input] my-input)))
 
 (g/defnode SubArrayTestNode
-  (input my-input g/Str :array :substitute "beans")
+  (input my-input g/Str :array :substitute (fn [_] ["beans"]))
   (output passthrough [g/Str] (g/fnk [my-input] my-input)))
 
 (deftest test-producing-vals-with-nil-substitutes

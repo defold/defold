@@ -102,10 +102,6 @@
    (util/map-vals #(% kwargs) (gt/dynamic-attributes type))
    prop-snap))
 
-(defn- gather-validation-problems
-  [{:keys [type value] :as prop-snap}]
-  (assoc prop-snap :validation-problems (gt/property-validate type value)))
-
 (defn- rename-key [m ok nk]
   (-> m
       (dissoc ok)
@@ -124,10 +120,9 @@
                    (fn [m property property-type]
                      (assoc! m property
                              (-> {:type    property-type
-                                  :node-id _node-id}
-                                 (gather-dynamics kwargs)
-                                 (rename-key :internal.property/value :value)
-                                 (gather-validation-problems))))
+                                  :node-id _node-id
+                                  :value (get kwargs property)}
+                                 (gather-dynamics kwargs))))
                    (transient {})
                    (gt/property-types self)))
      :display-order (-> self gt/node-type gt/property-display-order)}))
@@ -140,7 +135,7 @@
 ;; Definition handling
 ;; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-    [name supertypes interfaces protocols method-impls transforms transform-types declared-properties inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes property-passthroughs property-display-order]
+    [name supertypes interfaces protocols method-impls transforms transform-types declared-properties inputs injectable-inputs cached-outputs input-dependencies substitutes cardinalities cascade-deletes  property-display-order]
 
   gt/NodeType
   (supertypes            [_] supertypes)
@@ -160,7 +155,7 @@
   (input-cardinality     [_ input] (get cardinalities input))
   (cascade-deletes       [_]        cascade-deletes)
   (output-type           [_ output] (get transform-types output))
-  (property-passthrough? [_ output] (property-passthroughs output))
+  (property-passthrough? [_ output] false)
   (property-display-order [this] property-display-order))
 
 (defmethod print-method NodeTypeImpl
@@ -182,22 +177,30 @@
   [f]
   (keys (dissoc (pf/input-schema f) s/Keyword)))
 
+(defn- property-evaluation-arguments
+  [[property-name property-definition]]
+  (attribute-fn-arguments (:internal.property/value property-definition)))
+
 (defn- property-dynamics-arguments
   [[property-name property-definition]]
   (mapcat attribute-fn-arguments (vals (gt/dynamic-attributes property-definition))))
 
 (defn- properties-output-arguments
   [properties]
-  (concat (set (keys properties))
-          (mapcat property-dynamics-arguments properties)))
+  (into
+   (into (set (keys properties))
+         (mapcat property-evaluation-arguments properties))
+   (mapcat property-dynamics-arguments properties)))
 
 (defn attach-properties-output
   [node-type-description]
   (let [properties      (filter (comp not :internal? val) (:declared-properties node-type-description))
         argument-names  (properties-output-arguments properties)
         argument-schema (zipmap argument-names (repeat s/Any)) ]
-    (attach-output node-type-description :_declared-properties s/Any #{} #{}
-                   (s/schematize-fn (fn [args] (gather-properties args)) (s/=> s/Any argument-schema)))))
+    (attach-output
+     node-type-description
+     :_declared-properties s/Any #{} #{}
+     (s/schematize-fn gather-properties (s/=> s/Any argument-schema)))))
 
 (defn keyset
   [m]
@@ -272,7 +275,6 @@
   (-> description
       (update-in [:inputs]                combine-with merge      {} (from-supertypes description gt/declared-inputs))
       (update-in [:injectable-inputs]     combine-with set/union #{} (from-supertypes description gt/injectable-inputs))
-      (update-in [:property-passthroughs] combine-with set/union #{} (from-supertypes description :property-passthroughs))
       (update-in [:declared-properties]   combine-with merge      {} (from-supertypes description gt/declared-properties))
       (update-in [:transforms]            combine-with merge      {} (from-supertypes description gt/transforms))
       (update-in [:transform-types]       combine-with merge      {} (from-supertypes description gt/transform-types))
@@ -364,12 +366,9 @@
       (update-in [:transforms] assoc-in [label] (abstract-function label schema))
 
       (not (:abstract properties))
-      (update-in [:transforms] assoc-in [label] production-fn)
+      (update-in [:transforms] assoc-in [label] production-fn))))
 
-      true
-      (update-in [:property-passthrough] #(disj (or % #{}) label)))))
-
-(def ^:private internal-keys #{:_node-id :_output-jammers})
+(def ^:private internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
 
 (defn attach-property
   "Update the node type description with the given property."
@@ -379,7 +378,6 @@
         (update    :declared-properties     assoc     label  property-type)
         (update-in [:transforms]            assoc-in [label] (ip/getter-for property-type))
         (update-in [:transform-types]       assoc     label  (:value-type property-type))
-        (update-in [:property-passthroughs] #(conj (or % #{}) label))
         (cond->
             (not (internal-keys label))
             (update-in [:property-order-decl] #(conj (or % []) label))))))
@@ -603,10 +601,13 @@
   `(if-some [cached# (get (:snapshot ~ctx-name) [~nodeid-sym ~transform])]
      (do (swap! (:hits ~ctx-name) conj [~nodeid-sym ~transform]) cached#)))
 
-(defn jam [self-name ctx-name transform forms]
+(defn jam [self-name ctx-name nodeid-sym transform forms]
   `(if-let [jammer# (get (:_output-jammers ~self-name) ~transform)]
-    (jammer#)
-    ~forms))
+     (let [jam-value# (jammer#)]
+       (if (ie/error? jam-value#)
+         (assoc jam-value# :_label ~transform :_node-id ~nodeid-sym)
+         jam-value#))
+     ~forms))
 
 (defn detect-cycles [ctx-name nodeid-sym transform node-type-name forms]
   `(do
@@ -631,19 +632,20 @@
         argument-schema (collect-argument-schema transform arg-names record-name node-type)
         argument-forms  (zipmap (keys argument-schema)
                                 (map (partial node-input-forms self-name ctx-name transform node-type) argument-schema))]
-    (println "compiling inputs for " (:name node-type) transform)
-    (println "input-forms " argument-forms)
     (list `let
           [input-sym argument-forms schema-sym argument-schema]
           forms)))
 
 (defn input-error-check [self-name ctx-name node-type label input-sym tail]
-  (let [multivalued? (seq? ((gt/transform-types node-type) label))]
-    `(let [bad-errors# (filterv #(ie/worse-than (:ignore-errors ~ctx-name) %) (vals ~input-sym))]
-       (if (empty? bad-errors#)
-         (let [~input-sym (util/map-vals ie/use-original-value ~input-sym)]
-           ~tail)
-         (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~label)))))
+  (let [internal?    (internal-keys label)
+        multivalued? (seq? ((gt/transform-types node-type) label))]
+    (if internal?
+      tail
+      `(let [bad-errors# (ie/worse-than (:ignore-errors ~ctx-name) (flatten (vals ~input-sym)))]
+         (if (empty? bad-errors#)
+           (let [~input-sym (util/map-vals ie/use-original-value ~input-sym)]
+             ~tail)
+           (assoc (ie/error-aggregate bad-errors#) :_node-id (gt/node-id ~self-name) :_label ~label))))))
 
 (defn schema-check [self-name ctx-name node-type node-type-name transform input-sym schema-sym nodeid-sym forms]
   `(if-let [validation-error# (s/check ~schema-sym ~input-sym)]
@@ -661,7 +663,7 @@
 (defn call-production-function [self-name ctx-name node-type node-type-name transform input-sym nodeid-sym]
   (let [result-sym (gensym "result")]
    `(let [production-function# (get (gt/transforms ~node-type-name) ~transform)
-          ~result-sym (production-function# (assoc ~input-sym :_node-id ~nodeid-sym :basis (:basis ~ctx-name)))]
+          ~result-sym          (production-function# (assoc ~input-sym :_node-id ~nodeid-sym :basis (:basis ~ctx-name)))]
       ~@(when ((gt/cached-outputs node-type) transform)
           `[(swap! (:local ~ctx-name) assoc-in [~nodeid-sym ~transform] ~result-sym)])
       ~result-sym)))
@@ -672,13 +674,11 @@
         input-sym      (gensym "pfn-input")
         schema-sym     (gensym "schema")
         fn-name        (str (dollar-name node-type-name transform))]
-    (println "compiling node-output-value-function" fn-name)
     `(defn ~(with-meta (dollar-name node-type-name transform) {:no-doc true}) [~self-name ~ctx-name]
-       (println "--> " ~fn-name)
        (let [~nodeid-sym (gt/node-id ~self-name)]
          ~(if (= transform :this)
            nodeid-sym
-           (jam self-name ctx-name transform
+           (jam self-name ctx-name nodeid-sym transform
              (detect-cycles ctx-name nodeid-sym transform node-type-name
                (mark-in-production ctx-name nodeid-sym transform
                  (check-caches ctx-name nodeid-sym node-type transform

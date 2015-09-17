@@ -14,6 +14,7 @@
                        dynamo.integration.node-value-options
                        dynamo.integration.property-setters
                        dynamo.integration.schema-validation
+                       dynamo.integration.validation
                        dynamo.integration.visibility-enablement
                        dynamo.transaction-test
                        dynamo.util-test
