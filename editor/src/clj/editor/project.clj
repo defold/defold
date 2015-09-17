@@ -204,10 +204,7 @@ ordinary paths."
                   :id ::project
                   :children [{:label "Build"
                               :acc "Shortcut+B"
-                              :command :build}
-                             {:label "Save All"
-                              :acc "Shortcut+S"
-                              :command :save-all}]}])
+                              :command :build}]}])
 
 (defn get-resource-node [project path-or-resource]
   (let [resource (if (string? path-or-resource)
