@@ -64,6 +64,9 @@ ordinary paths."
                            (g/mark-defective node-id (g/error {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))})))))
         new-nodes (g/tx-nodes-added (g/transact all-nodes-tx))]
     (when (not (empty? new-nodes))
+      (let [resources (mapv #(g/node-value % :resource) (filter #(g/has-output? (g/node-type* %) :resource) new-nodes))]
+        (prn "new" (count resources))
+        (prn "set" (count (set resources))))
       (recur project new-nodes))))
 
 (defn load-project

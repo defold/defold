@@ -19,6 +19,10 @@ textures {
   name: "png_texture"
   texture: "/graphics/ball.png"
 }
+textures {
+  name: "atlas_texture"
+  texture: "/graphics/atlas.atlas"
+}
 nodes {
   position {
     x: 192.0

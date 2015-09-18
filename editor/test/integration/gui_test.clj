@@ -42,4 +42,21 @@
      (prop! png-tex :name "new-name")
      (is (= "new-name" (prop png-node :texture))))))
 
-(gui-textures)
+(deftest gui-atlas
+  (with-clean-system
+   (let [workspace (test-util/setup-workspace! world)
+         project   (test-util/setup-project! workspace)
+         node-id   (test-util/resource-node project "/logic/main.gui")
+         outline (g/node-value node-id :outline)
+         png-node (get-in outline [:children 0 :children 1 :node-id])
+         png-tex (get-in outline [:children 1 :children 0 :node-id])]
+     (is (some? png-tex))
+     (is (= "png_texture" (prop png-node :texture)))
+     (prop! png-tex :name "new-name")
+     (is (= "new-name" (prop png-node :texture)))
+     (let [atlas-tex (get-in outline [:children 1 :children 0 :node-id])
+           textures (g/node-value node-id :textures)]
+       (is (some? png-tex))
+       (prn "tex" textures)))))
+
+(gui-atlas)
