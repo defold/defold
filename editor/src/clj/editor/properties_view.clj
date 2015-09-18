@@ -21,7 +21,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Control Button CheckBox ChoiceBox ColorPicker Label Slider TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority]
@@ -195,6 +195,35 @@
                                                    (workspace/file-resource workspace path))]
                                   (properties/set-values! (property-fn) (repeat resource)))))
     (ui/children! box [text button])
+    [box update-ui-fn]))
+
+(defmethod create-property-control! :slider [edit-type workspace property-fn]
+  (let [box (HBox.)
+        [textfield tf-update-ui-fn] (create-property-control! {:type g/Num} workspace property-fn)
+        min (:min edit-type 0.0)
+        max (:max edit-type 1.0)
+        val (:value edit-type max)
+        precision (:precision edit-type)
+        slider (Slider. min max val)
+        update-ui-fn (fn [values]
+                       (tf-update-ui-fn values)
+                       (binding [*programmatic-setting* true]
+                         (if-let [v (properties/unify-values values)]
+                           (doto slider
+                             (.setDisable false)
+                             (.setValue v))
+                           (.setDisable slider true))))]
+    (HBox/setHgrow slider Priority/ALWAYS)
+    (.setPrefColumnCount textfield (if precision (count (str precision)) 5))
+    (ui/observe (.valueChangingProperty slider) (fn [observable old-val new-val]
+                                                  (ui/user-data! slider ::op-seq (gensym))))
+    (ui/observe (.valueProperty slider) (fn [observable old-val new-val]
+                                          (when-not *programmatic-setting*
+                                            (let [val (if precision
+                                                        (* precision (Math/round (/ new-val precision)))
+                                                        new-val)]
+                                              (properties/set-values! (property-fn) (repeat val) (ui/user-data slider ::op-seq))))))
+    (ui/children! box [textfield slider])
     [box update-ui-fn]))
 
 (defmethod create-property-control! :default [_ _ _]
