@@ -198,7 +198,7 @@
     [box update-ui-fn]))
 
 (defmethod create-property-control! :slider [edit-type workspace property-fn]
-  (let [box (HBox.)
+  (let [box (HBox. 4.0)
         [textfield tf-update-ui-fn] (create-property-control! {:type g/Num} workspace property-fn)
         min (:min edit-type 0.0)
         max (:max edit-type 1.0)
