@@ -270,11 +270,15 @@
          camel/->Camel_Snake_Case_String
          (clojure.string/replace "_" " ")))))
 
-(defn set-values! [property values]
-  (g/transact
-    (concat
-      (g/operation-label (str "Set " (label property)))
-      (set-values property values))))
+(defn set-values!
+  ([property values]
+    (set-values! property values (gensym)))
+  ([property values op-seq]
+    (g/transact
+      (concat
+        (g/operation-label (str "Set " (label property)))
+        (g/operation-sequence op-seq)
+        (set-values property values)))))
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new

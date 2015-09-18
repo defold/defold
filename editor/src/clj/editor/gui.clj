@@ -229,8 +229,15 @@
   (property id g/Str)
   (property size types/Vec3 (dynamic visible box-pie-text?))
   (property color types/Color (dynamic visible box-pie-text?))
+  (property alpha g/Num
+    (value (g/fnk [color] (get color 3)))
+    (set (fn [basis this new-value]
+          (g/update-property (g/node-id this) :color (fn [v] (assoc v 3 new-value)))))
+    (dynamic edit-type (g/always {:type :slider
+                                  :min 0.0
+                                  :max 1.0
+                                  :precision 0.01})))
   (property template g/Str (dynamic visible template?))
-  (property alpha g/Num (dynamic visible template?))
   (property inherit-alpha g/Bool)
 
   ; Text
@@ -240,7 +247,23 @@
             (dynamic edit-type (g/fnk [fonts] (properties/->choicebox fonts)))
             (dynamic visible text?))
   (property outline types/Color (dynamic visible text?))
+  (property outline-alpha g/Num
+    (value (g/fnk [outline] (get outline 3)))
+    (set (fn [basis this new-value]
+          (g/update-property (g/node-id this) :outline (fn [v] (assoc v 3 new-value)))))
+    (dynamic edit-type (g/always {:type :slider
+                                  :min 0.0
+                                  :max 1.0
+                                  :precision 0.01})))
   (property shadow types/Color (dynamic visible text?))
+  (property shadow-alpha g/Num
+    (value (g/fnk [shadow] (get shadow 3)))
+    (set (fn [basis this new-value]
+          (g/update-property (g/node-id this) :shadow (fn [v] (assoc v 3 new-value)))))
+    (dynamic edit-type (g/always {:type :slider
+                                  :min 0.0
+                                  :max 1.0
+                                  :precision 0.01})))
 
   (property texture g/Str
             (dynamic edit-type (g/fnk [textures] (properties/->choicebox (cons "" (keys textures)))))
@@ -306,16 +329,16 @@
   (input textures {g/Str g/NodeID})
   (input fonts [g/Str])
   (input child-scenes g/Any :array)
-  (output outline g/Any (g/fnk [_node-id id index node-outlines type]
-                               {:node-id _node-id
-                                :label id
-                                :index index
-                                :icon (case type
-                                        :type-box box-icon
-                                        :type-text text-icon
-                                        :type-pie pie-icon
-                                        :type-template template-icon)
-                                :children (sort-by :index node-outlines)}))
+  (output node-outline g/Any (g/fnk [_node-id id index node-outlines type]
+                                    {:node-id _node-id
+                                     :label id
+                                     :index index
+                                     :icon (case type
+                                             :type-box box-icon
+                                             :type-text text-icon
+                                             :type-pie pie-icon
+                                             :type-template template-icon)
+                                     :children (sort-by :index node-outlines)}))
   (output pb-msg g/Any produce-node-msg)
   (output aabb g/Any (g/fnk [pivot size] (let [offset-fn (partial mapv + (pivot-offset pivot size))
                                                [min-x min-y _] (offset-fn [0 0 0])
@@ -566,7 +589,7 @@
   (concat
     (g/connect parent :id gui-node :parent)
     (g/connect gui-node :_node-id self :nodes)
-    (g/connect gui-node :outline parent :node-outlines)
+    (g/connect gui-node :node-outline parent :node-outlines)
     (g/connect gui-node :scene parent :child-scenes)
     (g/connect gui-node :pb-msg self :node-msgs)
     (g/connect self :layers gui-node :layers)
@@ -610,6 +633,11 @@
                                                      :name name
                                                      :texture resource]]
     (attach-texture self parent texture)))
+
+(defn- color-alpha [node-desc color-field alpha-field]
+  (let [color (get node-desc color-field)
+        alpha (if (protobuf/field-set? node-desc alpha-field) (get node-desc alpha-field) (get color 3))]
+    (conj (subvec color 0 3) alpha)))
 
 (defn load-gui-scene [project self input]
   (let [def pb-def
@@ -690,44 +718,47 @@
                all-tx-data []
                index 0]
           (if-let [node-desc (first node-descs)]
-            (let [tx-data (g/make-nodes graph-id [gui-node [GuiNode
-                                                            :index index
-                                                            :type (:type node-desc)
-                                                            :id (:id node-desc)
-                                                            :position (v4->v3 (:position node-desc))
-                                                            :rotation (v4->v3 (:rotation node-desc))
-                                                            :scale (v4->v3 (:scale node-desc))
-                                                            :size (v4->v3 (:size node-desc))
-                                                            :color (:color node-desc)
-                                                            :blend-mode (:blend-mode node-desc)
-                                                            :text (:text node-desc)
-                                                            :font (:font node-desc)
-                                                            :x-anchor (:xanchor node-desc)
-                                                            :y-anchor (:yanchor node-desc)
-                                                            :pivot (:pivot node-desc)
-                                                            :outline (:oultine node-desc)
-                                                            :shadow (:shadow node-desc)
-                                                            :adjust-mode (:adjust-mode node-desc)
-                                                            :line-break (:line-break node-desc)
-                                                            :layer (:layer node-desc)
-                                                            :alpha (:alpha node-desc)
-                                                            :inherit-alpha (:inherit-alpha node-desc)
-                                                            :slice9 (:slice9 node-desc)
-                                                            :outer-bounds (:outer-bounds node-desc)
-                                                            :inner-radius (:inner-radius node-desc)
-                                                            :perimeter-vertices (:perimeter-vertices node-desc)
-                                                            :pie-fill-angle (:pie-fill-angle node-desc)
-                                                            :clipping-mode (:clipping-mode node-desc)
-                                                            :clipping-visible (:clipping-visible node-desc)
-                                                            :clipping-inverted (:clipping-inverted node-desc)
-                                                            :alpha (:alpha node-desc)
-                                                            :template (:template node-desc)]]
-                            (let [parent (if (empty? (:parent node-desc)) nodes-node (id->node (:parent node-desc)))]
-                              (attach-gui-node self parent gui-node (:type node-desc)))
-                            ; Needs to be done after attaching so textures etc can be fetched
-                            (g/set-property gui-node :texture (:texture node-desc)))
-                  node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
-              (recur (rest node-descs) (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc index)))
+            (let [color (color-alpha node-desc :color :alpha)
+                  outline (color-alpha node-desc :outline :outline-alpha)
+                  shadow (color-alpha node-desc :shadow :shadow-alpha)
+                  tx-data (g/make-nodes graph-id [gui-node [GuiNode
+                                                           :index index
+                                                           :type (:type node-desc)
+                                                           :id (:id node-desc)
+                                                           :position (v4->v3 (:position node-desc))
+                                                           :rotation (v4->v3 (:rotation node-desc))
+                                                           :scale (v4->v3 (:scale node-desc))
+                                                           :size (v4->v3 (:size node-desc))
+                                                           :color color
+                                                           :blend-mode (:blend-mode node-desc)
+                                                           :text (:text node-desc)
+                                                           :font (:font node-desc)
+                                                           :x-anchor (:xanchor node-desc)
+                                                           :y-anchor (:yanchor node-desc)
+                                                           :pivot (:pivot node-desc)
+                                                           :outline outline
+                                                           :shadow shadow
+                                                           :adjust-mode (:adjust-mode node-desc)
+                                                           :line-break (:line-break node-desc)
+                                                           :layer (:layer node-desc)
+                                                           :alpha (:alpha node-desc)
+                                                           :inherit-alpha (:inherit-alpha node-desc)
+                                                           :slice9 (:slice9 node-desc)
+                                                           :outer-bounds (:outer-bounds node-desc)
+                                                           :inner-radius (:inner-radius node-desc)
+                                                           :perimeter-vertices (:perimeter-vertices node-desc)
+                                                           :pie-fill-angle (:pie-fill-angle node-desc)
+                                                           :clipping-mode (:clipping-mode node-desc)
+                                                           :clipping-visible (:clipping-visible node-desc)
+                                                           :clipping-inverted (:clipping-inverted node-desc)
+                                                           :alpha (:alpha node-desc)
+                                                           :template (:template node-desc)]]
+                           (let [parent (if (empty? (:parent node-desc)) nodes-node (id->node (:parent node-desc)))]
+                             (attach-gui-node self parent gui-node (:type node-desc)))
+                           ; Needs to be done after attaching so textures etc can be fetched
+                           (g/set-property gui-node :texture (:texture node-desc)))
+                 node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
+             (recur (rest node-descs) (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc index)))
             all-tx-data))))))
 
 (defn- register [workspace def]
