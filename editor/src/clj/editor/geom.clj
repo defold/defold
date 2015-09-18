@@ -1,6 +1,7 @@
 (ns editor.geom
   (:require [dynamo.graph :as g]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.math :as math])
   (:import [com.defold.util Geometry]
            [editor.types Rect AABB]
            [javax.vecmath Point3d Point4d Vector4d Vector3d Quat4d Matrix4d]))
@@ -318,20 +319,20 @@
 
 ; Procedural geometry
 
-(defn- transl
+(defn transl
   ([delta]
     (map (partial apply transl delta)))
   ([delta ps]
     (let [res (mapv (fn [p] (mapv + delta p)) ps)]
       res)))
 
-(defn- scale
+(defn scale
   ([factor]
     (map (partial apply scale factor)))
   ([factor ps]
     (mapv (fn [p] (mapv * factor p)) ps)))
 
-(defn- rotate
+(defn rotate
   ([euler]
     (map (partial apply rotate euler)))
   ([euler ps]
@@ -343,7 +344,7 @@
                       [(.x v) (.y v) (.z v)])) ps)]
         res))))
 
-(defn- transf-p
+(defn transf-p
   [^Matrix4d m4d ps]
   (let [p (Point3d.)]
     (let [res (mapv (fn [[^double x ^double y ^double z]]
