@@ -422,7 +422,7 @@
       (g/make-nodes (g/node-id->graph-id self)
                     [go-node [GameObjectInstanceNode :id id :embedded true
                               :position position :rotation rotation :scale scale]
-                     source-node [(:node-type resource-type) :resource resource :project-id project]]
+                     source-node [(:node-type resource-type) :resource resource]]
                     (g/connect source-node :_node-id           go-node :source)
                     (g/connect source-node :outline       go-node :outline)
                     (g/connect source-node :save-data     go-node :save-data)
@@ -472,7 +472,7 @@
                      (selected-embedded-instance? selection) (game-object/add-embedded-component-handler (g/node-value (first selection) :source)))))
 
 (defn- add-collection-instance [self source-resource id position rotation scale]
-  (let [project (g/node-value self :project-id)
+  (let [project (project/get-project self)
         path    (workspace/proj-path source-resource)]
     (g/make-nodes (g/node-id->graph-id self)
                   [coll-node [CollectionInstanceNode :id id :path path
