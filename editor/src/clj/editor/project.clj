@@ -19,7 +19,6 @@ ordinary paths."
   (inherits core/Scope)
 
   (extern resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
-  (extern project-id g/NodeID (dynamic visible (g/always false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
@@ -44,7 +43,7 @@ ordinary paths."
           (if (not= (workspace/source-type resource) :folder)
             (g/make-nodes
               project-graph
-              [new-resource [node-type :resource resource :project-id project]]
+              [new-resource [node-type :resource resource]]
               (g/connect new-resource :_node-id project :nodes)
               (g/connect new-resource :resource project :node-resources)
               (if ((g/output-labels node-type) :save-data)
@@ -316,7 +315,7 @@ ordinary paths."
   (when resource-node (workspace/resource-type (g/node-value resource-node :resource))))
 
 (defn get-project [resource-node]
-  (g/node-value resource-node :project-id))
+  (g/graph-value (g/node-id->graph-id resource-node) :project-id))
 
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
@@ -356,7 +355,7 @@ ordinary paths."
             node-type (:node-type resource-type PlaceholderResourceNode)]
         (g/make-nodes
           (graph project)
-          [new-resource [node-type :resource resource :project-id project]]
+          [new-resource [node-type :resource resource]]
           (g/connect new-resource :_node-id project :nodes)
           (g/connect new-resource :resource project :node-resources)
           (if ((g/output-labels node-type) :save-data)
@@ -416,6 +415,7 @@ ordinary paths."
               (g/make-nodes graph
                             [project [Project :workspace workspace-id :build-cache (atom {}) :fs-build-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
-                            (g/connect workspace-id :resource-types project :resource-types)))))]
+                            (g/connect workspace-id :resource-types project :resource-types)
+                            (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
