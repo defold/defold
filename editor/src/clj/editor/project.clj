@@ -59,7 +59,7 @@ ordinary paths."
                                  load-fn (and resource (:load-fn (resource/resource-type resource)))]
                            :when load-fn]
                        (try
-                         (load-fn project node-id (io/reader resource))
+                         (load-fn project node-id resource)
                          (catch java.io.IOException e
                            (g/mark-defective node-id (g/error {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))})))))
         new-nodes (g/tx-nodes-added (g/transact all-nodes-tx))]
