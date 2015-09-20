@@ -457,7 +457,7 @@
        (concat
         (g/operation-sequence op-seq)
         (g/operation-label "Add Game Object")
-        ((:load-fn resource-type) project source-node (io/reader (g/node-value source-node :resource)))
+        ((:load-fn resource-type) project source-node (g/node-value source-node :resource))
         (project/select project [go-node]))))))
 
 (handler/defhandler :add :global
@@ -516,8 +516,8 @@
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
 
-(defn load-collection [project self input]
-  (let [collection (protobuf/read-text GameObject$CollectionDesc input)
+(defn load-collection [project self resource]
+  (let [collection (protobuf/read-text GameObject$CollectionDesc resource)
         project-graph (g/node-id->graph-id project)]
     (concat
       (g/set-property self :name (:name collection))
@@ -526,7 +526,7 @@
                                (for [game-object (:instances collection)
                                      :let [; TODO - fix non-uniform hax
                                            scale (:scale game-object)
-                                           source-resource (workspace/resolve-resource (g/node-value self :resource) (:prototype game-object))]]
+                                           source-resource (workspace/resolve-resource resource (:prototype game-object))]]
                                  (make-ref-go self project source-resource (:id game-object) (:position game-object)
                                           (v4->euler (:rotation game-object)) [scale scale scale] false))
                                (for [embedded (:embedded-instances collection)
@@ -553,7 +553,7 @@
       (for [coll-instance (:collection-instances collection)
             :let [; TODO - fix non-uniform hax
                   scale (:scale coll-instance)
-                  source-resource (workspace/resolve-resource (g/node-value self :resource) (:collection coll-instance))]]
+                  source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
         (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
                                  (v4->euler (:rotation coll-instance)) [scale scale scale])))))
 

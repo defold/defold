@@ -259,8 +259,8 @@
 (defn add-images [atlas-node img-resources]
   (attach-atlas-image-nodes (g/node-id->graph-id atlas-node) atlas-node atlas-node img-resources :animation :animations))
 
-(defn load-atlas [project self input]
-  (let [atlas         (protobuf/read-text AtlasProto$Atlas input)
+(defn load-atlas [project self resources]
+  (let [atlas         (protobuf/read-text AtlasProto$Atlas resources)
         graph-id      (g/node-id->graph-id self)]
     (concat
       (g/set-property self :margin (:margin atlas))

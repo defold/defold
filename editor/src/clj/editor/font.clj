@@ -50,9 +50,8 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-font [project self input]
-  (let [font     (protobuf/read-text Font$FontDesc input)
-        resource (g/node-value self :resource)]
+(defn load-font [project self resource]
+  (let [font     (protobuf/read-text Font$FontDesc resource)]
     (concat
       (g/set-property self :pb font))))
 

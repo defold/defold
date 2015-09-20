@@ -172,13 +172,13 @@
   (output save-data     g/Any :cached produce-save-data)
   (output scene         g/Any :cached produce-scene))
 
-(defn load-level [project self input]
-  (with-open [reader (PushbackReader. (io/reader (g/node-value self :resource)))]
+(defn load-level [project self resource]
+  (with-open [reader (PushbackReader. (io/reader resource))]
     (let [level (edn/read reader)]
       (concat
         (g/set-property self :control-points (:control-points level))
         (g/set-property self :base-texture (:base-texture level))
-        (if-let [img-resource (workspace/resolve-resource (g/node-value self :resource) (:base-texture level))]
+        (if-let [img-resource (workspace/resolve-resource resource (:base-texture level))]
           (project/connect-resource-node project img-resource self [[:content :base-texture-img]])
           [])))))
 

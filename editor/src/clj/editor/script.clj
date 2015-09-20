@@ -92,9 +92,8 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-script [project self input]
-  (let [content  (slurp input)
-        resource (g/node-value self :resource)]
+(defn load-script [project self resource]
+  (let [content  (slurp resource)]
     (concat
       (g/set-property self :content content))))
 
