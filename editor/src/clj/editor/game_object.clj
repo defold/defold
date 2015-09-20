@@ -50,11 +50,11 @@
 
 (def sound-exts (into #{} (map :ext sound/sound-defs)))
 
-(defn- wrap-if-raw-sound [_node-id project-id target]
+(defn- wrap-if-raw-sound [_node-id target]
   (let [source-path (workspace/proj-path (:resource (:resource target)))
         ext (FilenameUtils/getExtension source-path)]
     (if (sound-exts ext)
-      (let [workspace (project/workspace project-id)
+      (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
             target    {:node-id  _node-id
@@ -104,9 +104,9 @@
                                               :transform transform
                                               :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
                                        (update :node-path (partial cons _node-id)))))
-  (output build-targets g/Any :cached (g/fnk [_node-id project-id build-targets ddf-message transform]
+  (output build-targets g/Any :cached (g/fnk [_node-id build-targets ddf-message transform]
                                              (if-let [target (first build-targets)]
-                                               (let [target (wrap-if-raw-sound _node-id project-id target)]
+                                               (let [target (wrap-if-raw-sound _node-id target)]
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                :instance-msg ddf-message
                                                                                :transform transform})])
@@ -226,8 +226,7 @@
                                                     [:user-properties :user-properties]
                                                     [:save-data :save-data]
                                                     [:scene :scene]
-                                                    [:build-targets :build-targets]
-                                                    [:project-id :project-id]])))))
+                                                    [:build-targets :build-targets]])))))
 
 (defn add-component-handler [self]
   (let [project (project/get-project self)
@@ -259,14 +258,13 @@
     (if-let [resource-type (and resource (workspace/resource-type resource))]
       (g/make-nodes (g/node-id->graph-id self)
                     [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
-                     source-node [(:node-type resource-type) :resource resource :project-id project]]
+                     source-node [(:node-type resource-type) :resource resource]]
                     (g/connect source-node :_node-id      comp-node :source-id)
                     (g/connect source-node :_properties   comp-node :source-properties)
                     (g/connect source-node :outline       comp-node :outline)
                     (g/connect source-node :save-data     comp-node :save-data)
                     (g/connect source-node :scene         comp-node :scene)
                     (g/connect source-node :build-targets comp-node :build-targets)
-                    (g/connect source-node :project-id    comp-node :project-id)
                     (g/connect source-node :_node-id           self      :nodes)
                     (attach-embedded-component self comp-node))
       (g/make-nodes (g/node-id->graph-id self)

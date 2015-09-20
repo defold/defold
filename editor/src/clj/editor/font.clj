@@ -32,9 +32,8 @@
 (defn- build-font [self basis resource dep-resources user-data]
   {:resource resource :content (font-gen/->bytes (:pb user-data) (:font-resource user-data))})
 
-(g/defnk produce-build-targets [_node-id project-id resource pb]
-  (let [project (g/node-by-id project-id)
-        ; Should use a separate resource node to obtain the font file
+(g/defnk produce-build-targets [_node-id resource pb]
+  (let [; Should use a separate resource node to obtain the font file
         font-resource (workspace/resolve-resource resource (:font pb))]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)

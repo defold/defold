@@ -32,8 +32,8 @@
   (let [tex-set (assoc (:proto user-data) :texture (workspace/proj-path (second (first dep-resources))))]
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
-(g/defnk produce-build-targets [_node-id project-id resource texture-set-data save-data]
-  (let [workspace        (project/workspace project-id)
+(g/defnk produce-build-targets [_node-id resource texture-set-data save-data]
+  (let [workspace        (project/workspace (project/get-project _node-id))
         texture-type     (workspace/get-resource-type workspace "texture")
         texture-resource (workspace/make-memory-resource workspace texture-type (:content save-data))
         texture-target   {:node-id   _node-id
