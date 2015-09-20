@@ -294,7 +294,7 @@
        (concat
         (g/operation-sequence op-seq)
         (g/operation-label "Add Component")
-        ((:load-fn component-type) project source-node (io/reader (g/node-value source-node :resource)))
+        ((:load-fn component-type) project source-node (g/node-value source-node :resource))
         (project/select project [comp-node])))))))
 
 (handler/defhandler :add :global
@@ -318,12 +318,12 @@
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
 
-(defn load-game-object [project self input]
+(defn load-game-object [project self resource]
   (let [project-graph (g/node-id->graph-id self)
-        prototype     (protobuf/read-text GameObject$PrototypeDesc input)]
+        prototype     (protobuf/read-text GameObject$PrototypeDesc resource)]
     (concat
       (for [component (:components prototype)
-            :let [source-resource (workspace/resolve-resource (g/node-value self :resource) (:component component))]]
+            :let [source-resource (workspace/resolve-resource resource (:component component))]]
         (add-component self project source-resource (:id component) (:position component) (v4->euler (:rotation component)) (:properties component)))
       (for [embedded (:embedded-components prototype)]
         (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (v4->euler (:rotation embedded)))))))

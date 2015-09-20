@@ -219,13 +219,12 @@
   (output scene g/Any (g/always {}))
   (output outline g/Any :cached (g/fnk [_node-id def] {:node-id _node-id :label (:label def) :icon (:icon def)})))
 
-(defn- connect-build-targets [self project path]
-  (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
+(defn- connect-build-targets [project self resource path]
+  (let [resource (workspace/resolve-resource resource path)]
     (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
 
-(defn load-pb [project self input def]
-  (let [pb (protobuf/read-text (:pb-class def) input)
-        resource (g/node-value self :resource)]
+(defn load-pb [project self resource def]
+  (let [pb (protobuf/read-text (:pb-class def) resource)]
     (concat
      (g/set-property self :pb pb)
      (g/set-property self :def def)
@@ -233,8 +232,8 @@
        (if (vector? res)
          (for [v (get pb (first res))]
            (let [path (if (second res) (get v (second res)) v)]
-             (connect-build-targets self project path)))
-         (connect-build-targets self project (get pb res)))))))
+             (connect-build-targets project self resource path)))
+         (connect-build-targets project self resource (get pb res)))))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
@@ -245,7 +244,7 @@
                                      :label (:label def)
                                      :build-ext (:build-ext def)
                                      :node-type ProtobufNode
-                                     :load-fn (fn [project self input] (load-pb project self input def))
+                                     :load-fn (fn [project self resource] (load-pb project self resource def))
                                      :icon (:icon def)
                                      :view-types (:view-types def)
                                      :tags (:tags def)
