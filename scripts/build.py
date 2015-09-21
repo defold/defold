@@ -384,7 +384,12 @@ class Configuration(object):
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
 
-        for n in ['dmengine', 'dmengine_release', 'dmengine_headless', 'launcher']:
+        # upload editor 2.0 launcher
+        if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32']:
+            launcherbin = join(bin_dir, "launcher" + exe_ext)
+            self.upload_file(launcherbin, '%s/%s%s' % (full_archive_path, "launcher", exe_ext))
+
+        for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             engine = join(bin_dir, exe_prefix + n + exe_ext)
             self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
             if self.target_platform == 'js-web':
