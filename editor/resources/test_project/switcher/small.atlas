@@ -1,0 +1,5 @@
+images {
+  image: "/switcher/images/block_frosting.png"
+}
+margin: 0
+extrude_borders: 0

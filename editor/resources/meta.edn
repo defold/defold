@@ -1,0 +1,555 @@
+{:settings
+ ({:type :string,
+   :filter nil,
+   :help "the title of the application",
+   :default "unnamed",
+   :path ["project" "title"]}
+  {:type :string,
+   :filter nil,
+   :help "application version",
+   :default "1.0",
+   :path ["project" "version"]}
+  {:type :boolean,
+   :filter nil,
+   :help "Write log file to disk",
+   :default false,
+   :path ["project" "write_log"]}
+  {:type :boolean,
+   :filter nil,
+   :help "Compress archive (not for Android)",
+   :default false,
+   :path ["project" "compress_archive"]}
+  {:type :string,
+   :filter nil,
+   :help "projects required by this projectx",
+   :default nil,
+   :path ["project" "dependencies"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "the width in pixels of the application window, 960 by default",
+   :default 960,
+   :path ["display" "width"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "the height in pixels of the application window, 640 by default",
+   :default 640,
+   :path ["display" "height"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "how many samples to use for super sampling anti-aliasing, 0 by default, which means it is turned off",
+   :default 0,
+   :path ["display" "samples"]}
+  {:type :boolean,
+   :filter nil,
+   :help
+   "if the application should start full screen or not, 1 for fullscreen or 0 (default) for windowed",
+   :default false,
+   :path ["display" "fullscreen"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "frame update frequency, 60 by default. Valid values are 60, 30, 20, 15, 12, 10, 6, 5, 4, 3, 2 and 1",
+   :default 60,
+   :path ["display" "update_frequency"]}
+  {:type :boolean,
+   :filter nil,
+   :help
+   "if the frame time step should be measured against actual time or be fixed (set to update_frequency)",
+   :default false,
+   :path ["display" "variable_dt"]}
+  {:type :resource,
+   :filter "display_profiles",
+   :help
+   "file reference of the display profiles to use for the application",
+   :default "/builtins/render/default.display_profiles",
+   :path ["display" "display_profiles"]}
+  {:type :boolean,
+   :filter nil,
+   :help "dynamic screen orientation support",
+   :default false,
+   :path ["display" "dynamic_orientation"]}
+  {:type :string,
+   :filter nil,
+   :help "which type of physics to use, 2D (default) or 3D",
+   :default "2D",
+   :path ["physics" "type"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "world gravity along y-axis, -10 by default (natural gravity)",
+   :default -10.0,
+   :path ["physics" "gravity_y"]}
+  {:type :boolean,
+   :filter nil,
+   :help
+   "whether physics should be visualized for debugging, 1 for yes and 0 (default) for no",
+   :default false,
+   :path ["physics" "debug"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "alpha component for visualized physics, 0 - 1 (0.9 by default)",
+   :default 0.9,
+   :path ["physics" "debug_alpha"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "max number of concurrent physics worlds, 4 by default (careful, they waste memory)",
+   :default 4,
+   :path ["physics" "world_count"]}
+  {:type :number,
+   :filter nil,
+   :help "world gravity along x-axis, 0 by default",
+   :default 0.0,
+   :path ["physics" "gravity_x"]}
+  {:type :number,
+   :filter nil,
+   :help "world gravity along z-axis, 0 by default",
+   :default 0.0,
+   :path ["physics" "gravity_z"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "how to scale the physics worlds in relation to the game world for numerical precision, 0.01 - 1 (default)",
+   :default 1.0,
+   :path ["physics" "scale"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "how big to draw unit objects in physics, like triads and normals, 30 by default",
+   :default 30.0,
+   :path ["physics" "debug_scale"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "how many collisions that will be reported back to the scripts, 64 by default",
+   :default 64,
+   :path ["physics" "max_collisions"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "how many contact points that will be reported back to the scripts, 128 by default",
+   :default 128,
+   :path ["physics" "max_contacts"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "contacts with an impulse below this limit will not be reported to scripts, 0 (disabled) by default",
+   :default 0.0,
+   :path ["physics" "contact_impulse_limit"]}
+  {:type :resource,
+   :filter "collection",
+   :help
+   "file reference of the collection to use for starting the application, /logic/main.collectionc by default",
+   :default "/logic/main.collection",
+   :path ["bootstrap" "main_collection"]}
+  {:type :resource,
+   :filter "render",
+   :help
+   "which render file to use, which defines the render pipeline, /builtins/render/default.renderc by default",
+   :default "/builtins/render/default.render",
+   :path ["bootstrap" "render"]}
+  {:type :string,
+   :filter nil,
+   :help
+   "which filtering to use for min filtering, linear (default) or nearest",
+   :default "linear",
+   :path ["graphics" "default_texture_min_filter"]}
+  {:type :string,
+   :filter nil,
+   :help
+   "which filtering to use for mag filtering, linear (default) or nearest",
+   :default "linear",
+   :path ["graphics" "default_texture_mag_filter"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "maximum number of debug vertices. Used for physics shape rendering among other things, 10000 by default",
+   :default 10000.0,
+   :path ["graphics" "max_debug_vertices"]}
+  {:type :resource,
+   :filter "texture_profiles",
+   :help
+   "specify which texture profiles (format, mipmaps and max textures size) to use for which resource path",
+   :preserve-extension true
+   :default "/builtins/graphics/default.texture_profiles",
+   :path ["graphics" "texture_profiles"]}
+  {:type :number,
+   :filter nil,
+   :help "global gain (volume), 0 - 1, 1 by default",
+   :default 1.0,
+   :path ["sound" "gain"]}
+  {:type :integer,
+   :filter nil,
+   :help "max number of different sounds, 128 by default",
+   :default 128,
+   :path ["sound" "max_sound_data"]}
+  {:type :integer,
+   :filter nil,
+   :help "max number of concurrent sound buffers, 32 by default",
+   :default 32,
+   :path ["sound" "max_sound_buffers"]}
+  {:type :integer,
+   :filter nil,
+   :help "max number of concurrently playing sounds, 16 by default",
+   :default 16,
+   :path ["sound" "max_sound_sources"]}
+  {:type :integer,
+   :filter nil,
+   :help "max number of concurrent sound instances, 256 by default",
+   :default 256,
+   :path ["sound" "max_sound_instances"]}
+  {:type :boolean,
+   :filter nil,
+   :help
+   "if the http cache should be enabled for faster loads over network, 1 for yes (default) and 0 for no",
+   :default false,
+   :path ["resource" "http_cache"]}
+  {:type :string,
+   :filter nil,
+   :help "where to find game.project, in URI format",
+   :default nil,
+   :path ["resource" "uri"]}
+  {:type :integer,
+   :filter nil,
+   :help
+   "the max number of resources that can be loaded at the same time, 1024 by default",
+   :default 1024,
+   :path ["resource" "max_resources"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "seconds to wait before treating a held down keyboard-key to start repeating itself",
+   :default 0.5,
+   :path ["input" "repeat_delay"]}
+  {:type :number,
+   :filter nil,
+   :help
+   "seconds to wait between each repetition of a held down keyboard-key",
+   :default 0.2,
+   :path ["input" "repeat_interval"]}
+  {:type :resource,
+   :filter "gamepads",
+   :help
+   "file reference of the gamepads config file, which maps gamepad signals to OS, /builtins/input/default.gamepadsc by default",
+   :default "/builtins/input/default.gamepads",
+   :path ["input" "gamepads"]}
+  {:type :resource,
+   :filter "input_binding",
+   :help
+   "file reference of the input config file, which maps HW inputs to actions, /input/game.input_bindingc by default",
+   :default "/input/game.input_binding",
+   :path ["input" "game_binding"]}
+  {:type :integer,
+   :filter nil,
+   :help "max number of sprites, 128 by default",
+   :default 128,
+   :path ["sprite" "max_count"]}
+  {:type :boolean,
+   :filter nil,
+   :help
+   "whether to allow sprites to appear unaligned with respect to pixels, 1 for yes (default) and 0 for no",
+   :default false,
+   :path ["sprite" "subpixels"]}
+  {:type :integer,
+   :filter nil,
+   :help "max number of collection proxies, 8 by default",
+   :default 8,
+   :path ["collection_proxy" "max_count"]}
+  {:type :integer,
+   :filter nil,
+   :help "max number of factories, 128 by default",
+   :default 128,
+   :path ["factory" "max_count"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "retina iPhone 5 and 6 bundle icon file (.png)",
+   :default nil,
+   :path ["ios" "app_icon_120x120"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPhone6 plus icon file (.png)",
+   :default nil,
+   :path ["ios" "app_icon_180x180"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPad icon file (.png)",
+   :default nil,
+   :path ["ios" "app_icon_76x76"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "retina iPad icon file (.png)",
+   :default nil,
+   :path ["ios" "app_icon_152x152"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help
+   "iPhone/iPod touch icon file (.png) [required for iOS 6.1 and earlier]",
+   :default nil,
+   :path ["ios" "app_icon_57x57"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help
+   "retina iPhone/iPod touch bundle icon file (.png) [required for iOS 6.1 and earlier]",
+   :default nil,
+   :path ["ios" "app_icon_114x114"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPad icon file (.png) [required for iOS 6.1 and earlier]",
+   :default nil,
+   :path ["ios" "app_icon_72x72"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help
+   "retina iPad bundle icon file (.png) [required for iOS 6.1 and earlier]",
+   :default nil,
+   :path ["ios" "app_icon_144x144"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPhone launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_320x480"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "retina iPhone launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_640x960"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPhone 5 launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_640x1136"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPhone 6 launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_750x1334"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPad portrait launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_768x1024"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "retina iPad portrait launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_1536x2048"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPad landscape launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_1024x768"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPhone 6 plus portrait launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_1242x2208"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "iPhone 6 plus landscape launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_2208x1242"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "retina iPad landscape launch image (.png)",
+   :default nil,
+   :path ["ios" "launch_image_2048x1536"]}
+  {:type :boolean,
+   :filter nil,
+   :help "set to true if the icons are prerendered",
+   :default false,
+   :path ["ios" "pre_renderered_icons"]}
+  {:type :string,
+   :filter nil,
+   :help "bundle identifier (CFBundleIdentifier)",
+   :default "example.unnamed",
+   :path ["ios" "bundle_identifier"]}
+  {:type :resource,
+   :filter "plist",
+   :preserve-extension true
+   :help "custom Info.plist template file",
+   :default nil,
+   :path ["ios" "infoplist"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "Android ldpi icon file (.png)",
+   :default nil,
+   :path ["android" "app_icon_36x36"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "Android mdpi icon file (.png)",
+   :default nil,
+   :path ["android" "app_icon_48x48"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "Android hdpi icon file (.png)",
+   :default nil,
+   :path ["android" "app_icon_72x72"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "Android xhdpi icon file (.png)",
+   :default nil,
+   :path ["android" "app_icon_96x96"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "Android xxhdpi icon file (.png)",
+   :default nil,
+   :path ["android" "app_icon_144x144"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true
+   :help "Android xxxhdpi icon file (.png)",
+   :default nil,
+   :path ["android" "app_icon_192x192"]}
+  {:type :integer,
+   :filter nil,
+   :help "android version code (android:versionCode)",
+   :default 1,
+   :path ["android" "version_code"]}
+  {:type :string,
+   :filter nil,
+   :help "package identifier",
+   :default "com.example.todo",
+   :path ["android" "package"]}
+  {:type :string,
+   :filter nil,
+   :help "Google Cloud Messaging Sender ID",
+   :default "",
+   :path ["android" "gcm_sender_id"]}
+  {:type :resource,
+   :filter "xml",
+   :preserve-extension true
+   :help "custom AndroidManifest.xml template file",
+   :default nil,
+   :path ["android" "manifest"]}
+  {:type :resource,
+   :filter "icns",
+   :preserve-extension true
+   :help "bundle icon file (.icns)",
+   :default "",
+   :path ["osx" "app_icon"]}
+  {:type :resource,
+   :filter "plist",
+   :preserve-extension true
+   :help "custom Info.plist template file",
+   :default nil,
+   :path ["osx" "infoplist"]}
+  {:type :string,
+   :filter nil,
+   :help "bundle identifier (CFBundleIdentifier)",
+   :default "example.unnamed",
+   :path ["osx" "bundle_identifier"]}
+  {:type :resource,
+   :filter "ico",
+   :preserve-extension true
+   :help "executable icon file (.ico)",
+   :default "",
+   :path ["windows" "app_icon"]}
+  {:type :boolean,
+   :filter nil,
+   :help
+   "set to true if you wish to adjust the application heap memory size",
+   :default nil,
+   :path ["html5" "set_custom_heap_size"]}
+  {:type :integer,
+   :filter nil,
+   :help "the size, in bytes, of the application's heap",
+   :default 0,
+   :path ["html5" "custom_heap_size"]}
+  {:type :boolean,
+   :filter nil,
+   :help "add html dev tool to application",
+   :default nil,
+   :path ["html5" "include_dev_tool"]}
+  {:type :resource,
+   :filter "html",
+   :preserve-extension true
+   :help "html shell for canvas",
+   :default nil,
+   :path ["html5" "htmlfile"]}
+  {:type :resource,
+   :filter "css",
+   :preserve-extension true
+   :help "css detail for html shell",
+   :default nil,
+   :path ["html5" "cssfile"]}
+  {:type :resource,
+   :filter nil,
+   :preserve-extension true
+   :help "custom html splash screen image",
+   :default nil,
+   :path ["html5" "splash_image"]}
+  {:type :integer,
+   :filter nil,
+   :help "max number of particle fx components, 64 by default",
+   :default 64,
+   :path ["particle_fx" "max_count"]}
+  {:type :integer,
+   :filter nil,
+   :help "max total number of living particles, 1024 by default",
+   :default 1024,
+   :path ["particle_fx" "max_particle_count"]}
+  {:type :number,
+   :filter nil,
+   :help "http timeout in seconds. zero to disable timeout",
+   :default 0.0,
+   :path ["network" "http_timeout"]}
+  {:type :string,
+   :filter nil,
+   :help "dirs to include in this project when used as a library",
+   :default "",
+   :path ["library" "include_dirs"]}
+  {:type :boolean,
+   :filter nil,
+   :help "Single lua state shared between all script types",
+   :default false,
+   :path ["script" "shared_state"]}),
+ :categories
+ {"sound" {:help "Sound related settings"},
+  "html5" {:help "HTML5 related settings"},
+  "resource"
+  {:help "Resource loading and management related settings"},
+  "factory" {:help "GameObject factory related settings"},
+  "graphics" {:help "Graphics related settings"},
+  "bootstrap" {:help "Initial settings for the engine"},
+  "project" {:help "General project settings"},
+  "collection_proxy" {:help "Collection proxy related settings"},
+  "physics" {:help "Physics settings"},
+  "osx" {:help "Mac OSX related settings"},
+  "network" {:help "Network related settings"},
+  "sprite" {:help "Sprite related settings"},
+  "windows" {:help "Windows related settings"},
+  "input" {:help "Input related settings"},
+  "library"
+  {:help
+   "Settings for when this project is used as a library by another project"},
+  "display" {:help "Resolution and other display related settings"},
+  "ios" {:help "iOS related settings"},
+  "particle_fx" {:help "Particle FX related settings"},
+  "android" {:help "Android related settings"}}}

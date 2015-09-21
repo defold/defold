@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import java.util.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.paint.*?>
+<?import javafx.scene.text.*?>
+
+<HBox minHeight="160.0" minWidth="490.0" prefHeight="160.0" prefWidth="490.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+   <children>
+      <ImageView pickOnBounds="true" preserveRatio="true">
+         <image>
+            <Image url="@logo_small.png" />
+         </image>
+         <HBox.margin>
+            <Insets bottom="10.0" left="20.0" right="10.0" top="20.0" />
+         </HBox.margin>
+      </ImageView>
+      <AnchorPane HBox.hgrow="ALWAYS">
+         <children>
+            <VBox maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="135.0" prefWidth="389.0" spacing="10.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+               <children>
+                  <Label id="title" text="Title">
+                     <font>
+                        <Font name="System Bold" size="13.0" />
+                     </font>
+                  </Label>
+                  <AnchorPane>
+                     <children>
+                        <ProgressBar id="progress" progress="0.74" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                     </children>
+                  </AnchorPane>
+                  <Label id="message" text="Message..." />
+                  <Pane VBox.vgrow="ALWAYS" />
+                  <HBox>
+                     <children>
+                        <Pane HBox.hgrow="ALWAYS" />
+                        <Button cancelButton="true" disable="true" mnemonicParsing="false" text="Cancel" />
+                     </children>
+                  </HBox>
+               </children>
+               <padding>
+                  <Insets bottom="16.0" left="16.0" right="16.0" top="16.0" />
+               </padding>
+            </VBox>
+         </children>
+      </AnchorPane>
+   </children>
+</HBox>

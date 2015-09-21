@@ -90,7 +90,8 @@ namespace dmSpinlock
          __asm__ __volatile__(
  "1:     ldrex   %0, [%1]\n"
  "       teq     %0, #0\n"
- "       wfene\n"
+// "       wfene\n"  -- WFENE gives SIGILL for still unknown reasons on some 64-bit ARMs Aarch32 mode.
+//                      Disassembly of libc.so and pthread_mutex_lock shows no use of the instruction.
  "       strexeq %0, %2, [%1]\n"
  "       teqeq   %0, #0\n"
  "       bne     1b\n"

@@ -1,0 +1,8 @@
+images {
+  image: "/images/frame-01.png"
+}
+images {
+  image: "/images/frame-01.png"
+}
+margin: 0
+extrude_borders: 0

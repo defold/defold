@@ -1,0 +1,33 @@
+name: "main"
+instances {
+  id: "main"
+  prototype: "/logic/atlas_sprite.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}
+instances {
+  id: "main2"
+  prototype: "/logic/atlas_sprite.go"
+  position {
+    x: 100.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}

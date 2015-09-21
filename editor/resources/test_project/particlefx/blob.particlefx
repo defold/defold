@@ -1,0 +1,16 @@
+emitters
+{
+	mode: PLAY_MODE_ONCE
+	space: EMISSION_SPACE_WORLD
+	position {x: 10 y: 0 z: 0}
+	rotation {x: 0 y: 0 z: 0 w: 1}
+	tile_source: "/builtins/graphics/particle_blob.tilesource"
+	animation: "anim"
+	material: "/builtins/materials/sprite.material"
+	max_particle_count: 1
+	type: EMITTER_TYPE_CIRCLE
+}
+modifiers
+{
+	type: MODIFIER_TYPE_ACCELERATION
+}

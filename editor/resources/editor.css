@@ -1,0 +1,623 @@
+/*.menu-bar {
+    -fx-background-color: #aeb5ba, linear-gradient(to bottom, #ecf4fa 0%, #ced4d9 100%);
+    -fx-background-insets: 0, 0 0 1 0;
+}
+
+.menu-bar .menu .label {
+    -fx-text-fill: #2d3e4c;
+}
+*/
+
+
+/*
+Links:
+- http://fxexperience.com/2011/12/styling-fx-buttons-with-css/
+- http://www.guigarage.com/javafx-themes/
+- http://www.guigarage.com/javafx-themes/aquafx/
+- http://www.aerofx.org/
+
+*/
+
+/*
+Colors
+
+Defold Light Blue   #60a8ff             Highlight borders and always together with Defold Blue
+Defold Blue         #2268e6             Highlight buttons
+Selected Blue       #264a8b             Select states and mouseover for blue buttons
+Bright Black        #292c30 #2e3236     Background of the application
+Mid Black           #25282b #292d31     Mouseover tabs
+Dark Black          #222426 #26282a     Text fields, selected (inactive) files, scroll bg & Outline tabs
+Dark Grey           #34373b #3b3e43     Module headers
+Mid Grey            #494b4e #54565a     Inactive text and icons
+Bright Grey         #8f9296 #a8abaf     Normal text & icon color
+Defold White        #f0f2f6 #f8f8fb     Active text & icon color
+Defold Red          #ff4646             Errors (text and icons), guides, 3D-Axels
+Defold Yellow       #fbce2f             Guides, etc.
+Defold Turquoise    #00e6e1             Guides, (also new update color together with Defold Blue)
+Defold Green        #00df64             Success, guides etc
+Defold Orange       #fd6623             Guides etc
+*/
+
+@font-face {
+    font-family: 'Inconsolata';
+    src: url('Inconsolata.otf');
+}
+
+.root {
+	-defold-light-blue:   #60a8ff;
+	-defold-blue:         #2268e6;
+	-selected-blue:       #264a8b;
+	-bright-black:        #292c30;
+	-bright-black-light:  #2e3236;
+	-mid-black:           #25282b;
+	-mid-black-light:     #292d31;
+	-dark-black:          #222426;
+	-dark-black-light:    #26282a;
+	-dark-grey:           #34373b;
+	-dark-grey-light:     #3b3e43;
+	-mid-grey:            #494b4e;
+	-mid-grey-light:      #54565a;
+	-bright-grey:         #8f9296;
+	-bright-grey-light:   #a8abaf;
+	-defold-white:        #f0f2f6;
+	-defold-white-light:  #f8f8fb;
+	-defold-red:          #ff4646;
+	-defold-yellow:       #fbce2f;
+	-defold-turquoise:    #00e6e1;
+	-defold-green:        #00df64;
+	-defold-orange:       #fd6623;
+
+    -fx-base: #292c31;
+    -fx-background: -bright-black;
+    -fx-control-inner-background: -bright-black;
+    -fx-text-color-base: -defold-white;
+    -fx-mark-color: -bright-grey;
+    -fx-text-background-color: -bright-grey-light;
+    -fx-text-inner-color: -bright-grey-light;
+    -fx-box-border: #484c52;
+    -fx-accent: -selected-blue;
+
+    -fx-focus-color_: red;
+    -fx-faint-focus-color_: red;
+
+
+    /* cells */
+    -fx-selection-bar: -selected-blue;
+    -fx-selection-bar-non-focused: -dark-grey;
+    -fx-cell-focus-inner-border: -selected-blue;
+
+    /* splitter */
+    -fx-inner-border-horizontal: red_;
+
+    -fx-focus-color: #23488c;
+
+    -fx-outer-border_: red;
+    -fx-inner-border_: red;
+    -fx-body-color_: #34373b;
+    -fx-color: -dark-grey;
+    -fx-body-color: linear-gradient(to bottom, -fx-color, -fx-color);
+    -fx-mark-color_: red;
+
+    -fx-hover-base: -mid-grey;
+    -fx-pressed-base: -bright-grey;
+
+    -fx-accent_: red;
+
+    /*-fx-font: 14px 'Avenir Medium' bold;*/
+
+    -fx-font-family: "Avenir Heavy";
+    -fx-font-size: 12px;
+    -fx-font-weight: normal;
+}
+
+.button,
+.toggle-button,
+/*.radio-button > .radio,*/
+/*.check-box > .box,*/
+.menu-button,
+/*.choice-box,*/
+.color-picker.split-button > .color-picker-label
+/*.combo-box-base,
+.combo-box-base > .arrow-button*/ {
+    -fx-background-color: -defold-blue;
+    -fx-background-insets: 0;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-color: -dark-black;
+    -fx-text-fill: -fx-text-base-color;
+}
+
+.button:hover,
+.toggle-button:hover,
+/*.radio-button:hover > .radio,*/
+/*.check-box:hover > .box,*/
+.menu-button:hover,
+.split-menu-button > .label:hover,
+.split-menu-button > .arrow-button:hover,
+/*.slider .thumb:hover,
+.scroll-bar > .thumb:hover,
+.scroll-bar > .increment-button:hover,
+.scroll-bar > .decrement-button:hover,*/
+/*.choice-box:hover,*/
+.color-picker.split-button > .arrow-button:hover,
+.color-picker.split-button > .color-picker-label:hover,
+/*.combo-box-base:hover,*/
+.tab-pane > .tab-header-area > .control-buttons-tab > .container > .tab-down-button:hover {
+    -fx-background-color: -selected-blue;
+    -fx-text-fill: -fx-text-base-color;
+}
+
+.button:armed,
+.toggle-button:armed,
+/*.radio-button:armed > .radio,*/
+/*.check-box:armed .box,*/
+.menu-button:armed,
+.split-menu-button:armed > .label,
+.split-menu-button > .arrow-button:pressed,
+.split-menu-button:showing > .arrow-button,
+/*.slider .thumb:pressed,
+.scroll-bar > .thumb:pressed,
+.scroll-bar > .increment-button:pressed,
+.scroll-bar > .decrement-button:pressed,*/
+/*.choice-box:showing,*/
+/*.combo-box-base:showing,*/
+.tab-pane > .tab-header-area > .control-buttons-tab > .container > .tab-down-button:pressed {
+    -fx-background-color: -selected-blue;
+    -fx-text-fill: -defold-white;
+    -fx-border-color: -defold-light-blue;
+}
+
+#topbar {
+    -fx-background-color: linear-gradient(to bottom, -dark-grey, -bright-black);
+    -fx-padding: 1em;
+}
+
+/* TODO: Why do we have to do this explicitly? */
+.choice-box .label {
+     -fx-text-fill: -fx-text-background-color;
+}
+
+#toolbar {
+    -fx-border-width: 1;
+    -fx-border-color: -dark-black;
+}
+
+#toolbar > .toggle-button {
+    -fx-background-color: -dark-grey;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: -mid-grey;
+    -fx-padding: 0.4em;
+    -fx-text-fill: -fx-text-base-color;
+}
+
+#toolbar > .image-view {
+    -fx-background-color: red;
+}
+
+#toolbar > .toggle-button:hover {
+    -fx-background-color: -bright-black;
+}
+
+#toolbar > .toggle-button:armed {
+    -fx-background-color: -dark-black;
+}
+
+#toolbar > .toggle-button:selected {
+    -fx-background-color: -dark-black;
+}
+
+#toolbar-status {
+    -fx-background-color:
+        -dark-black,
+        -mid-grey,
+        -dark-grey;
+    -fx-background-insets: 0,1,2,3;
+    -fx-background-radius: 0;
+    -fx-padding: 0.2em 0.2em 0.2em 0.2em;
+    -fx-text-fill: white;
+}
+
+#toolbar-status * .label {
+    -fx-text-fill: -fx-text-background-color;
+}
+
+.status-green {
+    -fx-background-color: radial-gradient(focus-distance 0%, center 50% 50%, radius 50%, -defold-green, -defold-green, -defold-green, -dark-grey)
+}
+
+/*
+#toolbar-status_ * {
+    -fx-border-width: 4;
+    -fx-border-color: red;
+    -fx-background-color: blue;
+}
+*/
+
+#toolbar-status > .progress-bar {
+    -fx-border-width: 1 0 0 0;
+    -fx-border-color: -dark-black;
+}
+
+#toolbar-status > .progress-bar > .bar {
+    -fx-background-color: -defold-green;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 1em; /* 12 */
+}
+
+#toolbar-status > .progress-bar > .track {
+    -fx-background-color: -mid-black-light;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
+/*
+.tree-cell > .tree-disclosure-node > .arrow,
+.tree-table-row-cell > .tree-disclosure-node > .arrow {
+    -fx-background-color: -bright-grey;
+}*/
+
+.split-pane {
+    -fx-padding: 0.0em;
+}
+
+.split-pane:horizontal > .split-pane-divider {
+    -fx-padding: 2;
+}
+
+.split-pane:vertical > .split-pane-divider {
+    -fx-padding: 2;
+}
+
+.split-pane:horizontal > .split-pane-divider {
+   -fx-background-color: -bright-black;
+}
+
+/* vertical the two nodes are placed on top of each other. */
+.split-pane:vertical > .split-pane-divider {
+   -fx-background-color: -bright-black;
+}
+
+.split-pane:horizontal  {
+     -fx-border-width: 0;
+     -fx-background-insets: 0;
+}
+
+.split-pane:vertical  {
+     -fx-border-width: 0;
+     -fx-background-insets: 0;
+}
+
+
+.scroll-bar > .thumb {
+    -fx-background-color: -fx-body-color, -fx-body-color, -fx-body-color;
+    -fx-background-radius: 2em;
+}
+
+.scroll-bar:horizontal > .thumb {
+    -fx-background-insets: 0.2em 0.5em 0.0em 0.5em;
+}
+
+.scroll-bar:vertical > .thumb {
+    -fx-background-insets: 0.5em 0.2em 0.5em 0.2em;
+}
+
+.scroll-bar:horizontal {
+    -fx-background-color: -dark-black;
+}
+.scroll-bar:vertical {
+    -fx-background-color: -dark-black;
+}
+
+.scroll-bar:horizontal .increment-button,
+.scroll-bar:horizontal .decrement-button {
+    -fx-background-color:transparent;
+    -fx-background-radius: 0em;
+    -fx-padding:0.0em 0.0em 1.2em 0.0em;
+}
+
+.scroll-bar:vertical .increment-button ,
+.scroll-bar:vertical .decrement-button {
+    -fx-background-color:transparent;
+    -fx-background-radius: 0em;
+    -fx-padding: 0.0em 1.2em 0.0em 0.0em;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+     -fx-shape: " ";
+     -fx-padding: 0.0em;
+}
+
+/*
+.scroll-bar:horizontal > .increment-button > .increment-arrow {
+    -fx-padding: 0 0 0 0 ;
+    -fx-shape: "";
+}
+
+.scroll-bar:vertical > .increment-button > .increment-arrow {
+    -fx-padding: 0 0 0 0 ;
+    -fx-shape: "";
+}
+
+.scroll-bar:vertical > .decrement-button > .decrement-arrow {
+    -fx-padding: 0 0 0 0 ;
+    -fx-shape: "";
+}
+*/
+
+/*
+.scroll-bar > .increment-button,
+.scroll-bar > .decrement-button {
+    -fx-background-insets: 0;
+    -fx-padding: 0 5 0 5;
+}
+*/
+
+.flat-list-view {
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+.titled-pane .list-view {
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+#tool-tabs .list-view {
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+.scroll-pane {
+    -fx-border-width: 0;
+    -fx-background-color: -bright-black;
+}
+
+/* TODO: Hack. Should be only for .tree-view in .title-pane etc */
+.tree-view {
+    -fx-background-insets: 0;
+}
+
+.scroll-bar:vertical {
+
+    -fx-border-width: 0;
+}
+
+
+/* Remove extra border */
+.list-view > .virtual-flow > .scroll-bar:vertical{
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0;
+}
+
+/* Remove extra border */
+.list-view > .virtual-flow > .scroll-bar:horizontal {
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0;
+}
+
+/* Remove extra border */
+.tree-view > .virtual-flow > .scroll-bar:vertical{
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0;
+}
+
+/* Remove extra border */
+.tree-view > .virtual-flow > .scroll-bar:horizontal {
+    -fx-background-insets: 0;
+    -fx-padding: -1 -1 -1 0;
+}
+
+/* Selected rows */
+.list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
+.tree-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-cell:filled:selected,
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected,
+.tree-table-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell:filled:selected,
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell .table-cell:selected,
+.tree-table-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell .tree-table-cell:selected {
+    -fx-background: -fx-selection-bar;
+    -fx-text-fill: -defold-white;
+}
+
+/*
+.titled-pane > *.content {
+    -fx-border-width: 0;
+}*/
+
+.titled-pane {
+    -fx-border-color: #4a4b4f;
+    -fx-border-width: 1;
+    -fx-padding: 0.0em;
+}
+
+.titled-pane > .title {
+    -fx-background-color: #33363b;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-width: 0 0 1 0;
+    -fx-border-color: -mid-grey;
+    -fx-padding: 0.5em 2.6em 0.5em 1.0em;
+}
+
+.titled-pane > *.content {
+    -fx-border-width: 0;
+}
+
+.tab-pane {
+    -fx-tab-min-height: 0.0em;
+    -fx-tab-max-height: 100.0em;
+}
+.tab {
+    -fx-padding: 0.0em 0.8em 0.0em 0.0em;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab > .tab-container > .tab-label {
+    -fx-alignment: CENTER;
+    -fx-text-fill: -fx-text-background-color;
+    -fx-padding: 0.5em 0.6em 0.5em 1.0em;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected > .tab-container > .tab-label {
+    -fx-alignment: CENTER;
+    -fx-text-fill: -defold-white;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab > .tab-container > .tab-close-button {
+    -fx-background-color: -fx-mark-color;
+    -fx-shape: "M 0,0 H1 L 4,3 7,0 H8 V1 L 5,4 8,7 V8 H7 L 4,5 1,8 H0 V7 L 3,4 0,1 Z";
+    -fx-scale-shape: false;
+    -fx-effect: dropshadow(two-pass-box , rgba(255, 255, 255, 0.4), 1, 0.0 , 0, 1);
+}
+
+.tab-pane:top {
+    -fx-border-width: 1;
+    -fx-border-color: -mid-grey;
+    -fx-padding: 0.0em;
+    -fx-background-insets: 0;
+}
+
+
+.tab-content-area {
+    -fx-background-color_: red;
+    -fx-border-width: 1 0 0 0;
+    -fx-border-color: -mid-grey;
+    -fx-padding: 0.0em;
+}
+
+.tab-pane {
+    -fx-border-color: blue; /* #4a4b4f; */
+}
+
+.tab-pane > .tab-header-area > .headers-region {
+    -fx-border-width_: 1;
+    -fx-border-color_: red;
+    -fx-padding: 0.0em;
+    -fx-background-insets: 0;
+}
+
+
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-border-width: 0;
+    -_fx-border-color: -dark-grey;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:top {
+    -fx-background-color: -bright-black;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -dark-grey;
+    -fx-border-color: -mid-grey;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:hover {
+    -fx-background-color: -mid-black;
+}
+
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator {
+    -fx-border-width: 0;
+    -fx-border-color: #4a4b4f;
+}
+
+.tab-pane > .tab-header-area > .tab-header-background {
+    /* TODO should not be using text-box-border I tink? */
+    -fx-background-color: #282b30;
+}
+
+.tab-pane:top > .tab-header-area {
+    -fx-padding: 0.0em;
+}
+
+.root__ {
+    -fx-base: #292C31;
+    -fx-background: #292C31;
+    -fx-control-inner-background: #292C31;
+}
+
+.root_ {
+    -fx-base: rgb(50, 50, 50);
+    -fx-background: rgb(50, 50, 50);
+    -fx-control-inner-background:  rgb(50, 50, 50);
+    -fx-hover-base: rgb(200, 0, 0);
+}
+
+.context-menu {
+    -fx-min-width: 10em;
+}
+
+.text-field {
+    -fx-background-color: -dark-black;
+    -fx-border-width: 1;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+}
+
+.text-field:focused {
+    -fx-border-color: -mid-grey;
+    -fx-border-width: 1px;
+}
+
+.text-area {
+    -fx-font-size: 11pt;
+    -fx-font-family: "Inconsolata";
+}
+
+.tab-pane {
+    -fx-open-tab-animation: NONE;
+    -fx-close-tab-animation: NONE;
+}
+
+#toolbar * {
+    -fx-focus-traversable: false;
+}
+
+/* by default AnchorPane has a padding of 0.8em. Don't know if we're abusing
+   JavaFX by removing padding for AnchorPane */
+.titled-pane .content AnchorPane {
+    -fx-padding: 0em ;
+}
+
+/* See modena.css for progress bar styling */
+.small-progress-bar > .bar {
+    -fx-background-color: #3492ac;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 1em; /* 12 */
+}
+
+.small-progress-bar > .track {
+    -fx-background-color: darkgray;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
+/* diff viewer */
+
+.diff-box {
+    -fx-fill: #cccccc55;
+    -fx-stroke: #000000;
+}
+
+/* forms */
+
+.form .section-label {
+    -fx-font-size: 16pt;
+    -fx-underline: true;
+}
+
+.form .help-line {
+    -fx-text-fill: #bebebe;
+}
+
+.form .inline-editor {
+    -fx-border-width: 0;
+}
+
+.form .editing-cell {
+    -fx-padding: 0;
+}

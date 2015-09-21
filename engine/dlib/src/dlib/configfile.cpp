@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <sys/stat.h>
 #include "hash.h"
 #include "log.h"
 #include "http_client.h"
@@ -421,7 +422,7 @@ namespace dmConfigFile
 
     }
 
-    static Result LoadFromFileInternal(const char* url, const dmURI::Parts& uri_parts, int argc, const char** argv, HConfig* config)
+    static Result LoadFromFileInternal(const char* url, int argc, const char** argv, HConfig* config)
     {
 #ifdef __ANDROID__
         // TODO:
@@ -507,6 +508,14 @@ namespace dmConfigFile
 
         *config = 0;
 
+        struct stat stat_buf;
+        if (stat(url, &stat_buf) == 0)
+        {
+            // In order to support windows paths with drive letter we
+            // first test if the url is a valid file
+            return LoadFromFileInternal(url, argc, argv, config);
+        }
+
         dmURI::Parts uri_parts;
         dmURI::Result r = dmURI::Parse(url, &uri_parts);
         if (r != dmURI::RESULT_OK)
@@ -518,7 +527,7 @@ namespace dmConfigFile
         }
         else if (strcmp(uri_parts.m_Scheme, "file") == 0)
         {
-            return LoadFromFileInternal(url, uri_parts, argc, argv, config);
+            return LoadFromFileInternal(uri_parts.m_Path, argc, argv, config);
         }
         else
         {
@@ -579,4 +588,3 @@ namespace dmConfigFile
     }
 
 }
-
