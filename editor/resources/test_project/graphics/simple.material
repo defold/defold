@@ -1,0 +1,26 @@
+name: "Simple"
+tags: "opaque"
+vertex_program: "/graphics/simple.vp"
+fragment_program: "/graphics/simple.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+vertex_constants {
+  name: "world"
+  type: CONSTANT_TYPE_WORLD
+}
+vertex_constants {
+  name: "texture"
+  type: CONSTANT_TYPE_TEXTURE
+}
+fragment_constants {
+  name: "my_const"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+}

@@ -1,0 +1,11 @@
+#! /usr/bin/env python
+import os
+
+def configure(conf):
+    pass
+
+def build(bld):
+    script = bld.new_task_gen(features = 'cc cxx cprogram',
+                              uselib = 'DLIB',
+                              source = 'launcher.cpp',
+                              target = 'launcher')

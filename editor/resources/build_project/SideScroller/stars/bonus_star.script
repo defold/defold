@@ -1,0 +1,18 @@
+local speed = -240
+local score = 5000
+
+function update(self, dt)
+	local p = go.get_position()
+	p.x = p.x + speed * dt
+	if p.x < -32 then
+		go.delete()
+	end
+	go.set_position(p)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		msg.post("main#gui", "add_score", {amount = score})
+		go.delete()
+	end
+end

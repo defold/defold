@@ -1,0 +1,5 @@
+name: "default"
+instances {
+    id: "my_instance"
+    prototype: "/game_object/unknown_components.go"
+}

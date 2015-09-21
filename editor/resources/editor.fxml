@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.shape.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.scene.web.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.input.*?>
+<?import java.lang.*?>
+<?import java.net.*?>
+<?import java.util.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.paint.*?>
+<?import javafx.scene.text.*?>
+
+<VBox prefHeight="774.0" prefWidth="1205.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+   <children>
+      <MenuBar id="menu-bar" />
+      <HBox id="topbar" alignment="CENTER_LEFT" spacing="16.0">
+         <children>
+            <ImageView fitHeight="40.0" pickOnBounds="true" preserveRatio="true">
+               <image>
+                  <Image url="@logo_small.png" />
+               </image>
+               <HBox.margin>
+                  <Insets left="6.0" right="6.0" />
+               </HBox.margin>
+            </ImageView>
+            <BorderPane id="toolbar-status" maxHeight="35.0" prefHeight="35.0" prefWidth="234.0">
+               <bottom>
+                  <ProgressBar maxHeight="7.0" maxWidth="1.7976931348623157E308" minHeight="7.0" prefHeight="7.0" progress="0.25" BorderPane.alignment="CENTER" />
+               </bottom>
+               <center>
+                  <HBox BorderPane.alignment="CENTER">
+                     <children>
+                        <Label contentDisplay="CENTER" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" text="Status: All Good" HBox.hgrow="ALWAYS">
+                           <HBox.margin>
+                              <Insets left="6.0" />
+                           </HBox.margin>
+                        </Label>
+                        <Separator orientation="VERTICAL" />
+                     </children>
+                  </HBox>
+               </center>
+               <right>
+                  <ImageView fitWidth="20.0" pickOnBounds="true" preserveRatio="true" BorderPane.alignment="CENTER">
+                     <image>
+                        <Image url="@icons/slask/ex.png" />
+                     </image>
+                     <BorderPane.margin>
+                        <Insets right="5.0" />
+                     </BorderPane.margin>
+                  </ImageView>
+               </right>
+               <left>
+                  <Pane maxHeight="-Infinity" maxWidth="-Infinity" prefHeight="10.0" prefWidth="10.0" styleClass="status-green" BorderPane.alignment="CENTER">
+                     <BorderPane.margin>
+                        <Insets left="8.0" />
+                     </BorderPane.margin>
+                  </Pane>
+               </left>
+            </BorderPane>
+            <HBox id="toolbar" alignment="CENTER_LEFT" maxHeight="35.0" prefHeight="35.0" spacing="1.0">
+               <children>
+                  <ToggleButton mnemonicParsing="false">
+                     <graphic>
+                        <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
+                           <image>
+                              <Image url="@icons/Icons_T_01_Select.png" />
+                           </image>
+                        </ImageView>
+                     </graphic>
+                  </ToggleButton>
+                  <ToggleButton mnemonicParsing="false">
+                     <graphic>
+                        <ImageView fitHeight="22.5" fitWidth="22.5" pickOnBounds="true" preserveRatio="true">
+                           <image>
+                              <Image url="@icons/Icons_T_02_Move.png" />
+                           </image>
+                        </ImageView>
+                     </graphic>
+                  </ToggleButton>
+               </children></HBox>
+            <Pane prefWidth="16.0" />
+            <BorderPane prefWidth="200.0" />
+            <Pane HBox.hgrow="ALWAYS" />
+         </children>
+         <VBox.margin>
+            <Insets />
+         </VBox.margin>
+      </HBox>
+      <SplitPane dividerPositions="0.228595178719867, 0.7406483790523691" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+        <items>
+          <AnchorPane prefHeight="100.0" prefWidth="160.0">
+               <children>
+                  <TitledPane animated="false" layoutX="24.0" layoutY="60.0" text="Outline" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                     <content>
+                        <AnchorPane prefHeight="200.0" prefWidth="200.0">
+                           <children>
+                              <TreeView id="outline" prefHeight="326.0" prefWidth="269.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                           </children>
+                        </AnchorPane>
+                     </content>
+                  </TitledPane>
+               </children>
+            </AnchorPane>
+          <AnchorPane prefHeight="160.0" prefWidth="100.0">
+               <children>
+                  <SplitPane dividerPositions="0.5746666666666667" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                    <items>
+                      <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                           <children>
+                              <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" minHeight="400.0" minWidth="400.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                           </children>
+                        </AnchorPane>
+                      <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                           <children>
+                              <TabPane id="tool-tabs" layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                <tabs>
+                                    <Tab text="Assets">
+                                      <content>
+                                        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <TreeView id="assets" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                             </children>
+                                          </AnchorPane>
+                                      </content>
+                                    </Tab>
+                                  <Tab text="Console">
+                                    <content>
+                                      <AnchorPane prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <TextArea id="console" layoutX="91.0" layoutY="52.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                             </children>
+                                          </AnchorPane>
+                                    </content>
+                                  </Tab>
+                                  <Tab text="Curve Editor">
+                                    <content>
+                                      <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0" />
+                                    </content>
+                                  </Tab>
+                                    <Tab text="Graph">
+                                      <content>
+                                        <AnchorPane prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <VBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                   <children>
+                                                      <Button id="graph-refresh" mnemonicParsing="false" text="Refresh" />
+                                                      <ScrollPane prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                                                         <content>
+                                                            <ImageView id="graph-image" fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" />
+                                                         </content>
+                                                      </ScrollPane>
+                                                   </children>
+                                                </VBox>
+                                             </children>
+                                          </AnchorPane>
+                                      </content>
+                                    </Tab>
+                                    <Tab text="Changed Files">
+                                      <content>
+                                        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <VBox id="changes-container" layoutX="64.0" layoutY="34.0" prefHeight="200.0" prefWidth="100.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                   <children>
+                                                      <ToolBar prefHeight="40.0" prefWidth="200.0">
+                                                        <items>
+                                                          <Button id="changes-refresh" mnemonicParsing="false" text="Refresh" />
+                                                        </items>
+                                                      </ToolBar>
+                                                      <AnchorPane VBox.vgrow="ALWAYS">
+                                                         <children>
+                                                            <ListView id="changes" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                                         </children>
+                                                      </AnchorPane>
+                                                   </children>
+                                                </VBox>
+                                             </children></AnchorPane>
+                                      </content>
+                                    </Tab>
+                                    <Tab text="CSS Test">
+                                      <content>
+                                        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                                             <children>
+                                                <GridPane vgap="10.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                                  <columnConstraints>
+                                                    <ColumnConstraints hgrow="NEVER" minWidth="10.0" prefWidth="80.0" />
+                                                    <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="80.0" />
+                                                  </columnConstraints>
+                                                  <rowConstraints>
+                                                    <RowConstraints minHeight="10.0" vgrow="NEVER" />
+                                                    <RowConstraints minHeight="10.0" vgrow="NEVER" />
+                                                    <RowConstraints minHeight="10.0" vgrow="NEVER" />
+                                                  </rowConstraints>
+                                                   <children>
+                                                      <TextField GridPane.columnIndex="1" />
+                                                      <Label text="ID" />
+                                                      <Label text="Layer" GridPane.rowIndex="1" />
+                                                      <Label text="XYZ" GridPane.rowIndex="2" />
+                                                      <CheckBox mnemonicParsing="false" text="CheckBox" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+                                                      <ChoiceBox prefWidth="150.0" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                                                   </children>
+                                                   <padding>
+                                                      <Insets bottom="6.0" left="6.0" right="6.0" top="6.0" />
+                                                   </padding>
+                                                </GridPane>
+                                             </children>
+                                          </AnchorPane>
+                                      </content>
+                                    </Tab>
+                                </tabs>
+                              </TabPane>
+                           </children>
+                        </AnchorPane>
+                    </items>
+                  </SplitPane>
+               </children>
+            </AnchorPane>
+          <AnchorPane prefHeight="160.0" prefWidth="100.0">
+               <children>
+                  <SplitPane layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                    <items>
+                      <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                           <children>
+                              <TitledPane animated="false" layoutX="14.0" layoutY="61.0" text="Properties" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                <content>
+                                    <ScrollPane hbarPolicy="NEVER" prefViewportHeight="325.0" prefViewportWidth="269.0">
+                                       <content>
+                                        <AnchorPane id="properties" prefHeight="180.0" prefWidth="200.0" />
+                                       </content>
+                                    </ScrollPane>
+                                </content>
+                              </TitledPane>
+                           </children>
+                        </AnchorPane>
+                    </items>
+                  </SplitPane>
+               </children>
+            </AnchorPane>
+        </items>
+      </SplitPane>
+      <HBox prefWidth="200.0" VBox.vgrow="SOMETIMES">
+         <children>
+            <Region prefWidth="200.0" HBox.hgrow="ALWAYS" />
+            <ProgressBar id="progress-bar" prefWidth="200.0" progress="0.0" />
+         </children>
+      </HBox>
+   </children>
+</VBox>

@@ -1,0 +1,2 @@
+{:control-points [{:x 0, :y 10} {:x 10, :y 10} {:x 20, :y 10}],
+ :base-texture "/platformer/ground.jpg"}

@@ -1,0 +1,4 @@
+name: "Test"
+tags: "test"
+vertex_program: "/materials/test.vp"
+fragment_program: "/materials/test.fp"

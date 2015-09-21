@@ -1,0 +1,45 @@
+collision_shape: "/convex_shape/box.convexshape"
+type: COLLISION_OBJECT_TYPE_KINEMATIC
+mass: 0.0
+friction: 0.0
+restitution: 1.0
+group: "2"
+mask: "1"
+mask: "4"
+mask: "16"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_SPHERE
+    position {
+        x: 1
+        y: 0
+        z: 0
+    }
+    rotation {
+        x: 0
+        y: 0
+        z: 0
+        w: 1
+    }
+    index: 2
+    count: 1
+  }
+  shapes {
+    shape_type: TYPE_BOX
+    position {
+        x: 0
+        y: 1
+        z: 0
+    }
+    rotation {
+        x: 0
+        y: 0
+        z: 0
+        w: 1
+    }
+    index: 0
+    count: 3
+  }
+  data: 10.0
+  data: 20.0
+}

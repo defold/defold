@@ -1,0 +1,133 @@
+images {
+  image: "/switcher/images/blue_candy.png"
+}
+images {
+  image: "/switcher/images/blue_chameleon.png"
+}
+images {
+  image: "/switcher/images/blue_polka_horisontal.png"
+}
+images {
+  image: "/switcher/images/blue_polka_vertical.png"
+}
+images {
+  image: "/switcher/images/blue_wrapper.png"
+}
+images {
+  image: "/switcher/images/bomb.png"
+}
+images {
+  image: "/switcher/images/coconut_wheel.png"
+}
+images {
+  image: "/switcher/images/green_candy.png"
+}
+images {
+  image: "/switcher/images/green_chameleon.png"
+}
+images {
+  image: "/switcher/images/green_polka_horisontal.png"
+}
+images {
+  image: "/switcher/images/green_polka_vertical.png"
+}
+images {
+  image: "/switcher/images/green_wrapper.png"
+}
+images {
+  image: "/switcher/images/jelly1.png"
+}
+images {
+  image: "/switcher/images/jelly2.png"
+}
+images {
+  image: "/switcher/images/lock.png"
+}
+images {
+  image: "/switcher/images/orange_candy.png"
+}
+images {
+  image: "/switcher/images/orange_chameleon.png"
+}
+images {
+  image: "/switcher/images/orange_polka_horisontal.png"
+}
+images {
+  image: "/switcher/images/orange_polka_vertical.png"
+}
+images {
+  image: "/switcher/images/orange_wrapper.png"
+}
+images {
+  image: "/switcher/images/purple_candy.png"
+}
+images {
+  image: "/switcher/images/purple_chameleon.png"
+}
+images {
+  image: "/switcher/images/purple_polka_horisontal.png"
+}
+images {
+  image: "/switcher/images/purple_polka_vertical.png"
+}
+images {
+  image: "/switcher/images/purple_wrapper.png"
+}
+images {
+  image: "/switcher/images/red_candy.png"
+}
+images {
+  image: "/switcher/images/red_chameleon.png"
+}
+images {
+  image: "/switcher/images/red_polka_horisontal.png"
+}
+images {
+  image: "/switcher/images/red_polka_vertical.png"
+}
+images {
+  image: "/switcher/images/red_wrapper.png"
+}
+images {
+  image: "/switcher/images/unknown.png"
+}
+images {
+  image: "/switcher/images/yellow_candy.png"
+}
+images {
+  image: "/switcher/images/yellow_chameleon.png"
+}
+images {
+  image: "/switcher/images/yellow_polka_horisontal.png"
+}
+images {
+  image: "/switcher/images/yellow_polka_vertical.png"
+}
+images {
+  image: "/switcher/images/yellow_wrapper.png"
+}
+images {
+  image: "/switcher/images/cherry.png"
+}
+images {
+  image: "/switcher/images/hazelnut.png"
+}
+images {
+  image: "/switcher/images/playmodeicon_drop.png"
+}
+images {
+  image: "/switcher/images/marmalade_blocker.png"
+}
+animations {
+  id: "tile"
+  images {
+    image: "/switcher/images/nohole.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 4
+extrude_borders: 2
+inner_padding: 0
