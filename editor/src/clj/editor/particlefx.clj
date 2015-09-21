@@ -18,6 +18,7 @@
             [internal.render.pass :as pass]
             [editor.particle-lib :as plib]
             [editor.properties :as props]
+            [editor.validation :as validation]
             [editor.camera :as camera]
             [editor.handler :as handler]
             [editor.core :as core])
@@ -429,6 +430,7 @@
   (property tile-source (g/protocol resource/Resource)
     (dynamic label (g/always "Image"))
     (value (g/fnk [tile-source-resource] tile-source-resource))
+    (validate (validation/validate-resource tile-source-resource "Missing image" [texture-set-data gpu-texture anim-data]))
     (set (fn [basis self _ new-value]
            (let [connections [[:resource :tile-source-resource]
                               [:texture-set-data :texture-set-data]
@@ -440,17 +442,23 @@
                (for [label (map second connections)]
                  (g/disconnect-sources basis self label)))))))
   (property animation g/Str
+            (validate (validation/validate-animation animation anim-data))
             (dynamic edit-type
                      (g/fnk [anim-data] {:type :choicebox
-                                         :options (or (and anim-data (zipmap (keys anim-data) (keys anim-data))) {})})))
+                                         :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
   (property material (g/protocol resource/Resource)
-    (value (g/fnk [material-resource] material-resource))
-    (set (fn [basis self _ new-value]
-           (if new-value
-             (let [project (project/get-project self)]
-               (project/connect-resource-node project new-value self [[:resource :material-resource]]))
-             (g/disconnect-sources basis self :material-resource)))))
-  (property blend-mode g/Keyword (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
+            (value (g/fnk [material-resource] material-resource))
+            (validate (g/fnk [material-resource]
+                             (when (nil? material-resource)
+                               (g/error-warning "Missing material"))))
+            (set (fn [basis self _ new-value]
+                   (if new-value
+                     (let [project (project/get-project self)]
+                       (project/connect-resource-node project new-value self [[:resource :material-resource]]))
+                     (g/disconnect-sources basis self :material-resource)))))
+  (property blend-mode g/Keyword
+    (validate (validation/validate-blend-mode blend-mode Particle$BlendMode))
+    (dynamic edit-type (g/always (->choicebox Particle$BlendMode))))
   (property particle-orientation g/Keyword (dynamic edit-type (g/always (->choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)
   (property max-particle-count g/Int)
