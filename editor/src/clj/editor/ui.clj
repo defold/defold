@@ -121,10 +121,15 @@
   (.getScene node))
 
 (defn add-style! [^Node node ^String class]
-  (.add (.getStyleClass node) class))
+  (let [styles (.getStyleClass node)]
+    (when-not (.contains styles class)
+      (.add styles class))))
+
+(defn remove-styles! [^Node node ^java.util.Collection classes]
+  (.removeAll (.getStyleClass node) classes))
 
 (defn remove-style! [^Node node ^String class]
-  (.remove (.getStyleClass node) class))
+  (remove-styles! node (java.util.Collections/singleton class)))
 
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
@@ -165,6 +170,11 @@
 (defn on-double! [^Node node fn]
   (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                               (fn e)))))
+
+(defn on-mouse! [^Node node fn]
+  (.setOnMouseEntered node (when fn (event-handler e (fn :enter e))))
+  (.setOnMouseExited node (when fn (event-handler e (fn :exit e))))
+  (.setOnMouseMoved node (when fn (event-handler e (fn :move e)))))
 
 (defn on-key! [^Node node key-fn]
   (.setOnKeyPressed node (event-handler e (key-fn (.getCode ^KeyEvent e)))))

@@ -14,6 +14,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
+            [editor.validation :as validation]
             [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -29,6 +30,7 @@
            [org.apache.commons.io FilenameUtils]))
 
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
+(def unknown-icon "icons/32/Icons_29-AT-Unkown.png") ; spelling...
 
 (defn- gen-ref-ddf [id ^Vector3d position ^Quat4d rotation properties user-properties path]
   (let [props (map (fn [[k v]] {:id k :type (get-in v [:edit-type :go-prop-type])}) user-properties)
@@ -68,6 +70,16 @@
         target)
       target)))
 
+(defn- source-properties-subst [err]
+  {:properties {}
+   :display-order []})
+
+(defn- source-outline-subst [err]
+  ;; TODO: embed error
+  {:node-id 0
+   :icon ""
+   :label ""})
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -76,15 +88,15 @@
 
   (property embedded g/Bool (dynamic visible (g/always false)))
   (property path (g/protocol resource/Resource)
-    (dynamic visible (g/fnk [embedded] (false? embedded)))
+    (dynamic visible (g/fnk [embedded] (not embedded)))
     (dynamic enabled (g/always false))
     (value (g/fnk [source-resource] source-resource))
+    (validate (validation/validate-resource source-resource "Missing component" [build-targets]))
     (set (fn [basis self old-value new-value]
            (let [connections [[:_node-id :source-id]
                               [:resource :source-resource]
                               [:node-outline :source-outline]
                               [:user-properties :user-properties]
-                              [:save-data :save-data]
                               [:scene :scene]
                               [:build-targets :build-targets]]]
              (if new-value
@@ -102,15 +114,19 @@
   (input source-id g/NodeID)
   (input source-resource (g/protocol resource/Resource))
   (input source-properties g/Any)
-  (input user-properties g/Any)
+  (input user-properties g/Any :substitute source-properties-subst)
   (input project-id g/NodeID)
   (input save-data g/Any)
   (input scene g/Any)
   (input build-targets g/Any)
 
+  (input source-outline outline/OutlineData :substitute source-outline-subst)
+  (output source-outline outline/OutlineData (g/fnk [source-outline] source-outline))
+
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id embedded path id source-outline]
-      (assoc source-outline :node-id _node-id :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path path))))))
+      (let [source-outline (or source-outline {:icon unknown-icon})]
+        (assoc source-outline :node-id _node-id :label (if embedded id (format "%s (%s)" id (resource/resource->proj-path path)))))))
   (output ddf-message g/Any :cached (g/fnk [id embedded path position rotation properties user-properties save-data]
                                            (if embedded
                                              (gen-embed-ddf id position rotation save-data)
