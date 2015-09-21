@@ -4,6 +4,7 @@
             [clojure.tools.macro :as ctm]
             [dynamo.util :as util]
             [internal.graph :as ig]
+            [internal.graph.error-values :as ie]
             [internal.graph.types :as gt]
             [plumbing.core :refer [fnk]]
             [plumbing.fnk.pfnk :as pf]
@@ -75,29 +76,11 @@
 (defn getter-for [property] (get property ::value))
 (defn setter-for [property] (get property ::setter))
 
-(defn arglist
-  [f]
-  (when (and f (gt/pfnk? f))
-    (disj (util/key-set (pf/input-schema f)) s/Keyword)))
-
-(defn construct-validation-value
-  [arglist value-fn validation-fn]
-  (s/schematize-fn
-   (fn [kwargs]
-     (if-let [err (validation-fn kwargs)]
-       err
-       (value-fn kwargs)))
-   (s/=> s/Any (zipmap arglist (repeat s/Any)))))
-
-(defn resolve-value-getter
-  [description default-getter]
-  (let [value-fn      (::value description default-getter)
-        validation-fn (::validate description)
-        arglist       (set/union #{:this} (arglist value-fn) (arglist validation-fn))]
-    (assoc description ::value
-              (if validation-fn
-                (construct-validation-value arglist value-fn validation-fn)
-                value-fn))))
+(defn property-dependencies
+  [property]
+  (concat (util/fnk-arguments (getter-for property))
+          (util/fnk-arguments (validation property))
+          (mapcat util/fnk-arguments (vals (gt/dynamic-attributes property)))))
 
 (defn property-type-forms
   [name-kw value-type body-forms]
@@ -116,9 +99,9 @@
        (assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))
                (str "Property " ~name-str " is declared with type " '~value-type " but that doesn't seem like a real value type"))
        (map->PropertyTypeImpl
-        (resolve-value-getter description#
-                              (fnk [~'this ~(symbol name-str)]
-                                   (get ~'this ~name-kw)))))))
+        (cond-> description#
+          (not (::value description#))
+          (assoc ::value (fnk [~'this ~(symbol name-str)] (get ~'this ~name-kw))))))))
 
 (defn def-property-type-descriptor
   [name-sym & body-forms]

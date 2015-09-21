@@ -107,6 +107,9 @@
       (dissoc ok)
       (assoc nk (get m ok))))
 
+(defn- property-value      [property kwargs] ((ip/getter-for property) kwargs))
+(defn- property-validation [property kwargs] ((ip/validation property) kwargs))
+
 (defn- gather-properties
   "Production function that delivers the definition and value for all
   properties of this node. This is used to create the :_properties
@@ -118,11 +121,21 @@
     {:properties (persistent!
                   (reduce-kv
                    (fn [m property property-type]
-                     (assoc! m property
-                             (-> {:type    property-type
-                                  :node-id _node-id
-                                  :value (get kwargs property)}
-                                 (gather-dynamics kwargs))))
+                     (let [current-value (property-value property-type kwargs)
+                           pval          {:type    property-type
+                                          :node-id _node-id}
+                           dynamics      (util/map-vals
+                                          #(% kwargs)
+                                          (gt/dynamic-attributes property-type))
+                           pval          (merge pval dynamics)
+                           kwargs        (merge kwargs dynamics {:value current-value})
+                           ;; TODO - collect all values first, then
+                           ;; run all validations with the same kwargs.
+                           problems      (when (ip/validation property-type)
+                                           (property-validation property-type kwargs))
+                           pval          (assoc pval :value
+                                                (if problems problems current-value))]
+                       (assoc! m property pval)))
                    (transient {})
                    (gt/property-types self)))
      :display-order (-> self gt/node-type gt/property-display-order)}))
@@ -173,29 +186,10 @@
 
 (declare attach-output)
 
-(defn- attribute-fn-arguments
-  [f]
-  (keys (dissoc (pf/input-schema f) s/Keyword)))
-
-(defn- property-evaluation-arguments
-  [[property-name property-definition]]
-  (attribute-fn-arguments (:internal.property/value property-definition)))
-
-(defn- property-dynamics-arguments
-  [[property-name property-definition]]
-  (mapcat attribute-fn-arguments (vals (gt/dynamic-attributes property-definition))))
-
-(defn- properties-output-arguments
-  [properties]
-  (into
-   (into (set (keys properties))
-         (mapcat property-evaluation-arguments properties))
-   (mapcat property-dynamics-arguments properties)))
-
 (defn attach-properties-output
   [node-type-description]
-  (let [properties      (filter (comp not :internal? val) (:declared-properties node-type-description))
-        argument-names  (properties-output-arguments properties)
+  (let [properties      (util/filterm (comp not :internal? val) (:declared-properties node-type-description))
+        argument-names  (mapcat (comp ip/property-dependencies val) properties)
         argument-schema (zipmap argument-names (repeat s/Any)) ]
     (attach-output
      node-type-description
@@ -206,13 +200,45 @@
   [m]
   (set (keys m)))
 
+(defn valset
+  [m]
+  (set (vals m)))
+
+(defn inputs-for
+  [pfn]
+  (if (gt/pfnk? pfn)
+    (disj (util/fnk-arguments pfn) :this :g)
+    #{}))
+
+(defn all-inputs-and-properties [node-type-description]
+  (keyset
+   (merge
+    (:inputs node-type-description)
+    (:declared-properties node-type-description))))
+
+(defn warn-missing-arguments
+  [node-type-description property-name dynamic-name missing-args]
+  (str "Node " (:name node-type-description) " must have inputs or properties for the label(s) "
+       missing-args ", because they are needed by its property '" (name property-name) "'."))
+
+(defn assert-no-missing-args
+  [node-type-description property dynamic missing-args]
+  (assert (empty? missing-args)
+          (warn-missing-arguments node-type-description (first property) (first dynamic) missing-args)))
+
+(defn missing-inputs-for-dynamic
+  [node-type-description dynamic]
+  (let [fnk           (second dynamic)
+        required-args (inputs-for fnk)]
+    (set/difference required-args
+                    (all-inputs-and-properties node-type-description))))
+
 (defn verify-inputs-for-dynamics
   [node-type-description]
-  (doseq [property (:declared-properties node-type-description)]
-    (let [args         (set (property-dynamics-arguments property))
-          missing-args (reduce set/difference args [#{:this} (keyset (:inputs node-type-description)) (keyset (:declared-properties node-type-description))])]
-      (assert (empty? missing-args) (str "Node " (:name node-type-description) " must have inputs or properties for the label(s) "
-                                         missing-args ", because they are needed by its property '" (name (first property)) "'."))))
+  (doseq [property (:declared-properties node-type-description)
+          dynamic  (gt/dynamic-attributes (second property))
+          :let     [missing-args (missing-inputs-for-dynamic node-type-description dynamic)]]
+    (assert-no-missing-args node-type-description property dynamic missing-args))
   node-type-description)
 
 (defn invert-map
@@ -221,12 +247,6 @@
          (for [[k vs] m
                v vs]
            {v #{k}})))
-
-(defn inputs-for
-  [production-fn]
-  (if (gt/pfnk? production-fn)
-    (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
-    #{}))
 
 (defn dependency-seq
   ([desc inputs]
@@ -628,7 +648,7 @@
     forms))
 
 (defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym record-name node-type transform production-function forms]
-  (let [arg-names       (pf/input-schema production-function)
+  (let [arg-names       (util/fnk-schema production-function)
         argument-schema (collect-argument-schema transform arg-names record-name node-type)
         argument-forms  (zipmap (keys argument-schema)
                                 (map (partial node-input-forms self-name ctx-name transform node-type) argument-schema))]

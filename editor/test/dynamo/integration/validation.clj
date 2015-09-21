@@ -57,9 +57,7 @@
                              (when-not (= data own-data next-data)
                                (g/error-severe :not-equal)))))
   (property next-data g/Str
-            ;; TODO - these create mutual recursion between their
-            ;; validation functions. They can't each depend on the other.
-            #_(validate (g/fnk [data own-data next-data]
+            (validate (g/fnk [data own-data next-data]
                               (when-not (= data own-data next-data)
                                 (g/error-severe :not-equal))))))
 
