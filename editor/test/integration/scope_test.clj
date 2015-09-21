@@ -121,9 +121,6 @@
   }
 ")
 
-
-;; (slurp "resources/test_project/logic/two_embedded.go")
-
 (def inline-game-object
 "
   embedded_components {

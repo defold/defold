@@ -166,7 +166,7 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [resource image default-animation material blend-mode]
+(g/defnk produce-save-data [_node-id resource image default-animation material blend-mode]
   {:resource resource
    :content (protobuf/map->str Sprite$SpriteDesc
               {:tile-set (workspace/proj-path image)
