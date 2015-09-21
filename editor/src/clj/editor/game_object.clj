@@ -274,14 +274,11 @@
                     (g/connect comp-node   :outline      self       :outline)
                     (g/connect comp-node   :_node-id          self       :nodes)))))
 
-(defn add-embedded-component-handler
-  ([self]
-   (let [workspace (:workspace (g/node-value self :resource))
-         component-type (first (workspace/get-resource-types workspace :component))]
-     (add-embedded-component-handler self component-type)))
-  ([self component-type]
-   (let [project (project/get-project self)
-         template (workspace/template component-type)]
+(defn add-embedded-component-handler [user-data]
+  (let [self (:_node-id user-data)
+        project (project/get-project self)
+        component-type (:resource-type user-data)
+        template (workspace/template component-type)]
     (let [id (gen-component-id self (:ext component-type))
           op-seq (gensym)
           [comp-node source-node] (g/tx-nodes-added
@@ -295,25 +292,31 @@
         (g/operation-sequence op-seq)
         (g/operation-label "Add Component")
         ((:load-fn component-type) project source-node (io/reader (g/node-value source-node :resource)))
-        (project/select project [comp-node])))))))
+        (project/select project [comp-node]))))))
+
+(defn add-embedded-component-label [user-data]
+  (if-not user-data
+    "Add Component"
+    (let [rt (:resource-type user-data)]
+      (or (:label rt) (:ext rt)))))
+
+(defn add-embedded-component-options [self workspace user-data]
+  (when (not user-data)
+    (let [resource-types (workspace/get-resource-types workspace :component)]
+      (mapv (fn [res-type] {:label (or (:label res-type) (:ext res-type))
+                            :icon (:icon res-type)
+                            :command :add
+                            :user-data {:_node-id self :resource-type res-type}})
+            resource-types))))
 
 (handler/defhandler :add :global
-  (label [user-data] (if-not user-data
-                       "Add Component"
-                       (let [rt (:resource-type user-data)]
-                         (or (:label rt) (:ext rt)))))
+  (label [user-data] (add-embedded-component-label user-data))
   (active? [selection] (and (= 1 (count selection)) (= GameObjectNode (g/node-type (g/node-by-id (first selection))))))
-  (run [user-data] (add-embedded-component-handler (:_node-id user-data) (:resource-type user-data)))
+  (run [user-data] (add-embedded-component-handler user-data))
   (options [selection user-data]
-           (when (not user-data)
-             (let [self (first selection)
-                   project (project/get-project self)
-                   workspace (:workspace (g/node-value self :resource))
-                   resource-types (workspace/get-resource-types workspace :component)]
-               (mapv (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                                     :icon (:icon res-type)
-                                     :command :add
-                                     :user-data {:_node-id self :resource-type res-type}}) resource-types)))))
+           (let [self (first selection)
+                 workspace (:workspace (g/node-value self :resource))]
+             (add-embedded-component-options self workspace user-data))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
