@@ -1,0 +1,2 @@
+tile_set: "/builtins/graphics/particle_blob.tilesource"
+material: "/builtins/materials/tile_map.material"

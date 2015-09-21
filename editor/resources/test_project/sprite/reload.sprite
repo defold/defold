@@ -1,0 +1,3 @@
+tile_set: "/tileset/test.tileset"
+default_animation: "default"
+material: "/sprite/sprite.material"

@@ -1,0 +1,6 @@
+id: "test"
+type: 0
+intensity: 0.0
+color { x: 0.0 y: 0.0 z: 0.0 }
+range: 0.0
+decay: 0.0

@@ -1,0 +1,5 @@
+name: "sub_sub_props"
+collection_instances {
+    id: "sub_props"
+    collection: "/collection/sub_props.collection"
+}

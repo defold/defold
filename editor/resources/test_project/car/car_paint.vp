@@ -1,0 +1,28 @@
+uniform mediump mat4 view_proj;
+uniform mediump mat4 viewMatrix;
+uniform mediump mat4 world;
+uniform mediump mat4 normal_transform;
+uniform mediump mat4 world_view;
+uniform mediump vec4 cameraPosition;
+
+attribute mediump vec3 position;
+attribute mediump vec3 normal;
+attribute mediump vec2 texcoord0;
+
+varying mediump vec3 vWorldPosition;
+varying mediump vec3 vViewPosition;
+varying mediump vec3 vNormal;
+varying mediump vec3 vReflect;
+
+void main()
+{
+	vec4 worldP = world * vec4(position, 1.0);
+    vWorldPosition = worldP.xyz;
+    gl_Position = view_proj * worldP;
+    vNormal = (normal_transform * vec4(normal, 0.0)).xyz;
+    vViewPosition = -(viewMatrix * worldP).xyz;
+	vec3 worldNormal = mat3( world[ 0 ].xyz, world[ 1 ].xyz, world[ 2 ].xyz ) * normal;
+	worldNormal = normalize( worldNormal );
+	vec3 cameraToVertex = normalize( worldP.xyz - cameraPosition.xyz );
+	vReflect = reflect( cameraToVertex, worldNormal );
+}

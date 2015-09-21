@@ -1,0 +1,4 @@
+tile_set: "/switcher/small.atlas"
+default_animation: "block_frosting"
+material: "/sprite/sprite.material"
+blend_mode: BLEND_MODE_ALPHA

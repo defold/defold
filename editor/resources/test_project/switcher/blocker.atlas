@@ -1,0 +1,51 @@
+images {
+  image: "/switcher/images/block_frosting.png"
+}
+images {
+  image: "/switcher/images/block_multi_frosting1.png"
+}
+images {
+  image: "/switcher/images/block_multi_frosting2.png"
+}
+images {
+  image: "/switcher/images/block_multi_frosting3.png"
+}
+images {
+  image: "/switcher/images/block_multi_frosting4.png"
+}
+images {
+  image: "/switcher/images/block_multi_frosting5.png"
+}
+images {
+  image: "/switcher/images/chocolate.png"
+}
+images {
+  image: "/switcher/images/unknown.png"
+}
+animations {
+  id: "chocolate_spawn"
+  images {
+    image: "/switcher/images/chocolate_spawn_1.png"
+  }
+  images {
+    image: "/switcher/images/chocolate_spawn_2.png"
+  }
+  images {
+    image: "/switcher/images/chocolate_spawn_3.png"
+  }
+  images {
+    image: "/switcher/images/chocolate_spawn_4.png"
+  }
+  images {
+    image: "/switcher/images/chocolate_spawn_5.png"
+  }
+  images {
+    image: "/switcher/images/chocolate.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 18
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 0
+extrude_borders: 0
