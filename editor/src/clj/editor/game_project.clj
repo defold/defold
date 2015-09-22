@@ -246,7 +246,6 @@
   (if value "1" "0"))
 
 (defmethod render-raw-setting-value :resource [{:keys [preserve-extension]} value]
-  (println "render-raw-setting-value" value)
   (if (and (not (s/blank? value))
            (not preserve-extension))
     (str value "c")
