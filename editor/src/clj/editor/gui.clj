@@ -225,6 +225,7 @@
 
   (property index g/Int (dynamic visible (g/always false)))
   (property type g/Keyword (dynamic visible (g/always false)))
+  (property animation g/Str (dynamic visible (g/always false)))
 
   (property id g/Str)
   (property size types/Vec3 (dynamic visible box-pie-text?))
@@ -268,22 +269,24 @@
   (property texture g/Str
             (dynamic edit-type (g/fnk [textures] (properties/->choicebox (cons "" (keys textures)))))
             (dynamic visible box-pie?)
-            (value (g/fnk [texture-input] texture-input))
-            (set (fn [basis this new-value]
-                   (prn "set" new-value)
+            (value (g/fnk [texture-input animation]
+                     (str texture-input (if (and animation (not (empty? animation))) (str "/" animation) ""))))
+            (set (fn [basis this ^String new-value]
                    (let [self (g/node-id this)
-                         textures (g/node-value basis self :textures)]
-                     (prn "set-tex" textures)
+                         textures (g/node-value basis self :textures)
+                         animation (let [sep (.indexOf new-value "/")]
+                                     (if (>= sep 0) (subs new-value (inc sep)) ""))]
                      (concat
-                       (for [label [:texture-input :gpu-texture :anim-data]]
-                         (disconnect-all self label))
-                       (if (contains? textures new-value)
-                         (let [tex-node (textures new-value)]
-                           (concat
-                             (g/connect tex-node :name self :texture-input)
-                             (g/connect tex-node :gpu-texture self :gpu-texture)
-                             (g/connect tex-node :anim-data self :anim-data)))
-                         []))))))
+                       (g/set-property self :animation animation)
+                         (for [label [:texture-input :gpu-texture :anim-data]]
+                           (disconnect-all self label))
+                         (if (contains? textures new-value)
+                           (let [tex-node (textures new-value)]
+                             (concat
+                               (g/connect tex-node :name self :texture-input)
+                               (g/connect tex-node :gpu-texture self :gpu-texture)
+                               (g/connect tex-node :anim-data self :anim-data)))
+                           []))))))
   (property slice9 types/Vec4 (dynamic visible box?))
 
   ; Pie
@@ -354,10 +357,10 @@
   (input image BufferedImage)
   (output gpu-texture g/Any :cached (g/fnk [_node-id image] (texture/image-texture _node-id image)))
   (output anim-data g/Any (g/fnk [image]
-                            {:width (.getWidth image)
-                             :height (.getHeight image)
-                             :frames [[[0 1] [0 0] [1 0] [1 1]]]
-                             :uv-transforms [(TextureSetGenerator$UVTransform.)]})))
+                            {nil {:width (.getWidth image)
+                                  :height (.getHeight image)
+                                  :frames [[[0 1] [0 0] [1 0] [1 1]]]
+                                  :uv-transforms [(TextureSetGenerator$UVTransform.)]}})))
 
 (g/defnode TextureNode
   (property name g/Str)
@@ -366,12 +369,7 @@
   (input anim-data g/Any)
   (input image-texture g/NodeID :cascade-delete)
   (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
-                                    ; Messy since we have to deal with plain images and atlas/tilesources
-                                    (if-let [src-node (g/node-feeding-into _node-id :anim-data)]
-                                      (if (g/node-instance? ImageTextureNode src-node)
-                                        {name anim-data}
-                                        (into {} (map (fn [[id data]] [(format "%s/%s" name id) data]) anim-data)))
-                                      {})))
+                                    (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
   (output outline g/Any (g/fnk [_node-id name]
                           {:node-id _node-id
                            :label name
@@ -574,8 +572,7 @@
                                             {:width w :height h})))
   (output layers [g/Str] (g/fnk [layers] layers))
   (output textures {g/Str g/NodeID} (g/fnk [texture-data]
-                                      (prn "td" texture-data)
-                                      (prn "texs" (into {} (mapcat (fn [[_node-id anims]] (mapv #(vector % _node-id) anims)) texture-data))) (into {} (mapcat (fn [[_node-id anims]] (map #(vector % _node-id) anims)) texture-data))))
+                                      (into {} (mapcat (fn [[_node-id anims]] (map #(vector % _node-id) anims)) texture-data))))
   (output fonts [g/Str] (g/fnk [fonts] fonts)))
 
 (defn- connect-build-targets [self project path]
@@ -675,24 +672,24 @@
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :textures-outline self :textures-outline)
                     (for [texture-desc (:textures scene)]
-                      (let [resource (workspace/resolve-resource resource (:texture texture-desc))]
+                      (let [resource (workspace/resolve-resource resource (:texture texture-desc))
+                            type (resource/resource-type resource)
+                            outputs (g/declared-outputs (:node-type type))]
                         ; Messy because we need to deal with legacy standalone image files
-                        (let [type (resource/resource-type resource)
-                              outputs (g/declared-outputs (:node-type type))]
-                          (if (outputs :anim-data)
-                            (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc)]]
-                              (attach-texture self textures-node texture)
-                              (project/connect-resource-node project resource texture [[:resource :texture]
-                                                                                       [:gpu-texture :gpu-texture]
-                                                                                       [:anim-data :anim-data]]))
-                            (g/make-nodes graph-id [img-texture [ImageTextureNode]
-                                                   texture [TextureNode :name (:name texture-desc)]]
-                              (g/connect img-texture :_node-id texture :image-texture)
-                              (g/connect img-texture :gpu-texture texture :gpu-texture)
-                              (g/connect img-texture :anim-data texture :anim-data)
-                              (project/connect-resource-node project resource img-texture [[:content :image]])
-                              (project/connect-resource-node project resource texture [[:resource :texture]])
-                              (attach-texture self textures-node texture)))))))
+                        (if (outputs :anim-data)
+                          (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc)]]
+                            (attach-texture self textures-node texture)
+                            (project/connect-resource-node project resource texture [[:resource :texture]
+                                                                                     [:gpu-texture :gpu-texture]
+                                                                                     [:anim-data :anim-data]]))
+                          (g/make-nodes graph-id [img-texture [ImageTextureNode]
+                                                  texture [TextureNode :name (:name texture-desc)]]
+                            (g/connect img-texture :_node-id texture :image-texture)
+                            (g/connect img-texture :gpu-texture texture :gpu-texture)
+                            (g/connect img-texture :anim-data texture :anim-data)
+                            (project/connect-resource-node project resource img-texture [[:content :image]])
+                            (project/connect-resource-node project resource texture [[:resource :texture]])
+                            (attach-texture self textures-node texture))))))
       (g/make-nodes graph-id [layers-node LayersNode]
                     (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
@@ -702,14 +699,14 @@
                                                      :name (:name layer-desc)]]
                                     (attach-layer self layers-node layer))))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
-                    (g/connect layouts-node :_node-id self :layouts-node)
-                    (g/connect layouts-node :_node-id self :nodes)
-                    (g/connect layouts-node :layouts-outline self :layouts-outline)
-                    (for [layout-desc (:layouts scene)]
-                      (g/make-nodes graph-id [layout [LayoutNode
-                                                      :name (:name layout-desc)
-                                                      :nodes (:nodes layout-desc)]]
-                        (attach-layout self layouts-node layout))))
+                   (g/connect layouts-node :_node-id self :layouts-node)
+                   (g/connect layouts-node :_node-id self :nodes)
+                   (g/connect layouts-node :layouts-outline self :layouts-outline)
+                   (for [layout-desc (:layouts scene)]
+                     (g/make-nodes graph-id [layout [LayoutNode
+                                                     :name (:name layout-desc)
+                                                     :nodes (:nodes layout-desc)]]
+                       (attach-layout self layouts-node layout))))
       (g/make-nodes graph-id [nodes-node NodesNode]
         (g/connect nodes-node :_node-id self :nodes-node)
         (g/connect nodes-node :_node-id self :nodes)
@@ -755,10 +752,10 @@
                                                            :clipping-inverted (:clipping-inverted node-desc)
                                                            :alpha (:alpha node-desc)
                                                            :template (:template node-desc)]]
-                           (let [parent (if (empty? (:parent node-desc)) nodes-node (id->node (:parent node-desc)))]
-                             (attach-gui-node self parent gui-node (:type node-desc)))
-                           ; Needs to be done after attaching so textures etc can be fetched
-                           (g/set-property gui-node :texture (:texture node-desc)))
+                            (let [parent (if (empty? (:parent node-desc)) nodes-node (id->node (:parent node-desc)))]
+                              (attach-gui-node self parent gui-node (:type node-desc)))
+                            ; Needs to be done after attaching so textures etc can be fetched
+                            (g/set-property gui-node :texture (:texture node-desc)))
                  node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
              (recur (rest node-descs) (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc index)))
             all-tx-data))))))
