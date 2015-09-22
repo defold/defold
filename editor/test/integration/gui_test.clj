@@ -48,15 +48,9 @@
          project   (test-util/setup-project! workspace)
          node-id   (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :outline)
-         png-node (get-in outline [:children 0 :children 1 :node-id])
-         png-tex (get-in outline [:children 1 :children 0 :node-id])]
-     (is (some? png-tex))
-     (is (= "png_texture" (prop png-node :texture)))
-     (prop! png-tex :name "new-name")
-     (is (= "new-name" (prop png-node :texture)))
-     (let [atlas-tex (get-in outline [:children 1 :children 0 :node-id])
-           textures (g/node-value node-id :textures)]
-       (is (some? png-tex))
-       (prn "tex" textures)))))
-
-(gui-atlas)
+         atlas-gui-node (get-in outline [:children 0 :children 2 :node-id])
+         atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
+     (is (some? atlas-tex))
+     (is (= "atlas_texture/anim" (prop atlas-gui-node :texture)))
+     (prop! atlas-tex :name "new-name")
+     (is (= "new-name/anim" (prop atlas-gui-node :texture))))))
