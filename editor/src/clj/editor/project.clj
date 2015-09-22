@@ -15,11 +15,12 @@ ordinary paths."
            [java.lang Process ProcessBuilder]
            [com.defold.editor Platform]))
 
+(def ^:dynamic *load-cache* nil)
+
 (g/defnode ResourceNode
   (inherits core/Scope)
 
   (extern resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
-  (extern project-id g/NodeID (dynamic visible (g/always false)))
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
@@ -34,47 +35,64 @@ ordinary paths."
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- make-nodes [project resources]
+(defn- load-node [project node-id resource]
+  (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
+    (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
+      (try
+        (when *load-cache*
+          (swap! *load-cache* conj node-id))
+        (load-fn project node-id resource)
+        (catch java.io.IOException e
+          (g/mark-defective node-id (g/error {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+      [])))
+
+(defn- load-nodes! [project node-ids]
+  (g/transact
+    (for [node-id node-ids
+          :when (g/has-output? (g/node-type* node-id) :resource)
+          :let [resource (g/node-value node-id :resource)]]
+      (load-node project node-id resource))))
+
+(defn- connect-if-output [src-type src tgt connections]
+  (let [outputs (g/output-labels src-type)]
+    (for [[src-label tgt-label] connections
+          :when (contains? outputs src-label)]
+      (g/connect src src-label tgt tgt-label))))
+
+(defn make-resource-node [graph project resource load? connections]
+  (assert resource "resource required to make new node")
+  (let [resource-type (workspace/resource-type resource)
+        found? (some? resource-type)
+        node-type (:node-type resource-type PlaceholderResourceNode)]
+    (g/make-nodes graph [node [node-type :resource resource]]
+      (if (some? resource-type)
+        (concat
+          (for [[consumer connection-labels] connections]
+            (connect-if-output node-type node consumer connection-labels))
+          (if load?
+            (load-node project node resource)
+            []))
+        (g/connect node :_node-id project :nodes)))))
+
+(defn- make-nodes! [project resources]
   (let [project-graph (graph project)]
     (g/tx-nodes-added
       (g/transact
         (for [[resource-type resources] (group-by workspace/resource-type resources)
-              :let     [node-type (:node-type resource-type PlaceholderResourceNode)]
               resource resources]
           (if (not= (workspace/source-type resource) :folder)
-            (g/make-nodes
-              project-graph
-              [new-resource [node-type :resource resource :project-id project]]
-              (g/connect new-resource :_node-id project :nodes)
-              (g/connect new-resource :resource project :node-resources)
-              (if ((g/output-labels node-type) :save-data)
-                (g/connect new-resource :save-data project :save-data)
-                []))
+            (make-resource-node project-graph project resource false {project [[:_node-id :nodes]
+                                                                               [:resource :node-resources]
+                                                                               [:save-data :save-data]]})
             []))))))
-
-(defn- load-nodes [project node-ids]
-  (let [all-nodes-tx (for [node-id node-ids
-                           :when (g/has-output? (g/node-type* node-id) :resource)
-                           :let [resource (g/node-value node-id :resource)
-                                 load-fn (and resource (:load-fn (resource/resource-type resource)))]
-                           :when load-fn]
-                       (try
-                         (load-fn project node-id (io/reader resource))
-                         (catch java.io.IOException e
-                           (g/mark-defective node-id (g/error {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))})))))
-        new-nodes (g/tx-nodes-added (g/transact all-nodes-tx))]
-    (when (not (empty? new-nodes))
-      (let [resources (mapv #(g/node-value % :resource) (filter #(g/has-output? (g/node-type* %) :resource) new-nodes))]
-        (prn "new" (count resources))
-        (prn "set" (count (set resources))))
-      (recur project new-nodes))))
 
 (defn load-project
   ([project] (load-project project (g/node-value project :resources)))
   ([project resources]
-   (let [nodes (make-nodes project resources)]
-     (load-nodes project nodes)
-     project)))
+   (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
+     (let [nodes (make-nodes! project resources)]
+       (load-nodes! project nodes)
+       project))))
 
 (defn make-embedded-resource [project type data]
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
@@ -207,10 +225,7 @@ ordinary paths."
                   :id ::project
                   :children [{:label "Build"
                               :acc "Shortcut+B"
-                              :command :build}
-                             {:label "Save All"
-                              :acc "Shortcut+S"
-                              :command :save-all}]}])
+                              :command :build}]}])
 
 (defn get-resource-node [project path-or-resource]
   (let [resource (if (string? path-or-resource)
@@ -227,8 +242,8 @@ ordinary paths."
 
 (defn- add-resources [project resources]
   (let [resources (filter loadable? resources)
-        node-ids  (make-nodes project resources)]
-   (load-nodes project node-ids)))
+        node-ids  (make-nodes! project resources)]
+   (load-nodes! project node-ids)))
 
 (defn- remove-resources [project resources]
   (let [internal (filter loadable? resources)
@@ -237,7 +252,7 @@ ordinary paths."
             :let [resource-node (get-resource-node project resource)]
             :when resource-node]
       (let [current-outputs (outputs resource-node)
-            new-node (first (make-nodes project [resource]))
+            new-node (first (make-nodes! project [resource]))
             new-outputs (set (outputs new-node))
             outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
         (g/transact
@@ -259,37 +274,38 @@ ordinary paths."
       (g/set-property resource-node :resource to))))
 
 (defn- handle-resource-changes [project changes]
-  (let [moved (:moved changes)
-        all (reduce into [] (vals (select-keys changes [:added :removed :changed])))
-        reset-undo? (or (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))
+  (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
+    (let [moved (:moved changes)
+          all (reduce into [] (vals (select-keys changes [:added :removed :changed])))
+          reset-undo? (or (reduce #(or %1 %2) false (map (fn [resource] (loadable? resource)) all))
                         (not (empty? moved)))
-        unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
-        to-reload (concat (:changed changes) (filter #(some? (get-resource-node project %)) (:added changes)))
-        to-add (filter #(nil? (get-resource-node project %)) (:added changes))]
-    (add-resources project to-add)
-    (remove-resources project (:removed changes))
-    (move-resources project moved)
-    (doseq [resource to-reload
-            :let [resource-node (get-resource-node project resource)]
-            :when resource-node]
-      (let [current-outputs (outputs resource-node)]
-        (if (loadable? resource)
-          (let [nodes (make-nodes project [resource])]
-            (load-nodes project nodes)
-            (let [new-node (first nodes)
-                  new-outputs (set (outputs new-node))
-                  outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
-              (g/transact
-                (concat
-                  (g/delete-node resource-node)
-                  (for [[src-label [tgt-node tgt-label]] outputs-to-make]
-                    (g/connect new-node src-label tgt-node tgt-label))))))
-          (let [nid resource-node]
-            (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
-    (when reset-undo?
-      (g/reset-undo! (graph project)))
-    (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
-                                             (clojure.string/join ", " (map resource/proj-path unknown-changed))))))
+          unknown-changed (filter #(nil? (get-resource-node project %)) (:changed changes))
+          to-reload (concat (:changed changes) (filter #(some? (get-resource-node project %)) (:added changes)))
+          to-add (filter #(nil? (get-resource-node project %)) (:added changes))]
+      (add-resources project to-add)
+      (remove-resources project (:removed changes))
+      (move-resources project moved)
+      (doseq [resource to-reload
+              :let [resource-node (get-resource-node project resource)]
+              :when resource-node]
+        (let [current-outputs (outputs resource-node)]
+          (if (loadable? resource)
+            (let [nodes (make-nodes! project [resource])]
+              (load-nodes! project nodes)
+              (let [new-node (first nodes)
+                    new-outputs (set (outputs new-node))
+                    outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
+                (g/transact
+                  (concat
+                    (g/delete-node resource-node)
+                    (for [[src-label [tgt-node tgt-label]] outputs-to-make]
+                      (g/connect new-node src-label tgt-node tgt-label))))))
+            (let [nid resource-node]
+              (g/invalidate! (mapv #(do [nid (first %)]) current-outputs))))))
+      (when reset-undo?
+        (g/reset-undo! (graph project)))
+      (assert (empty? unknown-changed) (format "The following resources were changed but never loaded before: %s"
+                                         (clojure.string/join ", " (map resource/proj-path unknown-changed)))))))
 
 (g/defnode Project
   (inherits core/Scope)
@@ -319,7 +335,7 @@ ordinary paths."
   (when resource-node (workspace/resource-type (g/node-value resource-node :resource))))
 
 (defn get-project [resource-node]
-  (g/node-value resource-node :project-id))
+  (g/graph-value (g/node-id->graph-id resource-node) :project-id))
 
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
@@ -339,33 +355,23 @@ ordinary paths."
                      (build-and-write project game-project)
                      (launch-engine build-path))))
 
-(defn- connect-if-output [src-type src tgt connections]
-  (let [outputs (g/output-labels src-type)]
-    (for [[src-label tgt-label] connections
-          :when (contains? outputs src-label)]
-      (g/connect src src-label tgt tgt-label))))
-
 (defn workspace [project]
   (g/node-value project :workspace))
 
 (defn connect-resource-node [project path-or-resource consumer-node connections]
-  (if path-or-resource
-    (if-let [node (get-resource-node project path-or-resource)]
-      (connect-if-output (g/node-type* node) node consumer-node connections)
-      (let [resource (if (string? path-or-resource)
-                       (workspace/resolve-workspace-resource (workspace project) path-or-resource)
-                       path-or-resource)
-            resource-type (workspace/resource-type resource)
-            node-type (:node-type resource-type PlaceholderResourceNode)]
-        (g/make-nodes
-          (graph project)
-          [new-resource [node-type :resource resource :project-id project]]
-          (g/connect new-resource :_node-id project :nodes)
-          (g/connect new-resource :resource project :node-resources)
-          (if ((g/output-labels node-type) :save-data)
-            (g/connect new-resource :save-data project :save-data)
-            [])
-          (connect-if-output node-type new-resource consumer-node connections))))
+  (if-let [resource (if (string? path-or-resource)
+                      (workspace/resolve-workspace-resource (workspace project) path-or-resource)
+                      path-or-resource)]
+    (if-let [node (get-resource-node project resource)]
+      (concat
+        (if *load-cache*
+          (load-node project node resource)
+          [])
+        (connect-if-output (g/node-type* node) node consumer-node connections))
+      (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]
+                                                                                        [:resource :node-resources]
+                                                                                        [:save-data :save-data]]
+                                                 consumer-node connections}))
     []))
 
 (defn select
@@ -419,6 +425,7 @@ ordinary paths."
               (g/make-nodes graph
                             [project [Project :workspace workspace-id :build-cache (atom {}) :fs-build-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
-                            (g/connect workspace-id :resource-types project :resource-types)))))]
+                            (g/connect workspace-id :resource-types project :resource-types)
+                            (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
