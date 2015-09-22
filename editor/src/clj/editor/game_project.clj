@@ -5,7 +5,8 @@
             [dynamo.graph :as g]
             [editor.project :as project]
             [camel-snake-kebab :as camel]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [service.log :as log])
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
@@ -227,6 +228,7 @@
         (for [root roots]
           (project/connect-resource-node project root self [[:build-targets :dep-build-targets]]))))
      (catch java.lang.Exception e
+       (log/warn :exception e)
        (g/mark-defective self (g/error {:type :invalid-content :message (.getMessage e)}))))
    (g/connect self :settings-map proxy :settings-map)))
 

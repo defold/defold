@@ -18,7 +18,8 @@
     (try
       (client/rget client (format "/users/%s" email) Protocol$UserInfo)
       true
-      (catch Exception e))))
+      (catch Exception e
+        (log/warn :exception e)))))
 
 (defn- parse-url [url]
   (if-let [[_ token action] (re-find #"/(.+?)/(.+?)" url)]

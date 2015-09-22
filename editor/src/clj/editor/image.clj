@@ -7,7 +7,8 @@
             [editor.types :as types]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.pipeline.tex-gen :as tex-gen])
+            [editor.pipeline.tex-gen :as tex-gen]
+            [service.log :as log])
   (:import [editor.types Rect Image]
            [java.awt Color]
            [java.awt.image BufferedImage]
@@ -38,6 +39,7 @@
                                                               (g/error {:type :invalid-content
                                                                         :message (format "The image '%s' could not be loaded." (resource/proj-path resource))}))
                                                             (catch java.io.FileNotFoundException e
+                                                              (log/warn :exception e)
                                                               (g/error {:type :file-not-found
                                                                         :message (format "The image '%s' could not be found." (resource/proj-path resource))})))))
   (output build-targets g/Any :cached produce-build-targets))
