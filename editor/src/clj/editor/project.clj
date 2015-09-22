@@ -8,6 +8,7 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [service.log :as log]
             ; TODO - HACK
             [internal.graph.types :as gt])
   (:import [java.io File]
@@ -43,6 +44,7 @@ ordinary paths."
           (swap! *load-cache* conj node-id))
         (load-fn project node-id resource)
         (catch java.io.IOException e
+          (log/warn :exception e)
           (g/mark-defective node-id (g/error {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
