@@ -118,10 +118,10 @@
   (output aabb        AABB  :cached (g/always geom/unit-bounding-box))
   (output scene       g/Any :cached produce-scene))
 
-(defn load-cubemap [project self input]
-  (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap input))]
+(defn load-cubemap [project self resource]
+  (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap resource))]
     (for [[side input] cubemap-message
-          :let [img-resource (workspace/resolve-resource (g/node-value self :resource) input)]]
+          :let [img-resource (workspace/resolve-resource resource input)]]
       (concat
         (project/connect-resource-node project
                                        img-resource self

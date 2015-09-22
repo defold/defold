@@ -340,12 +340,11 @@
       (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
 
 (defn extend-menu [id location menu]
-  (swap! *menus* assoc id {:location location
-                           :menu menu}))
+  (swap! *menus* update id concat (list {:location location :menu menu})))
 
 (defn- collect-menu-extensions []
   (->>
-    (vals @*menus*)
+    (flatten (vals @*menus*))
     (filter :location)
     (reduce (fn [acc x] (update-in acc [(:location x)] concat (:menu x))) {})))
 
@@ -357,8 +356,10 @@
      (mapcat (fn [x] (concat [x] (get exts (:id x)))))))
 
 (defn- realize-menu [id]
-  (let [exts (collect-menu-extensions)]
-    (do-realize-menu (:menu (get @*menus* id)) exts)))
+  (let [exts (collect-menu-extensions)
+        ;; *menus* is a map from id to a list of extensions, extension with location nil effectively root menu
+        menu (:menu (first (filter (comp nil? :location) (get @*menus* id))))]
+    (do-realize-menu menu exts)))
 
 (defn- make-desc [control menu-id]
   {:control control

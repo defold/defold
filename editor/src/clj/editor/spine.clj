@@ -512,9 +512,8 @@
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-scene-build-targets))
 
-(defn load-spine-scene [project self input]
-  (let [spine          (protobuf/read-text Spine$SpineSceneDesc input)
-        resource       (g/node-value self :resource)
+(defn load-spine-scene [project self resource]
+  (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
         spine-resource (workspace/resolve-resource resource (:spine-json spine))
         atlas          (workspace/resolve-resource resource (:atlas spine))]
     (concat

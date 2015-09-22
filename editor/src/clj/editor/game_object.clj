@@ -50,11 +50,11 @@
 
 (def sound-exts (into #{} (map :ext sound/sound-defs)))
 
-(defn- wrap-if-raw-sound [_node-id project-id target]
+(defn- wrap-if-raw-sound [_node-id target]
   (let [source-path (workspace/proj-path (:resource (:resource target)))
         ext (FilenameUtils/getExtension source-path)]
     (if (sound-exts ext)
-      (let [workspace (project/workspace project-id)
+      (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
             target    {:node-id  _node-id
@@ -104,9 +104,9 @@
                                               :transform transform
                                               :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
                                        (update :node-path (partial cons _node-id)))))
-  (output build-targets g/Any :cached (g/fnk [_node-id project-id build-targets ddf-message transform]
+  (output build-targets g/Any :cached (g/fnk [_node-id build-targets ddf-message transform]
                                              (if-let [target (first build-targets)]
-                                               (let [target (wrap-if-raw-sound _node-id project-id target)]
+                                               (let [target (wrap-if-raw-sound _node-id target)]
                                                  [(assoc target :instance-data {:resource (:resource target)
                                                                                :instance-msg ddf-message
                                                                                :transform transform})])
@@ -217,17 +217,15 @@
         properties (into {} (map (fn [p] [(:id p) (properties/str->go-prop (:value p) (:type p))]) properties))]
     (g/make-nodes (g/node-id->graph-id self)
                   [comp-node [ComponentNode :id id :position position :rotation rotation :path path :properties properties]]
-                  (concat
-                    (attach-component self comp-node)
-                    (project/connect-resource-node project
-                                                   source-resource comp-node
-                                                   [[:outline :outline]
-                                                    [:_node-id :source-id]
-                                                    [:user-properties :user-properties]
-                                                    [:save-data :save-data]
-                                                    [:scene :scene]
-                                                    [:build-targets :build-targets]
-                                                    [:project-id :project-id]])))))
+                  (attach-component self comp-node)
+                  (project/connect-resource-node project
+                                                 source-resource comp-node
+                                                 [[:outline :outline]
+                                                  [:_node-id :source-id]
+                                                  [:user-properties :user-properties]
+                                                  [:save-data :save-data]
+                                                  [:scene :scene]
+                                                  [:build-targets :build-targets]]))))
 
 (defn add-component-handler [self]
   (let [project (project/get-project self)
@@ -254,48 +252,40 @@
   (label [] "Add Component File")
   (run [selection] (add-component-handler (first selection))))
 
-(defn- add-embedded-component [self project type data id position rotation]
-  (let [resource (project/make-embedded-resource project type data)]
-    (if-let [resource-type (and resource (workspace/resource-type resource))]
-      (g/make-nodes (g/node-id->graph-id self)
-                    [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]
-                     source-node [(:node-type resource-type) :resource resource :project-id project]]
-                    (g/connect source-node :_node-id      comp-node :source-id)
-                    (g/connect source-node :_properties   comp-node :source-properties)
-                    (g/connect source-node :outline       comp-node :outline)
-                    (g/connect source-node :save-data     comp-node :save-data)
-                    (g/connect source-node :scene         comp-node :scene)
-                    (g/connect source-node :build-targets comp-node :build-targets)
-                    (g/connect source-node :project-id    comp-node :project-id)
-                    (g/connect source-node :_node-id           self      :nodes)
-                    (attach-embedded-component self comp-node))
-      (g/make-nodes (g/node-id->graph-id self)
-                    [comp-node [ComponentNode :id id :embedded true]]
-                    (g/connect comp-node   :outline      self       :outline)
-                    (g/connect comp-node   :_node-id          self       :nodes)))))
+(defn- add-embedded-component [self project type data id position rotation select?]
+  (let [graph (g/node-id->graph-id self)
+        resource (project/make-embedded-resource project type data)]
+    (g/make-nodes graph [comp-node [ComponentNode :id id :embedded true :position position :rotation rotation]]
+      (g/connect comp-node :_node-id self :nodes)
+      (if select?
+        (project/select project [comp-node])
+        [])
+      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:_node-id :source-id]
+                                                                                        [:_properties :source-properties]
+                                                                                        [:outline :outline]
+                                                                                        [:save-data :save-data]
+                                                                                        [:scene :scene]
+                                                                                        [:build-targets :build-targets]]
+                                                                             self [[:_node-id :nodes]]})]
+        (concat
+          tx-data
+          (if (empty? tx-data)
+            []
+            (attach-embedded-component self comp-node)))))))
 
 (defn add-embedded-component-handler
   ([self]
-   (let [workspace (:workspace (g/node-value self :resource))
-         component-type (first (workspace/get-resource-types workspace :component))]
-     (add-embedded-component-handler self component-type)))
+    (let [workspace (:workspace (g/node-value self :resource))
+          component-type (first (workspace/get-resource-types workspace :component))]
+      (add-embedded-component-handler self component-type)))
   ([self component-type]
-   (let [project (project/get-project self)
-         template (workspace/template component-type)]
-    (let [id (gen-component-id self (:ext component-type))
-          op-seq (gensym)
-          [comp-node source-node] (g/tx-nodes-added
-                                   (g/transact
-                                    (concat
-                                     (g/operation-sequence op-seq)
-                                     (g/operation-label "Add Component")
-                                     (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0]))))]
+    (let [project (project/get-project self)
+          template (workspace/template component-type)
+          id (gen-component-id self (:ext component-type))]
       (g/transact
-       (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Add Component")
-        ((:load-fn component-type) project source-node (io/reader (g/node-value source-node :resource)))
-        (project/select project [comp-node])))))))
+        (concat
+          (g/operation-label "Add Component")
+          (add-embedded-component self project (:ext component-type) template id [0 0 0] [0 0 0] true))))))
 
 (handler/defhandler :add :global
   (label [user-data] (if-not user-data
@@ -318,15 +308,15 @@
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
 
-(defn load-game-object [project self input]
+(defn load-game-object [project self resource]
   (let [project-graph (g/node-id->graph-id self)
-        prototype     (protobuf/read-text GameObject$PrototypeDesc input)]
+        prototype     (protobuf/read-text GameObject$PrototypeDesc resource)]
     (concat
       (for [component (:components prototype)
-            :let [source-resource (workspace/resolve-resource (g/node-value self :resource) (:component component))]]
+            :let [source-resource (workspace/resolve-resource resource (:component component))]]
         (add-component self project source-resource (:id component) (:position component) (v4->euler (:rotation component)) (:properties component)))
       (for [embedded (:embedded-components prototype)]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (v4->euler (:rotation embedded)))))))
+        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (v4->euler (:rotation embedded)) false)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

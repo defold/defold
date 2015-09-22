@@ -744,6 +744,9 @@ int Facebook_Me(lua_State* L)
  *   <li><code>suggestions</code> (table)</li>
  *   <li><code>to</code> (string)</li>
  * </ul>
+ *
+ * <b>IMPORTANT</b>The Facebook SDK for Android allows just one recipient in the "to"-field.
+ * Furthermore, the field has been deprecated on iOS. Use the "suggestions" field instead.
  * 
  * Details for each parameter: https://developers.facebook.com/docs/games/requests/v2.4#params
  *

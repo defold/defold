@@ -733,9 +733,8 @@
   (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
     (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
 
-(defn load-particle-fx [project self input]
-  (let [pb (protobuf/read-text Particle$ParticleFX input)
-        resource (g/node-value self :resource)
+(defn load-particle-fx [project self resource]
+  (let [pb (protobuf/read-text Particle$ParticleFX resource)
         graph-id (g/node-id->graph-id self)]
     (concat
       (for [emitter (:emitters pb)]

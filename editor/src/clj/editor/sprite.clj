@@ -166,7 +166,7 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [resource image default-animation material blend-mode]
+(g/defnk produce-save-data [_node-id resource image default-animation material blend-mode]
   {:resource resource
    :content (protobuf/map->str Sprite$SpriteDesc
               {:tile-set (workspace/proj-path image)
@@ -273,9 +273,8 @@
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-sprite [project self input]
-  (let [sprite   (protobuf/read-text Sprite$SpriteDesc input)
-        resource (g/node-value self :resource)
+(defn load-sprite [project self resource]
+  (let [sprite   (protobuf/read-text Sprite$SpriteDesc resource)
         image    (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
