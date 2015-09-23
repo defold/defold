@@ -66,7 +66,7 @@
               {:ext "render"
                :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$RenderPrototypeDesc
-               :resource-fields [:script]
+               :resource-fields [:script [:materials :material]]
                :view-types [:form-view]
                :label "Render"}
               {:ext "material"
