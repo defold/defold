@@ -18,7 +18,8 @@
             [editor.properties :as properties]
             [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.dialogs :as dialogs])
+            [editor.dialogs :as dialogs]
+            [editor.outline :as outline])
   (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds]
            [editor.types AABB]
@@ -223,9 +224,33 @@
         msg (reduce (fn [msg k] (update msg k v3->v4)) msg v3-fields)]
     msg))
 
+(defn- attach-gui-node [self parent gui-node type]
+  (concat
+    (g/connect parent :id gui-node :parent)
+    (g/connect gui-node :_node-id self :nodes)
+    (g/connect gui-node :node-outline parent :node-outlines)
+    (g/connect gui-node :scene parent :child-scenes)
+    (g/connect gui-node :index parent :child-indices)
+    (g/connect gui-node :pb-msg self :node-msgs)
+    (g/connect gui-node :id self :node-ids)
+    (g/connect self :layers gui-node :layers)
+    (g/connect self :textures gui-node :textures)
+    (case type
+      (:type-box :type-pie) (g/connect self :textures gui-node :textures)
+      :type-text (g/connect self :fonts gui-node :fonts)
+      [])))
+
 (defn- disconnect-all [node-id label]
   (for [[src-node-id src-label] (g/sources-of node-id label)]
     (g/disconnect src-node-id src-label node-id label)))
+
+(def GuiSceneNode nil)
+
+(defn- node->gui-scene [node]
+  (if (g/node-instance? GuiSceneNode node)
+    node
+    (let [[_ _ scene _] (first (filter (fn [[_ label _ _]] (= label :_node-id)) (g/outputs node)))]
+      scene)))
 
 (g/defnode GuiNode
   (inherits scene/ScalableSceneNode)
@@ -345,15 +370,29 @@
   (input child-scenes g/Any :array)
   (input child-indices g/Int :array)
   (output node-outline g/Any (g/fnk [_node-id id index node-outlines type]
-                                    {:node-id _node-id
-                                     :label id
-                                     :index index
-                                     :icon (case type
-                                             :type-box box-icon
-                                             :type-text text-icon
-                                             :type-pie pie-icon
-                                             :type-template template-icon)
-                                     :children (sort-by :index node-outlines)}))
+                               (let [reqs (if (= type :type-template)
+                                            []
+                                            [{:node-type GuiNode
+                                              :tx-attach-fn (fn [target source]
+                                                              (let [scene (node->gui-scene target)
+                                                                    type (g/node-value source :type)]
+                                                                (concat
+                                                                  (g/update-property source :id outline/resolve-id (g/node-value scene :node-ids))
+                                                                  (attach-gui-node scene target source type))))}])]
+                                 {:node-id _node-id
+                                  :label id
+                                  :index index
+                                  :icon (case type
+                                          :type-box box-icon
+                                          :type-text text-icon
+                                          :type-pie pie-icon
+                                          :type-template template-icon)
+                                  :child-reqs reqs
+                                  :copy-include-fn (fn [node]
+                                                     (let [node-id (g/node-id node)]
+                                                       (and (g/node-instance? GuiNode node-id)
+                                                         (not= node-id (g/node-value node-id :parent)))))
+                                  :children (sort-by :index node-outlines)})))
   (output pb-msg g/Any produce-node-msg)
   (output aabb g/Any (g/fnk [pivot size] (let [offset-fn (partial mapv + (pivot-offset pivot size))
                                                [min-x min-y _] (offset-fn [0 0 0])
@@ -432,6 +471,13 @@
                                              {:node-id _node-id
                                               :label "Nodes"
                                               :icon virtual-icon
+                                              :child-reqs [{:node-type GuiNode
+                                                            :tx-attach-fn (fn [target source]
+                                                                            (let [scene (node->gui-scene target)
+                                                                                  type (g/node-value source :type)]
+                                                                              (concat
+                                                                                (g/update-property source :id outline/resolve-id (g/node-value scene :node-ids))
+                                                                                (attach-gui-node scene target source type))))}]
                                               :children (vec (sort-by :index node-outlines))}))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
@@ -601,21 +647,6 @@
 (defn- tx-node-id [tx-entry]
   (get-in tx-entry [:node :_node-id]))
 
-(defn- attach-gui-node [self parent gui-node type]
-  (concat
-    (g/connect parent :id gui-node :parent)
-    (g/connect gui-node :_node-id self :nodes)
-    (g/connect gui-node :node-outline parent :node-outlines)
-    (g/connect gui-node :scene parent :child-scenes)
-    (g/connect gui-node :index parent :child-indices)
-    (g/connect gui-node :pb-msg self :node-msgs)
-    (g/connect gui-node :id self :node-ids)
-    (g/connect self :layers gui-node :layers)
-    (case type
-      (:type-box :type-pie) (g/connect self :textures gui-node :textures)
-      :type-text (g/connect self :fonts gui-node :fonts)
-      [])))
-
 (defn- attach-font [self fonts-node font]
   (concat
     (g/connect font :_node-id self :nodes)
@@ -656,15 +687,6 @@
                                                      :texture resource]]
     (attach-texture self parent texture)))
 
-(defn- resolve-id [prefix scene ids-label]
-  (let [ids (into #{} (g/node-value scene ids-label))]
-    (loop [suffix ""
-           index 1]
-      (let [id (str prefix suffix)]
-        (if (contains? ids id)
-          (recur (str index) (inc index))
-          id)))))
-
 (defn- browse [project exts]
   (first (dialogs/make-resource-dialog (project/workspace project) {:ext exts})))
 
@@ -673,7 +695,7 @@
 
 (defn- add-gui-node-handler [project {:keys [scene parent node-type]}]
   (let [index (inc (reduce max (g/node-value parent :child-indices)))
-        id (resolve-id (subs (name node-type) 5) scene :node-ids)]
+        id (outline/resolve-id (subs (name node-type) 5) (g/node-value scene :node-ids))]
     (g/transact
       (concat
         (g/operation-label "Add Gui Node")
@@ -683,7 +705,7 @@
 
 (defn- add-texture-handler [project {:keys [scene parent node-type]}]
   (when-let [resource (browse project ["atlas" "tilesource"])]
-    (let [name (resolve-id (resource->id resource) scene :texture-names)]
+    (let [name (outline/resolve-id (resource->id resource) (g/node-value scene :texture-names))]
       (g/transact
         (concat
           (g/operation-label "Add Texture")
@@ -696,7 +718,7 @@
 
 (defn- add-font-handler [project {:keys [scene parent node-type]}]
   (when-let [resource (browse project ["font"])]
-    (let [name (resolve-id (resource->id resource) scene :font-names)]
+    (let [name (outline/resolve-id (resource->id resource) (g/node-value scene :font-names))]
       (g/transact
         (concat
           (g/operation-label "Add Font")
@@ -705,7 +727,7 @@
             (project/select project [node])))))))
 
 (defn- add-layer-handler [project {:keys [scene parent node-type]}]
-  (let [name (resolve-id "layer" scene :layer-names)]
+  (let [name (outline/resolve-id "layer" (g/node-value scene :layer-names))]
     (g/transact
       (concat
         (g/operation-label "Add Layer")
@@ -714,19 +736,13 @@
           (project/select project [node]))))))
 
 (defn- add-layout-handler [project {:keys [scene parent node-type]}]
-  (let [name (resolve-id "layout" scene :layout-names)]
+  (let [name (outline/resolve-id "layout" (g/node-value scene :layout-names))]
     (g/transact
       (concat
         (g/operation-label "Add Layout")
         (g/make-nodes (g/node-id->graph-id scene) [node [LayoutNode :name name]]
           (attach-layout scene parent node)
           (project/select project [node]))))))
-
-(defn- node->gui-scene [node]
-  (if (g/node-instance? GuiSceneNode node)
-    node
-    (let [[_ _ scene _] (first (filter (fn [[_ label _ _]] (= label :_node-id)) (g/outputs node)))]
-      scene)))
 
 (defn- add-handler-options [node]
   (let [types (protobuf/enum-values Gui$NodeDesc$Type)
