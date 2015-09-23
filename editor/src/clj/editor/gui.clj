@@ -169,7 +169,7 @@
       (render-lines gl render-args renderables rcount)
       (render-tris gl render-args renderables rcount))))
 
-(g/defnk produce-node-scene [_node-id type aabb transform pivot size color texture gpu-texture anim-data child-scenes]
+(g/defnk produce-node-scene [_node-id type aabb transform pivot size color inherit-alpha texture gpu-texture anim-data child-scenes]
   (let [[geom-data uv-data line-data] (if (= :type-box type)
                                         (let [[w h _] size
                                               order [0 1 3 3 1 2]
@@ -189,7 +189,8 @@
                               :line-data line-data
                               :uv-data uv-data
                               :color color
-                              :gpu-texture gpu-texture}
+                              :gpu-texture gpu-texture
+                              :inherit-alpha inherit-alpha}
                   :batch-key [gpu-texture]
                   :select-batch-key _node-id}
      :children child-scenes}))
@@ -516,6 +517,15 @@
                                         :icon virtual-icon
                                         :children layout-outlines})))
 
+(defn- apply-alpha [parent-alpha scene]
+  (let [scene-alpha (get-in scene [:renderable :user-data :color 3] 1.0)]
+    (if (get-in scene [:renderable :user-data :inherit-alpha])
+      (let [alpha (* parent-alpha scene-alpha)]
+        (-> scene
+          (assoc-in [:renderable :user-data :color 3] alpha)
+          (update :children #(mapv (partial apply-alpha alpha) %))))
+      (update scene :children #(mapv (partial apply-alpha scene-alpha) %)))))
+
 (g/defnk produce-scene [scene-dims aabb child-scenes]
   (let [w (:width scene-dims)
         h (:height scene-dims)]
@@ -525,7 +535,7 @@
                   :batch-key []
                   :user-data {:line-data [[0 0 0] [w 0 0] [w 0 0] [w h 0] [w h 0] [0 h 0] [0 h 0] [0 0 0]]
                               :line-color colors/defold-white}}
-     :children child-scenes}))
+     :children (mapv (partial apply-alpha 1.0) child-scenes)}))
 
 (g/defnk produce-pb-msg [script material adjust-reference node-msgs layer-msgs font-msgs texture-msgs layout-msgs]
   {:script (proj-path script)
