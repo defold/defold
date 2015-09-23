@@ -957,7 +957,7 @@
 
 (defn- outline-parent [child]
   (first (filter some? (map (fn [[_ output target input]]
-                              (when (= output :outline) [target input]))
+                              (when (= output :node-outline) [target input]))
                             (g/outputs child)))))
 
 (defn- outline-move! [outline node-id offset]
