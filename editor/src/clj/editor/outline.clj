@@ -67,12 +67,15 @@
      (g/node-by-id-at basis (project/get-resource-node project resource))))
 
 (defn copy [src-item-iterators]
-  (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
-        fragment (g/copy root-ids {:include?  (comp not file-node?)
-                                   :serializer (fn [node]
-                                                 (if (file-node? node)
-                                                   (make-reference node)
-                                                   (g/default-node-serializer node)))})]
+  (let [items (mapv value src-item-iterators)
+        root-ids (mapv :node-id items)
+        include-fns (conj (filter some? (mapv :copy-include-fn items)) (comp not file-node?))
+        include-fn (when (not (empty? include-fns)) (fn [node] (reduce (fn [result f] (and result (f node))) true include-fns)))
+        fragment (g/copy root-ids (-> (if include-fn {:include? include-fn} {})
+                                    (assoc :serializer (fn [node]
+                                                         (if (file-node? node)
+                                                           (make-reference node)
+                                                           (g/default-node-serializer node))))))]
     (serialize fragment)))
 
 (defn cut? [src-item-iterators]
@@ -114,22 +117,21 @@
 
 (defn- build-tx-data [item reqs paste-data]
   (let [target (:node-id item)]
-    (concat
-      (:tx-data paste-data)
-      (for [[node req] (map vector (:root-node-ids paste-data) reqs)]
-        (if-let [tx-attach-fn (:tx-attach-fn req)]
-          (tx-attach-fn target node)
-          [])))))
+    (for [[node req] (map vector (:root-node-ids paste-data) reqs)]
+      (if-let [tx-attach-fn (:tx-attach-fn req)]
+        (tx-attach-fn target node)
+        []))))
 
 (defn paste! [project item-iterator data]
   (let [paste-data (paste project data)
         root-nodes (root-nodes paste-data)]
-        (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
-          (g/transact
-            (concat
-              (g/operation-label "Paste")
-              (build-tx-data item reqs paste-data)
-              (project/select project (mapv :_node-id root-nodes)))))))
+    (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
+      (g/transact
+        (concat
+          (g/operation-label "Paste")
+          (:tx-data paste-data)
+          (build-tx-data item reqs paste-data)
+          (project/select project (mapv :_node-id root-nodes)))))))
 
 (defn paste? [project item-iterator data]
   (try
@@ -171,10 +173,26 @@
     (let [paste-data (paste project data)
           root-nodes (root-nodes paste-data)]
       (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
-        (g/transact
-          (concat
-            (g/operation-label "Drop")
-            (build-tx-data item reqs paste-data)
-            (for [it src-item-iterators]
-              (g/delete-node (:node-id (value it))))
-            (project/select project (mapv :_node-id root-nodes))))))))
+        (let [op-seq (gensym)]
+          (g/transact
+            (concat
+              (g/operation-label "Drop")
+              (g/operation-sequence op-seq)
+              (for [it src-item-iterators]
+                (g/delete-node (:node-id (value it))))))
+          (g/transact
+            (concat
+              (g/operation-label "Drop")
+              (g/operation-sequence op-seq)
+              (:tx-data paste-data)
+              (build-tx-data item reqs paste-data)
+              (project/select project (mapv :_node-id root-nodes)))))))))
+
+(defn resolve-id [prefix ids]
+  (let [ids (set ids)]
+    (loop [suffix ""
+           index 1]
+      (let [id (str prefix suffix)]
+        (if (contains? ids id)
+          (recur (str index) (inc index))
+          id)))))
