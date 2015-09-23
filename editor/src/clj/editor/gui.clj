@@ -17,14 +17,16 @@
             [editor.resource :as resource]
             [editor.properties :as properties]
             [editor.handler :as handler]
-            [editor.ui :as ui])
-  (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
+            [editor.ui :as ui]
+            [editor.dialogs :as dialogs])
+  (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds]
            [editor.types AABB]
            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.vecmath Matrix4d Point3d Quat4d]
            [java.awt.image BufferedImage]
-           [com.defold.editor.pipeline TextureSetGenerator$UVTransform]))
+           [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
+           [org.apache.commons.io FilenameUtils]))
 
 (def ^:private texture-icon "icons/32/Icons_25-AT-Image.png")
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
@@ -36,6 +38,11 @@
 (def ^:private layer-icon "icons/32/Icons_42-Layers.png")
 (def ^:private layout-icon "icons/32/Icons_29-AT-Unkown.png")
 (def ^:private template-icon "icons/32/Icons_29-AT-Unkown.png")
+
+(def ^:private node-icons {:type-box box-icon
+                           :type-pie pie-icon
+                           :type-text text-icon
+                           :type-template template-icon})
 
 (def pb-def {:ext "gui"
              :label "Gui"
@@ -167,7 +174,7 @@
                                               order [0 1 3 3 1 2]
                                               corners (geom/transl (pivot-offset pivot size) [[0 0 0] [0 h 0] [w h 0] [w 0 0]])
                                               vs (mapv (partial nth corners) order)
-                                              uvs (get-in anim-data [texture :frames 0] [[0 1] [0 0] [1 0] [1 1]])
+                                              uvs (get-in anim-data [texture :frames 0 :tex-coords] [[0 1] [0 0] [1 0] [1 1]])
                                               uvs (mapv (partial nth uvs) order)
                                               lines (interleave corners (drop 1 (cycle corners)))]
                                           [vs uvs lines])
@@ -223,14 +230,14 @@
 (g/defnode GuiNode
   (inherits scene/ScalableSceneNode)
 
-  (property index g/Int (dynamic visible (g/always false)))
+  (property index g/Int (dynamic visible (g/always false)) (default 0))
   (property type g/Keyword (dynamic visible (g/always false)))
-  (property animation g/Str (dynamic visible (g/always false)))
+  (property animation g/Str (dynamic visible (g/always false)) (default ""))
 
-  (property id g/Str)
-  (property size types/Vec3 (dynamic visible box-pie-text?))
-  (property color types/Color (dynamic visible box-pie-text?))
-  (property alpha g/Num
+  (property id g/Str (default ""))
+  (property size types/Vec3 (dynamic visible box-pie-text?) (default [0 0 0]))
+  (property color types/Color (dynamic visible box-pie-text?) (default [1 1 1 1]))
+  (property alpha g/Num (default 1.0)
     (value (g/fnk [color] (get color 3)))
     (set (fn [basis this new-value]
           (g/update-property (g/node-id this) :color (fn [v] (assoc v 3 new-value)))))
@@ -238,17 +245,19 @@
                                   :min 0.0
                                   :max 1.0
                                   :precision 0.01})))
+  ; Template
   (property template g/Str (dynamic visible template?))
-  (property inherit-alpha g/Bool)
+
+  (property inherit-alpha g/Bool (default true))
 
   ; Text
-  (property text g/Str (dynamic visible text?))
-  (property line-break g/Bool (dynamic visible text?))
+  (property text g/Str (dynamic visible text?) (default ""))
+  (property line-break g/Bool (dynamic visible text?) (default false))
   (property font g/Str
             (dynamic edit-type (g/fnk [fonts] (properties/->choicebox fonts)))
             (dynamic visible text?))
-  (property outline types/Color (dynamic visible text?))
-  (property outline-alpha g/Num (dynamic visible text?)
+  (property outline types/Color (dynamic visible text?) (default [1 1 1 1]))
+  (property outline-alpha g/Num (dynamic visible text?) (default 1.0)
     (value (g/fnk [outline] (get outline 3)))
     (set (fn [basis this new-value]
           (g/update-property (g/node-id this) :outline (fn [v] (assoc v 3 new-value)))))
@@ -256,8 +265,8 @@
                                   :min 0.0
                                   :max 1.0
                                   :precision 0.01})))
-  (property shadow types/Color (dynamic visible text?))
-  (property shadow-alpha g/Num (dynamic visible text?)
+  (property shadow types/Color (dynamic visible text?) (default [1 1 1 1]))
+  (property shadow-alpha g/Num (dynamic visible text?) (default 1.0)
     (value (g/fnk [shadow] (get shadow 3)))
     (set (fn [basis this new-value]
           (g/update-property (g/node-id this) :shadow (fn [v] (assoc v 3 new-value)))))
@@ -287,41 +296,41 @@
                                (g/connect tex-node :gpu-texture self :gpu-texture)
                                (g/connect tex-node :anim-data self :anim-data)))
                            []))))))
-  (property slice9 types/Vec4 (dynamic visible box?))
+  (property slice9 types/Vec4 (dynamic visible box?) (default [0 0 0 0]))
 
   ; Pie
-  (property outer-bounds g/Keyword
+  (property outer-bounds g/Keyword (default :piebounds-ellipse)
             (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$PieBounds)))
             (dynamic visible pie?))
-  (property inner-radius g/Num (dynamic visible pie?))
-  (property perimeter-vertices g/Num (dynamic visible pie?))
-  (property pie-fill-angle g/Num (dynamic visible pie?))
+  (property inner-radius g/Num (dynamic visible pie?) (default 0.0))
+  (property perimeter-vertices g/Num (dynamic visible pie?) (default 10.0))
+  (property pie-fill-angle g/Num (dynamic visible pie?) (default 360.0))
 
-  (property layer g/Str (dynamic edit-type (g/fnk [layers] (properties/->choicebox layers))))
-  (property blend-mode g/Keyword
+  (property layer g/Str (dynamic edit-type (g/fnk [layers] (properties/->choicebox layers))) (default ""))
+  (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$BlendMode)))
             (dynamic visible box-pie-text?))
 
   ; Box/Pie/Text
-  (property adjust-mode g/Keyword
+  (property adjust-mode g/Keyword (default :adjust-mode-fit)
             (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$AdjustMode)))
             (dynamic visible box-pie-text?))
-  (property pivot g/Keyword
+  (property pivot g/Keyword (default :pivot-center)
             (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$Pivot)))
             (dynamic visible box-pie-text?))
-  (property x-anchor g/Keyword
+  (property x-anchor g/Keyword (default :xanchor-none)
             (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$XAnchor)))
             (dynamic visible box-pie-text?))
-  (property y-anchor g/Keyword
+  (property y-anchor g/Keyword (default :yanchor-none)
             (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$YAnchor)))
             (dynamic visible box-pie-text?))
 
   ; Box/Pie
-  (property clipping-mode g/Keyword
+  (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/always (properties/->pb-choicebox Gui$NodeDesc$ClippingMode)))
             (dynamic visible box-pie?))
-  (property clipping-visible g/Bool (dynamic visible box-pie?))
-  (property clipping-inverted g/Bool (dynamic visible box-pie?))
+  (property clipping-visible g/Bool (dynamic visible box-pie?) (default true))
+  (property clipping-inverted g/Bool (dynamic visible box-pie?) (default false))
 
   (display-order [:id scene/ScalableSceneNode])
 
@@ -334,6 +343,7 @@
   (input textures {g/Str g/NodeID})
   (input fonts [g/Str])
   (input child-scenes g/Any :array)
+  (input child-indices g/Int :array)
   (output node-outline g/Any (g/fnk [_node-id id index node-outlines type]
                                     {:node-id _node-id
                                      :label id
@@ -359,7 +369,7 @@
   (output anim-data g/Any (g/fnk [image]
                             {nil {:width (.getWidth image)
                                   :height (.getHeight image)
-                                  :frames [[[0 1] [0 0] [1 0] [1 1]]]
+                                  :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
                                   :uv-transforms [(TextureSetGenerator$UVTransform.)]}})))
 
 (g/defnode TextureNode
@@ -417,6 +427,7 @@
   (property id g/Str (default "") (dynamic visible (g/always false)))
   (input node-outlines g/Any :array)
   (input child-scenes g/Any :array)
+  (input child-indices g/Int :array)
   (output nodes-outline g/Any :cached (g/fnk [_node-id node-outlines]
                                              {:node-id _node-id
                                               :label "Nodes"
@@ -549,6 +560,11 @@
   (input layers-outline g/Any)
   (input layouts-outline g/Any)
   (input child-scenes g/Any :array)
+  (input node-ids g/Str :array)
+  (input texture-names g/Str :array)
+  (input font-names g/Str :array)
+  (input layer-names g/Str :array)
+  (input layout-names g/Str :array)
 
   (input layers g/Any :array)
   (input texture-data g/Any :array)
@@ -591,7 +607,9 @@
     (g/connect gui-node :_node-id self :nodes)
     (g/connect gui-node :node-outline parent :node-outlines)
     (g/connect gui-node :scene parent :child-scenes)
+    (g/connect gui-node :index parent :child-indices)
     (g/connect gui-node :pb-msg self :node-msgs)
+    (g/connect gui-node :id self :node-ids)
     (g/connect self :layers gui-node :layers)
     (case type
       (:type-box :type-pie) (g/connect self :textures gui-node :textures)
@@ -603,6 +621,7 @@
     (g/connect font :_node-id self :nodes)
     (g/connect font :name self :fonts)
     (g/connect font :pb-msg self :font-msgs)
+    (g/connect font :name self :font-names)
     (g/connect font :outline fonts-node :font-outlines)))
 
 (defn- attach-texture [self textures-node texture]
@@ -610,6 +629,7 @@
     (g/connect texture :_node-id self :nodes)
     (g/connect texture :texture-data self :texture-data)
     (g/connect texture :pb-msg self :texture-msgs)
+    (g/connect texture :name self :texture-names)
     (g/connect texture :outline textures-node :texture-outlines)))
 
 (defn- attach-layer [self layers-node layer]
@@ -617,12 +637,14 @@
     (g/connect layer :_node-id self :nodes)
     (g/connect layer :name self :layers)
     (g/connect layer :pb-msg self :layer-msgs)
+    (g/connect layer :name self :layer-names)
     (g/connect layer :outline layers-node :layer-outlines)))
 
 (defn- attach-layout [self layouts-node layout]
   (concat
     (g/connect layout :_node-id self :nodes)
     (g/connect layout :outline layouts-node :layout-outlines)
+    (g/connect layout :name self :layout-names)
     (g/connect layout :pb-msg self :layout-msgs)))
 
 (defn- v4->v3 [v4]
@@ -633,6 +655,144 @@
                                                      :name name
                                                      :texture resource]]
     (attach-texture self parent texture)))
+
+(defn- resolve-id [prefix scene ids-label]
+  (let [ids (into #{} (g/node-value scene ids-label))]
+    (loop [suffix ""
+           index 1]
+      (let [id (str prefix suffix)]
+        (if (contains? ids id)
+          (recur (str index) (inc index))
+          id)))))
+
+(defn- browse [project exts]
+  (first (dialogs/make-resource-dialog (project/workspace project) {:ext exts})))
+
+(defn- resource->id [resource]
+  (FilenameUtils/getBaseName ^String (resource/resource-name resource)))
+
+(defn- add-gui-node-handler [project {:keys [scene parent node-type]}]
+  (let [index (inc (reduce max (g/node-value parent :child-indices)))
+        id (resolve-id (subs (name node-type) 5) scene :node-ids)]
+    (g/transact
+      (concat
+        (g/operation-label "Add Gui Node")
+        (g/make-nodes (g/node-id->graph-id scene) [gui-node [GuiNode :id id :index index :type node-type :size [200.0 100.0 0.0]]]
+          (attach-gui-node scene parent gui-node node-type)
+          (project/select project [gui-node]))))))
+
+(defn- add-texture-handler [project {:keys [scene parent node-type]}]
+  (when-let [resource (browse project ["atlas" "tilesource"])]
+    (let [name (resolve-id (resource->id resource) scene :texture-names)]
+      (g/transact
+        (concat
+          (g/operation-label "Add Texture")
+          (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name]]
+            (attach-texture scene parent node)
+            (project/connect-resource-node project resource node [[:resource :texture]
+                                                                  [:gpu-texture :gpu-texture]
+                                                                  [:anim-data :anim-data]])
+            (project/select project [node])))))))
+
+(defn- add-font-handler [project {:keys [scene parent node-type]}]
+  (when-let [resource (browse project ["font"])]
+    (let [name (resolve-id (resource->id resource) scene :font-names)]
+      (g/transact
+        (concat
+          (g/operation-label "Add Font")
+          (g/make-nodes (g/node-id->graph-id scene) [node [FontNode :name name]]
+            (attach-font scene parent node)
+            (project/select project [node])))))))
+
+(defn- add-layer-handler [project {:keys [scene parent node-type]}]
+  (let [name (resolve-id "layer" scene :layer-names)]
+    (g/transact
+      (concat
+        (g/operation-label "Add Layer")
+        (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name]]
+          (attach-layer scene parent node)
+          (project/select project [node]))))))
+
+(defn- add-layout-handler [project {:keys [scene parent node-type]}]
+  (let [name (resolve-id "layout" scene :layout-names)]
+    (g/transact
+      (concat
+        (g/operation-label "Add Layout")
+        (g/make-nodes (g/node-id->graph-id scene) [node [LayoutNode :name name]]
+          (attach-layout scene parent node)
+          (project/select project [node]))))))
+
+(defn- node->gui-scene [node]
+  (if (g/node-instance? GuiSceneNode node)
+    node
+    (let [[_ _ scene _] (first (filter (fn [[_ label _ _]] (= label :_node-id)) (g/outputs node)))]
+      scene)))
+
+(defn- add-handler-options [node]
+  (let [types (protobuf/enum-values Gui$NodeDesc$Type)
+        scene (node->gui-scene node)
+        node-options (if (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodesNode])
+                       (let [parent (if (= node scene)
+                                      (g/node-value scene :nodes-node)
+                                      node)]
+                         (mapv (fn [[type info]] {:label (:display-name info)
+                                                  :icon (get node-icons type)
+                                                  :command :add
+                                                  :user-data {:handler-fn add-gui-node-handler
+                                                              :scene scene
+                                                              :parent parent
+                                                              :node-type type}})
+                           types))
+                       [])
+        texture-option (if (some #(g/node-instance? % node) [GuiSceneNode TexturesNode])
+                         (let [parent (if (= node scene)
+                                        (g/node-value scene :textures-node)
+                                        node)]
+                           {:label "Texture"
+                            :icon texture-icon
+                            :command :add
+                            :user-data {:handler-fn add-texture-handler
+                                        :scene scene
+                                        :parent parent}}))
+        font-option (if (some #(g/node-instance? % node) [GuiSceneNode FontsNode])
+                      (let [parent (if (= node scene)
+                                     (g/node-value scene :fonts-node)
+                                     node)]
+                        {:label "Font"
+                         :icon font-icon
+                         :command :add
+                         :user-data {:handler-fn add-font-handler
+                                     :scene scene
+                                     :parent parent}}))
+        layer-option (if (some #(g/node-instance? % node) [GuiSceneNode LayersNode])
+                       (let [parent (if (= node scene)
+                                      (g/node-value scene :layers-node)
+                                      node)]
+                         {:label "Layer"
+                          :icon layer-icon
+                          :command :add
+                          :user-data {:handler-fn add-layer-handler
+                                      :scene scene
+                                      :parent parent}}))
+        layout-option (if (some #(g/node-instance? % node) [GuiSceneNode LayoutsNode])
+                        (let [parent (if (= node scene)
+                                       (g/node-value scene :layouts-node)
+                                       node)]
+                          {:label "Layout"
+                           :icon layout-icon
+                           :command :add
+                           :user-data {:handler-fn add-layout-handler
+                                       :scene scene
+                                       :parent parent}}))]
+    (filter some? (conj node-options texture-option font-option layer-option layout-option))))
+
+(handler/defhandler :add :global
+  (active? [selection] (and (= 1 (count selection))
+                         (some? (add-handler-options (first selection)))))
+  (run [project user-data] (when user-data ((:handler-fn user-data) project user-data)))
+  (options [selection user-data]
+    (when (not user-data)
+      (add-handler-options (first selection)))))
 
 (defn- color-alpha [node-desc color-field alpha-field]
   (let [color (get node-desc color-field)
