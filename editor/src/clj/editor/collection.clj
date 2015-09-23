@@ -13,6 +13,7 @@
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.workspace :as workspace]
+            [editor.outline :as outline]
             [internal.render.pass :as pass])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -93,6 +94,10 @@
 
 (def GameObjectInstanceNode nil)
 
+(defn- go-id->node-ids [go-id]
+  (let [collection (core/scope go-id)]
+    (g/node-value collection :ids)))
+
 (g/defnk produce-go-outline [_node-id id path embedded outline child-outlines]
   (let [suffix (if embedded "" (format " (%s)" path))
         coll-id (core/scope _node-id)]
@@ -107,12 +112,14 @@
                                :values {:embedded (comp not true?)}
                                :tx-attach-fn (fn [self-id child-id]
                                                (concat
+                                                 (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
                                                  (child-go-go self-id child-id)
                                                  (attach-coll-ref-go coll-id child-id)))}
                               {:node-type GameObjectInstanceNode
                                :values {:embedded true?}
                                :tx-attach-fn (fn [self-id child-id]
                                                (concat
+                                                 (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
                                                  (child-go-go self-id child-id)
                                                  (attach-coll-embedded-go coll-id child-id)))}]})))
 
@@ -198,20 +205,9 @@
       :user-data {:name name :instance-data instance-data}
       :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}]))
 
-(defn- resolve-id [id ids]
-  (let [ids (set ids)]
-    (if (ids id)
-      (let [fmt "%s%d"]
-        (loop [i 1]
-          (let [id (format fmt id i)]
-            (if (ids id)
-              (recur (inc i))
-              id))))
-      id)))
-
 (def CollectionInstanceNode nil)
 
-(g/defnk produce-coll-outline [_node-id child-outlines ids]
+(g/defnk produce-coll-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Collection"
    :icon collection-icon
@@ -221,20 +217,20 @@
                  :values {:embedded (comp not true?)}
                  :tx-attach-fn (fn [self-id child-id]
                                  (concat
-                                   (g/update-property child-id :id resolve-id ids)
+                                   (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
                                    (child-coll-any self-id child-id)
                                    (attach-coll-ref-go self-id child-id)))}
                 {:node-type GameObjectInstanceNode
                  :values {:embedded true?}
                  :tx-attach-fn (fn [self-id child-id]
                                  (concat
-                                   (g/update-property child-id :id resolve-id ids)
+                                   (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
                                    (child-coll-any self-id child-id)
                                    (attach-coll-embedded-go self-id child-id)))}
                 {:node-type CollectionInstanceNode
                  :tx-attach-fn (fn [self-id child-id]
                                  (concat
-                                   (g/update-property child-id :id resolve-id ids)
+                                   (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
                                    (child-coll-any self-id child-id)
                                    (attach-coll-coll self-id child-id)))}]})
 
