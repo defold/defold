@@ -52,7 +52,7 @@
 
 (defn- source->floats [source]
   (let [floats (first (-> source (element :float_array) (:content)))]
-    (mapv #(Float/parseFloat %) (str/split floats #"\s"))))
+    (mapv #(Float/parseFloat %) (str/split (str/triml floats) #"\s+"))))
 
 (defn- extract [input source comp-count tri-count tri-indices stride factor default]
   (let [factor (or factor 1.0)
@@ -92,7 +92,7 @@
         normal-source (source sources-map normal-input)
         texcoord-source (source sources-map texcoord-input)
         tri-count (Integer/parseInt (get-in triangles [:attrs :count] "0"))
-        tri-indices (mapv #(Integer/parseInt %) (str/split (first (-> triangles (element :p) (:content))) #"\s"))
+        tri-indices (mapv #(Integer/parseInt %) (str/split (str/triml (first (-> triangles (element :p) (:content)))) #"\s+"))
         positions (extract vertex-input pos-source 3 tri-count tri-indices stride meter [0 0 0])
         normals (extract normal-input normal-source 3 tri-count tri-indices stride nil [0 0 1])
         texcoords (extract texcoord-input texcoord-source 2 tri-count tri-indices stride nil [0 0 1])]
