@@ -1272,4 +1272,3 @@ bail:
         return engine->m_Stats.m_FrameCount;
     }
 }
-

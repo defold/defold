@@ -45,9 +45,7 @@ message FontMap
 
     repeated Glyph glyphs = 1;
     required string material = 2 [(resource)=true];
-    required uint32 image_width = 3;
-    required uint32 image_height = 4;
-    required bytes image_data = 5;
+
     optional float shadow_x = 6;
     optional float shadow_y = 7;
     required float max_ascent = 8;
@@ -56,4 +54,5 @@ message FontMap
     optional float sdf_scale = 11 [default = 1];
     optional float sdf_offset = 12 [default = 0];
     optional float sdf_outline = 13 [default = 0];
+    repeated string textures = 14 [(resource)=true];
 }
