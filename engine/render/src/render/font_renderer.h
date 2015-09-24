@@ -43,14 +43,6 @@ namespace dmRender
 
         /// All glyphs represented in the map
         dmArray<Glyph> m_Glyphs;
-        /// Width of the map texture
-        uint32_t m_TextureWidth;
-        /// Height of the map texture
-        uint32_t m_TextureHeight;
-        /// Texture data
-        const void* m_TextureData;
-        /// Texture data size
-        uint32_t m_TextureDataSize;
         /// Offset of the shadow along the x-axis
         float m_ShadowX;
         /// Offset of the shadow along the y-axis
@@ -100,6 +92,13 @@ namespace dmRender
      * @param params Parameters to update
      */
     void SetFontMap(HFontMap font_map, FontMapParams& params);
+
+    /**
+     * Set font map texture
+     * @param font_map Font map handle
+     * @param texture Texture handle
+     */
+    void SetFontMapTexture(HFontMap font_map, dmGraphics::HTexture texture);
 
     /**
      * Get texture from a font map
@@ -195,4 +194,3 @@ namespace dmRender
 }
 
 #endif // FONTRENDERER_H
-
