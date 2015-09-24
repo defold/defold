@@ -10,7 +10,7 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button ProgressBar TextField]
+           [javafx.scene.control Button ProgressBar TextField ListView SelectionMode]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.web WebView]
@@ -117,6 +117,11 @@
     (.initOwner stage (ui/main-stage))
     (ui/title! stage (or (:title options) "Select Resource"))
     (ui/items! (:resources controls) items)
+
+    (when (= (:selection options) :multiple)
+      (-> ^ListView (:resources controls)
+          (.getSelectionModel)
+          (.setSelectionMode SelectionMode/MULTIPLE)))
 
     (ui/cell-factory! (:resources controls) (fn [r] {:text (workspace/resource-name r)
                                                      :icon (workspace/resource-icon r)}))
