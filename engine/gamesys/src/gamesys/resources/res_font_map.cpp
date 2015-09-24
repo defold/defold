@@ -12,12 +12,33 @@
 namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
-        dmRenderDDF::FontMap* ddf, dmRender::HFontMap font_map, const char* filename, dmRender::HFontMap* font_map_out)
+        dmRenderDDF::FontMap* ddf, dmRender::HFontMap font_map, const char* filename, dmRender::HFontMap* font_map_out, bool reload)
     {
         *font_map_out = 0;
 
+        if (reload)
+        {
+            // Will pick up the actual pointer when running get. This is a poor man's rebuild dependency
+            // tracking. The editor could in theory send a reload command for the texture as well, but for
+            // now trigger it manually here.
+            dmResource::Result r = dmResource::ReloadResource(factory, ddf->m_Textures[0], 0);
+            if (r != dmResource::RESULT_OK)
+            {
+                return r;
+            }
+        }
+
         dmRender::HMaterial material;
         dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material);
+        if (result != dmResource::RESULT_OK)
+        {
+            dmDDF::FreeMessage(ddf);
+            return result;
+        }
+
+        dmGraphics::HTexture texture;
+        assert(ddf->m_Textures.m_Count > 0);
+        result = dmResource::Get(factory, ddf->m_Textures[0], (void**) &texture);
         if (result != dmResource::RESULT_OK)
         {
             dmDDF::FreeMessage(ddf);
@@ -40,10 +61,6 @@ namespace dmGameSystem
             o_g.m_X = i_g.m_X;
             o_g.m_Y = i_g.m_Y;
         }
-        params.m_TextureWidth = ddf->m_ImageWidth;
-        params.m_TextureHeight = ddf->m_ImageHeight;
-        params.m_TextureData = &ddf->m_ImageData[0];
-        params.m_TextureDataSize = ddf->m_ImageData.m_Count;
         params.m_ShadowX = ddf->m_ShadowX;
         params.m_ShadowY = ddf->m_ShadowY;
         params.m_MaxAscent = ddf->m_MaxAscent;
@@ -58,8 +75,10 @@ namespace dmGameSystem
         {
             dmRender::SetFontMap(font_map, params);
             dmResource::Release(factory, dmRender::GetFontMapMaterial(font_map));
+            dmResource::Release(factory, dmRender::GetFontMapTexture(font_map));
         }
 
+        dmRender::SetFontMapTexture(font_map, texture);
         dmRender::SetFontMapMaterial(font_map, material);
 
         dmDDF::FreeMessage(ddf);
@@ -99,7 +118,7 @@ namespace dmGameSystem
         dmRender::HFontMap font_map;
 
         dmRenderDDF::FontMap* ddf = (dmRenderDDF::FontMap*) preload_data;
-        dmResource::Result r = AcquireResources(factory, render_context, ddf, 0, filename, &font_map);
+        dmResource::Result r = AcquireResources(factory, render_context, ddf, 0, filename, &font_map, false);
         if (r == dmResource::RESULT_OK)
         {
             resource->m_Resource = (void*)font_map;
@@ -117,6 +136,7 @@ namespace dmGameSystem
     {
         dmRender::HFontMap font_map = (dmRender::HFontMap)resource->m_Resource;
         dmResource::Release(factory, (void*)dmRender::GetFontMapMaterial(font_map));
+        dmResource::Release(factory, (void*)dmRender::GetFontMapTexture(font_map));
         dmRender::DeleteFontMap(font_map);
 
         return dmResource::RESULT_OK;
@@ -137,7 +157,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::Result r = AcquireResources(factory, (dmRender::HRenderContext)context, ddf, font_map, filename, &font_map);
+        dmResource::Result r = AcquireResources(factory, (dmRender::HRenderContext)context, ddf, font_map, filename, &font_map, true);
         return r;
     }
 }
