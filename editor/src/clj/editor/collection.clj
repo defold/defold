@@ -457,12 +457,16 @@
   (active? [selection] (and (single-selection? selection)
                             (or (selected-collection? selection)
                                 (selected-embedded-instance? selection))))
-  (label [selection] (cond
-                       (selected-collection? selection) "Add Game Object"
-                       (selected-embedded-instance? selection)  "Add Component"))
-  (run [selection] (cond
-                     (selected-collection? selection) (add-game-object selection)
-                     (selected-embedded-instance? selection) (game-object/add-embedded-component-handler (g/node-value (first selection) :source)))))
+  (label [selection user-data] (cond
+                                 (selected-collection? selection) "Add Game Object"
+                                 (selected-embedded-instance? selection) (game-object/add-embedded-component-label user-data)))
+  (options [selection user-data] (when (selected-embedded-instance? selection)
+                                   (let [source (g/node-value (first selection) :source)
+                                         workspace (:workspace (g/node-value source :resource))]
+                                     (game-object/add-embedded-component-options source workspace user-data))))
+  (run [selection user-data] (cond
+                               (selected-collection? selection) (add-game-object selection)
+                               (selected-embedded-instance? selection) (game-object/add-embedded-component-handler user-data))))
 
 (defn- add-collection-instance [self source-resource id position rotation scale]
   (let [project (project/get-project self)
