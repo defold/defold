@@ -531,6 +531,7 @@
         (try
           (reset! return (worker-fn report-fn))
           (catch Throwable e
+            (log/error :exception e)
             (reset! return e)))
         (run-later (.close stage)))
       (.showAndWait stage)
