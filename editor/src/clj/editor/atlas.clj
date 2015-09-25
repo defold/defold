@@ -121,6 +121,13 @@
    (g/connect image-node :outline     parent      :outline)
    (g/connect image-node :ddf-message parent      :img-ddf)))
 
+(defn- attach-animation [animation-node atlas-node]
+  (concat
+   (g/connect animation-node :_node-id    atlas-node :nodes)
+   (g/connect animation-node :animation   atlas-node :animations)
+   (g/connect animation-node :outline     atlas-node :outline)
+   (g/connect animation-node :ddf-message atlas-node :anim-ddf)))
+
 (defn- next-image-order [parent]
   (inc (apply max -1 (map second (g/node-value parent :image-order)))))
 
@@ -269,6 +276,9 @@
                 atlas-node
                 (next-image-order atlas-node)))
 
+(defn- tx-attach-animation-to-atlas [atlas-node animation-node]
+  (attach-animation animation-node atlas-node))
+
 (defn- atlas-outline-sort-by-fn [v]
   [(:name (g/node-type* (:node-id v)))])
 
@@ -298,7 +308,11 @@
                                                                              :icon atlas-icon
                                                                              :child-reqs [{:node-type AtlasImage
                                                                                            :tx-attach-fn tx-attach-image-to-atlas
-                                                                                           }]
+                                                                                           }
+                                                                                          {:node-type AtlasAnimation
+                                                                                           :tx-attach-fn tx-attach-animation-to-atlas
+                                                                                           }
+                                                                                          ]
                                                                              }))
   (output save-data        g/Any          :cached produce-save-data)
   (output build-targets    g/Any          :cached produce-build-targets)
@@ -332,10 +346,7 @@
      graph-id
      [atlas-anim [AtlasAnimation :flip-horizontal (not= 0 (:flip-horizontal anim)) :flip-vertical (not= 0 (:flip-vertical anim))
                   :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
-     (g/connect atlas-anim :_node-id    atlas-node :nodes)
-     (g/connect atlas-anim :animation   atlas-node :animations)
-     (g/connect atlas-anim :outline     atlas-node :outline)
-     (g/connect atlas-anim :ddf-message atlas-node :anim-ddf)
+     (attach-animation atlas-anim atlas-node)
      (attach-image-nodes (map :image (:images anim)) :image atlas-anim :frames atlas-node))))
 
 (defn load-atlas [project self resources]
