@@ -32,27 +32,33 @@
 (defn- build-font [self basis resource dep-resources user-data]
   {:resource resource :content (font-gen/->bytes (:pb user-data) (:font-resource user-data))})
 
-(g/defnk produce-build-targets [_node-id resource pb]
+(g/defnk produce-build-targets [_node-id resource pb dep-build-targets]
   (let [; Should use a separate resource node to obtain the font file
         font-resource (workspace/resolve-resource resource (:font pb))]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-font
       :user-data {:pb pb
-                  :font-resource font-resource}}]))
+                  :font-resource font-resource}
+      :deps (flatten dep-build-targets)}]))
 
 (g/defnode FontNode
   (inherits project/ResourceNode)
 
   (property pb g/Any)
+
+  (input dep-build-targets g/Any :array)
+
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-font [project self resource]
-  (let [font     (protobuf/read-text Font$FontDesc resource)]
+  (let [font (protobuf/read-text Font$FontDesc resource)]
     (concat
-      (g/set-property self :pb font))))
+     (g/set-property self :pb font)
+     (for [ref [:font :material]]
+       (project/connect-resource-node project (workspace/resolve-resource resource (ref font)) self [[:build-targets :dep-build-targets]])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
