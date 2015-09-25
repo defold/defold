@@ -664,6 +664,46 @@ namespace dmSys
         assert(copied < sizeof(g_EngineInfo.m_VersionSHA1));
       }
 
+#if (__ANDROID__)
+    bool GetApplicationInfo(const char* id, ApplicationInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+
+        ANativeActivity* activity = g_AndroidApp->activity;
+        JNIEnv* env = 0;
+        activity->vm->AttachCurrentThread( &env, 0);
+
+        jclass pm_native_class = env->FindClass("android/content/pm/PackageManager");
+        if(pm_native_class == 0x0)
+        {
+            dmLogWarning("android/content/pm/PackageManager. Unable to get application info.");
+            activity->vm->DetachCurrentThread();
+            return false;
+        }
+        jclass native_activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID methodID_func = env->GetMethodID(native_activity_class, "getPackageManager", "()Landroid/content/pm/PackageManager;");
+        jobject package_manager = env->CallObjectMethod(activity->clazz, methodID_func);
+        jclass pm_class = env->GetObjectClass(package_manager);
+        jmethodID methodID_pm = env->GetMethodID(pm_class, "getPackageInfo", "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;");
+        jstring str_url = env->NewStringUTF(id);
+        jobject package_info = env->CallObjectMethod(package_manager, methodID_pm, str_url);
+        jthrowable exception = env->ExceptionOccurred();
+        env->ExceptionClear();
+        env->DeleteLocalRef(str_url);
+        activity->vm->DetachCurrentThread();
+
+        bool installed = exception == NULL;
+        info->m_Installed = installed;
+        return installed;
+    }
+#elif !defined(__MACH__) // OS X and iOS implementations in sys_cocoa.mm
+    bool GetApplicationInfo(const char* id, ApplicationInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+        return false;
+    }
+#endif
+
 #ifdef __ANDROID__
     const char* FixAndroidResourcePath(const char* path)
     {
