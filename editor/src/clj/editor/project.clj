@@ -161,21 +161,24 @@ ordinary paths."
 (defn clear-fs-build-cache [project]
   (reset! (g/node-value project :fs-build-cache) {}))
 
+(defn- pump-engine-output [stdout]
+  (let [buf (byte-array 1024)]
+    (loop []
+      (let [n (.read stdout buf)]
+        (when (> n -1)
+          (print (String. buf 0 n))
+          (flush)
+          (recur))))))
+
 (defn- launch-engine [build-path]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
-        pb     (ProcessBuilder. ^java.util.List (list path))]
-    (.redirectErrorStream pb true)
-    (.directory pb (io/file build-path))
+        pb     (doto (ProcessBuilder. ^java.util.List (list path))
+                 (.redirectErrorStream true)
+                 (.directory (io/file build-path)))]
     (let [p (.start pb)
-          is (.getInputStream p)
-          buf (byte-array 1024)]
-      (loop []
-        (let [n (.read is buf)]
-          (when (> n -1)
-            (print (String. buf 0 n))
-            (flush)
-            (recur)))))))
+          is (.getInputStream p)]
+      (.start (Thread. (fn [] (pump-engine-output is)))))))
 
 (defn build-and-write [project node]
   (clear-build-cache project)
