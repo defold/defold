@@ -119,7 +119,7 @@
         (let [properties (g/node-value n1 :_properties)]
           (is (not (empty? (:properties properties))))
           (is (every? gt/property-type? (map :type (vals (:properties properties)))))
-          (is (empty? (filter (fn [k] (= :_node-id k)) (keys (:properties properties)))))
+          (is (empty? (filter (fn [k] (some k #{:_output-jammers :_node-id})) (keys (:properties properties)))))
           (is (not (empty? (:display-order properties))))))))
 
   (testing "the _node-id output delivers the node's id."

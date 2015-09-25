@@ -69,39 +69,75 @@
       (assert-schema "defproperty" value-type)
       (assoc description :value-type value-type))))
 
-(defn kernel [name-kw]
-  {:name (name name-kw)})
-
 (defn validation [property] (get property ::validate))
 (defn getter-for [property] (get property ::value))
 (defn setter-for [property] (get property ::setter))
 
 (defn property-dependencies
   [property]
-  (concat (util/fnk-arguments (getter-for property))
+  (concat (or (util/fnk-arguments (getter-for property)) #{(keyword (:name property))})
           (util/fnk-arguments (validation property))
           (mapcat util/fnk-arguments (vals (gt/dynamic-attributes property)))))
 
-(defn property-type-forms
-  [name-kw value-type body-forms]
-  (concat [`-> `(kernel ~name-kw)
-           `(attach-value-type ~value-type)]
-          (map property-form body-forms)))
+(defn parse-forms
+  [desc-sym name-kw value-type body-forms & tail]
+  `(let [~desc-sym (-> {:name ~(name name-kw)}
+                       (attach-value-type ~value-type)
+                       ~@(map property-form body-forms))]
+     ~@tail))
+
+(defn- check-dynamics-for-schemas
+  [desc-sym name-str value-type]
+  `(assert (every? gt/pfnk? (vals (:dynamic ~desc-sym)))
+           (str "Property " ~name-str " type " '~value-type " has a dynamic function that should be an fnk, but isn't.")))
+
+(defn- check-for-protocol-type
+  [desc-sym name-str value-type]
+  `(assert (not (gt/protocol? ~value-type))
+           (str "Property " ~name-str " type " '~value-type " looks like a protocol; try (dynamo.graph/protocol " '~value-type ") instead.")))
+
+(defn- check-for-invalid-type
+  [desc-sym name-str value-type]
+  `(assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))
+               (str "Property " ~name-str " is declared with type " '~value-type " but that doesn't seem like a real value type")))
+
+(defn- form-tail
+  [body-forms match]
+  (let [[[_ tail] & _] (filter #(= match (first %)) body-forms)]
+    tail))
+
+(defn default-getter
+  [name-kw]
+  `(fnk [~'this ~(symbol (name name-kw))] (get ~'this ~name-kw)))
+
+(defn default-getter?
+  [property-type]
+  (boolean (::default-getter property-type)))
+
+(defn attach-evaluation
+  [desc-sym name-kw name-str value-type body-forms & tail]
+  (let [validation-fnk (form-tail body-forms 'validate)
+        value-fnk      (form-tail body-forms 'value)]
+    (if value-fnk
+      `(let [~desc-sym (assoc ~desc-sym ::value ~value-fnk)]
+         ~@tail)
+      `(let [~desc-sym (assoc ~desc-sym ::default-getter true)]
+         ~@tail))))
+
+(defn build-impl
+  [desc-sym]
+  `(map->PropertyTypeImpl ~desc-sym))
 
 (defn property-type-descriptor
   [name-kw value-type body-forms]
-  (let [name-str (name name-kw)]
-    `(let [description# ~(property-type-forms name-kw value-type body-forms)]
-       (assert (or (nil? (:dynamic description#)) (every? gt/pfnk? (vals (:dynamic description#))))
-               (str "Property " ~name-str " type " '~value-type " has a dynamic function that should be an fnk, but isn't. " (-> (:dynamic description#) vals first)))
-       (assert (not (gt/protocol? ~value-type))
-               (str "Property " ~name-str " type " '~value-type " looks like a protocol; try (dynamo.graph/protocol " '~value-type ") instead."))
-       (assert (or (satisfies? gt/PropertyType ~value-type) (satisfies? s/Schema ~value-type))
-               (str "Property " ~name-str " is declared with type " '~value-type " but that doesn't seem like a real value type"))
-       (map->PropertyTypeImpl
-        (cond-> description#
-          (not (::value description#))
-          (assoc ::value (fnk [~'this ~(symbol name-str)] (get ~'this ~name-kw))))))))
+  (let [name-str        (name name-kw)
+        description-sym (gensym "description")]
+    (parse-forms description-sym name-kw value-type body-forms
+                 (check-dynamics-for-schemas description-sym name-str value-type)
+                 (check-for-protocol-type description-sym name-str value-type)
+                 (check-for-invalid-type description-sym name-str value-type)
+                 (attach-evaluation description-sym name-kw name-str value-type body-forms
+                                    (build-impl description-sym)))))
 
 (defn def-property-type-descriptor
   [name-sym & body-forms]
