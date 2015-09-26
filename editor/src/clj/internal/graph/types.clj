@@ -1,6 +1,8 @@
 (ns internal.graph.types
   (:require [dynamo.util :as util]
-            [schema.core :as s]))
+            [internal.graph.error-values :as ie]
+            [schema.core :as s])
+  (:import [internal.graph.error_values ErrorValue]))
 
 (defn pfnk?
   "True if the function has a schema. (I.e., it is a valid production function"
@@ -89,11 +91,11 @@
 (defn property-type? [x] (satisfies? PropertyType x))
 
 (def Properties {:properties {s/Keyword {:node-id                              NodeID
-                                         (s/optional-key :validation-problems) [s/Any]
-                                         :value                                s/Any
+                                         (s/optional-key :validation-problems) s/Any
+                                         :value                                (s/either s/Any ErrorValue)
                                          :type                                 (s/protocol PropertyType)
                                          s/Keyword                             s/Any}}
-                 (s/optional-key :display-order) [s/Keyword]})
+                 (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
 
 (defprotocol Dynamics
   (dynamic-attributes          [this] "Return a map from label to fnk"))

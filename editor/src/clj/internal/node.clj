@@ -17,12 +17,15 @@
 (declare node-input-forms collect-property-value)
 
 (defn warn [node-id node-type label input-schema error]
-  (println "WARNING-SCHEMA-VALIDATION:" (format "<NODE|%s|%s|%s>"  node-id  (:name node-type) label))
-  (doseq [[key val] (s/explain input-schema)]
-    (println (format "========EXPECTED-%s========" key))
-    (pp/pprint val)
-    (println (format "========VALIDATION ERROR %s========" key))
-    (pp/pprint (get error key))))
+  (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
+  (println "There were " (count (vals error)) " problems")
+  (let [explanation (s/explain input-schema)]
+    (doseq [[key val] error]
+      (println "Argument " key " should match")
+      (pp/pprint (get explanation key))
+      (println "but it failed because ")
+      (pp/pprint val)
+      (println))))
 
 (defn without [s exclusions] (reduce disj s exclusions))
 
