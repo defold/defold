@@ -163,6 +163,20 @@ namespace dmSys
         dmStrlCpy(info->m_DeviceLanguage, [device_language UTF8String], sizeof(info->m_DeviceLanguage));
     }
 
+    bool GetApplicationInfo(const char* id, ApplicationInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+
+        NSString* ns_url = [NSString stringWithUTF8String: id];
+        if (!([[UIApplication sharedApplication] canOpenURL:[NSURL URLWithString: ns_url ]]))
+        {
+            return false;
+        }
+
+        info->m_Installed = true;
+        return true;
+    }
+
     NetworkConnectivity GetNetworkConnectivity()
     {
         if (!reachability_ref)
@@ -201,6 +215,13 @@ namespace dmSys
 
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+    }
+
+    bool GetApplicationInfo(const char* id, ApplicationInfo* info)
+    {
+        // only on iOS for now
+        memset(info, 0, sizeof(*info));
+        return false;
     }
 
     Result OpenURL(const char* url)
