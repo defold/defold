@@ -112,7 +112,7 @@
    :playback playback
    :images (sort-by-and-strip-order img-ddf)})
 
-(defn- attach-image [image-node src-label parent tgt-label scope-node image-order]
+(defn- attach-image [parent tgt-label image-node src-label scope-node image-order]
   (concat
    (g/set-property image-node :order image-order)
    (g/connect image-node :image-order parent      :image-order)
@@ -121,7 +121,7 @@
    (g/connect image-node :outline     parent      :outline)
    (g/connect image-node :ddf-message parent      :img-ddf)))
 
-(defn- attach-animation [animation-node atlas-node]
+(defn- attach-animation [atlas-node animation-node]
   (concat
    (g/connect animation-node :_node-id    atlas-node :nodes)
    (g/connect animation-node :animation   atlas-node :animations)
@@ -132,10 +132,10 @@
   (inc (apply max -1 (map second (g/node-value parent :image-order)))))
 
 (defn- tx-attach-image-to-animation [animation-node image-node]
-  (attach-image image-node
-                :image
-                animation-node
+  (attach-image animation-node
                 :frames
+                image-node
+                :image
                 (core/scope animation-node)
                 (next-image-order animation-node)))
 
@@ -269,15 +269,12 @@
     (into {} (map #(do [(:id %) (->anim-data % tex-coords uv-transforms)]) animations))))
 
 (defn- tx-attach-image-to-atlas [atlas-node image-node]
-  (attach-image image-node
+  (attach-image atlas-node
+                :animations
+                image-node
                 :animation
                 atlas-node
-                :animations
-                atlas-node
                 (next-image-order atlas-node)))
-
-(defn- tx-attach-animation-to-atlas [atlas-node animation-node]
-  (attach-animation animation-node atlas-node))
 
 (defn- atlas-outline-sort-by-fn [v]
   [(:name (g/node-type* (:node-id v)))])
@@ -310,7 +307,7 @@
                                                                                            :tx-attach-fn tx-attach-image-to-atlas
                                                                                            }
                                                                                           {:node-type AtlasAnimation
-                                                                                           :tx-attach-fn tx-attach-animation-to-atlas
+                                                                                           :tx-attach-fn attach-animation
                                                                                            }
                                                                                           ]
                                                                              }))
@@ -321,7 +318,7 @@
 (def ^:private atlas-animation-keys [:flip-horizontal :flip-vertical :fps :playback :id])
 
 (defn- attach-image-nodes
-  [images src-label parent tgt-label scope-node]
+  [parent tgt-label images src-label scope-node]
   (let [graph-id (g/node-id->graph-id parent)]
     (let [next-order (next-image-order parent)]
       (map-indexed
@@ -332,13 +329,13 @@
             [atlas-image [AtlasImage]]
             (project/connect-resource-node (project/get-project scope-node) image atlas-image [[:content :src-image]
                                                                                               [:resource :src-resource]])
-            (attach-image atlas-image src-label parent tgt-label scope-node image-order))))
+            (attach-image parent tgt-label atlas-image src-label scope-node image-order))))
        images))))
 
 
 (defn add-images [atlas-node img-resources]
   ; used by tests
-  (attach-image-nodes img-resources :animation atlas-node :animations atlas-node))
+  (attach-image-nodes atlas-node :animations img-resources :animation atlas-node))
 
 (defn- attach-atlas-animation [atlas-node anim]
   (let [graph-id (g/node-id->graph-id atlas-node)]
@@ -346,8 +343,8 @@
      graph-id
      [atlas-anim [AtlasAnimation :flip-horizontal (not= 0 (:flip-horizontal anim)) :flip-vertical (not= 0 (:flip-vertical anim))
                   :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
-     (attach-animation atlas-anim atlas-node)
-     (attach-image-nodes (map :image (:images anim)) :image atlas-anim :frames atlas-node))))
+     (attach-animation atlas-node atlas-anim)
+     (attach-image-nodes atlas-anim :frames (map :image (:images anim)) :image atlas-node))))
 
 (defn load-atlas [project self resources]
   (let [atlas         (protobuf/read-text AtlasProto$Atlas resources)
@@ -356,7 +353,7 @@
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))
-      (attach-image-nodes (map :image (:images atlas)) :animation self :animations self)
+      (attach-image-nodes self :animations (map :image (:images atlas)) :animation self)
       (map (partial attach-atlas-animation self) (:animations atlas)))))
 
 (defn register-resource-types [workspace]
@@ -405,7 +402,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Images")
-      (attach-image-nodes images src-label parent tgt-label scope-node)))))
+      (attach-image-nodes parent tgt-label images src-label scope-node)))))
 
 (handler/defhandler :add-from-file :global
   (label [] "Add Images...")
