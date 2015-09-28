@@ -111,6 +111,20 @@ namespace dmSys
     };
 
     /**
+     * App information
+     */
+    struct ApplicationInfo
+    {
+        ApplicationInfo()
+        {
+            memset(this, 0, sizeof(ApplicationInfo));
+        }
+
+        /// True if the app is installed on this platform device
+        bool m_Installed;
+    };
+
+    /**
      * Create directory.
      * @param path path to directory to create
      * @param mode initial unix file permissions. ignored on some platforms
@@ -184,6 +198,14 @@ namespace dmSys
      * @param info input data
      */
     void GetEngineInfo(EngineInfo* info);
+
+    /**
+     * Get information of application with id if this is installed on this platform device
+     * @param id appliaction id. Platform specific format
+     * @param info input data
+     * @return true if the application with id is installed on this platform device and information could successfully be retreived
+     */
+    bool GetApplicationInfo(const char* id, ApplicationInfo* info);
 
     /**
      * Set engine information
