@@ -364,6 +364,33 @@ namespace dmScript
         return 1;
     }
 
+    /*# get application information
+     * <p>
+     * Returns a table with the following members:
+     * installed.
+     * </p>
+     *
+     * @name sys.get_application_info
+     * @return table with application information
+     */
+    int Sys_GetApplicationInfo(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        const char* id = luaL_checkstring(L, 1);
+
+        dmSys::ApplicationInfo info;
+        dmSys::GetApplicationInfo(id, &info);
+
+        lua_newtable(L);
+        lua_pushliteral(L, "installed");
+        lua_pushboolean(L, info.m_Installed);
+        lua_rawset(L, -3);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# enumerate network cards
      * returns an array of tables with the following members:
      * name, address (ip-string), mac (hardware address, colon separated string), up (bool), running (bool). NOTE: ip and mac might be nil if not available
@@ -513,6 +540,7 @@ namespace dmScript
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},
         {"get_engine_info", Sys_GetEngineInfo},
+        {"get_application_info", Sys_GetApplicationInfo},
         {"get_ifaddrs", Sys_GetIfaddrs},
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},
