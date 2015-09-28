@@ -313,6 +313,7 @@ public class Fontc {
         pi = new FlatteningPathIterator(pi,  0.1);
 
         double _x = 0, _y = 0;
+        double _lastmx = 0, _lastmy = 0;
         DistanceFieldGenerator df = new DistanceFieldGenerator();
         while (!pi.isDone()) {
             double [] c = new double[100];
@@ -321,11 +322,18 @@ public class Fontc {
               case PathIterator.SEG_MOVETO:
                   _x = c[0];
                   _y = c[1];
+                  _lastmx = _x;
+                  _lastmy = _y;
                   break;
               case PathIterator.SEG_LINETO:
                   df.addLine(_x, _y, c[0], c[1]);
                   _x = c[0];
                   _y = c[1];
+                  break;
+              case PathIterator.SEG_CLOSE:
+                  df.addLine(_x, _y, _lastmx, _lastmy);
+                  _x = _lastmx;
+                  _y = _lastmy;
                   break;
               default:
                   break;
@@ -358,6 +366,7 @@ public class Fontc {
                 if (sh.contains(gx, gy))
                     value = -value;
                 int oval = (int)(255 * (value * sdf_scale + sdf_offset));
+
                 if (oval < 0) {
                     oval = 0;
                 } else if (oval > 255) {
