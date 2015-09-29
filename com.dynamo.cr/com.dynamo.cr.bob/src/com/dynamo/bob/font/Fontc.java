@@ -45,6 +45,7 @@ import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
+import com.dynamo.bob.util.PathUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
@@ -603,7 +604,7 @@ public class Fontc {
             // Construct "internal" project root relative path, ie. /builtins/fonts/foobar_tex0.texturec
             String internalPath = args[0].substring(basedir.length());
             internalPath = FilenameUtils.removeExtension(internalPath) + "_tex0.texturec";
-            fontmapBuilder.addTextures( internalPath );
+            fontmapBuilder.addTextures(FilenameUtils.separatorsToUnix(internalPath));
 
             // Generate texture (and save to disk) from font image
             String textureFilename = FilenameUtils.removeExtension(Paths.get(outfile).normalize().toString()) + "_tex0.texturec";
