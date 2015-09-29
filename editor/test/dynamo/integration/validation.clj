@@ -95,27 +95,28 @@
 (deftest test-multi-errors
   (with-clean-system
     (let [all-nodes (tx-nodes (g/make-nodes world [; Two components
-                                                  b ResourceNode
-                                                  b-a [ComponentNode :my-data :b-a]
-                                                  b-b [ComponentNode :my-data :b-b]
-                                                  ; Three components
-                                                  c ResourceNode
-                                                  c-a [ComponentNode :my-data :c-a]
-                                                  c-b [ComponentNode :my-data :c-b]
-                                                  c-c [ComponentNode :my-data :c-c]
-                                                  ; No components => no error
-                                                  d ResourceNode
-                                                  ; Project
-                                                  a [ProjectNode :resource-nodes #{b c d}]]
-                                           (for [[res comp] [[b b-a]
-                                                             [b b-b]
-                                                             [c c-a]
-                                                             [c c-b]
-                                                             [c c-c]]]
-                                             (g/connect comp :my-data res :sub-data))
-                                           (for [res [b c d]]
-                                             (g/connect res :build-data a :build-data))))
-          project (last all-nodes)]
+                                                   b ResourceNode
+                                                   b-a [ComponentNode :my-data :b-a]
+                                                   b-b [ComponentNode :my-data :b-b]
+                                        ; Three components
+                                                   c ResourceNode
+                                                   c-a [ComponentNode :my-data :c-a]
+                                                   c-b [ComponentNode :my-data :c-b]
+                                                   c-c [ComponentNode :my-data :c-c]
+                                        ; No components => no error
+                                                   d ResourceNode
+                                        ; Project
+                                                   a [ProjectNode :resource-nodes #{b c d}]]
+                                            (for [[res comp] [[b b-a]
+                                                              [b b-b]
+                                                              [c c-a]
+                                                              [c c-b]
+                                                              [c c-c]]]
+                                              (g/connect comp :my-data res :sub-data))
+                                            (for [res [b c d]]
+                                              (g/connect res :build-data a :build-data))))
+          project   (last all-nodes)
+          b-a       (second all-nodes)]
       (let [nodes (g/node-value project :resource-nodes)
             build (g/node-value project :build-data)]
         (is (g/error? build))

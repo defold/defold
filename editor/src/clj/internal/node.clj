@@ -14,7 +14,7 @@
   (:import [internal.graph.types IBasis]
            [internal.graph.error_values ErrorValue]))
 
-(declare node-input-forms collect-property-value)
+(declare node-input-forms collect-property-value property-validation-exprs)
 
 (defn warn [node-id node-type label input-schema error]
   (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
@@ -57,16 +57,17 @@
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [^IBasis node-or-node-id label {:keys [cache basis ignore-errors] :or {ignore-errors 0} :as options}]
+  [^IBasis node-or-node-id label {:keys [cache basis ignore-errors skip-validation] :or {ignore-errors 0} :as options}]
   (let [caching?           (and (not (:no-cache options)) cache)
         cache              (when caching? cache)
         node               (ig/node-by-id-at basis (if (gt/node? node-or-node-id) (gt/node-id node-or-node-id) node-or-node-id))
-        evaluation-context {:local         (atom {})
-                            :snapshot      (if caching? (c/cache-snapshot cache) {})
-                            :hits          (atom [])
-                            :basis         basis
-                            :in-production []
-                            :ignore-errors ignore-errors}
+        evaluation-context {:local           (atom {})
+                            :snapshot        (if caching? (c/cache-snapshot cache) {})
+                            :hits            (atom [])
+                            :basis           basis
+                            :in-production   []
+                            :ignore-errors   ignore-errors
+                            :skip-validation skip-validation}
         result             (and node (gt/produce-value node label evaluation-context))]
     (when (and node caching?)
       (let [local             @(:local evaluation-context)
@@ -617,30 +618,45 @@
     forms))
 
 (defn call-with-fnky-arguments
-  [self-name ctx-name label node-type-name node-type compile-time-fnk runtime-fnk-expr]
-  (let [arglist          (util/fnk-arguments compile-time-fnk)
-        argument-forms   (zipmap arglist (map #(node-input-forms self-name ctx-name label node-type-name node-type [% nil]) arglist))]
+  [self-name ctx-name propmap-sym label node-type-name node-type compile-time-fnk runtime-fnk-expr & [supplied-arguments]]
+  (let [arglist          (without (util/fnk-arguments compile-time-fnk) (keys supplied-arguments))
+        argument-forms   (zipmap arglist (map #(node-input-forms self-name ctx-name propmap-sym label node-type-name node-type [% nil]) arglist))
+        argument-forms   (merge argument-forms supplied-arguments)]
     `(~runtime-fnk-expr ~argument-forms)))
 
+(defn collect-base-property-value
+  [self-name ctx-name node-type-name node-type propmap-sym prop]
+  (if (ip/default-getter? (gt/property-type node-type prop))
+    `(get ~self-name ~prop)
+    (call-with-fnky-arguments self-name ctx-name propmap-sym prop node-type-name node-type
+                              (ip/getter-for (gt/property-type node-type prop))
+                              `(get-in ~propmap-sym [~prop :internal.property/value]))))
 
 (defn collect-property-value
   [self-name ctx-name node-type-name node-type propmap-sym prop]
-  (let [default?       (get-in (gt/property-type node-type prop) [:internal.property/default-getter])]
-    (if default?
-      `(get ~self-name ~prop)
-      (call-with-fnky-arguments self-name ctx-name prop node-type-name node-type
-                                (ip/getter-for (gt/property-type node-type prop))
-                                `(get-in ~propmap-sym [~prop :internal.property/value])))))
+  (let [property-definition (gt/property-type node-type prop)
+        default?            (ip/default-getter? property-definition)
+        validation          (ip/validation property-definition)
+        get-expr            (if default?
+                              `(get ~self-name ~prop)
+                              (call-with-fnky-arguments self-name ctx-name propmap-sym prop node-type-name node-type
+                                                        (ip/getter-for (gt/property-type node-type prop))
+                                                        `(get-in ~propmap-sym [~prop :internal.property/value])))
+        validate-expr       (property-validation-exprs self-name ctx-name node-type-name node-type propmap-sym prop {prop 'v})]
+    (if validation
+      `(let [~'v ~get-expr]
+         (if (:skip-validation ~ctx-name)
+           ~'v
+           (if (ie/error? ~'v)
+             ~'v
+             ~validate-expr)))
+      get-expr)))
 
 (defn- node-input-forms
-  [self-name ctx-name output node-type-name node-type [argument schema]]
+  [self-name ctx-name propmap-sym output node-type-name node-type [argument schema]]
   (cond
     (property-overloads-output? node-type argument output)
-    (if (get (gt/property-type node-type argument) :internal.property/default-getter)
-      `(get ~self-name ~argument)
-      (let [propmap-sym (gensym "propmap")]
-        `(let [~propmap-sym (gt/declared-properties ~node-type-name)]
-           ~(collect-property-value self-name ctx-name node-type-name node-type propmap-sym argument))))
+    (collect-property-value self-name ctx-name node-type-name node-type propmap-sym argument)
 
     (unoverloaded-output? node-type argument output)
     `(gt/produce-value ~self-name ~argument ~ctx-name)
@@ -662,11 +678,7 @@
     'this
 
     (has-property? node-type argument)
-    (if (get (gt/property-type node-type argument) :internal.property/default-getter)
-      `(get ~self-name ~argument)
-      (let [propmap-sym (gensym "propmap")]
-        `(let [~propmap-sym (gt/declared-properties ~node-type-name)]
-           ~(collect-property-value self-name ctx-name node-type-name node-type propmap-sym argument))))))
+    (collect-property-value self-name ctx-name node-type-name node-type propmap-sym argument)))
 
 (defn check-local-cache [ctx-name nodeid-sym transform]
   `(get-in @(:local ~ctx-name) [~nodeid-sym ~transform]))
@@ -689,10 +701,12 @@
 
 (defn- property-has-default-getter? [node-type transform] (get (gt/property-type node-type transform) :internal.property/default-getter))
 (defn- property-has-no-overriding-output? [node-type transform] (get-in node-type [:passthroughs transform]))
+(defn- has-validation? [node-type prop] (ip/validation (get (gt/declared-properties node-type) prop)))
 
 (defn apply-default-property-shortcut [self-name ctx-name transform node-type forms]
   (if (and (property-has-default-getter? node-type transform)
-           (property-has-no-overriding-output? node-type transform))
+           (property-has-no-overriding-output? node-type transform)
+           (not (has-validation? node-type transform)))
     `(get ~self-name ~transform)
     forms))
 
@@ -714,11 +728,11 @@
           forms)
     forms))
 
-(defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym record-name node-type-name node-type transform production-function forms]
+(defn gather-inputs [input-sym schema-sym self-name ctx-name nodeid-sym propmap-sym record-name node-type-name node-type transform production-function forms]
   (let [arg-names       (util/fnk-schema production-function)
         argument-schema (collect-argument-schema transform arg-names record-name node-type)
         argument-forms  (zipmap (keys argument-schema)
-                                (map (partial node-input-forms self-name ctx-name transform node-type-name node-type) argument-schema))]
+                                (map (partial node-input-forms self-name ctx-name propmap-sym transform node-type-name node-type) argument-schema))]
     (list `let
           [input-sym argument-forms schema-sym argument-schema]
           forms)))
@@ -760,9 +774,11 @@
   (let [production-function (get (gt/transforms node-type) transform)
         nodeid-sym          (gensym "node-id")
         input-sym           (gensym "pfn-input")
-        schema-sym          (gensym "schema")]
+        schema-sym          (gensym "schema")
+        propmap-sym         (gensym "propmap")]
     `(defn ~(with-meta (dollar-name node-type-name transform) {:no-doc true}) [~self-name ~ctx-name]
-       (let [~nodeid-sym (gt/node-id ~self-name)]
+       (let [~nodeid-sym (gt/node-id ~self-name)
+             ~propmap-sym (gt/declared-properties ~node-type-name)]
          ~(if (= transform :this)
            nodeid-sym
            (jam self-name ctx-name nodeid-sym transform
@@ -770,7 +786,7 @@
                (detect-cycles ctx-name nodeid-sym transform node-type-name
                  (mark-in-production ctx-name nodeid-sym transform
                    (check-caches ctx-name nodeid-sym node-type transform
-                     (gather-inputs input-sym schema-sym self-name ctx-name nodeid-sym record-name node-type-name node-type transform production-function
+                     (gather-inputs input-sym schema-sym self-name ctx-name nodeid-sym propmap-sym record-name node-type-name node-type transform production-function
                        (input-error-check self-name ctx-name node-type transform input-sym
                          (schema-check self-name ctx-name node-type node-type-name transform input-sym schema-sym nodeid-sym
                            (call-production-function self-name ctx-name node-type node-type-name transform input-sym nodeid-sym))))))))))))))
@@ -792,20 +808,18 @@
   (let [dynsym (gensym "dynamics")]
     `(let [~dynsym (gt/dynamic-attributes (get ~propmap-sym ~property-name))]
        ~(reduce (fn [m [d dfnk]]
-                  (assoc m d (call-with-fnky-arguments self-name ctx-name d node-type-name node-type
+                  (assoc m d (call-with-fnky-arguments self-name ctx-name propmap-sym d node-type-name node-type
                                                        dfnk
                                                        `(get ~dynsym ~d))))
                 value-form
                 (gt/dynamic-attributes property-type)))))
 
 (defn collect-property-values
-  [self-name ctx-name record-name node-type-name node-type nodeid-sym value-sym forms]
+  [self-name ctx-name propmap-sym record-name node-type-name node-type nodeid-sym value-sym forms]
   (let [props        (gt/declared-properties node-type)
-        propmap-sym  (gensym "node-type-properties")
-        fetch-exprs  (partial collect-property-value self-name ctx-name node-type-name node-type propmap-sym)
+        fetch-exprs  (partial collect-base-property-value self-name ctx-name node-type-name node-type propmap-sym)
         add-dynamics (partial attach-property-dynamics self-name ctx-name node-type-name node-type propmap-sym)]
-    `(let [~propmap-sym (gt/declared-properties ~node-type-name)
-           ~value-sym ~(apply hash-map
+    `(let [~value-sym ~(apply hash-map
                               (mapcat identity
                                       (for [[p ptype] props
                                             :when (not (:internal? ptype))]
@@ -814,27 +828,26 @@
                                                           :node-id ~nodeid-sym}]
                                           (if (has-dynamics? ptype)
                                             [p (add-dynamics p ptype basic-val)]
-                                            [p basic-val])))))
-           ]
+                                            [p basic-val])))))]
        ~forms)))
 
 (defn property-validation-exprs
-  [self-name ctx-name node-type-name node-type propmap-sym prop]
-  (call-with-fnky-arguments self-name ctx-name prop node-type-name node-type
-                            (ip/validation (gt/property-type node-type prop))
-                            `(get-in ~propmap-sym [~prop :internal.property/validate])))
+  [self-name ctx-name node-type-name node-type propmap-sym prop supplied-value]
+  (when (has-validation? node-type prop)
+    (call-with-fnky-arguments self-name ctx-name propmap-sym prop node-type-name node-type
+                              (ip/validation (gt/property-type node-type prop))
+                              `(get-in ~propmap-sym [~prop :internal.property/validate])
+                              supplied-value)))
 
 (defn collect-validation-problems
-  [self-name ctx-name record-name node-type-name node-type validation-map forms]
-  (let [propmap-sym           (gensym "node-type-properties")
-        props-with-validation (util/map-vals ip/validation (gt/declared-properties node-type))
+  [self-name ctx-name propmap-sym record-name node-type-name node-type value-map validation-map forms]
+  (let [props-with-validation (util/map-vals ip/validation (gt/declared-properties node-type))
         validation-exprs      (partial property-validation-exprs self-name ctx-name node-type-name node-type propmap-sym)]
-    `(let [~propmap-sym    (gt/declared-properties ~node-type-name)
-           ~validation-map ~(apply hash-map
+    `(let [~validation-map ~(apply hash-map
                                    (mapcat identity
                                            (for [[p validator] props-with-validation
                                                  :when validator]
-                                             [p (validation-exprs p)])))]
+                                             [p (validation-exprs p {p (list `get-in value-map [p :value])})])))]
        ~forms)))
 
 (defn collect-display-order
@@ -862,12 +875,14 @@
         value-map      (gensym "values")
         validation-map (gensym "problems")
         nodeid-sym     (gensym "_node-id")
-        display-order  (gensym "display-order")]
+        display-order  (gensym "display-order")
+        propmap-sym    (gensym "propmap")]
     `(defn ~(with-meta fn-name {:no-doc true}) [~self-name ~ctx-name]
-       (let [~nodeid-sym (gt/node-id ~self-name)]
+       (let [~nodeid-sym (gt/node-id ~self-name)
+             ~propmap-sym (gt/declared-properties ~node-type-name)]
          ~(defer-value-validation ctx-name
-            (collect-property-values self-name ctx-name record-name node-type-name node-type nodeid-sym value-map
-              (collect-validation-problems self-name ctx-name record-name node-type-name node-type validation-map
+            (collect-property-values self-name ctx-name propmap-sym record-name node-type-name node-type nodeid-sym value-map
+              (collect-validation-problems self-name ctx-name propmap-sym record-name node-type-name node-type value-map validation-map
                 (collect-display-order self-name ctx-name record-name node-type-name node-type display-order
                   (assemble-properties-map value-map validation-map display-order)))))))))
 
