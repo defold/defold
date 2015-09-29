@@ -75,7 +75,9 @@ public class Shader {
             gl.glUniform4f(index, v.getX(), v.getY(), v.getZ(), v.getW());
         } else if (value instanceof float[]) {
             float[] v = (float[])value;
-            if (v.length == 3) {
+            if (v.length == 2) {
+                gl.glUniform4f(index, v[0], v[1], 1, 1);
+            } else if (v.length == 3) {
                 gl.glUniform4f(index, v[0], v[1], v[2], 1);
             } else {
                 gl.glUniform4f(index, v[0], v[1], v[2], v[3]);
