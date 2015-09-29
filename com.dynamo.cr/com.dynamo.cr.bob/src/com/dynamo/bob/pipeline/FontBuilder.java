@@ -94,7 +94,8 @@ public class FontBuilder extends Builder<Void>  {
             task.output(1).setContent(textureOutputStream.toByteArray());
 
             String texturePath = task.input(0).changeExt("_tex0.texturec").output().getPath();
-            fontMapBuilder.addTextures("/" + texturePath.substring(project.getBuildDirectory().length()));
+            texturePath = texturePath.substring(project.getBuildDirectory().length());
+            fontMapBuilder.addTextures(texturePath);
 
             // Save fontmap file
             task.output(0).setContent(fontMapBuilder.build().toByteArray());
