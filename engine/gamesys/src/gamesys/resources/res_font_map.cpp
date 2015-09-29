@@ -102,6 +102,8 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(hint_info, ddf->m_Material);
+        assert(ddf->m_Textures.m_Count > 0);
+        dmResource::PreloadHint(hint_info, ddf->m_Textures[0]);
 
         *preload_data = ddf;
         return dmResource::RESULT_OK;
