@@ -24,6 +24,7 @@ namespace dmGameSystem
             dmResource::Result r = dmResource::ReloadResource(factory, ddf->m_Textures[0], 0);
             if (r != dmResource::RESULT_OK)
             {
+                dmDDF::FreeMessage(ddf);
                 return r;
             }
         }
