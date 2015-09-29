@@ -1,10 +1,9 @@
 package com.dynamo.cr.guied.ui;
 
-import java.awt.Font;
-import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -12,26 +11,41 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
+import org.eclipse.swt.graphics.RGB;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.dynamo.bob.font.Fontc.InputFontFormat;
 import com.dynamo.cr.guied.core.ClippingNode;
 import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
 import com.dynamo.cr.guied.core.TextNode;
 import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.guied.util.TextUtil;
 import com.dynamo.cr.guied.util.TextUtil.TextMetric;
+import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
+import com.dynamo.cr.sceneed.core.FontRendererHandle;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
+import com.dynamo.cr.sceneed.ui.util.Shader;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
-import com.jogamp.opengl.util.awt.TextRenderer;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.jogamp.opengl.util.texture.Texture;
 
 public class TextNodeRenderer implements INodeRenderer<TextNode> {
 
+    private static Logger logger = LoggerFactory.getLogger(TextNodeRenderer.class);
+
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
 
-    private TextRenderer debugTextRenderer;
     private Graphics2D graphics;
+
+    private Shader shaderPlain;
+    private Shader shaderDF;
+    private Shader shaderBMFont;
 
     public static class TextLine {
         public TextLine(String text, double width) {
@@ -44,9 +58,6 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     }
 
     public TextNodeRenderer() {
-        String fontName = Font.SANS_SERIF;
-        Font debugFont = new Font(fontName, Font.BOLD, 28);
-        debugTextRenderer = new TextRenderer(debugFont, true, true);
         BufferedImage image = new BufferedImage(4, 4, BufferedImage.TYPE_INT_ARGB);
         graphics = (Graphics2D) image.getGraphics();
         graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -55,12 +66,55 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
 
     @Override
     public void dispose(GL2 gl) {
-        debugTextRenderer.dispose();
+        if (this.shaderPlain != null) {
+            this.shaderPlain.disable(gl);
+        }
+        if (this.shaderDF != null) {
+            this.shaderDF.disable(gl);
+        }
+        if (this.shaderBMFont != null) {
+            this.shaderBMFont.disable(gl);
+        }
         graphics.dispose();
+    }
+
+    private static Shader loadShader(GL2 gl, String path) {
+        Shader shader = new Shader(gl);
+        try {
+            shader.load(gl, Activator.getDefault().getBundle(), path);
+        } catch (IOException e) {
+            shader.dispose(gl);
+            throw new IllegalStateException(e);
+        }
+        return shader;
+    }
+
+    private float[] calcNormRGBA(RGB rgb, float alpha) {
+        float[] rgba = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+        float inv = 1.0f / 255.0f;
+        rgba[0] *= rgb.red * inv;
+        rgba[1] *= rgb.green * inv;
+        rgba[2] *= rgb.blue * inv;
+        rgba[3] *= alpha;
+        return rgba;
     }
 
     @Override
     public void setup(RenderContext renderContext, TextNode node) {
+        GL2 gl = renderContext.getGL();
+
+        if (this.shaderPlain == null) {
+            this.shaderPlain = loadShader(gl, "/content/font_plain");
+        }
+
+        if (this.shaderDF == null) {
+            this.shaderDF = loadShader(gl, "/content/font_df");
+        }
+
+        if (this.shaderBMFont == null) {
+            this.shaderBMFont = loadShader(gl, "/content/font_bmfont");
+        }
+
         if (passes.contains(renderContext.getPass())) {
             ClippingState state = null;
             ClippingNode clipper = node.getClosestParentClippingNode();
@@ -132,6 +186,20 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     @Override
     public void render(RenderContext renderContext, TextNode node, RenderData<TextNode> renderData) {
         GL2 gl = renderContext.getGL();
+        String actualText = node.getText();
+
+        FontRendererHandle textRenderHandle = null;
+        try {
+            textRenderHandle = node.getTextRendererHandle();
+
+            //
+            if (textRenderHandle == null) {
+                textRenderHandle = node.getDefaultTextRendererHandle();
+                actualText = String.format("Error: Font '%s' not found", node.getFont());
+            }
+        } catch (Exception e) {
+            logger.error("Failed to load default font.", e);
+        }
 
         boolean clipping = renderData.getUserData() != null;
         if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
@@ -156,25 +224,18 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             }
         }
 
-        String actualText = node.getText();
+        Texture textTexture = textRenderHandle.getTexture(gl);
+        FontMap fontMap = textRenderHandle.getFontMap();
 
-        TextRenderer textRenderer = node.getTextRendererHandle().getTextRenderer();
-        if (textRenderer == null) {
-            textRenderer = this.debugTextRenderer;
-            actualText = String.format("Error: Font '%s' not found", node.getFont());
-        }
-
-        List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderer), actualText, node.getSize().x,
+        List<TextLine> lines = TextUtil.layout(new TextMetric(textRenderHandle), actualText, node.getSize().x,
                 node.isLineBreak());
         double width = 0;
         for (TextLine l : lines) {
             width = Math.max(width, l.width);
         }
 
-        Font font = textRenderer.getFont();
-        FontMetrics metrics = graphics.getFontMetrics(font);
-        int ascent = metrics.getMaxAscent();
-        int descent = metrics.getMaxDescent();
+        float  ascent = fontMap.getMaxAscent();
+        float descent = fontMap.getMaxDescent();
 
         double x0 = -pivotOffsetX(node, width);
         double y0 = -pivotOffsetY(node, ascent, descent, lines.size());
@@ -183,18 +244,103 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
 
         if (transparent) {
             double[] xOffsets = lineOffsets(node, lines, width);
-            textRenderer.begin3DRendering();
+            float sU = 0;
+            float sV = 0;
 
-            gl.glColor4fv(renderContext.selectColor(node, color), 0);
-            double x = x0;
+            if (textTexture != null) {
+                textTexture.bind(gl);
+                textTexture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR);
+                textTexture.setTexParameteri(gl, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
+
+                textTexture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
+                textTexture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
+                textTexture.enable(gl);
+
+                sU = 1.0f / (float)textTexture.getImageWidth();
+                sV = 1.0f / (float)textTexture.getImageHeight();
+            }
+
+            Shader shader = null;
+
+            if (textRenderHandle.getInputFormat() == InputFontFormat.FORMAT_TRUETYPE &&
+                fontMap.getImageFormat() == FontTextureFormat.TYPE_BITMAP) {
+
+                shader = this.shaderPlain;
+                shader.enable(gl);
+
+                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha()));
+
+            } else if (textRenderHandle.getInputFormat() == InputFontFormat.FORMAT_TRUETYPE &&
+                    fontMap.getImageFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+
+                shader = this.shaderDF;
+                shader.enable(gl);
+
+                float sdf_world_scale = (float) Math.sqrt(node.getScale().getX() * node.getScale().getX() + node.getScale().getY() * node.getScale().getY());
+                float [] sdfParams = new float[] { sdf_world_scale * fontMap.getSdfScale(), sdf_world_scale * fontMap.getSdfOffset(), sdf_world_scale * fontMap.getSdfOutline(), 1.0f  };
+                shader.setUniforms(gl, "uni_sdf_params", sdfParams);
+                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha()));
+
+            } else {
+                shader = this.shaderBMFont;
+                shader.enable(gl);
+
+            }
+
+            shader.setUniforms(gl, "uni_face_color", renderContext.selectColor(node, color));
+
+            gl.glBegin(GL2.GL_QUADS);
+
             double y = y0;
             for (int i = 0; i < xOffsets.length; ++i) {
                 TextLine l = lines.get(i);
-                textRenderer.draw3D(l.text, (float) (x + xOffsets[i]), (float) y, 0.0f, 1);
+                double x = x0 + xOffsets[i];
+
+                for (int j = 0; j < l.text.length(); j++) {
+                    char c = l.text.charAt(j);
+                    FontMap.Glyph g = textRenderHandle.getGlyph(c);
+                    if (g != null) {
+                        if (g.getWidth() > 0) {
+
+                            double u_min = sU * (g.getX() + g.getLeftBearing());
+                            double v_min = sV * (g.getY() - g.getAscent());
+                            double u_max = u_min + sU * g.getWidth();
+                            double v_max = v_min + sV * (g.getAscent() + g.getDescent());
+
+                            double x_min = x + g.getLeftBearing();
+                            double x_max = x_min + g.getWidth();
+                            double y_min = y - g.getDescent();
+                            double y_max = y + g.getAscent();
+
+                            gl.glTexCoord2d(u_min, v_max);
+                            gl.glVertex2d(x_min, y_min);
+
+                            gl.glTexCoord2d(u_max, v_max);
+                            gl.glVertex2d(x_max, y_min);
+
+                            gl.glTexCoord2d(u_max, v_min);
+                            gl.glVertex2d(x_max, y_max);
+
+                            gl.glTexCoord2d(u_min, v_min);
+                            gl.glVertex2d(x_min, y_max);
+
+                        }
+
+                        x += g.getAdvance();
+                    }
+                }
                 y -= ascent + descent;
             }
 
-            textRenderer.end3DRendering();
+            gl.glEnd();
+
+            if (shader != null) {
+                shader.disable(gl);
+            }
+
+            if (textTexture != null) {
+                textTexture.disable(gl);
+            }
         } else {
             gl.glColor4fv(renderContext.selectColor(node, color), 0);
             double h = 0;

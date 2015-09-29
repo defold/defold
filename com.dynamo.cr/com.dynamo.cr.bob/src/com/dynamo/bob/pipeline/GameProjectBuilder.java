@@ -228,7 +228,6 @@ public class GameProjectBuilder extends Builder<Void> {
                         findResources(project, project.getResource((String) v), resources);
                     }
                 }
-
             } else if (isResource && value instanceof String) {
                 findResources(project, project.getResource((String) value), resources);
             }
@@ -355,4 +354,3 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 }
-
