@@ -12,6 +12,8 @@ import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import org.eclipse.swt.graphics.RGB;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +24,6 @@ import com.dynamo.cr.guied.core.TextNode;
 import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.guied.util.TextUtil;
 import com.dynamo.cr.guied.util.TextUtil.TextMetric;
-import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -81,7 +82,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     private static Shader loadShader(GL2 gl, String path) {
         Shader shader = new Shader(gl);
         try {
-            shader.load(gl, Activator.getDefault().getBundle(), path);
+            shader.load(gl, FrameworkUtil.getBundle(TextNodeRenderer.class), path);
         } catch (IOException e) {
             shader.dispose(gl);
             throw new IllegalStateException(e);
