@@ -118,7 +118,6 @@ public class GuiTemplateBuilder  {
         int childIndex = 0;
         for(Node n : templateChildren) {
             node.addChild(childIndex++, n);
-            System.out.println(childIndex);
         }
 
         return true;
