@@ -12,7 +12,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
            [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
-           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent]
+           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
@@ -166,7 +166,7 @@
                                               (fn e)))))
 
 (defn on-key! [^Node node key-fn]
-  (.setOnKeyPressed node (event-handler e (key-fn (.getCode e)))))
+  (.setOnKeyPressed node (event-handler e (key-fn (.getCode ^KeyEvent e)))))
 
 (defn on-focus! [^Node node focus-fn]
   (observe (.focusedProperty node)
