@@ -194,7 +194,7 @@
         return (atom nil)
         close (fn [perform?]
                 (when perform?
-                  (reset! return (File. base-dir ^String (ui/text (:path controls)))))
+                  (reset! return (File. base-dir (ui/text (:path controls)))))
                 (.close stage))
         set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
     (.initOwner stage (ui/main-stage))
