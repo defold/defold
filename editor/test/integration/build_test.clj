@@ -9,6 +9,7 @@
             [integration.test-util :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
+           [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
@@ -270,9 +271,12 @@
                      content-by-source (into {} (map #(do [(workspace/proj-path (:resource (:resource %))) (:content %)]) build-results))
                      content-by-target (into {} (map #(do [(workspace/proj-path (:resource %)) (:content %)]) build-results))
                      content (get content-by-source path)
-                     desc (Font$FontMap/parseFrom content)]
-                 (is (= 1024 (.getImageWidth desc)))
-                 (is (= 128 (.getImageHeight desc))))))))
+                     desc (protobuf/bytes->map Font$FontMap content)
+                     texture-content (get content-by-target (get-in desc [:textures 0]))
+                     texture (protobuf/bytes->map Graphics$TextureImage texture-content)
+                     first-tex (get-in texture [:alternatives 0])]
+                 (is (= 1024 (:width first-tex)))
+                 (is (= 128 (:height first-tex))))))))
 
 (deftest build-spine-scene
   (testing "Building spine scene"

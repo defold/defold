@@ -36,12 +36,12 @@
   (output content BufferedImage :cached (g/fnk [resource] (try
                                                             (if-let [img (ImageIO/read (io/input-stream resource))]
                                                               img
-                                                              (g/error {:type :invalid-content
+                                                              (g/error-severe {:type :invalid-content
                                                                         :message (format "The image '%s' could not be loaded." (resource/proj-path resource))}))
                                                             (catch java.io.FileNotFoundException e
                                                               (log/warn :exception e)
-                                                              (g/error {:type :file-not-found
-                                                                        :message (format "The image '%s' could not be found." (resource/proj-path resource))})))))
+                                                              (g/error-severe {:type :file-not-found
+                                                                               :message (format "The image '%s' could not be found." (resource/proj-path resource))})))))
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics
@@ -189,3 +189,14 @@ region will be identical to the nearest pixel of the source image."
                                       :node-type ImageNode
                                       :view-types [:default])
     (workspace/register-resource-type workspace :ext "texture")))
+
+(defn- build-texture [self basis resource dep-resources user-data]
+  {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
+
+(defn make-texture-build-target [workspace node-id image]
+  (let [texture-type     (workspace/get-resource-type workspace "texture")
+        texture-resource (workspace/make-memory-resource workspace texture-type (str (gensym)))]
+    {:node-id   node-id
+     :resource  (workspace/make-build-resource texture-resource)
+     :build-fn  build-texture
+     :user-data {:image image}}))

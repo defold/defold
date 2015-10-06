@@ -7,12 +7,6 @@
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
 ; ----------------------------------------
-; Basic property types
-; ----------------------------------------
-(g/defproperty NonNegativeInt g/Int
-  (validate positive? :message "must be equal to or greater than zero" (comp not neg?)))
-
-; ----------------------------------------
 ; Protocols here help avoid circular dependencies
 ; ----------------------------------------
 (defprotocol R3Min

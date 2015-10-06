@@ -140,8 +140,13 @@
                 (next-image-order animation-node)))
 
 (g/defnode AtlasAnimation
-  (property id g/Str)
-  (property fps             types/NonNegativeInt (default 30))
+  (property id  g/Str)
+  (property fps g/Int
+            (default 30)
+            (validate
+             (g/fnk [fps]
+                    (when (neg? fps)
+                      (g/error-info "FPS must be greater than or equal to zero")))))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
@@ -185,9 +190,6 @@
                                            :compression-level :fast}]
                                 :mipmaps false}]})
 
-(defn- build-texture [self basis resource dep-resources user-data]
-  {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
-
 (defn- build-texture-set [self basis resource dep-resources user-data]
   (let [tex-set (assoc (:proto user-data) :texture (workspace/proj-path (second (first dep-resources))))]
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
@@ -195,12 +197,7 @@
 (g/defnk produce-build-targets [_node-id resource texture-set-data save-data]
   (let [project          (project/get-project _node-id)
         workspace        (project/workspace project)
-        texture-type     (workspace/get-resource-type workspace "texture")
-        texture-resource (workspace/make-memory-resource workspace texture-type (:content save-data))
-        texture-target   {:node-id   _node-id
-                          :resource  (workspace/make-build-resource texture-resource)
-                          :build-fn  build-texture
-                          :user-data {:image (:image texture-set-data)}}]
+        texture-target   (image/make-texture-build-target workspace _node-id (:image texture-set-data))]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture-set
@@ -282,9 +279,24 @@
 (g/defnode AtlasNode
   (inherits project/ResourceNode)
 
-  (property margin          types/NonNegativeInt (default 0))
-  (property inner-padding   types/NonNegativeInt (default 0))
-  (property extrude-borders types/NonNegativeInt (default 0))
+  (property margin g/Int
+            (default 0)
+            (validate
+             (g/fnk [margin]
+                    (when (neg? margin)
+                      (g/error-info "Margin must be greater than or equal to zero")))))
+  (property inner-padding g/Int
+            (default 0)
+            (validate
+             (g/fnk [inner-padding]
+                    (when (neg? inner-padding)
+                      (g/error-info "Inner padding must be greater than or equal to zero")))))
+  (property extrude-borders g/Int
+            (default 0)
+            (validate
+               (g/fnk [extrude-borders]
+                      (when (neg? extrude-borders)
+                        (g/error-info "Extrude borders must be greater than or equal to zero")))))
 
   (input animations Animation :array)
   (input outline g/Any :array)

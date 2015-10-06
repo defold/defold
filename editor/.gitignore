@@ -11,3 +11,4 @@ pom.xml.asc
 /bin/
 /tmp
 /generated-resources/
+/editor2.log

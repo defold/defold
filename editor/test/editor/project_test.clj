@@ -16,7 +16,7 @@
   (property value g/Str
     (set (fn [basis this new-value]
            (let [self (g/node-id this)
-                 input (g/node-value basis self :value-input)]
+                 input (g/node-value self :value-input :basis basis)]
              (g/set-property self :value-piece (str (first input)))))))
   (input value-input g/Str))
 
