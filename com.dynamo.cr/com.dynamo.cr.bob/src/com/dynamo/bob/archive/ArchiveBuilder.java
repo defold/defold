@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -12,17 +13,25 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
-import net.jpountz.lz4.LZ4Factory;
+import com.dynamo.crypt.Crypt;
+
 import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
 
 public class ArchiveBuilder {
 
-    public static final int VERSION = 3;
+    public static final int VERSION = 4;
+
+    private static final byte[] KEY = "aQj8CScgNP4VsfXK".getBytes();
+
+    private static final List<String> ENCRYPTED_EXTS = Arrays.asList("luac", "scriptc", "gui_scriptc", "render_scriptc");
 
     class Entry implements Comparable<Entry> {
+        public static final int FLAG_ENCRYPTED = 1 << 0;
 
         int size;
         int compressedSize;
+        int flags;
         String relName;
         private String fileName;
 
@@ -158,8 +167,31 @@ public class ArchiveBuilder {
         for (Entry e : entries) {
             outFile.writeInt(stringsOffset.get(i));
             outFile.writeInt(resourcesOffset.get(i));
-            outFile.writeInt((int) e.size);
-            outFile.writeInt((int) e.compressedSize);
+            outFile.writeInt(e.size);
+            outFile.writeInt(e.compressedSize);
+            String ext = FilenameUtils.getExtension(e.fileName);
+            if (ENCRYPTED_EXTS.indexOf(ext) != -1) {
+                e.flags = Entry.FLAG_ENCRYPTED;
+            }
+            outFile.writeInt(e.flags);
+            ++i;
+        }
+
+        i = 0;
+        for (Entry e : entries) {
+            String ext = FilenameUtils.getExtension(e.fileName);
+            if ((e.flags & Entry.FLAG_ENCRYPTED) == Entry.FLAG_ENCRYPTED) {
+                outFile.seek(resourcesOffset.get(i));
+                int size = e.size;
+                if (e.compressedSize != 0xffffffff) {
+                    size = e.compressedSize;
+                }
+                byte[] buf = new byte[size];
+                outFile.read(buf);
+                byte[] enc = Crypt.encryptCTR(buf, KEY);
+                outFile.seek(resourcesOffset.get(i));
+                outFile.write(enc);
+            }
             ++i;
         }
 
