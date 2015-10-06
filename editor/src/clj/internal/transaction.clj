@@ -222,21 +222,21 @@
 (declare apply-tx)
 
 (defn- invoke-setter
-  [{:keys [basis properties-modified] :as ctx} node-id node property new-value]
+  [{:keys [basis properties-modified] :as ctx} node-id node property old-value new-value]
   (let [ctx (mark-activated ctx node-id property)]
     (if-let [setter-fn (in/setter-for node property)]
-      (apply-tx ctx (setter-fn basis node new-value))
+      (apply-tx ctx (setter-fn basis node-id old-value new-value))
       (-> ctx
           (mark-activated node-id property)
           (assoc
-           :basis               (ip/property-default-setter basis node property new-value)
+           :basis               (ip/property-default-setter basis node-id property old-value new-value)
            :properties-modified (update-in properties-modified [node-id] conj property))))))
 
 (defn apply-defaults
   [{:keys [basis] :as ctx} node]
   (let [node-id (gt/node-id node)]
     (letfn [(use-setter [ctx prop] (if-let [v (get node prop)]
-                                     (invoke-setter ctx node-id node prop v)
+                                     (invoke-setter ctx node-id node prop nil v)
                                      ctx))]
       (reduce use-setter ctx (util/key-set (gt/property-types node))))))
 
@@ -263,7 +263,7 @@
             new-value (apply fn old-value args)]
        (if (= old-value new-value)
          ctx
-         (invoke-setter ctx node-id node property new-value))))
+         (invoke-setter ctx node-id node property old-value new-value))))
     ctx))
 
 (defmethod perform :connect
