@@ -538,7 +538,7 @@
 
   `(transact (set-graph-value 0 :string-value \"A String\"))`"
   [graph-id k v]
-  (it/update-graph graph-id assoc [k v]))
+  (it/update-graph-value graph-id assoc [k v]))
 
 (defn set-graph-value!
   "Create the transaction step to attach a named value to a graph and applies the transaction.
@@ -636,7 +636,7 @@
   ([graph-id k]
    (graph-value (now) graph-id k))
   ([basis graph-id k]
-   (get-in basis [:graphs graph-id k])))
+   (get-in basis [:graphs graph-id :graph-values k])))
 
 ;; ---------------------------------------------------------------------------
 ;; Constructing property maps
