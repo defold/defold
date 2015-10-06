@@ -167,7 +167,7 @@
                style="push">
             <parameter
                   name="com.dynamo.crepo.commands.openWebLink.url"
-                  value="http://doc.defold.com/">
+                  value="http://www.defold.com/doc">
             </parameter>
          </command>
          <command
@@ -176,7 +176,7 @@
                style="push">
             <parameter
                   name="com.dynamo.crepo.commands.openWebLink.url"
-                  value="http://defold.userecho.com">
+                  value="http://forum.defold.com">
             </parameter>
          </command>
          <command
