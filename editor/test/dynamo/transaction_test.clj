@@ -246,7 +246,7 @@
 
 (g/defnode CascadingContainer
   (property a-property g/Str (default ""))
-  (input attachments g/Any :cascade-delete))
+  (input attachments g/Any :cascade-delete :array))
 
 (deftest cascading-delete
   (testing "delete container, one cascade connected by one output"

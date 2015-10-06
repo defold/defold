@@ -271,11 +271,15 @@
    {:keys [source-id source-label target-id target-label] :as tx-data}]
   (if-let [source (ig/node-by-id-at basis source-id)] ; nil if source node was deleted in this transaction
    (if-let [target (ig/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
-     (-> ctx
+     ; If the input has :one cardinality, disconnect existing connections first
+     (let [ctx (if (= :one (gt/input-cardinality (gt/node-type target) target-label))
+                 (disconnect-inputs ctx target-id target-label)
+                 ctx)]
+       (-> ctx
          (mark-activated target-id target-label)
          (assoc
-          :basis              (gt/connect basis source-id source-label target-id target-label)
-          :successors-changed (conj successors-changed [source-id source-label])))
+           :basis              (gt/connect (:basis ctx) source-id source-label target-id target-label)
+           :successors-changed (conj (:successors-changed ctx) [source-id source-label]))))
      ctx)
    ctx))
 
