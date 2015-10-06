@@ -40,17 +40,17 @@ the `do-gl` macro from `editor.gl`."
 (defn put-int    [^ByteBuffer bb position v] (.putInt    bb position v))
 (defn put-float  [^ByteBuffer bb position v] (.putFloat  bb position v))
 (defn put-double [^ByteBuffer bb position v] (.putDouble bb position v))
-(defn put-ubyte  [^ByteBuffer bb position v] (.put       bb position (.byteValue  (bit-and v 0xff))))
-(defn put-ushort [^ByteBuffer bb position v] (.putShort  bb position (.shortValue (bit-and v 0xffff))))
-(defn put-uint   [^ByteBuffer bb position v] (.putInt    bb position (.intValue   (bit-and v 0xffffffff))))
+(defn put-ubyte  [^ByteBuffer bb position v] (.put       bb position (.byteValue  (Long. (bit-and v 0xff)))))
+(defn put-ushort [^ByteBuffer bb position v] (.putShort  bb position (.shortValue (Long. (bit-and v 0xffff)))))
+(defn put-uint   [^ByteBuffer bb position v] (.putInt    bb position (.intValue   (Long. (bit-and v 0xffffffff)))))
 
 
-(defn get-byte   [^ByteBuffer bb position]   (.get       bb position))
+(defn get-byte   [^ByteBuffer bb position]   (.get       bb ^int position))
 (defn get-short  [^ByteBuffer bb position]   (.getShort  bb position))
 (defn get-int    [^ByteBuffer bb position]   (.getInt    bb position))
 (defn get-float  [^ByteBuffer bb position]   (.getFloat  bb position))
 (defn get-double [^ByteBuffer bb position]   (.getDouble bb position))
-(defn get-ubyte  [^ByteBuffer bb position]   (bit-and 0xff       (short (.get bb position))))
+(defn get-ubyte  [^ByteBuffer bb position]   (bit-and 0xff       (short (.get bb ^int position))))
 (defn get-ushort [^ByteBuffer bb position]   (bit-and 0xffff     (long  (.getShort bb position))))
 (defn get-uint   [^ByteBuffer bb position]   (bit-and 0xffffffff (int   (.getInt bb position))))
 

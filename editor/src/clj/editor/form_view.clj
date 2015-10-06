@@ -16,7 +16,8 @@
            [javafx.beans.value ChangeListener]
            [javafx.beans.binding Bindings]
            [javafx.scene.layout Pane GridPane HBox VBox Priority]
-           [javafx.scene.control Control Cell ListView ListView$EditEvent ListCell TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent TableCell ScrollPane TextArea Label TextField ChoiceBox CheckBox Button Tooltip ContextMenu Menu MenuItem]))
+           [javafx.scene.control Control Cell ListView ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ChoiceBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
+           [com.defold.control ListCell TableCell]))
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 

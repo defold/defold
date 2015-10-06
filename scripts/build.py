@@ -600,13 +600,34 @@ instructions.configure=\
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
+    def check_editor2_reflections(self):
+        cwd = join(self.defold_root, 'editor')
+        reflection_prefix = 'Reflection warning, ' # final space important
+        included_reflections = ['editor/'] # [] = include all
+        ignored_reflections = []
+
+        # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
+        output = self.exec_env_command(['./scripts/lein', 'check'], cwd=cwd, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+        lines = output.splitlines()
+        reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
+        reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
+        filtered_reflections = reflections if not included_reflections else (line for line in reflections if any((re.match(include, line) for include in included_reflections)))
+        failures = list(line for line in filtered_reflections if not any((re.match(ignored, line) for ignored in ignored_reflections)))
+
+        if failures:
+            for failure in failures:
+                print(failure)
+            exit(1)
+
     def build_editor2(self):
         cwd = join(self.defold_root, 'editor')
         self.exec_env_command(['./scripts/install_jars'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'clean'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'protobuf'], cwd = cwd)
         self.exec_env_command(['./scripts/lein', 'builtins'], cwd = cwd)
+        self.check_editor2_reflections()
         self.exec_env_command(['./scripts/lein', 'test'], cwd = cwd)
+
         # TODO: Version
         self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86-linux', '--platform=x86-win32', '--version=2.0.0'], cwd = cwd)
 
@@ -1048,11 +1069,13 @@ instructions.configure=\
 
     def exec_env_command(self, arg_list, **kwargs):
         env = self._form_env()
-
         process = subprocess.Popen(arg_list, env = env, **kwargs)
-        process.wait()
+        output = process.communicate()[0]
+
         if process.returncode != 0:
+            self._log(output)
             sys.exit(process.returncode)
+        return output
 
 if __name__ == '__main__':
     boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
