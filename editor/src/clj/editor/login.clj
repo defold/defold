@@ -9,7 +9,9 @@
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
            [javafx.scene.web WebView]
-           [javafx.stage Stage Modality]))
+           [javafx.stage Stage Modality]
+           [javax.net.ssl HttpsURLConnection SSLContext X509TrustManager]
+           [java.security.cert X509Certificate]))
 
 (set! *warn-on-reflection* true)
 
@@ -36,6 +38,22 @@
       (throw (Exception. "This account is not associated with defold.com yet. Please go to defold.com to signup"))
       exchange-info)))
 
+(defn- set-default-ssl-socket-factory [factory]
+  (HttpsURLConnection/setDefaultSSLSocketFactory factory))
+
+(defn- get-default-ssl-socket-factory []
+  (HttpsURLConnection/getDefaultSSLSocketFactory))
+
+(defn- create-gullible-ssl-socket-factory []
+  (let [gullible-manager
+        (reify X509TrustManager
+          (getAcceptedIssuers [this] nil)
+          (checkClientTrusted [this certs auth-type])
+          (checkServerTrusted [this certs auth-type]))
+        ssl-context (SSLContext/getInstance "SSL")]
+    (.init ssl-context nil (into-array X509TrustManager [gullible-manager]) nil)
+    (.getSocketFactory ssl-context)))
+
 (defn- open-login-dialog [prefs client]
   (let [root ^Parent (FXMLLoader/load (io/resource "login.fxml"))
         stage (Stage.)
@@ -54,17 +72,22 @@
                        (reset! return e)
                        (log/error :exception e)))
                    (ui/run-later (ui/close! stage))
-                   (NanoHTTPD$Response. "")))]
-    (.initModality stage Modality/APPLICATION_MODAL)
-    (.setTitle stage "Login")
-    (.start server)
-    (.setOnHidden stage (ui/event-handler event (.stop server)))
-    (.load engine (format "http://cr.defold.com/login/oauth/google?redirect_to=http://localhost:%d/{token}/{action}" (.getListeningPort server)))
-    (.setScene stage scene)
-    (.showAndWait stage)
-    (if (instance? Throwable @return)
-      (throw @return)
-      @return)))
+                   (NanoHTTPD$Response. "")))
+        old-socket-factory (get-default-ssl-socket-factory)]
+    (try
+      (set-default-ssl-socket-factory (create-gullible-ssl-socket-factory))
+      (.initModality stage Modality/APPLICATION_MODAL)
+      (.setTitle stage "Login")
+      (.start server)
+      (.setOnHidden stage (ui/event-handler event (.stop server)))
+      (.load engine (format "http://cr.defold.com/login/oauth/google?redirect_to=http://localhost:%d/{token}/{action}" (.getListeningPort server)))
+      (.setScene stage scene)
+      (.showAndWait stage)
+      (if (instance? Throwable @return)
+        (throw @return)
+        @return)
+      (finally
+        (set-default-ssl-socket-factory old-socket-factory)))))
 
 (defn login [prefs]
   (let [client (client/make-client prefs)]
