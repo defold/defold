@@ -826,7 +826,7 @@ static int Facebook_ShowDialog(lua_State* L)
 
         [FBSDKAppInviteDialog showWithContent:content delegate:g_Facebook.m_Delegate];
 
-    } else if (dialog == dmHashString64("apprequests")) {
+    } else if (dialog == dmHashString64("apprequests") || dialog == dmHashString64("apprequest")) {
 
         FBSDKGameRequestContent* content = [[FBSDKGameRequestContent alloc] init];
         content.title      = GetTableValue(L, 2, @[@"title"], LUA_TSTRING);
