@@ -19,10 +19,8 @@
                           (if data-input
                             data-input
                             (g/error-severe :no-connection))))
-            (set (fn [basis this new-value]
-                   (let [ ; TODO - why is this by value and not node id? node-id is standard in the APIs
-                         self           (g/node-id this)
-                         producer-store (g/node-value self :producer-store :basis basis)]
+            (set (fn [basis self old-value new-value]
+                   (let [producer-store (g/node-value self :producer-store :basis basis)]
                      (concat
                       (disconnect-all self :data-input)
                       (if-let [producer (get producer-store new-value)]

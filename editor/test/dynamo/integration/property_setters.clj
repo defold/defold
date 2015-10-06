@@ -12,13 +12,13 @@
   (input source g/Str)
 
   (property reference g/Int
-            (value (g/fnk [this]
-                   (ffirst (g/sources-of (g/node-id this) :source))))
-            (set (fn [basis this value]
-                   (if value
-                     (g/connect value :contents (g/node-id this) :source)
-                      (when-let [old-source (ffirst (g/sources-of (g/node-id this) :source))]
-                        (g/disconnect old-source :contents (g/node-id this) :source))))))
+            (value (g/fnk [_node-id]
+                   (ffirst (g/sources-of _node-id :source))))
+            (set (fn [basis self old-value new-value]
+                   (if new-value
+                     (g/connect new-value :contents self :source)
+                      (when-let [old-source (ffirst (g/sources-of self :source))]
+                        (g/disconnect old-source :contents self :source))))))
 
   (property derived-property g/Str
             (value (g/fnk [source]
@@ -74,3 +74,30 @@
           (is      (modified? tx-report user     :derived-property))
           (is      (modified? tx-report user     :transformed))
           (is      (modified? tx-report user     :upstream)))))))
+
+(g/defnode ChainedProps
+  (property final g/Str)
+  (property chain-one g/Str (set (fn [basis self old-value new-value] (g/set-property self :final new-value))))
+  (property chain-two g/Str (set (fn [basis self old-value new-value] (g/set-property self :chain-one new-value)))))
+
+(deftest chained-props
+  (testing "chain of properties being set through other properties' setters"
+    (ts/with-clean-system
+      (let [[chain] (g/tx-nodes-added
+                      (g/transact
+                        (g/make-nodes world [chain [ChainedProps :chain-two "test-val"]])))]
+        (is (= "test-val" (g/node-value chain :final)))))))
+
+(g/defnode DefaultSetter
+  (property final g/Str)
+  (property chain g/Str
+    (default "test-val")
+    (set (fn [basis self old-value new-value] (g/set-property self :final new-value)))))
+
+(deftest default-setter
+  (testing "default values are used even when there is a setter"
+    (ts/with-clean-system
+      (let [[node] (g/tx-nodes-added
+                     (g/transact
+                       (g/make-nodes world [node DefaultSetter])))]
+        (is (= "test-val" (g/node-value node :final)))))))
