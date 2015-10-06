@@ -156,8 +156,13 @@
                  (workspace/fs-sync workspace)
                  (is (has-undo? project)))))))
 
+(defn- find-error [type v]
+  (if (= type (get-in v [:user-data :type]))
+    true
+    (some (partial find-error type) (:causes v))))
+
 (defn- error? [type v]
-  (and (g/error? v) (= type (get-in v [:reason :type]))))
+  (and (g/error? v) (find-error type v)))
 
 (defn- no-error? [v]
   (not (g/error? v)))

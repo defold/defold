@@ -1,9 +1,10 @@
 (ns internal.value-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer :all]
+            [dynamo.util :as util]
+            [internal.node :as in]
             [internal.transaction :as it]
-            [internal.node :as in]))
+            [support.test-support :refer :all]))
 
 (def ^:dynamic *calls*)
 
@@ -280,56 +281,82 @@
        (is (= "Solid Snake" (g/node-value view-node :derived-value)))))))
 
 (g/defnode SubstitutingInputsNode
-  (input unary-no-sub     g/Int)
-  (input multi-no-sub     g/Int :array)
-  (input unary-with-sub   g/Int :substitute 99)
-  (input multi-with-sub   g/Int :array :substitute 4848)
+  (input unary-no-sub     g/Any)
+  (input multi-no-sub     g/Any :array)
+  (input unary-with-sub   g/Any :substitute 99)
+  (input multi-with-sub   g/Any :array :substitute (fn [err]
+                                                     (util/map-vals #(if (g/error? %) 4848 %) err)))
 
-  (output unary-no-sub    g/Int  (g/fnk [unary-no-sub] unary-no-sub))
-  (output multi-no-sub    g/Int  (g/fnk [multi-no-sub] multi-no-sub))
-  (output unary-with-sub  g/Int  (g/fnk [unary-with-sub] unary-with-sub))
-  (output multi-with-sub  g/Int  (g/fnk [multi-with-sub] multi-with-sub)))
+  (output unary-no-sub    g/Any  (g/fnk [unary-no-sub] unary-no-sub))
+  (output multi-no-sub    g/Any  (g/fnk [multi-no-sub] multi-no-sub))
+  (output unary-with-sub  g/Any  (g/fnk [unary-with-sub] unary-with-sub))
+  (output multi-with-sub  g/Any  (g/fnk [multi-with-sub] multi-with-sub)))
 
 (g/defnode ConstantNode
-  (property value g/Any)
-  (output source g/Int (g/fnk [value] value))
-  (property array-value [g/Any])
-  (output array-source [g/Int] (g/fnk [value] value)))
+  (output nil-output        g/Any  (g/fnk [] nil))
+  (output scalar-with-error g/Any  (g/fnk [] (g/error-fatal :scalar)))
+  (output scalar            g/Any  (g/fnk [] 1))
+  (output everything        g/Any  (g/fnk [] 42)))
 
-(defn arrange-error-value-call
-  [world label connected? source-sends]
-  (let [[receiver const] (tx-nodes (g/make-node world SubstitutingInputsNode)
-                                   (g/make-node world ConstantNode :value source-sends))]
-    (when connected?
-      (g/transact (g/connect const :source receiver label)))
-    (g/node-value receiver label)))
+(defn arrange-sv-error
+  [label connected? source-label]
+  (with-clean-system
+    (let [[receiver const] (tx-nodes (g/make-node world SubstitutingInputsNode)
+                                     (g/make-node world ConstantNode))]
+     (when connected?
+       (g/transact (g/connect const source-label receiver label)))
+     (def sv-val (g/node-value receiver label))
+     (g/node-value receiver label))))
 
 (deftest error-value-replacement
   (testing "source doesn't send errors"
     (with-clean-system
-      (are [label connected? source-sends expected-pfn-val]
-        (= expected-pfn-val (arrange-error-value-call world label connected? source-sends))
-        ;; output-label connected? source-sends  expected-pfn
-        :unary-no-sub   false      :dontcare     nil
-        :multi-no-sub   false      :dontcare     '()
-        :unary-with-sub false      :dontcare     99
-        :multi-with-sub false      :dontcare     '()
+      (are [label connected? source-label expected-pfn-val]
+          (= expected-pfn-val (arrange-sv-error label connected? source-label))
+        ;; output-label connected? source-label  expected-pfn
+        :unary-no-sub   false      :dontcare         nil
+        :multi-no-sub   false      :dontcare         '()
+        :unary-with-sub false      :dontcare         nil
+        :multi-with-sub false      :dontcare         '()
 
-        :unary-no-sub   true       nil           nil
-        :unary-with-sub true       nil           nil
+        :unary-no-sub   true       :nil-output       nil
+        :unary-with-sub true       :nil-output       nil
 
-        :multi-no-sub   true       1             '(1)
-        :multi-with-sub true       42            '(42))))
+        :unary-no-sub   true       :scalar          1
+        :unary-with-sub true       :everything      42
+
+        :multi-no-sub   true       :scalar          '(1)
+        :multi-with-sub true       :everything      '(42))))
+
   (with-redefs [in/warn (constantly "noop")]
     (testing "source sends errors"
-      (testing "unary"
+      (testing "unary inputs"
         (with-clean-system
-          (is (g/error? (arrange-error-value-call world :unary-no-sub true (g/error {}))))
-          (is (= 99 (arrange-error-value-call world :unary-with-sub true (g/error {}))))))
-      (testing "multi"
+         (let [[receiver const] (tx-nodes
+                                 (g/make-nodes world
+                                               [receiver SubstitutingInputsNode
+                                                const    ConstantNode]
+                                               (g/connect const :scalar-with-error receiver :unary-no-sub)
+                                               (g/connect const :scalar-with-error receiver :unary-with-sub)))]
+           (is (g/error? (g/node-value receiver :unary-no-sub)))
+           (is (= 99     (g/node-value receiver :unary-with-sub))))))
+      (testing "multivalued inputs"
         (with-clean-system
-          (is (g/error? (arrange-error-value-call world :multi-no-sub true (g/error {}))))
-          (is (= [4848] (arrange-error-value-call world :multi-with-sub true (g/error {})))))))))
+          (let [[receiver const] (tx-nodes
+                                 (g/make-nodes world
+                                               [receiver SubstitutingInputsNode
+                                                const    ConstantNode]
+                                               (g/connect const :scalar            receiver :multi-no-sub)
+                                               (g/connect const :scalar-with-error receiver :multi-no-sub)
+                                               (g/connect const :scalar            receiver :multi-no-sub)
+                                               (g/connect const :everything        receiver :multi-no-sub)
+
+                                               (g/connect const :scalar            receiver :multi-with-sub)
+                                               (g/connect const :scalar-with-error receiver :multi-with-sub)
+                                               (g/connect const :scalar            receiver :multi-with-sub)
+                                               (g/connect const :everything        receiver :multi-with-sub)))]
+           (is (g/error?           (g/node-value receiver :multi-no-sub)))
+           (is (= [1 4848 1 42]    (g/node-value receiver :multi-with-sub)))))))))
 
 
 (g/defnode StringInputIntOutputNode
@@ -345,19 +372,73 @@
          (g/transact (g/connect node1 :int-output node1 :string-input))
          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value node1 :combined))))))))
 
-(g/defnode NilPropertyNode
-  (property could-be-nil g/Str)
-  (input bar g/Str)
-  (input bar-with-subsitute g/Str :substitute "I am now ok.")
-  (output baz g/Str (g/fnk [bar] bar))
-  (output baz-with-substitute g/Str (g/fnk [bar-with-subsitute] bar-with-subsitute)))
+(g/defnode ConstantPropertyNode
+  (property a-property g/Any))
 
-(deftest node-properties-and-inputs-handle-nils-with-substitutes
+(deftest error-values-are-not-wrapped-from-properties
   (with-clean-system
-    (let [[node]                (tx-nodes (g/make-node world NilPropertyNode))
-          properties            (g/declared-properties NilPropertyNode)
-          could-be-nil-property (first (filter (fn [[k v ]] (= k :could-be-nil)) properties))]
-      (g/connect! node :could-be-nil node :bar)
-      (is (= "I am now ok." (g/node-value node :baz-with-substitute)))
-      (is (nil? (g/node-value node :baz)))
-      (is (= g/Str (g/property-value-type (val could-be-nil-property)))))))
+    (let [[node]      (tx-nodes (g/make-node world ConstantPropertyNode))
+          _           (g/mark-defective! node (g/error-fatal "bad"))
+          error-value (g/node-value node :a-property)]
+      (is (g/error?      error-value))
+      (is (empty?        (:causes   error-value)))
+      (is (= node        (:_node-id error-value)))
+      (is (= :a-property (:_label   error-value)))
+      (is (= g/FATAL     (:severity error-value))))))
+
+(g/defnode ErrorReceiverNode
+  (input single g/Any)
+  (input multi  g/Any :array)
+
+  (output single-output g/Any (g/fnk [single] single))
+  (output multi-output  g/Any (g/fnk [multi]  multi)))
+
+(deftest error-values-are-aggregated
+  (testing "single-valued input with an error results in single error out."
+    (with-clean-system
+      (let [[sender receiver] (tx-nodes
+                               (g/make-nodes world
+                                             [sender   ConstantPropertyNode
+                                              receiver ErrorReceiverNode]
+                                             (g/connect sender :a-property receiver :single)))
+            _                 (g/mark-defective! sender (g/error-fatal "Bad news, my friend."))
+            error-value       (g/node-value receiver :single-output)]
+        (is (g/error? error-value))
+        (is (= 1 (count       (:causes  error-value))))
+        (is (= receiver       (:_node-id error-value)))
+        (is (= :single-output (:_label   error-value)))
+        (is (= g/FATAL        (:severity error-value)))
+
+        (let [cause (first (:causes error-value))]
+          (is (g/error? cause))
+          (is (empty?        (:causes   cause)))
+          (is (= sender      (:_node-id cause)))
+          (is (= :a-property (:_label   cause)))
+          (is (= g/FATAL     (:severity cause)))))))
+
+  (testing "multi-valued input with an error results in a single error out."
+    (with-clean-system
+      (let [[sender1 sender2 sender3 receiver] (tx-nodes
+                                                (g/make-nodes world
+                                                              [sender1 [ConstantPropertyNode :a-property 1]
+                                                               sender2 [ConstantPropertyNode :a-property 2]
+                                                               sender3 [ConstantPropertyNode :a-property 3]
+                                                               receiver ErrorReceiverNode]
+                                                              (g/connect sender1 :a-property receiver :multi)
+                                                              (g/connect sender2 :a-property receiver :multi)
+                                                              (g/connect sender3 :a-property receiver :multi)))
+            _                                  (g/mark-defective! sender2 (g/error-fatal "Bad things have happened"))
+            error-value                        (g/node-value receiver :multi-output)]
+        (is (g/error? error-value))
+        (is (= 1 (count       (:causes  error-value))))
+        (is (= receiver       (:_node-id error-value)))
+        (is (= :multi-output  (:_label   error-value)))
+        (is (= g/FATAL        (:severity error-value)))
+
+
+        (let [cause (first (:causes error-value))]
+          (is (g/error? cause))
+          (is (empty?        (:causes   cause)))
+          (is (= sender2     (:_node-id cause)))
+          (is (= :a-property (:_label   cause)))
+          (is (= g/FATAL     (:severity cause))))))))

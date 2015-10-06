@@ -2,7 +2,8 @@
   (:require [clojure.set :as set]
             [dynamo.util :refer [removev map-vals stackify]]
             [internal.graph.types :as gt]
-            [schema.core :as s]))
+            [schema.core :as s])
+  (:import [schema.core Maybe Either]))
 
 (set! *warn-on-reflection* true)
 
@@ -143,7 +144,9 @@
      (= s/Any input-schema)
      (and out-t-pl? (= [s/Any] input-schema))
      (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
-     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema)))))
+     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
+     (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
+     (and (instance? Either input-schema) (some #(type-compatible? output-schema %) (:schemas input-schema))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for transactions

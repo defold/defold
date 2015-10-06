@@ -366,8 +366,6 @@
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this project] 42)
 
-(g/defproperty IntegerProperty g/Int (validate positive? (comp not neg?)))
-
 (g/defnode MultipleOutputNode
   (input integer-input g/Int)
   (input string-input g/Str)
@@ -471,35 +469,17 @@
                  (eval '(dynamo.graph/defnode FooNode
                           (output my-output dynamo.graph/Any (fn [x] "foo"))))))))
 
-(defn- not-neg? [x] (not (neg? x)))
-
-(g/defproperty TypedProperty g/Int)
-(g/defproperty DerivedProperty TypedProperty)
-(g/defproperty DefaultProperty DerivedProperty
-  (default 0))
-(g/defproperty ValidatedProperty DefaultProperty
-  (validate must-be-positive not-neg?))
-
 (g/defnode NodeWithPropertyVariations
-  (property typed-external TypedProperty)
-  (property derived-external DerivedProperty)
-  (property default-external DefaultProperty)
-  (property validated-external ValidatedProperty)
-
   (property typed-internal g/Int)
-  (property derived-internal TypedProperty)
-  (property default-internal TypedProperty
-    (default 0))
-  (property validated-internal DefaultProperty
-            (validate always-valid (fn [value] true)))
-  (property literally-disabled TypedProperty
+  (property default-internal g/Int
+            (default 0))
+  (property validated-internal g/Int
+            (validate (g/always true)))
+  (property literally-disabled g/Int
             (dynamic enabled (g/always false))))
 
 (g/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
-
-
-;;; TODO - Make some tests for the Derived Properties etc...
 
 (def original-node-definition
   '(dynamo.graph/defnode MutagenicNode
@@ -532,19 +512,15 @@
         (is (= 42         (:c-property node-after-mutation)))
         (is (instance? MarkerInterface node-after-mutation))))))
 
-(g/defproperty DynamicExternalProperty g/Num
-  (dynamic external-dynamic (g/fnk [an-input another-input] true)))
-
 (g/defnode PropertyDynamicsNode
   (input an-input       g/Num)
-  (input another-input  g/Num)
   (input third-input    g/Num)
   (input fourth-input   g/Num)
   (input fifth-input    g/Num)
 
-  (property external-property DynamicExternalProperty)
   (property internal-property g/Num
-            (dynamic internal-dynamic (g/fnk [third-input] false)))
+            (dynamic internal-dynamic (g/fnk [third-input] false))
+            (validate (g/fnk [an-input] (when (nil? an-input) (g/error-info "Select a resource")))))
   (property internal-multiple g/Num
             (dynamic one-dynamic (g/fnk [fourth-input] false))
             (dynamic two-dynamic (g/fnk [fourth-input fifth-input] "dynamics can return strings"))))
@@ -554,7 +530,7 @@
   (contains? (get (g/input-dependencies node-type) input) :_properties))
 
 (deftest node-properties-depend-on-dynamic-inputs
-  (let [all-inputs [:an-input :another-input :third-input :fourth-input :fifth-input]]
+  (let [all-inputs [:an-input :third-input :fourth-input :fifth-input]]
    (is (= true (every? #(affects-properties PropertyDynamicsNode %) all-inputs)))))
 
 (g/defproperty NeedsADifferentInput g/Num
