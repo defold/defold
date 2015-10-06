@@ -11,7 +11,8 @@
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [com.defold.control ListCell]
            [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
@@ -129,7 +130,7 @@
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
           styles (seq (.getStylesheets root))]
-      (.setAll (.getStylesheets root) (into (list) styles)))))
+      (.setAll (.getStylesheets root) ^java.util.Collection (into (list) styles)))))
 
 (defn visible! [^Node node v]
   (.setVisible node v))
@@ -174,8 +175,8 @@
              (focus-fn got-focus))))
 
 (defprotocol Text
-  (text [this])
-  (text! [this val]))
+  (text ^String [this])
+  (text! [this ^String val]))
 
 (defprotocol HasUserData
   (user-data [this key])
