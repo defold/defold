@@ -505,6 +505,22 @@ int Facebook_Me(lua_State* L)
     return 1;
 }
 
+void AppendTableArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
+{
+    lua_pushnil(L);
+    *buffer = 0;
+    while (lua_next(L, idx) != 0)
+    {
+        if (!lua_isstring(L, -1))
+            luaL_error(L, "table concat can only be strings (not %s)", lua_typename(L, lua_type(L, -1)));
+        if (*buffer != 0)
+            dmStrlCat(buffer, ",", buffer_size);
+        const char* permission = lua_tostring(L, -1);
+        dmStrlCat(buffer, permission, buffer_size);
+        lua_pop(L, 1);
+    }
+}
+
 int Facebook_ShowDialog(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -528,9 +544,18 @@ int Facebook_ShowDialog(lua_State* L)
     lua_pushnil(L);
     int i = 0;
     while (lua_next(L, 2) != 0) {
-        const char* v = luaL_checkstring(L, -1);
+        const char* vp;
+        char v[1024];
         const char* k = luaL_checkstring(L, -2);
-        DM_SNPRINTF(tmp, sizeof(tmp), "\"%s\": \"%s\"", k, v);
+
+        if (lua_istable(L, -1)) {
+            AppendTableArray(L, v, 1024, lua_gettop(L));
+            vp = v;
+        } else {
+            vp = luaL_checkstring(L, -1);
+        }
+
+        DM_SNPRINTF(tmp, sizeof(tmp), "\"%s\": \"%s\"", k, vp);
         if (i > 0) {
             dmStrlCat(params_json, ",", sizeof(params_json));
         }
