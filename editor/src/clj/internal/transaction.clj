@@ -57,9 +57,9 @@
     :fn       f
     :args     args}])
 
-(defn update-graph
+(defn update-graph-value
   [gid f args]
-  [{:type :update-graph
+  [{:type :update-graph-value
     :gid  gid
     :fn   f
     :args args}])
@@ -292,10 +292,10 @@
       ctx)
     ctx))
 
-(defmethod perform :update-graph
+(defmethod perform :update-graph-value
   [{:keys [basis] :as ctx} {:keys [gid fn args]}]
   (-> ctx
-      (update-in [:basis :graphs gid] #(apply fn % args))
+      (update-in [:basis :graphs gid :graph-values] #(apply fn % args))
       (update :graphs-modified conj gid)))
 
 (defmethod perform :label
