@@ -159,17 +159,18 @@ static id LuaToObjC(lua_State* L, int index)
 {
     int top = lua_gettop(L);
     id r = nil;
+    int actual_lua_type = lua_type(L, index);
 
-    if (lua_type(L, index) == LUA_TSTRING) {
+    if (actual_lua_type == LUA_TSTRING) {
         r = [NSString stringWithUTF8String: lua_tostring(L, index)];
 
-    } else if (lua_type(L, index) == LUA_TTABLE) {
+    } else if (actual_lua_type == LUA_TTABLE) {
         r = TableToNSArray(L, index);
 
-    } else if (lua_type(L, index) == LUA_TNUMBER) {
+    } else if (actual_lua_type == LUA_TNUMBER) {
         r = [NSNumber numberWithDouble: lua_tonumber(L, index)];
 
-    } else if (lua_type(L, index) == LUA_TBOOLEAN) {
+    } else if (actual_lua_type == LUA_TBOOLEAN) {
         r = [NSNumber numberWithBool:lua_toboolean(L, index)];
 
     } else {
@@ -180,15 +181,22 @@ static id LuaToObjC(lua_State* L, int index)
     return r;
 }
 
-static id GetTableValue(lua_State* L, int table_index, NSArray* keys)
+static id GetTableValue(lua_State* L, int table_index, NSArray* keys, int expected_lua_type)
 {
     id r = nil;
     int top = lua_gettop(L);
     for (NSString *key in keys) {
         lua_getfield(L, table_index, [key UTF8String]);
-        if (!lua_isnil(L, -1))
-        {
-            r = LuaToObjC(L, lua_gettop(L));
+        if (!lua_isnil(L, -1)) {
+
+            int actual_lua_type = lua_type(L, -1);
+            if (actual_lua_type != expected_lua_type) {
+                dmLogError("Lua conversion expected entry '%s' to be %s but got %s",
+                    [key UTF8String], lua_typename(L, expected_lua_type), lua_typename(L, actual_lua_type));
+            } else {
+                r = LuaToObjC(L, lua_gettop(L));
+            }
+
         }
         lua_pop(L, 1);
     }
@@ -436,7 +444,7 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Lua API
-// 
+//
 
  /*# initiate a Facebook login
  *
@@ -453,7 +461,7 @@ static FBSDKGameRequestFilter convertGameRequestFilters(int fromLuaInt) {
  * @param callback callback function with parameters (self, status, error), when the login attempt is done. (function)
  * @examples
  * <pre>
- * facebook.login(function (self, status, error)       
+ * facebook.login(function (self, status, error)
  *     if error or status ~= facebook.STATE_OPEN then
  *         print("Facebook log in error: " .. status)
  *         return
@@ -551,7 +559,7 @@ int Facebook_Logout(lua_State* L)
  *         return
  *     end
  * end)
- * </pre> 
+ * </pre>
  */
 int Facebook_RequestReadPermissions(lua_State* L)
 {
@@ -601,7 +609,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
  *         return
  *     end
  * end)
- * </pre> 
+ * </pre>
  */
 
 int Facebook_RequestPublishPermissions(lua_State* L)
@@ -632,7 +640,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 }
 
 /*# get the current Facebook access token
- * 
+ *
  * @name access_token
  * @return the access token (string)
  */
@@ -684,7 +692,7 @@ int Facebook_Permissions(lua_State* L)
  * "me" path. The user data is fetched during facebook.login().
  *
  * The table contains the following fields:
- * 
+ *
  * <ul>
  *   <li><code>"name"</code></li>
  *   <li><code>"last_name"</code></li>
@@ -726,14 +734,14 @@ int Facebook_Me(lua_State* L)
  *
  * Display a Facebook web dialog of the type specified in the <code>dialog</code> parameter.
  * The <code>param</code> table should be set up according to the requirements of each dialog
- * type. Note that some parameters are mandatory. Below is the list of available dialogs and 
+ * type. Note that some parameters are mandatory. Below is the list of available dialogs and
  * where to find Facebook's developer documentation on parameters and response data.
  *
  * <code>apprequest</code>
  *
- * Shows a Game Request dialog. Game Requests allows players to invite their friends to play a 
+ * Shows a Game Request dialog. Game Requests allows players to invite their friends to play a
  * game. Available parameters:
- * 
+ *
  * <ul>
  *   <li><code>title</code> (string)</li>
  *   <li><code>message</code> (string)</li>
@@ -747,13 +755,13 @@ int Facebook_Me(lua_State* L)
  *
  * <b>IMPORTANT</b>The Facebook SDK for Android allows just one recipient in the "to"-field.
  * Furthermore, the field has been deprecated on iOS. Use the "suggestions" field instead.
- * 
+ *
  * Details for each parameter: https://developers.facebook.com/docs/games/requests/v2.4#params
  *
  * <code>feed</code>
  *
- * The Feed Dialog allows people to publish individual stories to their timeline. 
- * 
+ * The Feed Dialog allows people to publish individual stories to their timeline.
+ *
  * <ul>
  *   <li><code>caption</code> (string)</li>
  *   <li><code>description</code> (string)</li>
@@ -763,7 +771,7 @@ int Facebook_Me(lua_State* L)
  *   <li><code>place_id</code> (string)</li>
  *   <li><code>ref</code> (string)</li>
  * </ul>
- * 
+ *
  * Details for each parameter: https://developers.facebook.com/docs/sharing/reference/feed-dialog/v2.4#params
  *
  * <code>appinvite</code>
@@ -775,9 +783,9 @@ int Facebook_Me(lua_State* L)
  *   <li><code>url</code> (string)</li>
  *   <li><code>preview_image</code> (string)</li>
  * </ul>
- * 
+ *
  * Details for each parameter: https://developers.facebook.com/docs/reference/ios/current/class/FBSDKAppInviteContent/
- * 
+ *
  * @name show_dialog
  * @param dialog dialog to show. "apprequest", "feed" or "appinvite" (string)
  * @param param table with dialog parameters (table)
@@ -800,37 +808,37 @@ static int Facebook_ShowDialog(lua_State* L)
     if (dialog == dmHashString64("feed")) {
 
         FBSDKShareLinkContent* content = [[FBSDKShareLinkContent alloc] init];
-        content.contentTitle       = GetTableValue(L, 2, @[@"caption", @"title"]);
-        content.contentDescription = GetTableValue(L, 2, @[@"description"]);
-        content.imageURL           = [NSURL URLWithString:GetTableValue(L, 2, @[@"picture"])];
-        content.contentURL         = [NSURL URLWithString:GetTableValue(L, 2, @[@"link"])];
-        content.peopleIDs          = GetTableValue(L, 2, @[@"people_ids"]);
-        content.placeID            = GetTableValue(L, 2, @[@"place_id"]);
-        content.ref                = GetTableValue(L, 2, @[@"ref"]);
+        content.contentTitle       = GetTableValue(L, 2, @[@"caption", @"title"], LUA_TSTRING);
+        content.contentDescription = GetTableValue(L, 2, @[@"description"], LUA_TSTRING);
+        content.imageURL           = [NSURL URLWithString:GetTableValue(L, 2, @[@"picture"], LUA_TSTRING)];
+        content.contentURL         = [NSURL URLWithString:GetTableValue(L, 2, @[@"link"], LUA_TSTRING)];
+        content.peopleIDs          = GetTableValue(L, 2, @[@"people_ids"], LUA_TTABLE);
+        content.placeID            = GetTableValue(L, 2, @[@"place_id"], LUA_TSTRING);
+        content.ref                = GetTableValue(L, 2, @[@"ref"], LUA_TSTRING);
 
         [FBSDKShareDialog showFromViewController:nil withContent:content delegate:g_Facebook.m_Delegate];
 
     } else if (dialog == dmHashString64("appinvite")) {
 
         FBSDKAppInviteContent* content = [[FBSDKAppInviteContent alloc] init];
-        content.appLinkURL               = [NSURL URLWithString:GetTableValue(L, 2, @[@"url"])];
-        content.appInvitePreviewImageURL = [NSURL URLWithString:GetTableValue(L, 2, @[@"preview_image_url"])];
+        content.appLinkURL               = [NSURL URLWithString:GetTableValue(L, 2, @[@"url"], LUA_TSTRING)];
+        content.appInvitePreviewImageURL = [NSURL URLWithString:GetTableValue(L, 2, @[@"preview_image_url"], LUA_TSTRING)];
 
         [FBSDKAppInviteDialog showWithContent:content delegate:g_Facebook.m_Delegate];
 
     } else if (dialog == dmHashString64("apprequests")) {
 
         FBSDKGameRequestContent* content = [[FBSDKGameRequestContent alloc] init];
-        content.title      = GetTableValue(L, 2, @[@"title"]);
-        content.message    = GetTableValue(L, 2, @[@"message"]);
-        content.actionType = convertGameRequestAction([GetTableValue(L, 2, @[@"action_type"]) unsignedIntValue]);
-        content.filters    = convertGameRequestFilters([GetTableValue(L, 2, @[@"filters"]) unsignedIntValue]);
-        content.data       = GetTableValue(L, 2, @[@"data"]);
-        content.objectID   = GetTableValue(L, 2, @[@"object_id"]);
-        content.recipientSuggestions = GetTableValue(L, 2, @[@"suggestions"]);
+        content.title      = GetTableValue(L, 2, @[@"title"], LUA_TSTRING);
+        content.message    = GetTableValue(L, 2, @[@"message"], LUA_TSTRING);
+        content.actionType = convertGameRequestAction([GetTableValue(L, 2, @[@"action_type"], LUA_TNUMBER) unsignedIntValue]);
+        content.filters    = convertGameRequestFilters([GetTableValue(L, 2, @[@"filters"], LUA_TNUMBER) unsignedIntValue]);
+        content.data       = GetTableValue(L, 2, @[@"data"], LUA_TSTRING);
+        content.objectID   = GetTableValue(L, 2, @[@"object_id"], LUA_TSTRING);
+        content.recipientSuggestions = GetTableValue(L, 2, @[@"suggestions"], LUA_TTABLE);
 
         // comply with JS way of specifying recipients/to
-        NSString* recipients = GetTableValue(L, 2, @[@"to"]);
+        NSString* recipients = GetTableValue(L, 2, @[@"to"], LUA_TTABLE);
         if (recipients != nil && [recipients respondsToSelector:@selector(componentsSeparatedByString:)]) {
             content.recipients = [recipients componentsSeparatedByString:@","];
         }
