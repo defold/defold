@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
+            [plumbing.fnk.pfnk :as pf]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]))
 
@@ -134,3 +135,13 @@ into an arglist."
   (fn [& args]
     (when (apply f args)
       (apply g args))))
+
+(defn fnk-schema
+  [f]
+  (when f
+    (pf/input-schema f)))
+
+(defn fnk-arguments
+  [f]
+  (when f
+    (key-set (dissoc (fnk-schema f) s/Keyword))))

@@ -76,11 +76,10 @@
   (testing "node transformation"
     (with-clean-system
       (let [[id1] (tx-nodes (g/make-node world Resource :marker 99))
-            tx-result   (g/transact (it/become id1 (g/construct Downstream)))
-            after       (:basis tx-result)]
+            tx-result   (g/transact (it/become id1 (g/construct Downstream)))]
         (is (= :ok (:status tx-result)))
-        (is (= Downstream (g/node-type* after id1)))
-        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No such" (g/node-value after id1 :marker)))))))
+        (is (= Downstream (g/node-type* (g/now) id1)))
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No such" (g/node-value id1 :marker)))))))
 
 (g/defnode NamedThing
   (property name g/Str))

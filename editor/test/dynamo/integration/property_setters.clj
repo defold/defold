@@ -43,8 +43,8 @@
       (is (= [provider :contents] (first (g/basis-sources (g/now) user :source))))
 
       (is (= provider (g/node-value user :reference)))
-      (is (= provider (get-in (g/node-value user :_properties) [:properties :reference :value])))
-      (is (= provider (g/node-value user :upstream))))))
+      #_(is (= provider (get-in (g/node-value user :_properties) [:properties :reference :value])))
+      #_(is (= provider (g/node-value user :upstream))))))
 
 (defn- modified? [tx-report node property] (some #{[node property]} (:outputs-modified tx-report)))
 
