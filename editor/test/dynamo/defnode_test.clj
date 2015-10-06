@@ -232,8 +232,8 @@
   (property underneath g/Int)
   (property self-incrementing g/Int
             (value (g/fnk [underneath] underneath))
-            (set (fn [basis this new-value]
-                   (g/set-property (g/node-id this) :underneath (or (and new-value (inc new-value)) 0))))))
+            (set (fn [basis self old-value new-value]
+                   (g/set-property self :underneath (or (and new-value (inc new-value)) 0))))))
 
 (g/defnode GetterFnPropertyNode
   (property reports-higher g/Int

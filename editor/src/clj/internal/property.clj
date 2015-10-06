@@ -13,8 +13,8 @@
 (def ^:private default-validation-fn (constantly true))
 
 (defn property-default-setter
-  [basis node property value]
-  (first (gt/replace-node basis (gt/node-id node) (assoc node property value))))
+  [basis node property _ new-value]
+  (first (gt/replace-node basis node (assoc (ig/node-by-id-at basis node) property new-value))))
 
 (defrecord PropertyTypeImpl
   [name value-type default tags dynamic]
