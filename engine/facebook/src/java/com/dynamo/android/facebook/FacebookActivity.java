@@ -330,7 +330,7 @@ public class FacebookActivity implements PseudoActivity {
 
                     shareDialog.show(parent, content.build());
 
-                } else if (dialogType.equals("apprequests")) {
+                } else if (dialogType.equals("apprequests") || dialogType.equals("apprequest")) {
 
                     GameRequestDialog appInviteDialog = new GameRequestDialog(parent);
 
