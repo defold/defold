@@ -17,6 +17,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
@@ -147,9 +148,9 @@ def build(bld):
 
     bld.new_task_gen(features='jar seq',
                      basedir='java',
-                     destfile='upnp.jar')
+                     destfile='dlib.jar')
 
-    bld.install_files('${PREFIX}/share/java', 'upnp.jar')
+    bld.install_files('${PREFIX}/share/java', 'dlib.jar')
 
     bld.new_task_gen(features='javac seq',
                      classpath=classpath  + os.pathsep + 'default/src/java',
