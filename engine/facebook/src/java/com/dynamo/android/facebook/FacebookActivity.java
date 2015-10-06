@@ -309,8 +309,9 @@ public class FacebookActivity implements PseudoActivity {
                         .setPlaceId(dialogParams.getString("place_id", ""))
                         .setRef(dialogParams.getString("ref", ""));
 
-                    if (dialogParams.getStringArray("people_ids") != null) {
-                        content.setPeopleIds(Arrays.asList(dialogParams.getStringArray("people_ids")));
+                    String peopleIdsString = dialogParams.getString("people_ids", null);
+                    if (peopleIdsString != null) {
+                        content.setPeopleIds(Arrays.asList(peopleIdsString.split(",")));
                     }
 
                     shareDialog.registerCallback(callbackManager, new DefaultDialogCallback<Sharer.Result>() {
@@ -334,8 +335,9 @@ public class FacebookActivity implements PseudoActivity {
                     GameRequestDialog appInviteDialog = new GameRequestDialog(parent);
 
                     ArrayList<String> suggestionsArray = new ArrayList<String>();
-                    String[] suggestions = dialogParams.getStringArray("suggestions");
-                    if (suggestions != null) {
+                    String suggestionsString = dialogParams.getString("suggestions", null);
+                    if (suggestionsString != null) {
+                        String [] suggestions = suggestionsString.split(",");
                         suggestionsArray.addAll(Arrays.asList(suggestions));
                     }
 
