@@ -34,6 +34,13 @@ class TestDlib(unittest.TestCase):
         foo_decompressed = dlib.dmLZ4DecompressBuffer(foo_compressed, 3)
         self.assertEqual(foo_decompressed, "foo")
 
+    def testCrypt(self):
+        key = "12345678abcdefgh"
+        s = "ABCDEFGH12345678XYZ"
+        enc = dlib.dmEncryptXTeaCTR(s, key)
+        self.assertEqual("\x81\xb4\xa1\x04\x2d\xac\xe5\xcb\x77\x89\xec\x11\x61\xc3\xdc\xfa\xb9\xa3\x25", enc)
+        dec = dlib.dmDecryptXTeaCTR(enc, key)
+        self.assertEqual(s, dec)
+
 if __name__ == '__main__':
     unittest.main()
-    
