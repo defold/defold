@@ -12,11 +12,11 @@ TEST(dmResourceArchive, Wrap)
     dmResourceArchive::HArchive archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer((void*) TEST_ARC, TEST_ARC_SIZE, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-    ASSERT_EQ(4U, dmResourceArchive::GetEntryCount(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
     char* buf = new char[1024 * 1024];
 
-    const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
-    const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data" };
+    const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc", "/archive_data/file5.scriptc" };
+    const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data", "stuff to test encryption" };
     dmResourceArchive::EntryInfo entry_info;
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
@@ -36,11 +36,11 @@ TEST(dmResourceArchive, WrapCompressed)
     dmResourceArchive::HArchive archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer((void*) TEST_COMPRESSED_ARC, TEST_COMPRESSED_ARC_SIZE, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-    ASSERT_EQ(4U, dmResourceArchive::GetEntryCount(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
     char* buf = new char[1024 * 1024];
 
-    const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
-    const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data" };
+    const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc", "/archive_data/file5.scriptc" };
+    const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data", "stuff to test encryption" };
     dmResourceArchive::EntryInfo entry_info;
     for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     {
@@ -65,11 +65,11 @@ TEST(dmResourceArchive, LoadFromDisk)
     {
         dmResourceArchive::Result r = dmResourceArchive::LoadArchive(archives[i], &archive);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-        ASSERT_EQ(4U, dmResourceArchive::GetEntryCount(archive));
+        ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
         char* buf = new char[1024 * 1024];
 
-        const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
-        const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data" };
+        const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc", "/archive_data/file5.scriptc" };
+        const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data", "stuff to test encryption" };
         dmResourceArchive::EntryInfo entry_info;
         for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
         {
@@ -96,11 +96,11 @@ TEST(dmResourceArchive, LoadFromDiskCompressed)
     {
         dmResourceArchive::Result r = dmResourceArchive::LoadArchive(archives[i], &archive);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-        ASSERT_EQ(4U, dmResourceArchive::GetEntryCount(archive));
+        ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
         char* buf = new char[1024 * 1024];
 
-        const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
-        const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data" };
+        const char* names[] = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc", "/archive_data/file5.scriptc" };
+        const char* data[] = { "file4_datafile4_datafile4_data", "file1_datafile1_datafile1_data", "file3_data", "file2_datafile2_datafile2_data", "stuff to test encryption" };
         dmResourceArchive::EntryInfo entry_info;
         for (uint32_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
         {

@@ -100,8 +100,10 @@ struct SResourceFactory
 
     // Builtin resource archive
     dmResourceArchive::HArchive                  m_BuiltinsArchive;
+
     // Resource archive
     dmResourceArchive::HArchive                  m_Archive;
+    void*                                        m_ArchiveMountInfo;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -287,12 +289,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     }
     else if (strcmp(factory->m_UriParts.m_Scheme, "arc") == 0)
     {
-        dmResourceArchive::Result r = dmResourceArchive::LoadArchive(factory->m_UriParts.m_Path, &factory->m_Archive);
-        if (r != dmResourceArchive::RESULT_OK)
+        Result r = MountArchiveInternal(factory->m_UriParts.m_Path, &factory->m_Archive, &factory->m_ArchiveMountInfo);
+        if (r != RESULT_OK)
         {
             dmLogError("Unable to load archive: %s", factory->m_UriParts.m_Path);
             dmMessage::DeleteSocket(socket);
-            delete factory;
             return 0;
         }
     }
@@ -356,7 +357,7 @@ void DeleteFactory(HFactory factory)
     }
     if (factory->m_Archive)
     {
-        dmResourceArchive::Delete(factory->m_Archive);
+        UnmountArchiveInternal(factory->m_Archive, factory->m_ArchiveMountInfo);
     }
     if (factory->m_LoadMutex)
     {
