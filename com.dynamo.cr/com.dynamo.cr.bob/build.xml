@@ -190,9 +190,6 @@
             <zipgroupfileset dir="lib">
               <include name="*.jar"/>
             </zipgroupfileset>
-            <zipgroupfileset dir="${env.DYNAMO_HOME}/share/java">
-              <include name="dlib.jar"/>
-            </zipgroupfileset>
          </jar>
 
         <jar destfile="dist/bob-light.jar">
@@ -228,9 +225,6 @@
             <zipgroupfileset dir="lib">
                 <include name="*.jar"/>
                 <exclude name="android.jar"/>
-            </zipgroupfileset>
-            <zipgroupfileset dir="${env.DYNAMO_HOME}/share/java">
-              <include name="dlib.jar"/>
             </zipgroupfileset>
          </jar>
 
