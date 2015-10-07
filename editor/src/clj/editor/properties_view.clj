@@ -139,7 +139,7 @@
       (HBox/setHgrow ^TextField t Priority/SOMETIMES)
       (.setPrefWidth ^TextField t 60)
       (-> (.getChildren box)
-        (.addAll children)))
+        (.addAll ^java.util.Collection children)))
     [box update-ui-fn]))
 
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
@@ -294,7 +294,7 @@
 
   (output pane Pane :cached (g/fnk [parent-view _node-id workspace selected-node-properties] (update-pane parent-view _node-id workspace selected-node-properties))))
 
-(defn make-properties-view [workspace project view-graph parent]
+(defn make-properties-view [workspace project view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace)
         stage         (.. parent getScene getWindow)
         refresh-timer (ui/->timer 1 (fn [now] (g/node-value view-id :pane)))]
