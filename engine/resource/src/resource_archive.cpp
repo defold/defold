@@ -3,7 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "resource_archive.h"
-#include "dlib/lz4.h"
+#include <dlib/lz4.h>
+#include <dlib/crypt.h>
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <netinet/in.h>
@@ -15,7 +16,13 @@
 
 namespace dmResourceArchive
 {
-    const static uint32_t VERSION = 3;
+    const static uint32_t VERSION = 4;
+    const char* KEY = "aQj8CScgNP4VsfXK";
+
+    enum EntryFlag
+    {
+        ENTRY_FLAG_ENCRYPTED = 1 << 0,
+    };
 
     struct Entry
     {
@@ -24,6 +31,7 @@ namespace dmResourceArchive
         uint32_t m_ResourceSize;
         // 0xFFFFFFFF if uncompressed
         uint32_t m_ResourceCompressedSize;
+        uint32_t m_Flags;
     };
 
     struct Meta
@@ -191,6 +199,8 @@ bail:
                 entry->m_Offset = htonl(file_entry->m_ResourceOffset);
                 entry->m_Size = htonl(file_entry->m_ResourceSize);
                 entry->m_CompressedSize = htonl(file_entry->m_ResourceCompressedSize);
+                entry->m_Flags = htonl(file_entry->m_Flags);
+                entry->m_Entry = file_entry;
                 return RESULT_OK;
             }
         }
@@ -217,11 +227,21 @@ bail:
                 {
                     return RESULT_MEM_ERROR;
                 }
+
                 if (fread(compressed_buf, 1, compressed_size, meta->m_File) != compressed_size)
                 {
                     free(compressed_buf);
-
                     return RESULT_IO_ERROR;
+                }
+
+                if (entry_info->m_Flags & ENTRY_FLAG_ENCRYPTED)
+                {
+                    dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) compressed_buf, compressed_size, (const uint8_t*) KEY, strlen(KEY));
+                    if (cr != dmCrypt::RESULT_OK)
+                    {
+                        free(compressed_buf);
+                        return RESULT_UNKNOWN;
+                    }
                 }
 
                 dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
@@ -241,7 +261,12 @@ bail:
                 // Entry is uncompressed
                 if (fread(buffer, 1, size, meta->m_File) == size)
                 {
-                    return RESULT_OK;
+                    dmCrypt::Result cr = dmCrypt::RESULT_OK;
+                    if (entry_info->m_Flags & ENTRY_FLAG_ENCRYPTED)
+                    {
+                        cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, size, (const uint8_t*) KEY, strlen(KEY));
+                    }
+                    return (cr == dmCrypt::RESULT_OK) ? RESULT_OK : RESULT_UNKNOWN;
                 }
                 else
                 {
@@ -252,26 +277,49 @@ bail:
         else
         {
             void* r = (void*) (entry_info->m_Offset + uintptr_t(archive));
+            void* decrypted = r;
 
+            if (entry_info->m_Flags & ENTRY_FLAG_ENCRYPTED)
+            {
+                uint32_t bufsize = (compressed_size != 0xFFFFFFFF) ? compressed_size : size;
+                decrypted = (uint8_t*) malloc(bufsize);
+                memcpy(decrypted, r, bufsize);
+                dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) decrypted, bufsize, (const uint8_t*) KEY, strlen(KEY));
+                if (cr != dmCrypt::RESULT_OK)
+                {
+                    free(decrypted);
+                    return RESULT_UNKNOWN;
+                }
+            }
+
+            Result ret;
             if (compressed_size != 0xFFFFFFFF)
             {
                 // Entry is compressed
-                dmLZ4::Result result = dmLZ4::DecompressBuffer(r, compressed_size, buffer, size, &decompressed_size);
+                dmLZ4::Result result = dmLZ4::DecompressBuffer(decrypted, compressed_size, buffer, size, &decompressed_size);
                 if (result == dmLZ4::RESULT_OK && decompressed_size == size)
                 {
-                    return RESULT_OK;
+                    ret = RESULT_OK;
                 }
                 else
                 {
-                    return RESULT_OUTBUFFER_TOO_SMALL;
+                    ret = RESULT_OUTBUFFER_TOO_SMALL;
                 }
             }
             else
             {
                 // Entry is uncompressed
-                memcpy(buffer, r, size);
-                return RESULT_OK;
+                memcpy(buffer, decrypted, size);
+                ret = RESULT_OK;
             }
+
+            // if needed aux buffer
+            if (decrypted != r)
+            {
+                free(decrypted);
+            }
+
+            return ret;
         }
     }
 
