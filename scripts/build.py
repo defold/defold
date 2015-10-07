@@ -379,6 +379,7 @@ class Configuration(object):
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
+        java_archive_path = join(self.archive_path, sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
         bin_dir = self.build_utility.get_binary_path()
@@ -405,6 +406,8 @@ class Configuration(object):
 
             doc = self._ziptree(join(dynamo_home, 'share', 'doc'), directory = join(dynamo_home, 'share'))
             self.upload_file(doc, '%s/ref-doc.zip' % (share_archive_path))
+
+            self.upload_file(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
             files = [
