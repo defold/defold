@@ -7,7 +7,6 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="protobuf-java*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
-        <fileset dir="${env.DYNAMO_HOME}/share/java" includes="dlib.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
 
