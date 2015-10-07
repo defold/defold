@@ -294,6 +294,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {
             dmLogError("Unable to load archive: %s", factory->m_UriParts.m_Path);
             dmMessage::DeleteSocket(socket);
+            delete factory;
             return 0;
         }
     }
