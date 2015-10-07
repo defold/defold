@@ -336,7 +336,6 @@ Create apkc, by invoking the following from the root defold directory:
 This will result in the production of apkc under “go/bin”. This should be copied to “com.dynamo.cr/com.dynamo.cr.target/lib/<host platform>”.
 
 Copy classes.dex from $DYNAMO_HOME/share/java to com.dynamo.cr/com.dynamo.cr.target/lib.
-Copy dlib.jar from $DYNAMO_HOME/share/java to com.dynamo.cr/com.dynamo.cr.target/lib.
 
 Copy all content from $DYNAMO_HOME/ext/share/java/res to com.dynamo.cr/com.dynamo.cr.target/res. You should expect to be copying material for
 Facebook and Google Play into this location.
