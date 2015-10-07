@@ -11,7 +11,7 @@ ordinary paths."
             [service.log :as log]
             ; TODO - HACK
             [internal.graph.types :as gt])
-  (:import [java.io File]
+  (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.lang Process ProcessBuilder]
            [com.defold.editor Platform]))
@@ -163,7 +163,7 @@ ordinary paths."
 (defn clear-fs-build-cache [project]
   (reset! (g/node-value project :fs-build-cache) {}))
 
-(defn- pump-engine-output [stdout]
+(defn- pump-engine-output [^InputStream stdout]
   (let [buf (byte-array 1024)]
     (loop []
       (let [n (.read stdout buf)]
@@ -188,19 +188,19 @@ ordinary paths."
   (let [files-on-disk (file-seq (io/file (workspace/build-path (g/node-value project :workspace))))
         build-results (build project node)
         fs-build-cache (g/node-value project :fs-build-cache)]
-    (prune-fs files-on-disk (map #(File. ^String (workspace/abs-path (:resource %))) build-results))
+    (prune-fs files-on-disk (map #(File. (workspace/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
     (doseq [result build-results
             :let [{:keys [resource content key]} result
                   abs-path (workspace/abs-path resource)
-                  mtime (let [f (File. ^String abs-path)]
+                  mtime (let [f (File. abs-path)]
                           (if (.exists f)
                             (.lastModified f)
                             0))
                   build-key [key mtime]
                   cached? (= (get @fs-build-cache resource) build-key)]]
       (when (not cached?)
-        (let [parent (-> (File. ^String (workspace/abs-path resource))
+        (let [parent (-> (File. (workspace/abs-path resource))
                        (.getParentFile))]
           ; Create underlying directories
           (when (not (.exists parent))
@@ -208,7 +208,7 @@ ordinary paths."
           ; Write bytes
           (with-open [out (io/output-stream resource)]
             (.write out ^bytes content))
-          (let [f (File. ^String abs-path)]
+          (let [f (File. abs-path)]
             (swap! fs-build-cache assoc resource [key (.lastModified f)])))))))
 
 (handler/defhandler :undo :global

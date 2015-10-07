@@ -108,7 +108,7 @@
             bank (Math/atan2 (- (* 2.0 x w) (* 2.0 y z)) (- 1.0 (* 2.0 sqx) (* 2.0 sqz)))]
         (mapv rad->deg [bank heading attitude])))))
 
-(defn rotate [^Quat4d rotation ^Vector3d v]
+(defn ^Vector3d rotate [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
         _ (.mul q rotation q)
         _ (.mulInverse q rotation)]
