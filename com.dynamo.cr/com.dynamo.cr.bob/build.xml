@@ -69,6 +69,12 @@
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
 
+        <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
+            <fileset dir="${env.DYNAMO_HOME}/share">
+                <include name="java/dlib.jar"/>
+            </fileset>
+        </copy>
+
         <copy todir="libexec" overwrite="true">
             <chainedmapper>
                 <cutdirsmapper dirs="1"/>
@@ -158,7 +164,6 @@
                 <include name="win32/*texc_shared*"/>
             </fileset>
         </copy>
-
         <jar destfile="lib/luajit-share.zip">
              <fileset dir="${env.DYNAMO_HOME}/ext/share">
                  <include name="luajit/**"/>
@@ -170,7 +175,6 @@
                  <include name="res/**"/>
              </fileset>
          </jar>
-
     </target>
 
     <target name="dist" depends="compile">
