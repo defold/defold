@@ -8,7 +8,8 @@
             [editor.atlas :as atlas]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
             GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -141,7 +142,8 @@
            (delete-file workspace img-path)
            (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
                                         ; TODO - fix node pollution
-           (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))
+           (log/without-logging
+            (is (g/error? (g/node-value atlas-node-id :anim-data))))))))))
 
 (deftest save-no-reload
   (with-clean-system
@@ -172,11 +174,13 @@
     (let [[workspace project] (setup world)
           atlas-node-id (project/get-resource-node project "/atlas/single.atlas")
           img-path "/test_img.png"]
-      (is (error? :file-not-found (g/node-value atlas-node-id :anim-data)))
+      (log/without-logging
+       (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
       (add-img workspace img-path 64 64)
       (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
       (delete-file workspace img-path)
-      (is (error? :file-not-found (g/node-value atlas-node-id :anim-data)))
+      (log/without-logging
+       (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
       (add-img workspace img-path 64 64)
       (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
       (write-file workspace img-path "this is not png format")
@@ -193,7 +197,8 @@
           node-id (project/get-resource-node project "/main/main.go")
           img-path "/test_img.png"
           atlas-path "/atlas/single.atlas"]
-      (is (error? :file-not-found (g/node-value node-id :scene)))
+      (log/without-logging
+       (is (error? :file-not-found (g/node-value node-id :scene))))
       (add-img workspace img-path 64 64)
       (is (no-error? (g/node-value node-id :scene)))
       (copy-file workspace atlas-path "/tmp.atlas")
@@ -201,7 +206,7 @@
       (is (error? :file-not-found (g/node-value node-id :scene)))
       (copy-file workspace "/tmp.atlas" atlas-path)
       (is (no-error? (g/node-value node-id :scene)))
-      (write-file workspace atlas-path "test")
+      (log/without-logging (write-file workspace atlas-path "test"))
       (is (error? :invalid-content (g/node-value node-id :scene)))
       (copy-file workspace "/tmp.atlas" atlas-path)
       (is (no-error? (g/node-value node-id :scene))))))
