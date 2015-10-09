@@ -3,7 +3,9 @@
 import stat, os, sys, struct, dlib
 from optparse import OptionParser
 
-VERSION = 3
+ENCRYPTED_EXTS = [".luac", ".scriptc", ".gui_scriptc", ".render_scriptc"]
+KEY = "aQj8CScgNP4VsfXK"
+VERSION = 4
 
 class Entry(object):
     def __init__(self, root, filename, compress):
@@ -31,6 +33,12 @@ class Entry(object):
         else:
             self.resource = f.read()
             self.compressed_size = 0xFFFFFFFFL
+
+        if os.path.splitext(filename)[-1] in ENCRYPTED_EXTS:
+            self.flags = 1
+            self.resource = dlib.dmEncryptXTeaCTR(self.resource, KEY)
+        else:
+            self.flags = 0
         self.size = size
         f.close()
 
@@ -89,6 +97,7 @@ def compile(input_files, options):
         out_file.write(struct.pack('!I', resources_offset[i]))
         out_file.write(struct.pack('!I', e.size))
         out_file.write(struct.pack('!I', e.compressed_size))
+        out_file.write(struct.pack('!I', e.flags))
 
     # Reset file and write actual offsets
     out_file.seek(0)

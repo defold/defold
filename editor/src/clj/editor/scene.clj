@@ -66,7 +66,7 @@
               (apply hash-map))]
     `(swap! *controllers* assoc ~qname {:fns ~fns})))
 
-(def substitute-scene
+(defn substitute-scene [_]
   {:aabb (geom/null-aabb)
    :renderable {:render-fn (fn [gl render-args renderables count]
                              (let [pass (:pass render-args)]
@@ -430,7 +430,7 @@
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
     (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
-(defn- screen->world [camera viewport ^Vector3d screen-pos] ^Vector3d
+(defn- ^Vector3d screen->world [camera viewport ^Vector3d screen-pos] ^Vector3d
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
@@ -441,8 +441,8 @@
         view-graph (g/node-id->graph-id view)
         camera     (g/node-value (g/graph-value view-graph :camera) :camera)
         viewport   (g/node-value view :viewport)
-        world-pos  (Point3d. ^Vector3d (screen->world camera viewport screen-pos))
-        world-dir  (doto ^Vector3d (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
+        world-pos  (Point3d. (screen->world camera viewport screen-pos))
+        world-dir  (doto (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
                          (.sub world-pos)
                          (.normalize))]
     (assoc action

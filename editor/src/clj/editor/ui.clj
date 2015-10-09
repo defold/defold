@@ -11,8 +11,9 @@
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
-           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent]
+           [javafx.scene.control ButtonBase ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [com.defold.control ListCell]
+           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
@@ -129,7 +130,7 @@
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
           styles (seq (.getStylesheets root))]
-      (.setAll (.getStylesheets root) (into (list) styles)))))
+      (.setAll (.getStylesheets root) ^java.util.Collection (into (list) styles)))))
 
 (defn visible! [^Node node v]
   (.setVisible node v))
@@ -166,7 +167,7 @@
                                               (fn e)))))
 
 (defn on-key! [^Node node key-fn]
-  (.setOnKeyPressed node (event-handler e (key-fn (.getCode e)))))
+  (.setOnKeyPressed node (event-handler e (key-fn (.getCode ^KeyEvent e)))))
 
 (defn on-focus! [^Node node focus-fn]
   (observe (.focusedProperty node)
@@ -174,8 +175,8 @@
              (focus-fn got-focus))))
 
 (defprotocol Text
-  (text [this])
-  (text! [this val]))
+  (text ^String [this])
+  (text! [this ^String val]))
 
 (defprotocol HasUserData
   (user-data [this key])
@@ -336,12 +337,11 @@
       (map (fn [ctx] (assoc-in ctx [:env :selection] (workspace/selection (:selection-provider ctx))))))))
 
 (defn extend-menu [id location menu]
-  (swap! *menus* assoc id {:location location
-                           :menu menu}))
+  (swap! *menus* update id concat (list {:location location :menu menu})))
 
 (defn- collect-menu-extensions []
   (->>
-    (vals @*menus*)
+    (flatten (vals @*menus*))
     (filter :location)
     (reduce (fn [acc x] (update-in acc [(:location x)] concat (:menu x))) {})))
 
@@ -353,8 +353,10 @@
      (mapcat (fn [x] (concat [x] (get exts (:id x)))))))
 
 (defn- realize-menu [id]
-  (let [exts (collect-menu-extensions)]
-    (do-realize-menu (:menu (get @*menus* id)) exts)))
+  (let [exts (collect-menu-extensions)
+        ;; *menus* is a map from id to a list of extensions, extension with location nil effectively root menu
+        menu (:menu (first (filter (comp nil? :location) (get @*menus* id))))]
+    (do-realize-menu menu exts)))
 
 (defn- make-desc [control menu-id]
   {:control control
@@ -530,6 +532,7 @@
         (try
           (reset! return (worker-fn report-fn))
           (catch Throwable e
+            (log/error :exception e)
             (reset! return e)))
         (run-later (.close stage)))
       (.showAndWait stage)

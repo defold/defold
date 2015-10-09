@@ -1,14 +1,16 @@
 package com.dynamo.cr.guied.core;
 
-import java.io.ByteArrayOutputStream;
+import java.awt.FontFormatException;
+import java.awt.image.BufferedImage;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
@@ -18,6 +20,8 @@ import org.eclipse.swt.graphics.RGB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.cr.guied.Activator;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
 import com.dynamo.cr.properties.Property;
@@ -25,10 +29,11 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.TextRendererHandle;
+import com.dynamo.cr.sceneed.core.FontRendererHandle;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.render.proto.Font;
+import com.dynamo.render.proto.Font.FontMap;
 import com.google.protobuf.TextFormat;
 
 @SuppressWarnings("serial")
@@ -59,7 +64,8 @@ public class TextNode extends GuiNode {
     @Range(min = 0.0, max = 1.0)
     private double shadowAlpha = 1.0;
 
-    private transient TextRendererHandle textRendererHandle = new TextRendererHandle();
+    private transient FontRendererHandle fontRendererHandle = null;
+    private transient FontRendererHandle textDefaultRendererHandle = null;
 
     public String getText() {
         return text;
@@ -195,33 +201,70 @@ public class TextNode extends GuiNode {
         return GuiNodeStateBuilder.isFieldOverridden(this, "ShadowAlpha", (float)this.shadowAlpha);
     }
 
-    public TextRendererHandle getTextRendererHandle() {
-        return this.textRendererHandle;
+    public FontRendererHandle getDefaultTextRendererHandle() throws CoreException, IOException {
+        if (this.textDefaultRendererHandle == null) {
+            this.textDefaultRendererHandle = new FontRendererHandle();
+            this.loadFont("/builtins/fonts/system_font.font", this.textDefaultRendererHandle);
+        }
+
+        return this.textDefaultRendererHandle;
     }
 
-    private void loadFont(String fontPath) throws CoreException, IOException {
-        IContainer contentRoot = getModel().getContentRoot();
+    public FontRendererHandle getTextRendererHandle() {
+        return this.fontRendererHandle;
+    }
+
+    private void loadFont(String fontPath, FontRendererHandle fontRendererHandle) throws CoreException, IOException {
+
+        final IContainer contentRoot = getModel().getContentRoot();
         IFile fontFile = contentRoot.getFile(new Path(fontPath));
         InputStream is = fontFile.getContents();
+        Font.FontDesc fontDesc = null;
+
+        // Parse font description
         try {
             Reader reader = new InputStreamReader(is);
             Font.FontDesc.Builder fontDescBuilder = Font.FontDesc.newBuilder();
             TextFormat.merge(reader, fontDescBuilder);
-            Font.FontDesc fontDesc = fontDescBuilder.build();
-
-            String ttfFileName = fontDesc.getFont();
-            IFile ttfFile = contentRoot.getFile(new Path(ttfFileName));
-
-            ByteArrayOutputStream output = new ByteArrayOutputStream(1024 * 128);
-            IOUtils.copy(ttfFile.getContents(), output);
-
-            if (this.textRendererHandle == null) {
-                this.textRendererHandle = new TextRendererHandle();
-            }
-            this.textRendererHandle.setFont(output.toByteArray(), fontDesc.getSize());
+            fontDesc = fontDescBuilder.build();
         } finally {
             is.close();
         }
+
+        if (fontDesc == null) {
+            throw new IOException("Could not load font: " + fontPath);
+        }
+
+        // Compile to FontMap
+        FontMap.Builder fontMapBuilder = FontMap.newBuilder();
+        final IFile fontInputFile = contentRoot.getFile(new Path(fontDesc.getFont()));
+        final String searchPath = new Path(fontDesc.getFont()).removeLastSegments(1).toString();
+        BufferedImage image;
+        Fontc fontc = new Fontc();
+
+        try {
+            image = fontc.compile(fontInputFile.getContents(), fontDesc, fontMapBuilder, new FontResourceResolver() {
+
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+
+                    String resPath = Paths.get(searchPath, resourceName).toString();
+                    IFile resFile = contentRoot.getFile(new Path(resPath));
+
+                    try {
+                        return resFile.getContents();
+                    } catch (CoreException e) {
+                        throw new FileNotFoundException(e.getMessage());
+                    }
+                }
+            });
+        } catch (FontFormatException e) {
+            throw new IOException(e.getMessage());
+        }
+
+        fontRendererHandle.setFont(fontMapBuilder.build(), image, fontc.getInputFormat());
+
     }
 
     private String findFontByName(List<Node> fontNodes) {
@@ -246,7 +289,8 @@ public class TextNode extends GuiNode {
             }
             if (fontPath != null) {
                 try {
-                    loadFont(fontPath);
+                    this.fontRendererHandle = new FontRendererHandle();
+                    loadFont(fontPath, this.fontRendererHandle);
                 } catch (CoreException e) {
                     logger.error("Could not load font " + fontPath, e);
                 } catch (IOException e) {

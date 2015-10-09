@@ -36,28 +36,6 @@
            [javax.media.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
-(defn particle-fx-transform [pb]
-  (let [xform (fn [v]
-                (let [p (doto (Point3d.) (math/clj->vecmath (:position v)))
-                      r (doto (Quat4d.) (math/clj->vecmath (:rotation v)))]
-                  [p r]))
-        global-modifiers (:modifiers pb)
-        new-emitters (mapv (fn [emitter]
-                             (let [[ep er] (xform emitter)]
-                               (update-in emitter [:modifiers] concat
-                                          (mapv (fn [modifier]
-                                                  (let [[mp mr] (xform modifier)]
-                                                    (math/inv-transform ep er mp)
-                                                    (math/inv-transform er mr)
-                                                    (assoc modifier
-                                                           :position (math/vecmath->clj mp)
-                                                           :rotation (math/vecmath->clj mr))))
-                                                global-modifiers))))
-                           (:emitters pb))]
-    (-> pb
-      (assoc :emitters new-emitters)
-      (dissoc :modifiers))))
-
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
                :pb-class Input$InputBinding
@@ -66,7 +44,7 @@
               {:ext "render"
                :icon "icons/32/Icons_30-Render.png"
                :pb-class Render$RenderPrototypeDesc
-               :resource-fields [:script]
+               :resource-fields [:script [:materials :material]]
                :view-types [:form-view]
                :label "Render"}
               {:ext "material"
@@ -139,13 +117,6 @@
                :pb-class Tile$TileGrid
                :resource-fields [:tile-set :material]
                :tags #{:component}}
-              #_{:ext "particlefx"
-                :label "Particle FX"
-                :icon "icons/32/Icons_17-ParticleFX.png"
-                :pb-class Particle$ParticleFX
-                :resource-fields [[:emitters :tile-source] [:emitters :material]]
-                :tags #{:component}
-                :transform-fn particle-fx-transform}
               {:ext "sound"
                :label "Sound"
                :icon "icons/32/Icons_26-AT-Sound.png"
@@ -219,13 +190,12 @@
   (output scene g/Any (g/always {}))
   (output outline g/Any :cached (g/fnk [_node-id def] {:node-id _node-id :label (:label def) :icon (:icon def)})))
 
-(defn- connect-build-targets [self project path]
-  (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
+(defn- connect-build-targets [project self resource path]
+  (let [resource (workspace/resolve-resource resource path)]
     (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
 
-(defn load-pb [project self input def]
-  (let [pb (protobuf/read-text (:pb-class def) input)
-        resource (g/node-value self :resource)]
+(defn load-pb [project self resource def]
+  (let [pb (protobuf/read-text (:pb-class def) resource)]
     (concat
      (g/set-property self :pb pb)
      (g/set-property self :def def)
@@ -233,8 +203,8 @@
        (if (vector? res)
          (for [v (get pb (first res))]
            (let [path (if (second res) (get v (second res)) v)]
-             (connect-build-targets self project path)))
-         (connect-build-targets self project (get pb res)))))))
+             (connect-build-targets project self resource path)))
+         (connect-build-targets project self resource (get pb res)))))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
@@ -245,7 +215,7 @@
                                      :label (:label def)
                                      :build-ext (:build-ext def)
                                      :node-type ProtobufNode
-                                     :load-fn (fn [project self input] (load-pb project self input def))
+                                     :load-fn (fn [project self resource] (load-pb project self resource def))
                                      :icon (:icon def)
                                      :view-types (:view-types def)
                                      :tags (:tags def)

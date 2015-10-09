@@ -1,0 +1,8 @@
+varying vec2 var_texcoord0;
+
+void main()
+{
+    gl_Position = ftransform();
+    var_texcoord0 = gl_MultiTexCoord0.st;
+    gl_FrontColor = gl_Color; 
+}

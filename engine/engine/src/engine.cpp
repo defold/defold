@@ -951,6 +951,14 @@ bail:
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
                     dmGameObject::Render(engine->m_MainCollection);
+
+                    // Make sure we dispatch messages to the render script
+                    // since it could have some "draw_text" messages waiting.
+                    if (engine->m_RenderScriptPrototype)
+                    {
+                        dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                    }
+
                     dmRender::RenderListEnd(engine->m_RenderContext);
 
                     if (engine->m_RenderScriptPrototype)
@@ -1278,4 +1286,3 @@ bail:
         return engine->m_Stats.m_FrameCount;
     }
 }
-

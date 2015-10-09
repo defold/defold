@@ -225,6 +225,7 @@ Licenses
 * **openal** [http://kcat.strangesoft.net/openal.html](http://kcat.strangesoft.net/openal.html) **LGPL**
 * **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
 * **md5** Based on md5 in axTLS
+* **xxtea-c** [https://github.com/xxtea](https://github.com/xxtea) **MIT**
 
 
 Tagging

@@ -276,10 +276,10 @@
   (output save-data g/Any :cached produce-save-data)
   (output scene     g/Any :cached produce-scene))
 
-(defn load-level [project self input]
-  (with-open [reader (PushbackReader. (io/reader (g/node-value self :resource)))]
+(defn load-level [project self resource]
+  (with-open [reader (PushbackReader. (io/reader resource))]
     (let [level      (edn/read reader)
-          atlas-resource (workspace/resolve-resource (g/node-value self :resource) switcher-atlas-file)]
+          atlas-resource (workspace/resolve-resource resource switcher-atlas-file)]
       (concat
         (g/set-property self :width (:width level))
         (g/set-property self :height (:height level))

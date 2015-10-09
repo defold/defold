@@ -43,6 +43,14 @@ dlib.LZ4CompressBuffer.restype = ctypes.c_int
 dlib.LZ4DecompressBuffer.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_int)]
 dlib.LZ4DecompressBuffer.restype = ctypes.c_int
 
+# int EncryptXTeaCTR(uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen)
+dlib.EncryptXTeaCTR.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32]
+dlib.EncryptXTeaCTR.restype = ctypes.c_int
+
+# int DecryptXTeaCTR(uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen)
+dlib.DecryptXTeaCTR.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32]
+dlib.DecryptXTeaCTR.restype = ctypes.c_int
+
 
 def dmHashBuffer32(buf):
     return dlib.dmHashBuffer32(buf, len(buf))
@@ -72,3 +80,19 @@ def dmLZ4DecompressBuffer(buf, max_out_len):
     if res != 0:
         raise Exception('dlib.LZ4DecompressBuffer failed! Error code: ' % res)
     return ctypes.string_at(outbuf.raw, outlen.value)
+
+def dmEncryptXTeaCTR(buf, key):
+    outbuf = ctypes.create_string_buffer(buf)
+    res = dlib.EncryptXTeaCTR(outbuf, len(outbuf), key, len(key))
+    if res != 0:
+        raise Exception('dlib.EncryptXTeaCTR failed! Error code: ' % res)
+
+    return ctypes.string_at(outbuf.raw, len(buf))
+
+def dmDecryptXTeaCTR(buf, key):
+    outbuf = ctypes.create_string_buffer(buf)
+    res = dlib.DecryptXTeaCTR(outbuf, len(outbuf), key, len(key))
+    if res != 0:
+        raise Exception('dlib.DecryptXTeaCTR failed! Error code: ' % res)
+
+    return ctypes.string_at(outbuf.raw, len(buf))

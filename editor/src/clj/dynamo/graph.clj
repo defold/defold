@@ -7,6 +7,7 @@
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.graph.error-values :as ie]
             [internal.node :as in]
             [internal.property :as ip]
             [internal.system :as is]
@@ -19,13 +20,15 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+
+(namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
-(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-validate property-valid-value? property-tags property-type? Properties])
+(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-tags property-type? Properties])
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
 
@@ -535,7 +538,7 @@
 
   `(transact (set-graph-value 0 :string-value \"A String\"))`"
   [graph-id k v]
-  (it/update-graph graph-id assoc [k v]))
+  (it/update-graph-value graph-id assoc [k v]))
 
 (defn set-graph-value!
   "Create the transaction step to attach a named value to a graph and applies the transaction.
@@ -573,7 +576,7 @@
 
   Example:
 
-  `(transact (mark-defective node-id (g/error \"Resource Not Found\")))`"
+  `(transact (mark-defective node-id (g/severe \"Resource Not Found\")))`"
   [node-id defective-value]
   (let [node-type (node-type* node-id)
         outputs   (keys (gt/transforms node-type))
@@ -591,7 +594,7 @@
 
   Example:
 
-  `(mark-defective! node-id (g/error \"Resource Not Found\"))`"
+  `(mark-defective! node-id (g/severe \"Resource Not Found\"))`"
   [node-id defective-value]
   (transact (mark-defective node-id defective-value)))
 
@@ -614,14 +617,14 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (in/node-value (now) (cache) node-id label))
-  ([basis node-id label]
-   (in/node-value basis (cache) node-id label))
-  ([basis cache node-id label]
-   (when (instance? Node node-id)
-     (try (throw (ex-info "Pass node IDs instead of node objects!" {}))
-          (catch Exception e (.printStackTrace e))))
-   (in/node-value basis cache node-id label)))
+   (node-value node-id label :cache (cache) :basis (now)))
+  ([node-id label & {:as options}]
+   (let [options (cond-> options
+                   (not (:cache options))
+                   (assoc :cache (cache))
+                   (not (:basis options))
+                   (assoc :basis (now)))]
+     (in/node-value node-id label options))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -633,7 +636,7 @@
   ([graph-id k]
    (graph-value (now) graph-id k))
   ([basis graph-id k]
-   (get-in basis [:graphs graph-id k])))
+   (get-in basis [:graphs graph-id :graph-values k])))
 
 ;; ---------------------------------------------------------------------------
 ;; Constructing property maps

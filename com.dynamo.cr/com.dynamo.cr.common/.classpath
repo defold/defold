@@ -2,7 +2,7 @@
 <classpath>
 	<classpathentry exported="true" kind="lib" path="ext/lz4-1.2.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/commons-io-2.4.jar" sourcepath="/Users/chmu/.m2/repository/commons-io/commons-io/2.4/commons-io-2.4-sources.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext_generated/upnp.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext_generated/dlib.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/protobuf-java-2.3.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/vecmath.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/commons-codec-1.5.jar"/>

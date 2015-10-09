@@ -27,6 +27,12 @@ public class LuaScannerTest {
         return new String(output.toByteArray());
     }
 
+    private void assertValidRequire(String test, String expected) {
+        List<String> modules = LuaScanner.scan(test);
+        assertTrue(modules.size() == 1);
+        assertEquals(expected, modules.get(0));
+    }
+    
     @Test
     public void testScanner() throws Exception {
         String file = getFile("test_scanner.lua");
@@ -46,6 +52,24 @@ public class LuaScannerTest {
         assertEquals("foo", modules.get(11));
         assertEquals("foo", modules.get(12));
         assertEquals("foo", modules.get(13));
+        
+        // test require detection with a trailing comment
+        assertValidRequire("require \"foo.bar\" -- some comment", "foo.bar");
+        assertValidRequire("require 'foo.bar' -- some comment", "foo.bar");
+        assertValidRequire("require (\"foo.bar\") -- some comment", "foo.bar");
+        assertValidRequire("require ('foo.bar') -- some comment", "foo.bar");
+
+        // test require detection with a trailing empty comment
+        assertValidRequire("require \"foo.bar\" --", "foo.bar");
+        assertValidRequire("require 'foo.bar' --", "foo.bar");
+        assertValidRequire("require (\"foo.bar\") --", "foo.bar");
+        assertValidRequire("require ('foo.bar') --", "foo.bar");
+
+        // test require detection with a trailing multi-line comment
+        assertValidRequire("require \"foo.bar\" --[[ some comment]]--", "foo.bar");
+        assertValidRequire("require 'foo.bar' --[[ some comment]]--", "foo.bar");
+        assertValidRequire("require (\"foo.bar\") --[[ some comment]]--", "foo.bar");
+        assertValidRequire("require ('foo.bar') --[[ some comment]]--", "foo.bar");
     }
 
     private Property findProperty(List<Property> properties, String name) {
