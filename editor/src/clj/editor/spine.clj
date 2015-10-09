@@ -508,7 +508,6 @@
   (input dep-build-targets g/Any :array)
   (input spine-scene g/Any)
 
-  (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Spine" :icon spine-scene-icon}))
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-scene-build-targets))
 

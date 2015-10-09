@@ -35,7 +35,7 @@ ordinary paths."
                  (if-let [path (path resource)]
                    (str (FilenameUtils/removeExtension path) "." ext)
                    (str prefix "_generated_" suffix "." ext))))
-  (abs-path [this] (.getAbsolutePath (File. ^String (str (build-path (workspace this)) (path this)))))
+  (abs-path [this] (.getAbsolutePath (File. (str (build-path (workspace this)) (path this)))))
   (proj-path [this] (str "/" (path this)))
   ; TODO
   (url [this] nil)
@@ -44,9 +44,9 @@ ordinary paths."
   (resource-hash [this] (resource-hash resource))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (File. ^String (abs-path this)) opts))
+  (io/make-input-stream  [this opts] (io/make-input-stream (File. (abs-path this)) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (let [file (File. ^String (abs-path this))] (io/make-output-stream file opts)))
+  (io/make-output-stream [this opts] (let [file (File. (abs-path this))] (io/make-output-stream file opts)))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
 (defn make-build-resource
@@ -125,7 +125,7 @@ ordinary paths."
    (find-resource workspace path)
    (file-resource workspace path)))
 
-(defn- absolute-path [path]
+(defn- absolute-path [^String path]
   (.startsWith path "/"))
 
 (defn to-absolute-path

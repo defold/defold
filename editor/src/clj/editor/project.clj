@@ -8,26 +8,31 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [editor.outline :as outline]
+            [service.log :as log]
             ; TODO - HACK
             [internal.graph.types :as gt])
-  (:import [java.io File]
+  (:import [java.io File InputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.lang Process ProcessBuilder]
            [com.defold.editor Platform]))
 
 (def ^:dynamic *load-cache* nil)
 
+(def ^:private unknown-icon "icons/32/Icons_29-AT-Unkown.png")
+
 (g/defnode ResourceNode
   (inherits core/Scope)
-
-  (extern resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
+  (inherits outline/OutlineNode)
+  (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
-  (output outline g/Any :cached (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
-                                                            {:node-id _node-id
-                                                             :label (or (:label rt) (:ext rt))
-                                                             :icon (:icon rt)}))))
+  (output node-outline outline/OutlineData :cached
+    (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
+                                {:node-id _node-id
+                                 :label (or (:label rt) (:ext rt) "unknown")
+                                 :icon (or (:icon rt) unknown-icon)}))))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
@@ -43,7 +48,8 @@ ordinary paths."
           (swap! *load-cache* conj node-id))
         (load-fn project node-id resource)
         (catch java.io.IOException e
-          (g/mark-defective node-id (g/error {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
+          (log/warn :exception e)
+          (g/mark-defective node-id (g/error-fatal {:type :invalid-content :message (format "The file '%s' could not be loaded." (resource/proj-path resource))}))))
       [])))
 
 (defn- load-nodes! [project node-ids]
@@ -161,21 +167,24 @@ ordinary paths."
 (defn clear-fs-build-cache [project]
   (reset! (g/node-value project :fs-build-cache) {}))
 
+(defn- pump-engine-output [^InputStream stdout]
+  (let [buf (byte-array 1024)]
+    (loop []
+      (let [n (.read stdout buf)]
+        (when (> n -1)
+          (print (String. buf 0 n))
+          (flush)
+          (recur))))))
+
 (defn- launch-engine [build-path]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/dmengine%s" (System/getProperty "defold.exe.path") suffix)
-        pb     (ProcessBuilder. ^java.util.List (list path))]
-    (.redirectErrorStream pb true)
-    (.directory pb (io/file build-path))
+        pb     (doto (ProcessBuilder. ^java.util.List (list path))
+                 (.redirectErrorStream true)
+                 (.directory (io/file build-path)))]
     (let [p (.start pb)
-          is (.getInputStream p)
-          buf (byte-array 1024)]
-      (loop []
-        (let [n (.read is buf)]
-          (when (> n -1)
-            (print (String. buf 0 n))
-            (flush)
-            (recur)))))))
+          is (.getInputStream p)]
+      (.start (Thread. (fn [] (pump-engine-output is)))))))
 
 (defn build-and-write [project node]
   (clear-build-cache project)
@@ -183,19 +192,19 @@ ordinary paths."
   (let [files-on-disk (file-seq (io/file (workspace/build-path (g/node-value project :workspace))))
         build-results (build project node)
         fs-build-cache (g/node-value project :fs-build-cache)]
-    (prune-fs files-on-disk (map #(File. ^String (workspace/abs-path (:resource %))) build-results))
+    (prune-fs files-on-disk (map #(File. (workspace/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
     (doseq [result build-results
             :let [{:keys [resource content key]} result
                   abs-path (workspace/abs-path resource)
-                  mtime (let [f (File. ^String abs-path)]
+                  mtime (let [f (File. abs-path)]
                           (if (.exists f)
                             (.lastModified f)
                             0))
                   build-key [key mtime]
                   cached? (= (get @fs-build-cache resource) build-key)]]
       (when (not cached?)
-        (let [parent (-> (File. ^String (workspace/abs-path resource))
+        (let [parent (-> (File. (workspace/abs-path resource))
                        (.getParentFile))]
           ; Create underlying directories
           (when (not (.exists parent))
@@ -203,7 +212,7 @@ ordinary paths."
           ; Write bytes
           (with-open [out (io/output-stream resource)]
             (.write out ^bytes content))
-          (let [f (File. ^String abs-path)]
+          (let [f (File. abs-path)]
             (swap! fs-build-cache assoc resource [key (.lastModified f)])))))))
 
 (handler/defhandler :undo :global
@@ -257,7 +266,7 @@ ordinary paths."
             outputs-to-make (filter #(not (contains? new-outputs %)) current-outputs)]
         (g/transact
           (concat
-            (g/mark-defective new-node (g/error {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
+            (g/mark-defective new-node (g/error-fatal {:type :file-not-found :message (format "The file '%s' could not be found." (resource/proj-path resource))}))
             (g/delete-node resource-node)
             (for [[src-label [tgt-node tgt-label]] outputs-to-make]
               (g/connect new-node src-label tgt-node tgt-label))))))

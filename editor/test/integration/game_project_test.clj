@@ -5,7 +5,8 @@
             [integration.test-util :as test-util]
             [editor.game-project :as gp]
             [editor.workspace :as workspace]
-            [editor.project :as project])
+            [editor.project :as project]
+            [service.log :as log]            )
   (:import [java.io File]
            [java.nio.file Files attribute.FileAttribute]
            [org.apache.commons.io FilenameUtils FileUtils]))
@@ -50,7 +51,7 @@
    (file-in-project new-name)))
 
 (defn- error? [type v]
-  (and (g/error? v) (= type (get-in v [:reason :type]))))
+  (and (g/error? v) (= type (get-in v [:user-data :type]))))
 
 (defn- no-error? [v]
   (not (g/error? v)))
@@ -69,7 +70,7 @@
   (with-clean-system
     (create-test-project)
     (write-file "game.project" "bad content")
-    (let [[workspace project] (load-test-project world)]
+    (let [[workspace project] (log/without-logging (load-test-project world))]
       (testing "Defaults if can't load"
         (let [settings (g/node-value project :settings)]
           (is (= "unnamed" (title settings)))))
@@ -87,7 +88,7 @@
           (is (= "Side-scroller" (title settings)))))
       (testing "Broken file gives defaults & defective node"
         (write-file "game.project" "bad content")
-        (workspace/fs-sync workspace)
+        (log/without-logging (workspace/fs-sync workspace))
         (let [settings (g/node-value project :settings)
               gpn (project/get-resource-node project "/game.project")
               gpn-settings-map (g/node-value gpn :settings-map)]

@@ -19,6 +19,8 @@
      uint32_t m_NameOffset;     // Offset to name relative file start
      uint32_t m_ResourceOffset; // Offset to resource relative file start
      uint32_t m_ResourceSize;
+     // 0xFFFFFFFF if uncompressed
+     uint32_t m_ResourceCompressedSize;
  };
 
 */
@@ -35,6 +37,7 @@ namespace dmResourceArchive
         RESULT_IO_ERROR = -2,
         RESULT_MEM_ERROR = -3,
         RESULT_OUTBUFFER_TOO_SMALL = -4,
+        RESULT_UNKNOWN = -1000,
     };
 
     struct EntryInfo
@@ -44,6 +47,8 @@ namespace dmResourceArchive
         // 0xFFFFFFFF if uncompressed
         uint32_t    m_CompressedSize;
         uint32_t    m_Offset; // For internal use
+        uint32_t    m_Flags;  // For internal use
+        void*       m_Entry;  // For internal use
     };
 
     /**

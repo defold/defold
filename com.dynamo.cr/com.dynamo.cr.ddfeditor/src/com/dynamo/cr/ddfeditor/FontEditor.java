@@ -3,13 +3,16 @@ package com.dynamo.cr.ddfeditor;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Paths;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
@@ -29,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.cr.protobind.MessageNode;
 import com.dynamo.render.proto.Font.FontDesc;
 
@@ -57,9 +61,10 @@ public class FontEditor extends DdfEditor {
                         fontDesc = queue.take();
                     }
 
+                    final IFile fontFile = root.getFile(new Path(fontDesc.getFont()));
+                    final String searchPath = new Path(fontDesc.getFont()).removeLastSegments(1).toString();
                     if (!fontDesc.getFont().equals("")) {
                         if (!cachedFontName.equals(fontDesc.getFont())) {
-                            IFile fontFile = root.getFile(new Path(fontDesc.getFont()));
                             InputStream fontStream = fontFile.getContents();
                             try {
                                 ByteArrayOutputStream fontOut = new ByteArrayOutputStream();
@@ -71,7 +76,22 @@ public class FontEditor extends DdfEditor {
                             }
                         }
 
-                        final BufferedImage awtImage = Fontc.compileToImage(new ByteArrayInputStream(cachedFont), fontDesc);
+                        final BufferedImage awtImage = Fontc.compileToImage(new ByteArrayInputStream(cachedFont), fontDesc, new FontResourceResolver() {
+
+                            @Override
+                            public InputStream getResource(String resourceName)
+                                    throws FileNotFoundException {
+
+                                String resPath = Paths.get(searchPath, resourceName).toString();
+                                IFile resFile = root.getFile(new Path(resPath));
+
+                                try {
+                                    return resFile.getContents();
+                                } catch (CoreException e) {
+                                    throw new FileNotFoundException(e.getMessage());
+                                }
+                            }
+                        });
                         final Display display = Display.getDefault();
 
                         Display.getDefault().asyncExec(new Runnable() {
