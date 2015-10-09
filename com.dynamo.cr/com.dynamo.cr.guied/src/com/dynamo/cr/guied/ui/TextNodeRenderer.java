@@ -269,7 +269,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                 shader = this.shaderPlain;
                 shader.enable(gl);
 
-                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha()));
+                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha() * color[3]));
 
             } else if (textRenderHandle.getInputFormat() == InputFontFormat.FORMAT_TRUETYPE &&
                     fontMap.getImageFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
@@ -280,7 +280,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                 float sdf_world_scale = (float) Math.sqrt(node.getScale().getX() * node.getScale().getX() + node.getScale().getY() * node.getScale().getY());
                 float [] sdfParams = new float[] { sdf_world_scale * fontMap.getSdfScale(), sdf_world_scale * fontMap.getSdfOffset(), sdf_world_scale * fontMap.getSdfOutline(), 1.0f  };
                 shader.setUniforms(gl, "uni_sdf_params", sdfParams);
-                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha()));
+                shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)node.getOutlineAlpha() * color[3]));
 
             } else {
                 shader = this.shaderBMFont;
