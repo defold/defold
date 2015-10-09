@@ -16,10 +16,10 @@
   (source-type [this])
   (read-only? [this])
   (path [this])
-  (abs-path [this])
-  (proj-path [this])
+  (abs-path ^String [this])
+  (proj-path ^String [this])
   (url [this])
-  (resource-name [this])
+  (resource-name ^String [this])
   (workspace [this])
   (resource-hash [this]))
 
@@ -143,3 +143,11 @@
   (let [entries (load-zip file-name)]
     (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
       (mapv (fn [x] (->zip-resources workspace "" x))))))
+
+(g/defnode ResourceNode
+  (extern resource (g/protocol Resource) (dynamic visible (g/always false))))
+
+(defn resource->proj-path [resource]
+  (if resource
+    (proj-path resource)
+    ""))

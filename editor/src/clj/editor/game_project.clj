@@ -5,7 +5,8 @@
             [dynamo.graph :as g]
             [editor.project :as project]
             [camel-snake-kebab :as camel]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [service.log :as log])
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
@@ -141,7 +142,7 @@
 
 (defn- make-form-values-map [settings]
   (into {} (map (juxt :path :value) settings)))
-  
+
 (def ^:private setting-category (comp first :path))
 
 (defn- make-form-data [form-ops meta-info settings]
@@ -227,7 +228,8 @@
         (for [root roots]
           (project/connect-resource-node project root self [[:build-targets :dep-build-targets]]))))
      (catch java.lang.Exception e
-       (g/mark-defective self (g/error {:type :invalid-content :message (.getMessage e)}))))
+       (log/warn :exception e)
+       (g/mark-defective self (g/error-fatal {:type :invalid-content :message (.getMessage e)}))))
    (g/connect self :settings-map proxy :settings-map)))
 
 (defn- settings-with-value [settings]
@@ -246,7 +248,6 @@
   (if value "1" "0"))
 
 (defmethod render-raw-setting-value :resource [{:keys [preserve-extension]} value]
-  (println "render-raw-setting-value" value)
   (if (and (not (s/blank? value))
            (not preserve-extension))
     (str value "c")

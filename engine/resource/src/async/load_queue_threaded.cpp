@@ -127,6 +127,7 @@ namespace dmLoadQueue
         q->m_Back = 0;
         q->m_Loaded = 0;
         q->m_Shutdown = false;
+        q->m_BytesWaiting = 0;
         q->m_Mutex = dmMutex::New();
         q->m_Thread = dmThread::New(&LoadThread, 65536, q, "AsyncLoad");
         return q;

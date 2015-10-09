@@ -42,8 +42,6 @@
 ; TreeItem creator
 (defn- ^ObservableList list-children [parent]
   (let [children (:children parent)
-        sort-by-fn (:sort-by-fn parent)
-        children (if sort-by-fn (sort-by sort-by-fn children) children)
         items (into-array TreeItem (map tree-item children))]
     (if (empty? children)
       (FXCollections/emptyObservableList)
@@ -213,14 +211,14 @@
                   data-format (data-format-fn)]
               (and target-item-it
                    (.hasContent cb data-format)
-                   (outline/paste? (project tree-view) target-item-it (.getContent cb data-format)))))
+                   (outline/paste? (project/graph (project tree-view)) target-item-it (.getContent cb data-format)))))
   (run [outline-view]
        (let [tree-view (g/node-value outline-view :tree-view)
              target-item-it (paste-target-it tree-view)
              project (project tree-view)
              cb (Clipboard/getSystemClipboard)
              data-format (data-format-fn)]
-         (outline/paste! project target-item-it (.getContent cb data-format)))))
+         (outline/paste! (project/graph project) target-item-it (.getContent cb data-format) (partial project/select project)))))
 
 (handler/defhandler :cut :global
   (enabled? [selection outline-view]
@@ -251,7 +249,7 @@
 (defn- drag-detected [tree-view ^MouseEvent e]
   (let [item-iterators (root-iterators tree-view)
         project (project tree-view)]
-    (when (outline/drag? project item-iterators)
+    (when (outline/drag? (project/graph project) item-iterators)
       (let [db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode TransferMode/COPY_OR_MOVE))
             data (outline/copy item-iterators)]
         (.setContent db {(data-format-fn) data})
@@ -289,7 +287,7 @@
                                  (root-iterators tree-view)
                                  [])
                 project (project tree-view)]
-            (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
+            (when (outline/drop? (project/graph project) item-iterators (->iterator (.getTreeItem cell))
                                  (.getContent db (data-format-fn)))
               (let [modes (if (ui/drag-internal? e)
                             [TransferMode/MOVE]
@@ -304,8 +302,8 @@
                            (root-iterators tree-view)
                            [])
           project (project tree-view)]
-      (when (outline/drop! project item-iterators (->iterator (.getTreeItem cell))
-                           (.getContent db (data-format-fn)))
+      (when (outline/drop! (project/graph project) item-iterators (->iterator (.getTreeItem cell))
+                           (.getContent db (data-format-fn)) (partial project/select project))
         (.setDropCompleted e true)
         (.consume e)))))
 

@@ -73,6 +73,10 @@ public abstract class AbstractProtoBuilderTest {
         return messages;
     }
 
+    protected byte[] getFile(String file) throws IOException {
+        return this.fileSystem.get(file).getContent();
+    }
+
     protected void addFile(String file, String source) {
         addFile(file, source.getBytes());
     }

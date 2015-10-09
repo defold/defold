@@ -11,8 +11,9 @@
            [javafx.event ActionEvent EventHandler WeakEventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Node Scene Group]
-           [javafx.scene.control ButtonBase ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ListCell ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
-           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent]
+           [javafx.scene.control ButtonBase ColorPicker ComboBox Control ContextMenu SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem ProgressBar Tab TextField Tooltip]
+           [com.defold.control ListCell]
+           [javafx.scene.input KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.stage Stage Modality Window]
@@ -129,7 +130,7 @@
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
           styles (seq (.getStylesheets root))]
-      (.setAll (.getStylesheets root) (into (list) styles)))))
+      (.setAll (.getStylesheets root) ^java.util.Collection (into (list) styles)))))
 
 (defn visible! [^Node node v]
   (.setVisible node v))
@@ -166,7 +167,7 @@
                                               (fn e)))))
 
 (defn on-key! [^Node node key-fn]
-  (.setOnKeyPressed node (event-handler e (key-fn (.getCode e)))))
+  (.setOnKeyPressed node (event-handler e (key-fn (.getCode ^KeyEvent e)))))
 
 (defn on-focus! [^Node node focus-fn]
   (observe (.focusedProperty node)
@@ -174,8 +175,8 @@
              (focus-fn got-focus))))
 
 (defprotocol Text
-  (text [this])
-  (text! [this val]))
+  (text ^String [this])
+  (text! [this ^String val]))
 
 (defprotocol HasUserData
   (user-data [this key])
@@ -535,6 +536,7 @@
         (try
           (reset! return (worker-fn report-fn))
           (catch Throwable e
+            (log/error :exception e)
             (reset! return e)))
         (run-later (.close stage)))
       (.showAndWait stage)

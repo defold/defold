@@ -35,7 +35,7 @@
    (let [workspace (test-util/setup-workspace! world)
          project   (test-util/setup-project! workspace)
          node-id   (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :outline)
+         outline (g/node-value node-id :node-outline)
          png-node (get-in outline [:children 0 :children 1 :node-id])
          png-tex (get-in outline [:children 1 :children 0 :node-id])]
      (is (some? png-tex))
@@ -48,7 +48,7 @@
    (let [workspace (test-util/setup-workspace! world)
          project   (test-util/setup-project! workspace)
          node-id   (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :outline)
+         outline (g/node-value node-id :node-outline)
          atlas-gui-node (get-in outline [:children 0 :children 2 :node-id])
          atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
      (is (some? atlas-tex))
