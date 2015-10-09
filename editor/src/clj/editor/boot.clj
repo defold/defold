@@ -37,7 +37,8 @@
             [editor.gui :as gui]
             [editor.text :as text]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [service.log :as log])
   (:import [com.defold.editor EditorApplication]
            [com.defold.editor Start]
            [com.jogamp.opengl.util.awt Screenshot]
@@ -241,6 +242,10 @@
     (ui/show! stage)))
 
 (defn main [args]
+  (Thread/setDefaultUncaughtExceptionHandler
+   (reify Thread$UncaughtExceptionHandler
+     (uncaughtException [_ thread exception]
+       (log/error :exception exception :msg "uncaught exception"))))
   (let [prefs (prefs/make-prefs "defold")]
     (if (= (count args) 0)
       (ui/run-later (open-welcome prefs))
@@ -257,6 +262,7 @@
                                (add-to-recent-projects prefs project-file)
                                (open-project (io/file project-file) prefs))))
         (catch Throwable t
+          (log/error :exception t)
           (stack/print-stack-trace t)
           (.flush *out*)
           (System/exit -1))))))

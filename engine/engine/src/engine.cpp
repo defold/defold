@@ -826,8 +826,14 @@ bail:
         float fixed_dt = 1.0f / fps;
         float dt = fixed_dt;
         bool variable_dt = engine->m_UseVariableDt;
-        if (variable_dt) {
+        if (variable_dt && time > engine->m_PreviousFrameTime) {
             dt = (float)((time - engine->m_PreviousFrameTime) * 0.000001);
+            // safety mechanism for crazy; GetTime() is not guaranteed to always
+            // produce small deltas between calls, cap to 25 frames in one.
+            const float max = fixed_dt * 25.0f;
+            if (dt > max) {
+                dt = max;
+            }
         }
         engine->m_PreviousFrameTime = time;
 
@@ -945,6 +951,14 @@ bail:
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
                     dmGameObject::Render(engine->m_MainCollection);
+
+                    // Make sure we dispatch messages to the render script
+                    // since it could have some "draw_text" messages waiting.
+                    if (engine->m_RenderScriptPrototype)
+                    {
+                        dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                    }
+
                     dmRender::RenderListEnd(engine->m_RenderContext);
 
                     if (engine->m_RenderScriptPrototype)
@@ -1272,4 +1286,3 @@ bail:
         return engine->m_Stats.m_FrameCount;
     }
 }
-

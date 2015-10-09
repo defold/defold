@@ -18,28 +18,29 @@ create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.Resour
 
 # Test archive data. Only copy the source data.
 new_copy_task('ad', '.ad', '.adc')
+new_copy_task('script', '.script', '.scriptc')
 
 def build(bld):
     resources = bld.new_task_gen(source = ['test.cont_pb'])
 
     archive = bld.new_task_gen(features = 'archive',
                                archive_target='test.arc',
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
     compressed_archive = bld.new_task_gen(features = 'archive',
                                archive_target='test_compressed.arc',
                                use_compression=True,
-                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
     # Same as above but created with the java-based archive builder
     jarchive = bld.new_task_gen(features = 'jarchive',
                                 archive_target='test.jarc',
-                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
     compressed_jarchive = bld.new_task_gen(features = 'jarchive',
                                 archive_target='test_compressed.jarc',
                                 use_compression=True,
-                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad archive_data/file5.script')
 
     bld.add_group()
 

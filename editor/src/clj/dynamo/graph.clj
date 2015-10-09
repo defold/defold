@@ -7,6 +7,7 @@
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.graph.error-values :as ie]
             [internal.node :as in]
             [internal.property :as ip]
             [internal.system :as is]
@@ -19,13 +20,15 @@
 
 (namespaces/import-vars [plumbing.core defnk fnk])
 
-(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order error? error])
+(namespaces/import-vars [internal.graph.types NodeID node-id->graph-id node->graph-id sources targets connected? dependencies Properties Node node-id node-type property-types produce-value NodeType supertypes interfaces protocols method-impls transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+
+(namespaces/import-vars [internal.graph.error-values INFO WARNING SEVERE FATAL error-info error-warning error-severe error-fatal error? error-info? error-warning? error-severe? error-fatal? most-serious error-aggregate worse-than])
 
 (namespaces/import-vars [internal.node has-input? has-output? has-property? merge-display-order])
 
 (namespaces/import-vars [schema.core Any Bool Inst Int Keyword Num Regex Schema Str Symbol Uuid both check enum protocol maybe fn-schema one optional-key pred recursive required-key validate])
 
-(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-validate property-valid-value? property-tags property-type? Properties])
+(namespaces/import-vars [internal.graph.types always PropertyType property-value-type property-default-value property-tags property-type? Properties])
 
 (namespaces/import-vars [internal.graph arc type-compatible? node-by-id-at node-ids])
 
@@ -451,6 +454,12 @@
   [source-node-id source-label target-node-id target-label]
   (transact (disconnect source-node-id source-label target-node-id target-label)))
 
+(defn disconnect-sources
+  ([target-node-id target-label]
+    (disconnect-sources (now) target-node-id target-label))
+  ([basis target-node-id target-label]
+    (it/disconnect-sources basis target-node-id target-label)))
+
 (defn become
   "Creates the transaction step to turn one kind of node into another, in a transaction. All properties and their values
    will be carried over from source-node to new-node. The resulting node will still have
@@ -535,7 +544,7 @@
 
   `(transact (set-graph-value 0 :string-value \"A String\"))`"
   [graph-id k v]
-  (it/update-graph graph-id assoc [k v]))
+  (it/update-graph-value graph-id assoc [k v]))
 
 (defn set-graph-value!
   "Create the transaction step to attach a named value to a graph and applies the transaction.
@@ -573,7 +582,7 @@
 
   Example:
 
-  `(transact (mark-defective node-id (g/error \"Resource Not Found\")))`"
+  `(transact (mark-defective node-id (g/severe \"Resource Not Found\")))`"
   [node-id defective-value]
   (let [node-type (node-type* node-id)
         outputs   (keys (gt/transforms node-type))
@@ -591,7 +600,7 @@
 
   Example:
 
-  `(mark-defective! node-id (g/error \"Resource Not Found\"))`"
+  `(mark-defective! node-id (g/severe \"Resource Not Found\"))`"
   [node-id defective-value]
   (transact (mark-defective node-id defective-value)))
 
@@ -614,14 +623,14 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (in/node-value (now) (cache) node-id label))
-  ([basis node-id label]
-   (in/node-value basis (cache) node-id label))
-  ([basis cache node-id label]
-   (when (instance? Node node-id)
-     (try (throw (ex-info "Pass node IDs instead of node objects!" {}))
-          (catch Exception e (.printStackTrace e))))
-   (in/node-value basis cache node-id label)))
+   (node-value node-id label :cache (cache) :basis (now)))
+  ([node-id label & {:as options}]
+   (let [options (cond-> options
+                   (not (:cache options))
+                   (assoc :cache (cache))
+                   (not (:basis options))
+                   (assoc :basis (now)))]
+     (in/node-value node-id label options))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -633,7 +642,7 @@
   ([graph-id k]
    (graph-value (now) graph-id k))
   ([basis graph-id k]
-   (get-in basis [:graphs graph-id k])))
+   (get-in basis [:graphs graph-id :graph-values k])))
 
 ;; ---------------------------------------------------------------------------
 ;; Constructing property maps
@@ -796,9 +805,6 @@
      (transit/write writer fragment)
      (.toString out))))
 
-(defn- in-same-graph? [graph-id node-id]
-  (= graph-id (node-id->graph-id node-id)))
-
 (defn- serialize-arc [id-dictionary arc]
   (let [[src-id src-label]  (gt/head arc)
         [tgt-id tgt-label]  (gt/tail arc)]
@@ -812,15 +818,16 @@
           [(mapcat #(gt/arcs-by-tail basis %) nodes)
            (mapcat #(gt/arcs-by-head basis %) nodes)]))
 
-(defn- predecessors
-  [basis node-id]
-  (let [same-graph? (partial in-same-graph? (node-id->graph-id node-id))]
-    (filterv same-graph? (map first (sources basis node-id)))))
+(defn- in-same-graph? [arc]
+  (apply = (map node-id->graph-id (take-nth 2 arc))))
+
+(defn- predecessors [pred basis node-id]
+  (let [preds (every-pred in-same-graph? pred)]
+    (mapv first (filter preds (inputs basis node-id)))))
 
 (defn- input-traverse
   [basis pred root-ids]
-  (ig/pre-traverse basis root-ids
-                   (util/guard #(pred (ig/node-by-id-at %1 %2)) predecessors)))
+  (ig/pre-traverse basis root-ids (partial predecessors pred)))
 
 (defn default-node-serializer
   [node]
@@ -830,19 +837,22 @@
     {:node-type  (gt/node-type node)
      :properties properties-without-fns}))
 
+(def opts-schema {(optional-key :traverse?) Runnable
+                  (optional-key :serializer) Runnable})
+
 (defn copy
   "Given a vector of root ids, and an options map that can contain an
-  `:include?` predicate and a `serializer` function, returns a copy
+  `:traverse?` predicate and a `serializer` function, returns a copy
   graph fragment that can be serialized or pasted.  Works on the
   current basis, if a basis is not provided.
 
-   The `:include?` predicate determines whether the node will be
+   The `:traverse?` predicate determines whether the target node will be
   included at all. If it returns a falsey value, then traversal stops
   there. That node and all arcs to it will be left behind. If the
   predicate returns true, then that node --- or a stand-in for it ---
   will be included in the fragment.
 
-  `:include?` will be called with the node value.
+  `:traverse?` will be called with the arc data.
 
    The `:serializer` function determines _how_ to represent the node
   in the fragment.  `dynamo.graph/default-node-serializer` adds a map
@@ -858,13 +868,14 @@
 
   Example:
 
-  `(g/copy root-ids {:include? (comp not resource?)
+  `(g/copy root-ids {:traverse? (comp not resource? #(nth % 3))
                      :serializer (some-fn custom-serializer default-node-serializer %)}"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [include? serializer] :or {include? (constantly true) serializer default-node-serializer} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (constantly false) serializer default-node-serializer} :as opts}]
+    (validate opts-schema opts)
    (let [serializer     #(assoc (serializer (ig/node-by-id-at basis %2)) :serial-id %1)
-         original-ids   (input-traverse basis include? root-ids)
+         original-ids   (input-traverse basis traverse? root-ids)
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
          serial-ids     (util/map-vals :serial-id replacements)
          fragment-arcs  (connecting-arcs basis original-ids)]

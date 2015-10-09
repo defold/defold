@@ -17,7 +17,7 @@
   {:type :boolean,
    :filter nil,
    :help "Compress archive (not for Android)",
-   :default false,
+   :default true,
    :path ["project" "compress_archive"]}
   {:type :string,
    :filter nil,
@@ -252,7 +252,7 @@
    :filter nil,
    :help
    "whether to allow sprites to appear unaligned with respect to pixels, 1 for yes (default) and 0 for no",
-   :default false,
+   :default true,
    :path ["sprite" "subpixels"]}
   {:type :integer,
    :filter nil,

@@ -488,9 +488,15 @@
 
 (deftest graph-values
   (testing "Values can be attached to graphs"
+   (ts/with-clean-system
+     (let [node-id (gt/make-node-id 0 1)]
+       (g/transact [(g/set-graph-value 0 :string-value "A String")
+                    (g/set-graph-value 0 :a-node-id node-id)])
+       (is (= "A String" (g/graph-value 0 :string-value)))
+       (is (= node-id    (g/graph-value 0 :a-node-id))))))
+  (testing "Graph values do not interfer with the original members of the graph"
     (ts/with-clean-system
-      (let [node-id (gt/make-node-id 0 1)]
-        (g/transact [(g/set-graph-value 0 :string-value "A String")
-                     (g/set-graph-value 0 :a-node-id node-id)])
-        (is (= "A String" (g/graph-value 0 :string-value)))
-        (is (= node-id    (g/graph-value 0 :a-node-id)))))))
+      (let [[src-node] (ts/tx-nodes (g/make-nodes world [src [Source :source-label "test"]]))]
+        (g/set-graph-value! world :nodes :new-value)
+        (is (= "test" (g/node-value src-node :source-label)))
+        (is (= :new-value (g/graph-value world :nodes)))))))

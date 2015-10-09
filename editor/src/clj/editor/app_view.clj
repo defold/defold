@@ -66,7 +66,7 @@
 
 (defn- on-selected-tab-changed [app-view resource-node]
   (g/transact
-    (replace-connection resource-node :outline app-view :outline))
+    (replace-connection resource-node :node-outline app-view :outline))
   (invalidate app-view :active-tab))
 
 (defn- on-tabs-changed [app-view]
@@ -267,7 +267,7 @@
                                (.handle close-handler event)))))
         (.select (.getSelectionModel tab-pane) tab)
         (project/select! project [resource-node]))
-      (.open (Desktop/getDesktop) (File. ^String (workspace/abs-path resource))))))
+      (.open (Desktop/getDesktop) (File. (workspace/abs-path resource))))))
 
 (handler/defhandler :open-asset :global
   (enabled? [] true)

@@ -1,0 +1,12 @@
+name: "font"
+tags: "gui"
+vertex_program: "/builtins/fonts/font-fnt.vp"
+fragment_program: "/builtins/fonts/font-fnt.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+vertex_constants {
+  name: "world"
+  type: CONSTANT_TYPE_WORLD
+}

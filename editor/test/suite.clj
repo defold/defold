@@ -11,8 +11,10 @@
                        dynamo.integration.garbage-collection
                        dynamo.integration.graph-functions
                        dynamo.integration.node-become
+                       dynamo.integration.node-value-options
                        dynamo.integration.property-setters
                        dynamo.integration.schema-validation
+                       dynamo.integration.validation
                        dynamo.integration.visibility-enablement
                        dynamo.transaction-test
                        dynamo.util-test
@@ -56,11 +58,11 @@
                        internal.dependency-test
                        internal.graph.graph-test
                        internal.graph.types-test
+                       internal.graph.error-values-test
                        internal.node-test
                        internal.paper-tape-test
                        internal.property-test
                        internal.system-test
-                       internal.type-test
                        internal.value-test
                        potemkin.imports-test
                        potemkin.namespaces-test])

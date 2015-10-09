@@ -387,11 +387,11 @@ void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
     while (lua_next(L, idx) != 0)
     {
         if (!lua_isstring(L, -1))
-            luaL_error(L, "permissions can only be strings (not %s)", lua_typename(L, lua_type(L, -1)));
+            luaL_error(L, "array arguments can only be strings (not %s)", lua_typename(L, lua_type(L, -1)));
         if (*buffer != 0)
             dmStrlCat(buffer, ",", buffer_size);
-        const char* permission = lua_tostring(L, -1);
-        dmStrlCat(buffer, permission, buffer_size);
+        const char* entry_str = lua_tostring(L, -1);
+        dmStrlCat(buffer, entry_str, buffer_size);
         lua_pop(L, 1);
     }
 }
@@ -505,6 +505,59 @@ int Facebook_Me(lua_State* L)
     return 1;
 }
 
+
+static void escape_json_str(const char* unescaped, char* escaped, char* end_ptr) {
+
+    // keep going through the unescaped until null terminating
+    // always need at least 3 chars left in escaped buffer,
+    // 2 for char expanding + 1 for null term
+    while (*unescaped && escaped < end_ptr - 3) {
+
+        switch (*unescaped) {
+
+            case '\x22':
+                *escaped++ = '\\';
+                *escaped++ = '"';
+                break;
+            case '\x5C':
+                *escaped++ = '\\';
+                *escaped++ = '\\';
+                break;
+            case '\x08':
+                *escaped++ = '\\';
+                *escaped++ = '\b';
+                break;
+            case '\x0C':
+                *escaped++ = '\\';
+                *escaped++ = '\f';
+                break;
+            case '\x0A':
+                *escaped++ = '\\';
+                *escaped++ = '\n';
+                break;
+            case '\x0D':
+                *escaped++ = '\\';
+                *escaped++ = '\r';
+                break;
+            case '\x09':
+                *escaped++ = '\\';
+                *escaped++ = '\t';
+                break;
+
+            default:
+                *escaped++ = *unescaped;
+                break;
+
+        }
+
+        unescaped++;
+
+    }
+
+    *escaped = 0;
+
+}
+
 int Facebook_ShowDialog(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -528,9 +581,24 @@ int Facebook_ShowDialog(lua_State* L)
     lua_pushnil(L);
     int i = 0;
     while (lua_next(L, 2) != 0) {
-        const char* v = luaL_checkstring(L, -1);
+        const char* vp;
+        char v[1024];
         const char* k = luaL_checkstring(L, -2);
-        DM_SNPRINTF(tmp, sizeof(tmp), "\"%s\": \"%s\"", k, v);
+
+        if (lua_istable(L, -1)) {
+            AppendArray(L, v, 1024, lua_gettop(L));
+            vp = v;
+        } else {
+            vp = luaL_checkstring(L, -1);
+        }
+
+        // escape string characters such as "
+        char k_escaped[128];
+        char v_escaped[1024];
+        escape_json_str(k, k_escaped, k_escaped+sizeof(k_escaped));
+        escape_json_str(vp, v_escaped, v_escaped+sizeof(v_escaped));
+
+        DM_SNPRINTF(tmp, sizeof(tmp), "\"%s\": \"%s\"", k_escaped, v_escaped);
         if (i > 0) {
             dmStrlCat(params_json, ",", sizeof(params_json));
         }

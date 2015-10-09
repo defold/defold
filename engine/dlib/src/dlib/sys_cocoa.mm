@@ -47,26 +47,25 @@ namespace dmSys
 
         if (reachability_ref)
         {
-            SCNetworkReachabilityUnscheduleFromRunLoop(reachability_ref, [[NSRunLoop currentRunLoop] getCFRunLoop], kCFRunLoopCommonModes);
+            SCNetworkReachabilityUnscheduleFromRunLoop(reachability_ref, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+            CFRelease(reachability_ref);
         }
         reachability_ref = SCNetworkReachabilityCreateWithName(NULL, host);
-
-        SCNetworkConnectionFlags flags;
-        if (SCNetworkReachabilityGetFlags(reachability_ref, &flags))
-        {
-            dmSys::ReachabilityCallback(reachability_ref, flags, 0);
-        }
 
         SCNetworkReachabilityContext context = {0, (void*) 0, NULL, NULL, NULL};
         if(!SCNetworkReachabilitySetCallback(reachability_ref, dmSys::ReachabilityCallback, &context))
         {
             dmLogError("Could not set reachability callback.");
+            CFRelease(reachability_ref);
+            reachability_ref = 0;
             return;
         }
 
-        if(!SCNetworkReachabilityScheduleWithRunLoop(reachability_ref, [[NSRunLoop currentRunLoop] getCFRunLoop], kCFRunLoopCommonModes))
+        if(!SCNetworkReachabilityScheduleWithRunLoop(reachability_ref, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode))
         {
             dmLogError("Could not schedule reachability callback.");
+            CFRelease(reachability_ref);
+            reachability_ref = 0;
             return;
         }
     }
@@ -163,6 +162,20 @@ namespace dmSys
         dmStrlCpy(info->m_DeviceLanguage, [device_language UTF8String], sizeof(info->m_DeviceLanguage));
     }
 
+    bool GetApplicationInfo(const char* id, ApplicationInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+
+        NSString* ns_url = [NSString stringWithUTF8String: id];
+        if (!([[UIApplication sharedApplication] canOpenURL:[NSURL URLWithString: ns_url ]]))
+        {
+            return false;
+        }
+
+        info->m_Installed = true;
+        return true;
+    }
+
     NetworkConnectivity GetNetworkConnectivity()
     {
         if (!reachability_ref)
@@ -201,6 +214,13 @@ namespace dmSys
 
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+    }
+
+    bool GetApplicationInfo(const char* id, ApplicationInfo* info)
+    {
+        // only on iOS for now
+        memset(info, 0, sizeof(*info));
+        return false;
     }
 
     Result OpenURL(const char* url)

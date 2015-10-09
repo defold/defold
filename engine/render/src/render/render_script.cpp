@@ -2098,22 +2098,25 @@ bail:
         context->m_Result = RunScript(instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
     }
 
-    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
+    RenderScriptResult DispatchRenderScriptInstance(HRenderScriptInstance instance)
     {
-        DM_PROFILE(RenderScript, "UpdateRSI");
+        DM_PROFILE(RenderScript, "DispatchRSI");
         DispatchContext context;
         context.m_Instance = instance;
         context.m_Result = RENDER_SCRIPT_RESULT_OK;
         dmMessage::Dispatch(instance->m_RenderContext->m_Socket, DispatchCallback, (void*)&context);
+        return context.m_Result;
+    }
+
+    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
+    {
+        DM_PROFILE(RenderScript, "UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
 
         if (instance->m_CommandBuffer.Size() > 0)
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
-        if (result == RENDER_SCRIPT_RESULT_OK)
-            return context.m_Result;
-        else
-            return result;
+        return result;
     }
 
     void OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance)
