@@ -152,8 +152,7 @@
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Tile Source"
-   :children child-outlines
-   :sort-by-fn (fn [v] [(:name (g/node-type* (:node-id v))) (:label v)])
+   :children (sort-by (fn [v] [(:name (g/node-type* (:node-id v))) (:label v)]) child-outlines)
    :child-reqs [{:node-type TileAnimationNode
                  :tx-attach-fn attach-animation-node}
                 {:node-type CollisionGroupNode

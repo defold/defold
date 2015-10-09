@@ -67,72 +67,22 @@
 
 ; Geometry generation
 
-(defn- transl
-  ([delta]
-    (map (partial apply transl delta)))
-  ([delta ps]
-    (let [res (mapv (fn [p] (mapv + delta p)) ps)]
-      res)))
-
-(defn- scale
-  ([factor]
-    (map (partial apply scale factor)))
-  ([factor ps]
-    (mapv (fn [p] (mapv * factor p)) ps)))
-
-(defn- rotate
-  ([euler]
-    (map (partial apply rotate euler)))
-  ([euler ps]
-    (let [q (math/euler->quat euler)
-          tmp-v (Vector3d.)]
-      (let [res (mapv (fn [[^double x ^double y ^double z]]
-                    (.set tmp-v x y z)
-                    (let [v (math/rotate q tmp-v)]
-                      [(.x v) (.y v) (.z v)])) ps)]
-        res))))
-
-(defn- transf-p
-  [^Matrix4d m4d ps]
-  (let [p (Point3d.)]
-    (let [res (mapv (fn [[^double x ^double y ^double z]]
-                      (.set p x y z)
-                      (.transform m4d p)
-                      [(.x p) (.y p) (.z p)]) ps)]
-      res)))
-
-(defn chain [n f ps]
-  (loop [i n
-         v ps
-         result ps]
-    (if (> i 0)
-      (let [v' (f v)]
-        (recur (dec i) v' (into result v')))
-      result)))
-
-(def empty-geom [])
-(def origin-geom [[0 0 0]])
-
-(defn circling [segments ps]
-  (let [angle (/ 360 segments)]
-    (chain (dec segments) (partial rotate [0 0 angle]) ps)))
-
 (defn spiraling [steps a s ps]
-  (chain steps (comp (partial rotate [0 0 a]) (partial scale [s s 1])) ps))
+  (geom/chain steps (comp (partial geom/rotate [0 0 a]) (partial geom/scale [s s 1])) ps))
 
-(def arrow (let [head-ps (->> origin-geom
-                           (transl [0 0.1 0])
-                           (circling 3)
-                           (scale [0.7 1 1])
-                           (transl [0 0.05 0]))]
+(def arrow (let [head-ps (->> geom/origin-geom
+                           (geom/transl [0 0.1 0])
+                           (geom/circling 3)
+                           (geom/scale [0.7 1 1])
+                           (geom/transl [0 0.05 0]))]
              (concat
-               (transl [0 0.85 0] (interleave head-ps (drop 1 (cycle head-ps))))
+               (geom/transl [0 0.85 0] (interleave head-ps (drop 1 (cycle head-ps))))
                [[0 0 0] [0 0.85 0]])))
 
-(def dash-circle (->> origin-geom
-                   (chain 1 (partial transl [0.05 0 0]))
-                   (transl [0 1 0])
-                   (circling 32)))
+(def dash-circle (->> geom/origin-geom
+                   (geom/chain 1 (partial geom/transl [0.05 0 0]))
+                   (geom/transl [0 1 0])
+                   (geom/circling 32)))
 
 ; Line shader
 
@@ -201,48 +151,48 @@
       (let [world-transform (:world-transform renderable)
             color (-> (if (:selected renderable) selected-color color)
                     (conj 1))
-            vs (transf-p world-transform (concat
-                                           (scale [scale-f scale-f 1] vs-screen)
-                                           vs-world))
+            vs (geom/transf-p world-transform (concat
+                                                (geom/scale [scale-f scale-f 1] vs-screen)
+                                                vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
         (gl/with-gl-bindings gl [line-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 ; Modifier geometry
 
-(def drag-geom-data (let [top (->> origin-geom
-                                (transl [0 10 0])
-                                (chain 4 (partial transl [15 10 0])))
-                         bottom (scale [1 -1 1] top)]
+(def drag-geom-data (let [top (->> geom/origin-geom
+                                (geom/transl [0 10 0])
+                                (geom/chain 4 (partial geom/transl [15 10 0])))
+                         bottom (geom/scale [1 -1 1] top)]
                       (interleave top bottom)))
 
-(def vortex-geom-data (let [ps (->> origin-geom
-                                 (transl [0 1 0])
+(def vortex-geom-data (let [ps (->> geom/origin-geom
+                                 (geom/transl [0 1 0])
                                  (spiraling 30 20 1.15)
-                                 (scale [0.7 0.7 1]))]
-                        (circling 4 (drop-last 2 (interleave ps (drop 1 (cycle ps)))))))
+                                 (geom/scale [0.7 0.7 1]))]
+                        (geom/circling 4 (drop-last 2 (interleave ps (drop 1 (cycle ps)))))))
 
-(def vortex-neg-geom-data (scale [-1 1 1] vortex-geom-data))
+(def vortex-neg-geom-data (geom/scale [-1 1 1] vortex-geom-data))
 
 (def acceleration-geom-data (let [right (->> arrow
-                                         (chain 1 (partial transl [0.5 -0.25 0]))
-                                         (transl [0.5 -0.25 0]))
+                                         (geom/chain 1 (partial geom/transl [0.5 -0.25 0]))
+                                         (geom/transl [0.5 -0.25 0]))
                                   left (->> right
-                                         (scale [-1 1 1]))]
-                              (scale [50 50 1] (concat left arrow right))))
+                                         (geom/scale [-1 1 1]))]
+                              (geom/scale [50 50 1] (concat left arrow right))))
 
-(def acceleration-neg-geom-data (scale [1 -1 1] acceleration-geom-data))
+(def acceleration-neg-geom-data (geom/scale [1 -1 1] acceleration-geom-data))
 
 (def radial-geom-data (->> arrow
-                            (transl [0 0.3 0])
-                            (circling 8)
-                            (scale [40 40 1])))
+                            (geom/transl [0 0.3 0])
+                            (geom/circling 8)
+                            (geom/scale [40 40 1])))
 
 (def radial-neg-geom-data (->> arrow
-                            (scale [1 -1 1])
-                            (transl [0 1.4 0])
-                            (circling 8)
-                            (scale [40 40 1])))
+                            (geom/scale [1 -1 1])
+                            (geom/transl [0 1.4 0])
+                            (geom/circling 8)
+                            (geom/scale [40 40 1])))
 
 (def ^:private mod-types {:modifier-type-acceleration {:label "Acceleration"
                                                        :template {:type :modifier-type-acceleration
@@ -282,7 +232,7 @@
                                                                        radial-neg-geom-data
                                                                        radial-geom-data))
                                                  :geom-data-world (fn [_ max-distance]
-                                                                    (scale [max-distance max-distance 1] dash-circle))}
+                                                                    (geom/scale [max-distance max-distance 1] dash-circle))}
                           :modifier-type-vortex {:label "Vortex"
                                                  :template {:type :modifier-type-vortex
                                                             :use-direction 0
@@ -298,7 +248,7 @@
                                                                 vortex-neg-geom-data
                                                                 vortex-geom-data))
                                                  :geom-data-world (fn [_ max-distance]
-                                                                    (scale [max-distance max-distance 1] dash-circle))}})
+                                                                    (geom/scale [max-distance max-distance 1] dash-circle))}})
 
 (g/defnk produce-modifier-scene
   [_node-id transform aabb type magnitude max-distance]
@@ -360,34 +310,34 @@
           (recur (rest renderables) (conj-2d-cone! vbuf world-transform tmp-point type size color)))
         (persistent! vbuf)))))
 
-(def circle-geom-data (let [ps (->> origin-geom
-                                 (transl [0 1 0])
-                                 (circling 64))]
+(def circle-geom-data (let [ps (->> geom/origin-geom
+                                 (geom/transl [0 1 0])
+                                 (geom/circling 64))]
                         (interleave ps (drop 1 (cycle ps)))))
 
 (def cone-geom-data (let [ps [[-0.5 1.0 0.0] [0.0 0.0 0.0] [0.5 1.0 0.0]]]
                       (interleave ps (drop 1 (cycle ps)))))
 
-(def box-geom-data (let [ps (->> origin-geom
-                              (transl [0.5 0.5 0.0])
-                              (circling 4))]
+(def box-geom-data (let [ps (->> geom/origin-geom
+                              (geom/transl [0.5 0.5 0.0])
+                              (geom/circling 4))]
                      (interleave ps (drop 1 (cycle ps)))))
 
 (def emitter-types {:emitter-type-circle {:label "Circle"
                                           :geom-data-world (fn [size-x _ _]
-                                                             (scale [size-x size-x 1] circle-geom-data))}
+                                                             (geom/scale [size-x size-x 1] circle-geom-data))}
                     :emitter-type-sphere {:label "Sphere"
                                           :geom-data-world (fn [size-x _ _]
-                                                     (scale [size-x size-x 1] circle-geom-data))}
+                                                     (geom/scale [size-x size-x 1] circle-geom-data))}
                     :emitter-type-cone {:label "Cone"
                                         :geom-data-world (fn [size-x size-y _]
-                                                           (scale [size-x size-y 1] cone-geom-data))}
+                                                           (geom/scale [size-x size-y 1] cone-geom-data))}
                     :emitter-type-2dcone {:label "2D Cone"
                                           :geom-data-world (fn [size-x size-y _]
-                                                             (scale [size-x size-y 1] cone-geom-data))}
+                                                             (geom/scale [size-x size-y 1] cone-geom-data))}
                     :emitter-type-box {:label "Box"
                                        :geom-data-world (fn [size-x size-y _]
-                                                     (scale [size-x size-y 1] box-geom-data))}})
+                                                     (geom/scale [size-x size-y 1] box-geom-data))}})
 
 (g/defnk produce-emitter-scene
   [_node-id transform aabb type emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
