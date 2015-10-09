@@ -16,10 +16,10 @@
   (source-type [this])
   (read-only? [this])
   (path [this])
-  (abs-path [this])
-  (proj-path [this])
+  (abs-path ^String [this])
+  (proj-path ^String [this])
   (url [this])
-  (resource-name [this])
+  (resource-name ^String [this])
   (workspace [this])
   (resource-hash [this]))
 

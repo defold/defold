@@ -3,7 +3,8 @@
             [editor.core :as core]
             [editor.project :as project]
             [editor.resource :as resource]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [service.log :as log])
   (:import [editor.resource FileResource ZipResource]))
 
 (defprotocol ItemIterator
@@ -137,6 +138,7 @@
          root-nodes (root-nodes paste-data)]
      (some? (find-target-item item-iterator root-nodes)))
     (catch Exception e
+      (log/warn :exception e)
       ; TODO - ignore
       false)))
 

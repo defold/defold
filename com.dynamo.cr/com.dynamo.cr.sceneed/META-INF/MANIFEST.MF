@@ -31,3 +31,4 @@ Export-Package: com.dynamo.cr.sceneed,
  com.dynamo.cr.sceneed.ui.preferences,
  com.dynamo.cr.sceneed.ui.util
 DynamicImport-Package: *
+Import-Package: com.dynamo.bob.font

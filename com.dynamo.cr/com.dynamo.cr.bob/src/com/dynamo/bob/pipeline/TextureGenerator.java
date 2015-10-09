@@ -63,15 +63,15 @@ public class TextureGenerator {
     }
 
     // Two generate() methods to generate TextureImages without any texture profile.
-    static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
         return generate(origImage, null);
      }
 
-    static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
         return generate(inputStream, null);
      }
 
-    static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
         return generate(origImage, texProfile);
@@ -256,7 +256,7 @@ public class TextureGenerator {
 
     }
 
-    static TextureImage generate(BufferedImage origImage, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile) throws TextureGeneratorException, IOException {
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc
         BufferedImage image;

@@ -18,13 +18,15 @@ public class LuaScanner {
     private static Pattern multiLineCommentPattern = Pattern.compile("--\\[\\[.*?--\\]\\]",
             Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern requirePattern1 = Pattern.compile(".*?require\\s*?\"(.*?)\"$",
+    private static String commentAfterRequire = "\\s*?(-{2,}.*?)?$";
+    
+    private static Pattern requirePattern1 = Pattern.compile(".*?require\\s*?\"(.*?)\"" + commentAfterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern requirePattern2 = Pattern.compile(".*?require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$",
+    private static Pattern requirePattern2 = Pattern.compile(".*?require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)" + commentAfterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern requirePattern3 = Pattern.compile(".*?require\\s*?'(.*?)'$",
+    private static Pattern requirePattern3 = Pattern.compile(".*?require\\s*?'(.*?)'" + commentAfterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
     /**
@@ -34,7 +36,7 @@ public class LuaScanner {
      * 
      * local s = 'require "should_not_match"'
      */
-    private static Pattern requirePattern4 = Pattern.compile(".*?require\\s*?\\(\\s*?'(.*?)'\\s*?\\)$",
+    private static Pattern requirePattern4 = Pattern.compile(".*?require\\s*?\\(\\s*?'(.*?)'\\s*?\\)" + commentAfterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
     private static Pattern propertyDeclPattern = Pattern.compile("go.property\\((.*?)\\);?(\\s*?--.*?)?$");

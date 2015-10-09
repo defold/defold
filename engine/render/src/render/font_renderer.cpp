@@ -24,10 +24,6 @@ namespace dmRender
 {
     FontMapParams::FontMapParams()
     : m_Glyphs()
-    , m_TextureWidth(0)
-    , m_TextureHeight(0)
-    , m_TextureData(0x0)
-    , m_TextureDataSize(0)
     , m_ShadowX(0.0f)
     , m_ShadowY(0.0f)
     , m_MaxAscent(0.0f)
@@ -45,8 +41,6 @@ namespace dmRender
         : m_Texture(0)
         , m_Material(0)
         , m_Glyphs()
-        , m_TextureWidth(0)
-        , m_TextureHeight(0)
         , m_ShadowX(0.0f)
         , m_ShadowY(0.0f)
         , m_MaxAscent(0.0f)
@@ -57,14 +51,12 @@ namespace dmRender
 
         ~FontMap()
         {
-            dmGraphics::DeleteTexture(m_Texture);
+
         }
 
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
         dmHashTable16<Glyph>    m_Glyphs;
-        uint32_t                m_TextureWidth;
-        uint32_t                m_TextureHeight;
         float                   m_ShadowX;
         float                   m_ShadowY;
         float                   m_MaxAscent;
@@ -98,8 +90,6 @@ namespace dmRender
             font_map->m_Glyphs.Put(g.m_Character, g);
         }
 
-        font_map->m_TextureWidth = params.m_TextureWidth;
-        font_map->m_TextureHeight = params.m_TextureHeight;
         font_map->m_ShadowX = params.m_ShadowX;
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
@@ -107,24 +97,6 @@ namespace dmRender
         font_map->m_SdfScale = params.m_SdfScale;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
-        dmGraphics::TextureCreationParams tex_create_params;
-        dmGraphics::TextureParams tex_params;
-
-        tex_create_params.m_Width = params.m_TextureWidth;
-        tex_create_params.m_Height = params.m_TextureHeight;
-        tex_create_params.m_OriginalWidth = params.m_TextureWidth;
-        tex_create_params.m_OriginalHeight = params.m_TextureHeight;
-
-        tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
-        tex_params.m_Data = params.m_TextureData;
-        tex_params.m_DataSize = params.m_TextureDataSize;
-        tex_params.m_Width = params.m_TextureWidth;
-        tex_params.m_Height = params.m_TextureHeight;
-        // NOTE: No mipmap support in fonts yet therefore TEXTURE_FILTER_LINEAR
-        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
 
         return font_map;
     }
@@ -143,8 +115,7 @@ namespace dmRender
             const Glyph& g = glyphs[i];
             font_map->m_Glyphs.Put(g.m_Character, g);
         }
-        font_map->m_TextureWidth = params.m_TextureWidth;
-        font_map->m_TextureHeight = params.m_TextureHeight;
+
         font_map->m_ShadowX = params.m_ShadowX;
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
@@ -152,13 +123,12 @@ namespace dmRender
         font_map->m_SdfScale = params.m_SdfScale;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
-        dmGraphics::TextureParams tex_params;
-        tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
-        tex_params.m_Data = params.m_TextureData;
-        tex_params.m_DataSize = params.m_TextureDataSize;
-        tex_params.m_Width = params.m_TextureWidth;
-        tex_params.m_Height = params.m_TextureHeight;
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
+
+    }
+
+    void SetFontMapTexture(HFontMap font_map, dmGraphics::HTexture texture)
+    {
+        font_map->m_Texture = texture;
     }
 
     dmGraphics::HTexture GetFontMapTexture(HFontMap font_map)
@@ -388,8 +358,12 @@ namespace dmRender
         int32_t entry_key = *batch;
         const TextEntry& first_te = text_context.m_TextEntries[entry_key];
         HFontMap font_map = first_te.m_FontMap;
-        float im_recip = 1.0f / font_map->m_TextureWidth;
-        float ih_recip = 1.0f / font_map->m_TextureHeight;
+        float im_recip = 1.0f;
+        float ih_recip = 1.0f;
+        if (font_map->m_Texture) {
+            im_recip /= dmGraphics::GetOriginalTextureWidth(font_map->m_Texture);
+            ih_recip /= dmGraphics::GetOriginalTextureHeight(font_map->m_Texture);
+        }
 
         GlyphVertex* vertices = (GlyphVertex*)text_context.m_ClientBuffer;
 
