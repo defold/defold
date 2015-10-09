@@ -212,7 +212,7 @@
       (is (no-error? (g/node-value node-id :scene))))))
 
 (defn- image-label [atlas]
-  (let [outline (g/node-value atlas :outline)]
+  (let [outline (g/node-value atlas :node-outline)]
     (:label (first (:children outline)))))
 
 (deftest refactoring
@@ -227,3 +227,13 @@
       (is (.endsWith (image-label node-id) new-img-path))
       (move-file workspace new-img-path img-path)
       (is (.endsWith (image-label node-id) img-path)))))
+
+(deftest refactoring-sub-collection
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          node-id (project/get-resource-node project "/collection/sub_defaults.collection")
+          coll-path "/collection/props.collection"
+          new-coll-path "/collection/props2.collection"]
+      (is (= (format "props (%s)" coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label])))
+      (move-file workspace coll-path new-coll-path)
+      (is (= (format "props (%s)" new-coll-path) (get-in (g/node-value node-id :node-outline) [:children 0 :label]))))))
