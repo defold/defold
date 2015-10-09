@@ -5,7 +5,8 @@
             [dynamo.graph :as g]
             [editor.project :as project]
             [camel-snake-kebab :as camel]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [service.log :as log])
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
@@ -61,10 +62,8 @@
   raw)
 
 (defmethod parse-setting-value :boolean [_ raw]
-  (try
-    (Boolean/parseBoolean raw)
-    (catch Throwable _
-      (not= 0 (Integer/parseInt raw)))))
+  ;; this is roughly how the old editor does it, rather than != 0.
+  (= raw "1"))
 
 (defmethod parse-setting-value :integer [_ raw]
   (Integer/parseInt raw))
@@ -120,17 +119,6 @@
 (defn- sanitize-settings [meta-settings settings]
   (vec (map (partial sanitize-setting (make-meta-settings-map meta-settings)) settings)))
 
-(defn- patch-resource-c [{:keys [type preserve-extension]} {:keys [value] :as setting}]
-  (if (and (= type :resource)
-           (not (s/blank? value))
-           (not preserve-extension))
-    (update setting :value #(str % "c"))
-    setting))
-
-(defn- patch-settings [meta-settings settings]
-  (let [meta-settings-map (make-meta-settings-map meta-settings)]
-    (map #(patch-resource-c (meta-settings-map (:path %)) %) settings)))
-
 (defn- label [key]
   (-> key
       name
@@ -154,7 +142,7 @@
 
 (defn- make-form-values-map [settings]
   (into {} (map (juxt :path :value) settings)))
-  
+
 (def ^:private setting-category (comp first :path))
 
 (defn- make-form-data [form-ops meta-info settings]
@@ -172,10 +160,9 @@
 (defn- category-grouped-settings [settings]
   (group-by setting-category settings))
 
-(defn- setting->str [setting]
-  (let [key (s/join "." (rest (:path setting)))
-        val (str (:value setting))]
-    (str key " = " val)))
+(defn- setting->str [{:keys [path value]}]
+  (let [key (s/join "." (rest path))]
+    (str key " = " value)))
 
 (defn- category->str [category settings]
   (s/join "\n" (cons (str "[" category "]") (map setting->str settings))))
@@ -183,7 +170,10 @@
 (defn- settings->str [settings]
   (let [cat-order (category-order settings)
         cat-grouped-settings (category-grouped-settings settings)]
-    (s/join "\n\n" (map #(category->str % (cat-grouped-settings %)) cat-order))))
+    ;; Here we interleave categories with \n\n rather than join to make sure the file also ends with
+    ;; two consecutive newlines. This is purely to avoid whitespace diffs when loading a project
+    ;; created in the old editor and saving.
+    (s/join (interleave (map #(category->str % (cat-grouped-settings %)) cat-order) (repeat "\n\n")))))
 
 (defn- setting-index [settings path]
   (first (keep-indexed (fn [index item] (when (= (:path item) path) index)) settings)))
@@ -225,61 +215,85 @@
      (let [raw-settings (parse-settings (string-reader (slurp input)))
            meta-info (complement-meta-info basic-meta-info raw-settings)
            meta-settings (:settings meta-info)
-           settings (sanitize-settings meta-settings raw-settings)
+           sanitized-settings (sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
            resource   (g/node-value self :resource)
-           roots      (map (fn [[category field]] (root-resource resource settings meta-settings category field))
+           roots      (map (fn [[category field]] (root-resource resource sanitized-settings meta-settings category field))
                            [["bootstrap" "main_collection"] ["input" "game_binding"] ["input" "gamepads"]
                             ["bootstrap" "render"] ["display" "display_profiles"]])]
        (concat
-        (g/set-property self :settings settings :meta-info meta-info)
+        ;; We retain the actual raw string settings and update these when/if the user changes a setting,
+        ;; rather than parse to proper typed/sanitized values and rendering these on save - again only to
+        ;; reduce diffs.
+        (g/set-property self :raw-settings raw-settings :meta-info meta-info)
         (for [root roots]
           (project/connect-resource-node project root self [[:build-targets :dep-build-targets]]))))
      (catch java.lang.Exception e
-       (g/mark-defective self (g/error {:type :invalid-content :message (.getMessage e)}))))
+       (log/warn :exception e)
+       (g/mark-defective self (g/error-fatal {:type :invalid-content :message (.getMessage e)}))))
    (g/connect self :settings-map proxy :settings-map)))
 
 (defn- settings-with-value [settings]
   (filter #(contains? % :value) settings))
 
-(g/defnk produce-save-data [resource settings meta-info]
-  {:resource resource :content (settings->str (patch-settings (:settings meta-info) (settings-with-value settings)))})
+(g/defnk produce-save-data [resource raw-settings meta-info]
+  {:resource resource :content (settings->str (settings-with-value raw-settings))})
 
 (defn- build-game-project [self basis resource dep-resources user-data]
   (let [^String user-data-content (:content user-data)]
     {:resource resource :content (.getBytes user-data-content)}))
 
-(defn- set-setting [settings path value]
-  (if-let [index (setting-index settings path)]
-    (assoc-in settings [index :value] value)
-    (conj settings {:path path :value value})))
+(defmulti render-raw-setting-value (fn [meta-setting value] (:type meta-setting)))
 
-(defn- set-form-op [{:keys [node-id]} path value]
-  (g/update-property! node-id :settings set-setting path value))
+(defmethod render-raw-setting-value :boolean [_ value]
+  (if value "1" "0"))
+
+(defmethod render-raw-setting-value :resource [{:keys [preserve-extension]} value]
+  (if (and (not (s/blank? value))
+           (not preserve-extension))
+    (str value "c")
+    value))
+
+(defmethod render-raw-setting-value :default [_ value]
+  (str value))
+
+(defn- set-setting [settings {:keys [path] :as meta-setting} value]
+  (let [raw-value (render-raw-setting-value meta-setting value)]
+    (if-let [index (setting-index settings path)]
+      (assoc-in settings [index :value] raw-value)
+      (conj settings {:path path :value raw-value}))))
+
+(defn- set-form-op [{:keys [node-id meta-settings]} path value]
+  (let [meta-setting (nth meta-settings (setting-index meta-settings path))]
+    (g/update-property! node-id :raw-settings set-setting meta-setting value)))
 
 (defn- clear-setting [settings path]
   (when-let [index (setting-index settings path)]
     (update settings index dissoc :value)))
 
 (defn- clear-form-op [{:keys [node-id]} path]
-  (g/update-property! node-id :settings clear-setting path))
+  (g/update-property! node-id :raw-settings clear-setting path))
 
-(defn- make-form-ops [node-id]
-  {:user-data {:node-id node-id}
+(defn- make-form-ops [node-id meta-settings]
+  {:user-data {:node-id node-id :meta-settings meta-settings}
    :set set-form-op
    :clear clear-form-op})
 
-(g/defnk produce-settings-map [meta-info settings]
-  (let [default-settings (make-default-settings (:settings meta-info))
-        all-settings (concat default-settings (settings-with-value settings))]
+(g/defnk produce-settings-map [meta-info raw-settings]
+  (let [meta-settings (:settings meta-info)
+        default-settings (make-default-settings meta-settings)
+        sanitized-settings (sanitize-settings meta-settings (settings-with-value raw-settings))
+        all-settings (concat default-settings sanitized-settings)]
     (make-settings-map all-settings)))
 
-(g/defnk produce-form-data [_node-id meta-info settings]
-  (make-form-data (make-form-ops _node-id) meta-info (settings-with-value settings)))
+(g/defnk produce-form-data [_node-id meta-info raw-settings]
+  (let [meta-settings (:settings meta-info)
+        sanitized-settings (sanitize-settings meta-settings (settings-with-value raw-settings))]
+    (make-form-data (make-form-ops _node-id meta-settings) meta-info sanitized-settings)))
 
 (g/defnode GameProjectNode
   (inherits project/ResourceNode)
 
-  (property settings g/Any (dynamic visible (g/always false)))
+  (property raw-settings g/Any (dynamic visible (g/always false)))
   (property meta-info g/Any (dynamic visible (g/always false)))
 
   (output settings-map g/Any :cached produce-settings-map)
@@ -289,11 +303,11 @@
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
   (output save-data g/Any :cached produce-save-data)
-  (output build-targets g/Any :cached (g/fnk [_node-id resource settings meta-info dep-build-targets]
+  (output build-targets g/Any :cached (g/fnk [_node-id resource raw-settings meta-info dep-build-targets]
                                              [{:node-id _node-id
                                                :resource (workspace/make-build-resource resource)
                                                :build-fn build-game-project
-                                               :user-data {:content (settings->str (patch-settings (:settings meta-info) (settings-with-value settings)))}
+                                               :user-data {:content (settings->str (settings-with-value raw-settings))}
                                                :deps (vec (flatten dep-build-targets))}])))
 
 (defn register-resource-types [workspace]

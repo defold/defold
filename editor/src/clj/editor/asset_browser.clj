@@ -120,7 +120,7 @@
     (mapv #(resources %) roots)))
 
 (defn tmp-file [^File dir resource]
-  (let [f (File. dir ^String (workspace/resource-name resource))]
+  (let [f (File. dir (workspace/resource-name resource))]
     (if (= :file (workspace/source-type resource))
       (with-open [out (io/writer f)]
         (IOUtils/copy (io/input-stream resource) out))
@@ -135,7 +135,7 @@
                     (.toFile))
               (.deleteOnExit))]
     (mapv (fn [r]
-            (let [^String abs-path (or (workspace/abs-path r) (.getAbsolutePath ^File (tmp-file tmp r)))]
+            (let [abs-path (or (workspace/abs-path r) (.getAbsolutePath ^File (tmp-file tmp r)))]
               (File. abs-path)))
           resources)))
 
@@ -143,10 +143,10 @@
   (when (not (empty? resources))
     (let [workspace (workspace/workspace (first resources))]
       (doseq [resource resources]
-        (let [f (File. ^String (workspace/abs-path resource))]
+        (let [f (File. (workspace/abs-path resource))]
           (if (.isDirectory f)
             (FileUtils/deleteDirectory f)
-            (.delete (File. ^String (workspace/abs-path resource))))))
+            (.delete (File. (workspace/abs-path resource))))))
       (workspace/fs-sync workspace))))
 
 (defn- copy [files]
@@ -204,7 +204,7 @@
                                      (if (= tgt src)
                                        (.getParentFile ^File tgt)
                                        tgt))
-                                   (to-folder (File. ^String (workspace/abs-path resource))) src-files)
+                                   (to-folder (File. (workspace/abs-path resource))) src-files)
              pairs (mapv (fn [^File f] [f (unique (File. tgt-dir (FilenameUtils/getName (.toString f))))]) src-files)]
          (doseq [[^File src-file ^File tgt-file] pairs]
            (if (.isDirectory src-file)
@@ -220,7 +220,7 @@
 
 (handler/defhandler :show-in-desktop :asset-browser
   (enabled? [selection] (and (= 1 (count selection)) (not= nil (workspace/abs-path (first selection)))) )
-  (run [selection] (let [f (File. ^String (workspace/abs-path (first selection)))]
+  (run [selection] (let [f (File. (workspace/abs-path (first selection)))]
                      (.open (Desktop/getDesktop) (to-folder f)))))
 
 (def update-tree-view nil)
@@ -233,7 +233,7 @@
   (enabled? [selection] (and (= (count selection) 1) (not= nil (workspace/abs-path (first selection)))))
   (run [selection user-data workspace tree-view open-fn]
        (let [resource (first selection)
-             f (File. ^String (workspace/abs-path resource))
+             f (File. (workspace/abs-path resource))
              base-folder (to-folder f)
              rt (:resource-type user-data)]
          (when-let [f (dialogs/make-new-file-dialog (File. ^String (g/node-value workspace :root)) base-folder (or (:label rt) (:ext rt)) (:ext rt))]
@@ -255,7 +255,7 @@
 
 (handler/defhandler :new-folder :asset-browser
   (enabled? [selection] (and (= (count selection) 1) (not= nil (workspace/abs-path (first selection)))))
-  (run [selection workspace] (let [f (File. ^String (workspace/abs-path (first selection)))
+  (run [selection workspace] (let [f (File. (workspace/abs-path (first selection)))
                                    base-folder (to-folder f)]
                                (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
                                  (.mkdir ^File (resolve-sub-folder base-folder new-folder-name))
@@ -342,7 +342,7 @@
            (.scrollTo view (inc (.getIndex cell)))))
        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
          (when (not (workspace/read-only? tgt-resource))
-           (let [^Path tgt-path (-> tgt-resource ^String resource/abs-path File. ^File to-folder .getAbsolutePath ->path)
+           (let [^Path tgt-path (-> tgt-resource resource/abs-path File. ^File to-folder .getAbsolutePath ->path)
                  tgt-descendant? (not (empty? (filter (fn [^Path p] (or
                                                                       (.equals tgt-path (.getParent p))
                                                                       (.startsWith tgt-path p))) (map (fn [^File f] (-> f .getAbsolutePath ->path)) (.getFiles db)))))]
@@ -366,7 +366,7 @@
       (let [target (-> e (.getTarget) ^TreeCell (target))
             tree-view (.getTreeView target)
             resource (-> target (.getTreeItem) (.getValue))
-            ^File tgt-dir (to-folder (File. ^String (workspace/abs-path resource)))
+            ^File tgt-dir (to-folder (File. (workspace/abs-path resource)))
             move? (and (= (.getGestureSource e) tree-view)
                        (= (.getTransferMode e) TransferMode/MOVE))
             pairs (mapv (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) (.getFiles db))

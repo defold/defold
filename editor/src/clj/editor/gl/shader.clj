@@ -455,7 +455,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                                    :ext (:ext def)
                                    :label (:label def)
                                    :node-type ShaderNode
-                                   :load-fn (fn [project self input] (load-shader project self input def))
+                                   :load-fn (fn [project self resource] (load-shader project self resource def))
                                    :icon (:icon def)))
 
 (defn register-resource-types [workspace]

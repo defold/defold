@@ -2,6 +2,7 @@
 #define RESOURCE_PRIVATE_H
 
 #include <ddf/ddf.h>
+#include "resource_archive.h"
 
 // Internal API that preloader needs to use.
 
@@ -48,6 +49,11 @@ namespace dmResource
         HPreloader m_Preloader;
         int32_t m_Parent;
     };
+
+    // Platform specific implementation of archive loading. Data written into mount_info must
+    // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
+    Result MountArchiveInternal(const char* path, dmResourceArchive::HArchive* archive, void** mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchive archive, void* mount_info);
 }
 
 #endif

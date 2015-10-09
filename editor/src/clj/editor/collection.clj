@@ -363,9 +363,8 @@
                     (child-coll-any self go-node)
                     [])
                   (g/connect go-node :_node-id self :nodes)
-                  (project/connect-resource-node project
-                                                 source-resource go-node
-                                                 [[:_node-id            :source]
+                  (project/connect-resource-node project source-resource go-node
+                                                 [[:_node-id       :source]
                                                   [:outline        :outline]
                                                   [:save-data      :save-data]
                                                   [:build-targets  :build-targets]
@@ -416,27 +415,30 @@
                      (selected-collection? selection) (add-game-object-file selection)
                      (selected-embedded-instance? selection) (game-object/add-component-handler (g/node-value (first selection) :source)))))
 
-(defn- make-embedded-go [self project type data id position rotation scale child?]
-  (let [resource (project/make-embedded-resource project type data)]
-    (if-let [resource-type (and resource (workspace/resource-type resource))]
-      (g/make-nodes (g/node-id->graph-id self)
-                    [go-node [GameObjectInstanceNode :id id :embedded true
-                              :position position :rotation rotation :scale scale]
-                     source-node [(:node-type resource-type) :resource resource :project-id project]]
-                    (g/connect source-node :_node-id           go-node :source)
-                    (g/connect source-node :outline       go-node :outline)
-                    (g/connect source-node :save-data     go-node :save-data)
-                    (g/connect source-node :build-targets go-node :build-targets)
-                    (g/connect source-node :scene         go-node :scene)
-                    (g/connect source-node :_node-id           self    :nodes)
-                    (g/connect go-node     :_node-id           self    :nodes)
-                    (attach-coll-embedded-go self go-node)
-                    (if child?
-                      (child-coll-any self go-node)
-                      []))
-      (g/make-nodes (g/node-id->graph-id self)
-                    [go-node [GameObjectInstanceNode :id id :embedded true]]
-                    (g/connect go-node     :_node-id           self    :nodes)))))
+(defn- make-embedded-go [self project type data id position rotation scale child? select?]
+  (let [graph (g/node-id->graph-id self)
+        resource (project/make-embedded-resource project type data)]
+    (g/make-nodes graph [go-node [GameObjectInstanceNode :id id :embedded true
+                                  :position position :rotation rotation :scale scale]]
+      (g/connect go-node :_node-id self :nodes)
+      (if select?
+        (project/select project [go-node])
+        [])
+      (let [tx-data (project/make-resource-node graph project resource true {go-node [[:_node-id :source]
+                                                                                      [:outline :outline]
+                                                                                      [:save-data :save-data]
+                                                                                      [:build-targets :build-targets]
+                                                                                      [:scene :scene]]
+                                                                             self [[:_node-id :nodes]]})]
+        (concat
+          tx-data
+          (if (empty? tx-data)
+            []
+            (concat
+              (attach-coll-embedded-go self go-node)
+              (if child?
+                (child-coll-any self go-node)
+                []))))))))
 
 (defn- add-game-object [selection]
   (let [coll-node     (first selection)
@@ -444,35 +446,30 @@
         workspace     (:workspace (g/node-value coll-node :resource))
         ext           "go"
         resource-type (workspace/get-resource-type workspace ext)
-        template      (workspace/template resource-type)]
-    (let [id (gen-instance-id coll-node ext)
-          op-seq (gensym)
-          [go-node source-node] (g/tx-nodes-added
-                                 (g/transact
-                                  (concat
-                                   (g/operation-sequence op-seq)
-                                   (g/operation-label "Add Game Object")
-                                   (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0] [1 1 1] true))))]
-      (g/transact
-       (concat
-        (g/operation-sequence op-seq)
+        template      (workspace/template resource-type)
+        id (gen-instance-id coll-node ext)]
+    (g/transact
+      (concat
         (g/operation-label "Add Game Object")
-        ((:load-fn resource-type) project source-node (io/reader (g/node-value source-node :resource)))
-        (project/select project [go-node]))))))
+        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0] [1 1 1] true true)))))
 
 (handler/defhandler :add :global
   (active? [selection] (and (single-selection? selection)
                             (or (selected-collection? selection)
                                 (selected-embedded-instance? selection))))
-  (label [selection] (cond
-                       (selected-collection? selection) "Add Game Object"
-                       (selected-embedded-instance? selection)  "Add Component"))
-  (run [selection] (cond
-                     (selected-collection? selection) (add-game-object selection)
-                     (selected-embedded-instance? selection) (game-object/add-embedded-component-handler (g/node-value (first selection) :source)))))
+  (label [selection user-data] (cond
+                                 (selected-collection? selection) "Add Game Object"
+                                 (selected-embedded-instance? selection) (game-object/add-embedded-component-label user-data)))
+  (options [selection user-data] (when (selected-embedded-instance? selection)
+                                   (let [source (g/node-value (first selection) :source)
+                                         workspace (:workspace (g/node-value source :resource))]
+                                     (game-object/add-embedded-component-options source workspace user-data))))
+  (run [selection user-data] (cond
+                               (selected-collection? selection) (add-game-object selection)
+                               (selected-embedded-instance? selection) (game-object/add-embedded-component-handler user-data))))
 
 (defn- add-collection-instance [self source-resource id position rotation scale]
-  (let [project (g/node-value self :project-id)
+  (let [project (project/get-project self)
         path    (workspace/proj-path source-resource)]
     (g/make-nodes (g/node-id->graph-id self)
                   [coll-node [CollectionInstanceNode :id id :path path
@@ -516,8 +513,8 @@
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
 
-(defn load-collection [project self input]
-  (let [collection (protobuf/read-text GameObject$CollectionDesc input)
+(defn load-collection [project self resource]
+  (let [collection (protobuf/read-text GameObject$CollectionDesc resource)
         project-graph (g/node-id->graph-id project)]
     (concat
       (g/set-property self :name (:name collection))
@@ -526,16 +523,16 @@
                                (for [game-object (:instances collection)
                                      :let [; TODO - fix non-uniform hax
                                            scale (:scale game-object)
-                                           source-resource (workspace/resolve-resource (g/node-value self :resource) (:prototype game-object))]]
+                                           source-resource (workspace/resolve-resource resource (:prototype game-object))]]
                                  (make-ref-go self project source-resource (:id game-object) (:position game-object)
-                                          (v4->euler (:rotation game-object)) [scale scale scale] false))
+                                   (v4->euler (:rotation game-object)) [scale scale scale] false))
                                (for [embedded (:embedded-instances collection)
                                      :let [; TODO - fix non-uniform hax
                                            scale (:scale embedded)]]
                                  (make-embedded-go self project "go" (:data embedded) (:id embedded)
-                                                   (:position embedded)
-                                                   (v4->euler (:rotation embedded))
-                                                   [scale scale scale] false))))
+                                   (:position embedded)
+                                   (v4->euler (:rotation embedded))
+                                   [scale scale scale] false false))))
             new-instance-data (filter #(and (= :create-node (:type %)) (= GameObjectInstanceNode (g/node-type (:node %)))) tx-go-creation)
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))
@@ -546,16 +543,15 @@
           (for [[child parent] child->parent
                 :let [child-id (id->nid child)
                       parent-id (if parent (id->nid parent) self)]]
-            (concat
-              (if parent
-                (child-go-go parent-id child-id)
-                (child-coll-any self child-id))))))
+            (if parent
+              (child-go-go parent-id child-id)
+              (child-coll-any self child-id)))))
       (for [coll-instance (:collection-instances collection)
             :let [; TODO - fix non-uniform hax
                   scale (:scale coll-instance)
-                  source-resource (workspace/resolve-resource (g/node-value self :resource) (:collection coll-instance))]]
+                  source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
         (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-                                 (v4->euler (:rotation coll-instance)) [scale scale scale])))))
+          (v4->euler (:rotation coll-instance)) [scale scale scale])))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

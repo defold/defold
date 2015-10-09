@@ -10,7 +10,7 @@
            [javafx.event ActionEvent EventHandler]
            [javafx.fxml FXMLLoader]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button ProgressBar TextField]
+           [javafx.scene.control Button ProgressBar TextField ListView SelectionMode]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.web WebView]
@@ -118,6 +118,11 @@
     (ui/title! stage (or (:title options) "Select Resource"))
     (ui/items! (:resources controls) items)
 
+    (when (= (:selection options) :multiple)
+      (-> ^ListView (:resources controls)
+          (.getSelectionModel)
+          (.setSelectionMode SelectionMode/MULTIPLE)))
+
     (ui/cell-factory! (:resources controls) (fn [r] {:text (workspace/resource-name r)
                                                      :icon (workspace/resource-icon r)}))
 
@@ -189,7 +194,7 @@
         return (atom nil)
         close (fn [perform?]
                 (when perform?
-                  (reset! return (File. base-dir ^String (ui/text (:path controls)))))
+                  (reset! return (File. base-dir (ui/text (:path controls)))))
                 (.close stage))
         set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
     (.initOwner stage (ui/main-stage))

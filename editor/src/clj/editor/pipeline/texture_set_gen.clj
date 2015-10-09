@@ -61,8 +61,8 @@
 
 (defn- split [image tile ^TileSetUtil$Metrics metrics]
   (let [type (TextureUtil/getImageType image)]
-    (for [tile-y (range (.tilesPerRow metrics))
-          tile-x (range (.tilesPerColumn metrics))]
+    (for [tile-y (range (.tilesPerColumn metrics))
+          tile-x (range (.tilesPerRow metrics))]
       (sub-image tile tile-x tile-y image type))))
 
 (defn- tile-anim->AnimDesc [anim]
