@@ -42,8 +42,6 @@
 ; TreeItem creator
 (defn- ^ObservableList list-children [parent]
   (let [children (:children parent)
-        sort-by-fn (:sort-by-fn parent)
-        children (if sort-by-fn (sort-by sort-by-fn children) children)
         items (into-array TreeItem (map tree-item children))]
     (if (empty? children)
       (FXCollections/emptyObservableList)

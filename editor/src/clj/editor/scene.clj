@@ -703,6 +703,35 @@
                                          new-euler (math/quat->euler new-rotation)]
                                      (g/set-property (g/node-id self) :rotation new-euler))))
 
+(g/defnk produce-transform [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+  (let [transform (Matrix4d. rotation position 1.0)
+        s [(.x scale) (.y scale) (.z scale)]
+        col (Vector4d.)]
+    (doseq [^Integer i (range 3)
+            :let [s (nth s i)]]
+      (.getColumn transform i col)
+      (.scale col s)
+      (.setColumn transform i col))
+    transform))
+
+(g/defnode ScalableSceneNode
+  (inherits SceneNode)
+
+  (property scale types/Vec3 (default [1 1 1]))
+
+  (display-order [SceneNode :scale])
+
+  (output scale Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
+  (output transform Matrix4d :cached produce-transform)
+
+  scene-tools/Scalable
+  (scene-tools/scale [self delta] (let [s (Vector3d. (double-array (:scale self)))
+                                        ^Vector3d d delta]
+                                    (.setX s (* (.x s) (.x d)))
+                                    (.setY s (* (.y s) (.y d)))
+                                    (.setZ s (* (.z s) (.z d)))
+                                    (g/set-property (g/node-id self) :scale [(.x s) (.y s) (.z s)]))))
+
 (defn- make-text-renderer [^GL2 gl data]
   (let [[font-family font-style font-size] data]
     (gl/text-renderer font-family font-style font-size)))

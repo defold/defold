@@ -49,7 +49,6 @@
                   :label g/Str
                   :icon g/Str
                   (g/optional-key :children) [(g/recursive #'OutlineData)]
-                  (g/optional-key :sort-by-fn) Runnable
                   (g/optional-key :child-reqs) [g/Any]
                   g/Keyword g/Any})
 
@@ -116,12 +115,12 @@
 (defn paste! [graph item-iterator data select-fn]
   (let [paste-data (paste graph data)
         root-nodes (root-nodes paste-data)]
-        (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
-          (g/transact
-            (concat
-              (g/operation-label "Paste")
-              (build-tx-data item reqs paste-data)
-              (select-fn (mapv :_node-id root-nodes)))))))
+    (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
+      (g/transact
+        (concat
+          (g/operation-label "Paste")
+          (build-tx-data item reqs paste-data)
+          (select-fn (mapv :_node-id root-nodes)))))))
 
 (defn paste? [graph item-iterator data]
   (try
@@ -164,10 +163,28 @@
     (let [paste-data (paste graph data)
           root-nodes (root-nodes paste-data)]
       (when-let [[item reqs] (find-target-item item-iterator root-nodes)]
-        (g/transact
-          (concat
-            (g/operation-label "Drop")
-            (build-tx-data item reqs paste-data)
-            (for [it src-item-iterators]
-              (g/delete-node (:node-id (value it))))
-            (select-fn (mapv :_node-id root-nodes))))))))
+        (let [op-seq (gensym)]
+          (g/transact
+            (concat
+              (g/operation-label "Drop")
+              (g/operation-sequence op-seq)
+              (for [it src-item-iterators]
+                (g/delete-node (:node-id (value it))))))
+          (g/transact
+            (concat
+              (g/operation-label "Drop")
+              (g/operation-sequence op-seq)
+              (build-tx-data item reqs paste-data)
+              (select-fn (mapv :_node-id root-nodes)))))))))
+
+(defn resolve-id [id ids]
+  (let [ids (set ids)]
+    (if (ids id)
+      (let [prefix id]
+        (loop [suffix ""
+               index 1]
+          (let [id (str prefix suffix)]
+            (if (contains? ids id)
+              (recur (str index) (inc index))
+              id))))
+      id)))
