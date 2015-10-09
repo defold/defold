@@ -171,8 +171,7 @@
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id child-outlines] {:node-id _node-id
                                          :label id
-                                         :sort-by-fn :order
-                                         :children child-outlines
+                                         :children (sort-by :order child-outlines)
                                          :icon animation-icon
                                          :child-reqs [{:node-type AtlasImage
                                                        :tx-attach-fn tx-attach-image-to-animation}]}))
@@ -315,8 +314,7 @@
   (output anim-data        g/Any               :cached produce-anim-data)
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines] {:node-id _node-id
                                                                                          :label "Atlas"
-                                                                                         :sort-by-fn atlas-outline-sort-by-fn
-                                                                                         :children child-outlines
+                                                                                         :children (sort-by atlas-outline-sort-by-fn child-outlines)
                                                                                          :icon atlas-icon
                                                                                          :child-reqs [{:node-type AtlasImage
                                                                                                        :tx-attach-fn tx-attach-image-to-atlas

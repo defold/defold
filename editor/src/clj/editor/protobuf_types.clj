@@ -22,9 +22,7 @@
            [com.dynamo.camera.proto Camera$CameraDesc]
            [com.dynamo.mesh.proto Mesh$MeshDesc]
            [com.dynamo.model.proto Model$ModelDesc]
-           [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.tile.proto Tile$TileGrid]
-           [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
            [com.dynamo.render.proto Render$DisplayProfiles]
@@ -104,12 +102,6 @@
                ; TODO - missing icon
                :icon "icons/32/Icons_43-Tilesource-Collgroup.png"
                :pb-class Physics$ConvexShape}
-              {:ext "gui"
-               :label "Gui"
-               :icon "icons/32/Icons_38-GUI.png"
-               :pb-class Gui$SceneDesc
-               :resource-fields [:script :material [:fonts :font] [:textures :texture]]
-               :tags #{:component}}
               {:ext ["tilemap" "tilegrid"]
                :build-ext "tilegridc"
                :label "Tile Map"

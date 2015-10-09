@@ -270,11 +270,15 @@
          camel/->Camel_Snake_Case_String
          (clojure.string/replace "_" " ")))))
 
-(defn set-values! [property values]
-  (g/transact
-    (concat
-      (g/operation-label (str "Set " (label property)))
-      (set-values property values))))
+(defn set-values!
+  ([property values]
+    (set-values! property values (gensym)))
+  ([property values op-seq]
+    (g/transact
+      (concat
+        (g/operation-label (str "Set " (label property)))
+        (g/operation-sequence op-seq)
+        (set-values property values)))))
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
@@ -311,3 +315,13 @@
         (let [key (:key property)]
           (for [node-id (:node-ids property)]
             (g/update-property node-id (first key) dissoc-in (rest key))))))))
+
+(defn ->choicebox [vals]
+  {:type :choicebox
+   :options (zipmap vals vals)})
+
+(defn ->pb-choicebox [cls]
+  (let [options (protobuf/enum-values cls)]
+    {:type :choicebox
+     :options (zipmap (map first options)
+                      (map (comp :display-name second) options))}))
