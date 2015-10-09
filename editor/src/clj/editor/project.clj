@@ -8,6 +8,7 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [editor.outline :as outline]
             [service.log :as log]
             ; TODO - HACK
             [internal.graph.types :as gt])
@@ -18,17 +19,20 @@ ordinary paths."
 
 (def ^:dynamic *load-cache* nil)
 
+(def ^:private unknown-icon "icons/32/Icons_29-AT-Unkown.png")
+
 (g/defnode ResourceNode
   (inherits core/Scope)
-
-  (extern resource (g/protocol workspace/Resource) (dynamic visible (g/always false)))
+  (inherits outline/OutlineNode)
+  (inherits resource/ResourceNode)
 
   (output save-data g/Any (g/fnk [resource] {:resource resource}))
   (output build-targets g/Any (g/always []))
-  (output outline g/Any :cached (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
-                                                            {:node-id _node-id
-                                                             :label (or (:label rt) (:ext rt))
-                                                             :icon (:icon rt)}))))
+  (output node-outline outline/OutlineData :cached
+    (g/fnk [_node-id resource] (let [rt (resource/resource-type resource)]
+                                {:node-id _node-id
+                                 :label (or (:label rt) (:ext rt) "unknown")
+                                 :icon (or (:icon rt) unknown-icon)}))))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode))
