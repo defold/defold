@@ -16,12 +16,14 @@
 
 (declare node-input-forms collect-property-value property-validation-exprs)
 
-(defn warn [node-id node-type label input-schema error]
+(defn warn [node-id node-type label value input-schema error]
   (println "Schema validation failed for node " node-id "(" (:name node-type) " ) label " label)
   (println "There were " (count (vals error)) " problems")
   (let [explanation (s/explain input-schema)]
     (doseq [[key val] error]
-      (println "Argument " key " should match")
+      (println "Argument " key " which is")
+      (pp/pprint value)
+      (println "should match")
       (pp/pprint (get explanation key))
       (println "but it failed because ")
       (pp/pprint val)
@@ -751,7 +753,7 @@
 (defn schema-check [self-name ctx-name node-type node-type-name transform input-sym schema-sym nodeid-sym forms]
   `(if-let [validation-error# (s/check ~schema-sym ~input-sym)]
      (do
-       (warn ~nodeid-sym ~node-type-name ~transform ~schema-sym validation-error#)
+       (warn ~nodeid-sym ~node-type-name ~transform ~input-sym ~schema-sym validation-error#)
        (throw (ex-info "SCHEMA-VALIDATION"
                        {:node-id          ~nodeid-sym
                         :type             ~node-type-name

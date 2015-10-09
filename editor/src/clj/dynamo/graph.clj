@@ -454,6 +454,12 @@
   [source-node-id source-label target-node-id target-label]
   (transact (disconnect source-node-id source-label target-node-id target-label)))
 
+(defn disconnect-sources
+  ([target-node-id target-label]
+    (disconnect-sources (now) target-node-id target-label))
+  ([basis target-node-id target-label]
+    (it/disconnect-sources basis target-node-id target-label)))
+
 (defn become
   "Creates the transaction step to turn one kind of node into another, in a transaction. All properties and their values
    will be carried over from source-node to new-node. The resulting node will still have
@@ -799,9 +805,6 @@
      (transit/write writer fragment)
      (.toString out))))
 
-(defn- in-same-graph? [graph-id node-id]
-  (= graph-id (node-id->graph-id node-id)))
-
 (defn- serialize-arc [id-dictionary arc]
   (let [[src-id src-label]  (gt/head arc)
         [tgt-id tgt-label]  (gt/tail arc)]
@@ -815,15 +818,16 @@
           [(mapcat #(gt/arcs-by-tail basis %) nodes)
            (mapcat #(gt/arcs-by-head basis %) nodes)]))
 
-(defn- predecessors
-  [basis node-id]
-  (let [same-graph? (partial in-same-graph? (node-id->graph-id node-id))]
-    (filterv same-graph? (map first (sources basis node-id)))))
+(defn- in-same-graph? [arc]
+  (apply = (map node-id->graph-id (take-nth 2 arc))))
+
+(defn- predecessors [pred basis node-id]
+  (let [preds (every-pred in-same-graph? pred)]
+    (mapv first (filter preds (inputs basis node-id)))))
 
 (defn- input-traverse
   [basis pred root-ids]
-  (ig/pre-traverse basis root-ids
-                   (util/guard #(pred (ig/node-by-id-at %1 %2)) predecessors)))
+  (ig/pre-traverse basis root-ids (partial predecessors pred)))
 
 (defn default-node-serializer
   [node]
@@ -833,19 +837,22 @@
     {:node-type  (gt/node-type node)
      :properties properties-without-fns}))
 
+(def opts-schema {(optional-key :traverse?) Runnable
+                  (optional-key :serializer) Runnable})
+
 (defn copy
   "Given a vector of root ids, and an options map that can contain an
-  `:include?` predicate and a `serializer` function, returns a copy
+  `:traverse?` predicate and a `serializer` function, returns a copy
   graph fragment that can be serialized or pasted.  Works on the
   current basis, if a basis is not provided.
 
-   The `:include?` predicate determines whether the node will be
+   The `:traverse?` predicate determines whether the target node will be
   included at all. If it returns a falsey value, then traversal stops
   there. That node and all arcs to it will be left behind. If the
   predicate returns true, then that node --- or a stand-in for it ---
   will be included in the fragment.
 
-  `:include?` will be called with the node value.
+  `:traverse?` will be called with the arc data.
 
    The `:serializer` function determines _how_ to represent the node
   in the fragment.  `dynamo.graph/default-node-serializer` adds a map
@@ -861,13 +868,14 @@
 
   Example:
 
-  `(g/copy root-ids {:include? (comp not resource?)
+  `(g/copy root-ids {:traverse? (comp not resource? #(nth % 3))
                      :serializer (some-fn custom-serializer default-node-serializer %)}"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [include? serializer] :or {include? (constantly true) serializer default-node-serializer} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (constantly false) serializer default-node-serializer} :as opts}]
+    (validate opts-schema opts)
    (let [serializer     #(assoc (serializer (ig/node-by-id-at basis %2)) :serial-id %1)
-         original-ids   (input-traverse basis include? root-ids)
+         original-ids   (input-traverse basis traverse? root-ids)
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
          serial-ids     (util/map-vals :serial-id replacements)
          fragment-arcs  (connecting-arcs basis original-ids)]

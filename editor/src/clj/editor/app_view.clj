@@ -66,7 +66,7 @@
 
 (defn- on-selected-tab-changed [app-view resource-node]
   (g/transact
-    (replace-connection resource-node :outline app-view :outline))
+    (replace-connection resource-node :node-outline app-view :outline))
   (invalidate app-view :active-tab))
 
 (defn- on-tabs-changed [app-view]
