@@ -19,7 +19,7 @@
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
                    node-id   (test-util/resource-node project "/logic/hierarchy.collection")
-                   outline   (g/node-value node-id :outline)]
+                   outline   (g/node-value node-id :node-outline)]
                ; Two game objects under the collection
                (is (= 2 (count (:children outline))))
                ; One component and game object under the game object
@@ -44,13 +44,13 @@
                    project   (test-util/setup-project! workspace)
                    node-id   (test-util/resource-node project "/logic/hierarchy.collection")]
                ; Two game objects under the collection
-               (is (= 2 (count (:children (g/node-value node-id :outline)))))
+               (is (= 2 (count (:children (g/node-value node-id :node-outline)))))
                ; Select the collection node
                (project/select! project [node-id])
                ; Run the add handler
                (handler/run :add [{:name :global :env {:selection [node-id]}}] {})
                ; Three game objects under the collection
-               (is (= 3 (count (:children (g/node-value node-id :outline)))))))))
+               (is (= 3 (count (:children (g/node-value node-id :node-outline)))))))))
 
 (deftest empty-go
   (testing "Collection with a single empty game object"
@@ -59,7 +59,7 @@
                    project   (test-util/setup-project! workspace)
                    node-id   (test-util/resource-node project "/collection/empty_go.collection")
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
-                   outline   (g/node-value node-id :outline)
+                   outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
                ; Verify outline labels
                (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
@@ -72,7 +72,7 @@
              (let [workspace (test-util/setup-workspace! world)
                    project   (test-util/setup-project! workspace)
                    node-id   (test-util/resource-node project "/collection/unknown_components.collection")
-                   outline   (g/node-value node-id :outline)
+                   outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
                ; Verify outline labels
