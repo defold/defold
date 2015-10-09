@@ -87,6 +87,11 @@
     :target-id    to-node-id
     :target-label to-label}])
 
+(defn disconnect-sources
+  [basis target-node target-label]
+  (for [[src-node src-label] (gt/sources basis target-node target-label)]
+    (disconnect src-node src-label target-node target-label)))
+
 (defn label
   [label]
   [{:type  :label
