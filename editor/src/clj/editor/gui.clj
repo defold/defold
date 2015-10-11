@@ -193,15 +193,31 @@
       corners? (cornify max-angle)
       cut-off? (into (geom/rotate [0 0 max-angle] ps)))))
 
-(g/defnk produce-node-scene [_node-id type aabb transform pivot size color pie-data inherit-alpha texture gpu-texture anim-data child-scenes]
+(defn- pairs [v]
+  (filter (fn [[v0 v1]] (> (Math/abs (- v1 v0)) 0)) (partition 2 1 v)))
+
+(g/defnk produce-node-scene [_node-id type aabb transform pivot size color slice9 pie-data inherit-alpha texture gpu-texture anim-data child-scenes]
   (let [[geom-data uv-data line-data] (case type
                                         :type-box (let [[w h _] size
                                                         order [0 1 3 3 1 2]
-                                                        corners (geom/transl (pivot-offset pivot size) [[0 0 0] [0 h 0] [w h 0] [w 0 0]])
-                                                        vs (mapv (partial nth corners) order)
-                                                        uvs (get-in anim-data [texture :frames 0 :tex-coords] [[0 1] [0 0] [1 0] [1 1]])
-                                                        uvs (mapv (partial nth uvs) order)
-                                                        lines (interleave corners (drop 1 (cycle corners)))]
+                                                        x-vals (pairs [0 (get slice9 0) (- w (get slice9 2)) w])
+                                                        y-vals (pairs [0 (get slice9 3) (- h (get slice9 1)) h])
+                                                        offset (pivot-offset pivot size)
+                                                        corners (for [[x0 x1] x-vals
+                                                                      [y0 y1] y-vals]
+                                                                  (geom/transl offset [[x0 y0 0] [x0 y1 0] [x1 y1 0] [x1 y0 0]]))
+                                                        vs (vec (mapcat #(map (partial nth %) order) corners))
+                                                        tex (get anim-data texture)
+                                                        tex-w (:width tex 1)
+                                                        tex-h (:height tex 1)
+                                                        u-vals (pairs [0 (/ (get slice9 0) tex-w) (- 1 (/ (get slice9 2) tex-w)) 1])
+                                                        v-vals (pairs [1 (- 1 (/ (get slice9 3) tex-h)) (/ (get slice9 1) tex-h) 0])
+                                                        uv-trans (get-in tex [:uv-transforms 0])
+                                                        uvs (for [[u0 u1] u-vals
+                                                                  [v0 v1] v-vals]
+                                                              (geom/uv-trans uv-trans [[u0 v0] [u0 v1] [u1 v1] [u1 v0]]))
+                                                        uvs (vec (mapcat #(map (partial nth %) order) uvs))
+                                                        lines (vec (mapcat #(interleave % (drop 1 (cycle %))) corners))]
                                                     [vs uvs lines])
                                         :type-pie (let [[w h _] size
                                                         {:keys [outer-bounds inner-radius perimeter-vertices pie-fill-angle]} pie-data
