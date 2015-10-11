@@ -30,6 +30,14 @@
          scene (g/node-value node-id :scene)]
      (is (= 0.25 (get-in scene [:children 0 :children 2 :children 0 :renderable :user-data :color 3]))))))
 
+(deftest gui-scene-pie
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          node-id   (test-util/resource-node project "/logic/main.gui")
+          scene (g/node-value node-id :scene)]
+      (is (> (count (get-in scene [:children 0 :children 3 :renderable :user-data :line-data])) 0)))))
+
 (deftest gui-textures
   (with-clean-system
    (let [workspace (test-util/setup-workspace! world)

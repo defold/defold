@@ -4,7 +4,8 @@
             [editor.math :as math])
   (:import [com.defold.util Geometry]
            [editor.types Rect AABB]
-           [javax.vecmath Point3d Point4d Vector4d Vector3d Quat4d Matrix4d]))
+           [javax.vecmath Point2d Point3d Point4d Vector4d Vector3d Quat4d Matrix4d]
+           [com.defold.editor.pipeline TextureSetGenerator$UVTransform]))
 
 (defn clamper [low high] (fn [x] (min (max x low) high)))
 
@@ -368,3 +369,12 @@
 (defn circling [segments ps]
   (let [angle (/ 360 segments)]
     (chain (dec segments) (partial rotate [0 0 angle]) ps)))
+
+(defn uv-trans [^TextureSetGenerator$UVTransform uv-trans ps]
+  (if uv-trans
+    (let [p (Point2d.)]
+     (mapv (fn [[^double x ^double y]]
+             (.set p x y)
+             (.apply uv-trans p)
+             [(.x p) (.y p)]) ps))
+    ps))
