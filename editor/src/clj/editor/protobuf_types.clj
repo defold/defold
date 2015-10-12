@@ -13,7 +13,7 @@
             [editor.pipeline.font-gen :as font-gen]
             [internal.render.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
-           [com.dynamo.render.proto Render$RenderPrototypeDesc Material$MaterialDesc]
+           [com.dynamo.render.proto Render$RenderPrototypeDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
            [com.dynamo.gamesystem.proto GameSystem$FactoryDesc GameSystem$CollectionFactoryDesc
             GameSystem$CollectionProxyDesc GameSystem$LightDesc]
@@ -45,12 +45,6 @@
                :resource-fields [:script [:materials :material]]
                :view-types [:form-view]
                :label "Render"}
-              {:ext "material"
-               :icon "icons/32/Icons_31-Material.png"
-               :pb-class Material$MaterialDesc
-               :resource-fields [:vertex-program :fragment-program]
-               :view-types [:form-view]
-               :label "Material"}
               {:ext "factory"
                :label "Factory"
                :icon "icons/32/Icons_07-Factory.png"
