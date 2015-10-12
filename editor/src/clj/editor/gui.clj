@@ -27,7 +27,8 @@
            [javax.vecmath Matrix4d Point3d Quat4d]
            [java.awt.image BufferedImage]
            [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
-           [org.apache.commons.io FilenameUtils]))
+           [org.apache.commons.io FilenameUtils]
+           [editor.gl.shader ShaderLifecycle]))
 
 (def ^:private texture-icon "icons/32/Icons_25-AT-Image.png")
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
@@ -137,6 +138,8 @@
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [gpu-texture (get-in (first renderables) [:user-data :gpu-texture])
+        scene-shader (get-in (first renderables) [:user-data :scene-shader])
+        _ (prn "scene-shader" scene-shader)
         [vs uvs colors] (reduce (fn [[vs uvs colors] renderable]
                                   (let [user-data (:user-data renderable)
                                         world-transform (:world-transform renderable)
@@ -147,7 +150,7 @@
                           [[] [] []] renderables)
         vcount (count vs)]
     (when (> vcount 0)
-      (let [shader (if gpu-texture shader line-shader)
+      (let [shader (if gpu-texture (or scene-shader shader) (or scene-shader line-shader))
             vertex-binding (vtx/use-with ::tris (->uv-color-vtx-vb vs uvs colors vcount) shader)]
         (gl/with-gl-bindings gl [shader vertex-binding gpu-texture]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
@@ -196,7 +199,7 @@
 (defn- pairs [v]
   (filter (fn [[v0 v1]] (> (Math/abs (- v1 v0)) 0)) (partition 2 1 v)))
 
-(g/defnk produce-node-scene [_node-id type aabb transform pivot size color slice9 pie-data inherit-alpha texture gpu-texture anim-data child-scenes]
+(g/defnk produce-node-scene [_node-id type aabb transform pivot size color slice9 pie-data inherit-alpha texture gpu-texture anim-data scene-shader child-scenes]
   (let [[geom-data uv-data line-data] (case type
                                         :type-box (let [[w h _] size
                                                         order [0 1 3 3 1 2]
@@ -267,7 +270,8 @@
                               :uv-data uv-data
                               :color color
                               :gpu-texture gpu-texture
-                              :inherit-alpha inherit-alpha}
+                              :inherit-alpha inherit-alpha
+                              :scene-shader scene-shader}
                   :batch-key [gpu-texture]
                   :select-batch-key _node-id}
      :children child-scenes}))
@@ -317,6 +321,7 @@
     (g/connect gui-node :id self :node-ids)
     (g/connect self :layers gui-node :layers)
     (g/connect self :textures gui-node :textures)
+    (g/connect self :material-shader gui-node :scene-shader)
     (case type
       (:type-box :type-pie) (g/connect self :textures gui-node :textures)
       :type-text (g/connect self :fonts gui-node :fonts)
@@ -450,6 +455,7 @@
   (input fonts [g/Str])
   (input child-scenes g/Any :array)
   (input child-indices g/Int :array)
+  (input scene-shader ShaderLifecycle)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id index child-outlines type]
       (let [reqs (if (= type :type-template)
@@ -684,7 +690,10 @@
   (inherits project/ResourceNode)
 
   (property script (g/protocol resource/Resource))
-  (property material (g/protocol resource/Resource))
+  (property material (g/protocol resource/Resource)
+    (value (g/fnk [material-resource] material-resource))
+    (set (project/gen-resource-setter [[:resource :material-resource]
+                                       [:shader :material-shader]])))
   (property adjust-reference g/Keyword (dynamic edit-type (g/always (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property pb g/Any (dynamic visible (g/always false)))
   (property def g/Any (dynamic visible (g/always false)))
@@ -712,6 +721,9 @@
   (input texture-data g/Any :array)
   (input fonts g/Any :array)
 
+  (input material-resource (g/protocol resource/Resource))
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (g/fnk [material-shader] material-shader))
   (output aabb AABB (g/fnk [scene-dims child-scenes]
                            (let [w (:width scene-dims)
                                  h (:height scene-dims)

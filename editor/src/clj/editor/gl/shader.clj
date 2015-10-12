@@ -427,13 +427,13 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                                               ""])}])
 
 (defn- build-shader [self basis resource dep-resources user-data]
-  {:resource resource :content (.getBytes (str (get-in user-data [:def :prefix]) (:source user-data)))})
+  {:resource resource :content (.getBytes (:source user-data))})
 
-(g/defnk produce-build-targets [_node-id resource source def]
+(g/defnk produce-build-targets [_node-id resource full-source def]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-shader
-    :user-data {:source source
+    :user-data {:source full-source
                 :def def}}])
 
 (g/defnode ShaderNode
@@ -442,7 +442,8 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (property source g/Str)
   (property def g/Any)
 
-  (output build-targets g/Any produce-build-targets))
+  (output build-targets g/Any produce-build-targets)
+  (output full-source g/Str (g/fnk [source def] (str (get def :prefix) source))))
 
 (defn- load-shader [project self input def]
   (let [source (slurp input)]
