@@ -30,7 +30,7 @@
   (assert (required-kind form) (str "property " label " requires a " kind-label " not a " (class form) " of " form)))
 
 (def assert-symbol (partial assert-form-kind "symbol" symbol?))
-(def assert-schema (partial assert-form-kind "schema" util/schema?))
+(def assert-schema (partial assert-form-kind "schema" (partial satisfies? schema.core/Schema)))
 
 (defn- resolve-if-symbol [sym]
   (if (symbol? sym)
@@ -66,7 +66,7 @@
   (if (gt/property-type? value-type)
     (merge description value-type)
     (do
-      (assert-schema "defproperty" value-type)
+      (assert-schema (:name description) value-type)
       (assoc description :value-type value-type))))
 
 (defn validation [property] (get property ::validate))

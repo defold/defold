@@ -119,10 +119,6 @@
         (.drawImage g2d original 0 0 nil))
       new)))
 
-(g/s-defn image-bounds :- Rect
-  [source :- Image]
-  (types/rect (.path source) 0 0 (.width source) (.height source)))
-
 (g/s-defn image-pixels :- ints
   [src :- BufferedImage]
   (let [w      (.getWidth src)
