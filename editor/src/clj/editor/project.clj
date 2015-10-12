@@ -438,3 +438,11 @@ ordinary paths."
                             (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
     project-id))
+
+(defn gen-resource-setter [connections]
+  (fn [basis self _ new-value]
+      (if new-value
+        (let [project (get-project self)]
+          (connect-resource-node project new-value self connections))
+        (for [tgt-label (map second connections)]
+          (g/disconnect-sources basis self tgt-label)))))
