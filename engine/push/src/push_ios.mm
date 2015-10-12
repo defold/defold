@@ -217,14 +217,12 @@ static void RunListener(NSDictionary *userdata, bool local)
             dmLogWarning("No push listener set. Message discarded.");
         } else {
             // Save notification as push.set_listener may not be set at this point, e.g. when launching the app
-            // buy clicking on the notification
-            // TODO: Test this functionality. Not possible to test with dev-app as m_SavedNotification is cleared on reboot
+            // but clicking on the notification
             g_Push.m_SavedNotification = [[NSDictionary alloc] initWithDictionary:userInfo copyItems:YES];
         }
-        return;
+    } else {
+        RunListener(userInfo, false);
     }
-
-    RunListener(userInfo, false);
 }
 
 - (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification {
@@ -236,6 +234,11 @@ static void RunListener(NSDictionary *userdata, bool local)
     UILocalNotification *localNotification = [launchOptions objectForKey:UIApplicationLaunchOptionsLocalNotificationKey];
     if (localNotification) {
         RunListener(localNotification.userInfo, true);
+    }
+
+    NSDictionary *remoteNotification = [launchOptions objectForKey:UIApplicationLaunchOptionsRemoteNotificationKey];
+    if (remoteNotification) {
+        [self application:application didReceiveRemoteNotification:remoteNotification];
     }
 
     return YES;
@@ -255,7 +258,7 @@ static void RunListener(NSDictionary *userdata, bool local)
 @end
 
 /*# Register for push notifications
- * Send a request for push notifications. Note that the notifications table parameter 
+ * Send a request for push notifications. Note that the notifications table parameter
  * is iOS only and will be ignored on Android.
  *
  * @name push.register
@@ -278,7 +281,7 @@ static void RunListener(NSDictionary *userdata, bool local)
  *           -- NOTE: %02x to pad byte with leading zero
  *           local token_string = ""
  *           for i = 1,#token do
- *               token_string = token_string .. string.format("%02x", string.byte(token, i)) 
+ *               token_string = token_string .. string.format("%02x", string.byte(token, i))
  *           end
  *           print(token_string)
  *           push.set_listener(push_listener)
@@ -446,19 +449,19 @@ int Push_SetBadgeCount(lua_State* L)
 /*# Schedule a local push notification to be triggered at a specific time in the future
  *
  * Notification settings is a platform specific table of data that can contain the following fields:
- * 
+ *
  * <table>
  *   <th>Field</th>
  *   <th>Description</th>
- *   <tr><td><code>action</code></td><td>(iOS only). The alert action string to be used as the title of the 
- *          right button of the alert or the value of the unlock slider, where the value replaces 
+ *   <tr><td><code>action</code></td><td>(iOS only). The alert action string to be used as the title of the
+ *          right button of the alert or the value of the unlock slider, where the value replaces
  *          "unlock" in "slide to unlock" text. (string)</td></tr>
  *   <tr><td><code>badge_number</code></td><td>(iOS only). The numeric value of the icon badge. (number)</td></tr>
- *   <tr><td><code>priority</code></td><td>(Android only). The priority is a hint to the device UI about how the notification 
+ *   <tr><td><code>priority</code></td><td>(Android only). The priority is a hint to the device UI about how the notification
             should be displayed. There are five priority levels, from -2 to 2 where -1 is the lowest priority
             and 2 the highest. Unless specified, a default priority level of 2 is used. (number)</td></tr>
  * </table>
- * 
+ *
  * @name push.schedule
  * @param time number of seconds into the future until the notification should be triggered (number)
  * @param title localized title to be displayed to the user if the application is not running (string)
@@ -576,9 +579,9 @@ int Push_Schedule(lua_State* L)
 
 /*# Cancel a scheduled local push notification
  *
- * Use this function to cancel a previously scheduled local push notification. The 
+ * Use this function to cancel a previously scheduled local push notification. The
  * notification is identified by a numeric id as returned by +push.schedule()+.
- * 
+ *
  * @name push.cancel
  * @param id the numeric id of the local push notification (number)
  */
@@ -636,7 +639,7 @@ static void NotificationToLua(lua_State* L, UILocalNotification* notification)
  *
  * Returns a table with all data associated with a specified local push notification.
  * The notification is identified by a numeric id as returned by +push.schedule()+.
- * 
+ *
  * @name push.get_scheduled
  * @param id the numeric id of the local push notification (number)
  * @return data table with all data associated with the notification (table)
@@ -662,7 +665,7 @@ int Push_GetScheduled(lua_State* L)
  * The table contains key, value pairs where the key is the push notification id and the
  * value is a table with the notification data, corresponding to the data given by
  * push.get_scheduled(id).
- * 
+ *
  * @name push.get_all_scheduled
  * @return data table with all data associated with all scheduled notifications (table)
  */
