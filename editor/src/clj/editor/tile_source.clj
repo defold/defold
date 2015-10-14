@@ -230,31 +230,25 @@
   (property tile-spacing g/Int (default 0))
   (property collision (g/protocol workspace/Resource)) ; optional
   (property material-tag g/Str (default "tile"))
-
   (property convex-hulls g/Any (dynamic visible (g/always false)))
   (property convex-hull-points g/Any (dynamic visible (g/always false)))
-
-  (input collision-groups g/Str :array)
-  (input animation-ddfs g/Any :array)
-
   (property extrude-borders g/Int (default 0))
   (property inner-padding g/Int (default 0))
 
+  (input collision-groups g/Str :array)
+  (input animation-ddfs g/Any :array)
   (input image-content BufferedImage)
   (input collision-content BufferedImage)
 
-  (output aabb AABB produce-aabb)
-
+  (output aabb AABB :cached produce-aabb)
   (output scene g/Any :cached produce-scene)
-
   (output node-outline outline/OutlineData :cached produce-tile-source-outline)
-  
-  (output pb g/Any produce-pb)
-  (output save-data g/Any        :cached produce-save-data)
+  (output pb g/Any :cached produce-pb)
+  (output save-data g/Any :cached produce-save-data)
   (output texture-set-data g/Any :cached produce-texture-set-data)
-  (output build-targets g/Any    :cached produce-build-targets)
-  (output gpu-texture g/Any      :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
-  (output anim-data g/Any        :cached produce-anim-data))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output gpu-texture g/Any :cached (g/fnk [_node-id texture-set-data] (texture/image-texture _node-id (:image texture-set-data))))
+  (output anim-data g/Any :cached produce-anim-data)) 
 
 (defn- disconnect-all [node-id label]
   (for [[src-node-id src-label] (g/sources-of node-id label)]

@@ -8,6 +8,7 @@
 /lib/android.jar
 /lib/android-res.zip
 /lib/luajit-share.zip
+/lib/dlib.jar
 /libexec/*/*.so
 /libexec/*/*.js
 /libexec/*/*dmengine*
