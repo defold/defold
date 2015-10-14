@@ -7,7 +7,11 @@ Code Style
 ----------
 
 Follow current code style and use 4 spaces for tabs. Never commit code
-with trailing white-spaces. For Eclipse [AnyEditTools](http://andrei.gmxhome.de/eclipse.html)
+with trailing white-spaces.
+
+For Eclipse:
+* Install [AnyEditTools](http://andrei.gmxhome.de/eclipse.html) for easy Tabs to Spaces support
+* Import the code formating xml: Eclipse -> Preferences: C/C++ -> CodeStyle -> Formatter .. Import 'defold/share/codestyle.xml' and set ”Dynamo” as active profile
 
 Setup
 -----
@@ -15,7 +19,7 @@ Setup
 **Required Software**
 
 * [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
-* [Eclipse 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
+* [Eclipse SDK 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
 * Python (on OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
 * Linux:
@@ -43,12 +47,6 @@ Setup
 </tr>
 
 <tr>
-<td>EclipseLink</td>
-<td>http://download.eclipse.org/rt/eclipselink/updates</td>
-<td>`EclipseLink Target Components`</td>
-</tr>
-
-<tr>
 <td>Google Plugin</td>
 <td>https://dl.google.com/eclipse/plugin/4.2</td>
 <td>
@@ -63,15 +61,27 @@ Setup
 <td>http://pydev.org/updates</td>
 <td>`PyDev for Eclipse`</td>
 </tr>
+
+<tr>
+<td>AnyEditTools (optional)</td>
+<td>http://andrei.gmxhome.de/eclipse/ <br> (manual install) <br> http://andrei.gmxhome.de/anyedit/index.html </td>
+<td>`AnyEditTools`</td>
+</tr>
+
 </table>
 
 Always launch Eclipse from the **command line** with a development environment
 setup. See `build.py` and the `shell` command below.
 
+
 **Optional Software**
 
 * [ccache](http://ccache.samba.org) - install with `brew install ccache` on OS X and `sudo apt-get install ccache`
-  on Debian based Linux distributions.
+  on Debian based Linux distributions. Configure cache (3.2.3) by by running ([source](https://ccache.samba.org/manual.html))
+
+    `/usr/local/bin/ccache --max-size=5G`
+
+
 
 **Import Java Projects**
 
@@ -96,6 +106,15 @@ setup. See `build.py` and the `shell` command below.
     - `Project Properties > C/C++ General > Paths and Symbols`
 * Disable `Invalid arguments` in `Preferences > C/C++ > Code Analysis`
 
+** Troubleshooting **
+
+If eclipse doesn’t get the JDK setup automatically:
+* Preferences -> Java -> Installed JRE’s:
+* Click Add
+* JRE Home: /Library/Java/JavaVirtualMachines/jdk1.8.0_60.jdk/Contents/Home
+* JRE Name: 1.8 (Or some other name)
+* Finish
+
 
 
 Build Engine
@@ -112,6 +131,10 @@ Install external packages. This step is required once only.
 Build engine for host target. For other targets use ``--platform=``
 
     $ ./scripts/build.py build_engine --skip-tests
+
+Build at least once with 64 bit support (to support the particle editor, i.e. allowing opening collections)
+
+    $ ./scripts/build.py build_engine --skip-tests —-platform=x86_64-darwin
 
 When the initial build is complete the workflow is to use waf directly. For
 example
@@ -132,10 +155,10 @@ see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/Ad
 Build and Run Editor
 --------------------
 
-* With a new project invoke `Project > Build All`
+* In the workspace, invoke `Project > Build All`
      - Generates Google Protocol Buffers etc
 * Refresh entire workspace
-* Open `cr.product`
+* In `om.dynamo.cr.editor-product`, double click on template/cr.product
 * Press `Launch an Eclipse application`
 * Speed up launch
     - Go to `Preferences > Run/Debug`
@@ -204,6 +227,19 @@ com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
 ```
 
 This means that the wrong `vecmath.jar` library is used and you probably have a copy located in `/System/Library/Java/Extensions` or `/System/Library/Java/Extensions`. Move `vecmath.jar` somewhere else while running `test_cr`.
+
+#### When opening a .collection in the editor you get this ####
+```
+org.osgi.framework.BundleException: Exception in com.dynamo.cr.parted.ParticleEditorPlugin.start() of bundle com.dynamo.cr.parted.
+at org.eclipse.osgi.framework.internal.core.BundleContextImpl.startActivator(BundleContextImpl.java:734)
+at org.eclipse.osgi.framework.internal.core.BundleContextImpl.start(BundleContextImpl.java:683)
+at org.eclipse.osgi.framework.internal.core.BundleHost.startWorker(BundleHost.java:381)
+at org.eclipse.osgi.framework.internal.core.AbstractBundle.start(AbstractBundle.java:300)
+at org.eclipse.osgi.framework.util.SecureAction.start(SecureAction.java:440)
+```
+
+If you get this error message, it’s most likely from not having the 64 bit binaries, did you build the engine with 64 bit support? E.g. “--platform=x86_64-darwin”
+To fix, rebuild engine in 64 bit, and in Eclipse, do a clean projects, refresh and rebuild them again
 
 Licenses
 --------
