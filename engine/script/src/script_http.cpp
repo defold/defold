@@ -40,7 +40,7 @@ namespace dmScript
      * @param [headers] optional lua-table with custom headers
      * @param [post_data] optional data to send
      * @param [options] optional lua-table with request parameters. Supported entries: 'timeout'=<number> (in microseconds)
-     * @note If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is 0
+     * @note If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is 0. (0 == blocks indefinitely)
      * @examples
      * <p>
      * Basic HTTP-GET request. The callback receives a table with the response
@@ -123,16 +123,10 @@ namespace dmScript
                 lua_pushnil(L);
                 while (lua_next(L, -2)) {
                     const char* attr = lua_tostring(L, -2);
-					if( strcmp(attr, "timeout") == 0 )
-					{
-	                    if( lua_isnumber(L, -1) )
-	                    {
-	                    	timeout = lua_tonumber(L, -1);
-	                    } else {
-							const char* val = lua_tostring(L, -1);
-							dmLogWarning("Non number value found: '%s'='%s'", (attr ? attr : "invalidkey"), (val ? val : "invalidvalue"));
-	                    }
-					}
+                    if( strcmp(attr, "timeout") == 0 )
+                    {
+                        timeout = luaL_checknumber(L, -1);
+                    }
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);

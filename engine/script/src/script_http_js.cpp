@@ -134,21 +134,14 @@ namespace dmScript
                 lua_pushnil(L);
                 while (lua_next(L, -2)) {
                     const char* attr = lua_tostring(L, -2);
-					if( strcmp(attr, "timeout") == 0 )
-					{
-	                    if( lua_isnumber(L, -1) )
-	                    {
-	                    	timeout = lua_tonumber(L, -1);
-	                    } else {
-							const char* val = lua_tostring(L, -1);
-							dmLogWarning("Non number value found: '%s'='%s'", (attr ? attr : "invalidkey"), (val ? val : "invalidvalue"));
-	                    }
-					}
+                    if( strcmp(attr, "timeout") == 0 )
+                    {
+                        timeout = luaL_checknumber(L, -1);
+                    }
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);
             }
-
 
             dmMessage::URL* requester = new dmMessage::URL;
             *requester = sender;
