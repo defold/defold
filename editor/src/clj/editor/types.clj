@@ -85,6 +85,12 @@
   [^AABB v ^java.io.Writer w]
   (.write w (str "<AABB \"min: " (.min v) ", max: " (.max v) "\">")))
 
+(g/s-defn ^:always-validate rect :- Rect
+  ([x :- g/Num y :- g/Num width :- g/Num height :- g/Num]
+    (rect "" (int  x) (int y) (int width) (int height)))
+  ([path :- g/Any x :- g/Num y :- g/Num width :- g/Num height :- g/Num]
+    (Rect. path (int x) (int y) (int width) (int height))))
+
 (g/s-defrecord Image
   [path     :- g/Any
    contents :- BufferedImage

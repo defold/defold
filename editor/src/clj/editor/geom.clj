@@ -22,9 +22,118 @@
     (* (double (.width r)) (double (.height r)))
     0))
 
+(g/s-defn intersect :- (g/maybe Rect)
+  ([r :- Rect] r)
+  ([r1 :- Rect r2 :- Rect]
+    (when (and r1 r2)
+      (let [l (max (.x r1) (.x r2))
+            t (max (.y r1) (.y r2))
+            r (min (+ (.x r1) (.width r1))  (+ (.x r2) (.width r2)))
+            b (min (+ (.y r1) (.height r1)) (+ (.y r2) (.height r2)))
+            w (- r l)
+            h (- b t)]
+        (if (and (< 0 w) (< 0 h))
+          (types/rect l t w h)
+          nil))))
+  ([r1 :- Rect r2 :- Rect & rs :- [Rect]]
+    (reduce intersect (intersect r1 r2) rs)))
+
+(g/s-defn split-rect-| :- [Rect]
+  "Splits the rectangle such that the side slices extend to the top and bottom"
+  [^Rect container :- Rect ^Rect content :- Rect]
+  (let [new-rects     (transient [])
+        overlap ^Rect (intersect container content)]
+    (if overlap
+      (do
+        ;; left slice
+        (if (< (.x container) (.x overlap))
+          (conj! new-rects (types/rect (.x container)
+                                 (.y container)
+                                 (- (.x overlap) (.x container))
+                                 (.height container))))
+
+        ;; right slice
+        (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
+          (conj! new-rects (types/rect ""
+                                (+ (.x overlap) (.width overlap))
+                                (.y container)
+                                (- (+ (.x container) (.width container))
+                                    (+ (.x overlap)   (.width overlap)))
+                                (.height container))))
+        ;; bottom slice
+        (if (< (.y container) (.y overlap))
+          (conj! new-rects (types/rect ""
+                                 (.x overlap)
+                                 (.y container)
+                                 (.width overlap)
+                                 (- (.y overlap) (.y container)))))
+
+        ;; top slice
+        (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
+          (conj! new-rects (types/rect ""
+                                 (.x overlap)
+                                 (+ (.y overlap) (.height overlap))
+                                 (.width overlap)
+                                 (- (+ (.y container) (.height container))
+                                    (+ (.y overlap)   (.height overlap)))))))
+      (conj! new-rects container))
+    (persistent! new-rects)))
+
+(g/s-defn split-rect-= :- [Rect]
+  "Splits the rectangle such that the top and bottom slices extend to the sides"
+  [^Rect container :- Rect ^Rect content :- Rect]
+  (let [new-rects     (transient [])
+        overlap ^Rect (intersect container content)]
+    (if overlap
+      (do
+         ;; bottom slice
+         (if (< (.y container) (.y overlap))
+           (conj! new-rects (types/rect ""
+                                  (.x container)
+                                  (.y container)
+                                  (.width container)
+                                  (- (.y overlap) (.y container)))))
+
+         ;; top slice
+         (if (< (+ (.y overlap) (.height overlap)) (+ (.y container) (.height container)))
+           (conj! new-rects (types/rect ""
+                                  (.x container)
+                                  (+ (.y overlap) (.height overlap))
+                                  (.width container)
+                                  (- (+ (.y container) (.height container))
+                                    (+ (.y overlap) (.height overlap))))))
+
+         ;; left slice
+         (if (< (.x container) (.x overlap))
+           (conj! new-rects (types/rect ""
+                                  (.x container)
+                                  (.y overlap)
+                                  (- (.x overlap) (.x container))
+                                  (.height overlap))))
+
+         ;; right slice
+         (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
+           (conj! new-rects (types/rect ""
+                                 (+ (.x overlap) (.width overlap))
+                                 (.y overlap)
+                                 (- (+ (.x container) (.width container))
+                                     (+ (.x overlap)   (.width overlap)))
+                                 (.height overlap)))))
+      (conj! new-rects container))
+    (persistent! new-rects)))
+
 (defn- largest-area
   [rs]
   (reduce max 0 (map area rs)))
+
+(g/s-defn split-rect :- [Rect]
+  "Splits the rectangle with an attempt to minimize fragmentation"
+  [^Rect container :- Rect ^Rect content :- Rect]
+  (let [horizontal (split-rect-= container content)
+        vertical   (split-rect-| container content)]
+    (if (> (largest-area horizontal) (largest-area vertical))
+      horizontal
+      vertical)))
 
 ; This is off-by-one in many cases, due to Clojure's preference to promote things into Double and Long.
 ;
