@@ -35,6 +35,14 @@ public class FontRendererHandle {
         }
     }
 
+    public void clear(GL2 gl) {
+        this.image = null;
+        if (this.texture != null) {
+            this.texture.destroy(gl);
+            this.texture = null;
+        }
+    }
+
     public void setFont(FontMap fontMap, BufferedImage image, Fontc.InputFontFormat inputFormat) {
         this.fontMap = fontMap;
         this.image = image;
