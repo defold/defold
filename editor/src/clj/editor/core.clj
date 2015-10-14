@@ -81,16 +81,6 @@
 ;; Bootstrapping the core node types
 ;; ---------------------------------------------------------------------------
 
-(clojure.pprint/pprint (macroexpand-1 '(g/defnode Scope
-                        "Scope provides a level of grouping for nodes. Scopes nest.
-When a node is added to a Scope, the node's :_node-id output will be
-connected to the Scope's :nodes input.
-
-When a Scope is deleted, all nodes within that scope will also be deleted."
-                        (input nodes g/Any :array :cascade-delete))))
-
-(prn "attach-type" (internal.property/attach-value-type {:name "_node-id"} schema.core/Int))
-
 (g/defnode Scope
   "Scope provides a level of grouping for nodes. Scopes nest.
 When a node is added to a Scope, the node's :_node-id output will be

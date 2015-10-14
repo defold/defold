@@ -10,8 +10,6 @@
 
 (defn schema? [x] (satisfies? s/Schema x))
 
-(schema? s/Int)
-
 (defn var-get-recursive [var-or-value]
   (if (var? var-or-value)
     (recur (var-get var-or-value))
