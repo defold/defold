@@ -46,7 +46,7 @@ namespace dmGui
         struct Data
         {
             Matrix4     m_Transform;
-            float       m_Alpha;
+            float     	m_Opacity;
         };
         dmArray<Data>   m_Data;
         uint16_t        m_NodeIndex;
@@ -78,7 +78,7 @@ namespace dmGui
         dmArray<HScene>                 m_Scenes;
         dmArray<RenderEntry>            m_RenderNodes;
         dmArray<Matrix4>                m_RenderTransforms;
-        dmArray<Vector4>                m_RenderColors;
+        dmArray<float>                	m_RenderOpacities;
         dmArray<InternalClippingNode>   m_StencilClippingNodes;
         dmArray<StencilScope*>          m_StencilScopes;
         dmArray<uint16_t>               m_StencilScopeIndices;
