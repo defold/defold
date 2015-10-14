@@ -39,7 +39,8 @@
          clojure.test
          clojure.walk
          clojure.xml
-         clojure.zip]))
+         clojure.zip
+         schema.core]))
 
 (defn compile-order
   [srcdirs]
