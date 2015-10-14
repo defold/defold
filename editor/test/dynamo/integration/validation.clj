@@ -165,6 +165,6 @@
 (deftest test-cyclic-validation
   (with-clean-system
     (let [[ts] (tx-nodes (g/make-nodes world [ts [TileSourceNode :tile-width 1000 :tile-height 164 :tile-margin 100]]))]
-      (is (g/error? (prop ts :tile-width)))
-      (is (g/error? (prop ts :tile-height)))
-      (is (g/error? (prop ts :tile-margin))))))
+      (is (g/error? (g/node-value ts :tile-width)))
+      (is (g/error? (g/node-value ts :tile-height)))
+      (is (g/error? (g/node-value ts :tile-margin))))))
