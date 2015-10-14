@@ -383,7 +383,7 @@ namespace dmGui
      * @param scene
      * @param nodes
      * @param node_transforms
-     * @param node_colors
+     * @param node_opacities
      * @param node_count
      * @param stencil_clipping_render_states
      * @param context
@@ -391,7 +391,7 @@ namespace dmGui
     typedef void (*RenderNodes)(HScene scene,
                                const RenderEntry* node_entries,
                                const Vectormath::Aos::Matrix4* node_transforms,
-                               const Vectormath::Aos::Vector4* node_colors,
+                               const float* node_opacities,
                                const StencilScope** node_stencils,
                                uint32_t node_count,
                                void* context);
