@@ -159,7 +159,7 @@ namespace dmHttpClient
         HttpWriteHeaders    m_HttpWriteHeaders;
         int                 m_MaxGetRetries;
         uint64_t            m_RequestTimeout;
-        uint64_t			m_RequestStart;
+        uint64_t            m_RequestStart;
         Statistics          m_Statistics;
 
         dmHttpCache::HCache m_HttpCache;
@@ -296,12 +296,12 @@ namespace dmHttpClient
     }
 
     static bool HasRequestTimedOut(HClient client)
-	{
-    	if( client->m_RequestTimeout == 0 )
-    		return false;
-    	uint64_t currenttime = dmTime::GetTime();
-    	return (currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
-	}
+    {
+        if( client->m_RequestTimeout == 0 )
+            return false;
+        uint64_t currenttime = dmTime::GetTime();
+        return (currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
+    }
 
     static dmSocket::Result SSLToSocket(int r) {
         // Currently a very limited list but
@@ -339,7 +339,7 @@ namespace dmHttpClient
 
                 if( HasRequestTimedOut(response->m_Client) )
                 {
-                	return dmSocket::RESULT_TIMEDOUT;
+                    return dmSocket::RESULT_TIMEDOUT;
                 }
 
                 dmSocket::Result r = dmSocket::Send(response->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
@@ -478,7 +478,7 @@ namespace dmHttpClient
 
             if( HasRequestTimedOut(client) )
             {
-            	return RESULT_TIMEOUT;
+                return RESULT_TIMEOUT;
             }
 
             int recv_bytes;
@@ -632,7 +632,7 @@ bail:
         {
             if( HasRequestTimedOut(response->m_Client) )
             {
-            	return RESULT_TIMEOUT;
+                return RESULT_TIMEOUT;
             }
 
             int n;
@@ -780,7 +780,7 @@ bail:
             {
                 if( HasRequestTimedOut(response->m_Client) )
                 {
-                	return RESULT_TIMEOUT;
+                    return RESULT_TIMEOUT;
                 }
 
                 chunk_size = 0;
@@ -855,7 +855,7 @@ bail:
 
         if (HasRequestTimedOut(client))
         {
-        	return RESULT_TIMEOUT;
+            return RESULT_TIMEOUT;
         }
 
         if (sock_res != dmSocket::RESULT_OK)
