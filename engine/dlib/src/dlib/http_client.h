@@ -24,6 +24,7 @@ namespace dmHttpClient
         RESULT_IO_ERROR = -8,                     //!< RESULT_IO_ERROR
         RESULT_HANDSHAKE_FAILED = -9,             //!< RESULT_HANDSHAKE_FAILED
         RESULT_INVAL = -10,                       //!< RESULT_INVAL
+        RESULT_TIMEOUT = -11,                     //!< RESULT_TIMEOUT
         RESULT_UNKNOWN = -1000,                   //!< RESULT_UNKNOWN
     };
 
@@ -85,10 +86,8 @@ namespace dmHttpClient
     {
         /// Maximum number of retries for GET-request. Default is 4.
         OPTION_MAX_GET_RETRIES,
-        /// Send timeout in us
-        OPTION_SEND_TIMEOUT,
-        /// Receive timeout in us
-        OPTION_RECEIVE_TIMEOUT,
+        /// Request timeout in us
+        OPTION_REQUEST_TIMEOUT,
     };
 
     /**

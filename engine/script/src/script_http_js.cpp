@@ -128,6 +128,28 @@ namespace dmScript
                 request_data_length = len;
             }
 
+            uint64_t timeout = g_Timeout;
+            if (top > 5) {
+                lua_pushvalue(L, 6);
+                lua_pushnil(L);
+                while (lua_next(L, -2)) {
+                    const char* attr = lua_tostring(L, -2);
+					if( strcmp(attr, "timeout") == 0 )
+					{
+	                    if( lua_isnumber(L, -1) )
+	                    {
+	                    	timeout = lua_tonumber(L, -1);
+	                    } else {
+							const char* val = lua_tostring(L, -1);
+							dmLogWarning("Non number value found: '%s'='%s'", (attr ? attr : "invalidkey"), (val ? val : "invalidvalue"));
+	                    }
+					}
+                    lua_pop(L, 1);
+                }
+                lua_pop(L, 1);
+            }
+
+
             dmMessage::URL* requester = new dmMessage::URL;
             *requester = sender;
 
