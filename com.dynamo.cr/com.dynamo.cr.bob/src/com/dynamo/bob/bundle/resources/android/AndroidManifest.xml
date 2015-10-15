@@ -35,6 +35,16 @@
                 android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name"
                     android:value="{{exe-name}}" />
+            {{#android.push_field_title}}
+            <meta-data
+                android:name="com.defold.push.field_title"
+                android:value="{{android.push_field_title}}" />
+            {{/android.push_field_title}}
+            {{#android.push_field_text}}
+            <meta-data
+                android:name="com.defold.push.field_text"
+                android:value="{{android.push_field_text}}" />
+            {{/android.push_field_text}}
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
